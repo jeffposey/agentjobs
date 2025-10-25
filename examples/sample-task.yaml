@@ -1,0 +1,94 @@
+id: task-001-example-feature
+title: Example Feature Implementation
+created: 2025-01-15T10:00:00Z
+updated: 2025-01-15T14:30:00Z
+
+status: in_progress
+priority: high
+category: feature_development
+assigned_to: codex
+estimated_effort: 3-5 days
+
+description: |
+  Implement a new feature that does XYZ.
+
+  This is a multi-line description with details about
+  the feature requirements and context.
+
+phases:
+  - id: phase-1
+    title: Design and Planning
+    status: completed
+    completed_at: 2025-01-15T12:00:00Z
+
+  - id: phase-2
+    title: Implementation
+    status: in_progress
+    notes: "Working on core logic"
+
+success_criteria:
+  - id: sc-1
+    description: "All unit tests passing"
+    status: completed
+
+  - id: sc-2
+    description: "Integration tests passing"
+    status: pending
+
+prompts:
+  starter: |
+    Implement feature XYZ with the following requirements:
+    - Requirement 1
+    - Requirement 2
+    - Requirement 3
+
+  followups:
+    - timestamp: 2025-01-15T13:00:00Z
+      author: claude
+      content: "Please add error handling for edge case ABC"
+      context: "Discovered during code review"
+
+status_updates:
+  - timestamp: 2025-01-15T10:00:00Z
+    author: claude
+    status: planned
+    summary: "Task created and planned"
+
+  - timestamp: 2025-01-15T11:00:00Z
+    author: codex
+    status: in_progress
+    summary: "Started implementation"
+    details: "Completed design phase, moving to coding"
+
+deliverables:
+  - path: src/features/new_feature.py
+    status: completed
+    description: "Core feature implementation"
+
+  - path: tests/test_new_feature.py
+    status: in_progress
+    description: "Unit tests"
+
+dependencies:
+  - task_id: task-000-prerequisite
+    type: depends_on
+    status: completed
+
+external_links:
+  - url: https://example.com/spec
+    title: "Feature Specification"
+
+issues:
+  - id: issue-1
+    title: "Edge case not handled"
+    status: resolved
+    resolution: "Added error handling in commit abc123"
+
+tags:
+  - feature
+  - high-priority
+  - api
+
+branches:
+  - name: feature/task-001-example-feature
+    status: active
