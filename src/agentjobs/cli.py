@@ -1,0 +1,262 @@
+"""Typer-powered CLI entry point for AgentJobs."""
+
+from __future__ import annotations
+
+import copy
+import json
+from pathlib import Path
+from typing import Optional
+
+import typer
+import yaml
+
+from .manager import TaskManager
+from .models import Priority, TaskStatus
+from .storage import TaskStorage
+
+app = typer.Typer(
+    name="agentjobs",
+    help="Lightweight task management for AI agent workflows.",
+)
+
+CONFIG_DIR = Path(".agentjobs")
+CONFIG_FILE = CONFIG_DIR / "config.yaml"
+DEFAULT_CONFIG = {
+    "project_name": "AgentJobs Project",
+    "tasks_directory": "tasks",
+    "prompts_directory": "prompts",
+    "gui": {"host": "localhost", "port": 8765, "theme": "dark"},
+    "agents": [
+        {"name": "claude", "display_name": "Claude (Lead Engineer)"},
+        {"name": "codex", "display_name": "Codex (Workhorse)"},
+    ],
+    "categories": [
+        "infrastructure",
+        "strategy_development",
+        "validation",
+        "documentation",
+    ],
+    "defaults": {"priority": "medium", "status": "planned"},
+}
+
+
+def _load_config(base_dir: Path) -> dict:
+    """Load AgentJobs configuration or return defaults."""
+    config_path = base_dir / CONFIG_FILE
+    if not config_path.exists():
+        return copy.deepcopy(DEFAULT_CONFIG)
+    content = config_path.read_text(encoding="utf-8")
+    return yaml.safe_load(content) or copy.deepcopy(DEFAULT_CONFIG)
+
+
+def _save_config(base_dir: Path, config: dict) -> None:
+    """Persist AgentJobs configuration to disk."""
+    config_path = base_dir / CONFIG_FILE
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_yaml = yaml.safe_dump(config, sort_keys=False, allow_unicode=False)
+    config_path.write_text(config_yaml, encoding="utf-8")
+
+
+def _ensure_gitignore(base_dir: Path) -> None:
+    """Guarantee AgentJobs runtime artifacts are ignored."""
+    gitignore_path = base_dir / ".gitignore"
+    if not gitignore_path.exists():
+        return
+    entry = ".agentjobs/agentjobs.db"
+    lines = gitignore_path.read_text(encoding="utf-8").splitlines()
+    if entry not in lines:
+        lines.append(entry)
+        gitignore_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _resolve_tasks_dir(base_dir: Path, config: dict) -> Path:
+    """Resolve tasks directory relative to the project root."""
+    tasks_dir = Path(config.get("tasks_directory", "tasks"))
+    if not tasks_dir.is_absolute():
+        tasks_dir = base_dir / tasks_dir
+    tasks_dir.mkdir(parents=True, exist_ok=True)
+    return tasks_dir
+
+
+def _build_manager(base_dir: Path) -> TaskManager:
+    """Instantiate a TaskManager for the current project."""
+    config = _load_config(base_dir)
+    tasks_dir = _resolve_tasks_dir(base_dir, config)
+    storage = TaskStorage(tasks_dir)
+    return TaskManager(storage)
+
+
+def _generate_task_id(tasks_dir: Path) -> str:
+    """Generate a new task identifier based on existing files."""
+    highest = 0
+    for path in tasks_dir.glob("task-*.yaml"):
+        try:
+            number = int(path.stem.split("-")[1])
+            highest = max(highest, number)
+        except (IndexError, ValueError):
+            continue
+    return f"task-{highest + 1:03d}"
+
+
+@app.command()
+def init(
+    project_name: Optional[str] = typer.Option(
+        None, help="Project display name."
+    ),
+    tasks_dir: Optional[str] = typer.Option(
+        None, help="Relative path for task YAML files."
+    ),
+    prompts_dir: Optional[str] = typer.Option(
+        None, help="Relative path for prompt files."
+    ),
+    port: Optional[int] = typer.Option(
+        None, help="Default port for the web UI."
+    ),
+) -> None:
+    """Initialize AgentJobs in current directory."""
+    base_dir = Path.cwd()
+    project_name = project_name or typer.prompt("Project name")
+    tasks_dir = tasks_dir or typer.prompt("Tasks dir", default="tasks")
+    prompts_dir = prompts_dir or typer.prompt("Prompts dir", default="prompts")
+    port = port or int(typer.prompt("Port", default="8765"))
+
+    config = copy.deepcopy(DEFAULT_CONFIG)
+    config["project_name"] = project_name
+    config["tasks_directory"] = tasks_dir
+    config["prompts_directory"] = prompts_dir
+    config["gui"]["port"] = port
+
+    _save_config(base_dir, config)
+    _ensure_gitignore(base_dir)
+    _resolve_tasks_dir(base_dir, config)
+    typer.echo("✅ AgentJobs initialized successfully!")
+
+
+@app.command()
+def serve(
+    host: str = typer.Option("localhost"),
+    port: int = typer.Option(8765),
+    reload: bool = typer.Option(
+        False,
+        "--reload",
+        "-r",
+        is_flag=True,
+        help="Reload server on changes (development only).",
+    ),
+) -> None:
+    """Start web server."""
+    typer.echo(f"🚀 Starting AgentJobs server at http://{host}:{port}")
+    import uvicorn
+
+    uvicorn.run(
+        "agentjobs.api.main:app",
+        host=host,
+        port=port,
+        reload=reload,
+    )
+
+
+@app.command()
+def create(
+    title: Optional[str] = typer.Option(
+        None, help="Task title to use when creating the record."
+    ),
+    id: Optional[str] = typer.Option(None, help="Optional explicit task identifier."),
+    description: Optional[str] = typer.Option(
+        None, help="Task description body."
+    ),
+    priority: Priority = typer.Option(
+        Priority.MEDIUM.value,
+        case_sensitive=False,
+        help="Task priority label.",
+    ),
+    category: str = typer.Option(
+        "general", help="Categorisation label for filtering."
+    ),
+) -> None:
+    """Create new task."""
+    base_dir = Path.cwd()
+    config = _load_config(base_dir)
+    tasks_dir = _resolve_tasks_dir(base_dir, config)
+    manager = TaskManager(TaskStorage(tasks_dir))
+
+    title = title or typer.prompt("Title")
+    description = description if description is not None else typer.prompt(
+        "Description", default=""
+    )
+
+    task_id = id or _generate_task_id(tasks_dir)
+    task = manager.create_task(
+        id=task_id,
+        title=title,
+        description=description,
+        priority=priority,
+        category=category,
+    )
+    typer.echo(f"✅ Created {task.id}.yaml")
+
+
+@app.command("list")
+def list_tasks(
+    status: Optional[TaskStatus] = typer.Option(None),
+    priority: Optional[Priority] = typer.Option(None),
+) -> None:
+    """List tasks."""
+    base_dir = Path.cwd()
+    manager = _build_manager(base_dir)
+    tasks = manager.storage.list_tasks()
+
+    if status is not None:
+        tasks = [task for task in tasks if task.status == status]
+    if priority is not None:
+        tasks = [task for task in tasks if task.priority == priority]
+
+    if not tasks:
+        typer.echo("No tasks found.")
+        return
+
+    for task in tasks:
+        status_value = (
+            task.status.value if hasattr(task.status, "value") else task.status
+        )
+        priority_value = (
+            task.priority.value
+            if hasattr(task.priority, "value")
+            else task.priority
+        )
+        typer.echo(
+            f"- {task.id} | {task.title} "
+            f"[status={status_value}, priority={priority_value}]"
+        )
+
+
+@app.command()
+def show(task_id: str) -> None:
+    """Show task details."""
+    base_dir = Path.cwd()
+    manager = _build_manager(base_dir)
+    task = manager.get_task(task_id)
+    if task is None:
+        typer.secho(f"Task '{task_id}' not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    typer.echo(json.dumps(task.model_dump(mode="json"), indent=2))
+
+
+@app.command()
+def migrate(
+    from_dir: Path = typer.Option(..., help="Source Markdown directory"),
+    to_dir: Path = typer.Option("tasks", help="Destination YAML directory"),
+    prompts_dir: Path = typer.Option("prompts", help="Prompts directory"),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        is_flag=True,
+        help="Preview without writing files",
+    ),
+) -> None:
+    """Migrate Markdown tasks to YAML."""
+    typer.echo("Migration tool coming in Phase 4!")
+
+
+if __name__ == "__main__":
+    app()
