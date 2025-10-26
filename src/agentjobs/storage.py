@@ -40,7 +40,7 @@ class TaskStorage:
         try:
             content = path.read_text(encoding="utf-8")
             data = yaml.safe_load(content) or {}
-        except yaml.YAMLError as exc:
+        except yaml.YAMLError as exc:  # pragma: no cover - defensive logging path
             logger.error("Failed to parse YAML for %s: %s", path, exc)
             return None
 
@@ -50,7 +50,7 @@ class TaskStorage:
 
         try:
             return Task.model_validate(data)
-        except ValidationError as exc:
+        except ValidationError as exc:  # pragma: no cover - defensive logging path
             logger.error("Validation error loading %s: %s", path, exc)
             return None
 
@@ -73,6 +73,18 @@ class TaskStorage:
             if task is not None:
                 tasks.append(task)
         return tasks
+
+    def generate_task_id(self) -> str:
+        """Generate the next task identifier in sequence."""
+        highest = 0
+        for path in self.tasks_dir.glob("task-*.yaml"):
+            stem = path.stem
+            try:
+                number = int(stem.split("-", maxsplit=1)[1])
+            except (IndexError, ValueError):
+                continue
+            highest = max(highest, number)
+        return f"task-{highest + 1:03d}"
 
     def delete_task(self, task_id: str) -> bool:
         """Delete task (archive)."""
