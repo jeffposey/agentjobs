@@ -3,7 +3,7 @@
 **Context**: Phase 1 is complete with core infrastructure, models, storage, and CLI.
 Now implement Phase 2: REST API endpoints and Python client library.
 
-**Reference**: See `ops/tasks/task-031-tasks-2.0-system.md` section "Phase 2: REST API"
+**Reference**: See `tasks/agentjobs/task-031-tasks-2-0-system.yaml` section "Phase 2: REST API"
 
 ---
 

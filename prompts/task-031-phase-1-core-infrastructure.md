@@ -1,6 +1,6 @@
 # Task 031 - Phase 1: Core Infrastructure Implementation
 
-**Context**: You are implementing Phase 1 of Tasks 2.0 (AgentJobs), a standalone task management system for AI agent workflows. See `ops/tasks/task-031-tasks-2.0-system.md` for full architectural details.
+**Context**: You are implementing Phase 1 of Tasks 2.0 (AgentJobs), a standalone task management system for AI agent workflows. See `tasks/agentjobs/task-031-tasks-2-0-system.yaml` for full architectural details.
 
 **Objective**: Create the foundational repository, data models, storage layer, and CLI framework for AgentJobs.
 

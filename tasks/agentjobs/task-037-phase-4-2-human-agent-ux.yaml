@@ -1,0 +1,79 @@
+id: task-037-phase-4-2-human-agent-ux
+title: 'Phase 4.2: Human-Agent Experience'
+created: '2025-10-26T20:28:04Z'
+updated: '2025-10-26T20:28:04Z'
+status: completed
+priority: high
+category: ux
+assigned_to: Codex
+estimated_effort: 1 day
+human_summary: Polish the experience with human summaries, waiting-for-human spotlight, nav badges, and tabbed human/agent views.
+description: |
+  Phase 4.2 focused on user experience refinements that make AgentJobs
+  comfortable for both humans and agents. The release introduced the
+  `WAITING_FOR_HUMAN` status, added concise human summaries, surfaced waiting
+  tasks prominently in the dashboard and navigation, and split task detail into
+  Human vs Agent tabs. Sample data fixtures now cover all workflow states.
+phases:
+  - id: phase-1
+    title: 'Deliver human-agent UX improvements'
+    status: completed
+    notes: Status additions, UI updates, nav badge, sample data all merged.
+    completed_at: '2025-10-26T20:28:04Z'
+success_criteria:
+  - id: sc-1
+    description: Waiting-for-human tasks highlighted in dashboard and navigation.
+    status: completed
+  - id: sc-2
+    description: Task detail separates human context from agent implementation notes.
+    status: completed
+  - id: sc-3
+    description: Sample data exercises new status and UI flows.
+    status: completed
+prompts:
+  starter: prompts/task-031-phase-4.2-human-agent-ux.md
+  followups:
+    - timestamp: '2025-10-26T20:28:04Z'
+      author: Claude
+      prompt_file: prompts/task-031-phase-5.2-agent-dx-improvements.md
+      context: UX polish complete; ready to improve agent developer experience next.
+status_updates:
+  - timestamp: '2025-10-26T20:28:04Z'
+    author: Codex
+    status: completed
+    summary: Human/agent UX shipped with waiting spotlight and tabbed detail view
+    details: Added WAITING_FOR_HUMAN status, nav badge, human summaries, sample data, and tabbed task detail UI.
+deliverables:
+  - path: src/agentjobs/models.py
+    status: completed
+    description: Added WAITING_FOR_HUMAN enum and human_summary field.
+  - path: src/agentjobs/api/templates/dashboard.html
+    status: completed
+    description: Spotlight card for waiting tasks plus updated stats grid.
+  - path: src/agentjobs/api/templates/task_detail.html
+    status: completed
+    description: Human/Agent tab UX with summaries and full markdown.
+  - path: src/agentjobs/api/templates/base.html
+    status: completed
+    description: Navigation badge showing waiting-for-human count.
+  - path: src/agentjobs/cli.py
+    status: completed
+    description: load-test-data command for generating realistic sample tasks.
+dependencies:
+  - task_id: task-036-phase-4-migration-tool
+    type: depends_on
+    status: completed
+    note: UX polish builds on migrated tasks to present them clearly.
+external_links:
+  - url: https://github.com/jeffposey/agentjobs/commit/d4378cd
+    title: 'Commit d4378cd - add waiting-for-human workflow and views'
+issues: []
+tags:
+  - agentjobs
+  - phase-4-2
+  - ux
+  - tasks-2-0
+branches:
+  - name: main
+    status: merged
+    merged_at: '2025-10-26T20:28:04Z'

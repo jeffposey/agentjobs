@@ -1,0 +1,67 @@
+id: task-033-phase-1-core-infrastructure
+title: 'Phase 1: Core Infrastructure'
+created: '2025-10-26T01:24:37Z'
+updated: '2025-10-26T01:24:37Z'
+status: completed
+priority: high
+category: infrastructure
+assigned_to: Codex
+estimated_effort: 1 day
+human_summary: Bootstrap AgentJobs with core models, YAML storage, CLI plumbing, and baseline tests.
+description: |
+  Phase 1 established the foundations for AgentJobs as a standalone task
+  management stack. The work produced the initial package layout, Typer CLI,
+  Pydantic task models, YAML-backed persistence layer, and TaskManager with
+  comprehensive unit tests. Documentation and packaging metadata were added to
+  support local development and distribution.
+phases:
+  - id: phase-1
+    title: 'Deliver core infrastructure'
+    status: completed
+    notes: Core package skeleton, models, storage, CLI, and tests implemented.
+    completed_at: '2025-10-26T01:24:37Z'
+success_criteria:
+  - id: sc-1
+    description: CLI can create and list tasks stored as YAML files.
+    status: completed
+  - id: sc-2
+    description: TaskManager passes unit tests for CRUD operations.
+    status: completed
+  - id: sc-3
+    description: Documentation introduces package usage and schema.
+    status: completed
+prompts:
+  starter: prompts/task-031-phase-1-core-infrastructure.md
+  followups: []
+status_updates:
+  - timestamp: '2025-10-26T01:24:37Z'
+    author: Codex
+    status: completed
+    summary: Core infrastructure merged on main
+    details: Initial AgentJobs package, models, storage, and CLI shipped with tests and docs.
+deliverables:
+  - path: src/agentjobs/models.py
+    status: completed
+    description: Core task schema implemented with Pydantic.
+  - path: src/agentjobs/storage.py
+    status: completed
+    description: YAML-backed persistence layer with CRUD helpers.
+  - path: src/agentjobs/cli.py
+    status: completed
+    description: Typer CLI supporting init, create, list commands.
+  - path: tests/test_manager.py
+    status: completed
+    description: Unit coverage for TaskManager behaviours.
+dependencies: []
+external_links:
+  - url: https://github.com/jeffposey/agentjobs/commit/af42e6c
+    title: 'Commit af42e6c - bootstrap agentjobs core infrastructure'
+issues: []
+tags:
+  - agentjobs
+  - phase-1
+  - tasks-2-0
+branches:
+  - name: main
+    status: merged
+    merged_at: '2025-10-26T01:24:37Z'
