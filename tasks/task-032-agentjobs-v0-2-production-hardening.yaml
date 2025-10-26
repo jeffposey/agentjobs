@@ -1,0 +1,79 @@
+id: task-032-agentjobs-v0-2-production-hardening
+title: AgentJobs v0.2.0 - Production Hardening
+created: '2025-10-26T18:30:00Z'
+updated: '2025-10-26T18:30:00Z'
+status: planned
+priority: medium
+category: infrastructure
+assigned_to: TBD
+estimated_effort: 2-3 weeks
+human_summary: Prepare AgentJobs for production deployments by adding auth, deployment automation, monitoring, and GitHub syncing.
+description: |
+  ## Objective
+
+  Harden AgentJobs for production deployments beyond PrivateProject by implementing
+  authentication, deployment automation, observability, and GitHub integration.
+
+  ## Scope
+
+  1. **Authentication & Authorization**
+     - API key authentication for REST endpoints
+     - Role-based access (admin, agent, viewer)
+     - Session management for the web GUI
+
+  2. **Deployment Automation**
+     - Docker container image
+     - `docker-compose` for the full stack
+     - Optional Kubernetes manifests for later scaling
+
+  3. **Monitoring & Observability**
+     - Prometheus metrics
+     - Health check endpoints
+     - Structured logging pipeline
+
+  4. **GitHub Integration**
+     - Sync tasks with GitHub Issues
+     - Bi-directional updates
+     - Webhook support for external triggers
+
+  5. **Performance & Scaling**
+     - Database connection pooling
+     - Caching layer (Redis)
+     - Load and stress testing harness
+
+  ## Non-Goals
+
+  - Multi-tenant support (future)
+  - GUI task editing (Phase 6)
+  - Mobile app experiences
+phases:
+- id: phase-1
+  title: Authentication System
+  status: planned
+- id: phase-2
+  title: Docker & Deployment
+  status: planned
+- id: phase-3
+  title: Monitoring & Logging
+  status: planned
+- id: phase-4
+  title: GitHub Integration
+  status: planned
+- id: phase-5
+  title: Performance Optimization
+  status: planned
+success_criteria: []
+prompts:
+  starter: |
+    Design and implement production-ready features for AgentJobs v0.2.0.
+    See task description and phases for full scope and sequencing.
+  followups: []
+status_updates: []
+deliverables: []
+dependencies: []
+external_links: []
+issues: []
+tags:
+- agentjobs
+- production
+branches: []

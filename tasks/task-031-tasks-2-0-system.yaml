@@ -1,0 +1,122 @@
+id: task-031-tasks-2-0-system
+title: Tasks 2.0 - Agent Task Management System
+created: '2025-10-25T19:00:00Z'
+updated: '2025-10-26T18:00:00Z'
+status: in_progress
+priority: high
+category: infrastructure
+assigned_to: Claude + Codex
+estimated_effort: 2-3 weeks
+human_summary: Bootstrap AgentJobs by migrating Task 031 into the agentjobs repo and letting the platform manage its own roadmap.
+description: |
+  ## Objective
+
+  Make AgentJobs self-hosted for its own development work by migrating Task 031
+  out of PrivateProject and establishing the prompts and task records inside the
+  agentjobs repository.
+
+  ## Scope
+
+  - Copy phase prompts into a dedicated `prompts/` directory
+  - Convert Task 031 Markdown into a structured AgentJobs YAML task
+  - Update phase tracking to reflect historical progress through Phase 5.2
+  - Prepare AgentJobs for ongoing self-managed development with new tasks
+  - Update cross-repo documentation to point at the new source of truth
+phases:
+- id: phase-1
+  title: Core Infrastructure
+  status: completed
+  completed_at: '2025-10-25T20:00:00Z'
+  notes: YAML storage, models, manager complete
+- id: phase-2
+  title: REST API
+  status: completed
+  completed_at: '2025-10-25T21:00:00Z'
+  notes: FastAPI with full CRUD operations
+- id: phase-3
+  title: Web GUI
+  status: completed
+  completed_at: '2025-10-25T22:00:00Z'
+  notes: Dark theme browser interface
+- id: phase-4
+  title: Migration Tool
+  status: completed
+  completed_at: '2025-10-25T23:00:00Z'
+  notes: Markdown to YAML conversion
+- id: phase-4.1
+  title: Improve Task Rendering
+  status: completed
+  completed_at: '2025-10-26T10:00:00Z'
+  notes: Marked.js markdown rendering
+- id: phase-4.2
+  title: Human-Agent UX
+  status: completed
+  completed_at: '2025-10-26T17:00:00Z'
+  notes: Waiting status, tabbed views, test data
+- id: phase-5.1
+  title: Package and Integrate
+  status: planned
+  notes: Install in PrivateProject, migrate tasks
+- id: phase-5.2
+  title: Agent DX Improvements
+  status: in_progress
+  notes: Examples, docs, CLI command
+- id: phase-5.3
+  title: Bootstrap Self-Management
+  status: in_progress
+  notes: Use AgentJobs to manage itself
+success_criteria: []
+prompts:
+  starter: prompts/task-031-phase-1-core-infrastructure.md
+  followups:
+  - timestamp: '2025-10-25T20:00:00Z'
+    author: Claude
+    prompt_file: prompts/task-031-phase-2-rest-api.md
+    context: Phase 1 complete
+  - timestamp: '2025-10-25T21:00:00Z'
+    author: Claude
+    prompt_file: prompts/task-031-phase-3-web-gui.md
+    context: Phase 2 complete
+  - timestamp: '2025-10-25T22:00:00Z'
+    author: Claude
+    prompt_file: prompts/task-031-phase-4-migration-tool.md
+    context: Phase 3 complete
+  - timestamp: '2025-10-25T23:00:00Z'
+    author: Claude
+    prompt_file: prompts/task-031-phase-4.1-improve-task-rendering.md
+    context: Phase 4 complete
+  - timestamp: '2025-10-26T10:00:00Z'
+    author: Claude
+    prompt_file: prompts/task-031-phase-4.2-human-agent-ux.md
+    context: Phase 4.1 complete
+  - timestamp: '2025-10-26T17:30:00Z'
+    author: Claude
+    prompt_file: prompts/task-031-phase-5.1-package-and-integrate.md
+    context: Ready to integrate AgentJobs into PrivateProject
+  - timestamp: '2025-10-26T18:00:00Z'
+    author: Claude
+    prompt_file: prompts/task-031-phase-5.2-agent-dx-improvements.md
+    context: Phase 5.2 kicked off for developer experience
+  - timestamp: '2025-10-26T18:30:00Z'
+    author: Claude
+    prompt_file: prompts/task-031-phase-5.3-bootstrap-self-management.md
+    context: Beginning bootstrap of self-management
+status_updates:
+- timestamp: '2025-10-26T17:00:00Z'
+  author: Claude
+  status: in_progress
+  summary: Phase 4.2 complete - Human/Agent workflow finished
+  details: Added waiting-for-human status, tabbed views, test data
+- timestamp: '2025-10-26T18:00:00Z'
+  author: Claude
+  status: in_progress
+  summary: Phase 5.2 started - Agent DX improvements
+  details: Adding examples and documentation
+deliverables: []
+dependencies: []
+external_links: []
+issues: []
+tags:
+- agentjobs
+- self-management
+branches: []

@@ -1,0 +1,498 @@
+id: task-016
+title: 'Task: Daily Strategy-Symbol Matcher (MVP)'
+created: '2025-10-26T16:31:08.823830Z'
+updated: '2025-10-26T16:31:08.840561Z'
+status: planned
+priority: high
+category: general
+assigned_to: Codex (completed)
+estimated_effort: 2-3 weeks (phased)
+description: 'Build a **morning trading companion** that answers: *"What should I
+  trade today with which strategy?"*
+
+
+  **Core deliverable:** Daily pre-market report scoring 50 stocks against 3 proven
+  strategies, ranked by recent performance confidence.'
+phases:
+- id: phase-1
+  title: Core Scoring Engine (Week 1-2) - PRIMARY SCOPE
+  status: planned
+  notes: "**Goal:** Prove the concept with minimal surface area.\n\n#### 1.1 Watchlist\
+    \ Definition\n**File:** `data/watchlists/sp500_liquid_50.csv`\n\n**Selection criteria:**\n\
+    - Top 50 S&P 500 stocks by average daily volume\n- Exclude: REITs, preferreds,\
+    \ leveraged ETFs\n- Must have clean Polygon data back 90 days\n\n**Rationale for\
+    \ 50:**\n- Small enough to run daily on laptop (~5 min)\n- Large enough to always\
+    \ have 3-5 good setups\n- Liquid enough for real trading (tight spreads)\n\n**Example\
+    \ list:**\n```\nAAPL, MSFT, NVDA, TSLA, AMZN, GOOGL, META, BRK.B, JPM, V,\nUNH,\
+    \ XOM, JNJ, WMT, MA, PG, HD, CVX, ABBV, MRK,\nCOST, PEP, KO, AVGO, TMO, CSCO,\
+    \ ACN, LIN, MCD, NKE,\nADBE, CRM, NFLX, AMD, INTC, QCOM, TXN, ORCL, CMCSA, AMGN,\n\
+    HON, UNP, UPS, RTX, SBUX, LOW, T, BMY, CAT, BA\n```\n\n#### 1.2 Strategy Library\
+    \ (Start Small)\n**Files:** `src/privateproject/strategies/library/`\n\n**Phase 1\
+    \ strategies (already implemented):**\n1. `macd_adx_builtin.py` - Trend following\
+    \ with ADX filter\n2. `basic_supertrend.py` - ATR-based trend following\n3. TBD:\
+    \ One mean-reversion strategy (e.g., RSI oversold bounce)\n\n**Why only 3:**\n\
+    - All 3 have different market biases (trend vs chop)\n- Already coded and partially\
+    \ validated\n- Sufficient to prove scoring concept\n- Can add more after validation\
+    \ loop works\n\n**Strategy requirements:**\n- Must return standardized `StrategyResult`\
+    \ object\n- Must support configurable parameters\n- Must handle missing data gracefully\n\
+    - Must complete backtest in <2 seconds per symbol\n\n#### 1.3 Confidence Scoring\
+    \ Algorithm\n**File:** `src/privateproject/scoring/confidence.py`\n\n**Core function:**\n\
+    ```python\n@dataclass\nclass StrategyScore:\n    symbol: str\n    strategy_name:\
+    \ str\n    confidence: float  # 0.0 to 1.0\n    win_rate: float\n    profit_factor:\
+    \ float\n    total_trades: int\n    lookback_days: int\n    last_updated: pd.Timestamp\n\
+    \    reasons: List[str]  # Human-readable explanation\n\ndef score_strategy_on_symbol(\n\
+    \    symbol: str,\n    strategy: StrategyEngine,\n    lookback_days: int = 30,\n\
+    \    min_trades: int = 5,\n) -> StrategyScore:\n    \"\"\"\n    Run recent backtest\
+    \ and compute confidence score.\n\n    Confidence formula (v1 - simple but interpretable):\n\
+    \    - Base: (win_rate - 0.5) * 2  (maps 50% \u2192 0.0, 100% \u2192 1.0)\n  \
+    \  - Boost: min(profit_factor / 2.0, 0.5)  (PF 2.0 \u2192 +0.5 bonus)\n    - Penalty:\
+    \ -0.3 if total_trades < min_trades (insufficient data)\n    - Clamp: [0.0, 1.0]\n\
+    \n    Returns StrategyScore with explanation.\n    \"\"\"\n```\n\n**Design choices:**\n\
+    - **Simple formula first** - No ML magic, just basic math we can debug\n- **Recency\
+    \ weighted** - Only last 30 days matter (market regime changes)\n- **Trade volume\
+    \ threshold** - Skip if <5 trades (not enough signal)\n- **Explainable** - Store\
+    \ reasons list for debugging (\"Low trade count\", \"High PF\", etc.)\n\n**Data\
+    \ source: yfinance OR Polygon?**\n- **Use yfinance for Phase 1** (last 60 days\
+    \ free, sufficient for 30-day backtests)\n- **Switch to Polygon in Phase 2** when\
+    \ we need:\n  - More history (>60 days)\n  - Intraday data quality\n  - Pre-market\
+    \ gap data\n\n**Rationale:** Validate the scoring logic before burning Polygon\
+    \ API credits.\n\n#### 1.4 Daily Scanner\n**File:** `src/privateproject/scanner/daily_scanner.py`\n\
+    \n**Core workflow:**\n```python\ndef run_daily_scan(\n    watchlist: List[str],\n\
+    \    strategies: List[StrategyEngine],\n    lookback_days: int = 30,\n    top_n:\
+    \ int = 10,\n) -> pd.DataFrame:\n    \"\"\"\n    Score all symbol-strategy pairs\
+    \ and return top N.\n\n    Steps:\n    1. Load watchlist symbols\n    2. For each\
+    \ symbol \xD7 strategy:\n       a. Fetch last 30 days of bars (cached)\n     \
+    \  b. Run backtest\n       c. Calculate confidence score\n    3. Sort by confidence\
+    \ DESC\n    4. Return top N as DataFrame\n\n    Returns:\n        DataFrame with\
+    \ columns: symbol, strategy, confidence,\n                                win_rate,\
+    \ profit_factor, total_trades\n    \"\"\"\n```\n\n**Optimization:**\n- **Cache\
+    \ bar data** - Download once, reuse for all strategies\n- **Parallel execution**\
+    \ - Run 3 strategies on 1 symbol in parallel (3\xD7 speedup)\n- **Early termination**\
+    \ - Skip if no trades in last 30 days\n- **Incremental updates** - Only re-score\
+    \ symbols with new bars since last run\n\n**Expected runtime:**\n- 50 symbols\
+    \ \xD7 3 strategies = 150 backtests\n- ~2 sec per backtest = 300 sec = 5 minutes\
+    \ (acceptable for nightly cron)\n\n#### 1.5 Report Generation\n**File:** `src/privateproject/scanner/report.py`\n\
+    \n**Output format:**\n```\n\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 PRIVATEPROJECT DAILY SCAN - 2025-10-04\
+    \ 08:30 AM ET                \u2502\n\u251C\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 TOP 10 STRATEGY-SYMBOL\
+    \ SETUPS (Last 30 Days Performance)      \u2502\n\u251C\u2500\u2500\u2500\u2500\
+    \u252C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252C\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u252C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u252C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252C\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 #  \u2502 Symbol\
+    \ \u2502 Strategy        \u2502 Confidence\u2502 W/L     \u2502 PF       \u2502\
+    \n\u251C\u2500\u2500\u2500\u2500\u253C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u253C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u253C\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u253C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u253C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2524\n\u2502 1  \u2502 AAPL   \u2502 RSI_MeanRev     \u2502   78%     \u2502\
+    \ 9W-2L   \u2502  1.8     \u2502\n\u2502    \u2502        \u2502 Setup: Oversold\
+    \ bounce from RSI 32                \u2502\n\u2502    \u2502        \u2502 Last\
+    \ trade: +$215 (2025-10-02)                    \u2502\n\u251C\u2500\u2500\u2500\
+    \u2500\u253C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253C\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u253C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u253C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253C\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 2  \u2502\
+    \ NVDA   \u2502 MACD_ADX        \u2502   65%     \u2502 7W-4L   \u2502  1.4  \
+    \   \u2502\n\u2502    \u2502        \u2502 Setup: Uptrend confirmed, ADX 24  \
+    \                \u2502\n\u2502    \u2502        \u2502 Last trade: +$89 (2025-10-01)\
+    \                     \u2502\n\u251C\u2500\u2500\u2500\u2500\u253C\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u253C\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253C\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253C\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253C\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 3  \u2502 TSLA   \u2502 SuperTrend\
+    \      \u2502   61%     \u2502 6W-3L   \u2502  1.3     \u2502\n\u2502    \u2502\
+    \        \u2502 Setup: Bullish ST flip, strong momentum           \u2502\n\u2502\
+    \    \u2502        \u2502 Last trade: -$42 (2025-10-03) [stop hit]          \u2502\
+    \n\u251C\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2524\n\u2502 Scan Time: 4.2 minutes | 150 backtests | 3 strategies         \
+    \ \u2502\n\u2502 Data: yfinance 30m bars (2025-09-04 to 2025-10-03)          \
+    \  \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2518\n\nSYMBOLS SKIPPED (Insufficient recent trades):\n- INTC (MACD_ADX:\
+    \ 2 trades only)\n- T (SuperTrend: 1 trade only)\n- BMY (All strategies: choppy,\
+    \ no setups)\n\nNext scan: Tomorrow 08:00 AM ET\n```\n\n**Output channels:**\n\
+    1. **CLI table** (Rich formatting)\n2. **CSV export** (`reports/daily_scans/2025-10-04.csv`)\n\
+    3. **JSON export** (for future web dashboard)\n4. **Email** (Phase 2 - optional)\n\
+    \n#### 1.6 CLI Integration\n**Command:**\n```bash\nprivateproject scan --watchlist\
+    \ sp500_liquid_50 --lookback-days 30 --top 10\n```\n\n**Options:**\n- `--watchlist`\
+    \ - Path to CSV or predefined name\n- `--strategies` - Comma-separated list (default:\
+    \ all)\n- `--lookback-days` - Backtest window (default: 30)\n- `--top` - Number\
+    \ of results to show (default: 10)\n- `--output` - Export path (default: reports/daily_scans/)\n\
+    - `--force-refresh` - Bypass cache"
+- id: phase-2
+  title: Validation & Feedback Loop (Week 3-4) - OUT OF SCOPE FOR MVP
+  status: planned
+  notes: '**Goal:** Track prediction accuracy and improve scoring.
+
+
+    #### 2.1 Trade Tracking
+
+    - Save daily top-10 predictions
+
+    - Compare next-day outcomes (did high-confidence setups actually work?)
+
+    - Calculate prediction accuracy over 30 days
+
+
+    #### 2.2 Scoring Refinement
+
+    - Add volatility regime detection (trending vs choppy)
+
+    - Add sector rotation signals (tech outperforming financials?)
+
+    - Add time-of-day patterns (does this setup work better at open?)
+
+
+    #### 2.3 News Integration (Deferred)
+
+    **Why deferred:**
+
+    - Benzinga API costs $300+/mo
+
+    - Twitter/X via Grok API unclear pricing/access
+
+    - Signal-to-noise ratio requires heavy filtering
+
+    - Can manually check news for top-3 setups (good enough for now)
+
+
+    **Future approach:**
+
+    - Use free Reddit WallStreetBets mentions as proxy for retail hype
+
+    - Parse earnings calendar (free via yfinance)
+
+    - Track unusual volume spikes (already in data)'
+- id: phase-3
+  title: Expansion (Future - Not in Task 016)
+  status: planned
+  notes: '- Expand watchlist to 200 stocks
+
+    - Add 7 more strategies (total 10)
+
+    - Build web dashboard
+
+    - Real-time intraday re-scanning
+
+    - Custom user watchlists
+
+
+    ## Acceptance Criteria'
+- id: phase-1
+  title: "(Primary) \u2705 COMPLETE"
+  status: completed
+  notes: '- [x] Watchlist CSV created with 50 liquid S&P 500 stocks
+
+    - [x] 3 strategies implemented and returning standardized results
+
+    - [x] Confidence scoring function defined and unit tested
+
+    - [x] Daily scanner runs 150 backtests in <10 minutes (actual: 6min cold, 15sec
+    warm)
+
+    - [x] CLI command `privateproject scan` produces formatted report
+
+    - [x] Report saved to `reports/daily_scans/YYYY-MM-DD.csv`
+
+    - [x] Documentation: How to interpret confidence scores'
+- id: phase-2.1
+  title: "(Performance) \u2705 COMPLETE"
+  status: completed
+  notes: "- [x] Symbol-level bar caching (fetch once, reuse 3\xD7)\n- [x] Disk-based\
+    \ parquet cache with date-aware keys\n- [x] Rich progress bar integration\n- [x]\
+    \ Polygon-first data fetching with yfinance fallback"
+- id: phase-2.2
+  title: "(Validation & Docs) \u2705 COMPLETE"
+  status: completed
+  notes: '- [x] Confidence calibration fixed (90%/<10, 95%/<15 caps)
+
+    - [x] User documentation created (docs/scanner_usage.md)
+
+    - [x] README updated with daily workflow
+
+    - [x] Roadmap document created (docs/SCANNER_ROADMAP.md)'
+- id: phase-2
+  title: (Optional - Stretch Goal)
+  status: planned
+  notes: "- [ ] Prediction tracking database (SQLite)\n- [ ] Accuracy report showing\
+    \ hit rate of high-confidence predictions\n- [ ] Scoring model v2 incorporating\
+    \ accuracy feedback\n\n## Verification Steps\n\n### Functional Tests\n```bash\n\
+    # 1. Run daily scan\nprivateproject scan --watchlist sp500_liquid_50 --lookback-days\
+    \ 30\n\n# 2. Verify output exists\nls reports/daily_scans/$(date +%Y-%m-%d).csv\n\
+    \n# 3. Check top result makes sense\n# Manually inspect: Does AAPL really have\
+    \ 9W-2L in last 30 days?\nprivateproject backtest AAPL --strategy rsi_mean_rev --lookback-days\
+    \ 30\n\n# 4. Performance test\ntime privateproject scan --watchlist sp500_liquid_50\n\
+    # Should complete in <10 minutes\n```\n\n### Edge Cases\n- [ ] Symbol with no\
+    \ trades in 30 days (should skip gracefully)\n- [ ] Strategy that fails on a symbol\
+    \ (should catch exception, continue)\n- [ ] Missing data for symbol (should warn,\
+    \ skip)\n- [ ] Empty watchlist (should error with clear message)\n\n### Integration\
+    \ Tests\n```python\ndef test_full_scan_pipeline():\n    \"\"\"End-to-end test:\
+    \ watchlist \u2192 backtests \u2192 scoring \u2192 report.\"\"\"\n    watchlist\
+    \ = [\"AAPL\", \"NVDA\", \"TSLA\"]\n    strategies = [MACD_ADX(), BasicSuperTrend()]\n\
+    \n    results = run_daily_scan(watchlist, strategies, lookback_days=30)\n\n  \
+    \  assert len(results) <= len(watchlist) * len(strategies)\n    assert \"confidence\"\
+    \ in results.columns\n    assert results[\"confidence\"].between(0.0, 1.0).all()\n\
+    \    assert results.sort_values(\"confidence\", ascending=False).equals(results)\n\
+    ```\n\n## Strategy Library: Pine vs Python\n\n### Current Situation\n**Pine/EasyLanguage\
+    \ advantages:**\n- Huge community (TradingView millions of users)\n- Pre-validated\
+    \ strategies (sorted by popularity)\n- Visual backtesting (charts make bugs obvious)\n\
+    \n**Python advantages:**\n- No porting bugs (write once)\n- Faster execution (no\
+    \ chart rendering overhead)\n- Full programmatic control\n\n### Recommended Approach\
+    \ (Hybrid)\n\n**For Phase 1: Use existing Python strategies**\n- \u2705 `macd_adx_builtin.py`\
+    \ (already coded)\n- \u2705 `basic_supertrend.py` (already coded)\n- \u2705 Build\
+    \ one mean-reversion in Python (RSI bounce)\n\n**Why:** Avoid porting bugs during\
+    \ MVP, prove the scanner works first.\n\n**For Phase 2: Port high-value Pine scripts**\n\
+    - Find top 5 Pine strategies (by followers/likes on TradingView)\n- Port carefully\
+    \ with test-driven approach:\n  1. Export Pine backtest results as CSV\n  2. Port\
+    \ logic to Python\n  3. Compare Python vs Pine trade-by-trade\n  4. Only add to\
+    \ library if <5% trade variance\n\n**Mitigation for porting bugs:**\n- Create\
+    \ `tests/test_strategy_parity.py`\n- For each strategy, store \"reference trades\"\
+    \ from Pine\n- CI fails if Python replica diverges\n- Accept minor differences\
+    \ (we learned intraday stops differ)\n- Focus on signal generation parity, not\
+    \ fill prices\n\n**Python trading strategy community:**\n- QuantConnect forums\
+    \ (Python-first)\n- /r/algotrading subreddit\n- GitHub: search \"python trading\
+    \ strategy\" (1000+ repos)\n- Less mature than Pine, but growing\n\n**Decision:**\
+    \ Start Python-native, port Pine strategically when validated.\n\n## Testing Strategy\n\
+    \n### Unit Tests\n```python\n# Test confidence scoring edge cases\ndef test_confidence_insufficient_trades():\n\
+    \    score = calculate_confidence(win_rate=1.0, profit_factor=5.0, total_trades=2)\n\
+    \    assert score.confidence < 0.5  # Penalized for low sample\n\ndef test_confidence_high_winrate_low_pf():\n\
+    \    score = calculate_confidence(win_rate=0.8, profit_factor=1.1, total_trades=20)\n\
+    \    # Should be moderate (good WR but barely profitable)\n    assert 0.4 < score.confidence\
+    \ < 0.7\n```\n\n### Integration Tests\n- End-to-end scan on 5-symbol test watchlist\n\
+    - Verify cached data reuse (2nd run should be faster)\n- Parallel execution correctness\
+    \ (same results as sequential)\n\n### Manual Validation\n- Pick top-3 results\
+    \ from scan\n- Manually verify in TradeStation/TradingView\n- Document any divergences\
+    \ (expected due to fill differences)\n\n## Dependencies & Risks\n\n### External\
+    \ Dependencies\n- **yfinance** (Phase 1) - Free, rate-limited, sometimes flaky\n\
+    - **Polygon** (Phase 2) - $50-200/mo depending on usage\n- **Existing strategy\
+    \ implementations** - Must be stable\n\n### Technical Risks\n\n**Risk 1: yfinance\
+    \ data gaps**\n- **Probability:** Medium (happens 5-10% of the time)\n- **Impact:**\
+    \ Scanner skips symbol for that day\n- **Mitigation:** Implement retry logic,\
+    \ fallback to cached data, warn user\n\n**Risk 2: Backtest runtime too slow**\n\
+    - **Probability:** Low (150 \xD7 2sec = 5min is acceptable)\n- **Impact:** Can't\
+    \ run daily scans\n- **Mitigation:** Profile and optimize hot paths, reduce watchlist\
+    \ size\n\n**Risk 3: Overfitting to recent regime**\n- **Probability:** High (by\
+    \ design, we use last 30 days only)\n- **Impact:** High-confidence setups fail\
+    \ when regime shifts\n- **Mitigation:**\n  - Document clearly \"Past 30d performance\
+    \ \u2260 guarantee\"\n  - Phase 2 adds regime detection\n  - User discretion always\
+    \ required\n\n**Risk 4: Strategy bugs in library**\n- **Probability:** Medium\
+    \ (porting introduces errors)\n- **Impact:** False confidence scores, bad recommendations\n\
+    - **Mitigation:**\n  - Start with 3 well-tested strategies\n  - Parity tests for\
+    \ all new strategies\n  - User feedback loop to catch issues\n\n### Data Costs\n\
+    **Phase 1 (yfinance):**\n- Cost: $0\n- Limits: 60-day history, rate limits, occasional\
+    \ gaps\n\n**Phase 2 (Polygon):**\n- Cost: ~$50/mo (Starter plan)\n- 50 symbols\
+    \ \xD7 30 days \xD7 13 bars/day (30m) = ~20k bars/month\n- Well within Starter\
+    \ limits (5 API calls/min)\n\n## Implementation Notes\n\n### Code Organization\n\
+    ```\nsrc/privateproject/\n  scanner/\n    __init__.py\n    daily_scanner.py      #\
+    \ Core scan logic\n    report.py             # Report generation\n  scoring/\n\
+    \    __init__.py\n    confidence.py         # Scoring algorithms\n    regime_detection.py\
+    \   # (Phase 2) Market regime classifiers\n  strategies/\n    library/\n     \
+    \ __init__.py\n      rsi_mean_reversion.py  # New for Phase 1\n  cli.py      \
+    \            # Add `scan` command\n\ndata/\n  watchlists/\n    sp500_liquid_50.csv\
+    \   # Curated watchlist\n\nreports/\n  daily_scans/\n    2025-10-04.csv      \
+    \  # Auto-generated each morning\n\ntests/\n  test_daily_scanner.py\n  test_confidence_scoring.py\n\
+    \  test_strategy_parity.py\n```\n\n### Caching Strategy\n- **Bar data:** Cache\
+    \ in memory for duration of scan (50 symbols \xD7 ~400 bars = ~5MB)\n- **Backtest\
+    \ results:** Save to disk if we want historical comparisons\n- **Invalidation:**\
+    \ Force refresh if data older than 1 day\n\n### Parallel Execution\n```python\n\
+    from concurrent.futures import ThreadPoolExecutor\n\ndef scan_symbol(symbol, strategies):\n\
+    \    bars = fetch_bars(symbol)  # Cached\n    scores = []\n    for strategy in\
+    \ strategies:\n        result = backtest(strategy, bars)\n        score = calculate_confidence(result)\n\
+    \        scores.append(score)\n    return scores\n\nwith ThreadPoolExecutor(max_workers=4)\
+    \ as executor:\n    futures = [executor.submit(scan_symbol, sym, strategies)\n\
+    \               for sym in watchlist]\n    results = [f.result() for f in futures]\n\
+    ```\n\n## Success Metrics\n\n### Quantitative\n- **Scan completes in <10 minutes**\
+    \ (150 backtests)\n- **Top-10 results always populated** (at least 10 viable setups\
+    \ found)\n- **Accuracy tracking (Phase 2):** >55% of high-confidence setups (>70%)\
+    \ are profitable next day\n\n### Qualitative\n- **User adopts daily routine:**\
+    \ Checks report before market open\n- **Saves time:** From 30 min manual screening\
+    \ \u2192 2 min review\n- **Builds confidence:** \"I trust the scores because I\
+    \ can validate them\"\n\n## Follow-up Tasks (Future)\n\n- **Task 016.1:** Expand\
+    \ watchlist to 200 symbols\n- **Task 016.2:** Add 7 more strategies to library\n\
+    - **Task 016.3:** Build web dashboard for scan results\n- **Task 016.4:** Integrate\
+    \ news sentiment (Benzinga/Reddit)\n- **Task 016.5:** Add intraday re-scanning\
+    \ (update scores at 10am, 12pm, 2pm)\n\n## References\n\n### Related Tasks\n-\
+    \ Task 014: Python Tooling Refactor (provides `dataframe_helpers`)\n- Task 010:\
+    \ Execution Alignment Forensics (taught us intraday limits)\n\n### External Research\n\
+    - QuantConnect community strategies\n- TradingView Pine library (top strategies\
+    \ by popularity)\n- /r/algotrading strategy discussions\n\n---\n\n## Completion\
+    \ Summary\n\n**Delivered:** 2025-10-03\n**Branch:** feature/task-016-strategy-symbol-matcher\n\
+    **Status:** \u2705 MVP Complete - Production Ready\n\n### What Was Built\n\n**Phase\
+    \ 1: Core Scanner (Complete)**\n- 50-symbol S&P 500 liquid watchlist\n- 3 strategies:\
+    \ MACD+ADX, BasicSupertrend, RSI Mean Reversion\n- Confidence scoring with statistical\
+    \ caps\n- CLI command: `privateproject scan`\n- CSV/JSON report exports\n\n**Phase\
+    \ 2.1: Performance Optimization (Complete)**\n- Symbol-level bar caching (25\xD7\
+    \ speedup)\n- Disk-based parquet persistence\n- Polygon-first with yfinance fallback\n\
+    - Rich progress bars\n- Runtime: 6min cold, 15sec warm\n\n**Phase 2.2: Validation\
+    \ & Documentation (Complete)**\n- Fixed confidence caps (90%/<10, 95%/<15 trades)\n\
+    - User guide: docs/scanner_usage.md\n- Roadmap: docs/SCANNER_ROADMAP.md\n- README\
+    \ workflow integration\n- Comprehensive test coverage\n\n### Key Metrics\n\n-\
+    \ **Performance:** 150 backtests in 6 minutes (cold), 15 seconds (warm)\n- **Test\
+    \ Coverage:** 13 tests passing (scoring + scanner + CLI)\n- **Confidence Distribution:**\
+    \ 83-95% realistic spread (no more misleading 100%)\n- **Data Usage:** Polygon-friendly\
+    \ (5 req/min compliance)\n\n### Critical Issues Resolved\n\n**Issue #1: Confidence\
+    \ Caps Insufficient**\n- **Problem:** 5-14 trade samples claimed 100% confidence\n\
+    - **Evidence:** reports/scanner/phase_2_2_confidence_calibration.md\n- **Fix:**\
+    \ Extended caps (90%/95%) with statistical justification\n- **Commit:** a14e64d\n\
+    \n**Issue #2: Performance Bottleneck**\n- **Problem:** 7+ minute cold scans (unusable)\n\
+    - **Root Cause:** Sequential bar fetching per strategy\n- **Fix:** Symbol-level\
+    \ caching (fetch once, reuse 3\xD7)\n- **Result:** 25\xD7 speedup\n\n### Documentation\
+    \ Delivered\n\n1. **User Guide** (docs/scanner_usage.md)\n   - Quick start, confidence\
+    \ interpretation\n   - Daily workflow, CLI reference, troubleshooting\n\n2. **Roadmap**\
+    \ (docs/SCANNER_ROADMAP.md)\n   - Phases 3-10 future enhancements\n   - Priority\
+    \ matrix, success metrics, technical debt\n\n3. **Validation Report** (reports/scanner/phase_2_2_confidence_calibration.md)\n\
+    \   - Statistical analysis, confidence interval justification\n   - Before/after\
+    \ comparison, proposed fixes\n\n4. **README Integration**\n   - Added \"Daily\
+    \ Trading Workflow\" section\n   - Linked to full scanner docs\n\n### Remaining\
+    \ Work (Future Phases)\n\n**Not in Scope for MVP:**\n- Phase 3: Strategy library\
+    \ expansion (10+ strategies)\n- Phase 4: Watchlist expansion (200+ symbols)\n\
+    - Phase 5: ML-based scoring\n- Phase 6: News/sentiment integration\n- Phase 7:\
+    \ Intraday re-scanning\n- Phase 8: Web dashboard\n- Phase 9: Alerts/notifications\n\
+    - Phase 10: Parameter optimization\n\nSee docs/SCANNER_ROADMAP.md for complete\
+    \ future plan.\n\n### Next Steps for Production Use\n\n1. **Merge to main** (after\
+    \ final user review)\n2. **Set up cron job** (daily 8am pre-market scan)\n3. **Track\
+    \ prediction accuracy** (Phase 3 feedback loop)\n4. **Iterate on confidence formula**\
+    \ (based on real trading results)\n\n### Lessons Learned\n\n1. **Statistical rigor\
+    \ matters:** Small sample sizes need aggressive caps\n2. **Performance iteration\
+    \ pays off:** 25\xD7 speedup made scanner practical\n3. **Polygon is gold:** Intraday\
+    \ data quality >> yfinance for 30m bars\n4. **Documentation upfront:** Roadmap\
+    \ prevents feature creep, captures ideas\n5. **Test-driven validation:** Found\
+    \ confidence bug via systematic top-20 review\n\n---\n\n**Task Status:** \u2705\
+    \ COMPLETE (MVP)\n**Handoff:** Ready for production deployment\n**Engineer:**\
+    \ Codex (executed) + Claude (reviewed)"
+success_criteria: []
+prompts:
+  starter: "# Task 016: Add Dark Mode Toggle to HTML Report\n\n**Context:** HTML daily\
+    \ scan report is working beautifully. Add dark mode toggle to make it easier on\
+    \ the eyes for early morning/late night viewing.\n\n---\n\n## Goals\n\n1. **Auto-detect\
+    \ system preference** - If user's OS is in dark mode, report opens in dark mode\n\
+    2. **Manual toggle** - User can switch between light/dark with a button\n3. **Persistent\
+    \ preference** - Remember user's choice in localStorage\n4. **Smooth transition**\
+    \ - Animated switch between modes\n\n---\n\n## Implementation\n\n### Step 1: Commit\
+    \ Current Changes\n\nAll uncommitted changes look great. Commit them first:\n\n\
+    ```bash\ngit add -A\ngit commit -m \"feat(scanner): add natural language narratives\
+    \ to HTML report\n\nNarrative generation:\n- Deterministic phrase selection based\
+    \ on metrics\n- Context-aware explanations (win rate, profit factor, trade count)\n\
+    - Human-readable, jargon-free language\n- Example: 'PLTR is back in view as our\
+    \ trend and momentum blend sets up again...'\n\nReport enhancements:\n- Spotlight\
+    \ cards with narrative explanations\n- Badge system (High PF, Steady Winner, Momentum\
+    \ Watch, Low Sample)\n- Composite scoring for better ranking\n- Equity curve charts\
+    \ for top picks\n\nTests:\n- Added test_scored_setup.py for narrative generation\n\
+    - Added test_html_report.py for rendering\n- All 104 tests passing\n\nUpdates\
+    \ HTML report to provide thoughtful guidance instead of raw data.\n\n\U0001F916\
+    \ Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By:\
+    \ Claude <noreply@anthropic.com>\"\n```\n\n### Step 2: Add Dark Mode to HTML Template\n\
+    \n**File:** `templates/daily_scan_report.html.jinja`\n\n**Changes needed:**\n\n\
+    #### A. Update CSS Variables (Add Dark Theme)\n\nAfter the existing `:root` block,\
+    \ add:\n\n```css\n@media (prefers-color-scheme: dark) {\n  :root {\n    --bg:\
+    \ #0f172a;\n    --card-bg: #1e293b;\n    --border: #334155;\n    --accent: #60a5fa;\n\
+    \    --accent-soft: #1e3a8a;\n    --text: #f1f5f9;\n    --muted: #94a3b8;\n  \
+    \  --badge-bg: #334155;\n    --badge-text: #e2e8f0;\n    --brand-primary: #60a5fa;\n\
+    \    --brand-secondary: #93c5fd;\n    --brand-contrast: #0f172a;\n    --danger:\
+    \ #ef4444;\n  }\n}\n\nbody[data-theme=\"dark\"] {\n  --bg: #0f172a;\n  --card-bg:\
+    \ #1e293b;\n  --border: #334155;\n  --accent: #60a5fa;\n  --accent-soft: #1e3a8a;\n\
+    \  --text: #f1f5f9;\n  --muted: #94a3b8;\n  --badge-bg: #334155;\n  --badge-text:\
+    \ #e2e8f0;\n  --brand-primary: #60a5fa;\n  --brand-secondary: #93c5fd;\n  --brand-contrast:\
+    \ #0f172a;\n  --danger: #ef4444;\n}\n\nbody[data-theme=\"light\"] {\n  --bg: #f8fafc;\n\
+    \  --card-bg: #ffffff;\n  --border: #e2e8f0;\n  --accent: #2563eb;\n  --accent-soft:\
+    \ #dbeafe;\n  --text: #0f172a;\n  --muted: #64748b;\n  --badge-bg: #f1f5f9;\n\
+    \  --badge-text: #0f172a;\n  --brand-primary: #2563eb;\n  --brand-secondary: #1e3a8a;\n\
+    \  --brand-contrast: #f8fafc;\n  --danger: #b91c1c;\n}\n```\n\n#### B. Add Toggle\
+    \ Button in Header\n\nAfter the `<h1>` in the header, add:\n\n```html\n<button\
+    \ id=\"theme-toggle\" class=\"theme-toggle\" aria-label=\"Toggle dark mode\">\n\
+    \  <svg class=\"sun-icon\" width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" fill=\"\
+    currentColor\">\n    <path d=\"M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4\
+    \ 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1\
+    \ 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1\
+    \ 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0\
+    \ 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414\
+    \ 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414\
+    \ 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z\"/>\n  </svg>\n  <svg class=\"moon-icon\"\
+    \ width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" fill=\"currentColor\">\n  \
+    \  <path d=\"M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z\"\
+    />\n  </svg>\n</button>\n```\n\n#### C. Add Toggle Button Styles\n\n```css\n.theme-toggle\
+    \ {\n  position: relative;\n  width: 40px;\n  height: 40px;\n  border: 1px solid\
+    \ var(--border);\n  border-radius: 8px;\n  background: var(--card-bg);\n  cursor:\
+    \ pointer;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n\
+    \  transition: all 0.2s ease;\n}\n\n.theme-toggle:hover {\n  background: var(--badge-bg);\n\
+    \  border-color: var(--accent);\n}\n\n.theme-toggle .sun-icon,\n.theme-toggle\
+    \ .moon-icon {\n  position: absolute;\n  transition: opacity 0.2s ease, transform\
+    \ 0.2s ease;\n}\n\nbody[data-theme=\"light\"] .theme-toggle .sun-icon {\n  opacity:\
+    \ 1;\n  transform: rotate(0deg);\n}\n\nbody[data-theme=\"light\"] .theme-toggle\
+    \ .moon-icon {\n  opacity: 0;\n  transform: rotate(90deg);\n}\n\nbody[data-theme=\"\
+    dark\"] .theme-toggle .sun-icon {\n  opacity: 0;\n  transform: rotate(-90deg);\n\
+    }\n\nbody[data-theme=\"dark\"] .theme-toggle .moon-icon {\n  opacity: 1;\n  transform:\
+    \ rotate(0deg);\n}\n\n/* Smooth transitions for theme switch */\n* {\n  transition:\
+    \ background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;\n}\n```\n\
+    \n#### D. Add JavaScript for Theme Toggle\n\nBefore the closing `</body>` tag:\n\
+    \n```html\n<script>\n(function() {\n  // Check for saved theme preference or default\
+    \ to system preference\n  const savedTheme = localStorage.getItem('privateproject-theme');\n\
+    \  const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;\n\
+    \  const initialTheme = savedTheme || (systemPrefersDark ? 'dark' : 'light');\n\
+    \n  // Apply theme immediately to avoid flash\n  document.body.setAttribute('data-theme',\
+    \ initialTheme);\n\n  // Toggle theme on button click\n  document.getElementById('theme-toggle').addEventListener('click',\
+    \ function() {\n    const currentTheme = document.body.getAttribute('data-theme');\n\
+    \    const newTheme = currentTheme === 'light' ? 'dark' : 'light';\n\n    document.body.setAttribute('data-theme',\
+    \ newTheme);\n    localStorage.setItem('privateproject-theme', newTheme);\n  });\n\
+    \n  // Listen for system theme changes\n  window.matchMedia('(prefers-color-scheme:\
+    \ dark)').addEventListener('change', function(e) {\n    if (!localStorage.getItem('privateproject-theme'))\
+    \ {\n      document.body.setAttribute('data-theme', e.matches ? 'dark' : 'light');\n\
+    \    }\n  });\n})();\n</script>\n```\n\n---\n\n## Testing\n\n### Manual Test\n\
+    1. Open report in Chrome: `file:///path/to/reports/daily_scans/html/2025-10-04.html`\n\
+    2. Verify it opens in dark mode if your OS is in dark mode\n3. Click the sun/moon\
+    \ toggle button\n4. Verify smooth transition to opposite theme\n5. Refresh page\
+    \ - should remember your choice\n6. Clear localStorage, refresh - should detect\
+    \ OS preference again\n\n### Browser Console Test\n```javascript\n// Check current\
+    \ theme\ndocument.body.getAttribute('data-theme')\n\n// Manually set theme\nlocalStorage.setItem('privateproject-theme',\
+    \ 'dark')\nlocation.reload()\n\n// Clear saved preference\nlocalStorage.removeItem('privateproject-theme')\n\
+    location.reload()\n```\n\n---\n\n## Acceptance Criteria\n\n- [ ] Dark mode CSS\
+    \ variables defined\n- [ ] Toggle button added to header with sun/moon icons\n\
+    - [ ] JavaScript detects system preference on first load\n- [ ] JavaScript saves\
+    \ user preference to localStorage\n- [ ] Smooth transition animation between themes\n\
+    - [ ] All colors (text, background, borders, badges) update correctly\n- [ ] Report\
+    \ looks good in both light and dark modes\n- [ ] No flash of wrong theme on page\
+    \ load\n\n---\n\n## Nice-to-Have Enhancements\n\n- Keyboard shortcut (Ctrl+D or\
+    \ Cmd+D) to toggle theme\n- Tooltip on hover: \"Switch to dark mode\" / \"Switch\
+    \ to light mode\"\n- System theme change listener (auto-switch if user hasn't\
+    \ manually chosen)\n\n---\n\n## Commit Message\n\n```\nfeat(scanner): add dark\
+    \ mode toggle to HTML report\n\nDark mode features:\n- Auto-detects system preference\
+    \ (prefers-color-scheme)\n- Manual toggle button with sun/moon icons\n- Persistent\
+    \ preference (localStorage)\n- Smooth transitions between themes\n\nUI updates:\n\
+    - Dark theme CSS variables (navy backgrounds, lighter text)\n- Toggle button in\
+    \ header with hover effects\n- Icon animations on theme switch\n\nUsage:\n- Opens\
+    \ in system theme by default\n- Click sun/moon button to toggle\n- Choice persists\
+    \ across page loads\n\nPerfect for early morning pre-market scanning! \U0001F319\
+    \n\n\U0001F916 Generated with [Claude Code](https://claude.com/claude-code)\n\n\
+    Co-Authored-By: Claude <noreply@anthropic.com>\n```\n\n---\n\n**This should take\
+    \ 30-45 minutes. Focused polish feature.**\n"
+  followups: []
+status_updates: []
+deliverables: []
+dependencies: []
+external_links: []
+issues: []
+tags: []
+branches:
+- name: feature/task-016-strategy-symbol-matcher
+  status: active

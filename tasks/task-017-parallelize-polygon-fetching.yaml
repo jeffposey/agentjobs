@@ -1,0 +1,357 @@
+id: task-017-parallelize-polygon-fetching
+title: 'Task 017: Comprehensive Scanner Performance Optimization'
+created: '2025-10-26T16:31:24.982892Z'
+updated: '2025-10-26T16:31:24.996157Z'
+status: planned
+priority: high
+category: general
+assigned_to: TBD
+description: "Transform scanner performance from \"unusably slow\" to \"production-ready\
+  \ fast\":\n\n1. **Fresh data scan (no cache)**: 200 symbols in <2 minutes (from\
+  \ 30+ min)\n2. **Cached data scan (--skip-fetch)**: 200 symbols in <5 seconds (from\
+  \ 53s)\n3. **Price quotes**: Cached and skipped with `--skip-fetch`\n4. **Parallel\
+  \ fetching**: Respect Polygon 5 req/sec limit globally\n\n- Current bottleneck:\
+  \ Sequential calls to `load_polygon_frame()` in `_fetch_polygon_with_retry()`\n\
+  - Polygon free tier: 5 requests/second limit\n- Each symbol requires 1 request for\
+  \ 60 days of 30m bars\n- Parquet cache already exists per symbol/interval/date range\n\
+  - **Artificial delay observed**: Even cached symbols take ~0.2s each (should be\
+  \ microseconds for cache check). Likely waiting unnecessarily before cache hit.\
+  \ Only uncached symbols should have delays for rate limiting.\n- With 199 cached\
+  \ + 1 fresh fetch, scan still takes ~40s (199 \xD7 0.2s), not the expected ~1s\n\
+  - **Investigation needed**: Why does cache validation take 200ms per symbol? Should\
+  \ be near-instant filesystem check."
+phases:
+- id: phase-1
+  title: Fix `--skip-fetch` Artificial Delays
+  status: planned
+  notes: "**Goal**: Make cached scans near-instant (<5s for 200 symbols)\n\n#### 1.1\
+    \ Identify the 0.2s-per-symbol delay\n- [ ] Profile `collect_daily_scores()` with\
+    \ `--skip-fetch`\n- [ ] Find where 200ms per symbol is being wasted (sleep? cache\
+    \ validation? filesystem?)\n- [ ] Check if `_load_processed_bars()` has unnecessary\
+    \ overhead\n\n#### 1.2 Optimize cache lookup\n```python\n# BEFORE (slow):\nfor\
+    \ symbol in symbols:\n    bars = load_recent_bars(symbol, ...)  # 0.2s per symbol\n\
+    \n# AFTER (fast):\n# Pre-validate cache for all symbols in bulk\ncache_status\
+    \ = bulk_validate_cache(symbols, interval, lookback_days)\nfor symbol in symbols:\n\
+    \    if cache_status[symbol]:\n        bars = load_from_cache_fast(symbol)  #\
+    \ <1ms per symbol\n    else:\n        # Only fetch missing symbols\n```\n\n####\
+    \ 1.3 Skip unnecessary loops with `--skip-fetch`\n- [ ] Don't iterate through\
+    \ symbols if ALL are cached\n- [ ] Pre-check cache availability before entering\
+    \ main loop\n- [ ] Short-circuit validation logic"
+- id: phase-2
+  title: Add Price Quote Caching
+  status: planned
+  notes: "**Goal**: Price quotes obey `--skip-fetch` and cache like OHLCV data\n\n\
+    #### 2.1 Create price quote cache\n```python\n# In src/privateproject/data/quotes.py\n\
+    \nQUOTE_CACHE_DIR = Path(\"data/processed/quotes\")\n\ndef _quote_cache_path(symbol:\
+    \ str, date_str: str) -> Path:\n    \"\"\"Cache path: data/processed/quotes/AAPL_20251006.json\"\
+    \"\"\n    return QUOTE_CACHE_DIR / f\"{symbol}_{date_str}.json\"\n\ndef get_cached_quote(symbol:\
+    \ str) -> Optional[dict]:\n    \"\"\"Load cached quote if exists and fresh (same\
+    \ trading day).\"\"\"\n    today = date.today().isoformat()\n    cache_file =\
+    \ _quote_cache_path(symbol, today)\n\n    if cache_file.exists():\n        with\
+    \ open(cache_file) as f:\n            return json.load(f)\n    return None\n\n\
+    def cache_quote(symbol: str, quote: dict):\n    \"\"\"Save quote to cache with\
+    \ today's date.\"\"\"\n    today = date.today().isoformat()\n    cache_file =\
+    \ _quote_cache_path(symbol, today)\n    cache_file.parent.mkdir(parents=True,\
+    \ exist_ok=True)\n\n    with open(cache_file, 'w') as f:\n        json.dump(quote,\
+    \ f)\n```\n\n#### 2.2 Respect `--skip-fetch` for quotes\n```python\n# In src/privateproject/scanner/daily_scanner.py\
+    \ or html_report.py\n\ndef enrich_with_price_data(scores, skip_fetch=False):\n\
+    \    if skip_fetch:\n        # Only use cached quotes, don't fetch new ones\n\
+    \        for score in scores:\n            score.price_data = get_cached_quote(score.symbol)\n\
+    \    else:\n        # Fetch fresh quotes and cache them\n        for score in\
+    \ scores:\n            try:\n                quote = fetch_latest_quote(score.symbol)\n\
+    \                cache_quote(score.symbol, quote)\n                score.price_data\
+    \ = quote\n            except Exception as e:\n                logger.warning(f\"\
+    Quote fetch failed for {score.symbol}: {e}\")\n                score.price_data\
+    \ = get_cached_quote(score.symbol)  # Fallback to cache\n```"
+- id: phase-3
+  title: Parallelize OHLCV Fetching
+  status: planned
+  notes: "**Goal**: Reduce fresh data scan from 30 min to <2 min\n\n#### 3.1 Implement\
+    \ token bucket rate limiter\n```python\n# In src/privateproject/utils/rate_limiter.py\n\
+    \nimport time\nimport threading\n\nclass TokenBucket:\n    \"\"\"Thread-safe rate\
+    \ limiter for API calls.\"\"\"\n\n    def __init__(self, rate: float = 5.0, capacity:\
+    \ float = 5.0):\n        self.rate = rate  # tokens per second\n        self.capacity\
+    \ = capacity\n        self.tokens = capacity\n        self.last_update = time.time()\n\
+    \        self.lock = threading.Lock()\n\n    def acquire(self, tokens: float =\
+    \ 1.0, block: bool = True) -> bool:\n        \"\"\"Acquire tokens, blocking if\
+    \ needed.\"\"\"\n        while True:\n            with self.lock:\n          \
+    \      now = time.time()\n                elapsed = now - self.last_update\n \
+    \               self.tokens = min(self.capacity, self.tokens + elapsed * self.rate)\n\
+    \                self.last_update = now\n\n                if self.tokens >= tokens:\n\
+    \                    self.tokens -= tokens\n                    return True\n\n\
+    \            if not block:\n                return False\n\n            # Wait\
+    \ for token regeneration\n            time.sleep(1.0 / self.rate)\n```\n\n####\
+    \ 3.2 Create parallel fetch orchestrator\n```python\n# In src/privateproject/data/parallel_fetch.py\n\
+    \nfrom concurrent.futures import ThreadPoolExecutor, as_completed\n\ndef fetch_bars_parallel(\n\
+    \    symbols: List[str],\n    interval: str,\n    lookback_days: int,\n    rate_limiter:\
+    \ TokenBucket,\n    max_workers: int = 10,\n) -> Dict[str, pd.DataFrame]:\n  \
+    \  \"\"\"Fetch bars for multiple symbols in parallel with rate limiting.\"\"\"\
+    \n\n    results = {}\n    errors = {}\n\n    def fetch_one(symbol: str) -> tuple[str,\
+    \ pd.DataFrame]:\n        rate_limiter.acquire()  # Wait for token\n        try:\n\
+    \            bars = load_polygon_frame(symbol, interval, lookback_days=lookback_days)\n\
+    \            return (symbol, bars)\n        except Exception as e:\n         \
+    \   logger.warning(f\"Failed to fetch {symbol}: {e}\")\n            return (symbol,\
+    \ None)\n\n    with ThreadPoolExecutor(max_workers=max_workers) as executor:\n\
+    \        futures = {executor.submit(fetch_one, symbol): symbol for symbol in symbols}\n\
+    \n        for future in as_completed(futures):\n            symbol, bars = future.result()\n\
+    \            if bars is not None:\n                results[symbol] = bars\n  \
+    \          else:\n                errors[symbol] = \"Fetch failed\"\n\n    return\
+    \ results\n```\n\n#### 3.3 Integrate into scanner\n```python\n# In src/privateproject/scanner/daily_scanner.py\n\
+    \ndef collect_daily_scores(\n    symbols: List[str],\n    skip_fetch: bool = False,\n\
+    \    ...\n):\n    if skip_fetch:\n        # Fast path: Load all from cache (no\
+    \ rate limiting needed)\n        bar_cache = {s: load_from_cache(s, interval)\
+    \ for s in symbols}\n    else:\n        # Parallel fetch with rate limiting\n\
+    \        rate_limiter = TokenBucket(rate=5.0)  # 5 req/sec\n        bar_cache\
+    \ = fetch_bars_parallel(symbols, interval, lookback_days, rate_limiter)\n\n  \
+    \  # Now run backtests with pre-loaded data (fast)\n    for symbol in symbols:\n\
+    \        bars = bar_cache.get(symbol)\n        if bars is None:\n            continue\n\
+    \        # Run strategies...\n```"
+- id: phase-4
+  title: Parallelize Price Quote Fetching
+  status: planned
+  notes: "**Goal**: Price quotes fetched in parallel (not sequential)\n\nUse same\
+    \ `TokenBucket` and `ThreadPoolExecutor` approach:\n\n```python\ndef fetch_quotes_parallel(\n\
+    \    symbols: List[str],\n    rate_limiter: TokenBucket,\n    max_workers: int\
+    \ = 10,\n) -> Dict[str, dict]:\n    \"\"\"Fetch price quotes for multiple symbols\
+    \ in parallel.\"\"\"\n\n    def fetch_one(symbol: str) -> tuple[str, dict]:\n\
+    \        rate_limiter.acquire()\n        try:\n            quote = fetch_latest_quote(symbol)\n\
+    \            cache_quote(symbol, quote)\n            return (symbol, quote)\n\
+    \        except Exception as e:\n            logger.warning(f\"Quote fetch failed\
+    \ for {symbol}: {e}\")\n            cached = get_cached_quote(symbol)\n      \
+    \      return (symbol, cached)\n\n    with ThreadPoolExecutor(max_workers=max_workers)\
+    \ as executor:\n        futures = {executor.submit(fetch_one, s): s for s in symbols}\n\
+    \        results = {}\n        for future in as_completed(futures):\n        \
+    \    symbol, quote = future.result()\n            if quote:\n                results[symbol]\
+    \ = quote\n        return results\n```"
+- id: phase-5
+  title: Testing & Validation
+  status: planned
+  notes: "#### 5.1 Unit tests\n- [ ] Test `TokenBucket` rate limiting accuracy\n-\
+    \ [ ] Test parallel fetch with mock API\n- [ ] Test cache read/write in parallel\
+    \ context\n\n#### 5.2 Integration tests\n- [ ] Test `--skip-fetch` with 200 cached\
+    \ symbols (<5s target)\n- [ ] Test fresh scan with 200 symbols (<2 min target)\n\
+    - [ ] Verify no Polygon 429 errors (rate limit violations)\n- [ ] Confirm price\
+    \ quotes obey `--skip-fetch`\n\n#### 5.3 Performance benchmarks\n```bash\n# Benchmark\
+    \ 1: Cached scan (should be <5s)\ntime .venv/bin/privateproject scan-report --watchlist\
+    \ sp_liquid_200 --skip-fetch\n\n# Benchmark 2: Fresh scan (should be <2 min)\n\
+    time .venv/bin/privateproject scan-report --watchlist sp_liquid_200 --force-refresh\n\
+    \n# Benchmark 3: With price quotes (should be <2.5 min)\ntime .venv/bin/privateproject\
+    \ scan-report --watchlist sp_liquid_200 --force-refresh --include-prices\n```\n\
+    \n## Files to Modify\n\n- `src/privateproject/scoring/confidence.py` - Add parallel\
+    \ fetch orchestrator\n- `src/privateproject/data/sources.py` - Update `load_polygon_frame()`\
+    \ or create batch variant\n- `tests/scoring/test_confidence.py` - Add parallel\
+    \ fetch tests\n- New file: `src/privateproject/utils/rate_limiter.py` (optional)\n\
+    \n## Success Criteria\n\n- [ ] 200-symbol scan completes in <2 minutes (vs current\
+    \ ~30 minutes) - **15x improvement minimum**\n- [ ] No Polygon rate limit violations\
+    \ (429 errors)\n- [ ] Maintains existing retry/error handling behavior\n- [ ]\
+    \ All existing tests pass\n- [ ] Performance gain scales with watchlist size\n\
+    \n## Risks & Mitigations\n\n**Risk**: Race conditions in cache writes\n**Mitigation**:\
+    \ Use file locking or atomic writes for parquet cache\n\n**Risk**: Harder to debug\
+    \ parallel failures\n**Mitigation**: Comprehensive logging with symbol/worker\
+    \ context\n\n**Risk**: Polygon may throttle despite rate limiting\n**Mitigation**:\
+    \ Keep conservative 5 req/sec limit, add monitoring\n\n## Notes\n\n- Current bottleneck:\
+    \ Sequential calls to `load_polygon_frame()` in `_fetch_polygon_with_retry()`\n\
+    - Polygon free tier: 5 requests/second limit\n- Each symbol requires 1 request\
+    \ for 60 days of 30m bars\n- Parquet cache already exists per symbol/interval/date\
+    \ range\n- **Artificial delay observed**: Even cached symbols take ~0.2s each\
+    \ (should be microseconds for cache check). Likely waiting unnecessarily before\
+    \ cache hit. Only uncached symbols should have delays for rate limiting.\n- With\
+    \ 199 cached + 1 fresh fetch, scan still takes ~40s (199 \xD7 0.2s), not the expected\
+    \ ~1s\n- **Investigation needed**: Why does cache validation take 200ms per symbol?\
+    \ Should be near-instant filesystem check."
+success_criteria: []
+prompts:
+  starter: '# Task 017: Fix Polygon 429 Rate Limit Errors in OHLCV Bar Fetching
+
+
+    ## Problem
+
+
+    When running `privateproject scan-report --watchlist sp_liquid_200 --force-refresh`,
+    we''re hitting Polygon 429 rate limit errors during OHLCV lookback data fetching.
+    This is happening even though we have a TokenBucket rate limiter in place.
+
+
+    ## Observed Behavior
+
+
+    ```
+
+    Polygon rate limit (429) hit for AAPL - backing off 1.0s (attempt 1)
+
+    Polygon rate limit (429) hit for AAPL - backing off 1.0s (attempt 2)
+
+    Polygon rate limit (429) hit for AAPL - backing off 1.4s (attempt 3)
+
+    ...
+
+    ```
+
+
+    Multiple symbols hitting 429s, with exponential backoff retries.
+
+
+    ## Current Architecture
+
+
+    **File: `src/privateproject/scanner/daily_scanner.py`**
+
+    - Line 305: Creates `TokenBucket(rate=5.0, capacity=5.0)`
+
+    - Line 307: Sets up `polygon_rate_limit` context
+
+    - Line 308-310: Calls `_prefetch_symbol_bars` with **8 parallel workers** (`_MAX_BAR_FETCH_WORKERS`)
+
+
+    **File: `src/privateproject/scoring/confidence.py`**
+
+    - Line 123: `_acquire_polygon_token()` called BEFORE each fetch
+
+    - Line 124-130: Calls `load_polygon_frame()` which calls `client.fetch_aggregates()`
+
+
+    ## Root Cause Analysis
+
+
+    The problem is that **parallel workers can race** even with the TokenBucket:
+
+
+    1. Worker 1 acquires token, starts HTTP request to Polygon
+
+    2. Worker 2 acquires token (0.2s later), starts HTTP request
+
+    3. Worker 3 acquires token (0.4s later), starts HTTP request
+
+    4. All 3 requests hit Polygon''s server within ~1 second
+
+    5. Polygon''s server-side rate limiter sees >5 req/sec and returns 429
+
+
+    The TokenBucket controls when requests START, but not when they HIT the server.
+    Network latency and parallel execution cause requests to arrive simultaneously
+    at Polygon''s API.
+
+
+    ## Required Fix
+
+
+    You need to make OHLCV bar fetching truly sequential to avoid overwhelming Polygon''s
+    rate limits.
+
+
+    ### Option 1: Reduce Parallel Workers (Simplest)
+
+
+    Change `_MAX_BAR_FETCH_WORKERS` from 8 to 1 in `daily_scanner.py`:
+
+
+    ```python
+
+    _MAX_BAR_FETCH_WORKERS = 1  # Sequential to avoid 429s
+
+    ```
+
+
+    **Pros:** Simple, guaranteed to work
+
+    **Cons:** Slower when fetching fresh data (but cache already makes it fast)
+
+
+    ### Option 2: Smarter Rate Limiting
+
+
+    Keep parallel workers but ensure truly sequential Polygon API calls:
+
+
+    1. Move `_acquire_polygon_token()` to INSIDE `PolygonAggClient.fetch_aggregates()`
+
+    2. Add explicit `time.sleep(0.21)` delay AFTER acquiring token, BEFORE HTTP request
+
+    3. This ensures minimum 0.2s between actual HTTP requests (5 req/sec)
+
+
+    ### Option 3: Separate Cache Loading from Fetching
+
+
+    Currently all symbols go through parallel workers. Instead:
+
+
+    1. First pass: Load all cached symbols in parallel (no rate limiting needed)
+
+    2. Second pass: Fetch missing symbols sequentially with rate limiting
+
+
+    This would give you fast cache loading AND safe API fetching.
+
+
+    ## Files to Modify
+
+
+    - `src/privateproject/scanner/daily_scanner.py` - Reduce `_MAX_BAR_FETCH_WORKERS`
+    or implement Option 3
+
+    - `src/privateproject/scoring/confidence.py` - Add delay after token acquire if using
+    Option 2
+
+    - `src/privateproject/data/polygon.py` - Add rate limiting inside `fetch_aggregates`
+    if using Option 2
+
+
+    ## Testing
+
+
+    After fix, run:
+
+    ```bash
+
+    .venv/bin/privateproject scan-report --watchlist sp_liquid_200 --force-refresh
+
+    ```
+
+
+    **Expected:** ZERO 429 errors, all 200 symbols fetch cleanly
+
+
+    ## Success Criteria
+
+
+    - [ ] No 429 errors when fetching 200 symbols with `--force-refresh`
+
+    - [ ] Data fetch completes without exponential backoff retries
+
+    - [ ] Performance acceptable (<2 minutes for 200 fresh symbols)
+
+    - [ ] Cache loading still fast when not using `--force-refresh`
+
+
+    ## Notes
+
+
+    - The quote fetching 429 errors were previously solved by extracting prices from
+    existing OHLCV bars (no API calls)
+
+    - This remaining 429 issue is ONLY in OHLCV lookback data fetching
+
+    - Polygon free tier: 5 requests/second limit (strict)
+
+    - We''ve already added `logger.warning` for 429s at `polygon.py:267`
+
+    - The TokenBucket implementation is correct; the issue is parallel execution racing
+
+
+    ## Recommendation
+
+
+    **Start with Option 1** (reduce workers to 1). It''s the safest, simplest fix.
+    If performance is acceptable, stick with it. If too slow, then implement Option
+    3 for smart cache/fetch separation.
+
+    '
+  followups: []
+status_updates: []
+deliverables: []
+dependencies: []
+external_links: []
+issues: []
+tags: []
+branches: []

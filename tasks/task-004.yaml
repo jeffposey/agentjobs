@@ -1,0 +1,30 @@
+id: task-004
+title: Migrate to PostgreSQL 16
+created: '2025-10-21T17:44:03.663057Z'
+updated: '2025-10-26T17:44:03.712908Z'
+status: blocked
+priority: high
+category: infrastructure
+assigned_to: Codex
+estimated_effort: 1 day (once unblocked)
+human_summary: PostgreSQL 16 migration blocked until DevOps provisions new production
+  instances.
+description: "## Migration Plan\nUpgrade from PostgreSQL 14 to 16 for performance\
+  \ improvements and new features.\n\n**Blocked on**: DevOps team provisioning new\
+  \ PostgreSQL 16 instances in production\n**Blocker ticket**: DEVOPS-892\n\n## Testing\
+  \ Status\n- \u2705 Dev environment migrated successfully\n- \u2705 Staging environment\
+  \ migrated successfully\n- \u274C Production instances not yet provisioned\n"
+phases: []
+success_criteria: []
+prompts:
+  starter: Plan and execute migration to PostgreSQL 16.
+  followups: []
+status_updates: []
+deliverables: []
+dependencies: []
+external_links: []
+issues: []
+tags:
+- database
+- infrastructure
+branches: []

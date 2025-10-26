@@ -1,0 +1,35 @@
+id: task-005
+title: Enable CloudWatch Advanced Monitoring
+created: '2025-10-23T17:44:03.663057Z'
+updated: '2025-10-26T17:44:03.723187Z'
+status: waiting_for_human
+priority: low
+category: infrastructure
+assigned_to: Codex
+estimated_effort: 1 hour to enable
+human_summary: Request approval for $150/month CloudWatch advanced monitoring to unlock
+  1-second RDS metrics.
+description: "## Proposal\nEnable CloudWatch Enhanced Monitoring for RDS instances\
+  \ to get 1-second granularity metrics.\n\n## Cost\n- Current: $0/month (basic monitoring\
+  \ only)\n- Proposed: ~$150/month ($2.50 per instance \xD7 60 instances)\n\n## Benefits\n\
+  - 1-second metric granularity (vs 1-minute)\n- OS-level metrics (CPU, memory, disk\
+  \ I/O)\n- Better troubleshooting during incidents\n- Proactive performance optimization\n\
+  \n## Business Case\nLast month we had 3 database incidents that took >2 hours to\
+  \ diagnose due to lack of granular metrics.\nExpected time savings: ~6 hours/month\
+  \ \xD7 $200/hour = $1,200/month value.\n\nROI: 8x return on investment.\n\n**Awaiting\
+  \ approval from Engineering Manager or CTO.**\n"
+phases: []
+success_criteria: []
+prompts:
+  starter: Research and propose CloudWatch enhanced monitoring for RDS instances.
+  followups: []
+status_updates: []
+deliverables: []
+dependencies: []
+external_links: []
+issues: []
+tags:
+- monitoring
+- cost
+- rds
+branches: []
