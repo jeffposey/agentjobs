@@ -15,6 +15,7 @@ class TaskStatus(str, Enum):
     PLANNED = "planned"
     IN_PROGRESS = "in_progress"
     BLOCKED = "blocked"
+    WAITING_FOR_HUMAN = "waiting_for_human"
     UNDER_REVIEW = "under_review"
     COMPLETED = "completed"
     ARCHIVED = "archived"
@@ -261,6 +262,10 @@ class Task(BaseModel):
     )
 
     # Content
+    human_summary: Optional[str] = Field(
+        default=None,
+        description="Concise 1-2 sentence summary for human reviewers.",
+    )
     description: str = Field(..., description="Markdown description of the task.")
     phases: List[Phase] = Field(
         default_factory=list, description="Phases tracked for this task."
@@ -315,6 +320,7 @@ class Task(BaseModel):
         return self.status in {
             TaskStatus.IN_PROGRESS,
             TaskStatus.BLOCKED,
+            TaskStatus.WAITING_FOR_HUMAN,
             TaskStatus.UNDER_REVIEW,
         }
 

@@ -37,6 +37,10 @@ class TaskConverter:
         "planned": TaskStatus.PLANNED,
         "pending": TaskStatus.PLANNED,
         "not started": TaskStatus.PLANNED,
+        "waiting": TaskStatus.WAITING_FOR_HUMAN,
+        "waiting for human": TaskStatus.WAITING_FOR_HUMAN,
+        "waiting_for_human": TaskStatus.WAITING_FOR_HUMAN,
+        "needs human": TaskStatus.WAITING_FOR_HUMAN,
         "under review": TaskStatus.UNDER_REVIEW,
         "review": TaskStatus.UNDER_REVIEW,
     }
@@ -94,6 +98,7 @@ class TaskConverter:
             id=task_id,
             title=parsed.title,
             description=description,
+            human_summary=parsed.human_summary or description[:200],
             status=status,
             priority=priority,
             category=parsed.category or "general",

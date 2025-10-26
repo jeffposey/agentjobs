@@ -30,6 +30,7 @@ class ParsedTask:
     phases: List[Dict[str, Optional[str]]] = field(default_factory=list)
     issues: List[str] = field(default_factory=list)
     notes: str = ""
+    human_summary: str = ""
 
     # Raw content for fallback
     raw_content: str = ""
@@ -71,8 +72,9 @@ class MarkdownTaskParser:
         notes = self._extract_section(
             content, ["Notes", "Additional Notes", "Comments", "Summary"]
         )
+        human_summary = self._extract_human_summary(content)
 
-        return ParsedTask(
+        parsed = ParsedTask(
             title=title,
             source_file=file_path,
             raw_content=content,
@@ -82,8 +84,11 @@ class MarkdownTaskParser:
             phases=phases,
             issues=issues,
             notes=notes,
+            human_summary=human_summary,
             **metadata,
         )
+        parsed.description = self._build_clean_description(parsed)
+        return parsed
 
     def _extract_metadata(self, content: str) -> Dict[str, Optional[str]]:
         """Extract metadata fields from content."""
@@ -102,7 +107,7 @@ class MarkdownTaskParser:
     def _extract_section(self, content: str, section_headings: List[str]) -> str:
         """Extract content from a markdown section."""
         for heading in section_headings:
-            pattern = rf"^##\s+{re.escape(heading)}[^\n]*\n(.*?)(?=^##\s+|\Z)"
+            pattern = rf"^##\s+{re.escape(heading)}[^\n]*\n(.*?)(?=^##|\Z)"
             match = re.search(
                 pattern, content, re.MULTILINE | re.DOTALL | re.IGNORECASE
             )
@@ -110,6 +115,78 @@ class MarkdownTaskParser:
                 section_content = match.group(1).strip()
                 return section_content
         return ""
+
+    def _extract_human_summary(self, content: str) -> str:
+        """Extract concise human-readable summary from task content."""
+        summary_patterns = [
+            r"##\s+Summary\s*\n([^\n#]+)",
+            r"##\s+Overview\s*\n([^\n#]+)",
+            r"##\s+Problem\s*\n([^\n#]+)",
+        ]
+
+        for pattern in summary_patterns:
+            match = re.search(pattern, content, re.IGNORECASE | re.MULTILINE)
+            if match:
+                summary = match.group(1).strip()
+                text = self._trim_to_sentences(summary, max_sentences=2)
+                if text:
+                    return text
+
+        desc = self._extract_section(content, ["Objective", "Description"])
+        if desc:
+            clean = re.sub(r"\*\*([^*]+)\*\*", r"\1", desc)
+            clean = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", clean)
+            clean = re.sub(r"`([^`]+)`", r"\1", clean)
+            text = self._trim_to_sentences(clean, max_chars=200)
+            if text:
+                return text
+
+        return "No summary available"
+
+    @staticmethod
+    def _trim_to_sentences(
+        text: str,
+        *,
+        max_sentences: int = 1,
+        max_chars: Optional[int] = None,
+    ) -> str:
+        """Trim text to a limited number of sentences and characters."""
+        normalized = " ".join(text.split())
+        sentences = re.split(r"(?<=[.!?])\s+", normalized)
+        selected = " ".join(sentence.strip() for sentence in sentences[:max_sentences] if sentence.strip())
+        if not selected:
+            selected = normalized[: max_chars or len(normalized)]
+        if max_chars is not None and len(selected) > max_chars:
+            selected = selected[: max_chars - 3].rstrip() + "..."
+        if selected and selected[-1] not in ".!?":
+            selected += "."
+        return selected
+
+    def _build_clean_description(self, parsed: ParsedTask) -> str:
+        """Build clean description from parsed content."""
+        desc = parsed.description
+
+        if desc and (len(desc) > 500 or "##" in desc or "Phase" in desc):
+            lines = desc.split("\n")
+            clean_lines: List[str] = []
+            for line in lines:
+                if re.match(r"^#+\s+Phase", line, re.IGNORECASE):
+                    break
+                if line.strip().startswith("**") and len(line) > 100:
+                    continue
+                clean_lines.append(line)
+                if len("\n".join(clean_lines)) > 300:
+                    break
+            desc = "\n".join(clean_lines).strip()
+
+        if not desc or len(desc) < 20:
+            desc = (
+                parsed.raw_content[:300] + "..."
+                if len(parsed.raw_content) > 300
+                else parsed.raw_content
+            )
+
+        return desc
 
     def _extract_list_items(
         self, content: str, section_headings: List[str]
