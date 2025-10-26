@@ -114,5 +114,5 @@ def test_task_serialization_handles_prompts() -> None:
 
     payload = task.model_dump(mode="json")
     assert payload["prompts"]["starter"] == starter
-    assert payload["status"] == TaskStatus.PLANNED.value
+    assert payload["status"] == TaskStatus.DRAFT.value
     assert payload["priority"] == Priority.MEDIUM.value

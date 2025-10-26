@@ -1,4 +1,4 @@
-id: task-039-phase-5-3-self-management
+id: task-040-phase-5-3-self-management
 title: 'Phase 5.3: Bootstrap Self-Management'
 created: '2025-10-26T20:28:05Z'
 updated: '2025-10-26T20:28:05Z'
@@ -10,7 +10,7 @@ estimated_effort: 1 day
 human_summary: Move Task 031 and its prompts into AgentJobs so the platform manages its own development roadmap.
 description: |
   Phase 5.3 made AgentJobs self-hosted for its own work. Task 031 and all phase
-  prompts were migrated from PrivateProject, task metadata was normalised into YAML,
+  prompts were migrated from the legacy system, task metadata was normalised into YAML,
   and Task 032 established forward-looking hardening work. The README now
   explains how AgentJobs uses itself, delivering meta-circular self-management.
 phases:
@@ -37,7 +37,7 @@ status_updates:
     author: Codex
     status: completed
     summary: AgentJobs now manages its own roadmap
-    details: Migrated Task 031 + prompts from PrivateProject, created Task 032, updated README to describe self-management workflow.
+    details: Migrated Task 031 + prompts from the legacy system, created Task 032, updated README to describe self-management workflow.
 deliverables:
   - path: prompts/
     status: completed
@@ -52,7 +52,7 @@ deliverables:
     status: completed
     description: Documented self-management workflow in repository README.
 dependencies:
-  - task_id: task-038-phase-5-2-agent-dx
+  - task_id: task-039-phase-5-2-agent-dx
     type: depends_on
     status: completed
     note: Builds on agent experience work to make self-management approachable.

@@ -18,7 +18,7 @@ def _sample_task(**overrides: Any) -> Dict[str, Any]:
         "title": "Sample",
         "created": "2025-01-01T00:00:00+00:00",
         "updated": "2025-01-01T00:00:00+00:00",
-        "status": TaskStatus.PLANNED.value,
+        "status": TaskStatus.DRAFT.value,
         "priority": Priority.MEDIUM.value,
         "category": "ops",
         "description": "Sample description",
@@ -82,7 +82,7 @@ def test_client_add_progress_update() -> None:
                     {
                         "summary": "Updated",
                         "author": "codex",
-                        "status": TaskStatus.PLANNED.value,
+                        "status": TaskStatus.READY.value,
                         "timestamp": "2025-01-01T01:00:00+00:00",
                     }
                 ]

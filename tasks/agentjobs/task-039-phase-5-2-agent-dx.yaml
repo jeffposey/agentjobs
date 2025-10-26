@@ -1,4 +1,4 @@
-id: task-038-phase-5-2-agent-dx
+id: task-039-phase-5-2-agent-dx
 title: 'Phase 5.2: Agent Developer Experience'
 created: '2025-10-26T20:28:04Z'
 updated: '2025-10-26T20:28:04Z'
@@ -66,6 +66,10 @@ dependencies:
     type: depends_on
     status: completed
     note: Builds on UX improvements to provide guided onboarding content.
+  - task_id: task-038-phase-5-1-package-and-integrate
+    type: depends_on
+    status: completed
+    note: Requires packaged integration before developer tooling makes sense.
 external_links:
   - url: https://github.com/jeffposey/agentjobs/commit/62665e5
     title: 'Commit 62665e5 - add agent workflow examples and documentation'

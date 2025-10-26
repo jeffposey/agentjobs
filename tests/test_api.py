@@ -79,12 +79,14 @@ def test_list_tasks_with_filters(api_client) -> None:
         description="Active",
         priority=Priority.MEDIUM,
         category="ops",
+        status=TaskStatus.PLANNED,
     )
     manager.create_task(
         title="In progress",
         description="Working",
         priority=Priority.CRITICAL,
         category="ops",
+        status=TaskStatus.PLANNED,
     )
     critical = manager.get_next_task()
     assert critical is not None
@@ -170,12 +172,14 @@ def test_get_next_task(api_client) -> None:
         description="Background",
         priority=Priority.LOW,
         category="ops",
+        status=TaskStatus.PLANNED,
     )
     critical = manager.create_task(
         title="Critical",
         description="Urgent",
         priority=Priority.CRITICAL,
         category="ops",
+        status=TaskStatus.PLANNED,
     )
     response = client.get("/api/tasks/next")
     assert response.status_code == 200

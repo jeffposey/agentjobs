@@ -282,8 +282,9 @@ client.mark_completed(task.id, agent="codex")
 
 Tasks stored as YAML under `tasks/agentjobs/` (sample fixtures remain in `tasks/test-data/`):
 - `tasks/agentjobs/task-032-agentjobs-v0-2-production-hardening.yaml`
-- `tasks/agentjobs/task-038-phase-5-2-agent-dx.yaml`
-- etc.
+- `tasks/agentjobs/task-038-phase-5-1-package-and-integrate.yaml`
+- `tasks/agentjobs/task-039-phase-5-2-agent-dx.yaml`
+- `tasks/agentjobs/task-040-phase-5-3-self-management.yaml`
 
 Each task includes:
 - **Metadata**: status, priority, category, assigned_to, estimated_effort

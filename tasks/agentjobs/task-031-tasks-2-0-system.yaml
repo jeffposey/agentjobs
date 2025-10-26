@@ -12,7 +12,7 @@ description: |
   ## Objective
 
   Make AgentJobs self-hosted for its own development work by migrating Task 031
-  out of PrivateProject and establishing the prompts and task records inside the
+  out of the previous project and establishing the prompts and task records inside the
   agentjobs repository.
 
   ## Scope
@@ -63,7 +63,7 @@ phases:
 - id: phase-5.1
   title: 'Package and Integrate'
   status: planned
-  notes: Install in PrivateProject, migrate tasks
+  notes: Install in host environment, migrate tasks
 - id: phase-5.2
   title: 'Agent DX Improvements'
   status: completed
@@ -101,7 +101,7 @@ prompts:
   - timestamp: '2025-10-26T17:30:00Z'
     author: Claude
     prompt_file: prompts/task-031-phase-5.1-package-and-integrate.md
-    context: Ready to integrate AgentJobs into PrivateProject
+    context: Ready to integrate AgentJobs into the host environment
   - timestamp: '2025-10-26T18:00:00Z'
     author: Claude
     prompt_file: prompts/task-031-phase-5.2-agent-dx-improvements.md
@@ -125,7 +125,7 @@ status_updates:
   author: Codex
   status: archived
   summary: Archived umbrella task in favour of phase-specific tasks
-  details: Work now tracked in task-033 through task-039 to match historical commits.
+  details: Work now tracked in task-033 through task-040 to match historical commits.
 deliverables: []
 dependencies:
 - task_id: task-033-phase-1-core-infrastructure
@@ -143,10 +143,13 @@ dependencies:
 - task_id: task-037-phase-4-2-human-agent-ux
   type: related
   note: Phase 4.2 tracked independently.
-- task_id: task-038-phase-5-2-agent-dx
+- task_id: task-038-phase-5-1-package-and-integrate
+  type: related
+  note: Phase 5.1 tracked independently.
+- task_id: task-039-phase-5-2-agent-dx
   type: related
   note: Phase 5.2 tracked independently.
-- task_id: task-039-phase-5-3-self-management
+- task_id: task-040-phase-5-3-self-management
   type: related
   note: Phase 5.3 tracked independently.
 external_links: []

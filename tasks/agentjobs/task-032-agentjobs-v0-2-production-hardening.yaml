@@ -2,7 +2,7 @@ id: task-032-agentjobs-v0-2-production-hardening
 title: 'AgentJobs v0.2.0 - Production Hardening'
 created: '2025-10-26T18:30:00Z'
 updated: '2025-10-26T18:30:00Z'
-status: planned
+status: waiting_for_human
 priority: medium
 category: infrastructure
 assigned_to: TBD
@@ -11,7 +11,7 @@ human_summary: Prepare AgentJobs for production deployments by adding auth, depl
 description: |
   ## Objective
 
-  Harden AgentJobs for production deployments beyond PrivateProject by implementing
+  Harden AgentJobs for production deployments beyond the initial pilot environment by implementing
   authentication, deployment automation, observability, and GitHub integration.
 
   ## Scope
@@ -65,11 +65,58 @@ phases:
 success_criteria: []
 prompts:
   starter: |
-    Design and implement production-ready features for AgentJobs v0.2.0.
-    See task description and phases for full scope and sequencing.
+    ## Objective
+
+    Produce a production-ready release plan for AgentJobs v0.2.0 that covers
+    authentication, deployment, observability, GitHub workflows, and scaling
+    concerns. This iteration is design-heavy: assemble the technical architecture,
+    service boundaries, deployment targets, and acceptance criteria that will let
+    us split execution into focused follow-up tasks.
+
+    ## Required Outputs
+
+    1. Architecture brief covering:
+       - Authentication / authorization model (API keys, session UX, RBAC matrix)
+       - Secrets management and configuration strategy
+       - Data storage impact (new tables, migrations, indexes)
+    2. Deployment plan:
+       - Container layout (Dockerfile responsibilities, multi-stage builds)
+       - `docker-compose` topology with services, env vars, volumes
+       - CI/CD path for publishing the image
+    3. Operations design:
+       - Monitoring metrics to emit and their collection endpoints
+       - Health-check contract (liveness/readiness)
+       - Logging format and shipping pipeline
+    4. GitHub integration design:
+       - Event flow for syncing tasks ↔ issues
+       - Webhook security story
+       - Failure handling / retries
+    5. Performance strategy:
+       - Caching approach and invalidation rules
+       - Load-testing scenarios + success thresholds
+
+    Document the decisions in `docs/v0.2-production-hardening.md` with diagrams
+    where helpful, and capture open questions for human review.
+
+    ## Definition of Ready
+
+    - Architecture brief reviewed and signed off by human stakeholders.
+    - Stories broken down into executable sub-tasks with clear acceptance criteria.
+    - Risks and mitigations called out explicitly.
+
+    Once the document is ready, update this task with links to the artifact and
+    transition it to `ready`.
   followups: []
-status_updates: []
-deliverables: []
+status_updates:
+- timestamp: '2025-10-26T21:30:00Z'
+  author: Codex
+  status: waiting_for_human
+  summary: Draft production-hardening brief awaiting review
+  details: Expanded starter prompt with architecture, deployment, ops, integration, and performance requirements. Ready for human sign-off.
+deliverables:
+- path: docs/v0.2-production-hardening.md
+  status: pending
+  description: Architecture and rollout plan for AgentJobs v0.2.0
 dependencies: []
 external_links: []
 issues: []
