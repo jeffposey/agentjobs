@@ -1,0 +1,7 @@
+<span class="px-2 py-1 text-xs font-medium rounded
+    {% if task.priority == 'critical' %}bg-red-900 text-red-200
+    {% elif task.priority == 'high' %}bg-orange-900 text-orange-200
+    {% elif task.priority == 'medium' %}bg-blue-900 text-blue-200
+    {% else %}bg-gray-700 text-gray-300{% endif %}">
+    {{ task.priority.title() }}
+</span>

@@ -18,6 +18,7 @@ from .routes import (
     search_router,
     status_router,
     tasks_router,
+    web_router,
 )
 
 DESCRIPTION = (
@@ -75,6 +76,7 @@ async def root_health() -> dict[str, str]:
 
 
 app.include_router(health_router)
+app.include_router(web_router)
 app.include_router(tasks_router)
 app.include_router(status_router)
 app.include_router(prompts_router)

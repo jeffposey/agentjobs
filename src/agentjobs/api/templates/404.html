@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Task Not Found - AgentJobs{% endblock %}
+
+{% block content %}
+<div class="text-center py-16">
+    <h1 class="text-4xl font-bold mb-4">Task Not Found</h1>
+    <p class="text-dark-muted mb-6 text-sm">Task "{{ task_id }}" does not exist or has been archived.</p>
+    <a href="/tasks" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition">
+        View All Tasks
+    </a>
+</div>
+{% endblock %}
