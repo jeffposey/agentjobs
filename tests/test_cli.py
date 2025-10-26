@@ -55,5 +55,5 @@ def test_cli_init_create_list_show(tmp_path: Path, monkeypatch) -> None:
     )
     assert show_result.exit_code == 0
     payload = json.loads(show_result.stdout)
-    assert payload["status"] == TaskStatus.PLANNED.value
+    assert payload["status"] == TaskStatus.DRAFT.value
     assert payload["title"] == "Sample Task"

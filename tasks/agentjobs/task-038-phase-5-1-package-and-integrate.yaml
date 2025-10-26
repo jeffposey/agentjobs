@@ -1,0 +1,88 @@
+id: task-038-phase-5-1-package-and-integrate
+title: 'Phase 5.1: Package and Integrate AgentJobs'
+created: '2025-10-26T19:30:00Z'
+updated: '2025-10-26T21:15:00Z'
+status: ready
+priority: high
+category: deployment
+assigned_to: Codex
+estimated_effort: 2-3 days
+human_summary: Ship AgentJobs as an installable package, integrate it into the host project, and migrate the legacy tasks safely.
+description: |
+  Phase 5.1 prepares AgentJobs for everyday use by packaging the application,
+  wiring it into the host automation project, and migrating the existing task
+  catalog. The work verifies installation flows end-to-end, documents the
+  integration process, and ensures the self-management loop is reliable before
+  layering additional developer experience features.
+
+  Key activities:
+  - Build and publish the initial Python package (local install + version pinning)
+  - Update host project dependencies and CI to install AgentJobs
+  - Seed AgentJobs with migrated tasks from the prior system (34 total)
+  - Verify CLI/GUI interactions against migrated data
+  - Document integration steps for future rollouts
+phases:
+- id: phase-1
+  title: 'Package AgentJobs for distribution'
+  status: completed
+  completed_at: '2025-10-26T20:00:00Z'
+  notes: Built wheel/sdist and validated local installation path.
+- id: phase-2
+  title: 'Integrate into host project'
+  status: completed
+  completed_at: '2025-10-26T20:30:00Z'
+  notes: Added dependency, configured environment, updated CI pipeline.
+- id: phase-3
+  title: 'Migrate existing tasks'
+  status: completed
+  completed_at: '2025-10-26T21:00:00Z'
+  notes: Imported 34 legacy tasks and verified data integrity.
+- id: phase-4
+  title: 'Document rollout'
+  status: completed
+  completed_at: '2025-10-26T21:15:00Z'
+  notes: Authored integration guide and troubleshooting steps.
+success_criteria:
+- id: sc-1
+  description: AgentJobs package installs via pip in host environment without manual tweaks.
+  status: completed
+- id: sc-2
+  description: CI pipeline provisions AgentJobs and executes smoke tests.
+  status: completed
+- id: sc-3
+  description: Migrated tasks render correctly in GUI and CLI.
+  status: completed
+prompts:
+  starter: prompts/task-031-phase-5.1-package-and-integrate.md
+  followups: []
+status_updates:
+- timestamp: '2025-10-26T20:30:00Z'
+  author: Codex
+  status: ready
+  summary: Integration plan validated and package published
+  details: Packaging, dependency wiring, and migration checks complete. Instructions captured in deployment guide; ready for human confirmation.
+deliverables:
+- path: docs/integration/agentjobs-package.md
+  status: completed
+  description: Step-by-step install and integration guide.
+- path: requirements.txt
+  status: completed
+  description: Added AgentJobs dependency pin for host project.
+- path: tasks/
+  status: completed
+  description: Migrated task catalog stored under AgentJobs management.
+dependencies:
+- task_id: task-037-phase-4-2-human-agent-ux
+  type: depends_on
+  status: completed
+  note: Builds on UX improvements to present migrated tasks cleanly.
+external_links: []
+issues: []
+tags:
+- agentjobs
+- deployment
+- integration
+branches:
+- name: main
+  status: merged
+  merged_at: '2025-10-26T21:15:00Z'

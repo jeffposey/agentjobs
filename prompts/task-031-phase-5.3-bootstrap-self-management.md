@@ -345,9 +345,9 @@ prompts:
 Task 031 now serves as an archived summary. Verify that each historical phase has its own task file tied to the commit that delivered it.
 
 ```bash
-ls tasks/agentjobs/task-03[3-9]-*.yaml
+ls tasks/agentjobs/task-0{33..40}-*.yaml
 agentjobs show task-033-phase-1-core-infrastructure
-agentjobs show task-039-phase-5-3-self-management
+agentjobs show task-040-phase-5-3-self-management
 ```
 
 Ensure each task includes:

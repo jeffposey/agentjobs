@@ -76,6 +76,7 @@ def test_get_next_task_honours_priority(tmp_path: Path) -> None:
         description="Backlog item",
         priority=Priority.LOW,
         category="misc",
+        status=TaskStatus.PLANNED,
     )
     manager.create_task(
         id="task-102",
@@ -83,6 +84,7 @@ def test_get_next_task_honours_priority(tmp_path: Path) -> None:
         description="Urgent work",
         priority=Priority.CRITICAL,
         category="urgent",
+        status=TaskStatus.PLANNED,
     )
     manager.update_status(
         task_id="task-101",
@@ -213,6 +215,7 @@ def test_list_tasks_filters_by_status_and_priority(tmp_path: Path) -> None:
         title="Planned",
         description="",
         category="ops",
+        status=TaskStatus.PLANNED,
     )
     in_progress = manager.create_task(
         id="task-501",

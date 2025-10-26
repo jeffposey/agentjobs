@@ -19,4 +19,4 @@ categories:
   - meta
 defaults:
   priority: medium
-  status: planned
+  status: draft

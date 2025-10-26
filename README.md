@@ -135,6 +135,15 @@ agentjobs serve
 - `examples/` - Agent integration samples
 - `docs/` - Product and API documentation
 
+### Workflow Statuses
+
+AgentJobs tracks work through these stages:
+- `draft` – idea captured, needs shaping
+- `ready` – design reviewed, ready to schedule
+- `planned` – committed to backlog, awaiting execution
+- `in_progress` / `waiting_for_human` / `under_review` – active collaboration
+- `completed` / `archived` – finished or stored for reference
+
 ### Local Setup
 
 ```bash

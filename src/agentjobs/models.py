@@ -12,6 +12,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class TaskStatus(str, Enum):
     """High-level workflow status for tasks."""
 
+    DRAFT = "draft"
+    READY = "ready"
     PLANNED = "planned"
     IN_PROGRESS = "in_progress"
     BLOCKED = "blocked"
@@ -248,7 +250,7 @@ class Task(BaseModel):
 
     # Workflow
     status: TaskStatus = Field(
-        default=TaskStatus.PLANNED, description="Current workflow status."
+        default=TaskStatus.DRAFT, description="Current workflow status."
     )
     priority: Priority = Field(
         default=Priority.MEDIUM, description="Relative priority weighting."
@@ -318,6 +320,8 @@ class Task(BaseModel):
     def is_active(self) -> bool:
         """Return True for statuses representing in-progress work."""
         return self.status in {
+            TaskStatus.READY,
+            TaskStatus.PLANNED,
             TaskStatus.IN_PROGRESS,
             TaskStatus.BLOCKED,
             TaskStatus.WAITING_FOR_HUMAN,

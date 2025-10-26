@@ -66,7 +66,7 @@ class TaskManager:
             else Prompts(starter=description)
         )
 
-        status_value = kwargs.pop("status", TaskStatus.PLANNED)
+        status_value = kwargs.pop("status", TaskStatus.DRAFT)
         task_kwargs: Dict[str, object] = {
             "id": task_id,
             "title": title,
@@ -159,16 +159,24 @@ class TaskManager:
 
     def get_next_task(self, priority: Optional[Priority] = None) -> Optional[Task]:
         """Get highest priority available task."""
+        allowed_statuses = [TaskStatus.READY, TaskStatus.PLANNED]
+        status_rank = {status: index for index, status in enumerate(allowed_statuses)}
         candidates = [
             task
             for task in self.storage.list_tasks()
-            if task.status == TaskStatus.PLANNED
+            if task.status in allowed_statuses
         ]
         if priority is not None:
             candidates = [task for task in candidates if task.priority == priority]
         if not candidates:
             return None
-        candidates.sort(key=lambda task: task.priority_rank())
+        candidates.sort(
+            key=lambda task: (
+                status_rank.get(task.status, len(status_rank)),
+                task.priority_rank(),
+                -task.updated.timestamp(),
+            )
+        )
         return candidates[0]
 
     def add_progress_update(
