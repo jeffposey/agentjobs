@@ -107,6 +107,32 @@ client.add_progress_update(
 
 ## Development
 
+AgentJobs uses itself to manage its own development tasks.
+
+### View Development Tasks
+
+```bash
+agentjobs serve
+# Open http://localhost:8765 to browse tasks
+```
+
+### Contributing
+
+1. Check existing tasks: `agentjobs list`
+2. Inspect a candidate task: `agentjobs show task-XXX`
+3. Claim work: `agentjobs work --agent your-name`
+4. Follow linked prompts and update status via CLI or API
+5. Submit a PR referencing the task when ready
+
+### Task Structure
+
+- `tasks/` - AgentJobs development tasks in YAML
+- `prompts/` - Phase-specific execution instructions
+- `examples/` - Agent integration samples
+- `docs/` - Product and API documentation
+
+### Local Setup
+
 ```bash
 # Clone repository
 git clone https://github.com/jeffposey/agentjobs.git
@@ -121,6 +147,7 @@ poetry run pytest
 # Start development server
 poetry run agentjobs serve
 ```
+
 
 ## License
 

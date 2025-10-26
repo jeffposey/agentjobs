@@ -1,0 +1,133 @@
+id: task-001
+title: Design Database Schema for User Authentication
+created: '2025-10-24T17:44:03.663057Z'
+updated: '2025-10-26T17:44:03.675790Z'
+status: waiting_for_human
+priority: high
+category: architecture
+assigned_to: Codex
+estimated_effort: 2-3 days
+human_summary: Review and approve the proposed PostgreSQL schema for user authentication,
+  including multi-provider OAuth2 support and security policies.
+description: '## Context
+
+  We need to implement a robust user authentication system supporting multiple OAuth2
+  providers (Google, GitHub, Microsoft).
+
+
+  ## Proposed Schema
+
+
+  ### users table
+
+  - id (uuid, primary key)
+
+  - email (varchar, unique)
+
+  - display_name (varchar)
+
+  - avatar_url (varchar, nullable)
+
+  - created_at (timestamp)
+
+  - updated_at (timestamp)
+
+
+  ### oauth_accounts table
+
+  - id (uuid, primary key)
+
+  - user_id (uuid, foreign key to users)
+
+  - provider (varchar: ''google'', ''github'', ''microsoft'')
+
+  - provider_user_id (varchar)
+
+  - access_token (text, encrypted)
+
+  - refresh_token (text, encrypted, nullable)
+
+  - expires_at (timestamp, nullable)
+
+  - created_at (timestamp)
+
+  - updated_at (timestamp)
+
+
+  ### sessions table
+
+  - id (uuid, primary key)
+
+  - user_id (uuid, foreign key to users)
+
+  - token (varchar, unique, indexed)
+
+  - expires_at (timestamp)
+
+  - created_at (timestamp)
+
+
+  ## Security Considerations
+
+  - All tokens encrypted at rest using AES-256
+
+  - Session tokens rotated every 24 hours
+
+  - Refresh tokens support optional (depends on provider)
+
+
+  ## Questions for Human Review
+
+  1. Should we support multiple OAuth accounts per user (same provider)?
+
+  2. Do we need audit logging for authentication events?
+
+  3. What''s the session timeout policy? (currently 24h)
+
+  '
+phases:
+- id: phase-1
+  title: Schema Design
+  status: completed
+  notes: Completed initial schema design based on OAuth2 best practices.
+  completed_at: '2025-10-25T17:44:03.663057Z'
+- id: phase-2
+  title: Human Review & Approval
+  status: waiting_for_human
+  notes: Schema ready for review. Awaiting feedback on multi-account support and audit
+    logging requirements.
+- id: phase-3
+  title: Implementation
+  status: planned
+  notes: Create migration scripts and ORM models after approval.
+success_criteria: []
+prompts:
+  starter: Design a PostgreSQL schema for user authentication supporting OAuth2 providers
+    (Google, GitHub, Microsoft).
+  followups:
+  - timestamp: '2025-10-25T17:44:03.663057Z'
+    author: Codex
+    content: Schema design complete. Added encryption for tokens and session management.
+      Ready for human review.
+status_updates:
+- timestamp: '2025-10-25T17:44:03.663057Z'
+  author: Codex
+  status: waiting_for_human
+  summary: Schema design complete, awaiting approval
+  details: Designed 3-table schema with security best practices. Need human input
+    on multi-account support and audit logging.
+deliverables:
+- path: docs/schema/auth_schema.sql
+  status: completed
+  description: PostgreSQL schema DDL
+- path: docs/schema/auth_erd.png
+  status: completed
+  description: Entity relationship diagram
+dependencies: []
+external_links: []
+issues: []
+tags:
+- security
+- database
+- authentication
+branches: []

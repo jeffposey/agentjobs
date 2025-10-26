@@ -1,0 +1,48 @@
+id: task-003
+title: Add Dark Mode Toggle to Settings Page
+created: '2025-10-25T17:44:03.663057Z'
+updated: '2025-10-26T17:44:03.702464Z'
+status: in_progress
+priority: medium
+category: feature
+assigned_to: Codex
+estimated_effort: 3 days
+human_summary: Adding dark mode support with system preference detection and a manual
+  toggle in settings.
+description: '## Implementation Plan
+
+  1. Add theme context provider to React app
+
+  2. Create toggle component in settings
+
+  3. Store preference in localStorage
+
+  4. Detect system preference on first load
+
+  5. Apply CSS custom properties for color theming
+
+  '
+phases:
+- id: phase-1
+  title: Theme Context
+  status: completed
+  completed_at: '2025-10-26T11:44:03.663057Z'
+- id: phase-2
+  title: Toggle Component
+  status: in_progress
+- id: phase-3
+  title: CSS Variables
+  status: planned
+success_criteria: []
+prompts:
+  starter: Add dark mode toggle to settings with system preference detection.
+  followups: []
+status_updates: []
+deliverables: []
+dependencies: []
+external_links: []
+issues: []
+tags:
+- ui
+- accessibility
+branches: []

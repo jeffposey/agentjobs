@@ -1,0 +1,67 @@
+id: task-006
+title: Fix Memory Leak in WebSocket Handler
+created: '2025-10-22T17:44:03.663057Z'
+updated: '2025-10-26T17:44:03.734736Z'
+status: completed
+priority: critical
+category: bugfix
+assigned_to: Codex
+estimated_effort: 2 days
+human_summary: Fixed memory leak caused by unclosed event listeners in WebSocket connections.
+description: '## Problem
+
+  WebSocket handler was leaking ~50MB/hour due to event listeners not being cleaned
+  up on disconnect.
+
+
+  ## Solution
+
+  - Added cleanup handler for connection close events
+
+  - Implemented WeakMap for connection tracking
+
+  - Added memory usage monitoring
+
+
+  ## Results
+
+  - Memory usage stable at ~200MB (was growing to 2GB+ daily)
+
+  - No more daily restarts required
+
+  - Performance improved by 15%
+
+  '
+phases:
+- id: phase-1
+  title: Investigation
+  status: completed
+  completed_at: '2025-10-24T17:44:03.663057Z'
+- id: phase-2
+  title: Fix Implementation
+  status: completed
+  completed_at: '2025-10-25T17:44:03.663057Z'
+- id: phase-3
+  title: Testing & Monitoring
+  status: completed
+  completed_at: '2025-10-26T09:44:03.663057Z'
+success_criteria: []
+prompts:
+  starter: Debug and fix memory leak in WebSocket handler.
+  followups: []
+status_updates: []
+deliverables:
+- path: src/websocket/handler.ts
+  status: completed
+  description: Fixed WebSocket handler
+- path: tests/websocket/memory_test.ts
+  status: completed
+  description: Memory leak regression test
+dependencies: []
+external_links: []
+issues: []
+tags:
+- performance
+- websocket
+- memory
+branches: []

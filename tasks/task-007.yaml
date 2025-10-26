@@ -1,0 +1,50 @@
+id: task-007
+title: Implement GraphQL Pagination with Cursor Strategy
+created: '2025-10-26T05:44:03.663057Z'
+updated: '2025-10-26T17:44:03.745050Z'
+status: planned
+priority: medium
+category: feature
+estimated_effort: 1 week
+human_summary: Plan and implement cursor-based pagination for the GraphQL API to replace
+  offset pagination.
+description: '## Objective
+
+  Replace offset-based pagination with cursor-based for better performance and consistency.
+
+
+  ## Design
+
+  - Use base64-encoded cursors containing (timestamp, id)
+
+  - Implement forward/backward pagination
+
+  - Add `pageInfo` with hasNextPage/hasPreviousPage
+
+  - Support first/last/before/after arguments
+
+
+  ## Rollout
+
+  1. Implement new cursor fields alongside existing offset
+
+  2. Deprecate offset pagination (6-month notice)
+
+  3. Remove offset fields in v2.0 API
+
+  '
+phases: []
+success_criteria: []
+prompts:
+  starter: Design and implement cursor-based pagination for GraphQL API.
+  followups: []
+status_updates: []
+deliverables: []
+dependencies: []
+external_links: []
+issues: []
+tags:
+- graphql
+- api
+- performance
+branches: []

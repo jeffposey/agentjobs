@@ -1,0 +1,59 @@
+id: task-002
+title: Implement Rate Limiting for Public API
+created: '2025-10-24T17:44:03.663057Z'
+updated: '2025-10-26T17:44:03.690174Z'
+status: waiting_for_human
+priority: critical
+category: infrastructure
+assigned_to: Codex
+estimated_effort: 1 week
+human_summary: 'Approve rate limiting strategy: 100 req/min for free tier, 1000 req/min
+  for paid tier. Decide penalty box duration to unblock engineering.'
+description: "## Objective\nProtect our public API from abuse while ensuring good\
+  \ UX for legitimate users.\n\n## Proposed Strategy\n\n### Rate Limits by Tier\n\
+  - **Free tier**: 100 requests/minute, 10,000 requests/day\n- **Paid tier**: 1,000\
+  \ requests/minute, 100,000 requests/day\n- **Enterprise**: Custom limits (negotiated\
+  \ per contract)\n\n### Implementation\n- Use Redis for distributed rate limiting\
+  \ (sliding window)\n- Return HTTP 429 with `Retry-After` header when exceeded\n\
+  - Include rate limit info in response headers:\n  - `X-RateLimit-Limit`: Maximum\
+  \ requests allowed\n  - `X-RateLimit-Remaining`: Requests remaining in window\n\
+  \  - `X-RateLimit-Reset`: Unix timestamp when limit resets\n\n### Penalty Box (NEEDS\
+  \ DECISION)\nWhen users repeatedly exceed limits:\n- **Option A**: 15-minute cooldown\
+  \ (recommended for good UX)\n- **Option B**: 1-hour escalating penalty (stronger\
+  \ deterrent)\n- **Option C**: No penalty box, just standard limiting\n\n### Edge\
+  \ Cases\n- Burst allowance: Allow 20% burst above limit for 5 seconds\n- Whitelisted\
+  \ IPs (internal services, monitoring): No limits\n- Rate limit bypass for emergencies:\
+  \ Admin override flag\n\n## Questions\n1. Which penalty box strategy? (A, B, or\
+  \ C)\n2. Should we log rate limit violations for security monitoring?\n3. Do we\
+  \ need per-endpoint limits (e.g., auth endpoints more strict)?\n"
+phases:
+- id: phase-1
+  title: Research & Design
+  status: completed
+  notes: Researched industry standards (Stripe, GitHub, Twilio). Designed sliding
+    window algorithm with Redis.
+  completed_at: '2025-10-25T17:44:03.663057Z'
+- id: phase-2
+  title: Policy Approval
+  status: waiting_for_human
+  notes: Need human decision on penalty box strategy and per-endpoint limit strategy.
+success_criteria: []
+prompts:
+  starter: Design and implement rate limiting for our public API to prevent abuse.
+  followups: []
+status_updates:
+- timestamp: '2025-10-26T13:44:03.663057Z'
+  author: Codex
+  status: waiting_for_human
+  summary: Rate limiting design ready, need policy decisions
+  details: Technical design is complete. Need human input on penalty box duration
+    and per-endpoint limit strategy.
+deliverables: []
+dependencies: []
+external_links: []
+issues: []
+tags:
+- api
+- security
+- performance
+branches: []
