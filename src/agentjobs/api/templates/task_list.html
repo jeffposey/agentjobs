@@ -18,7 +18,6 @@
                 <option value="all">All Status</option>
                 <option value="draft">Draft</option>
                 <option value="ready">Ready</option>
-                <option value="planned">Planned</option>
                 <option value="in_progress">In Progress</option>
                 <option value="blocked">Blocked</option>
                 <option value="waiting_for_human">⚠️ Waiting for Human</option>
@@ -32,6 +31,11 @@
                 <option value="high">High</option>
                 <option value="medium">Medium</option>
                 <option value="low">Low</option>
+            </select>
+            <select x-model="scopeFilter" class="bg-dark-bg border border-dark-border rounded-lg px-4 py-2">
+                <option value="all">All Tasks</option>
+                <option value="project">Project Tasks</option>
+                <option value="test">Test/Examples</option>
             </select>
         </div>
     </div>
@@ -56,6 +60,7 @@
                     data-title="{{ task.title | lower | e }}"
                     data-status="{{ task.status | e }}"
                     data-priority="{{ task.priority | e }}"
+                    data-tags="{{ task.tags | join(',') | e }}"
                 >
                     <td class="px-6 py-4 min-w-[220px]">
                         <div class="font-medium">{{ task.title }}</div>
@@ -89,15 +94,27 @@
             search: '',
             statusFilter: initialStatus || 'all',
             priorityFilter: 'all',
+            scopeFilter: 'all',
             matches(dataset) {
                 const title = (dataset.title || '').toLowerCase();
                 const status = dataset.status || 'planned';
                 const priority = dataset.priority || 'medium';
+                const tags = (dataset.tags || '').split(',').map(t => t.trim());
+
                 const searchTerm = this.search.trim().toLowerCase();
                 const searchMatches = searchTerm === '' || title.includes(searchTerm);
                 const statusMatches = this.statusFilter === 'all' || status === this.statusFilter;
                 const priorityMatches = this.priorityFilter === 'all' || priority === this.priorityFilter;
-                return searchMatches && statusMatches && priorityMatches;
+
+                // Scope filter: test tasks have 'test' tag, project tasks are in agentjobs/ subdirectory
+                let scopeMatches = true;
+                if (this.scopeFilter === 'test') {
+                    scopeMatches = tags.includes('test') || tags.includes('example');
+                } else if (this.scopeFilter === 'project') {
+                    scopeMatches = !tags.includes('test') && !tags.includes('example');
+                }
+
+                return searchMatches && statusMatches && priorityMatches && scopeMatches;
             }
         };
     }

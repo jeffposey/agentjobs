@@ -34,9 +34,9 @@ class TaskConverter:
         "blocked": TaskStatus.BLOCKED,
         "on hold": TaskStatus.BLOCKED,
         "paused": TaskStatus.BLOCKED,
-        "planned": TaskStatus.PLANNED,
-        "pending": TaskStatus.PLANNED,
-        "not started": TaskStatus.PLANNED,
+        "planned": TaskStatus.DRAFT,
+        "pending": TaskStatus.DRAFT,
+        "not started": TaskStatus.DRAFT,
         "waiting": TaskStatus.WAITING_FOR_HUMAN,
         "waiting for human": TaskStatus.WAITING_FOR_HUMAN,
         "waiting_for_human": TaskStatus.WAITING_FOR_HUMAN,
@@ -158,9 +158,9 @@ class TaskConverter:
     def _map_status(self, status_str: Optional[str]) -> TaskStatus:
         """Map status string to TaskStatus enum."""
         if not status_str:
-            return TaskStatus.PLANNED
+            return TaskStatus.DRAFT
         status_key = status_str.strip().lower()
-        return self.STATUS_MAP.get(status_key, TaskStatus.PLANNED)
+        return self.STATUS_MAP.get(status_key, TaskStatus.DRAFT)
 
     def _map_priority(self, priority_str: Optional[str]) -> Priority:
         """Map priority string to Priority enum."""

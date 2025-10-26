@@ -7,7 +7,6 @@
     {% elif task.status == 'archived' %}bg-gray-800 text-gray-400
     {% elif task.status == 'draft' %}bg-purple-900 text-purple-200
     {% elif task.status == 'ready' %}bg-cyan-900 text-cyan-200
-    {% elif task.status == 'planned' %}bg-gray-700 text-gray-300
     {% else %}bg-gray-700 text-gray-300{% endif %}">
     {{ task.status.replace('_', ' ').title() }}
 </span>

@@ -38,7 +38,7 @@ class TaskCreateRequest(BaseModel):
         description="Classification category used for filtering in the UI.",
     )
     status: TaskStatus = Field(
-        default=TaskStatus.PLANNED,
+        default=TaskStatus.DRAFT,
         description="Initial workflow status assigned to the task.",
     )
     assigned_to: Optional[str] = Field(
