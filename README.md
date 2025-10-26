@@ -138,9 +138,8 @@ agentjobs serve
 ### Workflow Statuses
 
 AgentJobs tracks work through these stages:
-- `draft` – idea captured, needs shaping
-- `ready` – design reviewed, ready to schedule
-- `planned` – committed to backlog, awaiting execution
+- `draft` – idea captured, needs design and architecture
+- `ready` – designed, approved, ready for execution
 - `in_progress` / `waiting_for_human` / `under_review` – active collaboration
 - `completed` / `archived` – finished or stored for reference
 

@@ -1,0 +1,46 @@
+id: test-002-ready-example
+title: 'Example Ready Task'
+created: '2025-10-26T23:00:00Z'
+updated: '2025-10-26T23:00:00Z'
+status: ready
+priority: high
+category: examples
+assigned_to: null
+estimated_effort: null
+human_summary: This demonstrates a task in READY status - designed, approved, and ready for execution.
+description: |
+  This is an example task showing the READY status.
+
+  READY tasks have been fully designed and approved. They include:
+  - Clear requirements and scope
+  - Technical approach documented
+  - Acceptance criteria defined
+  - Effort estimated
+  - Prioritized for execution
+
+  READY tasks are the highest priority candidates for get_next_task().
+phases: []
+success_criteria:
+- id: sc-1
+  description: Example success criterion
+  status: pending
+prompts:
+  starter: |
+    This is where the detailed implementation prompt would go.
+
+    For READY tasks, this should include:
+    - Context and background
+    - Step-by-step implementation plan
+    - Verification steps
+    - Acceptance criteria
+  followups: []
+status_updates: []
+deliverables: []
+dependencies: []
+external_links: []
+issues: []
+tags:
+- test
+- example
+- ready-status
+branches: []

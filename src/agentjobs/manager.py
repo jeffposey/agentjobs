@@ -158,13 +158,11 @@ class TaskManager:
         return self.storage.save_task(task)
 
     def get_next_task(self, priority: Optional[Priority] = None) -> Optional[Task]:
-        """Get highest priority available task."""
-        allowed_statuses = [TaskStatus.READY, TaskStatus.PLANNED]
-        status_rank = {status: index for index, status in enumerate(allowed_statuses)}
+        """Get highest priority available task (READY status only)."""
         candidates = [
             task
             for task in self.storage.list_tasks()
-            if task.status in allowed_statuses
+            if task.status == TaskStatus.READY
         ]
         if priority is not None:
             candidates = [task for task in candidates if task.priority == priority]
@@ -172,7 +170,6 @@ class TaskManager:
             return None
         candidates.sort(
             key=lambda task: (
-                status_rank.get(task.status, len(status_rank)),
                 task.priority_rank(),
                 -task.updated.timestamp(),
             )

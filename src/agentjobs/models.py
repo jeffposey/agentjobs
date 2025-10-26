@@ -14,7 +14,6 @@ class TaskStatus(str, Enum):
 
     DRAFT = "draft"
     READY = "ready"
-    PLANNED = "planned"
     IN_PROGRESS = "in_progress"
     BLOCKED = "blocked"
     WAITING_FOR_HUMAN = "waiting_for_human"
@@ -40,7 +39,7 @@ class Phase(BaseModel):
     id: str = Field(..., description="Phase identifier (e.g., phase-1)")
     title: str = Field(..., description="Human-readable phase title.")
     status: TaskStatus = Field(
-        default=TaskStatus.PLANNED,
+        default=TaskStatus.DRAFT,
         description="Phase status leveraging core task workflow states.",
     )
     notes: Optional[str] = Field(
@@ -321,7 +320,6 @@ class Task(BaseModel):
         """Return True for statuses representing in-progress work."""
         return self.status in {
             TaskStatus.READY,
-            TaskStatus.PLANNED,
             TaskStatus.IN_PROGRESS,
             TaskStatus.BLOCKED,
             TaskStatus.WAITING_FOR_HUMAN,

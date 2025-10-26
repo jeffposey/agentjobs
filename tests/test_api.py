@@ -75,18 +75,18 @@ def test_create_task_validation_error(api_client) -> None:
 def test_list_tasks_with_filters(api_client) -> None:
     client, manager = api_client
     manager.create_task(
-        title="Planned task",
+        title="Ready task",
         description="Active",
         priority=Priority.MEDIUM,
         category="ops",
-        status=TaskStatus.PLANNED,
+        status=TaskStatus.READY,
     )
     manager.create_task(
         title="In progress",
         description="Working",
         priority=Priority.CRITICAL,
         category="ops",
-        status=TaskStatus.PLANNED,
+        status=TaskStatus.READY,
     )
     critical = manager.get_next_task()
     assert critical is not None
@@ -97,11 +97,11 @@ def test_list_tasks_with_filters(api_client) -> None:
         summary="Started",
     )
 
-    response = client.get("/api/tasks", params={"status_filter": "planned"})
+    response = client.get("/api/tasks", params={"status_filter": "ready"})
     assert response.status_code == 200
     bodies = response.json()
     assert len(bodies) == 1
-    assert bodies[0]["status"] == TaskStatus.PLANNED.value
+    assert bodies[0]["status"] == TaskStatus.READY.value
 
 
 def test_get_task_success(api_client) -> None:
@@ -172,14 +172,14 @@ def test_get_next_task(api_client) -> None:
         description="Background",
         priority=Priority.LOW,
         category="ops",
-        status=TaskStatus.PLANNED,
+        status=TaskStatus.READY,
     )
     critical = manager.create_task(
         title="Critical",
         description="Urgent",
         priority=Priority.CRITICAL,
         category="ops",
-        status=TaskStatus.PLANNED,
+        status=TaskStatus.READY,
     )
     response = client.get("/api/tasks/next")
     assert response.status_code == 200
