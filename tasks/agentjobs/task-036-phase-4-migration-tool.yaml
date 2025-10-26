@@ -1,0 +1,78 @@
+id: task-036-phase-4-migration-tool
+title: 'Phase 4: Migration Tool'
+created: '2025-10-26T20:28:01Z'
+updated: '2025-10-26T20:28:01Z'
+status: completed
+priority: high
+category: migration
+assigned_to: Codex
+estimated_effort: 1 day
+human_summary: Wire the Markdown-to-AgentJobs migration pipeline into the CLI with reporting and end-to-end tests.
+description: |
+  Phase 4 connected the Markdown migration pipeline to the AgentJobs CLI so we
+  can ingest legacy tasks automatically. The converter, parser, and reporter were
+  finalized, the CLI gained a `migrate` command with rich options, and migration
+  tests validate round-tripping representative Task 031 files.
+phases:
+  - id: phase-1
+    title: 'Integrate migration tooling'
+    status: completed
+    notes: Parser, converter, reporter, CLI command, and tests merged.
+    completed_at: '2025-10-26T20:28:01Z'
+success_criteria:
+  - id: sc-1
+    description: CLI exposes `agentjobs migrate` with source/target options.
+    status: completed
+  - id: sc-2
+    description: Migration reporter generates summaries for converted tasks.
+    status: completed
+  - id: sc-3
+    description: Markdown fixtures convert to valid YAML that loads via TaskStorage.
+    status: completed
+prompts:
+  starter: prompts/task-031-phase-4-migration-tool.md
+  followups:
+    - timestamp: '2025-10-26T20:28:01Z'
+      author: Claude
+      prompt_file: prompts/task-031-phase-4.2-human-agent-ux.md
+      context: Migration tooling complete; focus shifts to UX polish next.
+status_updates:
+  - timestamp: '2025-10-26T20:28:01Z'
+    author: Codex
+    status: completed
+    summary: Migration pipeline connected to CLI and tested
+    details: Parser, converter, reporter, CLI entry, and pytest coverage shipped; Markdown tasks now import cleanly.
+deliverables:
+  - path: src/agentjobs/migration/parser.py
+    status: completed
+    description: Markdown parser extracting metadata, phases, and prompts.
+  - path: src/agentjobs/migration/converter.py
+    status: completed
+    description: Converter building Task models from parsed Markdown.
+  - path: src/agentjobs/migration/reporter.py
+    status: completed
+    description: Reporter producing migration summaries and outputs.
+  - path: src/agentjobs/cli.py
+    status: completed
+    description: CLI `migrate` command wiring modules together with options.
+  - path: tests/test_migration.py
+    status: completed
+    description: End-to-end migration tests covering success and edge cases.
+dependencies:
+  - task_id: task-035-phase-3-web-gui
+    type: depends_on
+    status: completed
+    note: Migration tool builds on the stable UI to surface migrated content.
+external_links:
+  - url: https://github.com/jeffposey/agentjobs/commit/08cab28
+    title: 'Commit 08cab28 - wire Phase 4 migration tool into CLI'
+issues: []
+tags:
+  - agentjobs
+  - phase-4
+  - migration
+  - tasks-2-0
+branches:
+  - name: main
+    status: merged
+    merged_at: '2025-10-26T20:28:01Z'

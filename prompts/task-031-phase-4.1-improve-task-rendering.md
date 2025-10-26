@@ -226,10 +226,10 @@ For phases with long content, add collapse functionality:
 cd /mnt/c/projects/agentjobs
 
 # Re-migrate test tasks to pick up parser improvements
-rm tasks/*.yaml
+rm tasks/agentjobs/*.yaml
 .venv/bin/agentjobs migrate \
-  '/mnt/c/projects/privateproject/ops/tasks/task-016-*.md' \
-  tasks/ \
+  'tasks/privateproject/task-016-*.yaml' \
+  tasks/agentjobs/ \
   --prompts-dir /mnt/c/projects/privateproject/ops/prompts
 
 # Start server

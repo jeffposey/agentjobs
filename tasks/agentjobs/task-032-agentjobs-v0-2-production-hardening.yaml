@@ -1,5 +1,5 @@
 id: task-032-agentjobs-v0-2-production-hardening
-title: AgentJobs v0.2.0 - Production Hardening
+title: 'AgentJobs v0.2.0 - Production Hardening'
 created: '2025-10-26T18:30:00Z'
 updated: '2025-10-26T18:30:00Z'
 status: planned
@@ -48,19 +48,19 @@ description: |
   - Mobile app experiences
 phases:
 - id: phase-1
-  title: Authentication System
+  title: 'Authentication System'
   status: planned
 - id: phase-2
-  title: Docker & Deployment
+  title: 'Docker & Deployment'
   status: planned
 - id: phase-3
-  title: Monitoring & Logging
+  title: 'Monitoring & Logging'
   status: planned
 - id: phase-4
-  title: GitHub Integration
+  title: 'GitHub Integration'
   status: planned
 - id: phase-5
-  title: Performance Optimization
+  title: 'Performance Optimization'
   status: planned
 success_criteria: []
 prompts:

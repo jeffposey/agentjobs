@@ -1,0 +1,22 @@
+project_name: AgentJobs
+tasks_directory: tasks/agentjobs
+prompts_directory: prompts
+gui:
+  host: localhost
+  port: 8765
+  theme: dark
+agents:
+  - name: claude
+    display_name: Claude (Lead Engineer)
+  - name: codex
+    display_name: Codex (Workhorse)
+categories:
+  - infrastructure
+  - ux
+  - developer_experience
+  - documentation
+  - migration
+  - meta
+defaults:
+  priority: medium
+  status: planned

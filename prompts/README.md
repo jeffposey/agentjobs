@@ -14,7 +14,7 @@ Prompts are automatically linked during migration:
 
 ```bash
 agentjobs migrate \
-  'tasks/task-*.md' \
+  'tasks/agentjobs/task-*.md' \
   tasks/ \
   --prompts-dir prompts
 ```

@@ -1,13 +1,13 @@
 id: task-031-tasks-2-0-system
-title: Tasks 2.0 - Agent Task Management System
+title: 'Tasks 2.0 - Agent Task Management System'
 created: '2025-10-25T19:00:00Z'
-updated: '2025-10-26T18:00:00Z'
-status: in_progress
+updated: '2025-10-26T20:28:05Z'
+status: archived
 priority: high
 category: infrastructure
 assigned_to: Claude + Codex
 estimated_effort: 2-3 weeks
-human_summary: Bootstrap AgentJobs by migrating Task 031 into the agentjobs repo and letting the platform manage its own roadmap.
+human_summary: Legacy umbrella for Task 031 migration work. Superseded by phase-specific tasks (033-039).
 description: |
   ## Objective
 
@@ -22,49 +22,58 @@ description: |
   - Update phase tracking to reflect historical progress through Phase 5.2
   - Prepare AgentJobs for ongoing self-managed development with new tasks
   - Update cross-repo documentation to point at the new source of truth
+  - Retroactively break down Task 031 into standalone phase tasks (task-033 through task-039)
+
+  ## Status
+
+  This record is retained for audit purposes but no longer receives direct
+  updates. Active work now lives in the phase-specific tasks created during
+  Phase 5.3.
 phases:
 - id: phase-1
-  title: Core Infrastructure
+  title: 'Core Infrastructure'
   status: completed
   completed_at: '2025-10-25T20:00:00Z'
   notes: YAML storage, models, manager complete
 - id: phase-2
-  title: REST API
+  title: 'REST API'
   status: completed
   completed_at: '2025-10-25T21:00:00Z'
   notes: FastAPI with full CRUD operations
 - id: phase-3
-  title: Web GUI
+  title: 'Web GUI'
   status: completed
   completed_at: '2025-10-25T22:00:00Z'
   notes: Dark theme browser interface
 - id: phase-4
-  title: Migration Tool
+  title: 'Migration Tool'
   status: completed
   completed_at: '2025-10-25T23:00:00Z'
   notes: Markdown to YAML conversion
 - id: phase-4.1
-  title: Improve Task Rendering
+  title: 'Improve Task Rendering'
   status: completed
   completed_at: '2025-10-26T10:00:00Z'
   notes: Marked.js markdown rendering
 - id: phase-4.2
-  title: Human-Agent UX
+  title: 'Human-Agent UX'
   status: completed
   completed_at: '2025-10-26T17:00:00Z'
   notes: Waiting status, tabbed views, test data
 - id: phase-5.1
-  title: Package and Integrate
+  title: 'Package and Integrate'
   status: planned
   notes: Install in PrivateProject, migrate tasks
 - id: phase-5.2
-  title: Agent DX Improvements
-  status: in_progress
-  notes: Examples, docs, CLI command
+  title: 'Agent DX Improvements'
+  status: completed
+  completed_at: '2025-10-26T20:28:04Z'
+  notes: Examples, docs, CLI command delivered (see task-038)
 - id: phase-5.3
-  title: Bootstrap Self-Management
-  status: in_progress
-  notes: Use AgentJobs to manage itself
+  title: 'Bootstrap Self-Management'
+  status: completed
+  completed_at: '2025-10-26T20:28:05Z'
+  notes: AgentJobs now self-manages (see task-039)
 success_criteria: []
 prompts:
   starter: prompts/task-031-phase-1-core-infrastructure.md
@@ -112,11 +121,41 @@ status_updates:
   status: in_progress
   summary: Phase 5.2 started - Agent DX improvements
   details: Adding examples and documentation
+- timestamp: '2025-10-26T20:28:05Z'
+  author: Codex
+  status: archived
+  summary: Archived umbrella task in favour of phase-specific tasks
+  details: Work now tracked in task-033 through task-039 to match historical commits.
 deliverables: []
-dependencies: []
+dependencies:
+- task_id: task-033-phase-1-core-infrastructure
+  type: related
+  note: Phase 1 split into dedicated task.
+- task_id: task-034-phase-2-rest-api
+  type: related
+  note: Phase 2 tracked independently.
+- task_id: task-035-phase-3-web-gui
+  type: related
+  note: Phase 3 tracked independently.
+- task_id: task-036-phase-4-migration-tool
+  type: related
+  note: Phase 4 tracked independently.
+- task_id: task-037-phase-4-2-human-agent-ux
+  type: related
+  note: Phase 4.2 tracked independently.
+- task_id: task-038-phase-5-2-agent-dx
+  type: related
+  note: Phase 5.2 tracked independently.
+- task_id: task-039-phase-5-3-self-management
+  type: related
+  note: Phase 5.3 tracked independently.
 external_links: []
 issues: []
 tags:
 - agentjobs
 - self-management
-branches: []
+- archived
+branches:
+- name: main
+  status: merged
+  merged_at: '2025-10-26T20:28:05Z'

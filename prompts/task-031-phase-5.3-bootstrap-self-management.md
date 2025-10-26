@@ -13,8 +13,8 @@
 
 **Current situation:**
 - Task 031 (building AgentJobs) lives in privateproject repo
-- 1 task file: `task-031-tasks-2.0-system.md`
-- 9 phase prompts: `task-031-phase-*.md`
+- 1 task file: `tasks/agentjobs/task-031-tasks-2-0-system.yaml`
+- 9 phase prompts: `prompts/task-031-phase-*.md`
 - All about building agentjobs, not privateproject
 
 **Problem:** Using privateproject's task system to manage agentjobs development. Should be self-managed!
@@ -27,7 +27,7 @@
 
 1. Create `prompts/` directory in agentjobs repo
 2. Copy task 031 prompts from privateproject to agentjobs
-3. Migrate task 031 to agentjobs `tasks/` using migration tool
+3. Migrate task 031 to agentjobs `tasks/agentjobs/` using migration tool
 4. Create task 032 (future agentjobs work) using agentjobs CLI
 5. Update agentjobs README to reference self-managed tasks
 6. Test full workflow (agents using agentjobs to work on agentjobs)
@@ -62,8 +62,8 @@ Prompts are automatically linked during migration:
 
 \`\`\`bash
 agentjobs migrate \
-  'tasks/task-*.md' \
-  tasks/ \
+  'tasks/agentjobs/task-*.yaml' \
+  tasks/agentjobs/ \
   --prompts-dir prompts
 \`\`\`
 
@@ -114,12 +114,12 @@ cp /mnt/c/projects/privateproject/ops/tasks/task-031-tasks-2.0-system.md /tmp/ta
 # Migrate it
 agentjobs migrate \
   '/tmp/task-031.md' \
-  tasks/ \
+  tasks/agentjobs/ \
   --prompts-dir prompts
 
 # Verify
-ls -lah tasks/task-031-*
-cat tasks/task-031-*.yaml | head -40
+ls -lah tasks/agentjobs/task-031-*
+cat tasks/agentjobs/task-031-*.yaml | head -40
 ```
 
 **Option B: Create Manually (Alternative)**
@@ -148,7 +148,7 @@ agentjobs create \
 
 ### 4. Update Task 031 Status
 
-Edit the migrated `tasks/task-031-*.yaml` to reflect current progress:
+Edit the migrated `tasks/agentjobs/task-031-*.yaml` to reflect current progress:
 
 ```yaml
 # Update status
@@ -253,7 +253,7 @@ agentjobs create \
   --category infrastructure \
   --assigned-to "TBD"
 
-# Manually edit tasks/task-032-*.yaml to add:
+# Manually edit tasks/agentjobs/task-032-*.yaml to add:
 # - Description of future improvements
 # - Phases (auth, deployment, monitoring, etc.)
 # - Mark as status: planned
@@ -340,6 +340,23 @@ prompts:
 ---
 
 ### 6. Update AgentJobs README
+### 7. Record Historical Phase Tasks
+
+Task 031 now serves as an archived summary. Verify that each historical phase has its own task file tied to the commit that delivered it.
+
+```bash
+ls tasks/agentjobs/task-03[3-9]-*.yaml
+agentjobs show task-033-phase-1-core-infrastructure
+agentjobs show task-039-phase-5-3-self-management
+```
+
+Ensure each task includes:
+- `external_links` pointing at the matching commit (`af42e6c`, `e6dbfbe`, `b05472b`, `08cab28`, `d4378cd`, `62665e5`, `90f2ac5`)
+- `branches` metadata marking `main` as merged with the correct timestamp
+- Dependencies linking to the previous phase tasks where applicable
+
+With the phase tasks confirmed, Task 031 can remain archived as the high-level audit record.
+
 
 Add section about self-management to `README.md`:
 
@@ -368,7 +385,9 @@ agentjobs serve
 
 ### Task Structure
 
-- \`tasks/\` - Development tasks for AgentJobs itself
+- \`tasks/agentjobs/\` - Active AgentJobs roadmap (task-031, task-032, task-033…039)
+- \`tasks/test-data/\` - Sample/demo tasks for UI smoke tests
+- \`tasks/privateproject/\` - Legacy PrivateProject tasks retained for migration tooling
 - \`prompts/\` - Detailed implementation instructions
 - \`examples/\` - Agent integration examples
 - \`docs/\` - Documentation
@@ -378,7 +397,7 @@ agentjobs serve
 
 ---
 
-### 7. Update PrivateProject Task 031
+### 8. Update PrivateProject Task 031
 
 After migrating to agentjobs, update privateproject's task 031:
 
@@ -394,7 +413,7 @@ cd /mnt/c/projects/privateproject
 
 **⚠️ MIGRATED:** This task now lives in the agentjobs repo.
 
-**See:** https://github.com/jeffposey/agentjobs/blob/main/tasks/task-031-tasks-2-0-system.yaml
+**See:** https://github.com/jeffposey/agentjobs/blob/main/tasks/agentjobs/task-031-tasks-2-0-system.yaml
 
 This file kept for historical reference only.
 
@@ -415,7 +434,7 @@ ls prompts/task-031-*.md
 # Should show 9 files
 
 # Verify task migrated
-ls tasks/task-031-*.yaml
+ls tasks/agentjobs/task-031-*.yaml
 # Should show 1 file
 
 # Test server with self-managed tasks

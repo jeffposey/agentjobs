@@ -1,0 +1,71 @@
+id: task-039-phase-5-3-self-management
+title: 'Phase 5.3: Bootstrap Self-Management'
+created: '2025-10-26T20:28:05Z'
+updated: '2025-10-26T20:28:05Z'
+status: completed
+priority: high
+category: meta
+assigned_to: Codex
+estimated_effort: 1 day
+human_summary: Move Task 031 and its prompts into AgentJobs so the platform manages its own development roadmap.
+description: |
+  Phase 5.3 made AgentJobs self-hosted for its own work. Task 031 and all phase
+  prompts were migrated from PrivateProject, task metadata was normalised into YAML,
+  and Task 032 established forward-looking hardening work. The README now
+  explains how AgentJobs uses itself, delivering meta-circular self-management.
+phases:
+  - id: phase-1
+    title: 'Bootstrap self-management'
+    status: completed
+    notes: Prompts migrated, tasks created, documentation updated.
+    completed_at: '2025-10-26T20:28:05Z'
+success_criteria:
+  - id: sc-1
+    description: Task 031 recorded in AgentJobs with accurate phase history.
+    status: completed
+  - id: sc-2
+    description: Prompts directory contains Task 031 phase prompts and README.
+    status: completed
+  - id: sc-3
+    description: New Task 032 captures post-migration roadmap.
+    status: completed
+prompts:
+  starter: prompts/task-031-phase-5.3-bootstrap-self-management.md
+  followups: []
+status_updates:
+  - timestamp: '2025-10-26T20:28:05Z'
+    author: Codex
+    status: completed
+    summary: AgentJobs now manages its own roadmap
+    details: Migrated Task 031 + prompts from PrivateProject, created Task 032, updated README to describe self-management workflow.
+deliverables:
+  - path: prompts/
+    status: completed
+    description: Naming research + nine phase prompts imported from Task 031.
+  - path: tasks/agentjobs/task-031-tasks-2-0-system.yaml
+    status: completed
+    description: Migrated Task 031 with history through Phase 5.3.
+  - path: tasks/agentjobs/task-032-agentjobs-v0-2-production-hardening.yaml
+    status: completed
+    description: Follow-on hardening roadmap seeded for v0.2.0.
+  - path: README.md
+    status: completed
+    description: Documented self-management workflow in repository README.
+dependencies:
+  - task_id: task-038-phase-5-2-agent-dx
+    type: depends_on
+    status: completed
+    note: Builds on agent experience work to make self-management approachable.
+external_links:
+  - url: https://github.com/jeffposey/agentjobs/commit/90f2ac5
+    title: 'Commit 90f2ac5 - bootstrap self-management with task 031'
+issues: []
+tags:
+  - agentjobs
+  - phase-5-3
+  - self-management
+  - tasks-2-0
+branches:
+  - name: main
+    status: merged
+    merged_at: '2025-10-26T20:28:05Z'

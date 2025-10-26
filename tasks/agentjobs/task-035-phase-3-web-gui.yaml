@@ -1,0 +1,76 @@
+id: task-035-phase-3-web-gui
+title: 'Phase 3: Web GUI'
+created: '2025-10-26T02:36:03Z'
+updated: '2025-10-26T02:36:03Z'
+status: completed
+priority: high
+category: ux
+assigned_to: Codex
+estimated_effort: 1 day
+human_summary: Launch dark-themed browser UI with dashboard, task list, and task detail views backed by the REST API.
+description: |
+  Phase 3 delivered a responsive, dark-mode web interface so humans (and agents)
+  can inspect tasks visually. The release added Jinja templates for the dashboard,
+  task list, and task detail pages, Alpine.js interactivity for filters, and the
+  associated FastAPI web routes. The UI mirrors the PrivateProject aesthetic while
+  surfacing prompts, phases, and status updates clearly.
+phases:
+  - id: phase-1
+    title: 'Ship production-ready web experience'
+    status: completed
+    notes: Dashboard, task list/search, task detail tabs, layout, and routes merged.
+    completed_at: '2025-10-26T02:36:03Z'
+success_criteria:
+  - id: sc-1
+    description: Dashboard shows stats and active tasks via new web routes.
+    status: completed
+  - id: sc-2
+    description: Task list supports search and filtering using Alpine.js.
+    status: completed
+  - id: sc-3
+    description: Task detail renders prompts, phases, and deliverables.
+    status: completed
+prompts:
+  starter: prompts/task-031-phase-3-web-gui.md
+  followups:
+    - timestamp: '2025-10-26T02:36:03Z'
+      author: Claude
+      prompt_file: prompts/task-031-phase-4-migration-tool.md
+      context: UI shipping clears the path for the migration tooling work.
+status_updates:
+  - timestamp: '2025-10-26T02:36:03Z'
+    author: Codex
+    status: completed
+    summary: Browser UI deployed with dashboard, list, and detail views
+    details: Added web routes, templates, Tailwind styling, and Alpine.js filters for a full dark-mode GUI.
+deliverables:
+  - path: src/agentjobs/api/routes/web.py
+    status: completed
+    description: FastAPI routes serving dashboard, task list, and detail pages.
+  - path: src/agentjobs/api/templates/dashboard.html
+    status: completed
+    description: Dashboard with stats and waiting-for-human spotlight.
+  - path: src/agentjobs/api/templates/task_list.html
+    status: completed
+    description: Searchable task list with status and priority filters.
+  - path: src/agentjobs/api/templates/task_detail.html
+    status: completed
+    description: Detailed task view with phases, prompts, and deliverables.
+dependencies:
+  - task_id: task-034-phase-2-rest-api
+    type: depends_on
+    status: completed
+    note: Web interface consumes REST endpoints from Phase 2.
+external_links:
+  - url: https://github.com/jeffposey/agentjobs/commit/b05472b
+    title: 'Commit b05472b - implement Phase 3 browser-based GUI'
+issues: []
+tags:
+  - agentjobs
+  - phase-3
+  - web-ui
+  - tasks-2-0
+branches:
+  - name: main
+    status: merged
+    merged_at: '2025-10-26T02:36:03Z'

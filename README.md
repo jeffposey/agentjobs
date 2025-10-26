@@ -109,6 +109,8 @@ client.add_progress_update(
 
 AgentJobs uses itself to manage its own development tasks.
 
+The legacy Task 031 umbrella is now archived in favour of phase-specific tasks (task-033 through task-039) that point at the commits which delivered each milestone.
+
 ### View Development Tasks
 
 ```bash
@@ -126,7 +128,9 @@ agentjobs serve
 
 ### Task Structure
 
-- `tasks/` - AgentJobs development tasks in YAML
+- `tasks/agentjobs/` - Active AgentJobs roadmap (task-031, task-032, task-033…039)
+- `tasks/test-data/` - Sample tasks used for demos and load-test-data command
+- `tasks/privateproject/` - Migrated PrivateProject tasks retained for migration tooling tests
 - `prompts/` - Phase-specific execution instructions
 - `examples/` - Agent integration samples
 - `docs/` - Product and API documentation

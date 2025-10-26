@@ -175,7 +175,7 @@ ls -lah tasks/
 .venv/bin/agentjobs show task-031
 
 # Verify human_summary was extracted
-cat tasks/task-016.yaml | grep "human_summary"
+cat tasks/privateproject/task-016.yaml | grep "human_summary"
 # Should show concise summary extracted from markdown
 ```
 
@@ -280,9 +280,9 @@ client.mark_completed(task.id, agent="codex")
 
 ### Task File Structure
 
-Tasks stored as YAML in `tasks/` directory:
-- `tasks/task-001.yaml`
-- `tasks/task-002.yaml`
+Tasks stored as YAML under `tasks/agentjobs/` (sample fixtures remain in `tasks/test-data/`):
+- `tasks/agentjobs/task-032-agentjobs-v0-2-production-hardening.yaml`
+- `tasks/agentjobs/task-038-phase-5-2-agent-dx.yaml`
 - etc.
 
 Each task includes:
@@ -324,7 +324,7 @@ agentjobs create \\
 \`\`\`
 
 **Manual YAML:**
-Create `tasks/task-XXX.yaml` following the schema (see existing tasks for examples).
+Create `tasks/agentjobs/task-XXX.yaml` following the schema (see existing tasks for examples).
 
 **Via Markdown Migration:**
 \`\`\`bash

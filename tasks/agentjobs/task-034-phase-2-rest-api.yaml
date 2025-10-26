@@ -1,0 +1,75 @@
+id: task-034-phase-2-rest-api
+title: 'Phase 2: REST API'
+created: '2025-10-26T01:24:44Z'
+updated: '2025-10-26T01:24:44Z'
+status: completed
+priority: high
+category: infrastructure
+assigned_to: Codex
+estimated_effort: 1 day
+human_summary: Ship FastAPI service, REST routes, and Python client so agents can integrate programmatically.
+description: |
+  Phase 2 layered a FastAPI application on top of the core storage layer and
+  delivered an httpx-powered TaskClient for agents. The work exposed REST
+  endpoints for listing tasks, fetching prompts, updating status, and searching.
+  Documentation and tests were expanded to cover the API workflows end to end.
+phases:
+  - id: phase-1
+    title: 'Deliver REST surface area'
+    status: completed
+    notes: FastAPI app, routes, dependency wiring, and client completed.
+    completed_at: '2025-10-26T01:24:44Z'
+success_criteria:
+  - id: sc-1
+    description: FastAPI app serves task CRUD, prompts, and search endpoints.
+    status: completed
+  - id: sc-2
+    description: TaskClient exposes ergonomic wrappers over REST API.
+    status: completed
+  - id: sc-3
+    description: API and client coverage added to pytest suite.
+    status: completed
+prompts:
+  starter: prompts/task-031-phase-2-rest-api.md
+  followups:
+    - timestamp: '2025-10-26T01:24:44Z'
+      author: Claude
+      prompt_file: prompts/task-031-phase-3-web-gui.md
+      context: REST API merged, ready to build browser UI next.
+status_updates:
+  - timestamp: '2025-10-26T01:24:44Z'
+    author: Codex
+    status: completed
+    summary: REST API and TaskClient live on main
+    details: FastAPI app, routes, and client merged with docs and tests; agents can now call AgentJobs remotely.
+deliverables:
+  - path: src/agentjobs/api/main.py
+    status: completed
+    description: FastAPI app factory with task storage dependency injection.
+  - path: src/agentjobs/api/routes/tasks.py
+    status: completed
+    description: REST endpoints for task CRUD and status transitions.
+  - path: src/agentjobs/api/models.py
+    status: completed
+    description: Pydantic request/response models shared with API.
+  - path: src/agentjobs/client.py
+    status: completed
+    description: httpx-based TaskClient for agent integrations.
+dependencies:
+  - task_id: task-033-phase-1-core-infrastructure
+    type: depends_on
+    status: completed
+    note: REST layer built on top of Phase 1 storage and models.
+external_links:
+  - url: https://github.com/jeffposey/agentjobs/commit/e6dbfbe
+    title: 'Commit e6dbfbe - implement Phase 2 REST API and client'
+issues: []
+tags:
+  - agentjobs
+  - phase-2
+  - rest-api
+  - tasks-2-0
+branches:
+  - name: main
+    status: merged
+    merged_at: '2025-10-26T01:24:44Z'
