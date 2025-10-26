@@ -63,6 +63,37 @@
         </div>
     </div>
 
+    {% if stats.total == 0 %}
+    <div class="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border-2 border-blue-500/30 rounded-lg p-6">
+        <div class="flex items-start gap-4">
+            <div class="text-4xl" aria-hidden="true">🚀</div>
+            <div class="flex-1">
+                <h2 class="text-xl font-bold text-blue-300 mb-2">Getting Started with AgentJobs</h2>
+                <p class="text-dark-muted mb-4">No tasks yet. Here's how to get rolling:</p>
+
+                <div class="space-y-3 text-sm">
+                    <div>
+                        <strong class="text-dark-text">For Humans:</strong>
+                        <pre class="bg-dark-bg rounded p-2 mt-1 text-xs">agentjobs create --title "My First Task" --priority high</pre>
+                    </div>
+
+                    <div>
+                        <strong class="text-dark-text">For AI Agents:</strong>
+                        <pre class="bg-dark-bg rounded p-2 mt-1 text-xs">from agentjobs import TaskClient
+client = TaskClient()
+task = client.get_next_task()
+client.mark_in_progress(task.id, agent="agent-name")</pre>
+                    </div>
+
+                    <div class="mt-4">
+                        <a href="/docs" class="text-blue-400 hover:text-blue-300 underline">View Full Documentation →</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="bg-dark-surface rounded-lg border border-dark-border">
         <div class="p-6 border-b border-dark-border flex items-center justify-between">
             <h2 class="text-xl font-semibold">Active Tasks</h2>

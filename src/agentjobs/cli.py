@@ -280,6 +280,86 @@ def load_test_data(
 
 
 @app.command()
+def work(
+    agent: str = typer.Option(
+        ...,
+        prompt="Your agent name",
+        help="Agent identifier used in status updates.",
+    ),
+    priority: Optional[str] = typer.Option(
+        None, help="Filter by priority (high, medium, low, critical)"
+    ),
+    storage_dir: str = typer.Option(
+        "./tasks",
+        help="Directory for task storage.",
+    ),
+) -> None:
+    """Interactive agent workflow: get task, display prompt, mark complete."""
+    base_dir = Path.cwd()
+    target_dir = Path(storage_dir)
+    if not target_dir.is_absolute():
+        target_dir = base_dir / target_dir
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    storage = TaskStorage(target_dir)
+    manager = TaskManager(storage)
+
+    priority_enum = None
+    if priority:
+        try:
+            priority_enum = Priority(priority.lower())
+        except ValueError:
+            typer.echo(f"Invalid priority: {priority}", err=True)
+            raise typer.Exit(1)
+
+    task = manager.get_next_task(priority=priority_enum)
+
+    if not task:
+        typer.echo("No tasks available")
+        raise typer.Exit(0)
+
+    divider = "=" * 60
+    typer.echo(f"\n{divider}")
+    typer.echo(f"TASK: {task.title}")
+    typer.echo(f"ID: {task.id}")
+    typer.echo(f"Priority: {getattr(task.priority, 'value', task.priority)}")
+    typer.echo(f"Category: {task.category}")
+    typer.echo(f"{divider}\n")
+
+    if getattr(task.prompts, "starter", None):
+        typer.echo(task.prompts.starter)
+        typer.echo(f"\n{divider}\n")
+
+    if not typer.confirm(f"Start working on this task as '{agent}'?"):
+        typer.echo("Cancelled")
+        raise typer.Exit(0)
+
+    manager.update_status(
+        task.id,
+        status=TaskStatus.IN_PROGRESS,
+        author=agent,
+        summary=f"Started by {agent}",
+    )
+    typer.echo("✓ Task marked IN_PROGRESS")
+
+    typer.echo("\n💼 Work on the task, then return here when done...\n")
+
+    if not typer.confirm("Mark task as COMPLETED?", default=True):
+        typer.echo("Task still IN_PROGRESS. Use CLI to update later.")
+        raise typer.Exit(0)
+
+    summary = typer.prompt("Summary of work done", default="Task completed")
+    manager.update_status(
+        task.id,
+        status=TaskStatus.COMPLETED,
+        author=agent,
+        summary=summary,
+    )
+    typer.echo(f"\n✅ Task {task.id} marked COMPLETED!")
+
+
+@app.command()
 def show(task_id: str) -> None:
     """Show task details."""
     base_dir = Path.cwd()
