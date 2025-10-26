@@ -98,7 +98,7 @@ phases:
     logging requirements.
 - id: phase-3
   title: Implementation
-  status: planned
+  status: draft
   notes: Create migration scripts and ORM models after approval.
 success_criteria: []
 prompts:

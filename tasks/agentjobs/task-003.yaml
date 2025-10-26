@@ -32,7 +32,7 @@ phases:
   status: in_progress
 - id: phase-3
   title: CSS Variables
-  status: planned
+  status: draft
 success_criteria: []
 prompts:
   starter: Add dark mode toggle to settings with system preference detection.
