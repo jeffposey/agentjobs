@@ -49,19 +49,19 @@ description: |
 phases:
 - id: phase-1
   title: 'Authentication System'
-  status: planned
+  status: draft
 - id: phase-2
   title: 'Docker & Deployment'
-  status: planned
+  status: draft
 - id: phase-3
   title: 'Monitoring & Logging'
-  status: planned
+  status: draft
 - id: phase-4
   title: 'GitHub Integration'
-  status: planned
+  status: draft
 - id: phase-5
   title: 'Performance Optimization'
-  status: planned
+  status: draft
 success_criteria: []
 prompts:
   starter: |

@@ -62,8 +62,8 @@ phases:
   notes: Waiting status, tabbed views, test data
 - id: phase-5.1
   title: 'Package and Integrate'
-  status: planned
-  notes: Install in host environment, migrate tasks
+  status: draft
+  notes: Install in host environment, migrate tasks (NOT YET DONE)
 - id: phase-5.2
   title: 'Agent DX Improvements'
   status: completed
