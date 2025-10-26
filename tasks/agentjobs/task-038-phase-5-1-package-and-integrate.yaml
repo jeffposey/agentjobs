@@ -2,7 +2,7 @@ id: task-038-phase-5-1-package-and-integrate
 title: 'Phase 5.1: Package and Integrate AgentJobs'
 created: '2025-10-26T19:30:00Z'
 updated: '2025-10-26T21:15:00Z'
-status: completed
+status: draft
 priority: high
 category: deployment
 assigned_to: Codex
@@ -24,52 +24,39 @@ description: |
 phases:
 - id: phase-1
   title: 'Package AgentJobs for distribution'
-  status: completed
-  completed_at: '2025-10-26T20:00:00Z'
-  notes: Built wheel/sdist and validated local installation path.
+  status: draft
 - id: phase-2
   title: 'Integrate into host project'
-  status: completed
-  completed_at: '2025-10-26T20:30:00Z'
-  notes: Added dependency, configured environment, updated CI pipeline.
+  status: draft
 - id: phase-3
   title: 'Migrate existing tasks'
-  status: completed
-  completed_at: '2025-10-26T21:00:00Z'
-  notes: Imported 34 legacy tasks and verified data integrity.
+  status: draft
 - id: phase-4
   title: 'Document rollout'
-  status: completed
-  completed_at: '2025-10-26T21:15:00Z'
-  notes: Authored integration guide and troubleshooting steps.
+  status: draft
 success_criteria:
 - id: sc-1
   description: AgentJobs package installs via pip in host environment without manual tweaks.
-  status: completed
+  status: pending
 - id: sc-2
   description: CI pipeline provisions AgentJobs and executes smoke tests.
-  status: completed
+  status: pending
 - id: sc-3
   description: Migrated tasks render correctly in GUI and CLI.
-  status: completed
+  status: pending
 prompts:
   starter: prompts/task-031-phase-5.1-package-and-integrate.md
   followups: []
-status_updates:
-- timestamp: '2025-10-26T20:30:00Z'
-  author: Codex
-  status: ready
-  summary: Integration plan validated and package published
-  details: Packaging, dependency wiring, and migration checks complete. Instructions captured in deployment guide; ready for human confirmation.
+status_updates: []
 deliverables:
 - path: docs/integration/agentjobs-package.md
-  status: completed
+  status: pending
   description: Step-by-step install and integration guide.
 - path: requirements.txt
-  status: completed
+  status: pending
   description: Added AgentJobs dependency pin for host project.
 - path: tasks/
-  status: completed
+  status: pending
   description: Migrated task catalog stored under AgentJobs management.
 dependencies:
 - task_id: task-037-phase-4-2-human-agent-ux

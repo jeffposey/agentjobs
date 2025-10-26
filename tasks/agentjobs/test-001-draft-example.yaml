@@ -21,7 +21,15 @@ description: |
 phases: []
 success_criteria: []
 prompts:
-  starter: null
+  starter: |
+    This is a DRAFT task - it hasn't been fully designed yet.
+
+    A real task prompt would include:
+    - Clear requirements and scope
+    - Technical approach
+    - Step-by-step implementation plan
+    - Verification steps
+    - Acceptance criteria
   followups: []
 status_updates: []
 deliverables: []
