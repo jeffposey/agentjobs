@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block title %}{{ task.title }} - AgentJobs{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold">{{ task.title }}</h1>
+            <div class="flex flex-wrap items-center gap-3 mt-3">
+                {% include "components/status_badge.html" %}
+                {% include "components/priority_badge.html" %}
+                <span class="text-sm text-dark-muted">{{ task.category }}</span>
+                {% if task.tags %}
+                <span class="text-sm text-dark-muted flex items-center gap-1">
+                    <span class="uppercase tracking-wide text-xs">Tags:</span>
+                    {% for tag in task.tags %}
+                    <span class="px-2 py-0.5 rounded bg-dark-bg border border-dark-border text-xs">{{ tag }}</span>
+                    {% endfor %}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        <a href="/tasks" class="px-4 py-2 bg-dark-surface border border-dark-border rounded-lg hover:bg-dark-border transition text-sm">
+            ← Back to Tasks
+        </a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-dark-surface rounded-lg border border-dark-border p-4">
+            <div class="text-xs text-dark-muted mb-1">Created</div>
+            <div class="text-sm">{{ task.created.strftime('%Y-%m-%d %H:%M') }}</div>
+        </div>
+        <div class="bg-dark-surface rounded-lg border border-dark-border p-4">
+            <div class="text-xs text-dark-muted mb-1">Updated</div>
+            <div class="text-sm">{{ task.updated.strftime('%Y-%m-%d %H:%M') }}</div>
+        </div>
+        <div class="bg-dark-surface rounded-lg border border-dark-border p-4">
+            <div class="text-xs text-dark-muted mb-1">Assigned To</div>
+            <div class="text-sm">{{ task.assigned_to or 'Unassigned' }}</div>
+        </div>
+        <div class="bg-dark-surface rounded-lg border border-dark-border p-4">
+            <div class="text-xs text-dark-muted mb-1">Effort</div>
+            <div class="text-sm">{{ task.estimated_effort or 'Not estimated' }}</div>
+        </div>
+    </div>
+
+    <div class="bg-dark-surface rounded-lg border border-dark-border p-6">
+        <h2 class="text-lg font-semibold mb-4">Description</h2>
+        <div class="prose prose-invert max-w-none">
+            <p class="whitespace-pre-wrap text-sm leading-relaxed">{{ task.description }}</p>
+        </div>
+    </div>
+
+    {% if task.phases %}
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-lg font-semibold">Phases</h2>
+        </div>
+        <div class="divide-y divide-dark-border">
+            {% for phase in task.phases %}
+            <div class="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                    <h3 class="font-medium">{{ phase.title }}</h3>
+                    {% if phase.notes %}
+                    <p class="text-sm text-dark-muted mt-1">{{ phase.notes }}</p>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-3 text-sm">
+                    <span class="px-2 py-1 text-xs rounded
+                        {% if phase.status == 'completed' %}bg-green-900 text-green-200
+                        {% elif phase.status == 'in_progress' %}bg-blue-900 text-blue-200
+                        {% elif phase.status == 'blocked' %}bg-red-900 text-red-200
+                        {% else %}bg-gray-700 text-gray-300{% endif %}">
+                        {{ phase.status.replace('_', ' ').title() }}
+                    </span>
+                    {% if phase.completed_at %}
+                    <span class="text-dark-muted text-xs">Completed {{ phase.completed_at.strftime('%Y-%m-%d') }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if task.deliverables %}
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-lg font-semibold">Deliverables</h2>
+        </div>
+        <div class="divide-y divide-dark-border">
+            {% for deliverable in task.deliverables %}
+            <div class="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div class="flex-1">
+                    <code class="text-sm break-words">{{ deliverable.path }}</code>
+                    {% if deliverable.description %}
+                    <p class="text-sm text-dark-muted mt-1">{{ deliverable.description }}</p>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-lg">
+                        {% if deliverable.status == 'completed' %}✓{% elif deliverable.status == 'in_progress' %}~{% else %}○{% endif %}
+                    </span>
+                    <span class="text-xs text-dark-muted uppercase tracking-wide">{{ deliverable.status.replace('_', ' ') }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if task.status_updates %}
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-lg font-semibold">Status Updates</h2>
+        </div>
+        <div class="p-6 space-y-4">
+            {% for update in task.status_updates | sort(attribute='timestamp', reverse=True) %}
+            <div class="border-l-2 border-blue-500 pl-4">
+                <div class="flex flex-wrap items-center gap-2 text-xs text-dark-muted uppercase">
+                    <span>{{ update.author }}</span>
+                    <span>•</span>
+                    <span>{{ update.timestamp.strftime('%Y-%m-%d %H:%M') }}</span>
+                    <span>•</span>
+                    <span class="px-2 py-0.5 rounded bg-dark-bg border border-dark-border lowercase">{{ update.status.replace('_', ' ') }}</span>
+                </div>
+                <p class="mt-2 font-medium">{{ update.summary }}</p>
+                {% if update.details %}
+                <p class="mt-1 text-sm text-dark-muted">{{ update.details }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div x-data="{ open: false }" class="bg-dark-surface rounded-lg border border-dark-border">
+        <button
+            type="button"
+            @click="open = !open"
+            class="w-full p-6 border-b border-dark-border flex items-center justify-between hover:bg-dark-border transition"
+        >
+            <span class="text-lg font-semibold">Agent Prompts</span>
+            <span x-text="open ? '▼' : '▶'"></span>
+        </button>
+        <div x-show="open" x-transition>
+            <div class="p-6 space-y-6">
+                {% if task.prompts and task.prompts.starter %}
+                <div>
+                    <h3 class="text-sm font-medium text-dark-muted uppercase tracking-wide mb-2">Starter Prompt</h3>
+                    <pre class="bg-dark-bg border border-dark-border p-4 rounded text-sm overflow-x-auto whitespace-pre-wrap">{{ task.prompts.starter }}</pre>
+                </div>
+                {% endif %}
+                {% if task.prompts and task.prompts.followups %}
+                <div>
+                    <h3 class="text-sm font-medium text-dark-muted uppercase tracking-wide mb-2">Follow-up Prompts</h3>
+                    <div class="space-y-4">
+                        {% for followup in task.prompts.followups | sort(attribute='timestamp') %}
+                        <div class="border border-dark-border rounded-lg">
+                            <div class="px-4 py-2 text-xs text-dark-muted flex flex-wrap gap-2 uppercase tracking-wide">
+                                <span>{{ followup.author }}</span>
+                                <span>•</span>
+                                <span>{{ followup.timestamp.strftime('%Y-%m-%d %H:%M') }}</span>
+                                {% if followup.context %}
+                                <span>•</span>
+                                <span>{{ followup.context }}</span>
+                                {% endif %}
+                                {% if followup.prompt_file %}
+                                <span>•</span>
+                                <span>{{ followup.prompt_file }}</span>
+                                {% endif %}
+                            </div>
+                            <pre class="bg-dark-bg border-t border-dark-border p-4 rounded-b text-sm overflow-x-auto whitespace-pre-wrap">{{ followup.content or '' }}</pre>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-sm text-dark-muted">No follow-up prompts recorded for this task.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if task.dependencies or task.external_links %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {% if task.dependencies %}
+        <div class="bg-dark-surface rounded-lg border border-dark-border">
+            <div class="p-6 border-b border-dark-border">
+                <h2 class="text-lg font-semibold">Dependencies</h2>
+            </div>
+            <div class="divide-y divide-dark-border">
+                {% for dependency in task.dependencies %}
+                <div class="p-4 space-y-1 text-sm">
+                    <div class="font-medium">{{ dependency.task_id }}</div>
+                    <div class="text-dark-muted capitalize">{{ dependency.type.replace('_', ' ') }}</div>
+                    {% if dependency.status %}
+                    <div class="text-xs text-dark-muted uppercase tracking-wide">{{ dependency.status }}</div>
+                    {% endif %}
+                    {% if dependency.note %}
+                    <p class="text-dark-muted">{{ dependency.note }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if task.external_links %}
+        <div class="bg-dark-surface rounded-lg border border-dark-border">
+            <div class="p-6 border-b border-dark-border">
+                <h2 class="text-lg font-semibold">External Links</h2>
+            </div>
+            <ul class="divide-y divide-dark-border">
+                {% for link in task.external_links %}
+                <li class="p-4">
+                    <a href="{{ link.url }}" target="_blank" class="text-blue-400 hover:text-blue-300 underline">
+                        {{ link.title or link.url }}
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

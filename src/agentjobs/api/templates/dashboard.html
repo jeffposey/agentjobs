@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AgentJobs{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="bg-dark-surface p-6 rounded-lg border border-dark-border">
+            <div class="text-sm text-dark-muted">In Progress</div>
+            <div class="text-3xl font-bold mt-2">{{ stats.in_progress }}</div>
+        </div>
+        <div class="bg-dark-surface p-6 rounded-lg border border-dark-border">
+            <div class="text-sm text-dark-muted">Blocked</div>
+            <div class="text-3xl font-bold mt-2 text-red-400">{{ stats.blocked }}</div>
+        </div>
+        <div class="bg-dark-surface p-6 rounded-lg border border-dark-border">
+            <div class="text-sm text-dark-muted">Completed</div>
+            <div class="text-3xl font-bold mt-2 text-green-400">{{ stats.completed }}</div>
+        </div>
+        <div class="bg-dark-surface p-6 rounded-lg border border-dark-border">
+            <div class="text-sm text-dark-muted">Total</div>
+            <div class="text-3xl font-bold mt-2">{{ stats.total }}</div>
+        </div>
+    </div>
+
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border flex items-center justify-between">
+            <h2 class="text-xl font-semibold">Active Tasks</h2>
+            <a href="/tasks" class="text-sm text-blue-400 hover:text-blue-300 transition">View all</a>
+        </div>
+        <div class="p-4 space-y-4">
+            {% if active_tasks %}
+                {% for task in active_tasks %}
+                {% with card_link="/tasks/" ~ task.id %}
+                    {% include "components/task_card.html" %}
+                {% endwith %}
+                {% endfor %}
+            {% else %}
+            <div class="text-dark-muted text-sm text-center border border-dashed border-dark-border rounded-lg p-6 bg-dark-bg/40">
+                No active tasks right now. Enjoy the calm!
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-xl font-semibold">Recent Updates</h2>
+        </div>
+        <div class="divide-y divide-dark-border">
+            {% if recent_updates %}
+                {% for update in recent_updates %}
+                <div class="p-4">
+                    <div class="flex flex-wrap items-center text-sm text-dark-muted gap-2">
+                        <span class="font-medium text-dark-text">{{ update.task_title }}</span>
+                        <span>•</span>
+                        <span>{{ update.timestamp.strftime('%Y-%m-%d %H:%M') }}</span>
+                        <span>•</span>
+                        <span>{{ update.author }}</span>
+                    </div>
+                    <p class="mt-2 text-sm text-dark-muted">{{ update.summary }}</p>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="p-6 text-dark-muted text-sm">
+                No recent updates. Check back soon.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

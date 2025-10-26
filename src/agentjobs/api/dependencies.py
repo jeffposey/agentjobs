@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
+from fastapi.templating import Jinja2Templates
 
 from agentjobs.manager import TaskManager
 from agentjobs.storage import TaskStorage
@@ -15,6 +16,7 @@ from agentjobs.storage import TaskStorage
 TASKS_DIR_ENV = "AGENTJOBS_TASKS_DIR"
 PROJECT_ROOT_ENV = "AGENTJOBS_PROJECT_ROOT"
 _CONFIG_RELATIVE = Path(".agentjobs") / "config.yaml"
+_TEMPLATES: Optional[Jinja2Templates] = None
 
 
 def _resolve_project_root() -> Path:
@@ -67,6 +69,17 @@ def get_task_manager() -> TaskManager:
     return TaskManager(_get_storage())
 
 
+def get_templates() -> Jinja2Templates:
+    """Provide a shared Jinja2Templates instance for web views."""
+    global _TEMPLATES
+    if _TEMPLATES is None:
+        template_dir = Path(__file__).parent / "templates"
+        _TEMPLATES = Jinja2Templates(directory=str(template_dir))
+    return _TEMPLATES
+
+
 def reset_dependency_cache() -> None:
     """Clear cached storage when environment configuration changes."""
     _get_storage.cache_clear()
+    global _TEMPLATES
+    _TEMPLATES = None

@@ -1,0 +1,9 @@
+<span class="px-2 py-1 text-xs font-medium rounded
+    {% if task.status == 'in_progress' %}bg-blue-900 text-blue-200
+    {% elif task.status == 'completed' %}bg-green-900 text-green-200
+    {% elif task.status == 'blocked' %}bg-red-900 text-red-200
+    {% elif task.status == 'under_review' %}bg-yellow-900 text-yellow-200
+    {% elif task.status == 'archived' %}bg-gray-800 text-gray-400
+    {% else %}bg-gray-700 text-gray-300{% endif %}">
+    {{ task.status.replace('_', ' ').title() }}
+</span>

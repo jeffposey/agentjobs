@@ -1,0 +1,31 @@
+{% if card_link %}
+<a href="{{ card_link }}" class="block bg-dark-surface rounded-lg border border-dark-border p-4 hover:border-blue-500 transition">
+    <div class="flex items-center justify-between gap-4">
+        <div class="min-w-0">
+            <h3 class="font-medium text-lg truncate">{{ task.title }}</h3>
+            <p class="text-sm text-dark-muted mt-1 truncate">
+                {{ task.description | default('') | replace('\n', ' ') | truncate(120, True, '…') }}
+            </p>
+        </div>
+        <div class="flex items-center space-x-2 flex-shrink-0">
+            {% include "components/priority_badge.html" %}
+            {% include "components/status_badge.html" %}
+        </div>
+    </div>
+</a>
+{% else %}
+<div class="bg-dark-surface rounded-lg border border-dark-border p-4">
+    <div class="flex items-center justify-between gap-4">
+        <div class="min-w-0">
+            <h3 class="font-medium text-lg truncate">{{ task.title }}</h3>
+            <p class="text-sm text-dark-muted mt-1 truncate">
+                {{ task.description | default('') | replace('\n', ' ') | truncate(120, True, '…') }}
+            </p>
+        </div>
+        <div class="flex items-center space-x-2 flex-shrink-0">
+            {% include "components/priority_badge.html" %}
+            {% include "components/status_badge.html" %}
+        </div>
+    </div>
+</div>
+{% endif %}
