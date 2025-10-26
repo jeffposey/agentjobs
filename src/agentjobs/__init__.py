@@ -1,6 +1,6 @@
 """AgentJobs - Lightweight task management for AI agent workflows."""
 
-from .client import TaskClient  # noqa: F401
+from .client import TaskClient, TaskClientError  # noqa: F401
 from .manager import TaskManager  # noqa: F401
 from .models import (  # noqa: F401
     Branch,
@@ -38,4 +38,5 @@ __all__ = [
     "TaskManager",
     "TaskStorage",
     "TaskClient",
+    "TaskClientError",
 ]

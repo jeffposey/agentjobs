@@ -1,0 +1,3 @@
+title,description,priority,category
+Upgrade dependency scanner,Switch pipeline to the latest scanner version.,high,security
+Document API authentication,Write detailed docs for API key usage.,medium,documentation
