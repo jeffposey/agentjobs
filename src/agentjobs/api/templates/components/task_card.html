@@ -4,7 +4,7 @@
         <div class="min-w-0">
             <h3 class="font-medium text-lg truncate">{{ task.title }}</h3>
             <p class="text-sm text-dark-muted mt-1 truncate">
-                {{ task.description | default('') | replace('\n', ' ') | truncate(120, True, '…') }}
+                {{ (task.human_summary or task.description or '') | replace('\n', ' ') | truncate(120, True, '…') }}
             </p>
         </div>
         <div class="flex items-center space-x-2 flex-shrink-0">
@@ -19,7 +19,7 @@
         <div class="min-w-0">
             <h3 class="font-medium text-lg truncate">{{ task.title }}</h3>
             <p class="text-sm text-dark-muted mt-1 truncate">
-                {{ task.description | default('') | replace('\n', ' ') | truncate(120, True, '…') }}
+                {{ (task.human_summary or task.description or '') | replace('\n', ' ') | truncate(120, True, '…') }}
             </p>
         </div>
         <div class="flex items-center space-x-2 flex-shrink-0">

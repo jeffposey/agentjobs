@@ -45,6 +45,11 @@ def test_task_model_helper_methods() -> None:
     assert task.is_blocked() is True
     assert task.is_active() is True
 
+    task.status = TaskStatus.WAITING_FOR_HUMAN
+    task.human_summary = "Needs product approval."
+    assert task.is_active() is True
+    assert task.human_summary == "Needs product approval."
+
 
 def test_success_criterion_validation() -> None:
     """Success criterion enforces supported states."""

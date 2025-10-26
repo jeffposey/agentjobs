@@ -222,6 +222,64 @@ def list_tasks(
 
 
 @app.command()
+def load_test_data(
+    storage_dir: str = typer.Option(
+        "./tasks",
+        help="Directory for task storage.",
+    ),
+) -> None:
+    """Load sample test data for demos and manual testing."""
+    from agentjobs.test_data import create_sample_tasks
+
+    base_dir = Path.cwd()
+    target_dir = Path(storage_dir)
+    if not target_dir.is_absolute():
+        target_dir = base_dir / target_dir
+
+    storage = TaskStorage(target_dir)
+    manager = TaskManager(storage)
+
+    tasks = create_sample_tasks()
+    created_count = 0
+    updated_count = 0
+
+    for task in tasks:
+        payload = task.model_dump(mode="python")
+        try:
+            manager.create_task(**payload)
+            typer.echo(f"✓ Created {task.id}: {task.title}")
+            created_count += 1
+        except ValueError:
+            manager.replace_task(task.id, **payload)
+            typer.echo(f"↻ Updated {task.id}: {task.title}")
+            updated_count += 1
+
+    typer.echo(f"\n✅ Loaded {len(tasks)} test tasks")
+    typer.echo(
+        f"   - {sum(1 for t in tasks if t.status == TaskStatus.WAITING_FOR_HUMAN)} waiting for human"
+    )
+    typer.echo(
+        f"   - {sum(1 for t in tasks if t.status == TaskStatus.IN_PROGRESS)} in progress"
+    )
+    typer.echo(
+        f"   - {sum(1 for t in tasks if t.status == TaskStatus.BLOCKED)} blocked"
+    )
+    typer.echo(
+        f"   - {sum(1 for t in tasks if t.status == TaskStatus.COMPLETED)} completed"
+    )
+    typer.echo(
+        f"   - {sum(1 for t in tasks if t.status == TaskStatus.PLANNED)} planned"
+    )
+
+    if created_count and updated_count:
+        typer.echo(f"\n📦 {created_count} created, {updated_count} refreshed.")
+    elif created_count:
+        typer.echo(f"\n📦 {created_count} created.")
+    elif updated_count:
+        typer.echo(f"\n📦 {updated_count} refreshed.")
+
+
+@app.command()
 def show(task_id: str) -> None:
     """Show task details."""
     base_dir = Path.cwd()

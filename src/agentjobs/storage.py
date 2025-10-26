@@ -101,6 +101,7 @@ class TaskStorage:
         for task in self.list_tasks():
             haystacks = [
                 task.title,
+                task.human_summary,
                 task.description,
                 " ".join(task.tags),
             ]

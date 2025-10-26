@@ -64,6 +64,7 @@ def test_parse_markdown_task(sample_markdown: Path) -> None:
     assert parsed.deliverables[0]["status"] == "completed"
     assert parsed.deliverables[1]["status"] == "pending"
     assert "Build a new feature" in parsed.description
+    assert parsed.human_summary.startswith("Build a new feature")
 
 
 def test_convert_to_yaml_task(sample_markdown: Path) -> None:
@@ -85,3 +86,4 @@ def test_convert_to_yaml_task(sample_markdown: Path) -> None:
     assert len(task.deliverables) == 3
     assert task.deliverables[0].status == "completed"
     assert task.prompts.starter
+    assert "Build a new feature" in task.human_summary

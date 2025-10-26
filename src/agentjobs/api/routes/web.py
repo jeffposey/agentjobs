@@ -17,10 +17,11 @@ from ..dependencies import get_task_manager, get_templates
 router = APIRouter(default_response_class=HTMLResponse, include_in_schema=False)
 
 
-def _context_base() -> Dict[str, Any]:
+def _context_base(*, waiting_count: int = 0) -> Dict[str, Any]:
     """Base context shared across templates."""
     return {
         "current_year": datetime.utcnow().year,
+        "waiting_count": waiting_count,
     }
 
 
@@ -50,6 +51,21 @@ def _collect_recent_updates(tasks: List[Task]) -> List[Dict[str, Any]]:
     return updates[:10]
 
 
+def _get_waiting_tasks(tasks: List[Task]) -> List[Task]:
+    """Return tasks currently waiting for human attention."""
+    waiting = [task for task in tasks if task.status == TaskStatus.WAITING_FOR_HUMAN]
+    return sorted(
+        waiting,
+        key=lambda task: (task.priority_rank(), -task.updated.timestamp()),
+    )
+
+
+def get_waiting_count(manager: TaskManager) -> int:
+    """Count tasks waiting for human attention."""
+    waiting_tasks = manager.list_tasks(status=TaskStatus.WAITING_FOR_HUMAN)
+    return len(waiting_tasks)
+
+
 @router.get("/", name="dashboard")
 async def dashboard(
     request: Request,
@@ -58,19 +74,23 @@ async def dashboard(
 ) -> HTMLResponse:
     """Render the dashboard showing task statistics and recent updates."""
     tasks = manager.list_tasks()
+    waiting_tasks = _get_waiting_tasks(tasks)
     stats = {
         "total": len(tasks),
         "in_progress": sum(1 for task in tasks if task.status == TaskStatus.IN_PROGRESS),
         "blocked": sum(1 for task in tasks if task.status == TaskStatus.BLOCKED),
+        "waiting_for_human": len(waiting_tasks),
         "completed": sum(1 for task in tasks if task.status == TaskStatus.COMPLETED),
     }
+    waiting_count = len(waiting_tasks)
 
     context = {
         "request": request,
         "stats": stats,
         "active_tasks": _sort_tasks_for_dashboard(tasks),
         "recent_updates": _collect_recent_updates(tasks),
-        **_context_base(),
+        "waiting_tasks": waiting_tasks,
+        **_context_base(waiting_count=waiting_count),
     }
     return templates.TemplateResponse("dashboard.html", context)
 
@@ -84,11 +104,17 @@ async def task_list(
     """Render the searchable/filterable task list."""
     tasks = manager.list_tasks()
     tasks.sort(key=lambda task: (-task.updated.timestamp(), task.priority_rank()))
+    waiting_count = get_waiting_count(manager)
+
+    status_param = request.query_params.get("status", "").lower()
+    valid_statuses = {status.value for status in TaskStatus}
+    initial_status = status_param if status_param in valid_statuses else "all"
 
     context = {
         "request": request,
         "tasks": tasks,
-        **_context_base(),
+        "initial_status": initial_status,
+        **_context_base(waiting_count=waiting_count),
     }
     return templates.TemplateResponse("task_list.html", context)
 
@@ -106,13 +132,13 @@ async def task_detail(
         context = {
             "request": request,
             "task_id": task_id,
-            **_context_base(),
+            **_context_base(waiting_count=get_waiting_count(manager)),
         }
         return templates.TemplateResponse("404.html", context, status_code=status.HTTP_404_NOT_FOUND)
 
     context = {
         "request": request,
         "task": task,
-        **_context_base(),
+        **_context_base(waiting_count=get_waiting_count(manager)),
     }
     return templates.TemplateResponse("task_detail.html", context)

@@ -45,10 +45,70 @@
         </div>
     </div>
 
-    <div class="bg-dark-surface rounded-lg border border-dark-border p-6">
-        <h2 class="text-lg font-semibold mb-4">Description</h2>
-        <div class="prose prose-invert max-w-none">
-            <p class="whitespace-pre-wrap text-sm leading-relaxed">{{ task.description }}</p>
+    <div class="bg-dark-surface rounded-lg border border-dark-border" x-data="{ tab: 'human' }">
+        <div class="border-b border-dark-border">
+            <div class="flex">
+                <button
+                    @click="tab = 'human'"
+                    :class="tab === 'human' ? 'border-b-2 border-blue-500 text-dark-text' : 'text-dark-muted hover:text-dark-text'"
+                    class="px-6 py-3 font-medium text-sm transition focus:outline-none"
+                    type="button"
+                >
+                    👤 Human View
+                </button>
+                <button
+                    @click="tab = 'agent'"
+                    :class="tab === 'agent' ? 'border-b-2 border-blue-500 text-dark-text' : 'text-dark-muted hover:text-dark-text'"
+                    class="px-6 py-3 font-medium text-sm transition focus:outline-none"
+                    type="button"
+                >
+                    🤖 Agent View
+                </button>
+            </div>
+        </div>
+
+        <div x-show="tab === 'human'" x-cloak class="p-6 space-y-6">
+            <div>
+                <h2 class="text-lg font-semibold mb-4">Summary</h2>
+                <p class="text-lg text-dark-muted">
+                    {{ task.human_summary or (task.description | default('') | truncate(300, True, '…')) }}
+                </p>
+            </div>
+
+            {% if task.phases %}
+            <div>
+                <h3 class="text-md font-semibold mb-3">Progress</h3>
+                <div class="space-y-2">
+                    {% for phase in task.phases %}
+                    <div class="flex items-center gap-3 p-3 bg-dark-bg rounded-lg border border-dark-border">
+                        <span class="text-xl">
+                            {% if phase.status == 'completed' %}✅
+                            {% elif phase.status == 'in_progress' %}🔄
+                            {% elif phase.status == 'blocked' %}🚫
+                            {% elif phase.status == 'waiting_for_human' %}🔔
+                            {% else %}⚪{% endif %}
+                        </span>
+                        <div class="flex-1">
+                            <div class="font-medium">{{ phase.title }}</div>
+                        </div>
+                        <span class="text-xs text-dark-muted uppercase tracking-wide">
+                            {{ phase.status.replace('_', ' ') if phase.status else 'planned' }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div x-show="tab === 'agent'" x-cloak class="p-6">
+            <h2 class="text-lg font-semibold mb-4">Full Description</h2>
+            <div class="prose prose-invert max-w-none prose-headings:text-dark-text prose-p:text-dark-text prose-li:text-dark-text prose-code:text-blue-300 prose-pre:bg-dark-bg">
+                <div
+                    x-data="{ content: `{{ (task.description or '') | replace('\\', '\\\\') | replace('`', '\\`') | replace('${', '\\${') }}` }"
+                    x-markdown="content"
+                ></div>
+            </div>
         </div>
     </div>
 
@@ -59,24 +119,55 @@
         </div>
         <div class="divide-y divide-dark-border">
             {% for phase in task.phases %}
-            <div class="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <div>
-                    <h3 class="font-medium">{{ phase.title }}</h3>
-                    {% if phase.notes %}
-                    <p class="text-sm text-dark-muted mt-1">{{ phase.notes }}</p>
-                    {% endif %}
-                </div>
-                <div class="flex items-center gap-3 text-sm">
-                    <span class="px-2 py-1 text-xs rounded
-                        {% if phase.status == 'completed' %}bg-green-900 text-green-200
-                        {% elif phase.status == 'in_progress' %}bg-blue-900 text-blue-200
-                        {% elif phase.status == 'blocked' %}bg-red-900 text-red-200
-                        {% else %}bg-gray-700 text-gray-300{% endif %}">
-                        {{ phase.status.replace('_', ' ').title() }}
-                    </span>
-                    {% if phase.completed_at %}
-                    <span class="text-dark-muted text-xs">Completed {{ phase.completed_at.strftime('%Y-%m-%d') }}</span>
-                    {% endif %}
+            {% set phase_status = (phase.status or 'planned') %}
+            <div class="p-4" x-data="{ expanded: false }">
+                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                    <div class="flex-1">
+                        <h3 class="font-medium">{{ phase.title }}</h3>
+                        {% if phase.notes and phase.notes|length > 200 %}
+                        <div class="mt-2">
+                            <div x-show="!expanded" x-cloak class="prose prose-invert prose-sm max-w-none">
+                                <div
+                                    x-data="{ notes: `{{ (phase.notes[:200] ~ ('...' if phase.notes|length > 200 else '')) | replace('\\', '\\\\') | replace('`', '\\`') | replace('${', '\\${') }}` }"
+                                    x-markdown="notes"
+                                ></div>
+                            </div>
+                            <div x-show="expanded" x-transition x-cloak class="prose prose-invert prose-sm max-w-none">
+                                <div
+                                    x-data="{ notes: `{{ phase.notes | replace('\\', '\\\\') | replace('`', '\\`') | replace('${', '\\${') }}` }"
+                                    x-markdown="notes"
+                                ></div>
+                            </div>
+                            <button
+                                @click="expanded = !expanded"
+                                class="text-xs text-blue-400 hover:text-blue-300 mt-2"
+                                type="button"
+                            >
+                                <span x-show="!expanded" x-cloak>Show more</span>
+                                <span x-show="expanded" x-cloak>Show less</span>
+                            </button>
+                        </div>
+                        {% elif phase.notes %}
+                        <div class="mt-2 prose prose-invert prose-sm max-w-none">
+                            <div
+                                x-data="{ notes: `{{ phase.notes | replace('\\', '\\\\') | replace('`', '\\`') | replace('${', '\\${') }}` }"
+                                x-markdown="notes"
+                            ></div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="flex flex-col items-start md:items-end gap-1 min-w-[140px]">
+                        <span class="px-2 py-1 text-xs rounded
+                            {% if phase_status == 'completed' %}bg-green-900 text-green-200
+                            {% elif phase_status == 'in_progress' %}bg-blue-900 text-blue-200
+                            {% elif phase_status == 'blocked' %}bg-red-900 text-red-200
+                            {% else %}bg-gray-700 text-gray-300{% endif %}">
+                            {{ phase_status.replace('_', ' ').title() }}
+                        </span>
+                        {% if phase.completed_at %}
+                        <span class="text-dark-muted text-xs">Completed {{ phase.completed_at.strftime('%Y-%m-%d') }}</span>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -149,7 +240,12 @@
                 {% if task.prompts and task.prompts.starter %}
                 <div>
                     <h3 class="text-sm font-medium text-dark-muted uppercase tracking-wide mb-2">Starter Prompt</h3>
-                    <pre class="bg-dark-bg border border-dark-border p-4 rounded text-sm overflow-x-auto whitespace-pre-wrap">{{ task.prompts.starter }}</pre>
+                    <div class="prose prose-invert prose-sm max-w-none">
+                        <div
+                            x-data="{ prompt: `{{ (task.prompts.starter or '') | replace('\\', '\\\\') | replace('`', '\\`') | replace('${', '\\${') }}` }"
+                            x-markdown="prompt"
+                        ></div>
+                    </div>
                 </div>
                 {% endif %}
                 {% if task.prompts and task.prompts.followups %}
@@ -171,7 +267,13 @@
                                 <span>{{ followup.prompt_file }}</span>
                                 {% endif %}
                             </div>
-                            <pre class="bg-dark-bg border-t border-dark-border p-4 rounded-b text-sm overflow-x-auto whitespace-pre-wrap">{{ followup.content or '' }}</pre>
+                            <div class="bg-dark-bg border-t border-dark-border p-4 rounded-b">
+                                <div
+                                    class="prose prose-invert prose-sm max-w-none"
+                                    x-data="{ content: `{{ (followup.content or '') | replace('\\', '\\\\') | replace('`', '\\`') | replace('${', '\\${') }}` }"
+                                    x-markdown="content"
+                                ></div>
+                            </div>
                         </div>
                         {% endfor %}
                     </div>
