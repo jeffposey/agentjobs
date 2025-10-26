@@ -11,6 +11,8 @@ import typer
 import yaml
 
 from .manager import TaskManager
+from .migration import migrate_tasks
+from .migration.reporter import MigrationReporter
 from .models import Priority, TaskStatus
 from .storage import TaskStorage
 
@@ -233,18 +235,40 @@ def show(task_id: str) -> None:
 
 @app.command()
 def migrate(
-    from_dir: Path = typer.Option(..., help="Source Markdown directory"),
-    to_dir: Path = typer.Option("tasks", help="Destination YAML directory"),
-    prompts_dir: Path = typer.Option("prompts", help="Prompts directory"),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        is_flag=True,
-        help="Preview without writing files",
-    ),
+    source: str = typer.Argument(...),
+    target_dir: str = typer.Argument(...),
+    prompts_dir: Optional[str] = typer.Option(None, "--prompts-dir", help="Optional prompts directory"),
+    dry_run: bool = typer.Option(False, "--dry-run", is_flag=True, help="Preview migration"),
+    report_file: str = typer.Option("migration-report.md", "--report", help="Report path"),
 ) -> None:
-    """Migrate Markdown tasks to YAML."""
-    typer.echo("Migration tool coming in Phase 4!")
+    """Migrate Markdown task files to YAML."""
+    target_path = Path(target_dir)
+
+    if not dry_run:
+        target_path.mkdir(parents=True, exist_ok=True)
+
+    typer.echo(f"{'[DRY RUN] ' if dry_run else ''}Migrating tasks...")
+
+    results = migrate_tasks(
+        source_patterns=[source],
+        target_dir=target_path,
+        prompts_dir=Path(prompts_dir) if prompts_dir else None,
+        dry_run=dry_run,
+    )
+
+    reporter = MigrationReporter()
+    reporter.generate_report(results, Path(report_file), dry_run)
+
+    successful = sum(1 for r in results if r.success)
+    failed = sum(1 for r in results if not r.success)
+
+    typer.echo(f"\n✓ Migration complete!")
+    typer.echo(f"  Successful: {successful}")
+    typer.echo(f"  Failed: {failed}")
+    typer.echo(f"  Report: {report_file}")
+
+    if dry_run:
+        typer.echo("\n⚠️  This was a dry run - no files were written.")
 
 
 if __name__ == "__main__":
