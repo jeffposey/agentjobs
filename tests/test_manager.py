@@ -167,3 +167,67 @@ def test_create_task_accepts_prompt_payload(tmp_path: Path) -> None:
         prompts=prompts,
     )
     assert task.prompts.starter == "Start here"
+
+
+def test_archive_task_sets_status_and_update(tmp_path: Path) -> None:
+    """Archiving a task sets status and records an update."""
+    manager = _manager(tmp_path)
+    task = manager.create_task(
+        id="task-400",
+        title="Archive me",
+        description="",
+        category="ops",
+    )
+    archived = manager.archive_task(task.id, author="system")
+    assert archived.status == TaskStatus.ARCHIVED
+    assert archived.status_updates
+    assert archived.status_updates[-1].summary == "Task archived."
+
+
+def test_replace_task_updates_fields(tmp_path: Path) -> None:
+    """Replacing a task overwrites fields while keeping identifiers."""
+    manager = _manager(tmp_path)
+    task = manager.create_task(
+        id="task-401",
+        title="Original",
+        description="before",
+        category="ops",
+    )
+    replaced = manager.replace_task(
+        task.id,
+        title="Updated",
+        description="after",
+        category="ops",
+    )
+    assert replaced.id == task.id
+    assert replaced.title == "Updated"
+    assert replaced.description == "after"
+    assert replaced.created == task.created
+
+
+def test_list_tasks_filters_by_status_and_priority(tmp_path: Path) -> None:
+    """List helper filters by status and priority."""
+    manager = _manager(tmp_path)
+    manager.create_task(
+        id="task-500",
+        title="Planned",
+        description="",
+        category="ops",
+    )
+    in_progress = manager.create_task(
+        id="task-501",
+        title="Active",
+        description="",
+        priority=Priority.HIGH,
+        category="ops",
+    )
+    manager.update_status(
+        task_id=in_progress.id,
+        status=TaskStatus.IN_PROGRESS,
+        author="codex",
+        summary="Started",
+    )
+    planned = manager.list_tasks(status=TaskStatus.PLANNED)
+    assert len(planned) == 1
+    high_priority = manager.list_tasks(priority=Priority.HIGH)
+    assert len(high_priority) == 1

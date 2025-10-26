@@ -86,17 +86,6 @@ def _build_manager(base_dir: Path) -> TaskManager:
     return TaskManager(storage)
 
 
-def _generate_task_id(tasks_dir: Path) -> str:
-    """Generate a new task identifier based on existing files."""
-    highest = 0
-    for path in tasks_dir.glob("task-*.yaml"):
-        try:
-            number = int(path.stem.split("-")[1])
-            highest = max(highest, number)
-        except (IndexError, ValueError):
-            continue
-    return f"task-{highest + 1:03d}"
-
 
 @app.command()
 def init(
@@ -185,7 +174,7 @@ def create(
         "Description", default=""
     )
 
-    task_id = id or _generate_task_id(tasks_dir)
+    task_id = id or manager.storage.generate_task_id()
     task = manager.create_task(
         id=task_id,
         title=title,
