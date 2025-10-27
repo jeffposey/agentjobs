@@ -25,6 +25,8 @@ dependencies: []
 external_links: []
 issues: []
 tags:
+- test
+- example
 - database
 - infrastructure
 branches: []

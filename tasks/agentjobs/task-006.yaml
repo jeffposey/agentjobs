@@ -61,6 +61,8 @@ dependencies: []
 external_links: []
 issues: []
 tags:
+- test
+- example
 - performance
 - websocket
 - memory

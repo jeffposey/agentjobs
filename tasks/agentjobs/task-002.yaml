@@ -53,6 +53,8 @@ dependencies: []
 external_links: []
 issues: []
 tags:
+- test
+- example
 - api
 - security
 - performance
