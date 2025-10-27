@@ -19,6 +19,7 @@ from .routes import (
     status_router,
     tasks_router,
     web_router,
+    webhooks_router,
 )
 
 DESCRIPTION = (
@@ -81,3 +82,4 @@ app.include_router(tasks_router)
 app.include_router(status_router)
 app.include_router(prompts_router)
 app.include_router(search_router)
+app.include_router(webhooks_router)

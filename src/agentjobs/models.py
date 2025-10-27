@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 
 class TaskStatus(str, Enum):
@@ -284,6 +284,10 @@ class Task(BaseModel):
         default_factory=list,
         description="Chronological status updates recorded for the task.",
     )
+    comments: List[Comment] = Field(
+        default_factory=list,
+        description="Comments and feedback on the task.",
+    )
     deliverables: List[Deliverable] = Field(
         default_factory=list,
         description="Deliverables associated with task completion.",
@@ -335,3 +339,52 @@ class Task(BaseModel):
             Priority.LOW: 3,
         }
         return order[self.priority]
+
+
+class Comment(BaseModel):
+    """Comment on a task for human-agent communication."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(..., description="Unique comment identifier.")
+    task_id: str = Field(..., description="Task this comment belongs to.")
+    author: str = Field(..., description="Author of the comment (human or agent).")
+    content: str = Field(..., description="Comment text content.")
+    created: datetime = Field(..., description="When the comment was created.")
+    updated: Optional[datetime] = Field(
+        default=None, description="Last update timestamp if edited."
+    )
+    reply_to: Optional[str] = Field(
+        default=None, description="Parent comment ID if this is a reply."
+    )
+    kind: str = Field(
+        default="comment",
+        description="Comment type (comment | feedback | question).",
+    )
+
+    def update_content(self, content: str) -> None:
+        """Update the comment content and timestamp."""
+        self.content = content
+        self.updated = datetime.now(tz=timezone.utc)
+
+
+class Webhook(BaseModel):
+    """Webhook configuration for task event notifications."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(..., description="Unique webhook identifier.")
+    url: HttpUrl = Field(..., description="Target URL for webhook delivery.")
+    events: List[str] = Field(
+        ..., description="List of events to trigger this webhook."
+    )
+    secret: str = Field(..., description="Secret for HMAC signature verification.")
+    active: bool = Field(default=True, description="Whether this webhook is active.")
+    created: datetime = Field(..., description="When the webhook was created.")
+    last_triggered: Optional[datetime] = Field(
+        default=None, description="Last time this webhook was successfully triggered."
+    )
+
+    def record_trigger(self) -> None:
+        """Record that this webhook was triggered."""
+        self.last_triggered = datetime.now(tz=timezone.utc)

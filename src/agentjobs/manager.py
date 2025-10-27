@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from .models import (
+    Comment,
     Priority,
     Prompt,
     Prompts,
@@ -15,12 +17,16 @@ from .models import (
 )
 from .storage import TaskStorage
 
+if TYPE_CHECKING:
+    from .webhooks import WebhookManager
+
 
 class TaskManager:
     """Core task management logic."""
 
-    def __init__(self, storage: TaskStorage):
+    def __init__(self, storage: TaskStorage, webhook_manager: Optional["WebhookManager"] = None):
         self.storage = storage
+        self.webhook_manager = webhook_manager
 
     def _ensure_task_exists(self, task_id: str) -> Task:
         """Retrieve an existing task or raise a descriptive error."""
@@ -142,9 +148,11 @@ class TaskManager:
         author: str,
         summary: str,
         details: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Task:
-        """Update task status with status update entry."""
+        """Update task status with status update entry and fire webhook."""
         task = self._ensure_task_exists(task_id)
+        previous_status = task.status
         now = datetime.now(tz=timezone.utc)
         task.status = status
         update = StatusUpdate(
@@ -155,7 +163,22 @@ class TaskManager:
             details=details,
         )
         task.status_updates.append(update)
-        return self.storage.save_task(task)
+        task = self.storage.save_task(task)
+
+        # Fire webhook events
+        if self.webhook_manager:
+            event_metadata = metadata or {}
+            # previous_status might be string or enum depending on how task was loaded
+            prev_status_value = previous_status if isinstance(previous_status, str) else previous_status.value
+            event_metadata.update({
+                "triggered_by": author,
+                "previous_status": prev_status_value,
+            })
+            self.webhook_manager.fire_event("task.status_changed", task, event_metadata)
+            if status == TaskStatus.COMPLETED:
+                self.webhook_manager.fire_event("task.completed", task, event_metadata)
+
+        return task
 
     def get_next_task(self, priority: Optional[Priority] = None) -> Optional[Task]:
         """Get highest priority available task (READY status only)."""
@@ -240,3 +263,36 @@ class TaskManager:
     def search_tasks(self, query: str) -> List[Task]:
         """Search tasks by query string."""
         return self.storage.search_tasks(query)
+
+    def add_comment(
+        self,
+        task_id: str,
+        *,
+        author: str,
+        content: str,
+        kind: str = "comment",
+        reply_to: Optional[str] = None,
+    ) -> Comment:
+        """Add a comment to a task."""
+        task = self._ensure_task_exists(task_id)
+        comment = Comment(
+            id=f"c_{uuid.uuid4().hex[:12]}",
+            task_id=task_id,
+            author=author,
+            content=content,
+            created=datetime.now(tz=timezone.utc),
+            kind=kind,
+            reply_to=reply_to,
+        )
+        task.comments.append(comment)
+        self.storage.save_task(task)
+
+        # Fire webhook event
+        if self.webhook_manager:
+            self.webhook_manager.fire_event(
+                "task.comment_created",
+                task,
+                {"triggered_by": author, "comment_id": comment.id},
+            )
+
+        return comment

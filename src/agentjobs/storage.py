@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
@@ -10,7 +11,7 @@ from typing import List, Optional
 import yaml
 from pydantic import ValidationError
 
-from .models import Task
+from .models import Comment, Task, Webhook
 
 logger = logging.getLogger(__name__)
 
@@ -108,3 +109,87 @@ class TaskStorage:
             if any(normalized in (haystack or "").lower() for haystack in haystacks):
                 results.append(task)
         return results
+
+
+class WebhookStorage:
+    """YAML-based webhook storage."""
+
+    def __init__(self, webhooks_path: Path):
+        """Initialize webhook storage with path to webhooks.yaml file."""
+        self.webhooks_path = Path(webhooks_path)
+        self.webhooks_path.parent.mkdir(parents=True, exist_ok=True)
+        if not self.webhooks_path.exists():
+            self._write_webhooks([])
+
+    def _read_webhooks(self) -> List[dict]:
+        """Read webhooks from YAML file."""
+        try:
+            content = self.webhooks_path.read_text(encoding="utf-8")
+            data = yaml.safe_load(content) or []
+        except yaml.YAMLError as exc:  # pragma: no cover
+            logger.error("Failed to parse webhooks YAML: %s", exc)
+            return []
+        return data if isinstance(data, list) else []
+
+    def _write_webhooks(self, webhooks: List[dict]) -> None:
+        """Write webhooks to YAML file."""
+        yaml_text = yaml.safe_dump(webhooks, sort_keys=False, allow_unicode=False)
+        self.webhooks_path.write_text(yaml_text, encoding="utf-8")
+
+    def list_webhooks(self) -> List[Webhook]:
+        """List all webhooks."""
+        webhooks: List[Webhook] = []
+        for data in self._read_webhooks():
+            try:
+                webhook = Webhook.model_validate(data)
+                webhooks.append(webhook)
+            except ValidationError as exc:  # pragma: no cover
+                logger.error("Validation error loading webhook: %s", exc)
+        return webhooks
+
+    def get_webhook(self, webhook_id: str) -> Optional[Webhook]:
+        """Get webhook by ID."""
+        for data in self._read_webhooks():
+            if data.get("id") == webhook_id:
+                try:
+                    return Webhook.model_validate(data)
+                except ValidationError as exc:  # pragma: no cover
+                    logger.error("Validation error loading webhook %s: %s", webhook_id, exc)
+                    return None
+        return None
+
+    def save_webhook(self, webhook: Webhook) -> Webhook:
+        """Save or update a webhook."""
+        webhooks = self._read_webhooks()
+        webhooks = [w for w in webhooks if w.get("id") != webhook.id]
+        webhooks.append(webhook.model_dump(mode="json"))
+        self._write_webhooks(webhooks)
+        return webhook
+
+    def create_webhook(
+        self,
+        url: str,
+        events: List[str],
+        secret: str,
+        active: bool = True,
+    ) -> Webhook:
+        """Create a new webhook."""
+        webhook = Webhook(
+            id=f"wh_{uuid.uuid4().hex[:10]}",
+            url=url,
+            events=events,
+            secret=secret,
+            active=active,
+            created=datetime.now(tz=timezone.utc),
+        )
+        return self.save_webhook(webhook)
+
+    def delete_webhook(self, webhook_id: str) -> bool:
+        """Delete a webhook."""
+        webhooks = self._read_webhooks()
+        original_count = len(webhooks)
+        webhooks = [w for w in webhooks if w.get("id") != webhook_id]
+        if len(webhooks) < original_count:
+            self._write_webhooks(webhooks)
+            return True
+        return False

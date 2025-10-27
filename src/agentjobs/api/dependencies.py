@@ -11,7 +11,8 @@ import yaml
 from fastapi.templating import Jinja2Templates
 
 from agentjobs.manager import TaskManager
-from agentjobs.storage import TaskStorage
+from agentjobs.storage import TaskStorage, WebhookStorage
+from agentjobs.webhooks import WebhookManager
 
 TASKS_DIR_ENV = "AGENTJOBS_TASKS_DIR"
 PROJECT_ROOT_ENV = "AGENTJOBS_PROJECT_ROOT"
@@ -64,9 +65,28 @@ def _get_storage() -> TaskStorage:
     return TaskStorage(_resolve_tasks_dir())
 
 
+@lru_cache(maxsize=1)
+def _get_webhook_storage() -> WebhookStorage:
+    """Create a cached WebhookStorage instance."""
+    base_dir = _resolve_project_root()
+    webhooks_path = base_dir / ".agentjobs" / "webhooks.yaml"
+    return WebhookStorage(webhooks_path)
+
+
+@lru_cache(maxsize=1)
+def _get_webhook_manager() -> WebhookManager:
+    """Create a cached WebhookManager instance."""
+    return WebhookManager(_get_webhook_storage())
+
+
 def get_task_manager() -> TaskManager:
     """Provide a TaskManager instance for request handling."""
-    return TaskManager(_get_storage())
+    return TaskManager(_get_storage(), _get_webhook_manager())
+
+
+def get_webhook_manager() -> WebhookManager:
+    """Provide a WebhookManager instance for request handling."""
+    return _get_webhook_manager()
 
 
 def get_templates() -> Jinja2Templates:
@@ -81,5 +101,7 @@ def get_templates() -> Jinja2Templates:
 def reset_dependency_cache() -> None:
     """Clear cached storage when environment configuration changes."""
     _get_storage.cache_clear()
+    _get_webhook_storage.cache_clear()
+    _get_webhook_manager.cache_clear()
     global _TEMPLATES
     _TEMPLATES = None

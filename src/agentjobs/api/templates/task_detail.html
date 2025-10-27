@@ -45,6 +45,65 @@
         </div>
     </div>
 
+    {% if task.status == 'waiting_for_human' %}
+    <div class="human-actions-panel rounded-xl p-6 space-y-4 bg-yellow-950/30 border-2 border-yellow-600/50" x-data="taskActions()">
+        <h3 class="text-lg font-semibold flex items-center gap-2 text-yellow-400">
+            <span class="text-2xl">⚠️</span> This task needs your review
+        </h3>
+        <p class="text-sm text-dark-text">
+            Review the agent's work below and take action:
+        </p>
+
+        <div class="flex flex-wrap gap-3">
+            <button
+                @click="approveTask"
+                class="btn-approve bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg transition"
+            >
+                ✓ Approve & Make Ready
+            </button>
+            <button
+                @click="showFeedback = !showFeedback"
+                class="btn-changes bg-yellow-600 hover:bg-yellow-700 text-white font-semibold px-4 py-2 rounded-lg transition"
+            >
+                ✎ Request Changes
+            </button>
+            <button
+                @click="rejectTask"
+                class="btn-reject bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg transition"
+            >
+                ✗ Reject Task
+            </button>
+        </div>
+
+        <div x-show="showFeedback" x-cloak class="space-y-3">
+            <label for="feedback" class="block text-sm font-semibold text-dark-text">
+                Feedback or questions
+            </label>
+            <textarea
+                x-model="feedbackText"
+                id="feedback"
+                class="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                rows="4"
+                placeholder="Explain what needs to change..."
+            ></textarea>
+            <div class="flex gap-3">
+                <button
+                    @click="submitFeedback"
+                    class="btn-submit-feedback bg-yellow-600 hover:bg-yellow-700 text-white font-semibold px-4 py-2 rounded-lg transition"
+                >
+                    Submit Feedback
+                </button>
+                <button
+                    @click="showFeedback = false; feedbackText = ''"
+                    class="btn-cancel bg-dark-surface hover:bg-dark-border text-dark-text font-semibold px-4 py-2 rounded-lg transition"
+                >
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="bg-dark-surface rounded-lg border border-dark-border" x-data="{ tab: 'human' }">
         <div class="border-b border-dark-border">
             <div class="flex">
@@ -226,6 +285,30 @@
     </div>
     {% endif %}
 
+    {% if task.comments %}
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="p-6 border-b border-dark-border">
+            <h2 class="text-lg font-semibold">Comments & Feedback</h2>
+        </div>
+        <div class="p-6 space-y-4">
+            {% for comment in task.comments | sort(attribute='created', reverse=True) %}
+            <div class="border-l-2 {% if comment.kind == 'feedback' %}border-yellow-500{% else %}border-blue-500{% endif %} pl-4">
+                <div class="flex flex-wrap items-center gap-2 text-xs text-dark-muted uppercase">
+                    <span>{{ comment.author }}</span>
+                    <span>•</span>
+                    <span>{{ comment.created.strftime('%Y-%m-%d %H:%M') }}</span>
+                    {% if comment.kind != 'comment' %}
+                    <span>•</span>
+                    <span class="px-2 py-0.5 rounded bg-dark-bg border border-dark-border">{{ comment.kind }}</span>
+                    {% endif %}
+                </div>
+                <p class="mt-2 text-sm whitespace-pre-line">{{ comment.content }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <div x-data="{ open: false }" class="bg-dark-surface rounded-lg border border-dark-border">
         <button
             type="button"
@@ -328,4 +411,59 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('taskActions', () => ({
+        showFeedback: false,
+        feedbackText: '',
+        async approveTask() {
+            if (!confirm('Approve this task and mark it as ready?')) return;
+            try {
+                const response = await fetch('/api/tasks/{{ task.id }}/approve', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({user: 'human'})
+                });
+                if (!response.ok) throw new Error('Failed to approve task');
+                window.location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        },
+        async submitFeedback() {
+            if (!this.feedbackText.trim()) {
+                alert('Please provide feedback');
+                return;
+            }
+            try {
+                const response = await fetch('/api/tasks/{{ task.id }}/request-changes', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({user: 'human', feedback: this.feedbackText})
+                });
+                if (!response.ok) throw new Error('Failed to submit feedback');
+                window.location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        },
+        async rejectTask() {
+            const reason = prompt('Provide a reason for rejecting this task:');
+            if (!reason) return;
+            try {
+                const response = await fetch('/api/tasks/{{ task.id }}/reject', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({user: 'human', reason: reason})
+                });
+                if (!response.ok) throw new Error('Failed to reject task');
+                window.location.href = '/tasks';
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+    }));
+});
+</script>
 {% endblock %}
