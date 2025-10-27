@@ -44,6 +44,8 @@ dependencies: []
 external_links: []
 issues: []
 tags:
+- test
+- example
 - graphql
 - api
 - performance
