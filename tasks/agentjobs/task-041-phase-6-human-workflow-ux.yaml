@@ -1,0 +1,103 @@
+id: task-041-phase-6-human-workflow-ux
+title: 'Phase 6: Human-Agent Workflow UX'
+created: '2025-10-27T00:38:06.373222Z'
+updated: '2025-10-27T00:38:06.373269Z'
+status: draft
+priority: high
+category: ux
+assigned_to: TBD
+estimated_effort: 1-2 weeks
+description: "## Objective\n\nDramatically improve the human experience when reviewing\
+  \ and approving agent work by implementing GitHub Issues-inspired workflow automation.\n\
+  \n## Current Problem\n\nWhen a task status is `waiting_for_human`, the GUI provides\
+  \ no clear call-to-action. Humans must:\n- Manually read the task details\n- Decide\
+  \ what to do (approve/reject/request changes)\n- Manually edit YAML files or use\
+  \ API to change status\n- No way to provide structured feedback\n- No automation\
+  \ triggers when status changes\n\nThis creates friction and blocks the human-agent\
+  \ collaboration loop.\n\n## Proposed Solution\n\nLearn from GitHub Issues' excellent\
+  \ workflow UX and implement:\n\n1. **Action Buttons** - Clear UI controls for common\
+  \ actions\n2. **Webhook System** - Trigger automation on task events\n3. **Comments/Feedback**\
+  \ - Structured communication between human and agent\n4. **Codex Auto-Trigger**\
+  \ - Automatically notify local Codex when work is ready\n\n## Scope\n\nThis phase\
+  \ focuses on making the human \u2192 agent handoff seamless and automated.\n"
+phases:
+- id: phase-1
+  title: Human Action Buttons UI
+  status: draft
+  notes: Add approve/reject/request-changes buttons to waiting_for_human tasks
+- id: phase-2
+  title: Webhook System
+  status: draft
+  notes: Fire HTTP webhooks on task events (status changes, assignments, etc.)
+- id: phase-3
+  title: Comments & Feedback
+  status: draft
+  notes: Add threaded comments to tasks for human-agent communication
+- id: phase-4
+  title: Codex Auto-Trigger
+  status: draft
+  notes: Local listener that opens VS Code and starts Codex when webhooks fire
+success_criteria:
+- id: sc-1
+  description: Humans can approve/reject waiting_for_human tasks with one click
+  status: pending
+- id: sc-2
+  description: Webhook fires when task status changes to ready
+  status: pending
+- id: sc-3
+  description: Local Codex listener receives webhook and opens VS Code
+  status: pending
+- id: sc-4
+  description: Humans can add feedback comments visible to agents
+  status: pending
+prompts:
+  starter: "## Objective\n\nDramatically improve the human experience when reviewing\
+    \ and approving agent work by implementing GitHub Issues-inspired workflow automation.\n\
+    \n## Current Problem\n\nWhen a task status is `waiting_for_human`, the GUI provides\
+    \ no clear call-to-action. Humans must:\n- Manually read the task details\n- Decide\
+    \ what to do (approve/reject/request changes)\n- Manually edit YAML files or use\
+    \ API to change status\n- No way to provide structured feedback\n- No automation\
+    \ triggers when status changes\n\nThis creates friction and blocks the human-agent\
+    \ collaboration loop.\n\n## Proposed Solution\n\nLearn from GitHub Issues' excellent\
+    \ workflow UX and implement:\n\n1. **Action Buttons** - Clear UI controls for\
+    \ common actions\n2. **Webhook System** - Trigger automation on task events\n\
+    3. **Comments/Feedback** - Structured communication between human and agent\n\
+    4. **Codex Auto-Trigger** - Automatically notify local Codex when work is ready\n\
+    \n## Scope\n\nThis phase focuses on making the human \u2192 agent handoff seamless\
+    \ and automated.\n"
+  followups: []
+status_updates: []
+deliverables:
+- path: src/agentjobs/api/templates/task_detail.html
+  status: pending
+  description: Updated task detail page with action buttons
+- path: src/agentjobs/models.py
+  status: pending
+  description: Webhook and Comment models
+- path: src/agentjobs/webhooks.py
+  status: pending
+  description: Webhook firing logic with HMAC security
+- path: examples/codex_listener.py
+  status: pending
+  description: Example local listener that auto-triggers Codex
+- path: docs/webhooks.md
+  status: pending
+  description: Webhook documentation and integration guide
+dependencies:
+- task_id: task-040-phase-5-3-self-management
+  type: depends_on
+  status: completed
+  note: Builds on self-management to close the human-agent loop
+external_links:
+- url: https://docs.github.com/en/issues
+  title: GitHub Issues - UX inspiration
+- url: https://docs.github.com/en/webhooks
+  title: GitHub Webhooks - Technical reference
+issues: []
+tags:
+- agentjobs
+- ux
+- automation
+- webhooks
+- phase-6
+branches: []
