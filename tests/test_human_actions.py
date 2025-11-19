@@ -113,7 +113,7 @@ def test_request_changes_without_feedback(client: TestClient, sample_task_waitin
         json={"user": "jeff", "feedback": ""},
     )
     # Should fail validation due to min_length=1
-    assert response.status_code == 422
+    assert response.status_code == 400
 
 
 def test_reject_without_reason(client: TestClient, sample_task_waiting: str) -> None:
@@ -123,4 +123,4 @@ def test_reject_without_reason(client: TestClient, sample_task_waiting: str) -> 
         json={"user": "jeff", "reason": ""},
     )
     # Should fail validation due to min_length=1
-    assert response.status_code == 422
+    assert response.status_code == 400
