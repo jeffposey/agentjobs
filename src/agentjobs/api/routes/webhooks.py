@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field, HttpUrl
 
 from agentjobs.models import Webhook
@@ -61,11 +61,11 @@ async def create_webhook(
     )
 
 
-@router.delete("/{webhook_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{webhook_id}")
 async def delete_webhook(
     webhook_id: str,
     webhook_manager: WebhookManager = Depends(get_webhook_manager),
-) -> None:
+) -> Response:
     """Delete a webhook."""
     success = webhook_manager.delete_webhook(webhook_id)
     if not success:
@@ -73,6 +73,7 @@ async def delete_webhook(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Webhook {webhook_id} not found",
         )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{webhook_id}/test", response_model=Dict[str, Any])
