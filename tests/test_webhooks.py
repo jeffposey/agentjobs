@@ -47,7 +47,7 @@ def test_create_webhook(webhook_manager: WebhookManager) -> None:
         secret="test-secret",
     )
     assert webhook.id.startswith("wh_")
-    assert webhook.url == "http://localhost:5000/webhook"
+    assert str(webhook.url) == "http://localhost:5000/webhook"
     assert webhook.events == ["task.status_changed"]
     assert webhook.secret == "test-secret"
     assert webhook.active is True
@@ -79,7 +79,7 @@ def test_get_webhook(webhook_manager: WebhookManager) -> None:
     retrieved = webhook_manager.get_webhook(webhook.id)
     assert retrieved is not None
     assert retrieved.id == webhook.id
-    assert retrieved.url == webhook.url
+    assert str(retrieved.url) == str(webhook.url)
 
 
 def test_delete_webhook(webhook_manager: WebhookManager) -> None:
