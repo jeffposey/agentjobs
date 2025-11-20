@@ -24,7 +24,7 @@ pyyaml = "^6.0"
 fastapi = "^0.109"
 uvicorn = {extras = ["standard"], version = "^0.27"}
 jinja2 = "^3.1"
-typer = "^0.9"
+typer = "^0.20.0"
 watchdog = "^3.0"
 httpx = "^0.26"
 python-multipart = "^0.0.6"
@@ -50,6 +50,9 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 addopts = "--cov=src/agentjobs --cov-report=term-missing --cov-report=html"
+filterwarnings = [
+    "ignore:Unclosed <MemoryObjectReceiveStream>:ResourceWarning"
+]
 
 [tool.black]
 line-length = 100
