@@ -97,7 +97,7 @@ We need to implement a robust user authentication system supporting multiple OAu
                 Phase(
                     id="phase-3",
                     title="Implementation",
-                    status=TaskStatus.PLANNED,
+                    status=TaskStatus.DRAFT,
                     notes="Create migration scripts and ORM models after approval.",
                 ),
             ],
@@ -252,7 +252,7 @@ When users repeatedly exceed limits:
                 Phase(
                     id="phase-3",
                     title="CSS Variables",
-                    status=TaskStatus.PLANNED,
+                    status=TaskStatus.DRAFT,
                 ),
             ],
             prompts=Prompts(
@@ -404,7 +404,7 @@ Replace offset-based pagination with cursor-based for better performance and con
 2. Deprecate offset pagination (6-month notice)
 3. Remove offset fields in v2.0 API
 """,
-            status=TaskStatus.PLANNED,
+            status=TaskStatus.DRAFT,
             priority=Priority.MEDIUM,
             category="feature",
             assigned_to=None,

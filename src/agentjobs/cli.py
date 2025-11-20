@@ -253,21 +253,11 @@ def load_test_data(
             updated_count += 1
 
     typer.echo(f"\n✅ Loaded {len(tasks)} test tasks")
-    typer.echo(
-        f"   - {sum(1 for t in tasks if t.status == TaskStatus.WAITING_FOR_HUMAN)} waiting for human"
-    )
-    typer.echo(
-        f"   - {sum(1 for t in tasks if t.status == TaskStatus.IN_PROGRESS)} in progress"
-    )
-    typer.echo(
-        f"   - {sum(1 for t in tasks if t.status == TaskStatus.BLOCKED)} blocked"
-    )
-    typer.echo(
-        f"   - {sum(1 for t in tasks if t.status == TaskStatus.COMPLETED)} completed"
-    )
-    typer.echo(
-        f"   - {sum(1 for t in tasks if t.status == TaskStatus.PLANNED)} planned"
-    )
+    from collections import Counter
+    status_counts = Counter(t.status for t in tasks)
+    for status in TaskStatus:
+        count = status_counts[status]
+        typer.echo(f"   - {count} {status.value.replace('_', ' ')}")
 
     if created_count and updated_count:
         typer.echo(f"\n📦 {created_count} created, {updated_count} refreshed.")
