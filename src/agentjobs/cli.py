@@ -131,7 +131,6 @@ def serve(
         False,
         "--reload",
         "-r",
-        is_flag=True,
         help="Reload server on changes (development only).",
     ),
 ) -> None:
@@ -158,7 +157,6 @@ def create(
     ),
     priority: Priority = typer.Option(
         Priority.MEDIUM.value,
-        case_sensitive=False,
         help="Task priority label.",
     ),
     category: str = typer.Option(
@@ -376,7 +374,7 @@ def migrate(
     source: str = typer.Argument(...),
     target_dir: str = typer.Argument(...),
     prompts_dir: Optional[str] = typer.Option(None, "--prompts-dir", help="Optional prompts directory"),
-    dry_run: bool = typer.Option(False, "--dry-run", is_flag=True, help="Preview migration"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview migration"),
     report_file: str = typer.Option("migration-report.md", "--report", help="Report path"),
 ) -> None:
     """Migrate Markdown task files to YAML."""
