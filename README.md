@@ -24,11 +24,98 @@ pip install agentjobs
 cd /path/to/your-project
 agentjobs init
 
-# Start the web server
+# One-command UI access (starts server + opens browser)
+agentjobs open
+```
+
+## Server Management
+
+AgentJobs provides convenient commands for managing the web server:
+
+```bash
+# Open UI in browser (auto-starts server if needed)
+agentjobs open
+
+# Start server manually
 agentjobs serve
 
-# Open browser to http://localhost:8765
+# Check server status
+agentjobs status
+
+# Stop the server
+agentjobs stop
+
+# Restart with new options
+agentjobs restart --reload
 ```
+
+### VS Code Integration
+
+If you're using VS Code/Antigravity, add a keyboard shortcut for quick access:
+
+1. Open Command Palette (`Ctrl+Shift+P`)
+2. Select "Preferences: Open Keyboard Shortcuts (JSON)"
+3. Add:
+   ```json
+   {
+     "key": "ctrl+alt+u",
+     "command": "workbench.action.tasks.runTask",
+     "args": "AgentJobs: Open UI"
+   }
+   ```
+
+Now press `Ctrl+Alt+U` to instantly open the AgentJobs UI!
+
+## CLI Commands
+
+### Task Management
+
+```bash
+# Initialize project
+agentjobs init
+
+# Create a task
+agentjobs create --title "My Task" --priority high
+
+# List all tasks
+agentjobs list
+
+# Filter tasks
+agentjobs list --status ready --priority high
+
+# Show task details
+agentjobs show task-001
+
+# Interactive agent workflow
+agentjobs work --agent my-agent
+
+# Load sample data
+agentjobs load-test-data
+```
+
+### Server Commands
+
+```bash
+# Open UI (auto-starts server)
+agentjobs open
+
+# Manual server control
+agentjobs serve [--host HOST] [--port PORT] [--reload]
+agentjobs status
+agentjobs stop
+agentjobs restart
+
+# Example: Start on different port with auto-reload
+agentjobs serve --port 9000 --reload
+```
+
+### Migration
+
+```bash
+# Migrate Markdown tasks to YAML
+agentjobs migrate source_dir target_dir [--dry-run]
+```
+
 
 ## Quick Start for AI Agents
 
@@ -114,8 +201,12 @@ The legacy Task 031 umbrella is now archived in favour of phase-specific tasks (
 ### View Development Tasks
 
 ```bash
+# Quick access
+agentjobs open
+
+# Or manually start server
 agentjobs serve
-# Open http://localhost:8765 to browse tasks
+# Then open http://localhost:8765 to browse tasks
 ```
 
 ### Contributing

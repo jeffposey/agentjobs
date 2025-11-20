@@ -146,6 +146,175 @@ def serve(
     )
 
 
+def _find_process_by_port(port: int) -> Optional[int]:
+    """Find PID of process listening on given port."""
+    import platform
+    import subprocess
+    
+    system = platform.system()
+    
+    try:
+        if system == "Windows":
+            # Use netstat on Windows
+            result = subprocess.run(
+                ["netstat", "-ano"],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            for line in result.stdout.splitlines():
+                if f":{port}" in line and "LISTENING" in line:
+                    parts = line.split()
+                    return int(parts[-1])
+        else:
+            # Use lsof on Unix-like systems
+            result = subprocess.run(
+                ["lsof", "-ti", f":{port}"],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return int(result.stdout.strip().split()[0])
+    except (subprocess.CalledProcessError, ValueError, IndexError):
+        pass
+    
+    return None
+
+
+@app.command()
+def stop(
+    port: int = typer.Option(8765, help="Port number of server to stop."),
+) -> None:
+    """Stop the running web server."""
+    import platform
+    import subprocess
+    
+    pid = _find_process_by_port(port)
+    
+    if pid is None:
+        typer.echo(f"No server found running on port {port}.")
+        return
+    
+    typer.echo(f"Stopping server (PID {pid}) on port {port}...")
+    
+    try:
+        if platform.system() == "Windows":
+            subprocess.run(["taskkill", "/F", "/PID", str(pid)], check=True)
+        else:
+            subprocess.run(["kill", str(pid)], check=True)
+        typer.echo("✓ Server stopped successfully.")
+    except subprocess.CalledProcessError as e:
+        typer.echo(f"Failed to stop server: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@app.command()
+def status(
+    port: int = typer.Option(8765, help="Port number to check."),
+) -> None:
+    """Check if the web server is running."""
+    pid = _find_process_by_port(port)
+    
+    if pid is None:
+        typer.echo(f"❌ No server running on port {port}.")
+        raise typer.Exit(1)
+    else:
+        typer.echo(f"✓ Server is running (PID {pid}) on http://localhost:{port}")
+
+
+@app.command()
+def restart(
+    host: str = typer.Option("localhost"),
+    port: int = typer.Option(8765),
+    reload: bool = typer.Option(
+        False,
+        "--reload",
+        "-r",
+        help="Reload server on changes (development only).",
+    ),
+) -> None:
+    """Restart the web server."""
+    # Stop existing server if running
+    pid = _find_process_by_port(port)
+    if pid is not None:
+        typer.echo(f"Stopping existing server (PID {pid})...")
+        import platform
+        import subprocess
+        
+        try:
+            if platform.system() == "Windows":
+                subprocess.run(["taskkill", "/F", "/PID", str(pid)], check=True)
+            else:
+                subprocess.run(["kill", str(pid)], check=True)
+            typer.echo("✓ Server stopped.")
+        except subprocess.CalledProcessError:
+            typer.echo("Warning: Failed to stop existing server.", err=True)
+    
+    # Start new server
+    typer.echo(f"🚀 Starting AgentJobs server at http://{host}:{port}")
+    import uvicorn
+    
+    uvicorn.run(
+        "agentjobs.api.main:app",
+        host=host,
+        port=port,
+        reload=reload,
+    )
+
+
+
+
+
+@app.command()
+def open(
+    port: int = typer.Option(8765, help="Port number to check/use."),
+    host: str = typer.Option("localhost", help="Host to use if starting server."),
+) -> None:
+    """Open the web UI in browser (starts server if needed)."""
+    import platform
+    import subprocess
+    import time
+    import webbrowser
+    
+    url = f"http://{host}:{port}"
+    pid = _find_process_by_port(port)
+    
+    if pid is None:
+        # Server not running, start it in background
+        typer.echo(f"Starting AgentJobs server at {url}...")
+        
+        if platform.system() == "Windows":
+            # Start server in a new window (minimized)
+            subprocess.Popen(
+                ["poetry", "run", "agentjobs", "serve", "--port", str(port), "--host", host],
+                creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.CREATE_NO_WINDOW
+            )
+        else:
+            # Start server in background
+            subprocess.Popen(
+                ["poetry", "run", "agentjobs", "serve", "--port", str(port), "--host", host],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+        
+        # Wait for server to start
+        typer.echo("Waiting for server to initialize...")
+        max_retries = 10
+        for _ in range(max_retries):
+            time.sleep(1)
+            if _find_process_by_port(port) is not None:
+                break
+        else:
+            typer.echo("Warning: Server may not have started successfully.", err=True)
+    else:
+        typer.echo(f"Server already running (PID {pid})")
+    
+    # Open browser
+    typer.echo(f"Opening {url}...")
+    webbrowser.open(url)
+
+
 @app.command()
 def create(
     title: Optional[str] = typer.Option(
