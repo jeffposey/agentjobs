@@ -1,0 +1,97 @@
+id: task-044-docs-git-workflow
+title: Fix status/doc drift, Windows emoji crash, and codify git workflow in agent
+  docs
+created: '2026-07-06T19:25:45.241883Z'
+updated: '2026-07-06T19:25:45.242882Z'
+status: ready
+priority: medium
+category: documentation
+assigned_to: claude
+estimated_effort: 1-2 hours
+description: "Three hygiene items found during the React-frontend readiness review:\n\
+  \n**1. Nonexistent `planned` status.** The `TaskStatus` enum (src/agentjobs/models.py)\
+  \ has draft/ready/in_progress/blocked/waiting_for_human/under_review/completed/archived\
+  \ \u2014 there is no `planned`. But: `src/agentjobs/cli.py:41` sets DEFAULT_CONFIG\
+  \ `defaults.status: planned` (invalid); `docs/api-reference.md` (lines ~22/32/58)\
+  \ and `docs/agent-workflow.md` (~60/287) document `planned`; `examples/collaborative_agent.py`\
+  \ uses `TaskStatus.PLANNED` which would raise AttributeError. Fix all of these (default\
+  \ \u2192 `draft`). Leave `migration/converter.py`'s `planned` mapping alone \u2014\
+  \ that intentionally maps legacy input.\n\n**2. Windows console crash on startup.**\
+  \ `agentjobs serve` (cli.py:138) echoes a rocket emoji; on Windows consoles with\
+  \ cp1252 encoding (e.g. non-interactive/background shells) this raises UnicodeEncodeError\
+  \ and the server never starts. Reproduced 2026-07-06. Fix by removing the emoji\
+  \ from CLI output or guarding encoding (e.g. try/except fallback to plain text,\
+  \ or reconfigure stdout to UTF-8). Audit other CLI echoes for the same issue.\n\n\
+  **3. Git workflow gaps in agent docs.** ENGINEERING.md mandates branch *naming*\
+  \ (`type/task-xxx-description`) and Conventional Commits, but never says when to\
+  \ branch, how to size commits, or how merges happen. Add to ENGINEERING.md (Git\
+  \ Workflow) and ALLAGENTS.md (Task Lifecycle):\n- Create the branch before marking\
+  \ a task in_progress; record it in the task's `branches[]` field.\n- Small, single-logical-change,\
+  \ easily reviewable commits; tests pass before every commit.\n- Stop at branch-complete:\
+  \ set the task waiting_for_human for human review. Merge to main only on explicit\
+  \ approval, via rebase onto main + `--no-ff` merge; then mark the branch `merged`\
+  \ in branches[].\n\n**Stretch:** flesh out docs/task-schema.md (currently a stub)\
+  \ from src/agentjobs/models.py."
+phases: []
+success_criteria:
+- id: sc-1
+  description: grep for 'planned' in docs/, src/agentjobs/cli.py, examples/ shows
+    only intentional legacy-migration references; agentjobs init produces a valid
+    default config
+  status: pending
+- id: sc-2
+  description: agentjobs serve starts cleanly in a cp1252 Windows console (no UnicodeEncodeError)
+  status: pending
+- id: sc-3
+  description: ENGINEERING.md and ALLAGENTS.md document branch-before-in_progress,
+    branches[] recording, small reviewable commits, and the human-approval rebase
+    + --no-ff merge gate
+  status: pending
+- id: sc-4
+  description: poetry run pytest passes
+  status: pending
+prompts:
+  starter: "## Objective\nThree fixes: (1) eliminate the nonexistent `planned` status\
+    \ from config/docs/examples, (2) fix the Windows cp1252 UnicodeEncodeError on\
+    \ `agentjobs serve` (emoji in cli.py:138 \u2014 reproduced 2026-07-06 in a background\
+    \ PowerShell), (3) codify the git workflow (branch-per-task before in_progress,\
+    \ branches[] recording, small reviewable Conventional Commits, human-approval\
+    \ merge gate with rebase + --no-ff) in ENGINEERING.md and ALLAGENTS.md. See the\
+    \ task description for exact file/line targets.\n\n## Steps\n1. Create branch\
+    \ `docs/task-044-docs-git-workflow` from main. Record it in branches[] and mark\
+    \ the task in_progress.\n2. Fix cli.py:41 default status \u2192 draft; fix docs/api-reference.md,\
+    \ docs/agent-workflow.md, examples/collaborative_agent.py. Do NOT touch migration/converter.py's\
+    \ legacy 'planned' mapping.\n3. Remove or guard emoji output in CLI (cli.py serve\
+    \ and any other echoes with non-ASCII); verify `poetry run agentjobs serve` starts\
+    \ in a fresh non-interactive PowerShell without PYTHONUTF8 set.\n4. Update ENGINEERING.md\
+    \ Git Workflow + ALLAGENTS.md Task Lifecycle with the process above.\n5. Stretch:\
+    \ generate docs/task-schema.md content from src/agentjobs/models.py.\n6. `poetry\
+    \ run pytest`, plus black/ruff/mypy per ENGINEERING.md.\n\n## Git workflow (mandatory)\n\
+    One logical change per commit (the three fixes are separate commits). When the\
+    \ branch is complete and verified: STOP, set this task to waiting_for_human, and\
+    \ wait for explicit human approval. On approval: rebase onto main, merge with\
+    \ --no-ff, mark the branch merged in branches[], set task completed."
+  followups: []
+status_updates: []
+comments: []
+deliverables:
+- path: src/agentjobs/cli.py
+  status: pending
+  description: Valid default status + encoding-safe CLI output
+- path: ENGINEERING.md
+  status: pending
+  description: Codified git workflow with merge gate
+- path: ALLAGENTS.md
+  status: pending
+  description: Task lifecycle updated with branching and review steps
+- path: docs/api-reference.md
+  status: pending
+  description: Correct status enum values
+dependencies: []
+external_links: []
+issues: []
+tags:
+- react-frontend
+- learning
+- phase-0
+branches: []

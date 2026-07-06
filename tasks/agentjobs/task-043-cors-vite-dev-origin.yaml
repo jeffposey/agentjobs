@@ -1,0 +1,66 @@
+id: task-043-cors-vite-dev-origin
+title: Allow Vite dev-server origin in CORS config
+created: '2026-07-06T19:25:44.948348Z'
+updated: '2026-07-06T19:25:44.948872Z'
+status: ready
+priority: high
+category: developer_experience
+assigned_to: claude
+estimated_effort: 15 minutes
+description: "The upcoming React frontend will run on the Vite dev server at `http://localhost:5173`\
+  \ during development. The FastAPI CORS middleware in `src/agentjobs/api/main.py`\
+  \ (lines ~38-47) currently allows only `http://localhost:8765` and `http://127.0.0.1:8765`,\
+  \ so browser requests from the React app would be blocked by CORS preflight.\n\n\
+  Append `http://localhost:5173` and `http://127.0.0.1:5173` to `allow_origins`. Keep\
+  \ the origins explicit \u2014 never switch to `\"*\"` while `allow_credentials=True`\
+  \ is set (the browser rejects that combination, and it would be a security regression\
+  \ anyway).\n\nNote: the React app will primarily use the Vite dev proxy (`/api`\
+  \ \u2192 `localhost:8765`), which avoids CORS entirely, but the direct-origin path\
+  \ should also work and this is a good opportunity to understand what CORS is."
+phases: []
+success_criteria:
+- id: sc-1
+  description: allow_origins includes http://localhost:5173 and http://127.0.0.1:5173;
+    allow_credentials stays True with explicit origins
+  status: pending
+- id: sc-2
+  description: OPTIONS preflight from Origin http://localhost:5173 returns access-control-allow-origin
+    for that origin
+  status: pending
+- id: sc-3
+  description: poetry run pytest passes
+  status: pending
+prompts:
+  starter: "## Objective\nAdd the Vite dev-server origins to the CORS allowlist in\
+    \ src/agentjobs/api/main.py.\n\n## Steps\n1. Create branch `feat/task-043-cors-vite-dev-origin`\
+    \ from main. Record it in branches[] and mark the task in_progress.\n2. In src/agentjobs/api/main.py,\
+    \ append `http://localhost:5173` and `http://127.0.0.1:5173` to `allow_origins`.\n\
+    3. Restart the server and verify with a preflight request:\n   `curl.exe -i -X\
+    \ OPTIONS http://localhost:8765/api/tasks -H \"Origin: http://localhost:5173\"\
+    \ -H \"Access-Control-Request-Method: GET\"`\n   Expect `access-control-allow-origin:\
+    \ http://localhost:5173` in the response headers.\n4. Run `poetry run pytest`.\n\
+    \n## Git workflow (mandatory)\nSmall single-logical-change commits, Conventional\
+    \ Commits format, tests green before each commit. When the branch is complete\
+    \ and verified: STOP, set this task to waiting_for_human, and wait for explicit\
+    \ human approval. On approval: rebase onto main, merge with --no-ff, mark the\
+    \ branch merged in branches[], set task completed.\n\n## Study note (CORS primer\
+    \ for the React work ahead)\nBrowsers enforce the same-origin policy: JS on origin\
+    \ A may not read responses from origin B unless B opts in via Access-Control-*\
+    \ response headers. The Vite proxy sidesteps this by making the browser talk only\
+    \ to :5173 while Vite forwards to :8765 server-side. Both paths will work after\
+    \ this task."
+  followups: []
+status_updates: []
+comments: []
+deliverables:
+- path: src/agentjobs/api/main.py
+  status: pending
+  description: Updated CORS allow_origins list
+dependencies: []
+external_links: []
+issues: []
+tags:
+- react-frontend
+- learning
+- phase-0
+branches: []
