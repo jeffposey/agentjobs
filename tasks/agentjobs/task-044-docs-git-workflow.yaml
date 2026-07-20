@@ -2,8 +2,8 @@ id: task-044-docs-git-workflow
 title: Fix status/doc drift, Windows emoji crash, and codify git workflow in agent
   docs
 created: '2026-07-06T19:25:45.241883Z'
-updated: '2026-07-06T19:25:45.242882Z'
-status: ready
+updated: '2026-07-20T19:24:41.098880Z'
+status: draft
 priority: medium
 category: documentation
 assigned_to: claude
@@ -87,7 +87,10 @@ deliverables:
 - path: docs/api-reference.md
   status: pending
   description: Correct status enum values
-dependencies: []
+dependencies:
+- task_id: task-043-cors-vite-dev-origin
+  type: depends_on
+  note: Sequential Phase 0 ordering
 external_links: []
 issues: []
 tags:
