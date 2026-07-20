@@ -1,8 +1,8 @@
 id: task-043-cors-vite-dev-origin
 title: Allow Vite dev-server origin in CORS config
 created: '2026-07-06T19:25:44.948348Z'
-updated: '2026-07-06T19:25:44.948872Z'
-status: ready
+updated: '2026-07-20T19:24:41.033370Z'
+status: draft
 priority: high
 category: developer_experience
 assigned_to: claude
@@ -56,7 +56,10 @@ deliverables:
 - path: src/agentjobs/api/main.py
   status: pending
   description: Updated CORS allow_origins list
-dependencies: []
+dependencies:
+- task_id: task-042-relocate-demo-tasks
+  type: depends_on
+  note: Sequential Phase 0 ordering
 external_links: []
 issues: []
 tags:
