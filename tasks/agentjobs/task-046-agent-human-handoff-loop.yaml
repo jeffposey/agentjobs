@@ -1,0 +1,107 @@
+id: task-046-agent-human-handoff-loop
+title: Formalize the agent-to-human handoff loop (status + notification, chat-independent)
+created: '2026-07-20T20:10:26.008565Z'
+updated: '2026-07-20T20:10:26.008565Z'
+status: draft
+priority: high
+category: developer_experience
+assigned_to: claude
+estimated_effort: 1-2 hours
+description: "Right now the human-review step in the agent workflow (see [[merge-gate-workflow]]\
+  \ convention) has been happening informally through chat narration ('I'm stopping\
+  \ here for your review') rather than through AgentJobs' own state. That defeats\
+  \ the purpose of dogfooding: the whole point is that a task's status, comments,\
+  \ and status_updates should be the source of truth for where things stand \u2014\
+  \ not the surrounding conversation.\n\nThe real end-state goal (per project owner,\
+  \ 2026-07-20): work towards a loop where an agent picks up a ready task, works it,\
+  \ and when it hits a point that needs a human decision, ends its turn by (a) setting\
+  \ the task to `waiting_for_human` (or `blocked`) via the real AgentJobs status API\
+  \ \u2014 not just saying so in chat, (b) leaving a comment/status_update written\
+  \ for a human reader that says exactly what was done and what decision is needed,\
+  \ and (c) triggering whatever notification channel is available at the time. Symmetrically,\
+  \ when a human responds (approves, comments, rejects) via any interface (CLI, API,\
+  \ Jinja GUI today, React GUI soon), that response plus the task's accumulated history\
+  \ (human_summary, description, prompts.starter/followups, status_updates, comments)\
+  \ must be sufficient for a *brand new* agent session with zero conversational memory\
+  \ to correctly resume the task. Chat conversation context is a bootstrapping convenience\
+  \ for now, not something the loop should depend on long-term.\n\nNotification channel\
+  \ scope for *this* task is intentionally narrow: use whatever is available in an\
+  \ interactive session today (a chat reply, or the PushNotification tool for OS/phone\
+  \ alerts) when a human decision is needed. Do NOT build a general-purpose notification/webhook\
+  \ receiver, email/SMS integration, or an 'accounts' system in this task \u2014 that\
+  \ is explicitly deferred (see Later section). The existing webhook infrastructure\
+  \ (`task.status_changed` events, HMAC-signed, fired automatically by `manager.update_status()`\
+  \ \u2014 see src/agentjobs/webhooks.py and src/agentjobs/manager.py:177) already\
+  \ provides the hook point a future pluggable notification service would subscribe\
+  \ to; this task should reference that as the intended extension point without building\
+  \ it now.\n\n## Later (explicitly out of scope here, capture for a future task)\n\
+  A pluggable notification/'account' system supporting multiple channel types (email,\
+  \ SMS, mobile push, desktop toast) subscribed to AgentJobs' existing webhook events,\
+  \ decoupled from any specific chat session or AI tool \u2014 so a human gets notified\
+  \ even when no agent session is currently open. Do not design or implement this\
+  \ now; just leave a clear pointer for later (e.g., a docs/roadmap note referencing\
+  \ this task)."
+phases: []
+success_criteria:
+- id: sc-1
+  description: 'ALLAGENTS.md and/or ENGINEERING.md document: (a) tasks must carry
+    a human_summary distinct from description written for a zero-context reader, (b)
+    any human-decision point ends the agent''s turn by setting waiting_for_human/blocked
+    via the API plus a comment/status_update stating exactly what''s needed, (c) notify
+    via whatever channel is available today (chat reply / PushNotification), (d) a
+    forward pointer to a future pluggable notification service built on the existing
+    task.status_changed webhook'
+  status: pending
+- id: sc-2
+  description: Re-verify tasks 042-045 already satisfy the human_summary requirement
+    (spot check); fix any that don't
+  status: pending
+- id: sc-3
+  description: 'docs/agent-workflow.md updated to describe the resumption model: a
+    fresh agent session picks up a task using only its YAML content (no chat history)
+    and can tell what''s done and what''s next from status_updates/comments alone'
+  status: pending
+prompts:
+  starter: "## Objective\nFormalize (in docs, and in how I actually operate) the agent-to-human\
+    \ handoff loop described in this task's description. This is primarily a documentation/behavioral\
+    \ task, not a code feature.\n\n## Steps\n1. Create branch `docs/task-046-agent-human-handoff-loop`\
+    \ from main. Record it in branches[] and mark the task in_progress.\n2. Update\
+    \ ALLAGENTS.md (Behavioral Guidelines / Task Lifecycle) and docs/agent-workflow.md\
+    \ per the success criteria: self-sufficient task content requirement, real status-API\
+    \ handoff at human-decision points, interim notification channel (chat/PushNotification),\
+    \ and the deferred-future pointer to a webhook-based notification service (reference\
+    \ src/agentjobs/webhooks.py's existing task.status_changed event as the extension\
+    \ point \u2014 do not build the receiver now).\n3. Spot-check tasks 042-045's\
+    \ human_summary fields against the new standard; fix any gaps.\n4. poetry run\
+    \ pytest (docs-only change, but confirm nothing broke).\n\n## Git workflow (mandatory)\n\
+    Small single-logical-change commits, Conventional Commits format. When the branch\
+    \ is complete and verified: STOP, set this task to waiting_for_human via the real\
+    \ status API, leave a comment summarizing what was done and what needs review,\
+    \ and send a PushNotification \u2014 this task is itself the first real exercise\
+    \ of the rule it's establishing. Wait for explicit human approval before merging\
+    \ (rebase onto main + --no-ff).\n\n## Study note\nThis task is about making the\
+    \ AgentJobs task record the single source of truth for where work stands, so that\
+    \ eventually neither the human nor a future agent needs this conversation's history\
+    \ to know what happened or what's next."
+  followups: []
+status_updates: []
+comments: []
+deliverables:
+- path: ALLAGENTS.md
+  status: pending
+  description: Human-handoff and self-sufficient-task-content rules
+- path: docs/agent-workflow.md
+  status: pending
+  description: Chat-independent resumption model documented
+dependencies:
+- task_id: task-044-docs-git-workflow
+  type: depends_on
+  note: Builds on the git workflow / merge-gate conventions documented there
+external_links: []
+issues: []
+tags:
+- react-frontend
+- learning
+- phase-0
+- workflow
+branches: []
