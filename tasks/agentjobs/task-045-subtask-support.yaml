@@ -1,0 +1,120 @@
+id: task-045-subtask-support
+title: Add sub-task (parent/child) support to tasks
+created: '2026-07-06T19:25:45.710710Z'
+updated: '2026-07-06T19:25:45.710710Z'
+status: draft
+priority: high
+category: infrastructure
+assigned_to: claude
+estimated_effort: half day
+description: "AgentJobs has no task hierarchy today: `phases[]` are sub-units *inside*\
+  \ one task (not claimable, no prompts/comments), and `Dependency.type` only supports\
+  \ depends_on/blocks/related. The React-frontend effort wants milestone umbrella\
+  \ tasks with real sub-tasks, so add first-class parent/child support:\n\n**Model**\
+  \ (src/agentjobs/models.py): add `parent: Optional[str]` to `Task`. A direct field\
+  \ is preferred over overloading `Dependency.type` because it is explicit and cheaply\
+  \ queryable.\n\n**Manager** (src/agentjobs/manager.py): add `get_subtasks(task_id)`\
+  \ returning children; change `get_next_task` to skip umbrella tasks (any task that\
+  \ has children) so milestone containers are never claimed as work.\n\n**API**: accept\
+  \ `parent` on TaskCreateRequest/TaskUpdateRequest (src/agentjobs/api/models.py);\
+  \ add a `?parent=` filter to GET /api/tasks (src/agentjobs/api/routes/tasks.py).\
+  \ Validate that the parent exists; reject self-parenting and cycles.\n\n**Jinja\
+  \ UI** (minimal \u2014 the React frontend will replace it): on a parent's detail\
+  \ page show a children list with status badges; on a child show a 'part of task-xxx'\
+  \ link (src/agentjobs/api/templates/task_detail.html).\n\n**Tests**: model validation,\
+  \ manager get_subtasks/get_next_task skipping, API create-with-parent + filter +\
+  \ validation errors.\n\nAfter this task merges, the React milestone umbrella tasks\
+  \ (Milestone 1: read-only browser; Milestone 2: interactive human workflow; Milestone\
+  \ 3: maturity) and their children will be created using `parent`."
+phases: []
+success_criteria:
+- id: sc-1
+  description: Task model has optional parent field; YAML round-trips it; existing
+    task files load unchanged
+  status: pending
+- id: sc-2
+  description: GET /api/tasks?parent=<id> returns exactly the children; creating a
+    task with a missing/self/cyclic parent is rejected with 400
+  status: pending
+- id: sc-3
+  description: GET /api/tasks/next never returns a task that has children (umbrella
+    tasks are not claimable)
+  status: pending
+- id: sc-4
+  description: Parent detail page lists children with status badges; child page links
+    to its parent; pytest green including new tests
+  status: pending
+prompts:
+  starter: '## Objective
+
+    Add first-class parent/child sub-task support per the task description: `parent:
+    Optional[str]` on Task, manager helpers (get_subtasks; get_next_task skips tasks
+    that have children), API support (`parent` on create/update, `?parent=` filter,
+    validation: parent must exist, no self/cycles), minimal Jinja rendering, and tests.
+
+
+    ## Steps
+
+    1. Create branch `feat/task-045-subtask-support` from main. Record it in branches[]
+    and mark the task in_progress.
+
+    2. Model change + tests (backward compat: existing YAML without parent must load).
+
+    3. Manager change + tests.
+
+    4. API change + tests (TaskCreateRequest/TaskUpdateRequest in api/models.py; routes/tasks.py
+    list filter + validation).
+
+    5. Jinja detail template: children list on parents, parent link on children.
+
+    6. `poetry run pytest`, black/ruff/mypy. Verify manually: create a scratch parent+child
+    via curl, check ?parent= filter, check /api/tasks/next skips the parent, view
+    both pages in the browser, then delete the scratch tasks.
+
+
+    ## Git workflow (mandatory)
+
+    One logical change per commit (model / manager / API / UI / docs). When the branch
+    is complete and verified: STOP, set this task to waiting_for_human, and wait for
+    explicit human approval. On approval: rebase onto main, merge with --no-ff, mark
+    the branch merged in branches[], set task completed.
+
+
+    ## After merge
+
+    Create the React milestone umbrella tasks and their sub-tasks using the new parent
+    field (see the approved plan: Milestone 1 read-only browser M1.1-M1.8, Milestone
+    2 interactive M2.1-M2.2, Milestone 3 optional M3.1-M3.2).'
+  followups: []
+status_updates: []
+comments: []
+deliverables:
+- path: src/agentjobs/models.py
+  status: pending
+  description: parent field on Task
+- path: src/agentjobs/manager.py
+  status: pending
+  description: get_subtasks + umbrella-skipping get_next_task
+- path: src/agentjobs/api/routes/tasks.py
+  status: pending
+  description: ?parent= filter and validation
+- path: src/agentjobs/api/templates/task_detail.html
+  status: pending
+  description: Children list / parent link rendering
+dependencies:
+- task_id: task-042-relocate-demo-tasks
+  type: depends_on
+  note: Phase 0 hygiene first
+- task_id: task-043-cors-vite-dev-origin
+  type: depends_on
+  note: Phase 0 hygiene first
+- task_id: task-044-docs-git-workflow
+  type: depends_on
+  note: Phase 0 hygiene first
+external_links: []
+issues: []
+tags:
+- react-frontend
+- learning
+- feature
+branches: []
