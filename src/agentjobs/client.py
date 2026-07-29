@@ -76,7 +76,7 @@ class TaskClient:
         return self._parse_task(response.json())
 
     def get_next_task(self, priority: Optional[Priority | str] = None) -> Optional[Task]:
-        """Return the next planned task or None when unavailable."""
+        """Return the next ready task or None when unavailable."""
         params: Dict[str, str] = {}
         if priority is not None:
             params["priority"] = self._enum_to_str(priority)

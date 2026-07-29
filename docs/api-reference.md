@@ -19,7 +19,7 @@ Set the tasks directory explicitly by exporting `AGENTJOBS_TASKS_DIR` (defaults 
 
 - Timestamps follow ISO 8601 (`2025-01-01T12:00:00Z`).
 - Task identifiers take the form `task-###`.
-- Enum fields use lowercase strings (`planned`, `in_progress`, `high`, ...).
+- Enum fields use lowercase strings (`draft`, `in_progress`, `high`, ...).
 
 ## Task Endpoints
 
@@ -29,7 +29,7 @@ Set the tasks directory explicitly by exporting `AGENTJOBS_TASKS_DIR` (defaults 
 
 Query parameters:
 
-- `status_filter` (`planned | in_progress | blocked | under_review | completed | archived`)
+- `status_filter` (`draft | ready | in_progress | blocked | waiting_for_human | under_review | completed | archived`)
 - `priority_filter` (`low | medium | high | critical`)
 
 Response (`200 OK`):
@@ -55,7 +55,7 @@ Response (`200 OK`):
 `GET /api/tasks/next`
 
 Optional query parameter `priority` (e.g. `critical`) filters by priority tier. Returns
-`null` when no planned tasks remain.
+`null` when no ready tasks remain.
 
 ### Get Task
 

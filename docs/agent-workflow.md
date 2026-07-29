@@ -57,7 +57,7 @@ with TaskClient() as client:
 ```python
 from agentjobs import Priority, TaskStatus
 
-# Get next task (highest priority, planned status)
+# Get next task (highest priority, ready status)
 task = client.get_next_task()
 
 # Filter by priority
@@ -229,7 +229,7 @@ except TaskClientError as e:
 task = client.get_task("task-001")
 
 for phase in task.phases:
-    if phase.status == "planned":
+    if phase.status == "draft":
         print(f"Working on: {phase.title}")
         # ... do phase work ...
 
@@ -284,10 +284,11 @@ Tasks have two content fields:
 
 ## Task States
 
-- **planned**: Ready to work on
+- **draft**: Captured but not yet ready to pick up
+- **ready**: Ready to work on — the only status `get_next_task()` returns
 - **in_progress**: Agent actively working
-- **waiting_for_human**: Needs human review/approval
 - **blocked**: Cannot proceed (external dependency)
+- **waiting_for_human**: Needs human review/approval
 - **under_review**: Code review in progress
 - **completed**: Work finished
 - **archived**: No longer relevant

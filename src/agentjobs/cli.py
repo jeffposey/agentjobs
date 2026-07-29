@@ -38,7 +38,7 @@ DEFAULT_CONFIG = {
         "validation",
         "documentation",
     ],
-    "defaults": {"priority": "medium", "status": "planned"},
+    "defaults": {"priority": "medium", "status": "draft"},
 }
 
 
