@@ -1,0 +1,94 @@
+id: task-052-schema-v2-manager-api
+title: 'Schema v2: manager operations and API surface (claim/handoff/log/release/close)'
+created: '2026-07-29T20:45:00Z'
+updated: '2026-07-29T20:45:00Z'
+status: draft
+priority: high
+category: infrastructure
+estimated_effort: 1-2 days
+human_summary: 'Make the v2 state machine operational: manager methods and API endpoints
+  for claim, handoff, log, release, and close; the inbox and next queries; taxonomy
+  and dependency validation at save; and the typed webhook events (task.handoff,
+  task.question, task.closed).'
+description: 'Implement the canonical loop and API surface from docs/schema-design.md
+  §5 on top of the v2 model.
+
+
+  Scope:
+
+  - Manager operations: claim (ready -> active, sets owner, ball agent/work), handoff
+  (moves ball + ball_reason + required ball_prompt), log append (note/progress/decision/
+  question/answer/instruction), release (active -> ready, clears owner), close (outcome
+  + final entry). Every state change appends a manager-authored transition log entry --
+  callers never write transitions themselves (§3 consistency rule 5).
+
+  - Claimability: ready + eligible + no open children + no unmet `needs` dependencies
+  (§3 boundary case, §5 /next row).
+
+  - API: GET /api/tasks?ball=human (the human inbox, ball_prompt as line item),
+  ?ball=external, GET /api/tasks/next?agent=..., POST claim/handoff/log/release/close
+  per the §5 table. display_status served read-only.
+
+  - Validation at save (§11 D2): category/tags/actor ids against the config vocabulary;
+  dependencies[].task must exist in the store; links[].url really validated.
+
+  - Config: the vocabulary authority for categories, tags, and actor ids lives in
+  project config; document its format.
+
+  - Webhooks: replace/extend task.status_changed with typed events task.handoff (payload
+  carries ball holder + ball_prompt), task.question, task.closed (§5 notifications).
+
+  - Tests throughout: state transitions, rejection of vocabulary violations, inbox/next
+  query semantics, webhook payloads.
+
+
+  **Gated:** requires task-051 (migrated corpus) merged.'
+phases: []
+success_criteria:
+- id: sc-1
+  description: All five operations exist in manager and API, each appending its log
+    entry; direct writes of state axes without a transition are impossible through
+    the public surface
+  status: pending
+- id: sc-2
+  description: '?ball=human returns every open task waiting on a person with its
+    ball_prompt; /next respects eligibility, open children, and unmet needs dependencies'
+  status: pending
+- id: sc-3
+  description: Saving a task with an unknown category/tag/actor or a dangling dependency
+    fails with a named error
+  status: pending
+- id: sc-4
+  description: task.handoff webhook fires with ball holder and ball_prompt in the
+    payload; task.question and task.closed fire on their log entries
+  status: pending
+prompts:
+  starter: 'Implement per docs/schema-design.md §5 and this description. Branch
+    `feat/task-052-schema-v2-manager-api` from main, record in branches[], mark
+    in_progress. One logical change per commit (manager / API / config validation /
+    webhooks / tests). When complete: STOP, set waiting_for_human, comment a summary,
+    await approval.'
+  followups: []
+status_updates: []
+comments: []
+deliverables:
+- path: src/agentjobs/manager.py
+  status: pending
+  description: claim/handoff/log/release/close with manager-authored transitions
+- path: src/agentjobs/api/routes/tasks.py
+  status: pending
+  description: v2 query and mutation endpoints
+- path: src/agentjobs/webhooks.py
+  status: pending
+  description: Typed events task.handoff / task.question / task.closed
+dependencies:
+- task_id: task-051-schema-v2-migrator
+  type: depends_on
+  note: Operates on the migrated v2 corpus
+external_links: []
+issues: []
+tags:
+- schema-design
+- schema-v2
+- api
+branches: []
