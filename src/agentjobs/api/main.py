@@ -37,9 +37,13 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
+    # Origins stay explicit: the browser rejects "*" when allow_credentials is True.
     allow_origins=[
         "http://localhost:8765",
         "http://127.0.0.1:8765",
+        # Vite dev server for the React frontend.
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
