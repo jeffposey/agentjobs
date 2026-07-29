@@ -51,8 +51,8 @@ prompts:
 status_updates:
   - timestamp: 2025-01-15T10:00:00Z
     author: claude
-    status: planned
-    summary: "Task created and planned"
+    status: draft
+    summary: "Task created"
 
   - timestamp: 2025-01-15T11:00:00Z
     author: codex

@@ -2,16 +2,45 @@
 
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+import pytest
 from typer.testing import CliRunner
 
 from agentjobs import TaskStatus, Priority
-from agentjobs.cli import app, _ensure_gitignore
+from agentjobs.cli import app, _ensure_gitignore, _make_output_encoding_safe
 
 runner = CliRunner()
+
+
+def test_output_encoding_survives_legacy_codepage_stream(monkeypatch) -> None:
+    """Emoji output must not crash when stdout uses a legacy codepage.
+
+    Reproduces the original failure: with stdout redirected to a pipe on a
+    default Windows install, the stream encoding is cp1252 and the first emoji
+    raises UnicodeEncodeError.
+    """
+    raw = io.BytesIO()
+    stream = io.TextIOWrapper(raw, encoding="cp1252")
+
+    # Guard clause: confirm the stream really is hostile before the fix.
+    try:
+        stream.write("❌")
+        stream.flush()
+        pytest.fail("expected cp1252 stream to reject the emoji")
+    except UnicodeEncodeError:
+        pass
+
+    monkeypatch.setattr("sys.stdout", stream)
+    _make_output_encoding_safe()
+
+    stream.write("❌ No server running.\n")
+    stream.flush()
+
+    assert "❌" in raw.getvalue().decode("utf-8")
 
 
 def test_cli_init_create_list_show(tmp_path: Path, monkeypatch) -> None:

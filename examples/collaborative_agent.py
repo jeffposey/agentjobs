@@ -28,15 +28,15 @@ def cycle_agents(agents: Iterable[str]) -> Iterable[str]:
 def main() -> None:
     """Assign multiple tasks to different agents in a round-robin fashion."""
     client = TaskClient()
-    planned_tasks = client.list_tasks(status=TaskStatus.PLANNED)
+    ready_tasks = client.list_tasks(status=TaskStatus.READY)
 
-    if not planned_tasks:
-        print("No planned tasks available for assignment.")
+    if not ready_tasks:
+        print("No ready tasks available for assignment.")
         return
 
     agent_cycle = cycle_agents(AGENTS)
 
-    for task in planned_tasks:
+    for task in ready_tasks:
         agent = next(agent_cycle)
 
         print(f"\nAssigning '{task.title}' to {agent}")
@@ -58,7 +58,7 @@ def main() -> None:
             details="Collaborator assigned. Ready for next phase.",
         )
 
-    print("\n✅ All planned tasks assigned to collaborators.")
+    print("\n✅ All ready tasks assigned to collaborators.")
 
 
 if __name__ == "__main__":

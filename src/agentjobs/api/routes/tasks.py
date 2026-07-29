@@ -31,7 +31,7 @@ async def get_next_task(
     priority: Optional[Priority] = None,
     manager: TaskManager = Depends(get_task_manager),
 ) -> Optional[Task]:
-    """Return the next planned task, or ``None`` when no tasks are available."""
+    """Return the next ready task, or ``None`` when no tasks are available."""
     return manager.get_next_task(priority=priority)
 
 
