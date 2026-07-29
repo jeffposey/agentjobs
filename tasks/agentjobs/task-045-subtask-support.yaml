@@ -2,7 +2,7 @@ id: task-045-subtask-support
 title: Add sub-task (parent/child) support and split agent-assignment fields (assigned_to
   / supported_agents)
 created: '2026-07-06T19:25:45.710710Z'
-updated: '2026-07-29T17:50:08.757489Z'
+updated: '2026-07-29T19:17:08.364278Z'
 status: draft
 priority: high
 category: infrastructure
@@ -43,7 +43,13 @@ description: "AgentJobs has no task hierarchy today: `phases[]` are sub-units *i
   \ changes touching the same model/API/template surface and schema changes here are\
   \ currently expensive enough that batching them is worth it. Consider a follow-up\
   \ task on reducing that friction (see docs/task-schema.md stretch goal in task-044)\
-  \ if this keeps happening."
+  \ if this keeps happening.\n\n## Superseded-by note (2026-07-29)\n\nThis task's\
+  \ two schema changes (the `parent` field, and the `assigned_to`/`supported_agents`\
+  \ split) were specified in isolation, before the decision to do a deliberate schema\
+  \ design pass. **task-048 now precedes this task** and may confirm, reshape, or\
+  \ absorb that scope.\n\nDo not start this task until task-048 has reconciled against\
+  \ it (task-048 sc-4). The Jinja/manager/API/test work here likely survives largely\
+  \ intact; it is the shape of the schema changes themselves that is subject to revision.\n"
 phases: []
 success_criteria:
 - id: sc-1
@@ -151,6 +157,11 @@ dependencies:
 - task_id: task-044-docs-git-workflow
   type: depends_on
   note: Phase 0 hygiene first
+- task_id: task-048-schema-design
+  type: depends_on
+  note: Added 2026-07-29. The schema design pass should land first -- it may confirm,
+    reshape, or absorb this task's schema scope. Implementing these changes in isolation
+    and then redesigning them would be backwards.
 external_links: []
 issues: []
 tags:
