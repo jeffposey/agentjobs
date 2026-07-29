@@ -1,8 +1,8 @@
 id: task-042-relocate-demo-tasks
 title: Relocate demo tasks to tasks/test-data/
 created: '2026-07-06T19:25:44.199247Z'
-updated: '2026-07-29T18:20:10.643625Z'
-status: in_progress
+updated: '2026-07-29T18:24:14.040338Z'
+status: waiting_for_human
 priority: high
 category: developer_experience
 assigned_to: claude
@@ -22,15 +22,15 @@ success_criteria:
 - id: sc-1
   description: tasks/test-data/ exists and contains task-001.yaml through task-007.yaml
     (moved with git mv, history preserved)
-  status: pending
+  status: completed
 - id: sc-2
   description: GET /api/tasks lists only internal tasks (task-031 onward plus the
     new react-frontend tasks)
-  status: pending
+  status: completed
 - id: sc-3
   description: poetry run pytest passes; agentjobs load-test-data still works or is
     updated accordingly
-  status: pending
+  status: completed
 prompts:
   starter: "## Objective\nMove the demo tasks (task-001.yaml \u2026 task-007.yaml)\
     \ from `tasks/agentjobs/` to a new `tasks/test-data/` directory, making `tasks/agentjobs/`\
@@ -59,10 +59,38 @@ status_updates:
     mv task-001..007.yaml to tasks/test-data/, check agentjobs load-test-data / src/agentjobs/test_data/
     for hardcoded paths, check README.md layout section, run pytest, verify GET /api/tasks
     no longer lists 001-007.'
+- timestamp: '2026-07-29T18:24:14.040317Z'
+  author: claude
+  status: waiting_for_human
+  summary: 'Branch complete, ready for review: demo tasks relocated to tasks/test-data/'
+  details: 'Done:
+
+    - git mv task-001..007.yaml -> tasks/test-data/ (history preserved as renames)
+
+    - load-test-data default storage_dir changed from ./tasks to ./tasks/test-data
+    (cli.py) so it now targets the same location by default
+
+    - Verified via TaskStorage: tasks/agentjobs/ store no longer contains task-001..007;
+    tasks/test-data/ store contains exactly those 7
+
+    - Verified live: started `agentjobs serve`, GET /api/tasks returned 16 tasks,
+    zero task-00* ids present; stopped the server cleanly afterward
+
+    - README.md already documented tasks/test-data/ correctly, no doc change needed
+    (note: README also references tasks/privateproject/, which does not exist on disk
+    -- pre-existing drift, out of scope for this task, flagging for whoever next touches
+    README)
+
+    - poetry run pytest: 66 passed
+
+
+    Commits on chore/task-042-relocate-demo-tasks: mark in_progress/record branch,
+    relocate the 7 files, fix load-test-data default. Ready for review; on approval
+    rebase onto main + --no-ff merge, mark branch merged, set task completed.'
 comments: []
 deliverables:
 - path: tasks/test-data/
-  status: pending
+  status: completed
   description: Relocated demo task YAML files
 dependencies: []
 external_links: []
