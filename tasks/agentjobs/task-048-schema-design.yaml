@@ -1,8 +1,8 @@
 id: task-048-schema-design
 title: Design the next iteration of the task schema (design pass, not implementation)
 created: '2026-07-29T19:16:49.852937Z'
-updated: '2026-07-29T19:16:49.855299Z'
-status: ready
+updated: '2026-07-29T19:25:39.126067Z'
+status: in_progress
 priority: high
 category: architecture
 estimated_effort: a few working sessions
@@ -217,7 +217,26 @@ prompts:
 
     '
   followups: []
-status_updates: []
+status_updates:
+- timestamp: '2026-07-29T19:25:39.126043Z'
+  author: claude
+  status: in_progress
+  summary: Design pass opened; first working session with Jeff
+  details: 'Branch docs/task-048-schema-design created from main.
+
+
+    Session 1 opening. Jeff asked for (a) a visual view of the current schema rendered
+    by a tool rather than ASCII, (b) the known issues, and (c) raised his first design
+    idea.
+
+
+    JEFF''S IDEA #1 -- decompose status. Rough shape: status becomes ''waiting'',
+    with a sub-parameter for who it waits on (AI vs human), and a further sub-parameter
+    for why (code review, a decision to make, etc.).
+
+
+    Recorded verbatim before analysis so the original framing is not lost. Analysis
+    and trade-offs to follow in subsequent updates; no decision made yet.'
 comments: []
 deliverables:
 - path: docs/schema-design.md
@@ -237,4 +256,6 @@ tags:
 - schema
 - design
 - collaborative
-branches: []
+branches:
+- name: docs/task-048-schema-design
+  status: active
