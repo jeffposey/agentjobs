@@ -2,8 +2,8 @@ id: task-044-docs-git-workflow
 title: Fix status/doc drift, Windows emoji crash, and codify git workflow in agent
   docs
 created: '2026-07-06T19:25:45.241883Z'
-updated: '2026-07-29T18:57:08.174973Z'
-status: waiting_for_human
+updated: '2026-07-29T19:12:32.862811Z'
+status: completed
 priority: medium
 category: documentation
 assigned_to: claude
@@ -198,6 +198,20 @@ status_updates:
 
     Ready for review; on approval rebase onto main + --no-ff merge, mark branch merged,
     set task completed.'
+- timestamp: '2026-07-29T19:12:32.862785Z'
+  author: claude
+  status: completed
+  summary: Approved by Jeff; rebased onto main and merged --no-ff
+  details: 'Human review approved. Branch docs/task-044-docs-git-workflow marked merged.
+
+
+    Rebase was actually required this time: main had advanced by one commit (6e15088,
+    adding the enum-typing fix to task-047) after this branch was cut. Rebased all
+    6 commits cleanly, no conflicts.
+
+
+    Unblocks task-045 (sub-tasks + assigned_to/supported_agents split) and task-046
+    (agent-human handoff loop), both of which depended on this.'
 comments: []
 deliverables:
 - path: src/agentjobs/cli.py
@@ -224,4 +238,5 @@ tags:
 - phase-0
 branches:
 - name: docs/task-044-docs-git-workflow
-  status: active
+  status: merged
+  merged_at: '2026-07-29T19:12:32.847935Z'
