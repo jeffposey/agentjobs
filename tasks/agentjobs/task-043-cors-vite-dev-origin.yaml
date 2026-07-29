@@ -1,8 +1,8 @@
 id: task-043-cors-vite-dev-origin
 title: Allow Vite dev-server origin in CORS config
 created: '2026-07-06T19:25:44.948348Z'
-updated: '2026-07-29T18:32:02.289894Z'
-status: in_progress
+updated: '2026-07-29T18:34:28.679331Z'
+status: waiting_for_human
 priority: high
 category: developer_experience
 assigned_to: claude
@@ -22,14 +22,14 @@ success_criteria:
 - id: sc-1
   description: allow_origins includes http://localhost:5173 and http://127.0.0.1:5173;
     allow_credentials stays True with explicit origins
-  status: pending
+  status: completed
 - id: sc-2
   description: OPTIONS preflight from Origin http://localhost:5173 returns access-control-allow-origin
     for that origin
-  status: pending
+  status: completed
 - id: sc-3
   description: poetry run pytest passes
-  status: pending
+  status: completed
 prompts:
   starter: "## Objective\nAdd the Vite dev-server origins to the CORS allowlist in\
     \ src/agentjobs/api/main.py.\n\n## Steps\n1. Create branch `feat/task-043-cors-vite-dev-origin`\
@@ -64,10 +64,51 @@ status_updates:
     in src/agentjobs/api/main.py (keeping origins explicit -- never ''*'' while allow_credentials=True),
     add a regression test for the preflight since no CORS test exists today, verify
     a live OPTIONS preflight, run pytest.'
+- timestamp: '2026-07-29T18:34:28.679307Z'
+  author: claude
+  status: waiting_for_human
+  summary: 'Branch complete, ready for review: Vite dev origins allowed in CORS'
+  details: 'Done:
+
+    - src/agentjobs/api/main.py: appended http://localhost:5173 and http://127.0.0.1:5173
+    to allow_origins; allow_credentials stays True with explicit origins (added a
+    comment recording why ''*'' is not usable here)
+
+    - tests/test_api.py: added CORS coverage, which did not exist before -- parametrized
+    preflight test over all four allowed origins, plus a negative test asserting an
+    unknown origin gets no access-control-allow-origin header
+
+
+    Verified live (started `agentjobs serve`, stopped it cleanly after):
+
+    - OPTIONS preflight, Origin http://localhost:5173 -> 200, access-control-allow-origin:
+    http://localhost:5173
+
+    - OPTIONS preflight, Origin http://127.0.0.1:5173 -> 200, access-control-allow-origin:
+    http://127.0.0.1:5173
+
+    - OPTIONS preflight, Origin http://evil.example.com -> 400 with NO access-control-allow-origin
+    header (the header''s absence is what actually makes the browser block it)
+
+    - Actual GET with Origin http://localhost:5173 -> 200 with the allow-origin header
+    present, so the non-preflight path works too
+
+
+    - poetry run pytest: 71 passed (was 66; +5 new CORS tests)
+
+    - ruff clean on both changed files; black flags only pre-existing regions in those
+    files that this task did not touch (handle_validation_error in main.py, test_mark_deliverable_complete
+    in test_api.py). Left alone deliberately to keep this diff to one logical change
+    -- repo-wide formatting debt (12 files) is a separate concern.
+
+
+    Commits on feat/task-043-cors-vite-dev-origin: mark in_progress/record branch,
+    the CORS change, the tests. Ready for review; on approval rebase onto main + --no-ff
+    merge, mark branch merged, set task completed.'
 comments: []
 deliverables:
 - path: src/agentjobs/api/main.py
-  status: pending
+  status: completed
   description: Updated CORS allow_origins list
 dependencies:
 - task_id: task-042-relocate-demo-tasks
