@@ -2,8 +2,8 @@ id: task-044-docs-git-workflow
 title: Fix status/doc drift, Windows emoji crash, and codify git workflow in agent
   docs
 created: '2026-07-06T19:25:45.241883Z'
-updated: '2026-07-29T18:47:07.289531Z'
-status: in_progress
+updated: '2026-07-29T18:57:08.174973Z'
+status: waiting_for_human
 priority: medium
 category: documentation
 assigned_to: claude
@@ -38,18 +38,18 @@ success_criteria:
   description: grep for 'planned' in docs/, src/agentjobs/cli.py, examples/ shows
     only intentional legacy-migration references; agentjobs init produces a valid
     default config
-  status: pending
+  status: completed
 - id: sc-2
   description: agentjobs serve starts cleanly in a cp1252 Windows console (no UnicodeEncodeError)
-  status: pending
+  status: completed
 - id: sc-3
   description: ENGINEERING.md and ALLAGENTS.md document branch-before-in_progress,
     branches[] recording, small reviewable commits, and the human-approval rebase
     + --no-ff merge gate
-  status: pending
+  status: completed
 - id: sc-4
   description: poetry run pytest passes
-  status: pending
+  status: completed
 prompts:
   starter: "## Objective\nThree fixes: (1) eliminate the nonexistent `planned` status\
     \ from config/docs/examples, (2) fix the Windows cp1252 UnicodeEncodeError on\
@@ -95,19 +95,122 @@ status_updates:
     it breaks CI, background shells, and any log redirection, but looks fine when
     run interactively. Fixing per-line would leave the next added emoji broken, so
     the fix will guard the output streams once at CLI entry instead.'
+- timestamp: '2026-07-29T18:57:08.174946Z'
+  author: claude
+  status: waiting_for_human
+  summary: 'Branch complete, ready for review: all three fixes plus the stretch goal'
+  details: 'FIX 1 -- nonexistent ''planned'' status removed.
+
+    Every reference was genuinely broken, not merely stale:
+
+    - cli.py DEFAULT_CONFIG defaults.status -> draft
+
+    - examples/collaborative_agent.py used TaskStatus.PLANNED (AttributeError; TaskStatus
+    has no PLANNED member) -> TaskStatus.READY
+
+    - examples/sample-task.yaml used status: planned, which FAILS model validation
+    outright -- verified StatusUpdate rejects it, so that example file could not load
+    at all -> draft
+
+    - docs/api-reference.md and docs/agent-workflow.md documented ''planned'' and
+    omitted draft/ready/waiting_for_human -> corrected to the real enum
+
+    - two stale docstrings in client.py and api/routes/tasks.py said ''next planned
+    task'' -> ''next ready task''
+
+    Left alone as instructed: migration/converter.py and migration/parser.py, which
+    intentionally map legacy ''planned'' input onto DRAFT.
+
+
+    FIX 2 -- Windows console crash. SCOPE WAS LARGER THAN THE TASK DESCRIBED.
+
+    The task cites one rocket emoji at cli.py:138. It is actually 19 lines in cli.py
+    carrying non-ASCII glyphs. I also need to correct something I told Jeff earlier
+    in conversation: I initially reported the crash did NOT reproduce on Python 3.13.
+    That was my error -- I had set PYTHONIOENCODING=utf-8 in my own test commands,
+    which masked it.
+
+    The crash is real and reproduces on 3.13. Confirmed with a live traceback from
+    `agentjobs status` at cli.py:220: UnicodeEncodeError: ''charmap'' codec can''t
+    encode character ''\u274c''. Trigger is stdout being a pipe/redirect rather than
+    a console -- Python then uses the locale encoding (cp1252) instead of the console''s
+    Unicode path. So it works interactively but dies under CI, background shells,
+    and log redirection.
+
+    Fixed by reconfiguring stdout/stderr once at CLI entry (_make_output_encoding_safe)
+    rather than stripping 19 emoji, so a later added glyph cannot reintroduce it.
+    Added a regression test that first asserts a cp1252 stream really does reject
+    the emoji, so the test cannot silently become a no-op.
+
+    Verified: `agentjobs status` piped now prints correctly; redirecting to a file
+    produces valid UTF-8; `agentjobs init` piped prints its checkmark and writes defaults.status:
+    draft (satisfies sc-1 and sc-2 together).
+
+
+    FIX 3 -- git workflow codified.
+
+    ENGINEERING.md gained Branch Lifecycle, Commit Hygiene, and The Merge Gate, documenting
+    the process actually followed on 042-044. Also recorded the narrow exception Jeff
+    approved: task-metadata-only changes commit straight to main, but a task''s own
+    status transitions belong on its branch.
+
+    ALLAGENTS.md''s Task Lifecycle was rewritten -- it described statuses that do
+    not exist and a merge-free flow. Added a ''Logging Work to the Task'' section
+    per Jeff''s instruction that each pass be logged whether or not a human is watching.
+    Deliberately kept narrow: the notification/handoff-loop formalization is task-046''s
+    job, not this task''s.
+
+
+    STRETCH -- docs/task-schema.md written (was a 3-line stub).
+
+    Full schema from models.py: every field''s type, requiredness, default, and accepted
+    values, plus enums and all 10 nested types. Claims were verified against the model,
+    not inferred -- confirmed exactly 6 required fields, and documented two non-obvious
+    behaviours: exclude_none omits unset optionals rather than writing null, and use_enum_values
+    only applies to values passing through validation, so an in-memory enum field
+    may be an enum member OR a plain string depending on whether it was defaulted
+    (calling .value on the latter raises AttributeError -- manager.py:172 and examples/collaborative_agent.py:50
+    both already work around this).
+
+
+    VERIFICATION
+
+    - poetry run pytest: 72 passed (was 71; +1 encoding regression test)
+
+    - ruff on every file this branch touched reports 4 findings, all confirmed identical
+    on main by running ruff against the pre-branch versions. Zero new lint introduced;
+    those 4 belong to task-047.
+
+
+    INCIDENT worth flagging: while verifying `agentjobs init` I ran it via `poetry
+    run --directory`, which sets CWD to the project root -- it overwrote this repo''s
+    own .agentjobs/config.yaml (and appended a redundant .gitignore line). Both are
+    tracked, spotted immediately via git status, and restored with git restore; the
+    final diff is clean. Re-verified isolated afterwards. Noting it because `poetry
+    run --directory` is a live footgun for any agent verifying CLI behaviour from
+    a temp directory.
+
+
+    Minor pre-existing wart noticed, not fixed (out of scope): .gitignore already
+    ignores the whole .agentjobs/ directory, yet .agentjobs/config.yaml is tracked
+    and cli.py''s _ensure_gitignore appends a redundant .agentjobs/agentjobs.db entry.
+
+
+    Ready for review; on approval rebase onto main + --no-ff merge, mark branch merged,
+    set task completed.'
 comments: []
 deliverables:
 - path: src/agentjobs/cli.py
-  status: pending
+  status: completed
   description: Valid default status + encoding-safe CLI output
 - path: ENGINEERING.md
-  status: pending
+  status: completed
   description: Codified git workflow with merge gate
 - path: ALLAGENTS.md
-  status: pending
+  status: completed
   description: Task lifecycle updated with branching and review steps
 - path: docs/api-reference.md
-  status: pending
+  status: completed
   description: Correct status enum values
 dependencies:
 - task_id: task-043-cors-vite-dev-origin
