@@ -2,8 +2,8 @@ id: task-044-docs-git-workflow
 title: Fix status/doc drift, Windows emoji crash, and codify git workflow in agent
   docs
 created: '2026-07-06T19:25:45.241883Z'
-updated: '2026-07-20T19:24:41.098880Z'
-status: draft
+updated: '2026-07-29T18:47:07.289531Z'
+status: in_progress
 priority: medium
 category: documentation
 assigned_to: claude
@@ -72,7 +72,29 @@ prompts:
     \ wait for explicit human approval. On approval: rebase onto main, merge with\
     \ --no-ff, mark the branch merged in branches[], set task completed."
   followups: []
-status_updates: []
+status_updates:
+- timestamp: '2026-07-29T18:47:07.289508Z'
+  author: claude
+  status: in_progress
+  summary: 'Started: planned-status cleanup, console encoding crash, git workflow
+    docs'
+  details: 'Dependency task-043 completed and merged, unblocking this task (moved
+    from draft to in_progress). Branch docs/task-044-docs-git-workflow created from
+    main.
+
+
+    Scope correction on fix #2 (the Windows console crash): the task describes it
+    as one rocket emoji at cli.py:138. It is actually 19 lines in cli.py carrying
+    non-ASCII glyphs, and the crash reproduces on Python 3.13, confirmed today with
+    a real traceback from `agentjobs status` at cli.py:220 (UnicodeEncodeError: ''charmap''
+    codec can''t encode character ''\u274c'').
+
+
+    The trigger is stdout being a pipe/redirect rather than a console: Python then
+    uses the locale encoding (cp1252 here) instead of the console''s UTF-8 path. So
+    it breaks CI, background shells, and any log redirection, but looks fine when
+    run interactively. Fixing per-line would leave the next added emoji broken, so
+    the fix will guard the output streams once at CLI entry instead.'
 comments: []
 deliverables:
 - path: src/agentjobs/cli.py
@@ -97,4 +119,6 @@ tags:
 - react-frontend
 - learning
 - phase-0
-branches: []
+branches:
+- name: docs/task-044-docs-git-workflow
+  status: active
