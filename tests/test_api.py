@@ -279,3 +279,40 @@ def test_add_followup_prompt(api_client) -> None:
     body = response.json()
     assert len(body["prompts"]["followups"]) == 1
     assert body["prompts"]["followups"][0]["author"] == "codex"
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "http://localhost:8765",
+        "http://127.0.0.1:8765",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+)
+def test_cors_preflight_allows_configured_origins(api_client, origin: str) -> None:
+    """Preflight from each allowed origin echoes that origin back."""
+    client, _ = api_client
+    response = client.options(
+        "/api/tasks",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+    assert response.headers["access-control-allow-credentials"] == "true"
+
+
+def test_cors_preflight_rejects_unknown_origin(api_client) -> None:
+    """An origin outside the allowlist gets no allow-origin header."""
+    client, _ = api_client
+    response = client.options(
+        "/api/tasks",
+        headers={
+            "Origin": "http://evil.example.com",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert "access-control-allow-origin" not in response.headers
