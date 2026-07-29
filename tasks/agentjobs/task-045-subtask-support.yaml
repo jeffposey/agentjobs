@@ -1,7 +1,8 @@
 id: task-045-subtask-support
-title: Add sub-task (parent/child) support to tasks
+title: Add sub-task (parent/child) support and split agent-assignment fields (assigned_to
+  / supported_agents)
 created: '2026-07-06T19:25:45.710710Z'
-updated: '2026-07-06T19:25:45.710710Z'
+updated: '2026-07-29T17:50:08.757489Z'
 status: draft
 priority: high
 category: infrastructure
@@ -25,7 +26,24 @@ description: "AgentJobs has no task hierarchy today: `phases[]` are sub-units *i
   \ manager get_subtasks/get_next_task skipping, API create-with-parent + filter +\
   \ validation errors.\n\nAfter this task merges, the React milestone umbrella tasks\
   \ (Milestone 1: read-only browser; Milestone 2: interactive human workflow; Milestone\
-  \ 3: maturity) and their children will be created using `parent`."
+  \ 3: maturity) and their children will be created using `parent`.\n\n**Assignment\
+  \ fields (folded in 2026-07-29):** `assigned_to` is documented as \"agent currently\
+  \ assigned\" but in practice gets filled in at task-authoring time as a static recommendation,\
+  \ conflating eligibility with live ownership. Split it:\n- Add `supported_agents:\
+  \ List[str]` to `Task` (src/agentjobs/models.py) \u2014 the eligibility/recommendation\
+  \ list set at authoring time (e.g. `[claude, codex]`).\n- `assigned_to` becomes\
+  \ live-ownership-only: null until an agent calls `mark_in_progress(task_id, agent=...)`;\
+  \ the manager (src/agentjobs/manager.py) should clear it when status moves back\
+  \ to `draft`/`ready`/`waiting_for_human`/`blocked`.\n- Backfill existing task YAML:\
+  \ move each task's current `assigned_to` value into `supported_agents` (lowercased,\
+  \ e.g. `Codex` -> `codex`) and clear `assigned_to` for any task not actually `in_progress`.\n\
+  - Update docs/agent-workflow.md's Task Object section to document both fields and\
+  \ the ownership-vs-eligibility distinction.\n- This was intentionally combined with\
+  \ the parent/child work rather than opened as a separate task, since both are schema\
+  \ changes touching the same model/API/template surface and schema changes here are\
+  \ currently expensive enough that batching them is worth it. Consider a follow-up\
+  \ task on reducing that friction (see docs/task-schema.md stretch goal in task-044)\
+  \ if this keeps happening."
 phases: []
 success_criteria:
 - id: sc-1
@@ -43,6 +61,11 @@ success_criteria:
 - id: sc-4
   description: Parent detail page lists children with status badges; child page links
     to its parent; pytest green including new tests
+  status: pending
+- id: sc-5
+  description: 'Task model has supported_agents: List[str]; assigned_to is null on
+    all draft/ready/waiting_for_human/blocked tasks after backfill and only set while
+    in_progress; docs/agent-workflow.md documents the distinction'
   status: pending
 prompts:
   starter: '## Objective
@@ -84,14 +107,25 @@ prompts:
 
     Create the React milestone umbrella tasks and their sub-tasks using the new parent
     field (see the approved plan: Milestone 1 read-only browser M1.1-M1.8, Milestone
-    2 interactive M2.1-M2.2, Milestone 3 optional M3.1-M3.2).'
+    2 interactive M2.1-M2.2, Milestone 3 optional M3.1-M3.2).
+
+
+    ## Assignment field split (folded into this task 2026-07-29)
+
+    Also add `supported_agents: List[str]` to Task (eligibility list, set at authoring
+    time) and narrow `assigned_to` to live ownership only (null unless in_progress;
+    manager clears it on any transition away from in_progress). Backfill existing
+    task YAML: move current assigned_to values into supported_agents (lowercase),
+    clear assigned_to unless the task is genuinely in_progress. Update docs/agent-workflow.md''s
+    Task Object section. One commit for this, separate from the parent/child commits.'
   followups: []
 status_updates: []
 comments: []
 deliverables:
 - path: src/agentjobs/models.py
   status: pending
-  description: parent field on Task
+  description: 'parent field on Task; supported_agents: List[str] added; assigned_to
+    scoped to live ownership only'
 - path: src/agentjobs/manager.py
   status: pending
   description: get_subtasks + umbrella-skipping get_next_task
@@ -101,6 +135,12 @@ deliverables:
 - path: src/agentjobs/api/templates/task_detail.html
   status: pending
   description: Children list / parent link rendering
+- path: src/agentjobs/api/models.py
+  status: pending
+  description: supported_agents on TaskCreateRequest/TaskUpdateRequest
+- path: docs/agent-workflow.md
+  status: pending
+  description: Document supported_agents vs assigned_to (eligibility vs live ownership)
 dependencies:
 - task_id: task-042-relocate-demo-tasks
   type: depends_on
