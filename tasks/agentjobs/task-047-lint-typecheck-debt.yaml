@@ -1,16 +1,17 @@
 id: task-047-lint-typecheck-debt
 title: Fix two NameError bugs found by ruff, then clear lint/format/type debt
 created: '2026-07-29T18:42:51.398166Z'
-updated: '2026-07-29T18:42:51.400712Z'
+updated: '2026-07-29T19:05:38.535809Z'
 status: ready
 priority: medium
 category: maintenance
-estimated_effort: 2-3 hours
+estimated_effort: 3-4 hours
 human_summary: 'Ruff found two real bugs: Comment.update_content() and Webhook.record_trigger()
   both crash with NameError because models.py never imports timezone -- both methods
-  are untested, which is why nobody noticed. Fix those with regression tests, then
-  clear the surrounding style/type debt (black 12 files, ruff 29, mypy 53) that surfaced
-  when the lint toolchain was first run on this machine.'
+  are untested, which is why nobody noticed. Also makes enum fields consistently typed
+  (use_enum_values currently makes task.status a str or an enum depending on how it
+  was set, so the annotation is wrong half the time). Then clears the surrounding
+  style/type debt that surfaced when the lint toolchain was first run.'
 description: 'Standing up black/ruff/mypy on a fresh machine (2026-07-29) surfaced
   accumulated findings across the repo. Most is style debt, but **ruff found two real
   latent bugs** that are the reason this task is worth doing rather than deferring
@@ -80,6 +81,76 @@ description: 'Standing up black/ruff/mypy on a fresh machine (2026-07-29) surfac
   Do the bug fixes and the mechanical cleanup as **separate commits** so the real
   fixes stay reviewable and are not buried in a large reformatting diff.
 
+
+
+  ## 4. Enum fields are not consistently typed (added 2026-07-29)
+
+
+  `Phase`, `StatusUpdate`, and `Task` set `use_enum_values=True`. That converts values
+  which pass through validation into plain strings, but **defaults bypass validation**
+  and keep the enum member. So an in-memory `task.status` is:
+
+
+  - `str` when loaded from YAML or explicitly set
+
+  - `TaskStatus` when it fell through to the default
+
+
+  The annotation claims `TaskStatus` in both cases, so it is wrong half the time --
+  which is why mypy cannot catch status-handling bugs and why callers write `isinstance`
+  guards.
+
+
+  **Fix: delete `use_enum_values=True` from those three models (3 lines).** Verified
+  experimentally on 2026-07-29 before writing this up:
+
+
+  - YAML output is **byte-identical** -- `storage.py` dumps with `mode="json"`, which   converts
+  enums to values regardless. The setting was never what produced clean YAML.
+
+  - API JSON unchanged (`''completed''`, `''high''` still plain strings).
+
+  - Full suite passed (72 tests).
+
+  - Both paths then yield `TaskStatus`, and `.value` works uniformly.
+
+
+  Existing `==` comparisons against string literals keep working because `TaskStatus`
+  and `Priority` subclass `str`.
+
+
+  ### Dead workarounds to remove with it
+
+
+  `src/agentjobs/manager.py:172` is **already a no-op** and should go:
+
+
+  ```python
+
+  prev_status_value = previous_status if isinstance(previous_status, str) else previous_status.value
+
+  ```
+
+
+  `TaskStatus` *is* a `str` subclass, so `isinstance(..., str)` is `True` even for
+  the enum member -- the `.value` branch never executes. It works by accident (JSON
+  serializes str subclasses fine), but it is defensive code that does not do what
+  it appears to do. That is the real cost of the inconsistency: the guards written
+  against it are themselves subtly wrong.
+
+
+  `examples/collaborative_agent.py:50` does the same dance and can be simplified.
+
+
+  Also update the "Gotcha: enum fields are not consistently typed in memory" section
+  of `docs/task-schema.md`, which documents the current behaviour and becomes obsolete
+  once this lands.
+
+
+  Why here and not in task-045 (the schema task): this changes no schema. The YAML
+  is byte-identical -- it is a typing-correctness fix, which is this task''s subject,
+  and it makes mypy meaningfully more useful (see sc-4).
+
   '
 phases: []
 success_criteria:
@@ -103,6 +174,12 @@ success_criteria:
 - id: sc-5
   description: poetry run pytest passes; bug fixes committed separately from reformatting
   status: pending
+- id: sc-6
+  description: use_enum_values removed from Phase/StatusUpdate/Task; task.status is
+    always a TaskStatus regardless of how it was set; YAML round-trip and API JSON
+    both verified unchanged; the dead isinstance workarounds in manager.py and collaborative_agent.py
+    removed; docs/task-schema.md gotcha section updated
+  status: pending
 prompts:
   starter: "## Objective\nFix the two confirmed NameError bugs in models.py (with\
     \ regression tests), investigate the dead-code finding in manager.py, then clear\
@@ -118,13 +195,19 @@ prompts:
     \ recorded in practice, note it in a comment on this task -- decide whether that\
     \ is in scope or a follow-up.\n   - Investigate manager.py:132 (F841 unused `task`\
     \ in delete_task). Determine whether it was meant to be an existence check; fix\
-    \ or remove deliberately, do not just delete to silence ruff.\n3. **Config decisions,\
-    \ as their own commit:** add ruff `per-file-ignores` for E402 in examples/ (sys.path\
-    \ manipulation is intentional there) and decide how `disallow_untyped_defs` should\
-    \ apply to tests/. Prefer config over mass-annotating.\n4. **Mechanical cleanup,\
-    \ as its own commit(s):** `ruff check . --fix` for the safe auto-fixes, then `black\
-    \ .`. Keep this separate from steps 2-3 so the reformatting diff does not bury\
-    \ the real changes.\n5. `poetry run pytest` green at every commit. Confirm black/ruff/mypy\
+    \ or remove deliberately, do not just delete to silence ruff.\n3. **Enum typing\
+    \ fix, as its own commit:** remove `use_enum_values=True` from\n`Phase`, `StatusUpdate`,\
+    \ and `Task` in models.py; delete the now-dead `isinstance`\nworkaround at manager.py:172\
+    \ and simplify examples/collaborative_agent.py:50. Confirm\nYAML output is unchanged\
+    \ by round-tripping an existing task before and after, and that\nAPI responses\
+    \ still serialize enums as plain strings. Update the enum gotcha section in\n\
+    docs/task-schema.md, which this makes obsolete.\n4. **Config decisions, as their\
+    \ own commit:** add ruff `per-file-ignores` for E402 in examples/ (sys.path manipulation\
+    \ is intentional there) and decide how `disallow_untyped_defs` should apply to\
+    \ tests/. Prefer config over mass-annotating.\n5. **Mechanical cleanup, as its\
+    \ own commit(s):** `ruff check . --fix` for the safe auto-fixes, then `black .`.\
+    \ Keep this separate from steps 2-4 so the reformatting diff does not bury the\
+    \ real changes.\n6. `poetry run pytest` green at every commit. Confirm black/ruff/mypy\
     \ report clean (or document any deliberate remaining exceptions).\n\n## Git workflow\
     \ (mandatory)\nSmall single-logical-change commits, Conventional Commits format.\
     \ When the branch is complete and verified: STOP, set this task to waiting_for_human\
@@ -148,6 +231,12 @@ deliverables:
 - path: pyproject.toml
   status: pending
   description: ruff per-file-ignores and mypy scoping decisions
+- path: src/agentjobs/manager.py
+  status: pending
+  description: Remove the dead isinstance guard on previous_status
+- path: docs/task-schema.md
+  status: pending
+  description: Update the enum-typing gotcha section once the fix lands
 dependencies: []
 external_links: []
 issues: []
