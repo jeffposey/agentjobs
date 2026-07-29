@@ -1,8 +1,8 @@
 id: task-042-relocate-demo-tasks
 title: Relocate demo tasks to tasks/test-data/
 created: '2026-07-06T19:25:44.199247Z'
-updated: '2026-07-06T19:25:44.199247Z'
-status: ready
+updated: '2026-07-29T18:20:10.643625Z'
+status: in_progress
 priority: high
 category: developer_experience
 assigned_to: claude
@@ -50,7 +50,15 @@ prompts:
     \ shows only task-031+ and react-frontend tasks.\n- API task list and Jinja dashboard\
     \ totals reflect the removal.\n- pytest green."
   followups: []
-status_updates: []
+status_updates:
+- timestamp: '2026-07-29T18:20:10.643601Z'
+  author: claude
+  status: in_progress
+  summary: 'Started: relocating demo tasks 001-007 to tasks/test-data/'
+  details: 'Branch chore/task-042-relocate-demo-tasks created from main. Plan: git
+    mv task-001..007.yaml to tasks/test-data/, check agentjobs load-test-data / src/agentjobs/test_data/
+    for hardcoded paths, check README.md layout section, run pytest, verify GET /api/tasks
+    no longer lists 001-007.'
 comments: []
 deliverables:
 - path: tasks/test-data/
@@ -63,4 +71,6 @@ tags:
 - react-frontend
 - learning
 - phase-0
-branches: []
+branches:
+- name: chore/task-042-relocate-demo-tasks
+  status: active
