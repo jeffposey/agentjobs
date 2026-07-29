@@ -1,0 +1,159 @@
+id: task-047-lint-typecheck-debt
+title: Fix two NameError bugs found by ruff, then clear lint/format/type debt
+created: '2026-07-29T18:42:51.398166Z'
+updated: '2026-07-29T18:42:51.400712Z'
+status: ready
+priority: medium
+category: maintenance
+estimated_effort: 2-3 hours
+human_summary: 'Ruff found two real bugs: Comment.update_content() and Webhook.record_trigger()
+  both crash with NameError because models.py never imports timezone -- both methods
+  are untested, which is why nobody noticed. Fix those with regression tests, then
+  clear the surrounding style/type debt (black 12 files, ruff 29, mypy 53) that surfaced
+  when the lint toolchain was first run on this machine.'
+description: 'Standing up black/ruff/mypy on a fresh machine (2026-07-29) surfaced
+  accumulated findings across the repo. Most is style debt, but **ruff found two real
+  latent bugs** that are the reason this task is worth doing rather than deferring
+  indefinitely.
+
+
+  ## 1. Two NameError bugs (the actual priority)
+
+
+  `src/agentjobs/models.py` imports `from datetime import datetime` but never imports
+  `timezone`, while two methods reference `timezone.utc`:
+
+
+  - `Comment.update_content()` (models.py:368)
+
+  - `Webhook.record_trigger()` (models.py:390)
+
+
+  Both raise `NameError: name ''timezone'' is not defined` when called. Confirmed
+  empirically 2026-07-29, not just a static-analysis guess.
+
+
+  These went unnoticed because both methods are entirely untested -- the coverage
+  report lists models.py lines 367-368 and 390 as uncovered, exactly the broken lines.
+  Fixing the import alone is a one-liner; **the fix must come with regression tests
+  calling both methods**, otherwise the same class of bug reappears silently.
+
+
+  Note `Webhook.record_trigger()` being dead-on-call is a hint worth chasing: check
+  whether webhook delivery ever actually records `last_triggered`, or whether that
+  field is silently never updated in production paths (src/agentjobs/webhooks.py).
+
+
+  ## 2. Dead code
+
+
+  `src/agentjobs/manager.py:132` -- F841, local variable `task` assigned but never
+  used (inside `delete_task`). Check whether that line was meant to guard existence
+  before deleting; it may be a swallowed bug rather than merely dead.
+
+
+  ## 3. Style / type debt (mechanical)
+
+
+  - **black**: 12 files would be reformatted, 36 clean. Mostly collapsing wrapped   expressions
+  that fit on one line.
+
+  - **ruff**: 29 findings total, 17 auto-fixable. Breakdown: 15x F401 unused imports   (mostly
+  in tests/), 9x E402 module-level import not at top of file (all in   examples/),
+  2x F541 f-string without placeholders, plus the F821/F841 above.
+
+  - **mypy**: 53 errors across 17 files, overwhelmingly `no-untyped-def` in tests/   (pyproject
+  sets `disallow_untyped_defs = true`, which tests were never written to   satisfy).
+
+
+  ## Scope decision needed on E402
+
+
+  The 9 E402 findings are all in `examples/`, where scripts do `sys.path` manipulation
+  before importing agentjobs -- that is a legitimate pattern for standalone example
+  scripts, not a defect. Prefer a `per-file-ignores` entry in the ruff config over
+  rewriting the examples. Same judgement applies to mypy on tests/: consider whether
+  `disallow_untyped_defs` should apply to tests at all, or be relaxed per-directory,
+  rather than annotating ~50 test functions for their own sake.
+
+
+  Do the bug fixes and the mechanical cleanup as **separate commits** so the real
+  fixes stay reviewable and are not buried in a large reformatting diff.
+
+  '
+phases: []
+success_criteria:
+- id: sc-1
+  description: models.py imports timezone; Comment.update_content() and Webhook.record_trigger()
+    both execute without NameError and are covered by regression tests asserting a
+    timezone-aware timestamp
+  status: pending
+- id: sc-2
+  description: manager.py:132 F841 resolved deliberately (documented as either a restored
+    existence check or intentional removal, not silenced)
+  status: pending
+- id: sc-3
+  description: ruff check . and black --check . report clean, with any intentional
+    exceptions (e.g. E402 in examples/) expressed as config, not ignored ad hoc
+  status: pending
+- id: sc-4
+  description: mypy passes, or disallow_untyped_defs is deliberately scoped in pyproject
+    with the decision recorded on this task
+  status: pending
+- id: sc-5
+  description: poetry run pytest passes; bug fixes committed separately from reformatting
+  status: pending
+prompts:
+  starter: "## Objective\nFix the two confirmed NameError bugs in models.py (with\
+    \ regression tests), investigate the dead-code finding in manager.py, then clear\
+    \ the mechanical lint/format/type debt that surfaced when the toolchain was first\
+    \ run on this machine.\n\n## Steps\n1. Create branch `fix/task-047-lint-typecheck-debt`\
+    \ from main. Record it in branches[] and mark the task in_progress.\n2. **Bugs\
+    \ first, as their own commit(s):**\n   - Add `timezone` to the datetime import\
+    \ in src/agentjobs/models.py.\n   - Add regression tests calling `Comment.update_content()`\
+    \ and `Webhook.record_trigger()` -- both are currently uncovered, which is why\
+    \ the bugs survived. Assert the timestamp actually updates and is timezone-aware.\n\
+    \   - While there: check whether `Webhook.record_trigger()` is called anywhere\
+    \ in the delivery path (src/agentjobs/webhooks.py). If `last_triggered` is never\
+    \ recorded in practice, note it in a comment on this task -- decide whether that\
+    \ is in scope or a follow-up.\n   - Investigate manager.py:132 (F841 unused `task`\
+    \ in delete_task). Determine whether it was meant to be an existence check; fix\
+    \ or remove deliberately, do not just delete to silence ruff.\n3. **Config decisions,\
+    \ as their own commit:** add ruff `per-file-ignores` for E402 in examples/ (sys.path\
+    \ manipulation is intentional there) and decide how `disallow_untyped_defs` should\
+    \ apply to tests/. Prefer config over mass-annotating.\n4. **Mechanical cleanup,\
+    \ as its own commit(s):** `ruff check . --fix` for the safe auto-fixes, then `black\
+    \ .`. Keep this separate from steps 2-3 so the reformatting diff does not bury\
+    \ the real changes.\n5. `poetry run pytest` green at every commit. Confirm black/ruff/mypy\
+    \ report clean (or document any deliberate remaining exceptions).\n\n## Git workflow\
+    \ (mandatory)\nSmall single-logical-change commits, Conventional Commits format.\
+    \ When the branch is complete and verified: STOP, set this task to waiting_for_human\
+    \ via the real status API, leave a comment summarizing what was done and what\
+    \ needs review, and wait for explicit human approval. On approval: rebase onto\
+    \ main, merge with --no-ff, mark the branch merged in branches[], set task completed.\n\
+    \n## Context\nThis debt is not regression from recent work -- it predates the\
+    \ toolchain being installed on this machine (2026-07-29) and simply had never\
+    \ been run before. Agreed with Jeff that cleaning it up as its own task is right,\
+    \ rather than blocking unrelated feature work on it.\n"
+  followups: []
+status_updates: []
+comments: []
+deliverables:
+- path: src/agentjobs/models.py
+  status: pending
+  description: timezone import fix for the two NameError bugs
+- path: tests/test_models.py
+  status: pending
+  description: Regression tests for update_content / record_trigger
+- path: pyproject.toml
+  status: pending
+  description: ruff per-file-ignores and mypy scoping decisions
+dependencies: []
+external_links: []
+issues: []
+tags:
+- maintenance
+- tech-debt
+- bugfix
+- tooling
+branches: []
