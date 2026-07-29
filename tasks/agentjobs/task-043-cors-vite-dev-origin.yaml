@@ -1,8 +1,8 @@
 id: task-043-cors-vite-dev-origin
 title: Allow Vite dev-server origin in CORS config
 created: '2026-07-06T19:25:44.948348Z'
-updated: '2026-07-29T18:34:28.679331Z'
-status: waiting_for_human
+updated: '2026-07-29T18:39:24.859895Z'
+status: completed
 priority: high
 category: developer_experience
 assigned_to: claude
@@ -105,6 +105,17 @@ status_updates:
     Commits on feat/task-043-cors-vite-dev-origin: mark in_progress/record branch,
     the CORS change, the tests. Ready for review; on approval rebase onto main + --no-ff
     merge, mark branch merged, set task completed.'
+- timestamp: '2026-07-29T18:39:24.859867Z'
+  author: claude
+  status: completed
+  summary: Approved by Jeff; merging to main via --no-ff
+  details: 'Human review approved. Branch feat/task-043-cors-vite-dev-origin marked
+    merged. No rebase needed (main had not advanced since branch creation).
+
+
+    Jeff confirmed the deferred black-formatting cleanup is the right call: that debt
+    surfaced only because the lint toolchain was installed fresh on this machine,
+    and it predates this task''s changes.'
 comments: []
 deliverables:
 - path: src/agentjobs/api/main.py
@@ -122,4 +133,5 @@ tags:
 - phase-0
 branches:
 - name: feat/task-043-cors-vite-dev-origin
-  status: active
+  status: merged
+  merged_at: '2026-07-29T18:39:24.850351Z'
