@@ -391,7 +391,7 @@ def list_tasks(
 @app.command()
 def load_test_data(
     storage_dir: str = typer.Option(
-        "./tasks",
+        "./tasks/test-data",
         help="Directory for task storage.",
     ),
 ) -> None:
