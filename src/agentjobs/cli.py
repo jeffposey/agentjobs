@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -15,6 +16,35 @@ from .migration import migrate_tasks
 from .migration.reporter import MigrationReporter
 from .models import Priority, TaskStatus
 from .storage import TaskStorage
+
+
+def _make_output_encoding_safe() -> None:
+    """Stop non-ASCII CLI output from crashing on legacy-codepage streams.
+
+    When stdout is a console, Python writes through a Unicode-aware path and the
+    emoji in our output render fine. When it is redirected to a pipe or file, it
+    falls back to the locale encoding instead (cp1252 on a default Windows
+    install), and the first emoji raises UnicodeEncodeError -- so the CLI works
+    interactively but dies under CI, background shells, and log redirection.
+
+    Reconfiguring here rather than stripping the emoji keeps a later added glyph
+    from reintroducing the crash.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:  # pragma: no cover - non-standard stream
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):  # pragma: no cover - defensive
+            # Stream refuses re-encoding; degrade to replacing bad glyphs.
+            try:
+                reconfigure(errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
+_make_output_encoding_safe()
 
 app = typer.Typer(
     name="agentjobs",
