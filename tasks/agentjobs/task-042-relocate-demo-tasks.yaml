@@ -1,8 +1,8 @@
 id: task-042-relocate-demo-tasks
 title: Relocate demo tasks to tasks/test-data/
 created: '2026-07-06T19:25:44.199247Z'
-updated: '2026-07-29T18:24:14.040338Z'
-status: waiting_for_human
+updated: '2026-07-29T18:28:36.607165Z'
+status: completed
 priority: high
 category: developer_experience
 assigned_to: claude
@@ -87,6 +87,12 @@ status_updates:
     Commits on chore/task-042-relocate-demo-tasks: mark in_progress/record branch,
     relocate the 7 files, fix load-test-data default. Ready for review; on approval
     rebase onto main + --no-ff merge, mark branch merged, set task completed.'
+- timestamp: '2026-07-29T18:28:36.607142Z'
+  author: claude
+  status: completed
+  summary: Approved by Jeff; merging to main via rebase + --no-ff
+  details: Human review approved. Branch chore/task-042-relocate-demo-tasks marked
+    merged. No rebase needed (main had not advanced since branch creation).
 comments: []
 deliverables:
 - path: tasks/test-data/
@@ -101,4 +107,5 @@ tags:
 - phase-0
 branches:
 - name: chore/task-042-relocate-demo-tasks
-  status: active
+  status: merged
+  merged_at: '2026-07-29T18:28:36.599446Z'
