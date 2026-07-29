@@ -1,8 +1,8 @@
 id: task-043-cors-vite-dev-origin
 title: Allow Vite dev-server origin in CORS config
 created: '2026-07-06T19:25:44.948348Z'
-updated: '2026-07-20T19:24:41.033370Z'
-status: draft
+updated: '2026-07-29T18:32:02.289894Z'
+status: in_progress
 priority: high
 category: developer_experience
 assigned_to: claude
@@ -50,7 +50,20 @@ prompts:
     \ to :5173 while Vite forwards to :8765 server-side. Both paths will work after\
     \ this task."
   followups: []
-status_updates: []
+status_updates:
+- timestamp: '2026-07-29T18:32:02.289871Z'
+  author: claude
+  status: in_progress
+  summary: 'Started: adding Vite dev-server origins to the CORS allowlist'
+  details: 'Dependency task-042 completed and merged to main, unblocking this task
+    (moved straight from draft to in_progress). Branch feat/task-043-cors-vite-dev-origin
+    created from main.
+
+
+    Plan: append http://localhost:5173 and http://127.0.0.1:5173 to allow_origins
+    in src/agentjobs/api/main.py (keeping origins explicit -- never ''*'' while allow_credentials=True),
+    add a regression test for the preflight since no CORS test exists today, verify
+    a live OPTIONS preflight, run pytest.'
 comments: []
 deliverables:
 - path: src/agentjobs/api/main.py
@@ -66,4 +79,6 @@ tags:
 - react-frontend
 - learning
 - phase-0
-branches: []
+branches:
+- name: feat/task-043-cors-vite-dev-origin
+  status: active
