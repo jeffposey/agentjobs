@@ -1,5 +1,5 @@
 id: task-058-multi-project-gui
-title: 'Multi-project GUI: project switcher and a hierarchical task tree'
+title: 'Multi-project GUI: hierarchical task tree with expandable subtasks'
 created: '2026-08-10T06:14:30Z'
 updated: '2026-08-10T07:16:02Z'
 status: draft
@@ -21,6 +21,9 @@ description: 'The shell of the GUI: which project you are looking at, and how yo
 
 
   - **A project switcher.** One project is selected at a time. Switching is explicit.
+  **Split out into task-061 on 2026-08-10** -- it needs only task-057''s registry and
+  scoped API, not schema v2, so gating it here was an error that delayed a buildable
+  feature behind four tasks. This task keeps the hierarchy.
 
   - **A hierarchical task list** for the selected project, expandable to reveal
   subtasks.
