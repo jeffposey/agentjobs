@@ -247,21 +247,29 @@ values (`use_enum_values=True`), which is why you see `status: completed` and ne
 
 Field order in the file follows model declaration order, not alphabetical.
 
-### Gotcha: enum fields are not consistently typed in memory
+### Enum fields are always enum members
 
-`use_enum_values=True` converts values that pass through validation, but **defaults
-bypass validation**. So an in-memory `task.status` may be either the string `'draft'`
-(loaded from YAML, or explicitly set) or the enum member `TaskStatus.DRAFT` (fell
-through to the default).
+`task.status` is a `TaskStatus` and `task.priority` is a `Priority`, whether the value
+was loaded from YAML, passed as a string, or fell through to the default. `.value` is
+therefore always safe.
 
-Because `TaskStatus` and `Priority` subclass `str`, `==` comparisons and dict lookups
-work either way, and serialization normalizes to strings — so this is usually invisible.
-It stops being invisible if you call `.value` on one, which raises `AttributeError` when
-the field happens to be a plain string. `manager.update_status()` guards against exactly
-this when reading `previous_status`.
+This was not always true. Until task-047, `Phase`, `StatusUpdate` and `Task` set
+`use_enum_values=True`, which converts values that pass through validation — but
+**defaults bypass validation**, so the same field was a `str` when loaded and an enum
+when defaulted, while the annotation claimed the enum in both cases. Removing the
+setting changed no output: `storage.py` dumps with `mode="json"`, which converts enums
+to their values regardless, and the serialization of the entire task corpus is
+byte-for-byte identical before and after.
 
-Prefer comparing against the enum (`task.status == TaskStatus.READY`) over calling
-`.value`.
+The lasting lesson is in the workaround it produced. `manager.update_status()` carried
+`previous_status if isinstance(previous_status, str) else previous_status.value`, which
+looks careful and is dead code: `TaskStatus` subclasses `str`, so the `isinstance` check
+is always true and the `.value` branch never ran. Defensive code written against an
+inconsistency was itself wrong, and it type-checked. Both that guard and its twin in
+`examples/collaborative_agent.py` are gone.
+
+Comparing against the enum (`task.status == TaskStatus.READY`) is still the clearest
+style, and string comparison keeps working because both enums subclass `str`.
 
 ## Editing tasks
 

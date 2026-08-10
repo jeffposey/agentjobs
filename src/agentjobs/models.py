@@ -34,7 +34,7 @@ class Priority(str, Enum):
 class Phase(BaseModel):
     """Discrete phase within a task roadmap."""
 
-    model_config = ConfigDict(populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(..., description="Phase identifier (e.g., phase-1)")
     title: str = Field(..., description="Human-readable phase title.")
@@ -108,7 +108,7 @@ class Prompts(BaseModel):
 class StatusUpdate(BaseModel):
     """Chronological status update authored during task execution."""
 
-    model_config = ConfigDict(populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(populate_by_name=True)
 
     timestamp: datetime = Field(
         ..., description="Timestamp when the status update was recorded."
@@ -239,7 +239,7 @@ class Branch(BaseModel):
 class Task(BaseModel):
     """Primary task representation tracked by AgentJobs."""
 
-    model_config = ConfigDict(populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(populate_by_name=True)
 
     # Core metadata
     id: str = Field(..., description="Unique task identifier (e.g., task-001).")

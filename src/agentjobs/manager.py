@@ -171,12 +171,12 @@ class TaskManager:
         # Fire webhook events
         if self.webhook_manager:
             event_metadata = metadata or {}
-            # previous_status might be string or enum depending on how task was loaded
-            prev_status_value = previous_status if isinstance(previous_status, str) else previous_status.value
-            event_metadata.update({
-                "triggered_by": author,
-                "previous_status": prev_status_value,
-            })
+            event_metadata.update(
+                {
+                    "triggered_by": author,
+                    "previous_status": previous_status.value,
+                }
+            )
             self.webhook_manager.fire_event("task.status_changed", task, event_metadata)
             if status == TaskStatus.COMPLETED:
                 self.webhook_manager.fire_event("task.completed", task, event_metadata)
