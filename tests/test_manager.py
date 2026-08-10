@@ -186,6 +186,20 @@ def test_archive_task_sets_status_and_update(tmp_path: Path) -> None:
     assert archived.status_updates[-1].summary == "Task archived."
 
 
+def test_archive_task_rejects_unknown_id(tmp_path: Path) -> None:
+    """Archiving a task that does not exist raises rather than silently succeeding.
+
+    archive_task calls _ensure_task_exists purely for this side effect -- the returned
+    value is unused, which ruff flagged as F841. Nothing covered the raising path, so
+    deleting the call to silence the warning would have passed the suite. This is that
+    cover.
+    """
+    manager = _manager(tmp_path)
+
+    with pytest.raises(ValueError, match="task-does-not-exist"):
+        manager.archive_task("task-does-not-exist", author="system")
+
+
 def test_replace_task_updates_fields(tmp_path: Path) -> None:
     """Replacing a task overwrites fields while keeping identifiers."""
     manager = _manager(tmp_path)

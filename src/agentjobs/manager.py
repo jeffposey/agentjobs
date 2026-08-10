@@ -129,7 +129,10 @@ class TaskManager:
 
     def archive_task(self, task_id: str, *, author: Optional[str] = None) -> Task:
         """Archive a task by setting its status and recording a status update."""
-        task = self._ensure_task_exists(task_id)
+        # Called for its side effect: it raises ValueError when the task is missing, so
+        # archiving an unknown id fails here rather than inside update_status. Only the
+        # binding was dead (ruff F841); dropping the call would remove the check.
+        self._ensure_task_exists(task_id)
         update_author = author or "system"
         archived = self.update_status(
             task_id=task_id,
