@@ -134,7 +134,9 @@ async def task_detail(
             "task_id": task_id,
             **_context_base(waiting_count=get_waiting_count(manager)),
         }
-        return templates.TemplateResponse("404.html", context, status_code=status.HTTP_404_NOT_FOUND)
+        return templates.TemplateResponse(
+            "404.html", context, status_code=status.HTTP_404_NOT_FOUND
+        )
 
     context = {
         "request": request,

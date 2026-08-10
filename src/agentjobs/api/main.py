@@ -11,15 +11,13 @@ from fastapi.responses import JSONResponse
 from starlette import status
 
 from agentjobs.__version__ import __version__
+from agentjobs.projects import ProjectError
 
 from .routes import (
+    PROJECT_SCOPED_ROUTERS,
     health_router,
-    prompts_router,
-    search_router,
-    status_router,
-    tasks_router,
+    projects_router,
     web_router,
-    webhooks_router,
 )
 
 DESCRIPTION = (
@@ -51,6 +49,20 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(ProjectError)
+async def handle_project_error(request: Any, exc: ProjectError) -> JSONResponse:
+    """Turn a refused project or path into a 400 rather than a 500.
+
+    ProjectError is raised for input the server declines to act on -- an id that does
+    not resolve, a task path that escapes its project directory. That is a bad request,
+    not a server fault, and it must not surface as a stack trace.
+    """
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"detail": str(exc)},
+    )
+
+
 @app.exception_handler(RequestValidationError)
 async def handle_validation_error(request: Any, exc: RequestValidationError) -> JSONResponse:
     """Return a concise 400 response for request validation failures."""
@@ -59,9 +71,7 @@ async def handle_validation_error(request: Any, exc: RequestValidationError) -> 
     if errors:
         first = errors[0]
         field_path = ".".join(
-            str(part)
-            for part in first.get("loc", [])
-            if part not in {"body", "query"}
+            str(part) for part in first.get("loc", []) if part not in {"body", "query"}
         )
         message = first.get("msg")
         if field_path and message:
@@ -82,8 +92,11 @@ async def root_health() -> dict[str, str]:
 
 app.include_router(health_router)
 app.include_router(web_router)
-app.include_router(tasks_router)
-app.include_router(status_router)
-app.include_router(prompts_router)
-app.include_router(search_router)
-app.include_router(webhooks_router)
+app.include_router(projects_router)
+
+# Every task-facing router is mounted twice. The unscoped mount is registered first so
+# existing callers, the CLI and the current GUI keep working against the default
+# project; the scoped mount is the addressable form used across projects.
+for _router in PROJECT_SCOPED_ROUTERS:
+    app.include_router(_router, prefix="/api")
+    app.include_router(_router, prefix="/api/projects/{project_id}")

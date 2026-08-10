@@ -12,7 +12,7 @@ from agentjobs.webhooks import WebhookManager
 
 from ..dependencies import get_webhook_manager
 
-router = APIRouter(prefix="/api/webhooks", tags=["webhooks"])
+router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
 class WebhookCreateRequest(BaseModel):

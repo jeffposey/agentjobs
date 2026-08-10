@@ -1,4 +1,10 @@
-"""FastAPI dependency helpers for AgentJobs API."""
+"""FastAPI dependency helpers for AgentJobs API.
+
+Everything here used to be a ``maxsize=1`` cache resolved from the process working
+directory, which is precisely what made AgentJobs single-project. The caches are now
+keyed by project id, and the project comes from the request path (or, for the retained
+unscoped routes, from the registry's default resolution).
+"""
 
 from __future__ import annotations
 
@@ -8,9 +14,16 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
+from fastapi import HTTPException, Request, status
 from fastapi.templating import Jinja2Templates
 
 from agentjobs.manager import TaskManager
+from agentjobs.projects import (
+    AmbiguousProjectError,
+    Project,
+    ProjectRegistry,
+    UnknownProjectError,
+)
 from agentjobs.storage import TaskStorage, WebhookStorage
 from agentjobs.webhooks import WebhookManager
 
@@ -18,6 +31,30 @@ TASKS_DIR_ENV = "AGENTJOBS_TASKS_DIR"
 PROJECT_ROOT_ENV = "AGENTJOBS_PROJECT_ROOT"
 _CONFIG_RELATIVE = Path(".agentjobs") / "config.yaml"
 _TEMPLATES: Optional[Jinja2Templates] = None
+
+_IMPLICIT_PROJECT_ID = "."
+"""Id for the project implied by the environment rather than the registry.
+
+When AGENTJOBS_TASKS_DIR or AGENTJOBS_PROJECT_ROOT is set, or when nothing is registered
+at all, AgentJobs still serves the working directory the way it always did. That
+single-project mode is modelled as one implicit project so the rest of the code has
+exactly one shape to handle. The id is deliberately not a legal registry id, so it can
+never collide with a real one.
+"""
+
+
+# ----- registry ---------------------------------------------------------------
+
+
+@lru_cache(maxsize=1)
+def get_registry() -> ProjectRegistry:
+    """The machine-level project registry."""
+    return ProjectRegistry()
+
+
+def _env_override_active() -> bool:
+    """True when the environment pins AgentJobs to one directory."""
+    return bool(os.environ.get(TASKS_DIR_ENV) or os.environ.get(PROJECT_ROOT_ENV))
 
 
 def _resolve_project_root() -> Path:
@@ -59,34 +96,134 @@ def _resolve_tasks_dir() -> Path:
     return tasks_dir
 
 
-@lru_cache(maxsize=1)
-def _get_storage() -> TaskStorage:
-    """Create a cached TaskStorage instance."""
-    return TaskStorage(_resolve_tasks_dir())
+def _implicit_project() -> Project:
+    """The environment-implied project, for single-project mode."""
+    root = _resolve_project_root()
+    config = _load_config(root)
+    return Project(
+        id=_IMPLICIT_PROJECT_ID,
+        name=config.get("project_name") or root.name,
+        root=root,
+    )
 
 
-@lru_cache(maxsize=1)
-def _get_webhook_storage() -> WebhookStorage:
-    """Create a cached WebhookStorage instance."""
-    base_dir = _resolve_project_root()
-    webhooks_path = base_dir / ".agentjobs" / "webhooks.yaml"
-    return WebhookStorage(webhooks_path)
+def list_projects() -> list[Project]:
+    """Every project this server can serve.
+
+    Registered projects when there are any and the environment is not pinning us to
+    one directory; otherwise the single implicit project, so single-project installs
+    behave exactly as they did before the registry existed.
+    """
+    if _env_override_active():
+        return [_implicit_project()]
+    registered = get_registry().list_projects()
+    return registered if registered else [_implicit_project()]
 
 
-@lru_cache(maxsize=1)
-def _get_webhook_manager() -> WebhookManager:
-    """Create a cached WebhookManager instance."""
-    return WebhookManager(_get_webhook_storage())
+def resolve_project(project_id: str) -> Project:
+    """Resolve an explicit project id from a request path."""
+    if project_id == _IMPLICIT_PROJECT_ID:
+        return _implicit_project()
+    try:
+        return get_registry().get(project_id)
+    except UnknownProjectError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-def get_task_manager() -> TaskManager:
-    """Provide a TaskManager instance for request handling."""
-    return TaskManager(_get_storage(), _get_webhook_manager())
+def resolve_default_project() -> Project:
+    """Resolve the project that unscoped routes act on.
+
+    Raises 409 rather than guessing when several projects are registered and none
+    contains the working directory: serving the wrong project's tasks silently is a
+    worse outcome than an error that names the ambiguity.
+    """
+    if _env_override_active():
+        return _implicit_project()
+    try:
+        return get_registry().resolve_default()
+    except AmbiguousProjectError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
-def get_webhook_manager() -> WebhookManager:
-    """Provide a WebhookManager instance for request handling."""
-    return _get_webhook_manager()
+# ----- per-project components -------------------------------------------------
+#
+# Keyed by (project_id, path) rather than project_id alone: the id is what callers
+# address, but the path is what the cache must actually be keyed on, so re-registering
+# an id against a different directory cannot return the old directory's storage.
+
+
+@lru_cache(maxsize=32)
+def _storage_for(project_id: str, tasks_dir: str) -> TaskStorage:
+    """Create a cached TaskStorage for one project."""
+    return TaskStorage(Path(tasks_dir))
+
+
+@lru_cache(maxsize=32)
+def _webhook_storage_for(project_id: str, webhooks_path: str) -> WebhookStorage:
+    """Create a cached WebhookStorage for one project."""
+    return WebhookStorage(Path(webhooks_path))
+
+
+@lru_cache(maxsize=32)
+def _webhook_manager_for(project_id: str, webhooks_path: str) -> WebhookManager:
+    """Create a cached WebhookManager for one project."""
+    return WebhookManager(_webhook_storage_for(project_id, webhooks_path))
+
+
+def _tasks_dir_for(project: Project) -> Path:
+    """Resolve a project's tasks directory, honouring the env override."""
+    if project.id == _IMPLICIT_PROJECT_ID:
+        return _resolve_tasks_dir()
+    tasks_dir = project.tasks_dir()
+    tasks_dir.mkdir(parents=True, exist_ok=True)
+    return tasks_dir
+
+
+def storage_for(project: Project) -> TaskStorage:
+    """TaskStorage scoped to one project."""
+    return _storage_for(project.id, str(_tasks_dir_for(project)))
+
+
+def webhook_manager_for(project: Project) -> WebhookManager:
+    """WebhookManager scoped to one project."""
+    return _webhook_manager_for(project.id, str(project.webhooks_path()))
+
+
+def manager_for(project: Project) -> TaskManager:
+    """TaskManager scoped to one project."""
+    return TaskManager(storage_for(project), webhook_manager_for(project))
+
+
+# ----- FastAPI dependencies ---------------------------------------------------
+
+
+def request_project(request: Request) -> Project:
+    """Resolve the project a request addresses.
+
+    Each API router is mounted twice -- once unscoped at ``/api`` and once at
+    ``/api/projects/{project_id}`` -- so the same handlers serve both. Reading the
+    project from the path parameters here is what makes that possible: one dependency,
+    one set of routes, and no duplicated handler bodies to drift apart.
+    """
+    project_id = request.path_params.get("project_id")
+    if project_id:
+        return resolve_project(str(project_id))
+    return resolve_default_project()
+
+
+def get_project(request: Request) -> Project:
+    """Provide the addressed project to a route."""
+    return request_project(request)
+
+
+def get_task_manager(request: Request) -> TaskManager:
+    """Provide a TaskManager scoped to the project this request addresses."""
+    return manager_for(request_project(request))
+
+
+def get_webhook_manager(request: Request) -> WebhookManager:
+    """Provide a WebhookManager scoped to the project this request addresses."""
+    return webhook_manager_for(request_project(request))
 
 
 def get_templates() -> Jinja2Templates:
@@ -100,8 +237,9 @@ def get_templates() -> Jinja2Templates:
 
 def reset_dependency_cache() -> None:
     """Clear cached storage when environment configuration changes."""
-    _get_storage.cache_clear()
-    _get_webhook_storage.cache_clear()
-    _get_webhook_manager.cache_clear()
+    get_registry.cache_clear()
+    _storage_for.cache_clear()
+    _webhook_storage_for.cache_clear()
+    _webhook_manager_for.cache_clear()
     global _TEMPLATES
     _TEMPLATES = None

@@ -10,7 +10,7 @@ from agentjobs.models import Task
 from ..dependencies import get_task_manager
 from ..models import ProgressUpdateRequest, StatusUpdateRequest
 
-router = APIRouter(prefix="/api/tasks", tags=["status"])
+router = APIRouter(prefix="/tasks", tags=["status"])
 
 
 @router.post("/{task_id}/status", response_model=Task, status_code=status.HTTP_200_OK)
