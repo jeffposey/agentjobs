@@ -577,6 +577,64 @@ def project_remove(
     typer.echo(f"✅ Unregistered '{project_id}'. No files were deleted.")
 
 
+@app.command("migrate-schema")
+def migrate_schema_command(
+    tasks_dir: Optional[str] = typer.Option(
+        None, "--tasks-dir", help="Directory of task YAML files. Defaults to the project's."
+    ),
+    output_dir: Optional[str] = typer.Option(
+        None,
+        "--output-dir",
+        help="Write converted files here instead of in place. Strongly recommended first.",
+    ),
+    apply: bool = typer.Option(
+        False, "--apply", help="Actually write files. Without it this is a dry run."
+    ),
+    report: Optional[str] = typer.Option(
+        None, "--report", help="Also write the summary to this path."
+    ),
+) -> None:
+    """Convert task files from schema v1 to v2.
+
+    Dry run by default: it converts everything in memory, verifies that no information
+    was lost, and prints what it would do. Nothing is written without --apply, and
+    --apply refuses to write anything at all if a single file fails, because a corpus
+    half-converted is worse than one not converted.
+    """
+    from .migrate_schema import migrate_corpus
+
+    base_dir = Path.cwd()
+    config = _load_config(base_dir)
+    source = Path(tasks_dir) if tasks_dir else _resolve_tasks_dir(base_dir, config)
+    paths = sorted(source.glob("*.yaml"))
+    if not paths:
+        typer.secho(f"No task files found in {source}", fg=typer.colors.YELLOW)
+        raise typer.Exit(code=1)
+
+    result = migrate_corpus(
+        paths,
+        output_dir=Path(output_dir) if output_dir else None,
+        write=apply,
+    )
+    rendered = result.render()
+    typer.echo(rendered)
+    if report:
+        Path(report).write_text(rendered + "\n", encoding="utf-8")
+        typer.echo(f"\nReport written to {report}")
+
+    if result.failures:
+        typer.secho(
+            "\nNothing was written: fix the failures above and re-run.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+    if not apply:
+        typer.secho(
+            "\nDry run. Re-run with --apply to write, ideally with --output-dir first.",
+            fg=typer.colors.YELLOW,
+        )
+
+
 @app.command()
 def show(task_id: str) -> None:
     """Show task details."""

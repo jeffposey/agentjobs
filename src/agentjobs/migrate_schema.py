@@ -21,6 +21,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .models_v2 import SCHEMA_VERSION
@@ -682,3 +683,158 @@ def verify_no_loss(v1: Dict[str, Any], v2: Dict[str, Any]) -> List[str]:
         )
 
     return losses
+
+
+# ---------------------------------------------------------------------------
+# Corpus migration
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class FileResult:
+    """What happened to one file."""
+
+    path: Path
+    task_id: str = ""
+    converted: bool = False
+    skipped_reason: str = ""
+    losses: List[str] = field(default_factory=list)
+    notes: List[ReviewNote] = field(default_factory=list)
+    error: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return self.converted and not self.losses and not self.error
+
+
+@dataclass
+class MigrationReport:
+    """The outcome of a corpus migration, dry run or otherwise."""
+
+    results: List[FileResult] = field(default_factory=list)
+    written: bool = False
+
+    @property
+    def converted(self) -> List[FileResult]:
+        return [r for r in self.results if r.converted]
+
+    @property
+    def failures(self) -> List[FileResult]:
+        return [r for r in self.results if r.error or r.losses]
+
+    @property
+    def skipped(self) -> List[FileResult]:
+        return [r for r in self.results if r.skipped_reason]
+
+    @property
+    def all_notes(self) -> List[ReviewNote]:
+        return [note for result in self.results for note in result.notes]
+
+    def render(self) -> str:
+        """A human-readable summary, printed by the CLI and kept as an artifact."""
+        lines = [
+            f"Files examined:  {len(self.results)}",
+            f"Converted:       {len(self.converted)}",
+            f"Skipped:         {len(self.skipped)}",
+            f"Failed:          {len(self.failures)}",
+            f"Review notes:    {len(self.all_notes)}",
+            f"Written to disk: {'yes' if self.written else 'NO (dry run)'}",
+        ]
+        if self.failures:
+            lines += ["", "FAILURES"]
+            for result in self.failures:
+                lines.append(f"  {result.path.name}: {result.error or ''}")
+                lines += [f"    loss: {loss}" for loss in result.losses]
+        if self.skipped:
+            lines += ["", "SKIPPED"]
+            lines += [f"  {r.path.name}: {r.skipped_reason}" for r in self.skipped]
+        if self.all_notes:
+            lines += ["", "NEEDS HUMAN REVIEW"]
+            lines += [f"  {note}" for note in self.all_notes]
+        return "\n".join(lines)
+
+
+def migrate_file(path: Path) -> Tuple[FileResult, Optional[Dict[str, Any]]]:
+    """Convert one file, verifying it before returning. Never writes."""
+    import yaml
+
+    result = FileResult(path=path)
+    try:
+        v1 = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception as exc:  # pragma: no cover - unreadable file
+        result.error = f"could not read: {exc}"
+        return result, None
+
+    result.task_id = str(v1.get("id", ""))
+    try:
+        conversion = convert_task(v1, source=str(path))
+    except AlreadyV2Error as exc:
+        result.skipped_reason = str(exc)
+        return result, None
+    except MigrationError as exc:
+        result.error = str(exc)
+        return result, None
+
+    result.notes = conversion.notes
+    result.losses = verify_no_loss(v1, conversion.data)
+    result.converted = True
+    return result, conversion.data
+
+
+def migrate_corpus(
+    paths: List[Path],
+    *,
+    output_dir: Optional[Path] = None,
+    write: bool = False,
+) -> MigrationReport:
+    """Convert every file, verify all of them, and only then write anything.
+
+    Nothing is written unless ``write`` is true **and** every file converted cleanly.
+    A corpus half in v1 and half in v2 is worse than one that is entirely v1, so a
+    single failure aborts the write for all of them.
+    """
+    import yaml
+
+    from .models_v2 import load_task
+
+    report = MigrationReport()
+    pending: List[Tuple[Path, Dict[str, Any]]] = []
+
+    for path in paths:
+        result, data = migrate_file(path)
+        report.results.append(result)
+        if data is None:
+            continue
+        # Round-trip through YAML and the model before accepting it: the data has to
+        # survive serialisation, not merely exist in memory.
+        try:
+            serialised = yaml.safe_load(
+                yaml.safe_dump(_yaml_safe(data), sort_keys=False, allow_unicode=False)
+            )
+            load_task(serialised, source=str(path))
+        except Exception as exc:
+            result.error = f"converted output does not load as v2: {exc}"
+            continue
+        destination = (output_dir / path.name) if output_dir else path
+        pending.append((destination, serialised))
+
+    if write and not report.failures:
+        for destination, data in pending:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(
+                yaml.safe_dump(data, sort_keys=False, allow_unicode=False), encoding="utf-8"
+            )
+        report.written = True
+
+    return report
+
+
+def _yaml_safe(value: Any) -> Any:
+    """Convert datetimes to ISO strings so the output is plain YAML scalars."""
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if isinstance(value, dict):
+        return {key: _yaml_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_yaml_safe(item) for item in value]
+    return value

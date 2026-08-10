@@ -396,10 +396,30 @@ classes:
           slot_conditions:
             ball:
               value_presence: PRESENT
-            ball_prompt:
-              value_presence: PRESENT
             outcome:
               value_presence: ABSENT
+
+      - title: open_tasks_state_their_ask
+        description: >-
+          Rule 4 (tenet 3): a handoff without its payload is a notification with no
+          content. Split from the rule above so the one documented exception can be
+          expressed -- agent/available may omit it, because an unclaimed ready task's
+          ask is its spec.
+        preconditions:
+          slot_conditions:
+            lifecycle:
+              any_of:
+                - equals_string: draft
+                - equals_string: ready
+                - equals_string: active
+          none_of:
+            - slot_conditions:
+                ball_reason:
+                  equals_string: available
+        postconditions:
+          slot_conditions:
+            ball_prompt:
+              value_presence: PRESENT
 
       - title: agent_ball_reason_vocabulary
         description: "Rule 2, agent side: available | work | revise."
@@ -494,8 +514,12 @@ classes:
           human_summary split by length rather than by content.
         required: true
       intent:
-        description: WHY this task exists. Markdown.
-        required: true
+        description: >-
+          WHY this task exists. Markdown. Optional, decided during the v1 migration
+          (task-051): the 31 tasks in the corpus predate the split and have no
+          separable intent, and a required field satisfied by a placeholder is worse
+          than an empty one -- it reads as answered when it is not. New tasks should
+          fill it, but the schema does not force an invention.
       description:
         description: WHAT to do -- the working spec. Markdown.
         required: true

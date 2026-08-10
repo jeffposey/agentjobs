@@ -213,8 +213,9 @@ class Spec(StrictModel):
         description="One or two sentences. The only summary, for every audience.",
     )
     intent: Optional[str] = Field(default=None, description="WHY this task exists (markdown).")
-    description: Optional[str] = Field(
-        default=None, description="WHAT to do (markdown) -- the working spec."
+    description: str = Field(
+        ...,
+        description="WHAT to do (markdown) -- the working spec.",
     )
     constraints: Optional[str] = Field(
         default=None, description="Hard requirements and prohibitions (markdown)."
