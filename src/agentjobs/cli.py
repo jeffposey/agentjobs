@@ -380,7 +380,19 @@ def list_tasks(
     """List tasks."""
     base_dir = Path.cwd()
     manager = _build_manager(base_dir)
-    tasks = manager.storage.list_tasks()
+    loaded = manager.storage.load_all()
+    tasks = loaded.tasks
+
+    # Reported before the list, not after: a broken file is the thing most worth
+    # noticing, and it is not in the list below precisely because it is broken.
+    for broken in loaded.errors:
+        typer.secho(f"⚠️  {broken.path.name}: {broken.reason}", fg=typer.colors.RED, err=True)
+    if loaded.errors:
+        typer.secho(
+            f"{len(loaded.errors)} file(s) could not be loaded and are missing from this list.",
+            fg=typer.colors.RED,
+            err=True,
+        )
 
     if status is not None:
         tasks = [task for task in tasks if task.status == status]

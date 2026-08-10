@@ -12,6 +12,7 @@ from starlette import status
 
 from agentjobs.__version__ import __version__
 from agentjobs.projects import ProjectError
+from agentjobs.storage import TaskLoadError
 
 from .routes import (
     PROJECT_SCOPED_ROUTERS,
@@ -61,6 +62,19 @@ async def handle_project_error(request: Any, exc: ProjectError) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content={"detail": str(exc)},
+    )
+
+
+@app.exception_handler(TaskLoadError)
+async def handle_task_load_error(request: Any, exc: TaskLoadError) -> JSONResponse:
+    """Report an unreadable task file instead of failing with a stack trace.
+
+    422 rather than 500: the server is fine, one stored document is not, and the
+    response says which file and which field so it can be fixed.
+    """
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": f"Task file could not be loaded -- {exc}", "broken": exc.as_dict()},
     )
 
 

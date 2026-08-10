@@ -26,6 +26,19 @@ async def list_tasks(
     return manager.list_tasks(status=status_filter, priority=priority_filter)
 
 
+@router.get("/broken", response_model=List[Dict[str, Any]])
+async def list_broken_tasks(
+    manager: TaskManager = Depends(get_task_manager),
+) -> List[Dict[str, Any]]:
+    """Files in the task directory that exist but cannot be loaded.
+
+    Declared before /{task_id} so "broken" is not captured as a task id. These used to
+    be invisible: storage returned None for them and every listing simply omitted the
+    task.
+    """
+    return [error.as_dict() for error in manager.load_errors()]
+
+
 @router.get("/next", response_model=Optional[Task])
 async def get_next_task(
     priority: Optional[Priority] = None,

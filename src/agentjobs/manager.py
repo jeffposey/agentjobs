@@ -15,7 +15,7 @@ from .models import (
     Task,
     TaskStatus,
 )
-from .storage import TaskStorage
+from .storage import TaskLoadError, TaskStorage
 
 if TYPE_CHECKING:
     from .webhooks import WebhookManager
@@ -48,6 +48,14 @@ class TaskManager:
         if priority is not None:
             tasks = [task for task in tasks if task.priority == priority]
         return tasks
+
+    def load_errors(self) -> List[TaskLoadError]:
+        """Files in the task directory that exist but cannot be read as tasks.
+
+        Exposed so listing surfaces can show them. A broken file that is only logged is
+        invisible to someone whose window into the data is a web page.
+        """
+        return self.storage.load_all().errors
 
     def create_task(
         self,

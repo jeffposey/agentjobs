@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -35,6 +35,7 @@ def _context_base(
     *,
     project: Project,
     waiting_count: int = 0,
+    broken_files: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Base context shared across templates.
 
@@ -48,6 +49,7 @@ def _context_base(
         "project": project,
         "base": f"/p/{project.id}",
         "all_projects": list_projects(),
+        "broken_files": broken_files or [],
     }
 
 
@@ -118,7 +120,11 @@ async def dashboard(
         "active_tasks": _sort_tasks_for_dashboard(tasks),
         "recent_updates": _collect_recent_updates(tasks),
         "waiting_tasks": waiting_tasks,
-        **_context_base(project=project, waiting_count=waiting_count),
+        **_context_base(
+            project=project,
+            waiting_count=waiting_count,
+            broken_files=[e.as_dict() for e in manager.load_errors()],
+        ),
     }
     return templates.TemplateResponse("dashboard.html", context)
 
@@ -143,7 +149,11 @@ async def task_list(
         "request": request,
         "tasks": tasks,
         "initial_status": initial_status,
-        **_context_base(project=project, waiting_count=waiting_count),
+        **_context_base(
+            project=project,
+            waiting_count=waiting_count,
+            broken_files=[e.as_dict() for e in manager.load_errors()],
+        ),
     }
     return templates.TemplateResponse("task_list.html", context)
 

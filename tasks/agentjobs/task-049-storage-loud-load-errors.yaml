@@ -1,67 +1,165 @@
 id: task-049-storage-loud-load-errors
 title: 'Storage: stop swallowing task validation errors; report file, field, and error'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-07-29T20:45:00Z'
-status: ready
+updated: '2026-08-10T20:28:37.582437Z'
+status: completed
 priority: high
 category: infrastructure
 estimated_effort: 1-2 hours
 human_summary: 'TaskStorage.load_task currently catches validation errors and returns
   None, so a broken task file silently vanishes from every listing. Make load failures
-  loud and precise. Decided during the schema design pass (task-048, decision D2) but
-  lands on the v1 schema, before and independently of schema v2. Note the rationale was
-  restated when D2 was amended: this is not about protecting hand edits (no longer a
-  first-class interface) but about any writer -- a migrator or API bug that writes a
-  bad file must fail by name rather than make a task disappear. Under UI-primary
+  loud and precise. Decided during the schema design pass (task-048, decision D2)
+  but lands on the v1 schema, before and independently of schema v2. Note the rationale
+  was restated when D2 was amended: this is not about protecting hand edits (no longer
+  a first-class interface) but about any writer -- a migrator or API bug that writes
+  a bad file must fail by name rather than make a task disappear. Under UI-primary
   editing it is more urgent, not less: a vanished task is invisible to someone whose
   only window into the data is the listing.'
-description: 'When a task YAML file fails model validation, `TaskStorage.load_task`
-  swallows the error and returns None, and the task disappears from listings with no
-  trace. Under the strict-everywhere posture decided in docs/schema-design.md (§11,
-  D2), a bad file must fail loudly instead: the reader gets filename + field + error,
-  and listings report broken files rather than omitting them.
-
-
-  Scope:
-
-  - Storage: on validation failure, raise (or return) a structured error carrying
-  the file path and the underlying pydantic error, instead of returning None.
-
-  - Listing paths (manager, API, CLI, Jinja GUI): a broken file must be *visible* --
-  an error entry or warning naming the file and reason -- and must not take down the
-  listing of the remaining valid tasks.
-
-  - Single-task reads (API GET by id, CLI show): surface the validation error with
-  file, field, and message.
-
-  - Tests: a deliberately-broken fixture file exercising both the listing path and
-  the single-read path.
-
-
-  This is a v1 change. It does not depend on, and should not wait for, the schema v2
-  implementation chain (task-050 onward).'
+description: "When a task YAML file fails model validation, `TaskStorage.load_task`\
+  \ swallows the error and returns None, and the task disappears from listings with\
+  \ no trace. Under the strict-everywhere posture decided in docs/schema-design.md\
+  \ (\xA711, D2), a bad file must fail loudly instead: the reader gets filename +\
+  \ field + error, and listings report broken files rather than omitting them.\n\n\
+  Scope:\n- Storage: on validation failure, raise (or return) a structured error carrying\
+  \ the file path and the underlying pydantic error, instead of returning None.\n\
+  - Listing paths (manager, API, CLI, Jinja GUI): a broken file must be *visible*\
+  \ -- an error entry or warning naming the file and reason -- and must not take down\
+  \ the listing of the remaining valid tasks.\n- Single-task reads (API GET by id,\
+  \ CLI show): surface the validation error with file, field, and message.\n- Tests:\
+  \ a deliberately-broken fixture file exercising both the listing path and the single-read\
+  \ path.\n\nThis is a v1 change. It does not depend on, and should not wait for,\
+  \ the schema v2 implementation chain (task-050 onward)."
 phases: []
 success_criteria:
 - id: sc-1
   description: A task file with an invalid field no longer silently disappears; loading
     it produces an error naming the file, the field, and the validation message
-  status: pending
+  status: completed
 - id: sc-2
   description: Listings (API, CLI, GUI) still render all valid tasks when one file
     is broken, and visibly report the broken file
-  status: pending
+  status: completed
 - id: sc-3
   description: Tests cover the broken-file listing path and single-read path; poetry
     run pytest passes
-  status: pending
+  status: completed
 prompts:
-  starter: 'Implement per the task description and docs/schema-design.md §11 (D2).
-    Create branch `fix/task-049-storage-loud-load-errors` from main, record it in
-    branches[], mark the task in_progress. Small conventional commits. When complete
-    and verified: STOP, set waiting_for_human, leave a comment summarizing what changed,
-    and wait for explicit approval before merging (rebase onto main + --no-ff).'
+  starter: "Implement per the task description and docs/schema-design.md \xA711 (D2).\
+    \ Create branch `fix/task-049-storage-loud-load-errors` from main, record it in\
+    \ branches[], mark the task in_progress. Small conventional commits. When complete\
+    \ and verified: STOP, set waiting_for_human, leave a comment summarizing what\
+    \ changed, and wait for explicit approval before merging (rebase onto main + --no-ff)."
   followups: []
-status_updates: []
+status_updates:
+- timestamp: '2026-08-10T20:15:44.389408Z'
+  author: claude
+  status: in_progress
+  summary: Claimed; sequenced before task-052 so a bad file during the migration is
+    visible
+  details: 'Branch fix/task-049-loud-load-errors created from main at bad0541.
+
+
+    Why now rather than later: Jeff chose 049 then 055 then 052. Both are the right
+    order. Storage currently swallows validation errors and returns None, so a malformed
+    file vanishes from every listing with no trace. That is bad in normal operation
+    and much worse during task-052''s migration, where a file failing to load is exactly
+    the signal that something went wrong. Fixing it first means the riskiest change
+    of the project runs with the alarm wired up rather than muted.
+
+
+    Current behaviour, confirmed in src/agentjobs/storage.py: load_task catches ValidationError,
+    logs at error level, and returns None. list_tasks skips anything that returns
+    None. So the task disappears and the only evidence is a log line nobody is reading.
+
+
+    Plan: a structured error type carrying path, field and message; load_task raises
+    it; list_tasks keeps returning the valid tasks while surfacing the broken ones
+    rather than dropping them silently; API, CLI and GUI all show them. Tests with
+    a deliberately broken fixture for both the listing path and the single-read path.'
+- timestamp: '2026-08-10T20:25:22.038665Z'
+  author: claude
+  status: waiting_for_human
+  summary: Broken task files are now loud everywhere; all 3 criteria met, 343 tests
+    pass
+  details: 'Three commits on fix/task-049-loud-load-errors, split into the storage
+    change and the surfaces that show it. 343 tests pass (15 new); ruff, mypy and
+    black clean across 62 files.
+
+
+    ## The change
+
+
+    load_task returned None both for a missing file and for a corrupt one. Those are
+    different answers. Missing is a legitimate reply to ''is there a task with this
+    id''; corrupt is not, and returning None for it dropped the task out of every
+    listing with a log line as the only evidence.
+
+
+    Now: TaskLoadError for a file that exists but cannot be read, None only for genuinely
+    absent. The error carries the path and a compressed field-level reason, so the
+    message is ''priority: Input should be low, medium, high or critical'' rather
+    than pydantic''s multi-line default with a docs URL.
+
+
+    load_all() returns tasks AND errors, so one bad file cannot take down the listing
+    of the other thirty-seven. Errors are returned rather than logged, deliberately:
+    that forces callers to decide what to display, which is what makes a broken file
+    visible in a UI instead of only in a log.
+
+
+    Surfaces: GET /api/tasks/broken; a 422 naming the file when reading a corrupt
+    task by id; a red banner on the web listing pages stating plainly that the file
+    is not in the list below; a stderr warning from `agentjobs list`.
+
+
+    ## Verified against a real server, not only in tests
+
+
+    Dropped a deliberately corrupt file into the registered sandbox project and confirmed
+    all four surfaces: valid tasks still listed, the broken file appeared in /broken
+    with its field-level reason, the page banner named it, and reading it directly
+    returned 422. Probe removed afterwards.
+
+
+    ## One test updated because it encoded the bug
+
+
+    test_load_task_with_invalid_yaml asserted `is None` for all three broken cases.
+    That is exactly the behaviour this task exists to remove, so it was rewritten
+    with the reasoning recorded in the test, plus a new test asserting missing files
+    still return None so the two cases stay distinguishable.
+
+
+    ## Why this mattered before task-052
+
+
+    Jeff sequenced 049 before the migration deliberately, and it was the right call.
+    Task-052 rewrites every task file in the corpus. If a converted file failed to
+    load afterwards, the old behaviour would have made it vanish from the listing
+    silently -- the failure mode hardest to notice, during the operation where noticing
+    matters most. The alarm is now wired up before the risky change runs.
+
+
+    ## Note for task-052
+
+
+    The v2 loader in models_v2.check_schema_version raises SchemaVersionError for
+    an unstamped file. When storage switches to v2 it should raise TaskLoadError for
+    those too, so a stray v1 file left behind by a partial migration is reported by
+    filename rather than crashing the listing.'
+- timestamp: '2026-08-10T20:27:50.103610Z'
+  author: human
+  status: in_progress
+  summary: "Approved by human \u2014 cleared to merge"
+  details: 'human approved this work through the web UI. The ball is back with the
+    agent, which must now rebase onto main, merge --no-ff, mark the branch merged
+    in branches[], and set this task completed. No merge has happened yet: the UI
+    records approval, it does not run git.'
+- timestamp: '2026-08-10T20:28:37.526970Z'
+  author: claude
+  status: completed
+  summary: Approved by Jeff via GUI; merged to main
+  details: Rebased, merged --no-ff, branch deleted. Nothing pushed.
 comments: []
 deliverables:
 - path: src/agentjobs/storage.py
@@ -77,4 +175,6 @@ tags:
 - schema-design
 - robustness
 - phase-0
-branches: []
+branches:
+- name: fix/task-049-loud-load-errors
+  status: merged

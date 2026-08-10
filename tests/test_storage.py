@@ -5,9 +5,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 
 from agentjobs.models import Priority, Task, TaskStatus
-from agentjobs.storage import TaskStorage
+from agentjobs.storage import TaskLoadError, TaskStorage
 
 
 def _build_task(task_id: str, title: str = "Sample") -> Task:
@@ -38,19 +40,37 @@ def test_save_and_load_roundtrip(tmp_path: Path) -> None:
 
 
 def test_load_task_with_invalid_yaml(tmp_path: Path) -> None:
-    """Malformed YAML should be handled gracefully."""
+    """A broken file raises instead of vanishing.
+
+    This test previously asserted `is None` for all three cases -- it encoded the bug
+    task-049 exists to fix. Returning None made a broken file indistinguishable from a
+    missing one, so the task dropped out of every listing with only a log line as
+    evidence.
+    """
     storage = TaskStorage(tmp_path)
+
     bad_file = tmp_path / "task-bad.yaml"
     bad_file.write_text("foo: [unterminated", encoding="utf-8")
-    assert storage.load_task("task-bad") is None
+    with pytest.raises(TaskLoadError, match="invalid YAML"):
+        storage.load_task("task-bad")
 
     empty_file = tmp_path / "task-empty.yaml"
     empty_file.write_text("", encoding="utf-8")
-    assert storage.load_task("task-empty") is None
+    with pytest.raises(TaskLoadError, match="empty"):
+        storage.load_task("task-empty")
 
     invalid_file = tmp_path / "task-invalid.yaml"
     invalid_file.write_text("id: missing-fields\n", encoding="utf-8")
-    assert storage.load_task("task-invalid") is None
+    with pytest.raises(TaskLoadError) as caught:
+        storage.load_task("task-invalid")
+    # The point of the change: the message names the file and the fields.
+    assert "task-invalid.yaml" in str(caught.value)
+    assert "title" in str(caught.value)
+
+
+def test_a_missing_file_still_returns_none(tmp_path: Path) -> None:
+    """Absent is not the same as broken, and must stay a plain None."""
+    assert TaskStorage(tmp_path).load_task("task-does-not-exist") is None
 
 
 def test_list_and_search_tasks(tmp_path: Path) -> None:
