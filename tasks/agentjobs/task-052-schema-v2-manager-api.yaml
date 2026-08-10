@@ -2,13 +2,9 @@ schema: 2
 id: task-052-schema-v2-manager-api
 title: 'Schema v2: migrate the corpus and switch the application over'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T22:51:58.276252Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-10T22:55:38.245425Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: architecture
@@ -19,7 +15,6 @@ tags:
 - handoff
 effort: 1-2 working sessions
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'The switchover. Run the proven migrator over all 38 task files, repoint
@@ -350,7 +345,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-052-schema-v2-switchover
-  status: active
+  status: merged
+  merged_at: '2026-08-10T22:55:38.207817Z'
 log:
 - id: 1
   ts: '2026-08-10T21:22:19Z'
@@ -736,3 +732,31 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 12
+  ts: '2026-08-10T22:55:38.245308Z'
+  actor: claude
+  type: transition
+  body: 'Merged into main with --no-ff after approval through the web UI.
+
+
+    Schema v2 is now the schema: 39 task files migrated and stamped, storage, the
+    manager, the API, the GUI, the CLI and the client all on models_v2, and v1 deleted.
+    All eight acceptance criteria met.
+
+
+    The review found one defect that mattered -- a dangling `needs` reference silently
+    disabling the claimability gate -- and it was fixed before approval. Two more
+    were found by exercising the running app rather than reading the diff: enums rendering
+    as `Lifecycle.READY` in templates, which broke every task-list filter, and a stale
+    server process that made the whole corpus look corrupt. Both are fixed, both gained
+    regression tests, and both produced a rule in ENGINEERING.md.
+
+
+    Deliberately left for follow-up tasks: a corpus-wide dangling-reference report,
+    save-time dependency validation (deferred with reasoning, see the decision entry
+    above), human actor identity so review actions are attributed to a person rather
+    than ''human'', and the docs that still describe v1 (agent-workflow, api-reference,
+    webhooks, index, and the generated schema/v1 tree).'
+  data:
+    lifecycle: closed
+    outcome: completed
