@@ -1,0 +1,80 @@
+site_name: AgentJobs Schema
+site_description: Task schema v1 (implemented) and v2 (proposed), generated from LinkML.
+repo_url: https://github.com/jeffposey/agentjobs
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - content.code.copy
+    - search.suggest
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  # Click-to-zoom/pan for the entity diagrams. The ER SVGs are ~2600px wide; without
+  # a lightbox they render shrunk to the content column and cannot be read.
+  - glightbox:
+      touchNavigation: true
+      effect: zoom
+      zoomable: true
+      draggable: true
+      auto_caption: false
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Overview: index.md
+  - Schema v2 (proposed):
+      - Understanding the schema: schema/understanding.md
+      - Entity diagram: schema/v2-erd.md
+      - Design rationale: schema-design.md
+      - Reference: schema/v2/index.md
+  - Schema v1 (implemented):
+      - Entity diagram: schema/v1-erd.md
+      - Reference: schema/v1/index.md
+  - Project docs:
+      - Agent workflow: agent-workflow.md
+      - Task schema (prose, v1): task-schema.md
+      - API reference: api-reference.md
+      - Webhooks: webhooks.md
+      - Quickstart: quickstart.md
+      - Installation: installation.md
+      - Migration guide: migration-guide.md
+
+# The 160+ per-class/slot/enum/type pages under schema/v1 and schema/v2 are reached
+# from each schema's Reference index rather than enumerated in the sidebar.
+not_in_nav: |
+  schema/*/classes/*
+  schema/*/enums/*
+  schema/*/slots/*
+  schema/*/types/*
+  schema/*/schemas/*
+  integration/*
