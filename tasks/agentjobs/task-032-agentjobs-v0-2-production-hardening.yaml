@@ -1,118 +1,80 @@
 id: task-032-agentjobs-v0-2-production-hardening
-title: 'AgentJobs v0.2.0 - Production Hardening'
+title: AgentJobs v0.2.0 - Production Hardening
 created: '2025-10-26T18:30:00Z'
-updated: '2025-10-26T18:30:00Z'
-status: waiting_for_human
+updated: '2026-08-10T19:43:28.595146Z'
+status: archived
 priority: medium
 category: infrastructure
 assigned_to: TBD
 estimated_effort: 2-3 weeks
-human_summary: Prepare AgentJobs for production deployments by adding auth, deployment automation, monitoring, and GitHub syncing.
-description: |
-  ## Objective
-
-  Harden AgentJobs for production deployments beyond the initial pilot environment by implementing
-  authentication, deployment automation, observability, and GitHub integration.
-
-  ## Scope
-
-  1. **Authentication & Authorization**
-     - API key authentication for REST endpoints
-     - Role-based access (admin, agent, viewer)
-     - Session management for the web GUI
-
-  2. **Deployment Automation**
-     - Docker container image
-     - `docker-compose` for the full stack
-     - Optional Kubernetes manifests for later scaling
-
-  3. **Monitoring & Observability**
-     - Prometheus metrics
-     - Health check endpoints
-     - Structured logging pipeline
-
-  4. **GitHub Integration**
-     - Sync tasks with GitHub Issues
-     - Bi-directional updates
-     - Webhook support for external triggers
-
-  5. **Performance & Scaling**
-     - Database connection pooling
-     - Caching layer (Redis)
-     - Load and stress testing harness
-
-  ## Non-Goals
-
-  - Multi-tenant support (future)
-  - GUI task editing (Phase 6)
-  - Mobile app experiences
+human_summary: Prepare AgentJobs for production deployments by adding auth, deployment
+  automation, monitoring, and GitHub syncing.
+description: "## Objective\n\nHarden AgentJobs for production deployments beyond the\
+  \ initial pilot environment by implementing\nauthentication, deployment automation,\
+  \ observability, and GitHub integration.\n\n## Scope\n\n1. **Authentication & Authorization**\n\
+  \   - API key authentication for REST endpoints\n   - Role-based access (admin,\
+  \ agent, viewer)\n   - Session management for the web GUI\n\n2. **Deployment Automation**\n\
+  \   - Docker container image\n   - `docker-compose` for the full stack\n   - Optional\
+  \ Kubernetes manifests for later scaling\n\n3. **Monitoring & Observability**\n\
+  \   - Prometheus metrics\n   - Health check endpoints\n   - Structured logging pipeline\n\
+  \n4. **GitHub Integration**\n   - Sync tasks with GitHub Issues\n   - Bi-directional\
+  \ updates\n   - Webhook support for external triggers\n\n5. **Performance & Scaling**\n\
+  \   - Database connection pooling\n   - Caching layer (Redis)\n   - Load and stress\
+  \ testing harness\n\n## Non-Goals\n\n- Multi-tenant support (future)\n- GUI task\
+  \ editing (Phase 6)\n- Mobile app experiences\n"
 phases:
 - id: phase-1
-  title: 'Authentication System'
+  title: Authentication System
   status: draft
 - id: phase-2
-  title: 'Docker & Deployment'
+  title: Docker & Deployment
   status: draft
 - id: phase-3
-  title: 'Monitoring & Logging'
+  title: Monitoring & Logging
   status: draft
 - id: phase-4
-  title: 'GitHub Integration'
+  title: GitHub Integration
   status: draft
 - id: phase-5
-  title: 'Performance Optimization'
+  title: Performance Optimization
   status: draft
 success_criteria: []
 prompts:
-  starter: |
-    ## Objective
-
-    Produce a production-ready release plan for AgentJobs v0.2.0 that covers
-    authentication, deployment, observability, GitHub workflows, and scaling
-    concerns. This iteration is design-heavy: assemble the technical architecture,
-    service boundaries, deployment targets, and acceptance criteria that will let
-    us split execution into focused follow-up tasks.
-
-    ## Required Outputs
-
-    1. Architecture brief covering:
-       - Authentication / authorization model (API keys, session UX, RBAC matrix)
-       - Secrets management and configuration strategy
-       - Data storage impact (new tables, migrations, indexes)
-    2. Deployment plan:
-       - Container layout (Dockerfile responsibilities, multi-stage builds)
-       - `docker-compose` topology with services, env vars, volumes
-       - CI/CD path for publishing the image
-    3. Operations design:
-       - Monitoring metrics to emit and their collection endpoints
-       - Health-check contract (liveness/readiness)
-       - Logging format and shipping pipeline
-    4. GitHub integration design:
-       - Event flow for syncing tasks ↔ issues
-       - Webhook security story
-       - Failure handling / retries
-    5. Performance strategy:
-       - Caching approach and invalidation rules
-       - Load-testing scenarios + success thresholds
-
-    Document the decisions in `docs/v0.2-production-hardening.md` with diagrams
-    where helpful, and capture open questions for human review.
-
-    ## Definition of Ready
-
-    - Architecture brief reviewed and signed off by human stakeholders.
-    - Stories broken down into executable sub-tasks with clear acceptance criteria.
-    - Risks and mitigations called out explicitly.
-
-    Once the document is ready, update this task with links to the artifact and
-    transition it to `ready`.
+  starter: "## Objective\n\nProduce a production-ready release plan for AgentJobs\
+    \ v0.2.0 that covers\nauthentication, deployment, observability, GitHub workflows,\
+    \ and scaling\nconcerns. This iteration is design-heavy: assemble the technical\
+    \ architecture,\nservice boundaries, deployment targets, and acceptance criteria\
+    \ that will let\nus split execution into focused follow-up tasks.\n\n## Required\
+    \ Outputs\n\n1. Architecture brief covering:\n   - Authentication / authorization\
+    \ model (API keys, session UX, RBAC matrix)\n   - Secrets management and configuration\
+    \ strategy\n   - Data storage impact (new tables, migrations, indexes)\n2. Deployment\
+    \ plan:\n   - Container layout (Dockerfile responsibilities, multi-stage builds)\n\
+    \   - `docker-compose` topology with services, env vars, volumes\n   - CI/CD path\
+    \ for publishing the image\n3. Operations design:\n   - Monitoring metrics to\
+    \ emit and their collection endpoints\n   - Health-check contract (liveness/readiness)\n\
+    \   - Logging format and shipping pipeline\n4. GitHub integration design:\n  \
+    \ - Event flow for syncing tasks \u2194 issues\n   - Webhook security story\n\
+    \   - Failure handling / retries\n5. Performance strategy:\n   - Caching approach\
+    \ and invalidation rules\n   - Load-testing scenarios + success thresholds\n\n\
+    Document the decisions in `docs/v0.2-production-hardening.md` with diagrams\n\
+    where helpful, and capture open questions for human review.\n\n## Definition of\
+    \ Ready\n\n- Architecture brief reviewed and signed off by human stakeholders.\n\
+    - Stories broken down into executable sub-tasks with clear acceptance criteria.\n\
+    - Risks and mitigations called out explicitly.\n\nOnce the document is ready,\
+    \ update this task with links to the artifact and\ntransition it to `ready`.\n"
   followups: []
 status_updates:
 - timestamp: '2025-10-26T21:30:00Z'
   author: Codex
   status: waiting_for_human
   summary: Draft production-hardening brief awaiting review
-  details: Expanded starter prompt with architecture, deployment, ops, integration, and performance requirements. Ready for human sign-off.
+  details: Expanded starter prompt with architecture, deployment, ops, integration,
+    and performance requirements. Ready for human sign-off.
+- timestamp: '2026-08-10T19:43:28.595137Z'
+  author: human
+  status: archived
+  summary: 'Rejected by human: old stale task, nothing waiting on it'
+comments: []
 deliverables:
 - path: docs/v0.2-production-hardening.md
   status: pending
