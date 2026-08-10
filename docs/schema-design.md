@@ -70,7 +70,8 @@ ball: human                # agent | human | external  (null only when closed)
 ball_reason: review        # closed vocab, scoped to the ball holder (see §3)
 ball_prompt: >-            # REQUIRED whenever ball is set: the ask, for its recipient
   Review the CORS diff and the new preflight tests; approve merge or request changes.
-outcome: null              # set only at close: completed | cancelled | superseded | duplicate
+                           # `outcome` is omitted while open; at close it becomes
+                           # completed | cancelled | superseded | duplicate
 archived: false            # visibility flag, orthogonal to lifecycle
 
 priority: high
@@ -80,8 +81,8 @@ effort: 15 minutes               # free text; it is an estimate, not a contract
 
 # ----- who -----
 assignment:
-  owner: {id: claude, kind: agent}   # set on claim, cleared on release/close
-  eligible: [claude, codex]          # who may claim; empty list = anyone
+  owner: claude              # actor id (D4); set on claim, cleared on release/close
+  eligible: [claude, codex]  # who may claim; empty list = anyone
 
 parent: null               # task id of umbrella task; tasks with open children
                            # are never claimable
@@ -148,13 +149,13 @@ branches:
 log:
   - id: 1
     ts: '2026-07-29T18:30:10Z'
-    actor: {id: claude, kind: agent}
+    actor: claude
     type: transition
     data: {lifecycle: active, ball: agent, ball_reason: work}
     body: Claimed. Branch feat/task-043-cors-vite-dev-origin created from main.
   - id: 2
     ts: '2026-07-29T18:33:00Z'
-    actor: {id: claude, kind: agent}
+    actor: claude
     type: progress
     body: |
       CORS origins added; no test coverage existed for CORS at all, so added a
@@ -162,7 +163,7 @@ log:
       case for an unknown origin.
   - id: 3
     ts: '2026-07-29T18:34:00Z'
-    actor: {id: claude, kind: agent}
+    actor: claude
     type: decision
     body: |
       Left black's complaints about untouched regions of the two files alone.
@@ -170,7 +171,7 @@ log:
       inside mechanical noise. Repo-wide formatting debt is task-047's scope.
   - id: 4
     ts: '2026-07-29T18:35:00Z'
-    actor: {id: claude, kind: agent}
+    actor: claude
     type: handoff
     data: {ball: human, ball_reason: review}
     body: |
@@ -186,7 +187,7 @@ log:
 | `schema` | — | **New.** Integer schema version (see §8) |
 | `lifecycle`, `ball`, `ball_reason`, `ball_prompt`, `outcome` | `status` | **Replaced.** One 8-value enum → three orthogonal axes + close outcome (§3) |
 | `archived` | `status: archived` | Now a visibility flag, orthogonal to how the task ended |
-| `assignment.owner` | `assigned_to` | **Narrowed.** Live ownership only; structured actor; cleared on release |
+| `assignment.owner` | `assigned_to` | **Narrowed.** Live ownership only; an actor id reference (D4); cleared on release |
 | `assignment.eligible` | — | **New.** Authoring-time eligibility (absorbs task-045's `supported_agents`) |
 | `parent` | — | **New.** Real sub-tasks (absorbs task-045's design) |
 | `spec.summary` | `human_summary` | Renamed; the only summary — the human/agent split was audience-by-length, not audience-by-content |
@@ -300,12 +301,26 @@ and the derivation is ~15 lines.
 
 ### Consistency rules (model-enforced)
 
-1. `ball` is null ⟺ `lifecycle: closed`.
+1. `ball` is absent-or-null ⟺ `lifecycle: closed`.
 2. `ball_reason` must belong to the current ball holder's vocabulary.
-3. `outcome` is set ⟺ `lifecycle: closed`.
+3. `outcome` is set ⟺ `lifecycle: closed`, and absent-or-null while open.
 4. `assignment.owner` is null when `lifecycle` ∈ {draft, ready}; required when `active`.
 5. Every change to any of these fields appends a `transition` log entry — performed by
    the manager, not trusted to callers.
+
+### Null and absent are equivalent (decided 2026-07-29)
+
+`ball: null` and an omitted `ball` mean the same thing; likewise `outcome`. This is a
+consequence of D2, not an exception to it: hand-editing YAML is a first-class
+interface, so a human being explicit with `outcome: null` must not be punished for it.
+Omission is the *canonical* form — what the migrator and manager write — and both are
+accepted on load. Pydantic's `Optional[X] = None` gives this for free.
+
+Recorded because the machine-readable schema cannot express it: LinkML has no null
+type, so `schema/agentjobs-v2.yaml` compiles optional enums to a bare `$ref` and the
+generated JSON Schema **rejects an explicit null**. That artifact is therefore stricter
+than the runtime will be, and must not be the sole validator for hand-edited files.
+Task-050 owes a regression test for both spellings.
 
 ### Other status vocabularies (issue 1 resolved)
 
@@ -331,7 +346,7 @@ by the manager.
 ```yaml
 - id: 12
   ts: '2026-07-30T09:14:00Z'
-  actor: {id: jeff, kind: human}      # kind: agent | human | system
+  actor: jeff                         # actor id; kind resolved from config (D4)
   type: instruction                   # see table
   re: 11                              # optional: threads to an earlier entry
   body: |
@@ -349,9 +364,10 @@ by the manager.
 | `question` / `answer` | anyone | explicit unresolved-thread mechanism; an open `question` with no `answer` is surfaceable in UIs |
 | `instruction` | human | a directive to the working agent (replaces followup prompts) |
 
-Provenance (issue 6) is resolved at this layer: every entry carries a typed actor, and
-every state change flows through a logged transition. **Field-level provenance was
-rejected** — stamping author+timestamp on every scalar would double the schema's weight
+Provenance (issue 6) is resolved at this layer: every entry names its actor, and every
+state change flows through a logged transition. The actor is a bare id resolved against
+config rather than an embedded object (D4), so `kind` has exactly one definition and
+cannot drift between entries. **Field-level provenance was rejected** — stamping author+timestamp on every scalar would double the schema's weight
 and produce noise no one reads. The log records *events*, which is how humans and agents
 actually reconstruct history. If a specific field's origin ever matters, the transition
 entries contain it.
@@ -436,10 +452,62 @@ webhook infrastructure needs to change.
 
 ## 7. Rejected alternatives (recorded so they are not relitigated)
 
-- **A database (SQLite/Mongo) instead of YAML.** Rejected 2026-07-29 (prior discussion,
-  reaffirmed here). The friction was never storage — it was hand-maintained parallel
-  definitions. A database forfeits diffability, PR review of task changes, and git
-  blame, which are the product's identity.
+- **A database (SQLite / MongoDB) instead of YAML files.** Rejected 2026-07-29, then
+  reopened the same day once D2 dropped hand-editing as a requirement — which had been
+  carrying much of the original argument — and rejected again on narrower, better
+  grounds. Recorded at length because this question will recur.
+
+  *The model is document-shaped, and that is now measured, not asserted.* Of v2's 12
+  classes, **11 have no identifier**: `Spec`, `Assignment`, `LogEntry`,
+  `AcceptanceCriterion`, `ContextPointer`, `Deliverable`, `Dependency`, `Link` and
+  `Branch` are value objects with no independent identity. `gen-dbml` refuses the
+  schema outright (`Referenced class 'Assignment' does not have an identifier slot`),
+  and `gen-sqlddl` only succeeds by emitting **14 tables**, two of them synthetic join
+  tables (`Task_tags`, `Assignment_eligible`) invented solely to hold lists of strings
+  that a document store keeps as native arrays. Reading one task from SQL is a
+  14-table join; from a document it is one fetch. Relational storage is the awkward
+  fit here, not the natural one.
+
+  *Given a document model, SQLite — not Mongo — is the real alternative.* Mongo needs
+  a server, so every project that `pip install`s agentjobs would need one running.
+  SQLite is a single file, ships in the standard library, is ACID, and holds documents
+  fine via JSON columns. At a 31-file / 204 KB corpus, Mongo is dominated by SQLite on
+  every axis that matters. Putting Mongo aside is not a concession; it is the wrong
+  tool at this size.
+
+  *"Schemaless means cheaper schema changes" is the argument that actually motivated
+  reopening this, and it does not hold.* Schemalessness does not remove the schema, it
+  relocates it into every reader: old-shaped documents live in the collection forever,
+  so each reader carries conditional handling for every past shape, permanently. That
+  is more expensive than one versioned migrator, not less. It also contradicts D2
+  (`extra="forbid"`) — adopting Mongo *for* flexibility would undo a decision made the
+  same morning. And the flexibility being sought already exists: under §9 an additive
+  change is free, exactly as in a schemaless store. What made schema change expensive
+  was never storage, it was **three hand-maintained parallel definitions** (Pydantic,
+  prose docs, GUI templates); that is now one LinkML source generating the rest, and
+  that fix is storage-independent. Mongo would *add* schema locations — index
+  definitions, DB-level validators, aggregation pipelines.
+
+  *The strongest argument for a database is concurrency, not scale.*
+  `TaskStorage.save_task` does read-modify-write with no locking and no
+  compare-and-swap, so two agents can both read a `ready` task and both write
+  `active` — a real double-claim race in a schema explicitly designed for multiple
+  eligible agents. Mongo's atomic `findAndModify` would close it for free. Addressed
+  instead by making the API the single writer plus advisory file locking (task-055),
+  which is a ~50-line fix rather than a substrate change.
+
+  *What files buy, and why it wins here:* diffable task history, `git blame` on a
+  field, and atomic commits pairing a task change with the code change it describes —
+  all three actively used in this repo's workflow. Plus zero infrastructure, which is
+  load-bearing for the packaged-product goal in §8: `pip install agentjobs` and point
+  it at a directory.
+
+  **Revisit if** true multi-writer concurrency appears that cannot be serialized
+  through the API, or the corpus reaches the low thousands (at ~6.6 KB/task, ~10k
+  tasks means ~66 MB parsed per unindexed query). The standard escape hatch at that
+  point is not migrating storage but adding a **derived SQLite index**, rebuilt from
+  the files — the pattern dbt, Hugo and Sphinx use. Files stay the source of truth;
+  the index is disposable.
 - **Field-level provenance.** See §4.
 - **Storing the display status.** See §3 — derivable data stored twice is a standing
   drift bug.
@@ -511,21 +579,76 @@ projects' task files the moment agentjobs is installed anywhere else.
 
 - **D2 — Strictness posture: STRICT everywhere.** Unknown fields rejected
   (`extra="forbid"`), taxonomy validated against config at save, violations are
-  errors — at save *and* at load. Clarified during the decision: strictness governs
-  what the machine does when it touches a file, not who may edit — **hand-editing
-  YAML in git remains a first-class interface**, and strictness is what makes hand
-  edits safe: a *tolerated* typo is an edit that silently does nothing (misspell
-  `pirority:` and the task keeps its old priority forever, no error), while a
-  *strict* load turns the same typo into an immediate, named error. Companion
-  requirement decided alongside, landing independently of and before v2: load
-  errors must be loud and precise (filename + field + error) — today
+  errors — at save *and* at load. Forward compatibility across versions is the
+  schema stamp's job (D3), not tolerated mystery fields.
+
+  **Amended 2026-07-29, same day.** The decision is unchanged; its *justification*
+  was replaced, and the original is recorded here because a stale rationale is how a
+  settled decision gets relitigated.
+
+  D2 was originally argued from hand-editing: *"hand-editing YAML in git remains a
+  first-class interface, and strictness is what makes hand edits safe — a tolerated
+  typo is an edit that silently does nothing (misspell `pirority:` and the task keeps
+  its old priority forever, no error), while a strict load turns the same typo into
+  an immediate, named error."* The owner then corrected the premise: **hand-editing
+  YAML is not a requirement.** The expectation is that humans edit tasks through
+  **UIs**, with an admin tool or a direct file edit as an acceptable *emergency
+  hatch*, not a primary interface. This also narrows task-054's GUI scope from
+  "a viewer" to "the primary editing surface."
+
+  Strictness survives the change intact, on stronger grounds. The typo argument was
+  never really about *humans* — it is about **any** writer. A tolerated unknown field
+  is a silent no-op whether it came from a mistyped hand edit, a migrator bug that
+  writes `pirority`, an API caller passing a field that a rename retired, or a GUI
+  form posting a stale key. Under D2 every one of those fails immediately, by name.
+  Strictness is the regression test for the migrator and the API, and those are now
+  the writers that matter most.
+
+  Companion requirement, unchanged and still landing independently of and before v2:
+  load errors must be loud and precise (filename + field + error). Today
   `TaskStorage.load_task` swallows validation errors and the task silently vanishes
-  from listings, which is the worst available behavior (task-049). Forward
-  compatibility across versions is the schema stamp's job (D3), not tolerated
-  mystery fields.
+  from listings, which is the worst available behavior (task-049). Note this is
+  *more* urgent under UI-primary editing, not less: a task that vanishes from a
+  listing is invisible to someone whose only window into the data is that listing,
+  whereas a file editor would at least still show the file.
 
 - **D3 — Version stamp: ADOPTED.** `schema: 2` (integer) on every v2 file, one-shot
   `agentjobs migrate-schema` converter, per §8.
+
+- **D4 — Actors are referenced, not embedded: ADOPTED.** A task file names an actor
+  by bare id (`actor: claude`, `owner: claude`); `kind` lives in config and is
+  resolved on read. The draft had embedded `{id, kind}` objects, which put **five
+  identical copies of `{id: claude, kind: agent}` in §2's small example** and would
+  put a dozen in a task with real history — every one a denormalized cache of a
+  config fact, free to drift. It also contradicted issue 7, which had already made
+  config the authority for actor ids. References are now consistent with the four
+  other places v2 references rather than embeds: `parent`, `dependencies[].task`,
+  `category`, and `tags`.
+
+  Rejected: **keeping the embedded object**, which buys a fully self-contained record
+  (tenet 1) at the cost of drift — a reader that has the file but not the config can
+  still see *who* acted, just not whether they were an agent, and a zero-context
+  agent reads config anyway. Also rejected: **referencing but caching `kind` on
+  write**, which is precisely the denormalization v2 already rejected for
+  `display_status` (§3), and rejecting it there while adopting it here would be
+  incoherent.
+
+  This was the modeling question behind the owner's observation that some boundaries
+  looked relational: they mark genuinely *shared* entities. The resolution is
+  references **inside the document**, not normalization into tables — see the storage
+  entry in §7.
+
+- **D5 — Configured acceptance-criterion types: ACCEPTED in principle, build
+  deferred.** Today `acceptance[].text` is free prose plus an optional inline
+  `verify` command, so §2's own example hardcodes `verify: poetry run pytest` — a
+  string that every task in the repo would copy-paste. The intended shape is
+  config-defined criterion types, each carrying its own verify command, referenced
+  from an acceptance entry; the same shared-entity pattern as D4.
+
+  Deliberately **out of task-050's scope.** Under §9's evolution policy this is a
+  purely additive change — a new optional field with a default — so it needs no
+  schema bump and can land whenever it earns priority, without lengthening the v2
+  chain. Recorded here so the idea is not lost and not rediscovered as novel.
 
 ## 12. Derived implementation tasks
 
@@ -539,6 +662,7 @@ typing) predates this pass and lands first, per §10.
 | task-051 | Migrator: `agentjobs migrate-schema` converts the corpus per §3's mapping and §8's workload note; corpus test re-verifies in v2 form | task-050 |
 | task-052 | Manager + API: claim / handoff / log / release / close, manager-appended transitions, inbox and next queries, taxonomy + dependency validation at save, `task.handoff` / `task.question` / `task.closed` webhook events | task-051 |
 | task-053 | CLI mirrors: `agentjobs inbox / next / claim / handoff / log / close` | task-052 |
-| task-054 | Jinja GUI on v2: inbox view (`ball=human` with `ball_prompt` per row), agent-activity view, task detail rendering spec / log / acceptance | task-052 |
+| task-054 | Jinja GUI on v2: inbox view (`ball=human` with `ball_prompt` per row), agent-activity view, task detail rendering spec / log / acceptance. **Scope widened by D2's amendment** — the GUI is the *primary human editing surface*, not a viewer, so it must cover the edits a human actually makes: handoff, decision/answer log entries, acceptance status, close | task-052 |
+| task-055 | Single-writer concurrency: `save_task` currently read-modify-writes with no locking, so two agents can both claim one `ready` task. Serialize writes through the manager/API plus advisory file locking; regression test the double-claim race. Independent of v2 — the race exists in v1 today | — |
 | task-045 (reshaped) | Sub-task *behavior* atop v2's `parent` field: `get_subtasks`, umbrella non-claimability, `?parent=` filter, cycle/self/exists validation, GUI children list — its two schema changes are absorbed into task-050 | task-052 |
 | task-046 (narrowed) | Resumption contract documented in ALLAGENTS.md / docs/agent-workflow.md; first live exercise of the handoff loop | task-052 |
