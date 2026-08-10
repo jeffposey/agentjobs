@@ -1,8 +1,8 @@
 id: task-048-schema-design
 title: Design the next iteration of the task schema (design pass, not implementation)
 created: '2026-07-29T19:16:49.852937Z'
-updated: '2026-07-29T20:52:00Z'
-status: waiting_for_human
+updated: '2026-08-10T06:11:44.819506Z'
+status: completed
 priority: high
 category: architecture
 estimated_effort: a few working sessions
@@ -251,49 +251,91 @@ status_updates:
     Session 3 (fresh chat, no shared context -- itself a live test of the resumption
     principle): reviewed the draft against the repo and verified its factual claims.
     Confirmed: issues[] empty in all 25 corpus files; comments[] empty wherever present;
-    prompts.followups non-empty in 7 files; phases[] non-empty in 15 -- migrator
-    workload now recorded in the doc (section 8). Self-review fixes applied: pre-claim
-    dependency blocking is now explicitly representable (ready + unmet needs, excluded
-    from /next and claim; active + external/dependency is post-claim only), the v1
-    blocked migration mapping splits on claimed/unclaimed, dependencies[].type rename
-    (depends_on -> needs) added to the field inventory, nested checklist in_progress
-    -> pending migration rule recorded.
+    prompts.followups non-empty in 7 files; phases[] non-empty in 15 -- migrator workload
+    now recorded in the doc (section 8). Self-review fixes applied: pre-claim dependency
+    blocking is now explicitly representable (ready + unmet needs, excluded from /next
+    and claim; active + external/dependency is post-claim only), the v1 blocked migration
+    mapping splits on claimed/unclaimed, dependencies[].type rename (depends_on ->
+    needs) added to the field inventory, nested checklist in_progress -> pending migration
+    rule recorded.
 
 
     Decisions made with Jeff (doc section 11): D1 delete the full redundant-mechanism
     set; D2 strict everywhere, with the clarification that hand-editing stays first-class
     and the load-error loudness fix (task-049) lands regardless; D3 schema: 2 stamp
-    + one-shot migrator. Implementation tasks derived (doc section 12): task-049
-    (loud load errors, v1, unblocked now), 050 (v2 models), 051 (migrator), 052
-    (manager/API), 053 (CLI), 054 (GUI); task-045 reshaped to sub-task behavior only
-    (schema changes absorbed into 050); task-046 narrowed to documenting/exercising
-    the resumption contract.
+    + one-shot migrator. Implementation tasks derived (doc section 12): task-049 (loud
+    load errors, v1, unblocked now), 050 (v2 models), 051 (migrator), 052 (manager/API),
+    053 (CLI), 054 (GUI); task-045 reshaped to sub-task behavior only (schema changes
+    absorbed into 050); task-046 narrowed to documenting/exercising the resumption
+    contract.
 
 
     Tooling note (resolved within the session): for most of session 3, every Bash
     command needing model-based permission classification was refused because the
     classifier''s backing model was unavailable upstream -- unrelated to this repo,
-    and not specific to any one conversation model (it persisted across a model
-    switch, and the error named a different classifier model each time). Commands
-    recognizable as read-only locally (git status, echo) still ran, as did ordinary
-    file edits; editing .claude/settings.local.json to work around it was itself
-    refused, which is correct -- permissions cannot be self-widened while the safety
-    check is down. The outage never fully cleared -- it flapped (one command got
-    through, which is how the real clock time was obtained and how the placeholder
-    timestamps written earlier in the batch were corrected), so the git commits for
-    this branch were still pending at session end.
+    and not specific to any one conversation model (it persisted across a model switch,
+    and the error named a different classifier model each time). Commands recognizable
+    as read-only locally (git status, echo) still ran, as did ordinary file edits;
+    editing .claude/settings.local.json to work around it was itself refused, which
+    is correct -- permissions cannot be self-widened while the safety check is down.
+    The outage never fully cleared -- it flapped (one command got through, which is
+    how the real clock time was obtained and how the placeholder timestamps written
+    earlier in the batch were corrected), so the git commits for this branch were
+    still pending at session end.
 
     sc-1 is nevertheless verified: the project owner ran the suite manually -- 32
     passed, the corpus guard plus all 31 files, including this batch''s six new ones
-    and this task''s comments[] entry, the first non-empty comments list in the
-    corpus. Caveat for whoever commits: the timestamp and criterion-status edits
-    above were made *after* that run, so re-run pytest before committing (the helper
-    script written for this does so and stops on failure).
+    and this task''s comments[] entry, the first non-empty comments list in the corpus.
+    Caveat for whoever commits: the timestamp and criterion-status edits above were
+    made *after* that run, so re-run pytest before committing (the helper script written
+    for this does so and stops on failure).
 
     Suggested project follow-up: the allowlist in .claude/settings.local.json covers
     only `--version` probes; adding `Bash(poetry run pytest:*)` would let the suite
-    run without consulting the classifier at all, insulating future sessions from a
-    repeat.'
+    run without consulting the classifier at all, insulating future sessions from
+    a repeat.'
+- timestamp: '2026-08-10T06:10:59.596448Z'
+  author: claude
+  status: completed
+  summary: Design approved by Jeff; branch merged to main
+  details: 'Jeff approved the schema v2 design for this pass on 2026-08-10, covering
+    all five decisions (D1-D5) as recorded in docs/schema-design.md section 11 --
+    including D4 and D5, which were added after the previous status update said there
+    were three.
+
+
+    Session 4 (fresh chat, zero context -- the third consecutive live test of the
+    resumption principle, and it worked: the task record plus the design doc were
+    sufficient to reconstruct the whole state without any chat history).
+
+
+    What this session did: committed the work that sessions 2-3 left uncommitted because
+    of the permission-classifier outage. Eight commits, split by logical change and
+    by task -- see the branch log. The uncommitted delta turned out to be 206 untracked
+    files, of which only 8 were hand-written; 194 were LinkML-generated reference
+    pages and diagrams. Nothing was lost in the outage.
+
+
+    Verified before and after committing: poetry run pytest, 106 passed. Working tree
+    clean.
+
+
+    Scope note: the LinkML tooling built during this design pass is deliberately NOT
+    part of this task. It is recorded as task-056 and reviewed on its own merits,
+    though it shares this branch (recorded in task-056''s branches[]).
+
+
+    Known issue found while committing, deliberately not fixed here: core.autocrlf
+    is on and the repo has no .gitattributes, so scripts/regen-schema-docs.sh will
+    check out with CRLF on a fresh clone and bash will fail on the carriage returns.
+    The current working copy is LF so it runs today. Fix is one line (*.sh text eol=lf);
+    left for whoever picks it up rather than smuggled into a design-pass merge.
+
+
+    What is next: Jeff redirected the implementation sequence. Rather than starting
+    the v2 chain (task-050 onward), the priority is multi-project support -- one agentjobs
+    frontend usable across every project on the machine. See the follow-up task created
+    after this merge.'
 comments:
 - id: comment-1
   task_id: task-048-schema-design
@@ -326,4 +368,4 @@ tags:
 - collaborative
 branches:
 - name: docs/task-048-schema-design
-  status: active
+  status: merged
