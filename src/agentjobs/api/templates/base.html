@@ -108,9 +108,51 @@
                     <div class="flex-shrink-0 flex items-center">
                         <h1 class="text-2xl font-bold">AgentJobs</h1>
                     </div>
-                    <div class="ml-10 flex items-center space-x-4">
-                        <a href="/" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-dark-border transition">Dashboard</a>
-                        <a href="/tasks" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-dark-border transition relative">
+                    {#
+                        Project switcher. One project is selected at a time -- there is
+                        deliberately no merged all-projects view. `base` is the URL
+                        prefix for the active project; every link below is built from it
+                        because a task id is unique only within a project.
+                    #}
+                    {% if all_projects %}
+                    <div class="ml-6 flex items-center" x-data="{ open: false }" @click.outside="open = false">
+                        <button
+                            type="button"
+                            @click="open = !open"
+                            class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium bg-dark-bg border border-dark-border hover:border-blue-500 transition"
+                        >
+                            <span class="text-dark-muted text-xs uppercase tracking-wide">Project</span>
+                            <span class="font-semibold">{{ project.name if project else 'Choose…' }}</span>
+                            <span class="text-dark-muted text-xs">▾</span>
+                        </button>
+                        <div
+                            x-show="open"
+                            x-cloak
+                            class="absolute top-14 z-20 w-72 bg-dark-surface border border-dark-border rounded-lg shadow-xl py-1"
+                        >
+                            {% for option in all_projects %}
+                            <a
+                                href="/p/{{ option.id }}/"
+                                class="flex items-center justify-between px-4 py-2 text-sm hover:bg-dark-border transition {% if project and option.id == project.id %}text-blue-400{% endif %}"
+                            >
+                                <span>
+                                    <span class="font-medium">{{ option.name }}</span>
+                                    <span class="block font-mono text-xs text-dark-muted">{{ option.id }}</span>
+                                </span>
+                                {% if project and option.id == project.id %}
+                                <span class="text-xs">✓</span>
+                                {% endif %}
+                            </a>
+                            {% endfor %}
+                            <div class="border-t border-dark-border mt-1 pt-2 px-4 pb-1 text-xs text-dark-muted">
+                                Register more with <code class="text-blue-300">agentjobs project add</code>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="ml-6 flex items-center space-x-4">
+                        <a href="{{ base }}/" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-dark-border transition">Dashboard</a>
+                        <a href="{{ base }}/tasks" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-dark-border transition relative">
                             Tasks
                             {% if waiting_count and waiting_count > 0 %}
                             <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">

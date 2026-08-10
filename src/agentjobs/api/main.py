@@ -17,6 +17,7 @@ from .routes import (
     PROJECT_SCOPED_ROUTERS,
     health_router,
     projects_router,
+    web_legacy_router,
     web_router,
 )
 
@@ -91,8 +92,13 @@ async def root_health() -> dict[str, str]:
 
 
 app.include_router(health_router)
-app.include_router(web_router)
 app.include_router(projects_router)
+
+# Web pages are canonically project-scoped. The legacy router keeps the old
+# unscoped URLs alive by redirecting into the resolved default project, so
+# existing bookmarks work and there is one canonical URL per page.
+app.include_router(web_router, prefix="/p/{project_id}")
+app.include_router(web_legacy_router)
 
 # Every task-facing router is mounted twice. The unscoped mount is registered first so
 # existing callers, the CLI and the current GUI keep working against the default

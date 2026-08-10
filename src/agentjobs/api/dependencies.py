@@ -32,14 +32,18 @@ PROJECT_ROOT_ENV = "AGENTJOBS_PROJECT_ROOT"
 _CONFIG_RELATIVE = Path(".agentjobs") / "config.yaml"
 _TEMPLATES: Optional[Jinja2Templates] = None
 
-_IMPLICIT_PROJECT_ID = "."
+_IMPLICIT_PROJECT_ID = "_local"
 """Id for the project implied by the environment rather than the registry.
 
 When AGENTJOBS_TASKS_DIR or AGENTJOBS_PROJECT_ROOT is set, or when nothing is registered
 at all, AgentJobs still serves the working directory the way it always did. That
 single-project mode is modelled as one implicit project so the rest of the code has
-exactly one shape to handle. The id is deliberately not a legal registry id, so it can
-never collide with a real one.
+exactly one shape to handle.
+
+The leading underscore makes it illegal as a registry id (see `_ID_PATTERN` in
+projects.py), so it can never collide with a real project. It must also be URL-safe:
+this was "." until the web routes existed, and "/p/./tasks" normalises to "/p/tasks",
+which silently broke single-project installs the moment pages became project-scoped.
 """
 
 
@@ -130,6 +134,26 @@ def resolve_project(project_id: str) -> Project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
+def try_resolve_default_project() -> Optional[Project]:
+    """Resolve the default project, or None when it cannot be resolved without guessing.
+
+    The non-raising form, so callers that want to offer a choice (the web project
+    picker) do not have to catch an HTTPException to find out there is one.
+
+    Note this must be used in preference to `ProjectRegistry.resolve_default` anywhere
+    a default is wanted: the registry knows nothing about implicit single-project mode,
+    so going straight to it reports "no projects" for an install that has one.
+    """
+    if _env_override_active():
+        return _implicit_project()
+    try:
+        return get_registry().resolve_default()
+    except AmbiguousProjectError:
+        registered = get_registry().list_projects()
+        # Nothing registered at all still means the working directory, as it always did.
+        return None if registered else _implicit_project()
+
+
 def resolve_default_project() -> Project:
     """Resolve the project that unscoped routes act on.
 
@@ -137,12 +161,20 @@ def resolve_default_project() -> Project:
     contains the working directory: serving the wrong project's tasks silently is a
     worse outcome than an error that names the ambiguity.
     """
-    if _env_override_active():
-        return _implicit_project()
-    try:
-        return get_registry().resolve_default()
-    except AmbiguousProjectError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    project = try_resolve_default_project()
+    if project is None:
+        # Name the candidates. An error that says only "ambiguous" leaves the caller
+        # guessing at the very thing the server refused to guess at.
+        known = ", ".join(candidate.id for candidate in get_registry().list_projects())
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Cannot resolve a default project: the working directory is inside none "
+                f"of the registered projects ({known}). Address one explicitly, e.g. "
+                "/api/projects/<id>/tasks."
+            ),
+        )
+    return project
 
 
 # ----- per-project components -------------------------------------------------
