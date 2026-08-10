@@ -1,0 +1,290 @@
+# task-048, converted to schema v2.
+#
+# This is the real task you are living inside, in the proposed shape. It is the
+# richest file in the corpus -- the only one with a non-empty comments[], plus
+# multi-paragraph status updates, six criteria, and a long starter prompt -- so it
+# exercises nearly every v2 mechanism with content you already know.
+#
+# Validated against schema/agentjobs-v2.yaml. Regenerate checks with:
+#   poetry run linkml-validate -s schema/agentjobs-v2.yaml --target-class Task \
+#       schema/examples/task-048.v2.yaml
+
+schema: 2
+id: task-048-schema-design
+title: Design the next iteration of the task schema (design pass, not implementation)
+created: '2026-07-29T19:16:49Z'
+updated: '2026-07-30T00:15:00Z'
+
+# ---- state -------------------------------------------------------------------
+# v1 said `status: waiting_for_human` and stopped there. Three axes replace it, and
+# ball_prompt carries the ask the GUI currently has nowhere to render from.
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: >-
+  Review docs/schema-design.md and approve or reject the merge. Five decisions need
+  your sign-off, not three: D1-D3 as originally recorded, plus D4 (actors referenced
+  by id) and D5 (criterion types accepted but deferred). D2's decision is unchanged
+  but its justification was replaced after you corrected the hand-editing premise.
+  Two follow-on scope changes need confirming: task-054 widened to primary editing
+  surface, task-055 created for the double-claim race.
+archived: false
+
+priority: high
+category: architecture
+tags: [architecture, schema, design, collaborative]
+effort: a few working sessions
+
+# ---- who ---------------------------------------------------------------------
+assignment:
+  owner: claude          # D4: a bare actor id; kind resolved from config
+  eligible: []           # empty = anyone
+parent: null
+
+# ---- the specification -------------------------------------------------------
+# v1 had one 5,240-character `description` blob plus a 1,900-character
+# `prompts.starter` that largely restated it. Both are split here along the
+# questions an agent actually asks.
+spec:
+  summary: >-
+    A deliberate design pass over the task schema before implementing piecemeal
+    changes, since the schema is the core of the product rather than incidental
+    plumbing. Produces a design doc with rationale and rejected alternatives.
+
+  intent: |
+    The schema, the workflow, and the human/agent interfaces *are* the product --
+    the rest is framework. So the schema deserves an explicit design pass rather
+    than incremental accretion.
+
+    This must land before task-045 implements its schema changes. Task-045 carries
+    two schema changes specified in isolation; designing those separately and then
+    redesigning them is backwards.
+
+  description: |
+    Work through the owner's ideas for the next schema iteration. For each proposed
+    change record: what changes, the motivation, what breaks (loading, API, GUI,
+    existing files), migration needed, and alternatives rejected with reasons.
+
+    Write the result to `docs/schema-design.md`. The rejected alternatives matter
+    most -- they are the part no future reader can recover from a diff, and the part
+    that stops the same debate recurring.
+
+  constraints: |
+    - **This task produces decisions and a written spec, not code**, with one
+      exception: the round-trip corpus test, built first as a safety net.
+    - **Collaborative.** The owner leads the agenda and has ideas to work through.
+      Do not finalise solo. If you find yourself deciding the owner's open questions
+      for them, stop and ask.
+    - The versioning decision recorded at authoring time is not to be relitigated
+      mid-pass; revisit it deliberately at the end.
+
+  out_of_scope: |
+    - **Implementing any schema change.** Implementation happens in separate tasks
+      derived from this one.
+    - **Writing those derived task files is itself deliverable work, not clerical.**
+      It is in scope for the task overall but NOT for any session that has not been
+      told to do it. See log entry 12: an earlier session produced six task files
+      from a prompt that asked only for the design document, because acceptance
+      criteria read as authorisation. Confirm session scope before producing tasks.
+    - Schema *tooling* (LinkML, docs site, diagram rendering). Instrumentally needed
+      to evaluate the design, but its own concern -- see task-056.
+
+  context:
+    - path: docs/schema-design.md
+      why: The deliverable. Sections 11 and 12 are what needs sign-off.
+    - path: src/agentjobs/models.py
+      why: The v1 schema being redesigned. 13 classes, Task is the root aggregate.
+    - path: schema/agentjobs-v2.yaml
+      why: The design in machine-readable form; compiles and validates.
+    - path: tests/test_task_corpus.py
+      why: The safety net. Any model change that strands a file fails here by name.
+
+# ---- verification ------------------------------------------------------------
+# v1's success_criteria, renamed. Note ac-6's status: it is the criterion that
+# authorised the scope drift, and under v2 it can be recorded as `dropped` for this
+# session rather than silently completed.
+acceptance:
+  - id: ac-1
+    text: 'Round-trip corpus test exists and passes: the model loads every task YAML
+      in tasks/agentjobs/ and tasks/test-data/'
+    verify: poetry run pytest tests/test_task_corpus.py
+    status: met
+  - id: ac-2
+    text: docs/schema-design.md records every proposed change with motivation, what
+      breaks, migration needed, and alternatives rejected with reasons
+    status: met
+  - id: ac-3
+    text: Each of the six observations has an explicit decision recorded (adopt /
+      reject / defer), not silently dropped
+    status: met
+  - id: ac-4
+    text: task-045's schema scope reconciled against the design -- confirmed,
+      reshaped, or absorbed -- and task-045 updated to match
+    status: met
+  - id: ac-5
+    text: Versioning revisited at the end of the pass with the answer recorded either
+      way, rather than left implicit
+    status: met
+  - id: ac-6
+    text: Implementation tasks derived from the design, each independently reviewable
+    status: met
+
+deliverables:
+  - path: docs/schema-design.md
+    note: The design spec, with rationale and rejected alternatives
+    status: done
+  - path: tests/test_task_corpus.py
+    note: Round-trip test over every task YAML in the repo
+    status: done
+
+# ---- relationships -----------------------------------------------------------
+dependencies:
+  - task: task-044-docs-git-workflow
+    type: needs
+    note: Merged 2026-07-29; established the workflow this task follows
+  - task: task-056-schema-modeling-tooling
+    type: needs
+    note: >-
+      The modeling tooling that made the design reviewable. Instrumentally required
+      to evaluate this design, so it is a dependency rather than part of the pass.
+
+links: []
+
+branches:
+  - name: docs/task-048-schema-design
+    status: active
+    merged_at: null
+
+# ---- the unified log ---------------------------------------------------------
+# v1 kept this history in THREE lists: status_updates[2], comments[1], and
+# prompts.followups. Here it is one ordered, typed, append-only log. Note what
+# becomes visible once entries are typed: the decisions are individually
+# addressable instead of buried inside a status-update paragraph, and Jeff's idea
+# is attributed to Jeff instead of transcribed inside an entry authored by claude.
+log:
+  - id: 1
+    ts: '2026-07-29T19:25:39Z'
+    actor: claude
+    type: transition
+    data: {lifecycle: active, ball: agent, ball_reason: work}
+    body: Claimed. Branch docs/task-048-schema-design created from main.
+
+  - id: 2
+    ts: '2026-07-29T19:26:00Z'
+    actor: jeff
+    type: instruction
+    body: >-
+      Decompose status. Rough shape: status becomes 'waiting', with a sub-parameter
+      for who it waits on (AI vs human), and a further sub-parameter for why (code
+      review, a decision to make, etc.).
+
+  - id: 3
+    ts: '2026-07-29T20:40:00Z'
+    actor: claude
+    type: progress
+    body: >-
+      Full design drafted as docs/schema-design.md. Jeff's idea (entry 2) became the
+      centerpiece: lifecycle + ball + ball_reason + ball_prompt state axes. Session
+      ended in an API error mid-response; the draft survived intact.
+
+  - id: 4
+    ts: '2026-07-29T20:44:00Z'
+    actor: claude
+    type: progress
+    body: >-
+      Fresh chat, no shared context -- itself a live test of the resumption
+      principle. Verified the draft's factual claims against the repo: issues[] empty
+      in all 25 corpus files, comments[] empty wherever present, prompts.followups
+      non-empty in 7, phases[] non-empty in 15. Migrator workload recorded in
+      section 8.
+
+  - id: 5
+    ts: '2026-07-29T20:48:00Z'
+    actor: claude
+    type: decision
+    re: 2
+    body: >-
+      D1 -- delete the full redundant-mechanism set: phases[], prompts, issues[],
+      Comment, Dependency.status, human_summary. One mechanism per concept.
+      Rejected: keeping phases alongside sub-tasks, which leaves two ways to express
+      the same subdivision and lets them drift.
+
+  - id: 6
+    ts: '2026-07-29T20:48:00Z'
+    actor: claude
+    type: decision
+    body: >-
+      D2 -- strict everywhere: unknown fields rejected, taxonomy validated at save,
+      violations are errors at save and load. Rejected: tolerant loading, because a
+      tolerated typo is an edit that silently does nothing.
+
+  - id: 7
+    ts: '2026-07-29T20:48:00Z'
+    actor: claude
+    type: decision
+    body: >-
+      D3 -- schema:2 stamp plus a one-shot migrator. Rejected: deferring versioning
+      again, since v2 is non-additive and that was the stated trigger.
+
+  - id: 8
+    ts: '2026-07-29T20:48:00Z'
+    actor: claude
+    type: handoff
+    data: {ball: human, ball_reason: review}
+    body: >-
+      Design pass complete; requesting sign-off. Review section 11 (decisions) and
+      section 12 (implementation breakdown), plus the reshaped task-045 and narrowed
+      task-046.
+
+  - id: 9
+    ts: '2026-07-29T23:10:00Z'
+    actor: jeff
+    type: instruction
+    body: >-
+      Hand-editing YAML is not a requirement. Humans edit tasks in UIs; an admin tool
+      or direct file edit is acceptable only as an emergency hatch.
+
+  - id: 10
+    ts: '2026-07-29T23:20:00Z'
+    actor: claude
+    type: decision
+    re: 9
+    body: >-
+      D2 amended -- decision unchanged, justification replaced. The original
+      hand-editing argument is preserved verbatim in section 11 rather than
+      overwritten, because a stale rationale is how a settled decision gets
+      relitigated. Strictness now argued from any writer: a migrator or API bug that
+      writes an unknown field must fail by name.
+
+  - id: 11
+    ts: '2026-07-29T23:45:00Z'
+    actor: claude
+    type: decision
+    body: >-
+      D4 -- actors are referenced by id, not embedded. The draft put five identical
+      {id: claude, kind: agent} copies in one small example and contradicted issue 7,
+      which had already made config authoritative for actor ids. Rejected: caching
+      kind on write, which is the denormalization v2 already rejected for
+      display_status.
+
+  - id: 12
+    ts: '2026-07-30T00:05:00Z'
+    actor: claude
+    type: note
+    body: >-
+      Scope drift traced. An earlier session produced six task files from a prompt
+      that asked only for the design document. Cause: acceptance criteria ac-4 and
+      ac-6 required it, and they were authored before the prompt was given. The
+      schema has no way to say "this session is authorised for a subset", so criteria
+      read as standing authorisation. Recorded in spec.out_of_scope; the general fix
+      is deferrable criteria or a session scope boundary.
+
+  - id: 13
+    ts: '2026-07-30T00:15:00Z'
+    actor: claude
+    type: handoff
+    data: {ball: human, ball_reason: review}
+    re: 8
+    body: >-
+      Re-handoff: the ask in entry 8 is stale. Five decisions now need sign-off, not
+      three, and D2's justification changed. See ball_prompt.

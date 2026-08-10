@@ -1,0 +1,432 @@
+id: https://github.com/jeffposey/agentjobs/schema/v1
+name: agentjobs-v1
+title: AgentJobs Task Schema v1
+version: 1.0.0
+license: MIT
+description: >-
+  The task schema as currently implemented in src/agentjobs/models.py, transcribed
+  into LinkML so it can be rendered, browsed, and diffed against v2 by real schema
+  tooling rather than hand-drawn diagrams.
+
+  This is a DESCRIPTIVE schema: it records v1 as it actually is, warts included, so
+  the v1-to-v2 comparison is honest. Where v1 documents a vocabulary in prose but
+  does not enforce it, that is called out in the slot description rather than
+  quietly fixed here. Validated against the live corpus via
+  `linkml-validate -s schema/agentjobs-v1.yaml tasks/agentjobs/*.yaml`.
+
+prefixes:
+  linkml: https://w3id.org/linkml/
+  aj: https://github.com/jeffposey/agentjobs/schema/v1/
+default_prefix: aj
+default_range: string
+
+imports:
+  - linkml:types
+
+# ---------------------------------------------------------------------------
+# Enums -- the two vocabularies v1 actually enforces via Python enums.
+# ---------------------------------------------------------------------------
+enums:
+
+  TaskStatus:
+    description: >-
+      High-level workflow status. This single 8-value vocabulary answers three
+      different questions at once (where in its life / who acts next / why), which
+      is the central problem v2's state axes exist to solve.
+    permissible_values:
+      draft:
+        description: Being specified.
+      ready:
+        description: Spec complete, claimable.
+      in_progress:
+        description: Claimed and being worked.
+      blocked:
+        description: Cannot proceed. Does not say blocked on what, or on whom.
+      waiting_for_human:
+        description: Needs a human. Does not say what for.
+      under_review:
+        description: >-
+          Work product awaiting review. The tell that "why" leaked into this
+          vocabulary -- it is really waiting_for_human because review.
+      completed:
+        description: Finished successfully.
+      archived:
+        description: >-
+          Hidden. Conflates visibility with outcome, so an abandoned draft and an
+          old finished task become indistinguishable.
+
+  Priority:
+    description: Relative priority weighting.
+    permissible_values:
+      low:
+      medium:
+      high:
+      critical:
+
+# ---------------------------------------------------------------------------
+# Classes
+# ---------------------------------------------------------------------------
+classes:
+
+  Task:
+    description: >-
+      Primary task representation. One YAML file per task, in git.
+    tree_root: true
+    attributes:
+
+      # ----- core metadata -----
+      id:
+        description: Unique task identifier (e.g. task-001).
+        identifier: true
+        required: true
+      title:
+        description: Task title summarising the work.
+        required: true
+      created:
+        description: Creation timestamp.
+        range: datetime
+        required: true
+      updated:
+        description: Last update timestamp.
+        range: datetime
+        required: true
+
+      # ----- workflow -----
+      status:
+        description: Current workflow status.
+        range: TaskStatus
+        ifabsent: string(draft)
+      priority:
+        description: Relative priority weighting.
+        range: Priority
+        ifabsent: string(medium)
+      category:
+        description: >-
+          Task category for filtering. Free text -- no vocabulary, no validation
+          against config.
+        required: true
+      assigned_to:
+        description: >-
+          Documented as "currently assigned", used in practice as a static
+          authoring-time label. Ownership and eligibility conflated.
+      estimated_effort:
+        description: Estimated effort (time or complexity). Free text.
+
+      # ----- content -----
+      human_summary:
+        description: >-
+          Concise 1-2 sentence summary for human reviewers. Splits the audience by
+          length rather than by content, so it duplicates the description's opening.
+      description:
+        description: >-
+          Markdown description. One undifferentiated blob carrying intent, spec,
+          constraints, non-goals and context pointers with no structure.
+        required: true
+      phases:
+        description: >-
+          Sub-units inside one task. Not claimable, no prompts, no comments.
+          Overlaps with real sub-tasks; deleted in v2 (D1).
+        range: Phase
+        multivalued: true
+        inlined_as_list: true
+      success_criteria:
+        description: Success criteria checklist.
+        range: SuccessCriterion
+        multivalued: true
+        inlined_as_list: true
+
+      # ----- agent interaction -----
+      prompts:
+        description: >-
+          Prompt collection used by collaborating agents. Deleted in v2 (D1) -- the
+          starter almost always restates the description.
+        range: Prompts
+        inlined: true
+      status_updates:
+        description: >-
+          Chronological status updates. Append-only, timestamped, authored -- the
+          same shape as comments, with an implied but unenforced role split.
+        range: StatusUpdate
+        multivalued: true
+        inlined_as_list: true
+      comments:
+        description: >-
+          Comments and feedback. Second append-only authored log; merged with
+          status_updates into one typed log in v2.
+        range: Comment
+        multivalued: true
+        inlined_as_list: true
+      deliverables:
+        description: Deliverables associated with task completion.
+        range: Deliverable
+        multivalued: true
+        inlined_as_list: true
+
+      # ----- relationships -----
+      dependencies:
+        description: Task dependencies and relationships.
+        range: Dependency
+        multivalued: true
+        inlined_as_list: true
+      external_links:
+        description: External references for the task.
+        range: ExternalLink
+        multivalued: true
+        inlined_as_list: true
+
+      # ----- tracking -----
+      issues:
+        description: >-
+          Issues encountered while executing the task. Empty in every file in the
+          corpus; deleted in v2 (D1).
+        range: Issue
+        multivalued: true
+        inlined_as_list: true
+      tags:
+        description: Tag metadata for filtering and search. No vocabulary enforced.
+        multivalued: true
+      branches:
+        description: Branch metadata associated with the task.
+        range: Branch
+        multivalued: true
+        inlined_as_list: true
+
+  Phase:
+    description: Discrete phase within a task roadmap.
+    attributes:
+      id:
+        description: Phase identifier (e.g. phase-1).
+        required: true
+      title:
+        description: Human-readable phase title.
+        required: true
+      status:
+        description: >-
+          Phase status, reusing the full 8-value task vocabulary -- including values
+          such as archived that cannot meaningfully apply to a phase.
+        range: TaskStatus
+        ifabsent: string(draft)
+      notes:
+        description: Optional free-form notes about the phase.
+      completed_at:
+        description: Timestamp when the phase reached completion.
+        range: datetime
+
+  SuccessCriterion:
+    description: Success criterion tracked per task.
+    attributes:
+      id:
+        description: Unique identifier for the success criterion.
+        required: true
+      description:
+        description: Description of the success criterion.
+        required: true
+      status:
+        description: >-
+          Completion state. Enforced by a field_validator against
+          pending | in_progress | completed | failed, but typed as a bare str, so
+          the vocabulary is invisible to any schema consumer.
+        ifabsent: string(pending)
+
+  Prompts:
+    description: Collection of prompt content for a task.
+    attributes:
+      starter:
+        description: Primary starter prompt content.
+        required: true
+      followups:
+        description: >-
+          Subsequent prompts appended during task progression. A third append-only
+          authored list, alongside status_updates and comments.
+        range: Prompt
+        multivalued: true
+        inlined_as_list: true
+
+  Prompt:
+    description: Individual prompt entry for a task.
+    attributes:
+      timestamp:
+        description: Timestamp for when the prompt was issued.
+        range: datetime
+        required: true
+      author:
+        description: Author of the prompt (agent or human name).
+        required: true
+      prompt_file:
+        description: Optional path reference to the prompt file.
+      content:
+        description: Inline prompt content when not referencing a file.
+      context:
+        description: Additional context regarding the prompt.
+
+  StatusUpdate:
+    description: Chronological status update authored during task execution.
+    attributes:
+      timestamp:
+        description: Timestamp when the status update was recorded.
+        range: datetime
+        required: true
+      author:
+        description: Author of the update (agent or collaborator). Free text.
+        required: true
+      status:
+        description: Workflow status the task transitioned to.
+        range: TaskStatus
+        required: true
+      summary:
+        description: Short summary of the update.
+        required: true
+      details:
+        description: Expanded detail for the status update.
+
+  Comment:
+    description: >-
+      Comment on a task for human-agent communication. Deleted in v2, subsumed by
+      the unified log.
+    attributes:
+      id:
+        description: Unique comment identifier.
+        required: true
+      task_id:
+        description: >-
+          Task this comment belongs to. Redundant -- the comment is already nested
+          inside that task's file.
+        required: true
+      author:
+        description: Author of the comment (human or agent). Free text.
+        required: true
+      content:
+        description: Comment text content.
+        required: true
+      created:
+        description: When the comment was created.
+        range: datetime
+        required: true
+      updated:
+        description: >-
+          Last update timestamp if edited. Written by update_content(), which
+          raises NameError -- models.py never imports timezone (see task-047).
+        range: datetime
+      reply_to:
+        description: Parent comment ID if this is a reply.
+      kind:
+        description: >-
+          Documents comment | feedback | question in its description and enforces
+          nothing. One of v1's two unvalidated free-text vocabularies.
+        ifabsent: string(comment)
+
+  Deliverable:
+    description: Deliverable artifact tracked for task completion.
+    attributes:
+      path:
+        description: Repository-relative path to the deliverable.
+        required: true
+      status:
+        description: >-
+          Completion state, validated against pending | in_progress | completed but
+          typed as a bare str.
+        ifabsent: string(pending)
+      description:
+        description: Human-readable description of the deliverable.
+
+  Dependency:
+    description: Relationship metadata between tasks.
+    attributes:
+      task_id:
+        description: >-
+          Referenced task identifier. Not validated against the store, so a
+          dependency can name a task that does not exist.
+        required: true
+      type:
+        description: >-
+          Relationship type, validated against depends_on | blocks | related but
+          typed as a bare str.
+        ifabsent: string(depends_on)
+      status:
+        description: >-
+          Optional[str] with no validator, no documented vocabulary, and no
+          discernible purpose given type already carries the relationship.
+          Deleted in v2.
+      note:
+        description: Additional notes about the dependency.
+
+  ExternalLink:
+    description: Reference to a relevant external resource.
+    attributes:
+      url:
+        description: >-
+          External resource URL. Typed as a bare str -- never actually validated as
+          a URL, unlike Webhook.url which uses HttpUrl.
+        required: true
+      title:
+        description: Display title for the external resource.
+        required: true
+
+  Issue:
+    description: >-
+      Issue tracked against the task's lifecycle. Empty in all 25 corpus files;
+      deleted in v2.
+    attributes:
+      id:
+        description: Issue identifier scoped to the task.
+        required: true
+      title:
+        description: Concise issue summary.
+        required: true
+      status:
+        description: >-
+          Validated against open | in_progress | resolved | wont_fix but typed as a
+          bare str. A fifth parallel status vocabulary.
+        ifabsent: string(open)
+      resolution:
+        description: Resolution notes when an issue is closed.
+
+  Branch:
+    description: Branch lifecycle metadata.
+    attributes:
+      name:
+        description: Git branch name associated with the task.
+        required: true
+      status:
+        description: >-
+          Validated against active | merged | abandoned but typed as a bare str.
+          Genuinely distinct from the task vocabulary; survives into v2 unchanged.
+        ifabsent: string(active)
+      merged_at:
+        description: When the branch was merged, if applicable.
+        range: datetime
+
+  Webhook:
+    description: >-
+      Webhook configuration for task event notifications. Stored outside task files;
+      included here for completeness of the v1 model surface.
+    attributes:
+      id:
+        description: Unique webhook identifier.
+        required: true
+      url:
+        description: Target URL for webhook delivery. The one genuinely validated URL.
+        range: uri
+        required: true
+      events:
+        description: >-
+          Events that trigger this webhook. Free-text strings against no event
+          vocabulary.
+        multivalued: true
+        required: true
+      secret:
+        description: Secret for HMAC signature verification.
+        required: true
+      active:
+        description: Whether this webhook is active.
+        range: boolean
+        ifabsent: "true"
+      created:
+        description: When the webhook was created.
+        range: datetime
+        required: true
+      last_triggered:
+        description: >-
+          Last successful trigger. Written by record_trigger(), which raises
+          NameError for the same missing timezone import (see task-047).
+        range: datetime
