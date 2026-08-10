@@ -63,6 +63,10 @@
                     data-tags="{{ task.tags | join(',') | e }}"
                 >
                     <td class="px-6 py-4 min-w-[220px]">
+                        {# The id is the handle used everywhere else -- CLI, branch names,
+                           dependencies[], commit messages. Showing only the title made the
+                           list unusable for anyone who thinks in task numbers. #}
+                        <div class="font-mono text-xs text-blue-400">{{ task.id }}</div>
                         <div class="font-medium">{{ task.title }}</div>
                         <div class="text-sm text-dark-muted">{{ task.category }}</div>
                     </td>
