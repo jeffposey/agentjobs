@@ -2,13 +2,9 @@ schema: 2
 id: task-064-human-actor-identity
 title: 'Human actor identity: stop recording every review action as ''human'''
 created: '2026-08-10T22:57:38.560179Z'
-updated: '2026-08-10T23:56:36.844934Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-10T23:57:43.504233Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -18,7 +14,6 @@ tags:
 - provenance
 effort: 1-2 hours
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: Every GUI review action is logged with actor 'human', so the record shows
@@ -108,7 +103,8 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-064-human-actor-identity
-  status: active
+  status: merged
+  merged_at: '2026-08-10T23:57:43.480525Z'
 log:
 - id: 1
   ts: '2026-08-10T23:04:58.748523Z'
@@ -366,3 +362,41 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 11
+  ts: '2026-08-10T23:57:43.504139Z'
+  actor: claude
+  type: transition
+  body: 'Merged into main with --no-ff after approval through the web UI.
+
+
+    Review actions now name the person who took them. Config carries one `actors:`
+    vocabulary with `kind` per entry, `default_user` names who the GUI acts as, and
+    the three review endpoints refuse an actor config does not define. Exactly one
+    human is supported, and a config naming several is refused with a message rather
+    than half-handled -- task-066 covers lifting that.
+
+
+    Three review rounds, each of which changed the result:
+
+    1. Renamed the id, kept the disable-and-guide behaviour, made multi-human configs
+    fail loudly instead of silently, and backfilled the historical placeholder.
+
+    2. Renamed again to `Jeff Posey`, establishing that actor ids may contain spaces,
+    with the four encoding paths verified rather than assumed.
+
+
+    Two objections I raised were overruled and both times the owner was right: backfilling
+    the placeholder (the referent was unambiguous, so resolving it was not fabrication)
+    and putting a display-shaped name in an id (the stored record is the product,
+    so readability in the file is a requirement). Both arguments are preserved in
+    the log above, since a later reader will find the earlier position and should
+    see why it lost.
+
+
+    Left behind deliberately: task-066 (multiple human users), task-067 (image attachments).
+    Historical entries predating any configured identity were backfilled on instruction;
+    that was safe only because a single person could ever have written them, and it
+    will not be safe again once 066 lands.'
+  data:
+    lifecycle: closed
+    outcome: completed
