@@ -2,14 +2,13 @@ schema: 2
 id: task-052-schema-v2-manager-api
 title: 'Schema v2: migrate the corpus and switch the application over'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T22:46:49.444868Z'
+updated: '2026-08-10T22:51:58.276252Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Requested change is done (commit follows this entry). A dangling `needs`
-  reference now blocks the claim and names why, instead of silently disabling the
-  gate. Save-time validation is deferred with the reasoning recorded above -- confirm
-  you accept that trade, then approve the merge or push back again.
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 category: architecture
@@ -729,3 +728,11 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 11
+  ts: '2026-08-10T22:51:58.276081Z'
+  actor: human
+  type: handoff
+  body: Approved by human through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
