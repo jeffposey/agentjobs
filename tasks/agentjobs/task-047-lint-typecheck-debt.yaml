@@ -1,8 +1,8 @@
 id: task-047-lint-typecheck-debt
 title: Fix two NameError bugs found by ruff, then clear lint/format/type debt
 created: '2026-07-29T18:42:51.398166Z'
-updated: '2026-07-29T19:05:38.535809Z'
-status: ready
+updated: '2026-08-10T07:37:19.924571Z'
+status: in_progress
 priority: medium
 category: maintenance
 estimated_effort: 3-4 hours
@@ -219,7 +219,47 @@ prompts:
     \ been run before. Agreed with Jeff that cleaning it up as its own task is right,\
     \ rather than blocking unrelated feature work on it.\n"
   followups: []
-status_updates: []
+status_updates:
+- timestamp: '2026-08-10T07:37:19.924557Z'
+  author: claude
+  status: in_progress
+  summary: Claimed; head of the schema v2 chain
+  details: 'Branch fix/task-047-lint-typecheck-debt created from main at e074059,
+    recorded in branches[] before this transition.
+
+
+    Why now: Jeff chose the full schema v2 over an interim v1 parent field on 2026-08-10,
+    which puts the GUI he wants (project switcher plus hierarchical task tree, task-058)
+    behind 047 -> 050 -> 051 -> 052. This task is the head of that chain -- docs/schema-design.md
+    section 10 says the v2 implementation wants honestly-typed enums underneath it.
+
+
+    Deliberately sequenced after task-059 merged rather than in parallel: 047 reformats
+    twelve files repo-wide, and 059 had uncommitted edits to routes/tasks.py, three
+    templates and a test file. Running them concurrently would have produced conflicts
+    for no benefit.
+
+
+    Plan, ordered so the real bugs stay reviewable and are not buried under reformatting:
+
+    1. The two NameError bugs in models.py (Comment.update_content, Webhook.record_trigger),
+    each with the regression test the task requires -- both methods are entirely untested
+    today, which is why nobody noticed they crash on call.
+
+    2. Chase the hint the task flags: if Webhook.record_trigger is dead-on-call, check
+    whether last_triggered is ever actually updated in the delivery path.
+
+    3. The F841 in manager.delete_task, which may be a swallowed existence check rather
+    than merely dead code.
+
+    4. Enum typing consistency (use_enum_values makes task.status a str or an enum
+    depending on how it was set).
+
+    5. Mechanical black/ruff cleanup, in its own commits.
+
+    6. The two config judgement calls the task asks for: per-file-ignores for E402
+    in examples/ rather than rewriting standalone scripts, and whether disallow_untyped_defs
+    should apply to tests/ at all.'
 comments: []
 deliverables:
 - path: src/agentjobs/models.py
@@ -245,4 +285,6 @@ tags:
 - tech-debt
 - bugfix
 - tooling
-branches: []
+branches:
+- name: fix/task-047-lint-typecheck-debt
+  status: active
