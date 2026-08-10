@@ -1,0 +1,184 @@
+id: task-058-multi-project-gui
+title: 'Multi-project GUI: project switcher and a cross-project task view'
+created: '2026-08-10T06:14:30Z'
+updated: '2026-08-10T06:14:30Z'
+status: draft
+priority: high
+category: ux
+estimated_effort: 1 working session
+human_summary: 'The half of multi-project support the owner actually sees: a project
+  switcher in the web UI and a cross-project view answering "what is waiting on me,
+  everywhere". Deliberately narrow — navigation and scoping chrome only, no changes to
+  how a task itself is rendered, because task-054 rewrites task rendering on schema v2
+  and building that twice would be waste.'
+description: 'Task-057 makes one server serve every registered project. This task makes
+  that visible and usable in the web UI, which is the interface the owner intends to
+  actually work through.
+
+
+  ## Scope, and the line that defines it
+
+
+  **In scope — navigation and scoping:**
+
+
+  - A project switcher in the base layout, listing registered projects, showing which is
+  active.
+
+  - Project-scoped URLs: `/p/{project_id}/`, `/p/{project_id}/tasks`,
+  `/p/{project_id}/tasks/{task_id}`. The existing unscoped URLs redirect to the default
+  project rather than 404ing.
+
+  - A cross-project view at `/all` — every task from every registered project in one
+  list, each row naming its project, filterable by status and project. This is the "what
+  is waiting on me, everywhere" screen, and it is the single most valuable thing in this
+  task.
+
+  - Project name and task counts rendered wherever a project is identified, so it is
+  never ambiguous which project a task belongs to.
+
+
+  **Out of scope — anything about how a task is displayed or edited:**
+
+
+  - task_detail.html''s rendering of description, criteria, status updates, comments,
+  deliverables. Untouched.
+
+  - Any editing affordance. Under D2''s amendment (docs/schema-design.md §11) the GUI
+  becomes the primary human editing surface, but that is **task-054**, on schema v2.
+  Building editing on v1 and then rebuilding it on v2 is exactly the duplicated work this
+  scope line exists to prevent.
+
+
+  The distinction to hold onto: this task changes *which* tasks you are looking at and
+  how you move between them. Task-054 changes *what a task looks like* and what you can
+  do to it. The first survives the v2 rewrite; the second would not.
+
+
+  ## The cross-project view is the point
+
+
+  Everything else here is plumbing made visible. The `/all` view is the thing that makes
+  running one AgentJobs across many projects better than running many AgentJobs — it is
+  the first screen that could not exist at all before task-057. Build it first, not last,
+  and judge the task on whether it is genuinely useful to look at.
+
+
+  Note the ordering constraint it implies: because task ids are only unique within a
+  project, every link out of this view must carry its project id. A row that links to
+  `/tasks/task-001` instead of `/p/{project}/tasks/task-001` will silently open a
+  different project''s task. Test that specifically, with two projects that both contain
+  the same task id.
+
+
+  ## Out of scope, additionally
+
+
+  - Cross-project search (the search router stays project-scoped for now).
+
+  - Any registry editing from the UI — projects are registered from the CLI.
+
+  - Styling beyond matching what the existing templates already do.
+
+  '
+phases: []
+success_criteria:
+- id: sc-1
+  description: A project switcher appears in the base layout on every page, lists all
+    registered projects, and indicates the active one
+  status: pending
+- id: sc-2
+  description: Project-scoped URLs under /p/{project_id}/ serve dashboard, task list and
+    task detail for that project
+  status: pending
+- id: sc-3
+  description: Legacy unscoped URLs redirect to the default project rather than 404ing or
+    silently serving the wrong project
+  status: pending
+- id: sc-4
+  description: '/all lists every task across every registered project, each row naming
+    its project, filterable by status and by project'
+  status: pending
+- id: sc-5
+  description: 'Verified with two projects that both contain a task with the same id:
+    every link from the cross-project view opens the correct project''s task. This is the
+    specific bug this feature invites'
+  status: pending
+- id: sc-6
+  description: task_detail.html's rendering of task content is unchanged — confirmed by
+    diff, not by inspection
+  status: pending
+- id: sc-7
+  description: poetry run pytest passes, and the UI is exercised in a browser against two
+    real registered projects
+  status: pending
+prompts:
+  starter: '## Objective
+
+    Make the web UI multi-project: a switcher, project-scoped URLs, and one cross-project
+    view. Navigation only — do not touch how a task is rendered.
+
+
+    ## Read first
+
+    - This task''s description, particularly the scope line separating navigation from
+    task rendering. It exists to stop this task duplicating task-054.
+
+    - src/agentjobs/api/routes/web.py — the three existing routes.
+
+    - src/agentjobs/api/templates/base.html, dashboard.html, task_list.html.
+
+    - Task-057''s implementation, which supplies the registry and /api/tasks/all.
+
+
+    ## Steps
+
+    1. Create branch feat/task-058-multi-project-gui from main. Record it in branches[]
+    and mark this task in_progress, in that order.
+
+    2. Build the /all cross-project view first. It is the reason the feature exists; if it
+    is not useful to look at, the rest does not matter.
+
+    3. Then the switcher and the scoped URLs, with legacy redirects.
+
+    4. Verify in a browser with two projects registered that share a task id.
+
+
+    ## Do not
+
+    - Add editing affordances. Task-054 owns the GUI as an editing surface, on v2.
+
+    - Modify task_detail.html''s content rendering.
+
+    - Restyle. Match what is there.
+
+
+    ## Git workflow
+
+    Small single-logical-change commits, Conventional Commits. Tests green before each.
+    When complete: STOP, set waiting_for_human through the status API with a summary and
+    a screenshot or equivalent evidence of the cross-project view. Do not merge.
+
+    '
+  followups: []
+status_updates: []
+comments: []
+deliverables:
+- path: src/agentjobs/api/routes/web.py
+  status: pending
+  description: Project-scoped web routes, legacy redirects, and the /all view
+- path: src/agentjobs/api/templates/base.html
+  status: pending
+  description: Project switcher in the shared layout
+dependencies:
+- task_id: task-057-multi-project-registry
+  type: depends_on
+  note: Supplies the registry, the project-scoped API, and /api/tasks/all. Nothing here
+    is buildable before it.
+external_links: []
+issues: []
+tags:
+- ux
+- multi-project
+- gui
+branches: []
