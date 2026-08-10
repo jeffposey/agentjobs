@@ -15,7 +15,7 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from agentjobs import Priority, TaskClient, TaskStatus
+from agentjobs import TaskClient, TaskStatus
 
 AGENTS = ("lead-agent", "support-agent", "qa-agent")
 
@@ -34,7 +34,7 @@ def main() -> None:
         print("No ready tasks available for assignment.")
         return
 
-    agent_cycle = cycle_agents(AGENTS)
+    agent_cycle = iter(cycle_agents(AGENTS))
 
     for task in ready_tasks:
         agent = next(agent_cycle)
@@ -47,8 +47,7 @@ def main() -> None:
         )
 
         starter = client.get_starter_prompt(task.id)
-        priority = task.priority.value if isinstance(task.priority, Priority) else task.priority
-        print(f"Priority: {priority}")
+        print(f"Priority: {task.priority.value}")
         print(f"Instructions preview: {starter[:120]}{'...' if len(starter) > 120 else ''}")
 
         client.add_progress_update(

@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import pytest
 
+from typing import Iterator
+
 from agentjobs.api.dependencies import reset_dependency_cache
 from agentjobs.projects import HOME_ENV
 
 
 @pytest.fixture(autouse=True)
-def isolate_project_registry(tmp_path_factory, monkeypatch) -> None:
+def isolate_project_registry(tmp_path_factory, monkeypatch) -> Iterator[None]:
     """Point the project registry at a temp directory for every test.
 
     The registry is machine-level: it defaults to ``~/.agentjobs/projects.yaml``. Any

@@ -57,7 +57,7 @@ class TaskManager:
         description: str,
         priority: Priority = Priority.MEDIUM,
         category: str = "general",
-        **kwargs,
+        **kwargs: Any,
     ) -> Task:
         """Create a new task, generating an identifier when omitted."""
         task_id = id or self.storage.generate_task_id()
@@ -129,7 +129,10 @@ class TaskManager:
 
     def archive_task(self, task_id: str, *, author: Optional[str] = None) -> Task:
         """Archive a task by setting its status and recording a status update."""
-        task = self._ensure_task_exists(task_id)
+        # Called for its side effect: it raises ValueError when the task is missing, so
+        # archiving an unknown id fails here rather than inside update_status. Only the
+        # binding was dead (ruff F841); dropping the call would remove the check.
+        self._ensure_task_exists(task_id)
         update_author = author or "system"
         archived = self.update_status(
             task_id=task_id,
@@ -168,12 +171,12 @@ class TaskManager:
         # Fire webhook events
         if self.webhook_manager:
             event_metadata = metadata or {}
-            # previous_status might be string or enum depending on how task was loaded
-            prev_status_value = previous_status if isinstance(previous_status, str) else previous_status.value
-            event_metadata.update({
-                "triggered_by": author,
-                "previous_status": prev_status_value,
-            })
+            event_metadata.update(
+                {
+                    "triggered_by": author,
+                    "previous_status": previous_status.value,
+                }
+            )
             self.webhook_manager.fire_event("task.status_changed", task, event_metadata)
             if status == TaskStatus.COMPLETED:
                 self.webhook_manager.fire_event("task.completed", task, event_metadata)
@@ -182,11 +185,7 @@ class TaskManager:
 
     def get_next_task(self, priority: Optional[Priority] = None) -> Optional[Task]:
         """Get highest priority available task (READY status only)."""
-        candidates = [
-            task
-            for task in self.storage.list_tasks()
-            if task.status == TaskStatus.READY
-        ]
+        candidates = [task for task in self.storage.list_tasks() if task.status == TaskStatus.READY]
         if priority is not None:
             candidates = [task for task in candidates if task.priority == priority]
         if not candidates:
@@ -231,9 +230,7 @@ class TaskManager:
                 deliverable.status = "completed"
                 break
         else:
-            raise ValueError(
-                f"Deliverable '{deliverable_path}' not found for task '{task_id}'."
-            )
+            raise ValueError(f"Deliverable '{deliverable_path}' not found for task '{task_id}'.")
         return self.storage.save_task(task)
 
     def get_starter_prompt(self, task_id: str) -> str:

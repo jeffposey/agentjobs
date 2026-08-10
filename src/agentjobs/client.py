@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import TracebackType
 from typing import Any, Dict, List, Optional
 
 from urllib.parse import quote
@@ -49,7 +50,12 @@ class TaskClient:
     def __enter__(self) -> "TaskClient":
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc: Optional[BaseException],
+        tb: Optional[TracebackType],
+    ) -> None:
         self.close()
 
     # ------------------------------------------------------------------
@@ -202,7 +208,8 @@ class TaskClient:
             f"/api/tasks/{task_id}/prompts/starter",
         )
         payload = response.json()
-        return payload.get("starter", "")
+        # response.json() is Any, so the get() result is too; the annotation promises str.
+        return str(payload.get("starter", ""))
 
     def add_followup_prompt(
         self,

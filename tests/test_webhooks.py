@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
-from agentjobs.models import Task, TaskStatus, Webhook
+from agentjobs.models import TaskStatus
 from agentjobs.storage import TaskStorage, WebhookStorage
 from agentjobs.manager import TaskManager
 from agentjobs.webhooks import WebhookManager

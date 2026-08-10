@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pytest
 
 from agentjobs.models import Priority, Task, TaskStatus
 from agentjobs.storage import TaskStorage
