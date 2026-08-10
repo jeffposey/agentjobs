@@ -32,6 +32,12 @@ env/
 htmlcov/
 .tox/
 
+# Schema docs tooling
+# mermaid-cli, for rendering the ER diagrams (see package.json)
+node_modules/
+# mkdocs build output; the source of truth is docs/ + schema/
+site/
+
 # IDE
 .vscode/*
 !.vscode/tasks.json
