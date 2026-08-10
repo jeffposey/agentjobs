@@ -1,0 +1,518 @@
+"""Tests for the schema v2 models.
+
+The consistency rules get the most coverage, because they are the design's actual
+claim: that limbo is unrepresentable. A rule that is documented but not enforced is
+exactly the v1 problem v2 exists to fix.
+"""
+
+from __future__ import annotations
+
+import pathlib
+from datetime import datetime, timezone
+from typing import Any, Dict
+
+import pytest
+import yaml
+from pydantic import ValidationError
+
+from agentjobs.models_v2 import (
+    BALL_REASONS,
+    Ball,
+    BallReason,
+    Lifecycle,
+    Outcome,
+    Priority,
+    SchemaVersionError,
+    Task,
+    check_schema_version,
+    load_task,
+)
+
+EXAMPLE = pathlib.Path(__file__).resolve().parents[1] / "schema" / "examples" / "task-048.v2.yaml"
+NOW = datetime(2026, 8, 10, tzinfo=timezone.utc)
+
+
+def task_data(**overrides: Any) -> Dict[str, Any]:
+    """A minimal valid v2 task, overridable per test."""
+    base: Dict[str, Any] = {
+        "schema": 2,
+        "id": "task-001-example",
+        "title": "Example",
+        "created": NOW,
+        "updated": NOW,
+        "lifecycle": "draft",
+        "ball": "human",
+        "ball_reason": "spec",
+        "ball_prompt": "Finish specifying this.",
+        "category": "infrastructure",
+        "spec": {"summary": "A one-line summary."},
+    }
+    base.update(overrides)
+    return base
+
+
+class TestAgreesWithTheLinkMLSchema:
+    """The Pydantic model and schema/agentjobs-v2.yaml must not drift apart."""
+
+    def test_loads_the_linkml_validated_example(self) -> None:
+        # This file validates against schema/agentjobs-v2.yaml via linkml-validate.
+        # If Pydantic cannot load it, one of the two definitions has moved.
+        data = yaml.safe_load(EXAMPLE.read_text(encoding="utf-8"))
+
+        task = load_task(data, source=str(EXAMPLE))
+
+        assert task.id == "task-048-schema-design"
+        assert len(task.log) == 13
+
+    def test_round_trips_without_losing_fields(self) -> None:
+        data = yaml.safe_load(EXAMPLE.read_text(encoding="utf-8"))
+        task = load_task(data)
+
+        dumped = task.model_dump(mode="json", by_alias=True, exclude_none=True)
+        reloaded = load_task(dumped)
+
+        assert reloaded == task
+
+    def test_what_pydantic_writes_still_validates_against_linkml(self) -> None:
+        """The cross-check in the other direction, which is the one that can rot.
+
+        Loading the example proves Pydantic accepts what LinkML produces. This proves
+        LinkML accepts what Pydantic *writes* -- so a field renamed or serialised
+        differently in the model cannot silently start emitting files the declared
+        schema rejects.
+        """
+        from linkml.validator import validate
+
+        task = load_task(yaml.safe_load(EXAMPLE.read_text(encoding="utf-8")))
+        dumped = task.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+        report = validate(dumped, "schema/agentjobs-v2.yaml", "Task")
+
+        assert not report.results, [result.message for result in report.results]
+
+    def test_the_linkml_cross_check_can_actually_fail(self) -> None:
+        # Guard against the assertion above passing because validation is a no-op.
+        from linkml.validator import validate
+
+        task = load_task(yaml.safe_load(EXAMPLE.read_text(encoding="utf-8")))
+        dumped = task.model_dump(mode="json", by_alias=True, exclude_none=True)
+        dumped["lifecycle"] = "nonsense"
+
+        assert validate(dumped, "schema/agentjobs-v2.yaml", "Task").results
+
+    def test_dumps_the_schema_stamp_under_its_alias(self) -> None:
+        # The field is schema_version in Python because `schema` shadows a BaseModel
+        # attribute; the file must still say `schema: 2`.
+        task = Task.model_validate(task_data())
+
+        assert task.model_dump(by_alias=True)["schema"] == 2
+
+
+class TestSchemaStamp:
+    def test_missing_stamp_names_the_migrator(self) -> None:
+        data = task_data()
+        del data["schema"]
+
+        with pytest.raises(SchemaVersionError, match="agentjobs migrate-schema"):
+            load_task(data)
+
+    def test_missing_stamp_says_which_file(self) -> None:
+        data = task_data()
+        del data["schema"]
+
+        with pytest.raises(SchemaVersionError, match="tasks/foo.yaml"):
+            load_task(data, source="tasks/foo.yaml")
+
+    def test_a_future_stamp_is_refused_rather_than_guessed_at(self) -> None:
+        with pytest.raises(SchemaVersionError, match="understands schema 2"):
+            check_schema_version({"schema": 3})
+
+    def test_v1_file_fails_on_the_stamp_not_on_a_pile_of_field_errors(self) -> None:
+        # The point of checking the stamp first: a v1 file otherwise produces a wall of
+        # unknown-field errors that never mentions the real problem.
+        v1_shaped = {"id": "task-001", "title": "Old", "status": "ready", "phases": []}
+
+        with pytest.raises(SchemaVersionError):
+            load_task(v1_shaped)
+
+
+class TestStrictMode:
+    def test_unknown_field_is_rejected_by_name(self) -> None:
+        with pytest.raises(ValidationError, match="pirority"):
+            Task.model_validate(task_data(pirority="high"))
+
+    def test_unknown_nested_field_is_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            Task.model_validate(task_data(spec={"summary": "s", "sumary": "typo"}))
+
+    def test_deleted_v1_fields_do_not_exist(self) -> None:
+        for gone in ("phases", "prompts", "issues", "human_summary", "comments", "status"):
+            with pytest.raises(ValidationError):
+                Task.model_validate(task_data(**{gone: []}))
+
+
+class TestRuleOneBallAndClosure:
+    def test_open_task_requires_a_ball(self) -> None:
+        with pytest.raises(ValidationError, match="ball is required"):
+            Task.model_validate(task_data(ball=None, ball_reason=None, ball_prompt=None))
+
+    def test_closed_task_must_not_have_a_ball(self) -> None:
+        with pytest.raises(ValidationError, match="closed task must not have a ball"):
+            Task.model_validate(
+                task_data(
+                    lifecycle="closed", outcome="completed", ball="human", ball_reason="review"
+                )
+            )
+
+    def test_closed_task_with_no_ball_is_valid(self) -> None:
+        task = Task.model_validate(
+            task_data(
+                lifecycle="closed",
+                outcome="completed",
+                ball=None,
+                ball_reason=None,
+                ball_prompt=None,
+            )
+        )
+
+        assert task.ball is None
+
+    def test_omitting_ball_and_spelling_it_null_are_the_same(self) -> None:
+        # Design doc section 3: omission is canonical, explicit null is accepted.
+        explicit = task_data(lifecycle="closed", outcome="completed", ball=None, ball_reason=None)
+        implicit = task_data(lifecycle="closed", outcome="completed")
+        for key in ("ball", "ball_reason", "ball_prompt"):
+            implicit.pop(key, None)
+        explicit.pop("ball_prompt", None)
+
+        assert Task.model_validate(explicit) == Task.model_validate(implicit)
+
+
+class TestRuleTwoBallReasonScoping:
+    @pytest.mark.parametrize(
+        ("ball", "reason"),
+        [(ball, reason) for ball, reasons in BALL_REASONS.items() for reason in reasons],
+    )
+    def test_every_reason_is_accepted_for_its_own_holder(
+        self, ball: Ball, reason: BallReason
+    ) -> None:
+        task = Task.model_validate(
+            task_data(
+                lifecycle="active",
+                ball=ball.value,
+                ball_reason=reason.value,
+                assignment={"owner": "claude"},
+            )
+        )
+
+        assert task.ball_reason is reason
+
+    @pytest.mark.parametrize(
+        ("ball", "reason"),
+        [("human", "work"), ("agent", "review"), ("external", "decision"), ("agent", "service")],
+    )
+    def test_a_reason_from_another_holder_is_rejected(self, ball: str, reason: str) -> None:
+        with pytest.raises(ValidationError, match="does not belong to"):
+            Task.model_validate(
+                task_data(
+                    lifecycle="active",
+                    ball=ball,
+                    ball_reason=reason,
+                    assignment={"owner": "claude"},
+                )
+            )
+
+    def test_the_error_lists_the_permitted_reasons(self) -> None:
+        with pytest.raises(ValidationError, match="available, revise, work"):
+            Task.model_validate(
+                task_data(
+                    lifecycle="active",
+                    ball="agent",
+                    ball_reason="review",
+                    assignment={"owner": "claude"},
+                )
+            )
+
+    def test_ball_without_a_reason_is_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="ball_reason is required"):
+            Task.model_validate(task_data(ball_reason=None))
+
+    def test_reason_without_a_ball_is_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="who holds it"):
+            Task.model_validate(
+                task_data(
+                    lifecycle="closed",
+                    outcome="completed",
+                    ball=None,
+                    ball_reason="review",
+                    ball_prompt=None,
+                )
+            )
+
+
+class TestRuleThreeOutcome:
+    def test_closed_requires_an_outcome(self) -> None:
+        with pytest.raises(ValidationError, match="closed task needs an outcome"):
+            Task.model_validate(
+                task_data(lifecycle="closed", ball=None, ball_reason=None, ball_prompt=None)
+            )
+
+    def test_open_must_not_have_an_outcome(self) -> None:
+        with pytest.raises(ValidationError, match="only closed tasks have an outcome"):
+            Task.model_validate(task_data(outcome="completed"))
+
+    @pytest.mark.parametrize("outcome", [o.value for o in Outcome])
+    def test_every_outcome_closes_a_task(self, outcome: str) -> None:
+        task = Task.model_validate(
+            task_data(
+                lifecycle="closed", outcome=outcome, ball=None, ball_reason=None, ball_prompt=None
+            )
+        )
+
+        assert task.outcome is Outcome(outcome)
+
+
+class TestRuleFourBallPrompt:
+    def test_a_handoff_without_its_ask_is_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="ball_prompt is required"):
+            Task.model_validate(task_data(ball_prompt=None))
+
+    def test_whitespace_does_not_count_as_an_ask(self) -> None:
+        with pytest.raises(ValidationError, match="ball_prompt is required"):
+            Task.model_validate(task_data(ball_prompt="   \n  "))
+
+    def test_agent_available_may_omit_it_because_the_spec_is_the_ask(self) -> None:
+        task = Task.model_validate(
+            task_data(lifecycle="ready", ball="agent", ball_reason="available", ball_prompt=None)
+        )
+
+        assert task.ball_prompt is None
+
+
+class TestRuleFiveOwner:
+    @pytest.mark.parametrize("lifecycle", ["draft", "ready"])
+    def test_unclaimed_lifecycles_must_not_have_an_owner(self, lifecycle: str) -> None:
+        with pytest.raises(ValidationError, match="must be empty"):
+            Task.model_validate(
+                task_data(
+                    lifecycle=lifecycle,
+                    ball="agent",
+                    ball_reason="available",
+                    ball_prompt=None,
+                    assignment={"owner": "claude"},
+                )
+            )
+
+    def test_active_requires_an_owner(self) -> None:
+        with pytest.raises(ValidationError, match="assignment.owner is required"):
+            Task.model_validate(
+                task_data(
+                    lifecycle="active",
+                    ball="agent",
+                    ball_reason="work",
+                    ball_prompt="Do the thing.",
+                )
+            )
+
+    def test_eligible_is_authoring_time_and_independent_of_owner(self) -> None:
+        task = Task.model_validate(
+            task_data(
+                lifecycle="ready",
+                ball="agent",
+                ball_reason="available",
+                ball_prompt=None,
+                assignment={"eligible": ["claude", "codex"]},
+            )
+        )
+
+        assert task.assignment.owner is None
+        assert task.assignment.eligible == ["claude", "codex"]
+
+
+class TestLogIntegrity:
+    def _with_log(self, *entries: Dict[str, Any]) -> Dict[str, Any]:
+        return task_data(log=list(entries))
+
+    def _entry(self, entry_id: int, **kw: Any) -> Dict[str, Any]:
+        base = {"id": entry_id, "ts": NOW, "actor": "claude", "type": "note", "body": "x"}
+        base.update(kw)
+        return base
+
+    def test_duplicate_ids_are_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="duplicate log entry id"):
+            Task.model_validate(self._with_log(self._entry(1), self._entry(1)))
+
+    def test_out_of_order_ids_are_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="append-only"):
+            Task.model_validate(self._with_log(self._entry(2), self._entry(1)))
+
+    def test_threading_to_a_missing_entry_is_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="does not exist"):
+            Task.model_validate(self._with_log(self._entry(1, re=99)))
+
+    def test_threading_forward_is_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="not earlier"):
+            Task.model_validate(self._with_log(self._entry(1), self._entry(2, re=2)))
+
+    def test_next_log_id_continues_the_sequence(self) -> None:
+        task = Task.model_validate(self._with_log(self._entry(1), self._entry(7)))
+
+        assert task.next_log_id() == 8
+
+    def test_next_log_id_starts_at_one_for_an_empty_log(self) -> None:
+        assert Task.model_validate(task_data()).next_log_id() == 1
+
+    def test_open_questions_excludes_answered_ones(self) -> None:
+        task = Task.model_validate(
+            self._with_log(
+                self._entry(1, type="question", body="Which one?"),
+                self._entry(2, type="question", body="And this?"),
+                self._entry(3, type="answer", re=1, body="That one."),
+            )
+        )
+
+        assert [entry.id for entry in task.open_questions()] == [2]
+
+
+class TestParent:
+    def test_a_task_cannot_be_its_own_parent(self) -> None:
+        with pytest.raises(ValidationError, match="cannot be its own parent"):
+            Task.model_validate(task_data(parent="task-001-example"))
+
+    def test_a_different_parent_is_fine(self) -> None:
+        assert Task.model_validate(task_data(parent="task-000-umbrella")).parent == (
+            "task-000-umbrella"
+        )
+
+
+class TestDisplayStatus:
+    """Derived on read, never stored (design doc section 3)."""
+
+    def test_it_is_not_a_field(self) -> None:
+        assert "display_status" not in Task.model_validate(task_data()).model_dump()
+
+    @pytest.mark.parametrize(
+        ("overrides", "expected"),
+        [
+            ({"ball": "human", "ball_reason": "review"}, "Needs review"),
+            ({"ball": "human", "ball_reason": "decision"}, "Needs decision"),
+            ({"ball": "human", "ball_reason": "approval"}, "Needs approval"),
+            ({"ball": "human", "ball_reason": "spec"}, "Needs spec"),
+            ({"ball": "human", "ball_reason": "input"}, "Needs input"),
+        ],
+    )
+    def test_human_reasons(self, overrides: Dict[str, Any], expected: str) -> None:
+        assert Task.model_validate(task_data(**overrides)).display_status == expected
+
+    def test_ready(self) -> None:
+        task = Task.model_validate(
+            task_data(lifecycle="ready", ball="agent", ball_reason="available", ball_prompt=None)
+        )
+
+        assert task.display_status == "Ready"
+
+    def test_in_progress_names_the_owner(self) -> None:
+        task = Task.model_validate(
+            task_data(
+                lifecycle="active",
+                ball="agent",
+                ball_reason="work",
+                ball_prompt="Do it.",
+                assignment={"owner": "claude"},
+            )
+        )
+
+        assert task.display_status == "In progress (claude)"
+
+    def test_blocked_names_the_dependency(self) -> None:
+        task = Task.model_validate(
+            task_data(
+                lifecycle="active",
+                ball="external",
+                ball_reason="dependency",
+                ball_prompt="Waiting on task-044.",
+                assignment={"owner": "claude"},
+                dependencies=[{"task": "task-044-docs", "type": "needs"}],
+            )
+        )
+
+        assert task.display_status == "Blocked on task-044-docs"
+
+    def test_closed_shows_its_outcome(self) -> None:
+        task = Task.model_validate(
+            task_data(
+                lifecycle="closed",
+                outcome="superseded",
+                ball=None,
+                ball_reason=None,
+                ball_prompt=None,
+            )
+        )
+
+        assert task.display_status == "Superseded"
+
+    def test_archived_is_orthogonal_to_outcome(self) -> None:
+        task = Task.model_validate(
+            task_data(
+                lifecycle="closed",
+                outcome="completed",
+                archived=True,
+                ball=None,
+                ball_reason=None,
+                ball_prompt=None,
+            )
+        )
+
+        assert task.display_status == "Completed (archived)"
+
+
+class TestValueObjects:
+    def test_links_validate_their_url(self) -> None:
+        with pytest.raises(ValidationError):
+            Task.model_validate(task_data(links=[{"url": "not-a-url", "rel": "pr"}]))
+
+    def test_a_real_url_is_accepted(self) -> None:
+        task = Task.model_validate(
+            task_data(links=[{"url": "https://github.com/x/y/pull/1", "rel": "pr"}])
+        )
+
+        assert task.links[0].rel.value == "pr"
+
+    def test_acceptance_and_deliverable_vocabularies_stay_distinct(self) -> None:
+        # A criterion is verified (met); a deliverable is produced (done). Collapsing
+        # them recreates the v1 problem of one word straining across meanings.
+        with pytest.raises(ValidationError):
+            Task.model_validate(
+                task_data(acceptance=[{"id": "ac-1", "text": "t", "status": "done"}])
+            )
+        with pytest.raises(ValidationError):
+            Task.model_validate(task_data(deliverables=[{"path": "p", "status": "met"}]))
+
+    def test_dependency_type_uses_needs_not_depends_on(self) -> None:
+        with pytest.raises(ValidationError):
+            Task.model_validate(task_data(dependencies=[{"task": "t", "type": "depends_on"}]))
+
+        task = Task.model_validate(task_data(dependencies=[{"task": "t", "type": "needs"}]))
+        assert task.dependencies[0].type.value == "needs"
+
+
+class TestDefaults:
+    def test_a_minimal_task_is_a_draft_awaiting_its_spec(self) -> None:
+        task = Task.model_validate(task_data())
+
+        assert task.lifecycle is Lifecycle.DRAFT
+        assert task.priority is Priority.MEDIUM
+        assert task.archived is False
+        assert task.is_open is True
+
+    def test_priority_rank_orders_critical_first(self) -> None:
+        rank = {
+            p: Task.model_validate(task_data(priority=p.value)).priority_rank() for p in Priority
+        }
+
+        assert (
+            rank[Priority.CRITICAL]
+            < rank[Priority.HIGH]
+            < rank[Priority.MEDIUM]
+            < (rank[Priority.LOW])
+        )

@@ -113,5 +113,5 @@ disallow_untyped_defs = true
 # yaml is handled properly instead, via the types-PyYAML dev dependency, so its calls
 # are actually checked rather than waved through. flask is imported by one example
 # script and is not a dependency of the package at all.
-module = ["uvicorn.*", "httpx.*", "flask.*"]
+module = ["uvicorn.*", "httpx.*", "flask.*", "linkml.*"]
 ignore_missing_imports = true
