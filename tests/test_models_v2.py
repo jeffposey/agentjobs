@@ -516,3 +516,43 @@ class TestDefaults:
             < rank[Priority.MEDIUM]
             < (rank[Priority.LOW])
         )
+
+
+class TestDocumentationMatchesTheModel:
+    """sc-4: docs/task-schema.md must describe v2 and stay in step with it.
+
+    A reference page drifts silently -- nothing breaks when a field is added and the
+    docs are not touched. This is the cheapest guard that actually catches it: every
+    value of every closed vocabulary has to appear somewhere on the page.
+    """
+
+    DOC = pathlib.Path(__file__).resolve().parents[1] / "docs" / "task-schema.md"
+
+    def test_the_page_documents_v2(self) -> None:
+        text = self.DOC.read_text(encoding="utf-8")
+
+        assert "## Schema v2" in text
+        assert "schema: 2" in text
+
+    @pytest.mark.parametrize(
+        "enum_cls",
+        [Lifecycle, Ball, BallReason, Outcome, Priority],
+    )
+    def test_every_state_vocabulary_value_is_documented(self, enum_cls: Any) -> None:
+        text = self.DOC.read_text(encoding="utf-8")
+
+        missing = [member.value for member in enum_cls if f"`{member.value}`" not in text]
+
+        assert not missing, f"{enum_cls.__name__} values absent from the docs: {missing}"
+
+    def test_every_task_field_is_documented(self) -> None:
+        text = self.DOC.read_text(encoding="utf-8")
+        # by_alias so `schema` is checked rather than the Python-side schema_version.
+        names = {field.alias or name for name, field in Task.model_fields.items()}
+
+        # `links[]` is an accepted way to write a list field, so both forms count.
+        missing = [
+            name for name in sorted(names) if f"`{name}`" not in text and f"`{name}[]`" not in text
+        ]
+
+        assert not missing, f"v2 Task fields absent from the docs: {missing}"
