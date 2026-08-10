@@ -2,11 +2,12 @@ schema: 2
 id: task-052-schema-v2-manager-api
 title: 'Schema v2: migrate the corpus and switch the application over'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T21:22:19Z'
+updated: '2026-08-10T21:52:49.533627Z'
 lifecycle: active
 ball: agent
 ball_reason: work
 ball_prompt: Claimed by claude.
+archived: false
 priority: high
 category: architecture
 tags:
@@ -17,6 +18,7 @@ tags:
 effort: 1-2 working sessions
 assignment:
   owner: claude
+  eligible: []
 spec:
   summary: 'The switchover. Run the proven migrator over all 38 task files, repoint
     storage, the manager, the API, the templates and the CLI at models_v2, and delete
@@ -283,6 +285,7 @@ spec:
     Small conventional commits, tests green before each. When complete: STOP, set
     waiting_for_human through the status API with a summary of what changed and what
     needs review. Do not merge.'
+  context: []
 acceptance:
 - id: sc-1
   text: 'Every file in tasks/agentjobs/ and tasks/test-data/ is schema v2, carries
@@ -316,17 +319,17 @@ acceptance:
   status: pending
 deliverables:
 - path: tasks/agentjobs/*.yaml
-  status: pending
   note: Corpus migrated to schema v2
+  status: pending
 - path: src/agentjobs/storage.py
-  status: pending
   note: Reads and writes v2, keeping mutate_task locking and loud load errors
+  status: pending
 - path: src/agentjobs/manager.py
-  status: pending
   note: Operations on the v2 state axes and unified log
-- path: src/agentjobs/models.py
   status: pending
+- path: src/agentjobs/models.py
   note: Deleted once nothing imports it
+  status: pending
 dependencies:
 - task: task-051-schema-v2-migrator
   type: needs
@@ -342,6 +345,7 @@ dependencies:
 - task: task-055-single-writer-concurrency
   type: needs
   note: Completed 2026-08-10. Supplies mutate_task, which this rewrite must preserve.
+links: []
 branches:
 - name: feat/task-052-schema-v2-switchover
   status: active
@@ -350,15 +354,13 @@ log:
   ts: '2026-08-10T21:22:19Z'
   actor: claude
   type: transition
+  body: Claimed by claude
   data:
     v1_status: in_progress
-  body: Claimed by claude
 - id: 2
   ts: '2026-08-10T21:30:00Z'
   actor: claude
   type: transition
-  data:
-    v1_status: ready
   body: 'Rewritten as a cold-start handoff; every prerequisite is now merged
 
 
@@ -401,13 +403,12 @@ log:
     data exposed two genuine drifts between models_v2.py and schema/agentjobs-v2.yaml
     that the unit tests could not see, because the single example file fills in every
     field; both are fixed and a test now compares the two definitions directly.'
+  data:
+    v1_status: ready
 - id: 3
   ts: '2026-08-10T21:22:19Z'
   actor: system
   type: note
-  data:
-    v1_status: in_progress
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
@@ -415,3 +416,59 @@ log:
     work.
 
     - prompts.starter preserved in spec.description.'
+  data:
+    v1_status: in_progress
+    migrated_to_schema: 2
+- id: 4
+  ts: '2026-08-10T21:52:49.533467Z'
+  actor: claude
+  type: progress
+  body: 'Corpus migrated and application switched to v2; pausing mid-task
+
+
+    State at pause, on branch feat/task-052-schema-v2-switchover:
+
+
+    - Commit 402e763: Webhook + WebhookStorage moved into webhooks.py so they survive
+    models.py''s deletion.
+
+    - Commit 415c910 (the atomic commit): both corpora migrated in place (32 + 7 files,
+    all stamped ''schema: 2''), storage/manager/API/templates/CLI/client/sample-data/md-import/examples
+    ported to models_v2. 380 tests pass; ruff, mypy and black clean.
+
+
+    Decisions made while porting:
+
+    - display_status is a pydantic computed field: served by the API (sc-6), excluded
+    by storage on write, rejected as an input key. Three tests in test_models_v2.py
+    were updated accordingly.
+
+    - storage.mutate_task re-validates the mutated model before writing, because attribute
+    assignment bypasses the model validators; this is what enforces the consistency
+    rules on the verb path.
+
+    - manager.replace_task and the PUT endpoint were dropped: a wholesale replace
+    could rewrite the append-only log. PATCH excludes the state axes; they move only
+    through claim/handoff/release/close.
+
+    - Webhook events are the v2 set only (task.handoff, task.question, task.closed);
+    task.status_changed no longer fires.
+
+    - Taxonomy/dependency validation against config (old design-doc scope) was NOT
+    implemented; the rewritten task spec does not require it.
+
+
+    Remaining before handoff to review:
+
+    1. Delete models.py plus tests/test_models.py and the Comment half of tests/test_model_timestamps.py,
+    as its own commit (nothing else imports them; verified).
+
+    2. Update docs/task-schema.md (retire the v1 half) and check README references.
+
+    3. Browser verification per the task: dashboard, task list, task detail, project
+    switcher, a status change through the API, GET /api/tasks/broken returns [], against
+    two registered projects if any (agentjobs project list).
+
+    4. Handoff: v2 equivalent of waiting_for_human = handoff to human/review through
+    the status API. Do not merge; pre-v2-migration tag stays until merged.'
+  data: {}
