@@ -2,8 +2,8 @@ id: task-050-schema-v2-models
 title: 'Schema v2: models -- state axes, spec, unified log, strict validation, version
   stamp'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T19:17:48.534177Z'
-status: in_progress
+updated: '2026-08-10T19:31:57.475887Z'
+status: waiting_for_human
 priority: high
 category: architecture
 estimated_effort: 1-2 days
@@ -41,17 +41,17 @@ success_criteria:
 - id: sc-1
   description: "v2 model matches docs/schema-design.md \xA72-\xA74 field-for-field,\
     \ including all five consistency rules and the scoped ball_reason vocabularies"
-  status: pending
+  status: completed
 - id: sc-2
   description: 'Strict everywhere: unknown fields rejected; a file without schema:
     2 fails with an error naming agentjobs migrate-schema'
-  status: pending
+  status: completed
 - id: sc-3
   description: display_status is computed, not stored, and covered by tests
-  status: pending
+  status: completed
 - id: sc-4
   description: docs/task-schema.md documents v2 and matches the model
-  status: pending
+  status: completed
 prompts:
   starter: "Implement the v2 models per docs/schema-design.md (the design is decided;\
     \ do not relitigate \xA77/\xA711). Branch `feat/task-050-schema-v2-models` from\
@@ -107,6 +107,107 @@ status_updates:
     must load schema/examples/task-048.v2.yaml, which already validates against the
     v2 LinkML schema, so the two definitions are checked against each other rather
     than drifting.'
+- timestamp: '2026-08-10T19:31:57.475860Z'
+  author: claude
+  status: waiting_for_human
+  summary: v2 models implemented and cross-checked against LinkML; all 4 criteria
+    met, 285 tests pass
+  details: 'Three commits on feat/task-050-schema-v2-models. 285 tests pass (79 new);
+    ruff, mypy and black clean across 59 files. The running application is unaffected
+    -- verified by starting the server and hitting the dashboard, both projects, /api/projects
+    and /health after the change.
+
+
+    ## The scope decision, which is the main thing to review
+
+
+    v2 landed as a NEW module, src/agentjobs/models_v2.py. v1 is untouched and still
+    runs everything.
+
+
+    The task said replacing models.py would fail the corpus test. Measured, it is
+    much bigger: 26 modules import models, roughly 180 references to deleted fields
+    across src/tests/templates, and 38 v1 corpus files. Replacing in place breaks
+    storage, the manager, every route, every template and the CLI in one commit, and
+    main stays red until task-052 lands two tasks later. That is days of a broken
+    main in exchange for nothing.
+
+
+    docs/index.md explicitly assigns this call to task-050 (''Whether generated models
+    become the real models.py or stay a reference is task-050''s call''), so I made
+    it rather than escalating. The task''s deliverable said models.py; it is models_v2.py,
+    recorded here rather than silently.
+
+
+    Consequence, and it needs your awareness: task-051 now owns the switchover as
+    well as the migrator -- convert the corpus, repoint storage and everything downstream,
+    delete v1. That makes 051 materially bigger than its original sizing. It is the
+    right place for it, because the migration and the switchover have to be atomic
+    to keep main green, but it is no longer a small task.
+
+
+    ## What is enforced
+
+
+    The five consistency rules from design doc section 3, which are the design''s
+    actual claim -- that limbo is unrepresentable. An open task with no ball, a ball_reason
+    belonging to a different holder, a handoff with no ask, an outcome on an open
+    task, and an active task with no owner are all now impossible to construct. Errors
+    name what is wrong and what is permitted instead, because the reader is usually
+    an agent that has never opened the design doc.
+
+
+    ## Two things I added beyond the written spec
+
+
+    1. Log integrity rules the design implies but never states: entry ids unique and
+    ascending, and `re:` must point at an earlier entry that exists. An append-only
+    log that can thread forward, or to nothing, is not append-only. Flagging it because
+    it is a design decision I made rather than implemented.
+
+    2. ball_reason is one flat enum plus a scoping table rather than three separate
+    enums, so the field has a single type while still being unable to hold human/work.
+    The alternative (three enums, a union field) would have made every read site do
+    the narrowing.
+
+
+    ## Cross-checked in both directions
+
+
+    The Pydantic model loads schema/examples/task-048.v2.yaml, which linkml-validate
+    accepts -- so LinkML''s definition and mine agree on what a task is. And what
+    Pydantic *dumps* still validates against schema/agentjobs-v2.yaml, which is the
+    direction that actually rots. That second test has a companion asserting the check
+    can fail, so it cannot silently become a no-op.
+
+
+    ## Documentation
+
+
+    docs/task-schema.md now covers both versions rather than only v2. Documenting
+    only v2 would leave the live on-disk format undocumented for the two tasks it
+    takes to switch over. The v1 half carries a banner and goes away with task-051.
+    Three tests guard the page against drift: every enum value and every Task field
+    must appear on it.
+
+
+    ## A mistake worth recording
+
+
+    While mutation-testing the doc guard I ran `git checkout -- docs/task-schema.md`
+    to undo the deliberate breakage, and reverted the entire uncommitted v2 rewrite
+    with it. Redone, and nothing was lost, but the lesson is real: commit before mutation-testing,
+    or mutate a copy. This is the second time this session that a cleanup command
+    has been more destructive than intended.
+
+
+    ## Not done here, by scope
+
+
+    No migrator (051), no manager/API operations or taxonomy config validation (052),
+    no CLI (053), no GUI (054). Nothing is wired in. Note also that config-driven
+    acceptance criterion types (D5) remain deliberately deferred -- additive under
+    the evolution policy, so they need not lengthen this chain.'
 comments: []
 deliverables:
 - path: src/agentjobs/models.py
