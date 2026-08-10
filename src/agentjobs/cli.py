@@ -617,7 +617,7 @@ def migrate(
     successful = sum(1 for r in results if r.success)
     failed = sum(1 for r in results if not r.success)
 
-    typer.echo(f"\n✓ Migration complete!")
+    typer.echo("\n✓ Migration complete!")
     typer.echo(f"  Successful: {successful}")
     typer.echo(f"  Failed: {failed}")
     typer.echo(f"  Report: {report_file}")

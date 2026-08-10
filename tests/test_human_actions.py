@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -10,10 +9,6 @@ from fastapi.testclient import TestClient
 
 from agentjobs.api.main import app
 from agentjobs.api.dependencies import reset_dependency_cache
-from agentjobs.manager import TaskManager
-from agentjobs.models import TaskStatus
-from agentjobs.storage import TaskStorage, WebhookStorage
-from agentjobs.webhooks import WebhookManager
 
 
 @pytest.fixture(autouse=True)

@@ -70,7 +70,7 @@ class MigrationReporter:
                 report_lines.append(f"### ❌ {result.task_id}\n")
                 report_lines.append(f"- **Source**: `{result.source_file}`\n")
                 if result.errors:
-                    report_lines.append(f"- **Errors**:\n")
+                    report_lines.append("- **Errors**:\n")
                     for error in result.errors:
                         report_lines.append(f"  - {error}\n")
                 report_lines.append("\n")

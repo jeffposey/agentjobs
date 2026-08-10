@@ -11,7 +11,7 @@ from typing import List, Optional
 import yaml
 from pydantic import ValidationError
 
-from .models import Comment, Task, Webhook
+from .models import Task, Webhook
 from .projects import contained_path
 
 logger = logging.getLogger(__name__)

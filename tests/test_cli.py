@@ -5,12 +5,12 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
 
-from agentjobs import TaskStatus, Priority
+from agentjobs import TaskStatus
 from agentjobs.cli import app, _ensure_gitignore, _make_output_encoding_safe
 
 runner = CliRunner()
