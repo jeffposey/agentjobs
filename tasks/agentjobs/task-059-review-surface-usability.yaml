@@ -1,44 +1,45 @@
 id: task-059-review-surface-usability
 title: 'GUI: make the task record actually reviewable, and stop Approve from lying'
 created: '2026-08-10T06:49:31Z'
-updated: '2026-08-10T06:49:31Z'
-status: ready
+updated: '2026-08-10T06:57:07.390501Z'
+status: in_progress
 priority: high
 category: ux
 estimated_effort: 2-4 hours
-human_summary: 'Found by the owner on 2026-08-10, the first time he tried to review a
-  completed task through the web UI instead of through git. Two problems, both hit
-  within a minute. Status updates render as an unformatted wall of text, because
-  update.details is interpolated into a <p> where HTML collapses every newline. And
-  the Approve button does not do what approval means in this project: it sets the task
-  to ready, handing it back to the agent pool, rather than executing the documented
-  merge gate. Small fixes, high leverage -- this is the screen the owner has to trust
-  if the GUI is ever going to be the primary interface.'
-description: 'Evidence, not speculation: the owner reviewed task-057 through the web UI
-  on 2026-08-10, called it awful, and went back to git. Everything below is what he hit.
+human_summary: 'Found by the owner on 2026-08-10, the first time he tried to review
+  a completed task through the web UI instead of through git. Two problems, both hit
+  within a minute. Status updates render as an unformatted wall of text, because update.details
+  is interpolated into a <p> where HTML collapses every newline. And the Approve button
+  does not do what approval means in this project: it sets the task to ready, handing
+  it back to the agent pool, rather than executing the documented merge gate. Small
+  fixes, high leverage -- this is the screen the owner has to trust if the GUI is
+  ever going to be the primary interface.'
+description: 'Evidence, not speculation: the owner reviewed task-057 through the web
+  UI on 2026-08-10, called it awful, and went back to git. Everything below is what
+  he hit.
 
 
   ## Problem 1 -- prose renders as a wall of text
 
 
   `task_detail.html` line 280 does `<p ...>{{ update.details }}</p>`. HTML collapses
-  newlines, so a multi-paragraph status update becomes one unbroken block: no
-  paragraphs, no lists, no headings, no code formatting. Comments (`comment.content`)
-  have the same problem.
+  newlines, so a multi-paragraph status update becomes one unbroken block: no paragraphs,
+  no lists, no headings, no code formatting. Comments (`comment.content`) have the
+  same problem.
 
 
   **The fix is nearly free, which is the main reason this is worth doing now.** The
   machinery already exists and is already used for `task.description`: `base.html`
-  loads `marked` and defines an Alpine `x-markdown` directive, and line 167 renders the
-  description through it. Status updates and comments simply do not use it.
+  loads `marked` and defines an Alpine `x-markdown` directive, and line 167 renders
+  the description through it. Status updates and comments simply do not use it.
 
 
   Also needed, because rendering alone will not fix the experience:
 
 
   - Long entries collapse by default with a show-more affordance. These records are
-  long by design (see below) and a page of six full entries is unreadable regardless of
-  formatting.
+  long by design (see below) and a page of six full entries is unreadable regardless
+  of formatting.
 
   - Newest-first is already correct; keep it.
 
@@ -47,22 +48,21 @@ description: 'Evidence, not speculation: the owner reviewed task-057 through the
 
   **This is half our own fault, and the task should fix both halves.** Status updates
   are long because ALLAGENTS.md requires them to be complete for a reader with zero
-  context, and that requirement is correct -- it is the whole premise of the project. So
-  the answer is not "write shorter updates". It is: render them properly, collapse them
-  by default, and make the first line genuinely scannable so the reader chooses what to
-  expand. If the agent-side writing convention needs a change too (a structured lead
-  line before the prose), propose it here rather than silently changing style.
+  context, and that requirement is correct -- it is the whole premise of the project.
+  So the answer is not "write shorter updates". It is: render them properly, collapse
+  them by default, and make the first line genuinely scannable so the reader chooses
+  what to expand. If the agent-side writing convention needs a change too (a structured
+  lead line before the prose), propose it here rather than silently changing style.
 
 
   ## Problem 2 -- Approve does not approve
 
 
-  `POST /api/tasks/{id}/approve` (`routes/tasks.py`) calls
-  `update_status(status=TaskStatus.READY)`. Per ENGINEERING.md, approving a completed
-  branch means: rebase onto main, merge --no-ff, mark the branch merged, set the task
-  completed. Setting it to `ready` means the opposite of all of that -- `ready` is
-  "claimable by any eligible agent", so the button hands finished work back to the pool
-  as though it were fresh.
+  `POST /api/tasks/{id}/approve` (`routes/tasks.py`) calls `update_status(status=TaskStatus.READY)`.
+  Per ENGINEERING.md, approving a completed branch means: rebase onto main, merge
+  --no-ff, mark the branch merged, set the task completed. Setting it to `ready` means
+  the opposite of all of that -- `ready` is "claimable by any eligible agent", so
+  the button hands finished work back to the pool as though it were fresh.
 
 
   `reject` is also blunt: it archives the task outright, with no lighter option between
@@ -72,29 +72,29 @@ description: 'Evidence, not speculation: the owner reviewed task-057 through the
   Decide and implement one of these, recording which and why:
 
 
-  - **Make the buttons honest.** Approve records human approval and moves the task to a
-  state that means "approved, awaiting merge", without claiming to have merged
+  - **Make the buttons honest.** Approve records human approval and moves the task
+  to a state that means "approved, awaiting merge", without claiming to have merged
   anything -- because the GUI cannot merge, and should not pretend to.
 
   - **Remove the buttons** until the v2 model can express this properly, leaving the
   record read-only rather than actively misleading.
 
 
-  Either is defensible; silently leaving a button that does the wrong thing is not. The
-  deeper fix genuinely belongs to schema v2: under the `ball` model, "approve" means
-  different things depending on why the human holds the ball (`review` vs `approval` vs
-  `decision`), which is precisely the distinction v1 cannot express. Note that in the
-  status update -- this task is first aid on v1, and task-054 owns the redesign.
+  Either is defensible; silently leaving a button that does the wrong thing is not.
+  The deeper fix genuinely belongs to schema v2: under the `ball` model, "approve"
+  means different things depending on why the human holds the ball (`review` vs `approval`
+  vs `decision`), which is precisely the distinction v1 cannot express. Note that
+  in the status update -- this task is first aid on v1, and task-054 owns the redesign.
 
 
   ## Problem 3 (smaller) -- the review actions are project-blind
 
 
-  The buttons POST to the unscoped `/api/tasks/{id}/...`. That resolves correctly only
-  because the server happens to run from the project being reviewed. Once several
-  projects are registered, a review action from a project-scoped page must address that
-  project. Coordinate with task-058, which introduces the scoped URLs; if 058 lands
-  first, just use its routes.
+  The buttons POST to the unscoped `/api/tasks/{id}/...`. That resolves correctly
+  only because the server happens to run from the project being reviewed. Once several
+  projects are registered, a review action from a project-scoped page must address
+  that project. Coordinate with task-058, which introduces the scoped URLs; if 058
+  lands first, just use its routes.
 
 
   ## Out of scope
@@ -102,8 +102,8 @@ description: 'Evidence, not speculation: the owner reviewed task-057 through the
 
   - Any redesign of task rendering for schema v2. That is task-054.
 
-  - A diff view. Code review stays in git, and that is the right call -- do not build a
-  worse git.
+  - A diff view. Code review stays in git, and that is the right call -- do not build
+  a worse git.
 
   - Restyling beyond what these fixes require.
 
@@ -111,23 +111,23 @@ description: 'Evidence, not speculation: the owner reviewed task-057 through the
 phases: []
 success_criteria:
 - id: sc-1
-  description: Status update details and comment content render as markdown, using the
-    existing x-markdown directive rather than a second mechanism
+  description: Status update details and comment content render as markdown, using
+    the existing x-markdown directive rather than a second mechanism
   status: pending
 - id: sc-2
-  description: Long entries are collapsed by default with a show-more control, so a task
-    with six long updates is scannable without scrolling past a wall of text
+  description: Long entries are collapsed by default with a show-more control, so
+    a task with six long updates is scannable without scrolling past a wall of text
   status: pending
 - id: sc-3
-  description: The Approve and Reject buttons either do what their labels claim or are
-    removed; whichever is chosen is recorded with its reasoning in a status update
+  description: The Approve and Reject buttons either do what their labels claim or
+    are removed; whichever is chosen is recorded with its reasoning in a status update
   status: pending
 - id: sc-4
   description: No button claims to have merged anything, because the GUI cannot merge
   status: pending
 - id: sc-5
-  description: Review actions address the project explicitly rather than relying on the
-    server's working directory (coordinate with task-058)
+  description: Review actions address the project explicitly rather than relying on
+    the server's working directory (coordinate with task-058)
   status: pending
 - id: sc-6
   description: 'Verified the way the bug was found: open task-057 in the browser and
@@ -146,26 +146,26 @@ prompts:
     ## Read first
 
     - This task''s description -- it records exactly what the owner hit, and why the
-    length of status updates is deliberate rather than a thing to "fix" by writing less.
+    length of status updates is deliberate rather than a thing to "fix" by writing
+    less.
 
-    - src/agentjobs/api/templates/task_detail.html, lines ~263-286 (status updates) and
-    ~167 (the description, which already renders markdown correctly -- copy that).
+    - src/agentjobs/api/templates/task_detail.html, lines ~263-286 (status updates)
+    and ~167 (the description, which already renders markdown correctly -- copy that).
 
     - src/agentjobs/api/templates/base.html, the x-markdown Alpine directive.
 
-    - src/agentjobs/api/routes/tasks.py, the approve / request-changes / reject
-    endpoints.
+    - src/agentjobs/api/routes/tasks.py, the approve / request-changes / reject endpoints.
 
     - ENGINEERING.md, "The Merge Gate" -- what approval actually means here.
 
 
     ## Steps
 
-    1. Create branch fix/task-059-review-surface from main. Record it in branches[] and
-    mark this task in_progress, in that order.
+    1. Create branch fix/task-059-review-surface from main. Record it in branches[]
+    and mark this task in_progress, in that order.
 
-    2. Fix the rendering first and look at task-057 in a browser. It is the worst case
-    in the corpus and the reason this task exists.
+    2. Fix the rendering first and look at task-057 in a browser. It is the worst
+    case in the corpus and the reason this task exists.
 
     3. Then decide the Approve/Reject question, implement it, and record the decision
     and its rejected alternative in a status update.
@@ -184,12 +184,35 @@ prompts:
 
     ## Git workflow
 
-    Small single-logical-change commits, Conventional Commits. Tests green before each.
-    When complete: STOP, set waiting_for_human through the status API. Do not merge.
+    Small single-logical-change commits, Conventional Commits. Tests green before
+    each. When complete: STOP, set waiting_for_human through the status API. Do not
+    merge.
 
     '
   followups: []
-status_updates: []
+status_updates:
+- timestamp: '2026-08-10T06:57:07.390486Z'
+  author: claude
+  status: in_progress
+  summary: Claimed; scope extended by the owner to include visible task ids
+  details: 'Branch fix/task-059-review-surface created from main at 713c993, recorded
+    in branches[] before this transition.
+
+
+    SCOPE ADDED BY THE OWNER 2026-08-10: the task list hides task ids entirely. task_list.html
+    renders title and category only, so there is no way to see that a row is task-057
+    rather than task-012. The owner wants the numbers visible. Folded in here rather
+    than given its own task -- it is the same screen and the same complaint as the
+    rest of this work.
+
+
+    Also recorded here because it is a finding, not a plan: the owner''s desired GUI
+    shape is one project selected at a time, showing a hierarchy of tasks expandable
+    to reveal subtasks -- explicitly NOT all projects'' tasks at once. That contradicts
+    the cross-project /all view task-058 was written around, and it is blocked on
+    something bigger: the v1 Task model has no parent field, so a task hierarchy is
+    not representable at all today. phases[] is the nearest thing and v2 deletes it.
+    This is being handled outside task-059; noted here so the two tasks do not drift.'
 comments: []
 deliverables:
 - path: src/agentjobs/api/templates/task_detail.html
@@ -212,4 +235,6 @@ tags:
 - gui
 - review
 - workflow
-branches: []
+branches:
+- name: fix/task-059-review-surface
+  status: active
