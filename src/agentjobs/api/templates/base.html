@@ -170,6 +170,35 @@
         </div>
     </nav>
 
+    {% if broken_files %}
+    {#
+        A task file that exists but will not load. This used to be invisible: storage
+        returned None and the task simply dropped out of the listing, so the only
+        evidence was a log line. Shown here because whoever is looking at this page is
+        exactly the person who needs to know a record is unreadable.
+    #}
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+        <div class="bg-red-950/40 border-2 border-red-600/60 rounded-lg p-4">
+            <h3 class="font-semibold text-red-300 flex items-center gap-2">
+                <span>⚠️</span>
+                {{ broken_files | length }} task file{{ '' if broken_files | length == 1 else 's' }}
+                could not be loaded
+            </h3>
+            <ul class="mt-2 space-y-1 text-sm">
+                {% for broken in broken_files %}
+                <li>
+                    <span class="font-mono text-red-300">{{ broken.filename }}</span>
+                    <span class="text-dark-muted"> — {{ broken.reason }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            <p class="text-xs text-dark-muted mt-2">
+                These are not shown in the list below. Fix the file, or the task stays invisible.
+            </p>
+        </div>
+    </div>
+    {% endif %}
+
     <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         {% block content %}{% endblock %}
     </main>
