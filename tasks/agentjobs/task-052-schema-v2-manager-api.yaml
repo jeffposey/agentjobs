@@ -214,8 +214,8 @@ description: 'This is the largest and most consequential task in the backlog. Re
 phases: []
 success_criteria:
 - id: sc-1
-  description: Every file in tasks/agentjobs/ and tasks/test-data/ is schema v2, stamped
-    schema:: 2, and loads under models_v2
+  description: 'Every file in tasks/agentjobs/ and tasks/test-data/ is schema v2, carries
+    the ''schema: 2'' stamp, and loads under models_v2'
   status: pending
 - id: sc-2
   description: Storage, manager, API, templates and CLI all operate on models_v2; nothing
