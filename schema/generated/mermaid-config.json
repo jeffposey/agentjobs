@@ -1,0 +1,3 @@
+{ "theme": "default",
+  "er": { "useMaxWidth": false, "entityPadding": 16, "fontSize": 14, "minEntityWidth": 130 },
+  "themeVariables": { "fontFamily": "Segoe UI, Helvetica, Arial, sans-serif" } }
