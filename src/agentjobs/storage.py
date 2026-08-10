@@ -159,6 +159,21 @@ class TaskStorage:
         with an error naming the file rather than blocking forever.
 
         The lock is per task, so two agents working different tasks never contend.
+
+        **Windows reports contention two different ways.** The obvious one is
+        ``FileExistsError`` (EEXIST). The other only appears under real concurrency: a
+        file whose last handle has closed but whose delete has not yet completed sits in
+        a *delete-pending* state, and opening it returns ERROR_ACCESS_DENIED, which
+        Python raises as ``PermissionError`` (EACCES). That is a lock still being
+        released, so it must be retried like any other contention -- treating it as a
+        hard error made a losing claimant crash with "Permission denied" instead of
+        being told the task was already taken. Roughly one attempt in forty, so it hides
+        well from a serial test.
+
+        The cost is that a genuine permissions problem also spins until the timeout
+        rather than failing immediately. The timeout message names that possibility,
+        which is the better trade: spurious failures under normal contention are worse
+        than a slow, well-described failure in a misconfigured directory.
         """
         lock_path = self._task_path(task_id).with_suffix(".lock")
         deadline = time.monotonic() + (self.LOCK_TIMEOUT_SECONDS if timeout is None else timeout)
@@ -167,17 +182,19 @@ class TaskStorage:
             try:
                 handle = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
                 break
-            except FileExistsError:
-                if time.monotonic() >= deadline:
-                    raise TaskLockTimeout(
-                        f"could not lock {lock_path.name} within "
-                        f"{self.LOCK_TIMEOUT_SECONDS}s; another writer is holding it, "
-                        "or a previous run died and left the lock behind"
-                    ) from None
-                time.sleep(self.LOCK_POLL_SECONDS)
+            except (FileExistsError, PermissionError):
+                pass
             except OSError as exc:  # pragma: no cover - unexpected filesystem failure
                 if exc.errno != errno.EEXIST:
                     raise
+            if time.monotonic() >= deadline:
+                raise TaskLockTimeout(
+                    f"could not lock {lock_path.name} within "
+                    f"{self.LOCK_TIMEOUT_SECONDS}s; another writer is holding it, a "
+                    "previous run died and left the lock behind, or the task directory "
+                    "is not writable"
+                ) from None
+            time.sleep(self.LOCK_POLL_SECONDS)
         try:
             os.write(handle, str(os.getpid()).encode("ascii"))
             yield

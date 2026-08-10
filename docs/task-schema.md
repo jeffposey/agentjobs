@@ -19,7 +19,9 @@ The design behind v2, including the alternatives that were rejected, is in
 
 ---
 
-## The change everything follows from
+## Schema v2
+
+### The change everything follows from
 
 v1's single `status` answered three unrelated questions at once. v2 splits them:
 
@@ -41,6 +43,29 @@ are not representable:
 | `agent` | `available` · `work` · `revise` |
 | `human` | `spec` · `review` · `decision` · `approval` · `input` |
 | `external` | `dependency` · `service` |
+
+### Fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `schema` | int | Always `2`. Its absence means v1. |
+| `id`, `title`, `created`, `updated` | | Identity and timestamps. |
+| `lifecycle`, `ball`, `ball_reason`, `ball_prompt`, `outcome`, `archived` | | The state axes, above. |
+| `priority` | enum | `low` · `medium` · `high` · `critical` |
+| `category`, `tags` | str, list | Project taxonomy. Validated against config by the manager, not the model. |
+| `effort` | str | Free text. An estimate, not a contract. |
+| `assignment` | object | `owner` (live, one actor id) and `eligible` (authoring-time list; empty means anyone). |
+| `parent` | str | Task id of an umbrella task. A task may not be its own parent. |
+| `spec` | object | `summary` and `description` are **required**; `intent`, `constraints`, `out_of_scope`, `context[]` are optional. See the example below. |
+| `acceptance[]` | list | `id`, `text`, optional `verify`, `status`: `pending` · `met` · `failed` · `dropped`. |
+| `deliverables[]` | list | `path`, `note`, `status`: `pending` · `done` · `dropped`. |
+| `dependencies[]` | list | `task`, `type`: `needs` · `blocks` · `related`, `note`. |
+| `links[]` | list | `url` (validated), `rel`: `pr` · `issue` · `doc` · `design` · `build` · `other`, `title`. |
+| `branches[]` | list | `name`, `status`: `active` · `merged` · `abandoned`, `merged_at`. |
+| `log[]` | list | The unified log. See below. |
+
+Gone from v1: `phases` · `prompts` · `issues` · `comments` · `status_updates` ·
+`human_summary` · `dependencies[].status` · the `Comment` model.
 
 ### Consistency rules
 
