@@ -2,14 +2,14 @@ schema: 2
 id: task-052-schema-v2-manager-api
 title: 'Schema v2: migrate the corpus and switch the application over'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T22:04:47.775004Z'
+updated: '2026-08-10T22:46:49.444868Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: Review branch `feat/task-052-schema-v2-switchover` (5 commits) and approve
-  the merge or request changes. The commit worth reading closely is 415c910 -- the
-  atomic one. Do not merge without approval; the `pre-v2-migration` tag must stay
-  until this is merged and verified.
+ball_prompt: Requested change is done (commit follows this entry). A dangling `needs`
+  reference now blocks the claim and names why, instead of silently disabling the
+  gate. Save-time validation is deferred with the reasoning recorded above -- confirm
+  you accept that trade, then approve the merge or push back again.
 archived: false
 priority: high
 category: architecture
@@ -639,3 +639,93 @@ log:
 
     Final state: 372 tests pass; ruff, mypy and black clean. Eight commits on `feat/task-052-schema-v2-switchover`.'
   data: {}
+- id: 8
+  ts: '2026-08-10T22:43:06.718684Z'
+  actor: human
+  type: handoff
+  body: "Changes requested by human:\n\n_needs_met treats a dependency on a non-existent\
+    \ task as satisfied, so a typo'd or stale needs reference silently disables the\
+    \ claimability gate. This contradicts schema-design.md issue #2, which specifies\
+    \ dependency ids are validated against the store at save, and D2's own justification\
+    \ for strictness \u2014 a tolerated typo that silently does nothing is the exact\
+    \ failure mode extra=\"forbid\" exists to prevent. Either validate dependencies[].task\
+    \ on save as the design says, or make a dangling reference block the claim and\
+    \ surface it. Silently ignoring it is the one option the design rules out. If\
+    \ it's deferred, it needs to be a recorded decision rather than a docstring."
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 9
+  ts: '2026-08-10T22:46:49.408534Z'
+  actor: claude
+  type: decision
+  body: '**Save-time validation of `dependencies[].task` is deferred; claim-time blocking
+    is implemented instead.** Recorded here rather than in a docstring, as the review
+    asked.
+
+
+    The review offered two options. I took the second, and this is why.
+
+
+    *Save-time validation, as schema-design.md issue 2 specifies, has an ordering
+    problem the design doc does not address.* Writing a task that references one not
+    yet created is normal and useful -- planning a chain top-down means task 050 names
+    051 before 051 exists. Task-051''s migrator writes 39 files in one pass, and validating
+    each against a store that is mid-write means the result depends on filename order.
+    Any bulk import has the same shape. Doing it properly needs a two-pass write or
+    a deferred-check mode, which is a real piece of design work.
+
+
+    *Claim-time blocking gives the property that actually matters* -- a dependency
+    that cannot be evaluated is never silently treated as satisfied -- with no ordering
+    constraint, because by claim time the whole store is readable. The gate now distinguishes
+    three cases and names which: still open, not a task in this project, and file
+    present but unreadable. That last one is new: a dependency whose file is corrupt
+    is no longer evidence that it is done.
+
+
+    *Rejected: blocking silently, or logging a warning.* Both reproduce the original
+    defect in a quieter form. The refusal names the id and the reason, so a typo is
+    visible the first time someone tries to claim.
+
+
+    **Still owed, and worth its own task:** a corpus-wide check that reports dangling
+    references without waiting for someone to attempt a claim -- the same shape as
+    `/api/tasks/broken`, which reports unreadable files rather than waiting for a
+    request to hit one. Claim-time blocking catches the reference you trip over; it
+    does not catch the one nobody has touched yet. I audited the live corpus while
+    making this change: 32 tasks, 0 dangling references of any type, 0 ready tasks
+    newly blocked, so nothing is hiding today.'
+  re: 8
+  data: {}
+- id: 10
+  ts: '2026-08-10T22:46:49.444759Z'
+  actor: claude
+  type: handoff
+  body: 'Responding to the review.
+
+
+    **Changed.** `_needs_met` is replaced by `_unmet_needs`, which returns the blocking
+    dependencies with a reason rather than a bare boolean, and `_dependency_states`
+    which maps every id in the project to whether it is closed. Unreadable files are
+    included as *not* closed. Both `claim_task` and `get_next_task` use it, so /next
+    and claim agree -- they previously shared a helper but rebuilt the id map differently,
+    which was its own latent drift.
+
+
+    **Verified.** Three new tests: a dependency that does not exist, one whose file
+    will not load, and a non-`needs` dependency which must still never block. 400
+    tests pass; ruff, mypy, black clean. The original probe that demonstrated the
+    defect now refuses with `task-999-does-not-exist (not a task in this project)`.
+
+
+    **Blast radius checked before claiming it was safe.** Tightening a gate can strand
+    real work, so I audited the live corpus: 32 tasks, 0 dangling references, 0 ready
+    tasks newly blocked. This change alters no existing task''s claimability.
+
+
+    The deferral of save-time validation is a separate decision entry threaded to
+    your request.'
+  data:
+    ball: human
+    ball_reason: review

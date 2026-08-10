@@ -157,6 +157,62 @@ def test_claim_refuses_unmet_needs(tmp_path: Path) -> None:
     assert task.assignment.owner == "codex"
 
 
+def test_claim_refuses_a_dependency_that_does_not_exist(tmp_path: Path) -> None:
+    """A dangling `needs` reference blocks and says so, rather than being ignored.
+
+    Requested in review on task-052. It previously passed: the lookup returned None for
+    an unknown id, which is not False, so a typo'd or renamed dependency silently
+    disabled the claimability gate altogether -- strict about a misspelled field,
+    permissive about a misspelled task id.
+    """
+    manager = _manager(tmp_path)
+    manager.create_task(
+        id="task-022-typo",
+        title="Depends on a ghost",
+        description="",
+        category="misc",
+        lifecycle=Lifecycle.READY,
+        dependencies=[{"task": "task-999-does-not-exist", "type": "needs"}],
+    )
+
+    with pytest.raises(ValueError, match="not a task in this project"):
+        manager.claim_task("task-022-typo", agent="codex")
+
+    assert manager.get_next_task() is None, "it must not be offered by /next either"
+
+
+def test_claim_refuses_a_dependency_whose_file_is_unreadable(tmp_path: Path) -> None:
+    """A dependency that cannot be loaded is not evidence that it is finished."""
+    manager = _manager(tmp_path)
+    manager.create_task(
+        id="task-023-dependent",
+        title="Dependent",
+        description="",
+        category="misc",
+        lifecycle=Lifecycle.READY,
+        dependencies=[{"task": "task-024-broken", "type": "needs"}],
+    )
+    (tmp_path / "task-024-broken.yaml").write_text("schema: 2\nid: x\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="task-024-broken"):
+        manager.claim_task("task-023-dependent", agent="codex")
+
+
+def test_a_non_needs_dependency_never_blocks(tmp_path: Path) -> None:
+    """Only `needs` gates a claim; `blocks` and `related` are descriptive."""
+    manager = _manager(tmp_path)
+    manager.create_task(
+        id="task-025-related",
+        title="Merely related",
+        description="",
+        category="misc",
+        lifecycle=Lifecycle.READY,
+        dependencies=[{"task": "task-999-absent", "type": "related"}],
+    )
+
+    assert manager.claim_task("task-025-related", agent="codex").assignment.owner == "codex"
+
+
 def test_handoff_moves_ball_and_logs(tmp_path: Path) -> None:
     manager = _manager(tmp_path)
     manager.create_task(

@@ -15,6 +15,7 @@ from .models_v2 import (
     Ball,
     BallReason,
     DeliverableStatus,
+    DependencyType,
     Lifecycle,
     LogEntry,
     LogEntryType,
@@ -92,19 +93,43 @@ class TaskManager:
         """Search tasks by query string."""
         return self.storage.search_tasks(query)
 
-    def _needs_met(self, task: Task, closed_ids: Dict[str, bool]) -> bool:
-        """Whether every `needs` dependency of a task is closed.
+    def _dependency_states(self) -> Dict[str, bool]:
+        """Every task id in this project, mapped to whether it is closed.
 
-        A dependency on a task the store does not contain cannot be evaluated and does
-        not block -- refusing forever on a dangling reference would strand the task.
+        Files that exist but cannot be loaded are included as *not* closed. A task whose
+        file is unreadable cannot be shown to be finished, and treating it as done would
+        let a gate open on the strength of a corrupt file.
         """
+        result = self.storage.load_all()
+        states = {task.id: task.lifecycle is Lifecycle.CLOSED for task in result.tasks}
+        for error in result.errors:
+            states.setdefault(error.task_id, False)
+        return states
+
+    def _unmet_needs(self, task: Task, states: Dict[str, bool]) -> List[str]:
+        """`needs` dependencies that do not permit this task to be claimed, with why.
+
+        A reference to a task that is not in the project blocks, and says so. It
+        previously did not: `states.get(id)` returned None for a dangling id, which is
+        not False, so a typo'd or renamed dependency silently disabled the gate
+        entirely. That is the failure mode D2 exists to prevent -- an edit that quietly
+        does nothing -- and it made the codebase strict about a misspelled field while
+        permissive about a misspelled task id.
+
+        Blocking rather than validating at save is a narrower fix than
+        docs/schema-design.md issue 2 specifies; see the deferral recorded on task-052.
+        The choice between them matters less than the property both give you: a
+        dependency that cannot be evaluated is never silently treated as satisfied.
+        """
+        unmet: List[str] = []
         for dep in task.dependencies:
-            if dep.type.value != "needs":
+            if dep.type is not DependencyType.NEEDS:
                 continue
-            met = closed_ids.get(dep.task)
-            if met is False:
-                return False
-        return True
+            if dep.task not in states:
+                unmet.append(f"{dep.task} (not a task in this project)")
+            elif not states[dep.task]:
+                unmet.append(f"{dep.task} (still open)")
+        return unmet
 
     def get_next_task(
         self,
@@ -114,14 +139,14 @@ class TaskManager:
     ) -> Optional[Task]:
         """Highest-priority claimable task: ready, eligible, no unmet needs."""
         tasks = self.storage.list_tasks()
-        closed_ids = {task.id: task.lifecycle is Lifecycle.CLOSED for task in tasks}
+        states = self._dependency_states()
         candidates = [
             task
             for task in tasks
             if task.lifecycle is Lifecycle.READY
             and (priority is None or task.priority == priority)
             and (agent is None or not task.assignment.eligible or agent in task.assignment.eligible)
-            and self._needs_met(task, closed_ids)
+            and not self._unmet_needs(task, states)
         ]
         if not candidates:
             return None
@@ -270,8 +295,7 @@ class TaskManager:
 
     def claim_task(self, task_id: str, *, agent: str) -> Task:
         """Take ownership of a ready task, or refuse because someone else already did."""
-        tasks = self.storage.list_tasks()
-        closed_ids = {task.id: task.lifecycle is Lifecycle.CLOSED for task in tasks}
+        states = self._dependency_states()
 
         def apply(task: Task) -> Task:
             if task.lifecycle is not Lifecycle.READY:
@@ -287,12 +311,8 @@ class TaskManager:
                 raise ValueError(
                     f"Task '{task_id}' is claimable only by: {eligible} (not '{agent}')"
                 )
-            if not self._needs_met(task, closed_ids):
-                unmet = [
-                    dep.task
-                    for dep in task.dependencies
-                    if dep.type.value == "needs" and closed_ids.get(dep.task) is False
-                ]
+            unmet = self._unmet_needs(task, states)
+            if unmet:
                 raise ValueError(f"Task '{task_id}' has unmet dependencies: {', '.join(unmet)}")
             task.lifecycle = Lifecycle.ACTIVE
             task.assignment.owner = agent
