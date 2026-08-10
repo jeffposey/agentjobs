@@ -1,0 +1,830 @@
+{
+    "$defs": {
+        "Branch": {
+            "additionalProperties": false,
+            "description": "Branch lifecycle metadata.",
+            "properties": {
+                "merged_at": {
+                    "description": "When the branch was merged, if applicable.",
+                    "format": "date-time",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "name": {
+                    "description": "Git branch name associated with the task.",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Validated against active | merged | abandoned but typed as a bare str. Genuinely distinct from the task vocabulary; survives into v2 unchanged.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "name"
+            ],
+            "title": "Branch",
+            "type": "object"
+        },
+        "Comment": {
+            "additionalProperties": false,
+            "description": "Comment on a task for human-agent communication. Deleted in v2, subsumed by the unified log.",
+            "properties": {
+                "author": {
+                    "description": "Author of the comment (human or agent). Free text.",
+                    "type": "string"
+                },
+                "content": {
+                    "description": "Comment text content.",
+                    "type": "string"
+                },
+                "created": {
+                    "description": "When the comment was created.",
+                    "format": "date-time",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "Unique comment identifier.",
+                    "type": "string"
+                },
+                "kind": {
+                    "description": "Documents comment | feedback | question in its description and enforces nothing. One of v1's two unvalidated free-text vocabularies.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "reply_to": {
+                    "description": "Parent comment ID if this is a reply.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "task_id": {
+                    "description": "Task this comment belongs to. Redundant -- the comment is already nested inside that task's file.",
+                    "type": "string"
+                },
+                "updated": {
+                    "description": "Last update timestamp if edited. Written by update_content(), which raises NameError -- models.py never imports timezone (see task-047).",
+                    "format": "date-time",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "id",
+                "task_id",
+                "author",
+                "content",
+                "created"
+            ],
+            "title": "Comment",
+            "type": "object"
+        },
+        "Deliverable": {
+            "additionalProperties": false,
+            "description": "Deliverable artifact tracked for task completion.",
+            "properties": {
+                "description": {
+                    "description": "Human-readable description of the deliverable.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "path": {
+                    "description": "Repository-relative path to the deliverable.",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Completion state, validated against pending | in_progress | completed but typed as a bare str.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "path"
+            ],
+            "title": "Deliverable",
+            "type": "object"
+        },
+        "Dependency": {
+            "additionalProperties": false,
+            "description": "Relationship metadata between tasks.",
+            "properties": {
+                "note": {
+                    "description": "Additional notes about the dependency.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "status": {
+                    "description": "Optional[str] with no validator, no documented vocabulary, and no discernible purpose given type already carries the relationship. Deleted in v2.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "task_id": {
+                    "description": "Referenced task identifier. Not validated against the store, so a dependency can name a task that does not exist.",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Relationship type, validated against depends_on | blocks | related but typed as a bare str.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "task_id"
+            ],
+            "title": "Dependency",
+            "type": "object"
+        },
+        "ExternalLink": {
+            "additionalProperties": false,
+            "description": "Reference to a relevant external resource.",
+            "properties": {
+                "title": {
+                    "description": "Display title for the external resource.",
+                    "type": "string"
+                },
+                "url": {
+                    "description": "External resource URL. Typed as a bare str -- never actually validated as a URL, unlike Webhook.url which uses HttpUrl.",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "url",
+                "title"
+            ],
+            "title": "ExternalLink",
+            "type": "object"
+        },
+        "Issue": {
+            "additionalProperties": false,
+            "description": "Issue tracked against the task's lifecycle. Empty in all 25 corpus files; deleted in v2.",
+            "properties": {
+                "id": {
+                    "description": "Issue identifier scoped to the task.",
+                    "type": "string"
+                },
+                "resolution": {
+                    "description": "Resolution notes when an issue is closed.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "status": {
+                    "description": "Validated against open | in_progress | resolved | wont_fix but typed as a bare str. A fifth parallel status vocabulary.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "title": {
+                    "description": "Concise issue summary.",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "title"
+            ],
+            "title": "Issue",
+            "type": "object"
+        },
+        "Phase": {
+            "additionalProperties": false,
+            "description": "Discrete phase within a task roadmap.",
+            "properties": {
+                "completed_at": {
+                    "description": "Timestamp when the phase reached completion.",
+                    "format": "date-time",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "id": {
+                    "description": "Phase identifier (e.g. phase-1).",
+                    "type": "string"
+                },
+                "notes": {
+                    "description": "Optional free-form notes about the phase.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "status": {
+                    "$ref": "#/$defs/TaskStatus",
+                    "description": "Phase status, reusing the full 8-value task vocabulary -- including values such as archived that cannot meaningfully apply to a phase."
+                },
+                "title": {
+                    "description": "Human-readable phase title.",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "title"
+            ],
+            "title": "Phase",
+            "type": "object"
+        },
+        "Priority": {
+            "description": "Relative priority weighting.",
+            "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+            ],
+            "title": "Priority",
+            "type": "string"
+        },
+        "Prompt": {
+            "additionalProperties": false,
+            "description": "Individual prompt entry for a task.",
+            "properties": {
+                "author": {
+                    "description": "Author of the prompt (agent or human name).",
+                    "type": "string"
+                },
+                "content": {
+                    "description": "Inline prompt content when not referencing a file.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "context": {
+                    "description": "Additional context regarding the prompt.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "prompt_file": {
+                    "description": "Optional path reference to the prompt file.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "timestamp": {
+                    "description": "Timestamp for when the prompt was issued.",
+                    "format": "date-time",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "timestamp",
+                "author"
+            ],
+            "title": "Prompt",
+            "type": "object"
+        },
+        "Prompts": {
+            "additionalProperties": false,
+            "description": "Collection of prompt content for a task.",
+            "properties": {
+                "followups": {
+                    "description": "Subsequent prompts appended during task progression. A third append-only authored list, alongside status_updates and comments.",
+                    "items": {
+                        "$ref": "#/$defs/Prompt"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "starter": {
+                    "description": "Primary starter prompt content.",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "starter"
+            ],
+            "title": "Prompts",
+            "type": "object"
+        },
+        "StatusUpdate": {
+            "additionalProperties": false,
+            "description": "Chronological status update authored during task execution.",
+            "properties": {
+                "author": {
+                    "description": "Author of the update (agent or collaborator). Free text.",
+                    "type": "string"
+                },
+                "details": {
+                    "description": "Expanded detail for the status update.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "status": {
+                    "$ref": "#/$defs/TaskStatus",
+                    "description": "Workflow status the task transitioned to."
+                },
+                "summary": {
+                    "description": "Short summary of the update.",
+                    "type": "string"
+                },
+                "timestamp": {
+                    "description": "Timestamp when the status update was recorded.",
+                    "format": "date-time",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "timestamp",
+                "author",
+                "status",
+                "summary"
+            ],
+            "title": "StatusUpdate",
+            "type": "object"
+        },
+        "SuccessCriterion": {
+            "additionalProperties": false,
+            "description": "Success criterion tracked per task.",
+            "properties": {
+                "description": {
+                    "description": "Description of the success criterion.",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "Unique identifier for the success criterion.",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Completion state. Enforced by a field_validator against pending | in_progress | completed | failed, but typed as a bare str, so the vocabulary is invisible to any schema consumer.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "id",
+                "description"
+            ],
+            "title": "SuccessCriterion",
+            "type": "object"
+        },
+        "Task": {
+            "additionalProperties": false,
+            "description": "Primary task representation. One YAML file per task, in git.",
+            "properties": {
+                "assigned_to": {
+                    "description": "Documented as \"currently assigned\", used in practice as a static authoring-time label. Ownership and eligibility conflated.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "branches": {
+                    "description": "Branch metadata associated with the task.",
+                    "items": {
+                        "$ref": "#/$defs/Branch"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "category": {
+                    "description": "Task category for filtering. Free text -- no vocabulary, no validation against config.",
+                    "type": "string"
+                },
+                "comments": {
+                    "description": "Comments and feedback. Second append-only authored log; merged with status_updates into one typed log in v2.",
+                    "items": {
+                        "$ref": "#/$defs/Comment"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "created": {
+                    "description": "Creation timestamp.",
+                    "format": "date-time",
+                    "type": "string"
+                },
+                "deliverables": {
+                    "description": "Deliverables associated with task completion.",
+                    "items": {
+                        "$ref": "#/$defs/Deliverable"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "dependencies": {
+                    "description": "Task dependencies and relationships.",
+                    "items": {
+                        "$ref": "#/$defs/Dependency"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "description": {
+                    "description": "Markdown description. One undifferentiated blob carrying intent, spec, constraints, non-goals and context pointers with no structure.",
+                    "type": "string"
+                },
+                "estimated_effort": {
+                    "description": "Estimated effort (time or complexity). Free text.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "external_links": {
+                    "description": "External references for the task.",
+                    "items": {
+                        "$ref": "#/$defs/ExternalLink"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "human_summary": {
+                    "description": "Concise 1-2 sentence summary for human reviewers. Splits the audience by length rather than by content, so it duplicates the description's opening.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "id": {
+                    "description": "Unique task identifier (e.g. task-001).",
+                    "type": "string"
+                },
+                "issues": {
+                    "description": "Issues encountered while executing the task. Empty in every file in the corpus; deleted in v2 (D1).",
+                    "items": {
+                        "$ref": "#/$defs/Issue"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "phases": {
+                    "description": "Sub-units inside one task. Not claimable, no prompts, no comments. Overlaps with real sub-tasks; deleted in v2 (D1).",
+                    "items": {
+                        "$ref": "#/$defs/Phase"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "priority": {
+                    "$ref": "#/$defs/Priority",
+                    "description": "Relative priority weighting."
+                },
+                "prompts": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Prompts"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "Prompt collection used by collaborating agents. Deleted in v2 (D1) -- the starter almost always restates the description."
+                },
+                "status": {
+                    "$ref": "#/$defs/TaskStatus",
+                    "description": "Current workflow status."
+                },
+                "status_updates": {
+                    "description": "Chronological status updates. Append-only, timestamped, authored -- the same shape as comments, with an implied but unenforced role split.",
+                    "items": {
+                        "$ref": "#/$defs/StatusUpdate"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "success_criteria": {
+                    "description": "Success criteria checklist.",
+                    "items": {
+                        "$ref": "#/$defs/SuccessCriterion"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "tags": {
+                    "description": "Tag metadata for filtering and search. No vocabulary enforced.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "title": {
+                    "description": "Task title summarising the work.",
+                    "type": "string"
+                },
+                "updated": {
+                    "description": "Last update timestamp.",
+                    "format": "date-time",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "title",
+                "created",
+                "updated",
+                "category",
+                "description"
+            ],
+            "title": "Task",
+            "type": "object"
+        },
+        "TaskStatus": {
+            "description": "High-level workflow status. This single 8-value vocabulary answers three different questions at once (where in its life / who acts next / why), which is the central problem v2's state axes exist to solve.",
+            "enum": [
+                "draft",
+                "ready",
+                "in_progress",
+                "blocked",
+                "waiting_for_human",
+                "under_review",
+                "completed",
+                "archived"
+            ],
+            "title": "TaskStatus",
+            "type": "string"
+        },
+        "Webhook": {
+            "additionalProperties": false,
+            "description": "Webhook configuration for task event notifications. Stored outside task files; included here for completeness of the v1 model surface.",
+            "properties": {
+                "active": {
+                    "description": "Whether this webhook is active.",
+                    "type": [
+                        "boolean",
+                        "null"
+                    ]
+                },
+                "created": {
+                    "description": "When the webhook was created.",
+                    "format": "date-time",
+                    "type": "string"
+                },
+                "events": {
+                    "description": "Events that trigger this webhook. Free-text strings against no event vocabulary.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "id": {
+                    "description": "Unique webhook identifier.",
+                    "type": "string"
+                },
+                "last_triggered": {
+                    "description": "Last successful trigger. Written by record_trigger(), which raises NameError for the same missing timezone import (see task-047).",
+                    "format": "date-time",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "secret": {
+                    "description": "Secret for HMAC signature verification.",
+                    "type": "string"
+                },
+                "url": {
+                    "description": "Target URL for webhook delivery. The one genuinely validated URL.",
+                    "format": "uri",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "url",
+                "events",
+                "secret",
+                "created"
+            ],
+            "title": "Webhook",
+            "type": "object"
+        }
+    },
+    "$id": "https://github.com/jeffposey/agentjobs/schema/v1",
+    "$schema": "https://json-schema.org/draft/2019-09/schema",
+    "additionalProperties": true,
+    "description": "Primary task representation. One YAML file per task, in git.",
+    "metamodel_version": "1.11.0",
+    "properties": {
+        "assigned_to": {
+            "description": "Documented as \"currently assigned\", used in practice as a static authoring-time label. Ownership and eligibility conflated.",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "branches": {
+            "description": "Branch metadata associated with the task.",
+            "items": {
+                "$ref": "#/$defs/Branch"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "category": {
+            "description": "Task category for filtering. Free text -- no vocabulary, no validation against config.",
+            "type": "string"
+        },
+        "comments": {
+            "description": "Comments and feedback. Second append-only authored log; merged with status_updates into one typed log in v2.",
+            "items": {
+                "$ref": "#/$defs/Comment"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "created": {
+            "description": "Creation timestamp.",
+            "format": "date-time",
+            "type": "string"
+        },
+        "deliverables": {
+            "description": "Deliverables associated with task completion.",
+            "items": {
+                "$ref": "#/$defs/Deliverable"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "dependencies": {
+            "description": "Task dependencies and relationships.",
+            "items": {
+                "$ref": "#/$defs/Dependency"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "description": {
+            "description": "Markdown description. One undifferentiated blob carrying intent, spec, constraints, non-goals and context pointers with no structure.",
+            "type": "string"
+        },
+        "estimated_effort": {
+            "description": "Estimated effort (time or complexity). Free text.",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "external_links": {
+            "description": "External references for the task.",
+            "items": {
+                "$ref": "#/$defs/ExternalLink"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "human_summary": {
+            "description": "Concise 1-2 sentence summary for human reviewers. Splits the audience by length rather than by content, so it duplicates the description's opening.",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "id": {
+            "description": "Unique task identifier (e.g. task-001).",
+            "type": "string"
+        },
+        "issues": {
+            "description": "Issues encountered while executing the task. Empty in every file in the corpus; deleted in v2 (D1).",
+            "items": {
+                "$ref": "#/$defs/Issue"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "phases": {
+            "description": "Sub-units inside one task. Not claimable, no prompts, no comments. Overlaps with real sub-tasks; deleted in v2 (D1).",
+            "items": {
+                "$ref": "#/$defs/Phase"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "priority": {
+            "$ref": "#/$defs/Priority",
+            "description": "Relative priority weighting."
+        },
+        "prompts": {
+            "anyOf": [
+                {
+                    "$ref": "#/$defs/Prompts"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Prompt collection used by collaborating agents. Deleted in v2 (D1) -- the starter almost always restates the description."
+        },
+        "status": {
+            "$ref": "#/$defs/TaskStatus",
+            "description": "Current workflow status."
+        },
+        "status_updates": {
+            "description": "Chronological status updates. Append-only, timestamped, authored -- the same shape as comments, with an implied but unenforced role split.",
+            "items": {
+                "$ref": "#/$defs/StatusUpdate"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "success_criteria": {
+            "description": "Success criteria checklist.",
+            "items": {
+                "$ref": "#/$defs/SuccessCriterion"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "tags": {
+            "description": "Tag metadata for filtering and search. No vocabulary enforced.",
+            "items": {
+                "type": "string"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "title": {
+            "description": "Task title summarising the work.",
+            "type": "string"
+        },
+        "updated": {
+            "description": "Last update timestamp.",
+            "format": "date-time",
+            "type": "string"
+        }
+    },
+    "required": [
+        "id",
+        "title",
+        "created",
+        "updated",
+        "category",
+        "description"
+    ],
+    "title": "agentjobs-v1",
+    "type": "object",
+    "version": "1.0.0"
+}
+

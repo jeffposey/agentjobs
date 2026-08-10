@@ -1,7 +1,7 @@
 id: task-046-agent-human-handoff-loop
 title: Formalize the agent-to-human handoff loop (status + notification, chat-independent)
 created: '2026-07-20T20:10:26.008565Z'
-updated: '2026-07-20T20:10:26.008565Z'
+updated: '2026-07-29T20:47:00Z'
 status: draft
 priority: high
 category: developer_experience
@@ -40,7 +40,15 @@ description: "Right now the human-review step in the agent workflow (see [[merge
   \ decoupled from any specific chat session or AI tool \u2014 so a human gets notified\
   \ even when no agent session is currently open. Do not design or implement this\
   \ now; just leave a clear pointer for later (e.g., a docs/roadmap note referencing\
-  \ this task)."
+  \ this task).\n\n## Reconciled with the schema design pass (2026-07-29, task-048)\n\
+  Schema v2 (docs/schema-design.md \xA75, \xA710) makes most of this loop *structural*:\
+  \ every handoff requires a ball_prompt (the ask is a schema-level requirement, not\
+  \ a discipline), handoffs are typed log entries, and the task.handoff webhook carries\
+  \ the composed payload. This task accordingly narrows to: documenting the resumption\
+  \ contract (docs/schema-design.md \xA75) in ALLAGENTS.md and docs/agent-workflow.md,\
+  \ and exercising the loop end-to-end as its first real use. Where the success criteria\
+  \ name v1 fields, read them through the v2 mapping (human_summary -> spec.summary;\
+  \ status_updates/comments -> the unified log). **Gated:** start after task-052 merges."
 phases: []
 success_criteria:
 - id: sc-1
@@ -97,6 +105,10 @@ dependencies:
 - task_id: task-044-docs-git-workflow
   type: depends_on
   note: Builds on the git workflow / merge-gate conventions documented there
+- task_id: task-052-schema-v2-manager-api
+  type: depends_on
+  note: Added 2026-07-29 -- the loop this documents is v2's handoff machinery (docs/schema-design.md
+    section 5); document and exercise it once it exists
 external_links: []
 issues: []
 tags:

@@ -1,0 +1,12 @@
+{
+  "name": "agentjobs-schema-tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Diagram rendering for the LinkML schemas in schema/. Dev tooling only -- not part of the published Python package, and not a JS runtime dependency of anything.",
+  "scripts": {
+    "schema:docs": "bash scripts/regen-schema-docs.sh"
+  },
+  "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^11.4.2"
+  }
+}

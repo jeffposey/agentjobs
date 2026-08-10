@@ -1,0 +1,105 @@
+id: task-050-schema-v2-models
+title: 'Schema v2: models -- state axes, spec, unified log, strict validation, version stamp'
+created: '2026-07-29T20:45:00Z'
+updated: '2026-07-29T20:45:00Z'
+status: draft
+priority: high
+category: architecture
+estimated_effort: 1-2 days
+human_summary: 'Implement the v2 Task model designed in docs/schema-design.md: the
+  lifecycle/ball/ball_reason/ball_prompt state axes with consistency rules, the structured
+  spec block, the acceptance checklist, the unified append-only log, assignment (owner
+  + eligible), parent, the schema: 2 stamp, and strict validation. Models only -- the
+  migrator, manager/API behavior, CLI, and GUI are separate downstream tasks.'
+description: 'Implement the v2 Pydantic models exactly as specified in docs/schema-design.md
+  (the accepted design; D1-D3 resolved in its §11). This task is the model layer only.
+
+
+  Scope (docs/schema-design.md sections in parentheses):
+
+  - State axes (§3): lifecycle, ball, ball_reason (scoped vocabularies), ball_prompt,
+  outcome, archived; the five consistency rules, model-enforced.
+
+  - spec block (§2): summary, intent, description, constraints, out_of_scope, context
+  pointers.
+
+  - acceptance (§2): pending|met|failed|dropped, optional verify hint. deliverables:
+  pending|done|dropped.
+
+  - Unified log (§4): typed entries (note, progress, transition, handoff, decision,
+  question, answer, instruction), typed actors, per-task integer ids, re: threading.
+
+  - assignment (owner/eligible), parent, dependencies (task, type: needs|blocks|related,
+  note), links (rel vocabulary, real URL validation), branches (unchanged).
+
+  - schema: 2 stamp (§8): loader refuses files without it, with a loud error pointing
+  at `agentjobs migrate-schema`.
+
+  - Strict mode (§11 D2): extra="forbid" everywhere; violations are errors at load
+  and save.
+
+  - Computed display_status (§3), derived, never stored.
+
+  - Deletions (§11 D1): phases, prompts, issues, Comment, Dependency.status, human_summary
+  do not exist in v2.
+
+  - Regenerate/rewrite docs/task-schema.md to describe v2 (task-044 stretch goal folded
+  in here).
+
+
+  Out of scope: the corpus migrator (task-051), manager/API operations and taxonomy
+  config validation (task-052), CLI (task-053), GUI (task-054).
+
+
+  Note: the corpus test (tests/test_task_corpus.py) will fail against v1 files once
+  the v2 model lands -- coordinate with task-051, which migrates the corpus and updates
+  that test. Land 050 and 051 on one branch if the intermediate red state proves awkward
+  to review; they remain separate commits/reviews either way.
+
+
+  **Gated:** do not start until task-047 (enum typing) merges -- v2 wants honestly-typed
+  enums underneath it.'
+phases: []
+success_criteria:
+- id: sc-1
+  description: v2 model matches docs/schema-design.md §2-§4 field-for-field, including
+    all five consistency rules and the scoped ball_reason vocabularies
+  status: pending
+- id: sc-2
+  description: 'Strict everywhere: unknown fields rejected; a file without schema: 2
+    fails with an error naming agentjobs migrate-schema'
+  status: pending
+- id: sc-3
+  description: display_status is computed, not stored, and covered by tests
+  status: pending
+- id: sc-4
+  description: docs/task-schema.md documents v2 and matches the model
+  status: pending
+prompts:
+  starter: 'Implement the v2 models per docs/schema-design.md (the design is decided;
+    do not relitigate §7/§11). Branch `feat/task-050-schema-v2-models` from main, record
+    in branches[], mark in_progress. Small conventional commits. When complete: STOP,
+    set waiting_for_human, comment a summary, await approval to merge.'
+  followups: []
+status_updates: []
+comments: []
+deliverables:
+- path: src/agentjobs/models.py
+  status: pending
+  description: v2 Task model and nested types
+- path: docs/task-schema.md
+  status: pending
+  description: Rewritten for v2
+dependencies:
+- task_id: task-047-lint-typecheck-debt
+  type: depends_on
+  note: Honestly-typed enums land first (docs/schema-design.md §10)
+- task_id: task-048-schema-design
+  type: depends_on
+  note: Implements that design pass's output
+external_links: []
+issues: []
+tags:
+- schema-design
+- schema-v2
+branches: []

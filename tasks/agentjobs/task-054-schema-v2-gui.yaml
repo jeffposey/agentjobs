@@ -1,0 +1,68 @@
+id: task-054-schema-v2-gui
+title: 'Schema v2: Jinja GUI -- inbox view, agent activity, v2 task detail'
+created: '2026-07-29T20:45:00Z'
+updated: '2026-07-29T20:45:00Z'
+status: draft
+priority: medium
+category: ux
+estimated_effort: half day
+human_summary: 'Update the Jinja GUI to schema v2: a human inbox view (ball=human,
+  each row carrying its ball_prompt), an agent-activity view, and a task detail page
+  rendering spec, the unified log, and acceptance. Minimal polish -- the React frontend
+  will replace this, but the views define the shape React will implement.'
+description: 'Update the server-rendered GUI to v2 per docs/schema-design.md §5:
+
+
+  - Home/inbox: the ?ball=human query rendered as the primary view -- one row per
+  task, display_status badge, ball_prompt as the line item. Its inverse ("what are
+  the agents doing", ball=agent) alongside.
+
+  - Task detail: spec blocks (summary/intent/description/constraints/out_of_scope/
+  context), the unified log in order with entry-type styling (open questions visually
+  distinct), acceptance checklist with statuses, dependencies/links/branches.
+
+  - Remove all rendering of deleted v1 fields (phases, prompts, issues, comments).
+
+  - Broken files surfaced per task-049''s behavior, not omitted.
+
+
+  Keep it minimal: these templates are the wireframe for the React frontend''s home
+  view, not a product surface to polish.
+
+
+  **Gated:** requires task-052 merged.'
+phases: []
+success_criteria:
+- id: sc-1
+  description: Inbox view lists exactly the open ball=human tasks, each with
+    display_status and ball_prompt
+  status: pending
+- id: sc-2
+  description: Task detail renders spec, log (typed entries, open questions distinct),
+    and acceptance; no references to deleted v1 fields remain in templates
+  status: pending
+- id: sc-3
+  description: Template tests / smoke tests pass; poetry run pytest green
+  status: pending
+prompts:
+  starter: 'Implement per docs/schema-design.md §5 and this description. Branch
+    `feat/task-054-schema-v2-gui` from main, record in branches[], mark in_progress.
+    When complete: STOP, set waiting_for_human, comment a summary, await approval.'
+  followups: []
+status_updates: []
+comments: []
+deliverables:
+- path: src/agentjobs/api/templates/
+  status: pending
+  description: Inbox, agent activity, and v2 task detail templates
+dependencies:
+- task_id: task-052-schema-v2-manager-api
+  type: depends_on
+  note: Renders that surface
+external_links: []
+issues: []
+tags:
+- schema-design
+- schema-v2
+- ux
+branches: []

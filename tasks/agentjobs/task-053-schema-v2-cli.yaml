@@ -1,0 +1,66 @@
+id: task-053-schema-v2-cli
+title: 'Schema v2: CLI mirrors -- inbox, next, claim, handoff, log, close'
+created: '2026-07-29T20:45:00Z'
+updated: '2026-07-29T20:45:00Z'
+status: draft
+priority: medium
+category: developer_experience
+estimated_effort: half day
+human_summary: 'Mirror the v2 API surface in the Typer CLI: agentjobs inbox / next /
+  claim / handoff / log / close, rendering display_status and ball_prompt so the
+  handoff loop is fully drivable from a terminal.'
+description: 'Expose the v2 loop through the CLI, mirroring the API surface from
+  docs/schema-design.md §5:
+
+
+  - `agentjobs inbox` -- open tasks with ball=human, one row per task with its
+  ball_prompt (the human side of the loop).
+
+  - `agentjobs next [--agent NAME]` -- what an agent should claim.
+
+  - `agentjobs claim / handoff / log / close / release` -- the mutation verbs, with
+  the same required arguments as the API (handoff demands ball, ball_reason, and
+  ball_prompt).
+
+  - Listings render the computed display_status; broken files are reported per
+  task-049''s behavior.
+
+  - Tests for each command (typer CliRunner).
+
+
+  **Gated:** requires task-052 merged.'
+phases: []
+success_criteria:
+- id: sc-1
+  description: Each command exists, maps to the manager operation, and refuses the
+    same invalid inputs the API refuses
+  status: pending
+- id: sc-2
+  description: agentjobs inbox shows ball_prompt per row; agentjobs handoff without
+    a prompt is rejected
+  status: pending
+- id: sc-3
+  description: CLI tests pass; poetry run pytest green
+  status: pending
+prompts:
+  starter: 'Implement per docs/schema-design.md §5 and this description. Branch
+    `feat/task-053-schema-v2-cli` from main, record in branches[], mark in_progress.
+    When complete: STOP, set waiting_for_human, comment a summary, await approval.'
+  followups: []
+status_updates: []
+comments: []
+deliverables:
+- path: src/agentjobs/cli.py
+  status: pending
+  description: inbox/next/claim/handoff/log/release/close commands
+dependencies:
+- task_id: task-052-schema-v2-manager-api
+  type: depends_on
+  note: Mirrors that surface
+external_links: []
+issues: []
+tags:
+- schema-design
+- schema-v2
+- cli
+branches: []

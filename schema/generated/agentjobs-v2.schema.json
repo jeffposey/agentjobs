@@ -1,0 +1,1144 @@
+{
+    "$defs": {
+        "AcceptanceCriterion": {
+            "additionalProperties": false,
+            "description": "One verifiable condition for done. Replaces SuccessCriterion; adds an optional machine-checkable hint.",
+            "properties": {
+                "id": {
+                    "description": "Criterion identifier, scoped to the task (e.g. ac-1).",
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/$defs/AcceptanceStatus"
+                },
+                "text": {
+                    "description": "The condition, stated so it can be judged true or false.",
+                    "type": "string"
+                },
+                "verify": {
+                    "description": "Optional machine-checkable hint -- a command that demonstrates the criterion. Advisory, not executed automatically.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "id",
+                "text"
+            ],
+            "title": "AcceptanceCriterion",
+            "type": "object"
+        },
+        "AcceptanceStatus": {
+            "description": "Whether a criterion is verified. Deliberately distinct from DeliverableStatus: a criterion is *verified*, a deliverable is *produced* (section 3).",
+            "enum": [
+                "pending",
+                "met",
+                "failed",
+                "dropped"
+            ],
+            "title": "AcceptanceStatus",
+            "type": "string"
+        },
+        "Actor": {
+            "additionalProperties": false,
+            "description": "A party that can act on tasks. Replaces v1's free-text author string, so \"was this an agent or a human\" becomes queryable.\nActors are PROJECT-LEVEL entities defined in config, not per-task data (D4). A task file references an actor by bare id and `kind` is resolved from config, so it cannot drift. This class documents the config entity; inside a task file an actor appears only as its id string.",
+            "properties": {
+                "id": {
+                    "description": "Actor identifier, e.g. claude or jeff. Unique within the project.",
+                    "type": "string"
+                },
+                "kind": {
+                    "$ref": "#/$defs/ActorKind",
+                    "description": "What kind of party this is. Lives in config only -- never copied into a task file, which is the whole point of D4."
+                }
+            },
+            "required": [
+                "id",
+                "kind"
+            ],
+            "title": "Actor",
+            "type": "object"
+        },
+        "ActorKind": {
+            "description": "What kind of party acted.",
+            "enum": [
+                "agent",
+                "human",
+                "system"
+            ],
+            "title": "ActorKind",
+            "type": "string"
+        },
+        "AnyValue": {
+            "additionalProperties": true,
+            "description": "An untyped structured value. LinkML's escape hatch, used only for LogEntry.data where the payload shape depends on the entry type.",
+            "title": "AnyValue",
+            "type": [
+                "null",
+                "boolean",
+                "object",
+                "number",
+                "string"
+            ]
+        },
+        "Assignment": {
+            "additionalProperties": false,
+            "description": "Separates live ownership from authoring-time eligibility -- v1 conflated both into assigned_to. Absorbs task-045's assigned_to/supported_agents split.",
+            "properties": {
+                "eligible": {
+                    "description": "Who may claim this task. An empty list means anyone. Authoring-time intent, never mutated by claiming.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "owner": {
+                    "description": "Current owner, referenced by actor id (D4). Set on claim, cleared on release or close. Absent or null in draft and ready, required while active (enforced in task-050, see note above).",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "title": "Assignment",
+            "type": "object"
+        },
+        "Ball": {
+            "description": "Who acts next. Required on every open task, null only when closed (tenet 2). An open task with nobody responsible is not representable.",
+            "enum": [
+                "agent",
+                "human",
+                "external"
+            ],
+            "title": "Ball",
+            "type": "string"
+        },
+        "BallReason": {
+            "description": "Why the ball holder holds it. Closed vocabulary, scoped to the holder -- the scoping is enforced by the class-level rules on Task (section 3).",
+            "enum": [
+                "available",
+                "work",
+                "revise",
+                "spec",
+                "review",
+                "decision",
+                "approval",
+                "input",
+                "dependency",
+                "service"
+            ],
+            "title": "BallReason",
+            "type": "string"
+        },
+        "Branch": {
+            "additionalProperties": false,
+            "description": "Git branch lifecycle. Carried over from v1 unchanged.",
+            "properties": {
+                "merged_at": {
+                    "description": "When the branch was merged, if it was.",
+                    "format": "date-time",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "name": {
+                    "description": "Git branch name.",
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/$defs/BranchStatus"
+                }
+            },
+            "required": [
+                "name"
+            ],
+            "title": "Branch",
+            "type": "object"
+        },
+        "BranchStatus": {
+            "description": "Branch lifecycle. Carried over from v1 unchanged -- genuinely distinct.",
+            "enum": [
+                "active",
+                "merged",
+                "abandoned"
+            ],
+            "title": "BranchStatus",
+            "type": "string"
+        },
+        "ContextPointer": {
+            "additionalProperties": false,
+            "description": "A file worth reading before starting, and why it is worth reading.",
+            "properties": {
+                "path": {
+                    "description": "Repository-relative path.",
+                    "type": "string"
+                },
+                "why": {
+                    "description": "What the reader will find there. Required -- a pointer without a reason is the kind of context that decays into noise.",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "path",
+                "why"
+            ],
+            "title": "ContextPointer",
+            "type": "object"
+        },
+        "Deliverable": {
+            "additionalProperties": false,
+            "description": "An artifact the task produces.",
+            "properties": {
+                "note": {
+                    "description": "What it is. Renamed from v1's description, to free that word up.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "path": {
+                    "description": "Repository-relative path to the deliverable.",
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/$defs/DeliverableStatus"
+                }
+            },
+            "required": [
+                "path"
+            ],
+            "title": "Deliverable",
+            "type": "object"
+        },
+        "DeliverableStatus": {
+            "description": "Whether a deliverable was produced.",
+            "enum": [
+                "pending",
+                "done",
+                "dropped"
+            ],
+            "title": "DeliverableStatus",
+            "type": "string"
+        },
+        "Dependency": {
+            "additionalProperties": false,
+            "description": "A relationship to another task. Renamed from task_id to task, and now actually validated against the store at save. v1's purposeless `status` field is gone.",
+            "properties": {
+                "note": {
+                    "description": "Why the relationship exists.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "task": {
+                    "description": "Referenced task identifier. Must exist in the store.",
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/$defs/DependencyType"
+                }
+            },
+            "required": [
+                "task"
+            ],
+            "title": "Dependency",
+            "type": "object"
+        },
+        "DependencyType": {
+            "description": "Relationship to another task. `depends_on` renamed to `needs`; the other two are unchanged.",
+            "enum": [
+                "needs",
+                "blocks",
+                "related"
+            ],
+            "title": "DependencyType",
+            "type": "string"
+        },
+        "Lifecycle": {
+            "description": "Where the task is in its life. Strictly ordered and closed (section 3). Answers only \"where in its life\" -- not who acts next, and not why.",
+            "enum": [
+                "draft",
+                "ready",
+                "active",
+                "closed"
+            ],
+            "title": "Lifecycle",
+            "type": "string"
+        },
+        "Link": {
+            "additionalProperties": false,
+            "description": "An external reference, with its kind made explicit.",
+            "properties": {
+                "rel": {
+                    "$ref": "#/$defs/LinkRel",
+                    "description": "What this link is."
+                },
+                "title": {
+                    "description": "Display title.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "url": {
+                    "description": "Target URL. Actually validated as a URI, unlike v1.",
+                    "format": "uri",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "url"
+            ],
+            "title": "Link",
+            "type": "object"
+        },
+        "LinkRel": {
+            "description": "What an external link is.",
+            "enum": [
+                "pr",
+                "issue",
+                "doc",
+                "design",
+                "build",
+                "other"
+            ],
+            "title": "LinkRel",
+            "type": "string"
+        },
+        "LogEntry": {
+            "additionalProperties": false,
+            "description": "One immutable event in the task's history (section 4). Provenance lives at this layer: every entry carries a typed actor, and every state change flows through a logged transition. Field-level provenance was rejected as weight without readers.",
+            "properties": {
+                "actor": {
+                    "description": "Who or what produced this entry, referenced by actor id (D4). `kind` is resolved from config and is never stored here.",
+                    "type": "string"
+                },
+                "body": {
+                    "description": "The human-readable content. Markdown. For `handoff` entries this is the ask, mirroring ball_prompt; for `decision` entries it must include the rejected alternative.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "data": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/AnyValue"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "Optional structured payload, typed per entry type. For `transition` entries it carries the state delta, e.g. {lifecycle: active, ball: agent, ball_reason: work}. Deliberately unconstrained at the schema level; the per-type shape is validated by the manager that writes it."
+                },
+                "id": {
+                    "description": "Per-task integer, assigned by the manager. Defines order.",
+                    "type": "integer"
+                },
+                "re": {
+                    "description": "Optional id of an earlier entry this one responds to. How an `answer` attaches to its `question`.",
+                    "type": [
+                        "integer",
+                        "null"
+                    ]
+                },
+                "ts": {
+                    "description": "When the event happened.",
+                    "format": "date-time",
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/$defs/LogEntryType"
+                }
+            },
+            "required": [
+                "id",
+                "ts",
+                "actor",
+                "type"
+            ],
+            "title": "LogEntry",
+            "type": "object"
+        },
+        "LogEntryType": {
+            "description": "What kind of event a log entry records (section 4). One typed log replaces v1's status_updates, comments and prompts.followups.",
+            "enum": [
+                "note",
+                "progress",
+                "transition",
+                "handoff",
+                "decision",
+                "question",
+                "answer",
+                "instruction"
+            ],
+            "title": "LogEntryType",
+            "type": "string"
+        },
+        "Outcome": {
+            "description": "How the task ended. Set if and only if lifecycle is closed.",
+            "enum": [
+                "completed",
+                "cancelled",
+                "superseded",
+                "duplicate"
+            ],
+            "title": "Outcome",
+            "type": "string"
+        },
+        "Priority": {
+            "description": "Relative priority weighting. Unchanged from v1.",
+            "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+            ],
+            "title": "Priority",
+            "type": "string"
+        },
+        "Spec": {
+            "additionalProperties": false,
+            "description": "The working specification, split along the questions agents actually ask. Read in order, this is the first half of the resumption contract (section 5).",
+            "properties": {
+                "constraints": {
+                    "description": "Hard requirements and prohibitions. Markdown.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "context": {
+                    "description": "Curated read-this-first pointers, each with a reason.",
+                    "items": {
+                        "$ref": "#/$defs/ContextPointer"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "description": {
+                    "description": "WHAT to do -- the working spec. Markdown.",
+                    "type": "string"
+                },
+                "intent": {
+                    "description": "WHY this task exists. Markdown.",
+                    "type": "string"
+                },
+                "out_of_scope": {
+                    "description": "Explicit non-goals, so agents do not wander. Markdown. Note: this is the field that would have prevented task-048's own scope drift.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "summary": {
+                    "description": "One to two sentences. The only summary, for every audience -- v1's human_summary split by length rather than by content.",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "summary",
+                "intent",
+                "description"
+            ],
+            "title": "Spec",
+            "type": "object"
+        },
+        "Task": {
+            "additionalProperties": false,
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "lifecycle": {
+                                "const": "closed"
+                            }
+                        },
+                        "required": [
+                            "lifecycle"
+                        ]
+                    },
+                    "then": {
+                        "not": {
+                            "required": [
+                                "ball"
+                            ]
+                        },
+                        "properties": {
+                            "ball": {},
+                            "outcome": {}
+                        },
+                        "required": [
+                            "outcome"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "lifecycle": {
+                                "anyOf": [
+                                    {
+                                        "const": "draft"
+                                    },
+                                    {
+                                        "const": "ready"
+                                    },
+                                    {
+                                        "const": "active"
+                                    }
+                                ]
+                            }
+                        },
+                        "required": [
+                            "lifecycle"
+                        ]
+                    },
+                    "then": {
+                        "not": {
+                            "required": [
+                                "outcome"
+                            ]
+                        },
+                        "properties": {
+                            "ball": {},
+                            "ball_prompt": {},
+                            "outcome": {}
+                        },
+                        "required": [
+                            "ball",
+                            "ball_prompt"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "ball": {
+                                "const": "agent"
+                            }
+                        },
+                        "required": [
+                            "ball"
+                        ]
+                    },
+                    "then": {
+                        "properties": {
+                            "ball_reason": {
+                                "anyOf": [
+                                    {
+                                        "const": "available"
+                                    },
+                                    {
+                                        "const": "work"
+                                    },
+                                    {
+                                        "const": "revise"
+                                    }
+                                ]
+                            }
+                        },
+                        "required": [
+                            "ball_reason"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "ball": {
+                                "const": "human"
+                            }
+                        },
+                        "required": [
+                            "ball"
+                        ]
+                    },
+                    "then": {
+                        "properties": {
+                            "ball_reason": {
+                                "anyOf": [
+                                    {
+                                        "const": "spec"
+                                    },
+                                    {
+                                        "const": "review"
+                                    },
+                                    {
+                                        "const": "decision"
+                                    },
+                                    {
+                                        "const": "approval"
+                                    },
+                                    {
+                                        "const": "input"
+                                    }
+                                ]
+                            }
+                        },
+                        "required": [
+                            "ball_reason"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "ball": {
+                                "const": "external"
+                            }
+                        },
+                        "required": [
+                            "ball"
+                        ]
+                    },
+                    "then": {
+                        "properties": {
+                            "ball_reason": {
+                                "anyOf": [
+                                    {
+                                        "const": "dependency"
+                                    },
+                                    {
+                                        "const": "service"
+                                    }
+                                ]
+                            }
+                        },
+                        "required": [
+                            "ball_reason"
+                        ]
+                    }
+                }
+            ],
+            "description": "A unit of work. One YAML file per task, in git -- diffable, reviewable, blame-able, mergeable. Hand-editing remains a first-class interface (D2).",
+            "properties": {
+                "acceptance": {
+                    "description": "What \"done\" means. Replaces success_criteria.",
+                    "items": {
+                        "$ref": "#/$defs/AcceptanceCriterion"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "archived": {
+                    "description": "Visibility flag, orthogonal to how the task ended. Lets an old completed task and an abandoned draft both be hidden without destroying what they were.",
+                    "type": [
+                        "boolean",
+                        "null"
+                    ]
+                },
+                "assignment": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Assignment"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "Live ownership plus authoring-time eligibility."
+                },
+                "ball": {
+                    "$ref": "#/$defs/Ball",
+                    "description": "Who acts next. Required while open; absent or null when closed. This is the field that makes limbo unrepresentable."
+                },
+                "ball_prompt": {
+                    "description": "The ask, in prose, addressed to whoever holds the ball. Required whenever the ball is set (tenet 3): a handoff without its payload is rejected at the schema level. May default for agent/available, where the spec is the ask.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "ball_reason": {
+                    "$ref": "#/$defs/BallReason",
+                    "description": "Why the ball holder holds it. Must belong to that holder's vocabulary -- see the rules on this class."
+                },
+                "branches": {
+                    "description": "Git branches associated with the task.",
+                    "items": {
+                        "$ref": "#/$defs/Branch"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "category": {
+                    "description": "Validated against the project config vocabulary at save time, not enumerated in this schema -- taxonomy is project-local, semantics are not.",
+                    "type": "string"
+                },
+                "created": {
+                    "description": "Creation timestamp.",
+                    "format": "date-time",
+                    "type": "string"
+                },
+                "deliverables": {
+                    "description": "Artifacts the task is expected to produce.",
+                    "items": {
+                        "$ref": "#/$defs/Deliverable"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "dependencies": {
+                    "description": "Relationships to other tasks. Validated against the store at save.",
+                    "items": {
+                        "$ref": "#/$defs/Dependency"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "effort": {
+                    "description": "Free text; renamed from estimated_effort. It is an estimate, not a contract, so it is deliberately unstructured.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "id": {
+                    "description": "Unique task identifier (e.g. task-050-schema-v2-models).",
+                    "type": "string"
+                },
+                "lifecycle": {
+                    "$ref": "#/$defs/Lifecycle",
+                    "description": "Where the task is in its life."
+                },
+                "links": {
+                    "description": "External references. Renamed from external_links; URL now validated.",
+                    "items": {
+                        "$ref": "#/$defs/Link"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "log": {
+                    "description": "One append-only typed log (section 4). Entries are immutable and ordered. Replaces status_updates + comments + prompts.followups.",
+                    "items": {
+                        "$ref": "#/$defs/LogEntry"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "outcome": {
+                    "$ref": "#/$defs/Outcome",
+                    "description": "How the task ended. Set if and only if lifecycle is closed; absent or null while open."
+                },
+                "parent": {
+                    "description": "Task id of an umbrella task. Tasks with open children are never claimable. Absorbs task-045's parent/child design.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "priority": {
+                    "$ref": "#/$defs/Priority"
+                },
+                "schema": {
+                    "const": 2,
+                    "description": "Schema version stamp. A missing `schema` field means v1, which the v2 loader refuses loudly rather than guessing. Breaking changes bump this integer and ship a converter; additive changes do not bump it. NOTE for task-050: as a Pydantic field name, `schema` shadows a deprecated BaseModel attribute and will emit a shadow warning -- needs an alias or a model_config allowance.",
+                    "type": "integer"
+                },
+                "spec": {
+                    "$ref": "#/$defs/Spec",
+                    "description": "The structured briefing. Replaces v1's single description blob and its duplicated starter prompt."
+                },
+                "tags": {
+                    "description": "Also validated against the config vocabulary at save.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "title": {
+                    "description": "Task title summarising the work.",
+                    "type": "string"
+                },
+                "updated": {
+                    "description": "Last update timestamp.",
+                    "format": "date-time",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "schema",
+                "id",
+                "title",
+                "created",
+                "updated",
+                "lifecycle",
+                "category",
+                "spec"
+            ],
+            "title": "Task",
+            "type": "object"
+        }
+    },
+    "$id": "https://github.com/jeffposey/agentjobs/schema/v2",
+    "$schema": "https://json-schema.org/draft/2019-09/schema",
+    "additionalProperties": true,
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "lifecycle": {
+                        "const": "closed"
+                    }
+                },
+                "required": [
+                    "lifecycle"
+                ]
+            },
+            "then": {
+                "not": {
+                    "required": [
+                        "ball"
+                    ]
+                },
+                "properties": {
+                    "ball": {},
+                    "outcome": {}
+                },
+                "required": [
+                    "outcome"
+                ]
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "lifecycle": {
+                        "anyOf": [
+                            {
+                                "const": "draft"
+                            },
+                            {
+                                "const": "ready"
+                            },
+                            {
+                                "const": "active"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "lifecycle"
+                ]
+            },
+            "then": {
+                "not": {
+                    "required": [
+                        "outcome"
+                    ]
+                },
+                "properties": {
+                    "ball": {},
+                    "ball_prompt": {},
+                    "outcome": {}
+                },
+                "required": [
+                    "ball",
+                    "ball_prompt"
+                ]
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "ball": {
+                        "const": "agent"
+                    }
+                },
+                "required": [
+                    "ball"
+                ]
+            },
+            "then": {
+                "properties": {
+                    "ball_reason": {
+                        "anyOf": [
+                            {
+                                "const": "available"
+                            },
+                            {
+                                "const": "work"
+                            },
+                            {
+                                "const": "revise"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "ball_reason"
+                ]
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "ball": {
+                        "const": "human"
+                    }
+                },
+                "required": [
+                    "ball"
+                ]
+            },
+            "then": {
+                "properties": {
+                    "ball_reason": {
+                        "anyOf": [
+                            {
+                                "const": "spec"
+                            },
+                            {
+                                "const": "review"
+                            },
+                            {
+                                "const": "decision"
+                            },
+                            {
+                                "const": "approval"
+                            },
+                            {
+                                "const": "input"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "ball_reason"
+                ]
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "ball": {
+                        "const": "external"
+                    }
+                },
+                "required": [
+                    "ball"
+                ]
+            },
+            "then": {
+                "properties": {
+                    "ball_reason": {
+                        "anyOf": [
+                            {
+                                "const": "dependency"
+                            },
+                            {
+                                "const": "service"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "ball_reason"
+                ]
+            }
+        }
+    ],
+    "description": "A unit of work. One YAML file per task, in git -- diffable, reviewable, blame-able, mergeable. Hand-editing remains a first-class interface (D2).",
+    "metamodel_version": "1.11.0",
+    "properties": {
+        "acceptance": {
+            "description": "What \"done\" means. Replaces success_criteria.",
+            "items": {
+                "$ref": "#/$defs/AcceptanceCriterion"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "archived": {
+            "description": "Visibility flag, orthogonal to how the task ended. Lets an old completed task and an abandoned draft both be hidden without destroying what they were.",
+            "type": [
+                "boolean",
+                "null"
+            ]
+        },
+        "assignment": {
+            "anyOf": [
+                {
+                    "$ref": "#/$defs/Assignment"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Live ownership plus authoring-time eligibility."
+        },
+        "ball": {
+            "$ref": "#/$defs/Ball",
+            "description": "Who acts next. Required while open; absent or null when closed. This is the field that makes limbo unrepresentable."
+        },
+        "ball_prompt": {
+            "description": "The ask, in prose, addressed to whoever holds the ball. Required whenever the ball is set (tenet 3): a handoff without its payload is rejected at the schema level. May default for agent/available, where the spec is the ask.",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "ball_reason": {
+            "$ref": "#/$defs/BallReason",
+            "description": "Why the ball holder holds it. Must belong to that holder's vocabulary -- see the rules on this class."
+        },
+        "branches": {
+            "description": "Git branches associated with the task.",
+            "items": {
+                "$ref": "#/$defs/Branch"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "category": {
+            "description": "Validated against the project config vocabulary at save time, not enumerated in this schema -- taxonomy is project-local, semantics are not.",
+            "type": "string"
+        },
+        "created": {
+            "description": "Creation timestamp.",
+            "format": "date-time",
+            "type": "string"
+        },
+        "deliverables": {
+            "description": "Artifacts the task is expected to produce.",
+            "items": {
+                "$ref": "#/$defs/Deliverable"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "dependencies": {
+            "description": "Relationships to other tasks. Validated against the store at save.",
+            "items": {
+                "$ref": "#/$defs/Dependency"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "effort": {
+            "description": "Free text; renamed from estimated_effort. It is an estimate, not a contract, so it is deliberately unstructured.",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "id": {
+            "description": "Unique task identifier (e.g. task-050-schema-v2-models).",
+            "type": "string"
+        },
+        "lifecycle": {
+            "$ref": "#/$defs/Lifecycle",
+            "description": "Where the task is in its life."
+        },
+        "links": {
+            "description": "External references. Renamed from external_links; URL now validated.",
+            "items": {
+                "$ref": "#/$defs/Link"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "log": {
+            "description": "One append-only typed log (section 4). Entries are immutable and ordered. Replaces status_updates + comments + prompts.followups.",
+            "items": {
+                "$ref": "#/$defs/LogEntry"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "outcome": {
+            "$ref": "#/$defs/Outcome",
+            "description": "How the task ended. Set if and only if lifecycle is closed; absent or null while open."
+        },
+        "parent": {
+            "description": "Task id of an umbrella task. Tasks with open children are never claimable. Absorbs task-045's parent/child design.",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "priority": {
+            "$ref": "#/$defs/Priority"
+        },
+        "schema": {
+            "const": 2,
+            "description": "Schema version stamp. A missing `schema` field means v1, which the v2 loader refuses loudly rather than guessing. Breaking changes bump this integer and ship a converter; additive changes do not bump it. NOTE for task-050: as a Pydantic field name, `schema` shadows a deprecated BaseModel attribute and will emit a shadow warning -- needs an alias or a model_config allowance.",
+            "type": "integer"
+        },
+        "spec": {
+            "$ref": "#/$defs/Spec",
+            "description": "The structured briefing. Replaces v1's single description blob and its duplicated starter prompt."
+        },
+        "tags": {
+            "description": "Also validated against the config vocabulary at save.",
+            "items": {
+                "type": "string"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
+        "title": {
+            "description": "Task title summarising the work.",
+            "type": "string"
+        },
+        "updated": {
+            "description": "Last update timestamp.",
+            "format": "date-time",
+            "type": "string"
+        }
+    },
+    "required": [
+        "schema",
+        "id",
+        "title",
+        "created",
+        "updated",
+        "lifecycle",
+        "category",
+        "spec"
+    ],
+    "title": "agentjobs-v2",
+    "type": "object",
+    "version": "2.0.0"
+}
+

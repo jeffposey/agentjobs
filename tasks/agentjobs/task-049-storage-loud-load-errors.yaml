@@ -1,0 +1,80 @@
+id: task-049-storage-loud-load-errors
+title: 'Storage: stop swallowing task validation errors; report file, field, and error'
+created: '2026-07-29T20:45:00Z'
+updated: '2026-07-29T20:45:00Z'
+status: ready
+priority: high
+category: infrastructure
+estimated_effort: 1-2 hours
+human_summary: 'TaskStorage.load_task currently catches validation errors and returns
+  None, so a broken task file silently vanishes from every listing. Make load failures
+  loud and precise. Decided during the schema design pass (task-048, decision D2) but
+  lands on the v1 schema, before and independently of schema v2. Note the rationale was
+  restated when D2 was amended: this is not about protecting hand edits (no longer a
+  first-class interface) but about any writer -- a migrator or API bug that writes a
+  bad file must fail by name rather than make a task disappear. Under UI-primary
+  editing it is more urgent, not less: a vanished task is invisible to someone whose
+  only window into the data is the listing.'
+description: 'When a task YAML file fails model validation, `TaskStorage.load_task`
+  swallows the error and returns None, and the task disappears from listings with no
+  trace. Under the strict-everywhere posture decided in docs/schema-design.md (§11,
+  D2), a bad file must fail loudly instead: the reader gets filename + field + error,
+  and listings report broken files rather than omitting them.
+
+
+  Scope:
+
+  - Storage: on validation failure, raise (or return) a structured error carrying
+  the file path and the underlying pydantic error, instead of returning None.
+
+  - Listing paths (manager, API, CLI, Jinja GUI): a broken file must be *visible* --
+  an error entry or warning naming the file and reason -- and must not take down the
+  listing of the remaining valid tasks.
+
+  - Single-task reads (API GET by id, CLI show): surface the validation error with
+  file, field, and message.
+
+  - Tests: a deliberately-broken fixture file exercising both the listing path and
+  the single-read path.
+
+
+  This is a v1 change. It does not depend on, and should not wait for, the schema v2
+  implementation chain (task-050 onward).'
+phases: []
+success_criteria:
+- id: sc-1
+  description: A task file with an invalid field no longer silently disappears; loading
+    it produces an error naming the file, the field, and the validation message
+  status: pending
+- id: sc-2
+  description: Listings (API, CLI, GUI) still render all valid tasks when one file
+    is broken, and visibly report the broken file
+  status: pending
+- id: sc-3
+  description: Tests cover the broken-file listing path and single-read path; poetry
+    run pytest passes
+  status: pending
+prompts:
+  starter: 'Implement per the task description and docs/schema-design.md §11 (D2).
+    Create branch `fix/task-049-storage-loud-load-errors` from main, record it in
+    branches[], mark the task in_progress. Small conventional commits. When complete
+    and verified: STOP, set waiting_for_human, leave a comment summarizing what changed,
+    and wait for explicit approval before merging (rebase onto main + --no-ff).'
+  followups: []
+status_updates: []
+comments: []
+deliverables:
+- path: src/agentjobs/storage.py
+  status: pending
+  description: load_task raises/reports structured errors instead of returning None
+- path: tests/test_storage.py
+  status: pending
+  description: Broken-fixture coverage for listing and single-read paths
+dependencies: []
+external_links: []
+issues: []
+tags:
+- schema-design
+- robustness
+- phase-0
+branches: []

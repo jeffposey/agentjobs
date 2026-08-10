@@ -1,0 +1,212 @@
+id: task-056-schema-modeling-tooling
+title: 'Schema tooling: model the schema in LinkML and generate docs, diagrams, and
+  validators'
+created: '2026-07-30T00:20:00Z'
+updated: '2026-08-10T06:11:44.877407Z'
+status: completed
+priority: high
+category: infrastructure
+estimated_effort: 1 working session (built)
+human_summary: 'Model both schema versions in LinkML so the schema can be viewed,
+  validated, and diffed with real tooling instead of hand-drawn diagrams and prose.
+  Generates JSON Schema, entity diagrams, a browsable docs site, and a Pydantic preview
+  from one source. Split out of task-048: the owner needed real modeling tools to
+  evaluate the v2 design, which made this instrumentally necessary but not part of
+  the design pass itself. Already built; recorded here so it is reviewed on its own
+  merits rather than riding in on task-048''s sign-off.'
+description: 'The v2 design could not be fairly reviewed while it existed only as
+  prose. The owner asked for real schema modeling tooling and a visual view. That
+  work was done inside task-048''s session but is not in task-048''s scope, so it
+  is recorded here as its own reviewable change.
+
+
+  ## What was built
+
+
+  - `schema/agentjobs-v1.yaml` -- v1 transcribed from src/agentjobs/models.py into
+  LinkML, warts documented rather than silently fixed. Verified faithful by validating
+  all 32 live task files against it.
+
+  - `schema/agentjobs-v2.yaml` -- the v2 design in machine-readable form, including
+  the section 3 consistency rules as declarative LinkML rules.
+
+  - `schema/examples/task-048.v2.yaml` -- task-048 converted to v2 and validated;
+  the worked example behind docs/schema/understanding.md.
+
+  - `scripts/regen-schema-docs.sh` -- one command regenerating every derived artifact:
+  JSON Schema, mermaid ER diagrams, full-size SVGs, 168 reference pages, a Pydantic
+  preview, plus corpus and example validation.
+
+  - `mkdocs.yml` + `docs/index.md` + `docs/schema/understanding.md` -- a browsable
+  site covering both versions, with a guided walkthrough for readers new to the schema.
+
+
+  ## New dependencies (the main thing to review)
+
+
+  - Python dev group: `linkml`, `mkdocs`, `mkdocs-material`, `mkdocs-glightbox`.
+
+  - Node dev tooling: `@mermaid-js/mermaid-cli` via a new `package.json`, used only
+  to render diagrams to SVG. `node_modules/` and `site/` added to .gitignore.
+
+
+  This is a larger footprint than the design pass it supported, which is exactly why
+  it should be approved or rejected separately.
+
+
+  ## Findings worth keeping
+
+
+  - `gen-doc` needs `--subfolder-type-separation` on Windows. Without it, pages whose
+  names differ only by case (Ball.md the enum vs ball.md the slot) collide on a case-insensitive
+  filesystem and silently overwrite each other -- eight pages vanished with no error.
+
+  - LinkML cannot express a nullable enum: an optional enum slot compiles to a bare
+  $ref, so the generated JSON Schema rejects an explicit null while Pydantic will
+  accept it. Recorded in docs/schema-design.md section 3; task-050 owes a regression
+  test for both spellings.
+
+  - `gen-pydantic` produces working v2 models (507 lines). Checked in as `schema/generated/models_v2_preview.py`
+  as evidence the schema is implementable, NOT wired into the package. Whether generated
+  models become the real models.py is task-050''s decision.
+
+
+  ## Open question for review
+
+
+  Whether generation is a build step (regenerate and commit artifacts) or a check
+  (regenerate in CI and fail on drift). Currently the former, by default rather than
+  by decision.'
+phases: []
+success_criteria:
+- id: sc-1
+  description: Both schema versions exist in LinkML and compile
+  status: completed
+- id: sc-2
+  description: The v1 LinkML schema is verified faithful by validating every task
+    file in the repo against it
+  status: completed
+- id: sc-3
+  description: One command regenerates every derived artifact, and fails if the corpus
+    or the worked examples stop validating
+  status: completed
+- id: sc-4
+  description: Both schemas are viewable as full-size, zoomable entity diagrams and
+    as browsable reference documentation
+  status: completed
+- id: sc-5
+  description: A guided walkthrough exists that teaches the schema from a real record,
+    rather than specifying it
+  status: completed
+- id: sc-6
+  description: New dependencies reviewed and accepted, and the build-step-versus-CI-check
+    question answered
+  status: pending
+prompts:
+  starter: 'Already built during task-048''s session. What remains is review, not
+    implementation.
+
+
+    Review the new dependency footprint (Python dev group plus a Node toolchain) and
+    decide whether it is warranted for a schema of this size. Then answer the open
+    question in the description: should generated artifacts be committed, or regenerated
+    in CI with a drift check?
+
+
+    If approved, this should merge before or with task-048, since task-048 depends
+    on it. If rejected, task-048''s design stands on its own but loses its machine-checked
+    form.'
+  followups: []
+status_updates:
+- timestamp: '2026-07-30T00:20:00Z'
+  author: claude
+  status: waiting_for_human
+  summary: Split out of task-048; built and verified, awaiting review on its own merits
+  details: 'Created retroactively. The work was requested by the owner mid-session
+    while reviewing task-048 and was completed there, but it is not within task-048''s
+    stated scope. Recording it separately so the dependency footprint is reviewed
+    deliberately rather than approved implicitly.
+
+
+    Verified at time of writing: both schemas compile; 32/32 task files validate against
+    v1; schema/examples/task-048.v2.yaml validates against v2; full suite 105 passed.'
+- timestamp: '2026-08-10T06:11:20.080230Z'
+  author: claude
+  status: completed
+  summary: Schema tooling reviewed and approved alongside task-048; branch merged
+  details: 'Approved by Jeff on 2026-08-10 in the same pass as task-048, having been
+    presented separately as intended -- the point of splitting this out was that it
+    be reviewed on its own merits, and it was.
+
+
+    What landed (see commits 4e946cf, 8204be9, 0eb0257 on docs/task-048-schema-design):
+
+    - schema/agentjobs-v1.yaml and v2.yaml, the LinkML sources of truth for schema
+    shape
+
+    - schema/examples/task-048.v2.yaml, validated against v2
+
+    - scripts/regen-schema-docs.sh, regenerating every derived artifact and failing
+    loudly if the corpus or examples stop validating
+
+    - 194 generated files: JSON Schema, mermaid ER sources, full-size SVGs, 168 reference
+    pages, models_v2_preview.py
+
+    - mkdocs.yml, docs/index.md, docs/schema/understanding.md
+
+
+    Decision recorded: the generated artifacts are checked in rather than gitignored,
+    so the site builds from a clone and the reference pages are reviewable evidence
+    that the schema means what the prose claims. The cost is diff noise on regeneration,
+    accepted knowingly.
+
+
+    Dependencies added to pyproject.toml dev group: linkml, mkdocs, mkdocs-material,
+    mkdocs-glightbox. One JS dev dependency (@mermaid-js/mermaid-cli) in package.json,
+    used only to pre-render diagrams to SVG -- not a runtime dependency of the Python
+    package and not shipped with it.
+
+
+    Gotcha worth preserving: gen-doc must run with --subfolder-type-separation on
+    Windows. Without it, class and slot pages land in one flat directory and names
+    differing only by case (Task.md vs task.md) collide on a case-insensitive filesystem,
+    silently overwriting each other.
+
+
+    Outstanding, not fixed here: no .gitattributes, so regen-schema-docs.sh checks
+    out with CRLF on a fresh clone and bash fails on it. One-line fix, left unbundled
+    from this merge.'
+comments: []
+deliverables:
+- path: schema/agentjobs-v1.yaml
+  status: completed
+  description: v1 in LinkML, verified against the live corpus
+- path: schema/agentjobs-v2.yaml
+  status: completed
+  description: v2 in LinkML, including the section 3 consistency rules
+- path: schema/examples/task-048.v2.yaml
+  status: completed
+  description: task-048 converted to v2; the worked example for the walkthrough
+- path: scripts/regen-schema-docs.sh
+  status: completed
+  description: Single-command regeneration and validation of all derived artifacts
+- path: docs/schema/understanding.md
+  status: completed
+  description: Guided walkthrough teaching the schema from a real record
+- path: mkdocs.yml
+  status: completed
+  description: Browsable docs site covering both schema versions
+dependencies:
+- task_id: task-048-schema-design
+  type: related
+  note: Split out of task-048's session; task-048 depends on this for reviewability
+external_links: []
+issues: []
+tags:
+- infrastructure
+- schema
+- tooling
+- documentation
+branches:
+- name: docs/task-048-schema-design
+  status: merged

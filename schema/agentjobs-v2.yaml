@@ -1,0 +1,645 @@
+id: https://github.com/jeffposey/agentjobs/schema/v2
+name: agentjobs-v2
+title: AgentJobs Task Schema v2
+version: 2.0.0
+license: MIT
+description: >-
+  The proposed next iteration of the task schema, transcribed from
+  docs/schema-design.md (ACCEPTED, D1-D3 resolved 2026-07-29) into LinkML so it can
+  be rendered, browsed, validated and diffed against v1 before any Python is written.
+
+  This is a PRESCRIPTIVE schema: nothing here is implemented yet. It is the machine-
+  readable companion to the design document, and the intended input to task-050's
+  model implementation. Section references below point at docs/schema-design.md.
+
+  Three of v2's design tenets are enforced structurally rather than by convention:
+  every open task names who acts next (`ball`, required while open), every handoff
+  carries its ask (`ball_prompt`, required whenever the ball is set), and each
+  concept has exactly one mechanism (phases, prompts, issues and Comment are gone).
+
+  NULL AND ABSENT ARE EQUIVALENT (decided 2026-07-29). `ball: null` and an omitted
+  `ball` mean the same thing, as do `outcome: null` and an omitted `outcome`. This
+  matters because hand-editing YAML in git is a first-class interface (D2): a human
+  writing `outcome: null` is being explicit, not wrong.
+
+  LinkML cannot express that. It has no null type, so an optional enum slot compiles
+  to a bare `$ref` and the generated JSON Schema rejects an explicit null. The
+  consequence, recorded so it is not mistaken for a design position:
+
+    * OMISSION is the canonical on-disk form -- what the migrator and the manager
+      write, and the only form the generated JSON Schema accepts.
+    * EXPLICIT NULL is equally valid input and must be accepted by the loader.
+      Pydantic's `Optional[Ball] = None` does this natively, so task-050 gets it for
+      free -- but the JSON Schema artifact in schema/generated/ is therefore
+      STRICTER than the runtime, and must not be used as the sole validator for
+      hand-edited files.
+    * The `value_presence: ABSENT` conditions in the rules below should be read as
+      "absent or null" throughout.
+
+prefixes:
+  linkml: https://w3id.org/linkml/
+  aj: https://github.com/jeffposey/agentjobs/schema/v2/
+default_prefix: aj
+default_range: string
+
+imports:
+  - linkml:types
+
+# ---------------------------------------------------------------------------
+# Enums
+#
+# Semantics are closed and model-enforced (tenet 5). Project taxonomy --
+# category, tags, actor ids -- is deliberately NOT enumerated here: it is
+# validated against project config at save time, because a task file must mean
+# the same thing in every AgentJobs installation while its taxonomy is local.
+# ---------------------------------------------------------------------------
+enums:
+
+  Lifecycle:
+    description: >-
+      Where the task is in its life. Strictly ordered and closed (section 3). Answers
+      only "where in its life" -- not who acts next, and not why.
+    permissible_values:
+      draft:
+        description: Being specified. Not claimable.
+      ready:
+        description: >-
+          Spec complete, claimable by any eligible agent. A ready task with unmet
+          `needs` dependencies stays ready -- its blockedness is derived from the
+          store, not restated as state -- but is excluded from /next and refuses claim.
+      active:
+        description: Claimed, work underway, in whoever's court `ball` says.
+      closed:
+        description: Over. Carries an `outcome`. Visibility is the separate `archived` flag.
+
+  Ball:
+    description: >-
+      Who acts next. Required on every open task, null only when closed (tenet 2).
+      An open task with nobody responsible is not representable.
+    permissible_values:
+      agent:
+      human:
+      external:
+
+  BallReason:
+    description: >-
+      Why the ball holder holds it. Closed vocabulary, scoped to the holder -- the
+      scoping is enforced by the class-level rules on Task (section 3).
+    permissible_values:
+      # --- ball: agent ---
+      available:
+        description: "agent: ready and unclaimed -- any eligible agent may take it."
+      work:
+        description: "agent: claimed and executing."
+      revise:
+        description: "agent: review came back with changes requested."
+      # --- ball: human ---
+      spec:
+        description: "human: the spec needs human completion or refinement."
+      review:
+        description: "human: work product needs review (v1's under_review)."
+      decision:
+        description: "human: a choice is blocking progress."
+      approval:
+        description: "human: a gate -- merge, spend, publish. Yes/no, not critique."
+      input:
+        description: "human: missing information only a human has."
+      # --- ball: external ---
+      dependency:
+        description: "external: a claimed task blocked on another task (v1's blocked)."
+      service:
+        description: "external: blocked on a third party, outage, or provisioning."
+
+  Outcome:
+    description: How the task ended. Set if and only if lifecycle is closed.
+    permissible_values:
+      completed:
+      cancelled:
+      superseded:
+      duplicate:
+
+  Priority:
+    description: Relative priority weighting. Unchanged from v1.
+    permissible_values:
+      low:
+      medium:
+      high:
+      critical:
+
+  ActorKind:
+    description: What kind of party acted.
+    permissible_values:
+      agent:
+      human:
+      system:
+        description: The manager itself, for automatically appended transitions.
+
+  AcceptanceStatus:
+    description: >-
+      Whether a criterion is verified. Deliberately distinct from
+      DeliverableStatus: a criterion is *verified*, a deliverable is *produced*
+      (section 3).
+    permissible_values:
+      pending:
+      met:
+      failed:
+      dropped:
+
+  DeliverableStatus:
+    description: Whether a deliverable was produced.
+    permissible_values:
+      pending:
+      done:
+      dropped:
+
+  BranchStatus:
+    description: Branch lifecycle. Carried over from v1 unchanged -- genuinely distinct.
+    permissible_values:
+      active:
+      merged:
+      abandoned:
+
+  DependencyType:
+    description: >-
+      Relationship to another task. `depends_on` renamed to `needs`; the other two
+      are unchanged.
+    permissible_values:
+      needs:
+      blocks:
+      related:
+
+  LinkRel:
+    description: What an external link is.
+    permissible_values:
+      pr:
+      issue:
+      doc:
+      design:
+      build:
+      other:
+
+  LogEntryType:
+    description: >-
+      What kind of event a log entry records (section 4). One typed log replaces v1's
+      status_updates, comments and prompts.followups.
+    permissible_values:
+      note:
+        description: Free-form remark. Anyone.
+      progress:
+        description: Work narration -- what was done, what was verified. Agent.
+      transition:
+        description: >-
+          Automatic record of a state-axis change; `data` carries the delta. Written
+          by the manager, never trusted to callers.
+      handoff:
+        description: The ball is moving; `body` is the ask, mirroring `ball_prompt`.
+      decision:
+        description: A choice, its reasoning, and the rejected alternative. Binding.
+      question:
+        description: An explicit open thread. Surfaceable in UIs until answered.
+      answer:
+        description: Resolves a `question`, via `re`.
+      instruction:
+        description: A directive to the working agent. Replaces v1 followup prompts.
+
+# ---------------------------------------------------------------------------
+# Classes
+# ---------------------------------------------------------------------------
+classes:
+
+  Task:
+    description: >-
+      A unit of work. One YAML file per task, in git -- diffable, reviewable,
+      blame-able, mergeable. Hand-editing remains a first-class interface (D2).
+    tree_root: true
+    attributes:
+
+      # ----- version stamp (section 8, D3) -----
+      schema:
+        description: >-
+          Schema version stamp. A missing `schema` field means v1, which the v2
+          loader refuses loudly rather than guessing. Breaking changes bump this
+          integer and ship a converter; additive changes do not bump it.
+          NOTE for task-050: as a Pydantic field name, `schema` shadows a deprecated
+          BaseModel attribute and will emit a shadow warning -- needs an alias or a
+          model_config allowance.
+        range: integer
+        required: true
+        equals_number: 2
+
+      # ----- identity -----
+      id:
+        description: Unique task identifier (e.g. task-050-schema-v2-models).
+        identifier: true
+        required: true
+      title:
+        description: Task title summarising the work.
+        required: true
+      created:
+        description: Creation timestamp.
+        range: datetime
+        required: true
+      updated:
+        description: Last update timestamp.
+        range: datetime
+        required: true
+
+      # ----- state: three orthogonal axes + outcome (section 3) -----
+      lifecycle:
+        description: Where the task is in its life.
+        range: Lifecycle
+        required: true
+        ifabsent: string(draft)
+      ball:
+        description: >-
+          Who acts next. Required while open; absent or null when closed. This is the
+          field that makes limbo unrepresentable.
+        range: Ball
+      ball_reason:
+        description: >-
+          Why the ball holder holds it. Must belong to that holder's vocabulary --
+          see the rules on this class.
+        range: BallReason
+      ball_prompt:
+        description: >-
+          The ask, in prose, addressed to whoever holds the ball. Required whenever
+          the ball is set (tenet 3): a handoff without its payload is rejected at
+          the schema level. May default for agent/available, where the spec is the ask.
+      outcome:
+        description: >-
+          How the task ended. Set if and only if lifecycle is closed; absent or null
+          while open.
+        range: Outcome
+      archived:
+        description: >-
+          Visibility flag, orthogonal to how the task ended. Lets an old completed
+          task and an abandoned draft both be hidden without destroying what they were.
+        range: boolean
+        ifabsent: "false"
+
+      # ----- classification -----
+      priority:
+        range: Priority
+        ifabsent: string(medium)
+      category:
+        description: >-
+          Validated against the project config vocabulary at save time, not
+          enumerated in this schema -- taxonomy is project-local, semantics are not.
+        required: true
+      tags:
+        description: Also validated against the config vocabulary at save.
+        multivalued: true
+      effort:
+        description: >-
+          Free text; renamed from estimated_effort. It is an estimate, not a
+          contract, so it is deliberately unstructured.
+
+      # ----- who -----
+      assignment:
+        description: Live ownership plus authoring-time eligibility.
+        range: Assignment
+        inlined: true
+      parent:
+        description: >-
+          Task id of an umbrella task. Tasks with open children are never claimable.
+          Absorbs task-045's parent/child design.
+
+      # ----- the specification -----
+      spec:
+        description: >-
+          The structured briefing. Replaces v1's single description blob and its
+          duplicated starter prompt.
+        range: Spec
+        inlined: true
+        required: true
+
+      # ----- verification -----
+      acceptance:
+        description: What "done" means. Replaces success_criteria.
+        range: AcceptanceCriterion
+        multivalued: true
+        inlined_as_list: true
+      deliverables:
+        description: Artifacts the task is expected to produce.
+        range: Deliverable
+        multivalued: true
+        inlined_as_list: true
+
+      # ----- relationships -----
+      dependencies:
+        description: Relationships to other tasks. Validated against the store at save.
+        range: Dependency
+        multivalued: true
+        inlined_as_list: true
+      links:
+        description: External references. Renamed from external_links; URL now validated.
+        range: Link
+        multivalued: true
+        inlined_as_list: true
+      branches:
+        description: Git branches associated with the task.
+        range: Branch
+        multivalued: true
+        inlined_as_list: true
+
+      # ----- history -----
+      log:
+        description: >-
+          One append-only typed log (section 4). Entries are immutable and ordered.
+          Replaces status_updates + comments + prompts.followups.
+        range: LogEntry
+        multivalued: true
+        inlined_as_list: true
+
+    # -----------------------------------------------------------------------
+    # Consistency rules (section 3).
+    #
+    # Rules 1-3 are expressible declaratively and appear below, so any LinkML
+    # consumer enforces them. Two rules are NOT expressible here and must land as
+    # Pydantic model validators in task-050:
+    #   * assignment.owner is null when lifecycle is draft/ready and required when
+    #     active -- LinkML slot_conditions cannot reach into a nested class.
+    #   * every state-axis change appends a `transition` log entry -- a behavioural
+    #     rule about transitions, not a property of any single document.
+    # -----------------------------------------------------------------------
+    rules:
+
+      - title: closed_has_outcome_and_no_ball
+        description: >-
+          Rule 1 and 3: ball is absent-or-null if and only if lifecycle is closed, and
+          outcome is set if and only if lifecycle is closed. ABSENT below means
+          "absent or null" -- see the null-and-absent note in the schema description.
+        preconditions:
+          slot_conditions:
+            lifecycle:
+              equals_string: closed
+        postconditions:
+          slot_conditions:
+            ball:
+              value_presence: ABSENT
+            outcome:
+              value_presence: PRESENT
+
+      - title: open_names_who_acts_next_and_the_ask
+          # tenets 2 and 3, made structural
+        description: >-
+          Any open task must name who acts next and state the ask, and must not
+          carry an outcome.
+        preconditions:
+          slot_conditions:
+            lifecycle:
+              any_of:
+                - equals_string: draft
+                - equals_string: ready
+                - equals_string: active
+        postconditions:
+          slot_conditions:
+            ball:
+              value_presence: PRESENT
+            ball_prompt:
+              value_presence: PRESENT
+            outcome:
+              value_presence: ABSENT
+
+      - title: agent_ball_reason_vocabulary
+        description: "Rule 2, agent side: available | work | revise."
+        preconditions:
+          slot_conditions:
+            ball:
+              equals_string: agent
+        postconditions:
+          slot_conditions:
+            ball_reason:
+              any_of:
+                - equals_string: available
+                - equals_string: work
+                - equals_string: revise
+
+      - title: human_ball_reason_vocabulary
+        description: "Rule 2, human side: spec | review | decision | approval | input."
+        preconditions:
+          slot_conditions:
+            ball:
+              equals_string: human
+        postconditions:
+          slot_conditions:
+            ball_reason:
+              any_of:
+                - equals_string: spec
+                - equals_string: review
+                - equals_string: decision
+                - equals_string: approval
+                - equals_string: input
+
+      - title: external_ball_reason_vocabulary
+        description: "Rule 2, external side: dependency | service."
+        preconditions:
+          slot_conditions:
+            ball:
+              equals_string: external
+        postconditions:
+          slot_conditions:
+            ball_reason:
+              any_of:
+                - equals_string: dependency
+                - equals_string: service
+
+  Actor:
+    description: >-
+      A party that can act on tasks. Replaces v1's free-text author string, so
+      "was this an agent or a human" becomes queryable.
+
+      Actors are PROJECT-LEVEL entities defined in config, not per-task data (D4).
+      A task file references an actor by bare id and `kind` is resolved from config,
+      so it cannot drift. This class documents the config entity; inside a task file
+      an actor appears only as its id string.
+    attributes:
+      id:
+        description: Actor identifier, e.g. claude or jeff. Unique within the project.
+        identifier: true
+        required: true
+      kind:
+        description: >-
+          What kind of party this is. Lives in config only -- never copied into a
+          task file, which is the whole point of D4.
+        range: ActorKind
+        required: true
+
+  Assignment:
+    description: >-
+      Separates live ownership from authoring-time eligibility -- v1 conflated both
+      into assigned_to. Absorbs task-045's assigned_to/supported_agents split.
+    attributes:
+      owner:
+        description: >-
+          Current owner, referenced by actor id (D4). Set on claim, cleared on
+          release or close. Absent or null in draft and ready, required while active
+          (enforced in task-050, see note above).
+        range: Actor
+        inlined: false
+      eligible:
+        description: >-
+          Who may claim this task. An empty list means anyone. Authoring-time
+          intent, never mutated by claiming.
+        multivalued: true
+
+  Spec:
+    description: >-
+      The working specification, split along the questions agents actually ask.
+      Read in order, this is the first half of the resumption contract (section 5).
+    attributes:
+      summary:
+        description: >-
+          One to two sentences. The only summary, for every audience -- v1's
+          human_summary split by length rather than by content.
+        required: true
+      intent:
+        description: WHY this task exists. Markdown.
+        required: true
+      description:
+        description: WHAT to do -- the working spec. Markdown.
+        required: true
+      constraints:
+        description: Hard requirements and prohibitions. Markdown.
+      out_of_scope:
+        description: >-
+          Explicit non-goals, so agents do not wander. Markdown. Note: this is the
+          field that would have prevented task-048's own scope drift.
+      context:
+        description: Curated read-this-first pointers, each with a reason.
+        range: ContextPointer
+        multivalued: true
+        inlined_as_list: true
+
+  ContextPointer:
+    description: A file worth reading before starting, and why it is worth reading.
+    attributes:
+      path:
+        description: Repository-relative path.
+        required: true
+      why:
+        description: >-
+          What the reader will find there. Required -- a pointer without a reason is
+          the kind of context that decays into noise.
+        required: true
+
+  AcceptanceCriterion:
+    description: >-
+      One verifiable condition for done. Replaces SuccessCriterion; adds an optional
+      machine-checkable hint.
+    attributes:
+      id:
+        description: Criterion identifier, scoped to the task (e.g. ac-1).
+        required: true
+      text:
+        description: The condition, stated so it can be judged true or false.
+        required: true
+      verify:
+        description: >-
+          Optional machine-checkable hint -- a command that demonstrates the
+          criterion. Advisory, not executed automatically.
+      status:
+        range: AcceptanceStatus
+        ifabsent: string(pending)
+
+  Deliverable:
+    description: An artifact the task produces.
+    attributes:
+      path:
+        description: Repository-relative path to the deliverable.
+        required: true
+      note:
+        description: What it is. Renamed from v1's description, to free that word up.
+      status:
+        range: DeliverableStatus
+        ifabsent: string(pending)
+
+  Dependency:
+    description: >-
+      A relationship to another task. Renamed from task_id to task, and now actually
+      validated against the store at save. v1's purposeless `status` field is gone.
+    attributes:
+      task:
+        description: Referenced task identifier. Must exist in the store.
+        required: true
+      type:
+        range: DependencyType
+        ifabsent: string(needs)
+      note:
+        description: Why the relationship exists.
+
+  Link:
+    description: An external reference, with its kind made explicit.
+    attributes:
+      url:
+        description: Target URL. Actually validated as a URI, unlike v1.
+        range: uri
+        required: true
+      rel:
+        description: What this link is.
+        range: LinkRel
+        ifabsent: string(other)
+      title:
+        description: Display title.
+
+  Branch:
+    description: Git branch lifecycle. Carried over from v1 unchanged.
+    attributes:
+      name:
+        description: Git branch name.
+        required: true
+      status:
+        range: BranchStatus
+        ifabsent: string(active)
+      merged_at:
+        description: When the branch was merged, if it was.
+        range: datetime
+
+  LogEntry:
+    description: >-
+      One immutable event in the task's history (section 4). Provenance lives at this
+      layer: every entry carries a typed actor, and every state change flows through
+      a logged transition. Field-level provenance was rejected as weight without readers.
+    attributes:
+      id:
+        description: Per-task integer, assigned by the manager. Defines order.
+        range: integer
+        required: true
+      ts:
+        description: When the event happened.
+        range: datetime
+        required: true
+      actor:
+        description: >-
+          Who or what produced this entry, referenced by actor id (D4). `kind` is
+          resolved from config and is never stored here.
+        range: Actor
+        inlined: false
+        required: true
+      type:
+        range: LogEntryType
+        required: true
+      re:
+        description: >-
+          Optional id of an earlier entry this one responds to. How an `answer`
+          attaches to its `question`.
+        range: integer
+      body:
+        description: >-
+          The human-readable content. Markdown. For `handoff` entries this is the
+          ask, mirroring ball_prompt; for `decision` entries it must include the
+          rejected alternative.
+      data:
+        description: >-
+          Optional structured payload, typed per entry type. For `transition`
+          entries it carries the state delta, e.g. {lifecycle: active, ball: agent,
+          ball_reason: work}. Deliberately unconstrained at the schema level; the
+          per-type shape is validated by the manager that writes it.
+        range: AnyValue
+        inlined: true
+
+  AnyValue:
+    class_uri: linkml:Any
+    description: >-
+      An untyped structured value. LinkML's escape hatch, used only for LogEntry.data
+      where the payload shape depends on the entry type.
