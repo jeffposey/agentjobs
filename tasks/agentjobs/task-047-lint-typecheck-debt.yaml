@@ -1,8 +1,8 @@
 id: task-047-lint-typecheck-debt
 title: Fix two NameError bugs found by ruff, then clear lint/format/type debt
 created: '2026-07-29T18:42:51.398166Z'
-updated: '2026-08-10T07:37:19.924571Z'
-status: in_progress
+updated: '2026-08-10T08:02:04.569563Z'
+status: waiting_for_human
 priority: medium
 category: maintenance
 estimated_effort: 3-4 hours
@@ -158,28 +158,28 @@ success_criteria:
   description: models.py imports timezone; Comment.update_content() and Webhook.record_trigger()
     both execute without NameError and are covered by regression tests asserting a
     timezone-aware timestamp
-  status: pending
+  status: completed
 - id: sc-2
   description: manager.py:132 F841 resolved deliberately (documented as either a restored
     existence check or intentional removal, not silenced)
-  status: pending
+  status: completed
 - id: sc-3
   description: ruff check . and black --check . report clean, with any intentional
     exceptions (e.g. E402 in examples/) expressed as config, not ignored ad hoc
-  status: pending
+  status: completed
 - id: sc-4
   description: mypy passes, or disallow_untyped_defs is deliberately scoped in pyproject
     with the decision recorded on this task
-  status: pending
+  status: completed
 - id: sc-5
   description: poetry run pytest passes; bug fixes committed separately from reformatting
-  status: pending
+  status: completed
 - id: sc-6
   description: use_enum_values removed from Phase/StatusUpdate/Task; task.status is
     always a TaskStatus regardless of how it was set; YAML round-trip and API JSON
     both verified unchanged; the dead isinstance workarounds in manager.py and collaborative_agent.py
     removed; docs/task-schema.md gotcha section updated
-  status: pending
+  status: completed
 prompts:
   starter: "## Objective\nFix the two confirmed NameError bugs in models.py (with\
     \ regression tests), investigate the dead-code finding in manager.py, then clear\
@@ -260,6 +260,115 @@ status_updates:
     6. The two config judgement calls the task asks for: per-file-ignores for E402
     in examples/ rather than rewriting standalone scripts, and whether disallow_untyped_defs
     should apply to tests/ at all.'
+- timestamp: '2026-08-10T08:02:04.569539Z'
+  author: claude
+  status: waiting_for_human
+  summary: All six criteria met; two real bugs fixed, toolchain clean, 185 tests pass
+  details: 'Eight commits on fix/task-047-lint-typecheck-debt, ordered so the real
+    fixes are reviewable and are not buried under mechanical churn. ruff, mypy and
+    black are all clean across 56 files. 185 tests pass, 8 new.
+
+
+    ## The two bugs, and one is worse than the task recorded
+
+
+    Both NameErrors were real, confirmed by calling the methods rather than trusting
+    static analysis. models.py imported datetime but not timezone.
+
+
+    The Webhook one is not merely "an untested method": record_trigger is called by
+    WebhookManager._dispatch immediately after a successful POST. So every successful
+    webhook delivery has been raising NameError, last_triggered has never once been
+    recorded, and the save_webhook call on the following line never ran. It was invisible
+    because _dispatch runs as a detached asyncio task. That confirms the hint the
+    task flagged: the field really was silently never updated in the delivery path.
+
+
+    The F841 was in archive_task, not delete_task as the task recorded, and the distinction
+    mattered: _ensure_task_exists raises for a missing id, so the call is a live existence
+    check and only the binding was dead. Deleting the line to silence ruff would have
+    removed a guard, and nothing covered the raising path -- so that deletion would
+    have passed the suite. Added the test that catches it.
+
+
+    ## The enum change, verified rather than assumed
+
+
+    Removed use_enum_values from Phase, StatusUpdate and Task. Before doing it I hashed
+    the serialization of all 30 corpus tasks, and it is byte-for-byte identical afterwards
+    -- storage.py dumps with mode="json", which converts enums regardless, so the
+    setting was never what produced clean YAML.
+
+
+    The part worth reading: manager.update_status carried `previous_status if isinstance(previous_status,
+    str) else previous_status.value`. TaskStatus subclasses str, so the isinstance
+    is always true and the .value branch never executed. Defensive code written against
+    the inconsistency was itself dead, and it type-checked. examples/collaborative_agent.py
+    had the same dance. Both gone.
+
+
+    ## Three test assertions could not fail
+
+
+    mypy caught what review would not: `comment.updated > comment.created`, `"..."
+    in task.human_summary`, and `task.id` on an Optional[Task] would all have raised
+    TypeError rather than failing the assertion if the value were None. Each now asserts
+    non-None first. This is the concrete return on turning the type checker on.
+
+
+    ## The three config judgement calls
+
+
+    The task asked for two; there was a third it did not anticipate.
+
+
+    1. NOT ANTICIPATED: schema/generated/ was being linted. It is written by regen-schema-docs.sh
+    and must never be hand-edited, so every finding there was unactionable by construction.
+    Excluded from black, ruff and mypy.
+
+    2. E402 in examples/ is a per-file-ignore, not a rewrite. Those scripts manipulate
+    sys.path before importing agentjobs so they run from a clone without installing
+    the package -- that is what makes them useful as examples.
+
+    3. disallow_untyped_defs is now opt-in for agentjobs.* rather than global. Written
+    as an opt-in rather than an exemption list because mypy patterns only wildcard
+    whole components (agentjobs.* works, test_* does not) and tests/ has no __init__.py
+    -- an exemption list would silently stop covering new test files. Tests are still
+    type-checked; they just need not carry annotations.
+
+
+    Also enabled the pydantic mypy plugin (without it mypy rejects Webhook(url="https://...")
+    even though passing a str is the documented coercing behaviour) and added types-PyYAML
+    rather than blanket-ignoring yaml, so yaml calls are actually checked.
+
+
+    86 mypy errors to 0. 39 ruff to 0.
+
+
+    ## Verified beyond the suite
+
+
+    Started the server and exercised it: dashboard, task list, task detail, /api/projects,
+    /api/tasks, /api/all/tasks and /health all 200, and a status write through the
+    API still round-trips after the enum change and the reformat.
+
+
+    ## Notes for review
+
+
+    - The reformat is commit 80518fe alone. Read it with --stat and move on; nothing
+    else is in it.
+
+    - One pre-existing DeprecationWarning remains (datetime.utcnow in migration/reporter.py).
+    Out of scope here, not fixed, flagged rather than silently swept into the reformat
+    commit.
+
+    - docs/task-schema.md''s "enum fields are not consistently typed" section documented
+    the old behaviour and is rewritten to state the new guarantee.
+
+
+    This unblocks task-050 (v2 models), which the design doc section 10 says wants
+    honestly-typed enums underneath it.'
 comments: []
 deliverables:
 - path: src/agentjobs/models.py
