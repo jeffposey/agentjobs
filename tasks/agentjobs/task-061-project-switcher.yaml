@@ -2,7 +2,7 @@ schema: 2
 id: task-061-project-switcher
 title: 'GUI: project switcher and project-scoped URLs'
 created: '2026-08-10T19:00:24Z'
-updated: '2026-08-10T23:19:15.951734Z'
+updated: '2026-08-10T23:29:50.555197Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -304,7 +304,7 @@ log:
     v1_status: waiting_for_human
 - id: 3
   ts: '2026-08-10T19:14:31Z'
-  actor: jeffposey
+  actor: Jeff Posey
   type: transition
   body: "Approved by human \u2014 cleared to merge\n\nhuman approved this work through\
     \ the web UI. The ball is back with the agent, which must now rebase onto main,\

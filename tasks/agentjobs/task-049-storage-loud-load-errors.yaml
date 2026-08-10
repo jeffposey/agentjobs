@@ -2,7 +2,7 @@ schema: 2
 id: task-049-storage-loud-load-errors
 title: 'Storage: stop swallowing task validation errors; report file, field, and error'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T23:19:15.842138Z'
+updated: '2026-08-10T23:29:50.442623Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -180,7 +180,7 @@ log:
     v1_status: waiting_for_human
 - id: 3
   ts: '2026-08-10T20:27:50Z'
-  actor: jeffposey
+  actor: Jeff Posey
   type: transition
   body: "Approved by human \u2014 cleared to merge\n\nhuman approved this work through\
     \ the web UI. The ball is back with the agent, which must now rebase onto main,\

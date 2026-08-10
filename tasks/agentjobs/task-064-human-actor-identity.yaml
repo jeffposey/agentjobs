@@ -2,14 +2,13 @@ schema: 2
 id: task-064-human-actor-identity
 title: 'Human actor identity: stop recording every review action as ''human'''
 created: '2026-08-10T22:57:38.560179Z'
-updated: '2026-08-10T23:22:16.746114Z'
+updated: '2026-08-10T23:33:03.927245Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: 'All four requested changes are done. Approve to merge, or push back
-  again. Worth checking yourself: open any of tasks 032, 049, 050, 051, 052, 055 or
-  061 and confirm the backfilled entries read correctly, and that the human inbox
-  still lists 8 tasks -- that is the check that `ball: human` survived the rewrite.'
+ball_prompt: 'Renamed to `Jeff Posey` and history backfilled again. Approve to merge,
+  or push back. Two new draft tasks are waiting for you separately: task-066 (multiple
+  human users) and task-067 (image attachments).'
 archived: false
 priority: high
 category: developer_experience
@@ -270,6 +269,92 @@ log:
     the page acts as `jeffposey`, the panel reads ''Acting as jeffposey'', task-052
     shows 2 entries by `jeffposey`, `/api/tasks/broken` is empty, and `?ball=human`
     still returns 8 tasks -- proving the backfill did not touch the state enum.'
+  data:
+    ball: human
+    ball_reason: review
+- id: 7
+  ts: '2026-08-10T23:26:51.223847Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by jeffposey:
+
+
+    The username should support spaces, and I was just assuming it didn''t, but for
+    best readability, change my name to "Jeff Posey" and fix history to use that.'
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 8
+  ts: '2026-08-10T23:33:03.906967Z'
+  actor: claude
+  type: decision
+  body: '**Actor ids may contain spaces; the owner''s id is now `Jeff Posey`.** Recorded
+    because I argued against it first and a later reader deserves both sides.
+
+
+    The objection: an actor id is a *reference*. It appears in `actor:`, `assignment.owner`,
+    `assignment.eligible`, and in URL query values such as `?agent=`. Config already
+    carries `display_name` for readability, so the textbook split is a terse stable
+    id plus a pretty label, and putting the pretty label in the id makes `display_name`
+    redundant.
+
+
+    Overruled, and reasonably. The stored record is the product here -- the whole
+    premise is that a person or an agent reads the YAML directly -- so readability
+    *in the file* is a real requirement, not a nicety. `actor: Jeff Posey` needs no
+    lookup to understand; `actor: jeffposey` does. And the technical cost turned out
+    to be nil rather than merely small, which I verified instead of assuming: PyYAML
+    round-trips an unquoted internal space, FastAPI decodes `%20` in a query value,
+    and `/api/tasks/next?agent=Jeff%20Posey` resolves correctly.
+
+
+    *The residual cost, accepted:* near-miss ids are now easier to typo -- `Jeff  Posey`
+    with two spaces is a different id -- which is why `validate_actor` refusing an
+    unknown actor matters more than it did, and why there is now a test for exactly
+    that near miss. `display_name` stays in the schema and is still the right place
+    for a label that differs from the id; it simply happens to match today.
+
+
+    *Not done:* no format validation on actor ids. Constraining them would need a
+    rule that admits spaces but excludes whatever is genuinely dangerous, and nothing
+    has yet shown what that is.'
+  re: 7
+  data: {}
+- id: 9
+  ts: '2026-08-10T23:33:03.927155Z'
+  actor: claude
+  type: handoff
+  body: 'Third round: a one-word change with a design question inside it.
+
+
+    **Renamed** the actor id to `Jeff Posey` in config, and backfilled 9 references
+    across 8 files. Zero stale `human` or `jeffposey` ids remain anywhere in the corpus.
+
+
+    **Verified that spaces actually survive, rather than assuming.** They pass through
+    four encoders between the keyboard and a log entry, so each was checked: config
+    resolution, a YAML round trip unquoted, the API request body, the rendered page,
+    and -- the one I expected to break -- a URL query value. `GET /api/tasks/next?agent=Jeff%20Posey`
+    returns task-060 rather than truncating at the space. Six new tests cover the
+    path, including that `Jeff  Posey` with two spaces is correctly refused as a different
+    id.
+
+
+    **Live check:** the panel reads ''Acting as Jeff Posey'', the page posts as `Jeff
+    Posey`, task-052 shows 2 entries under the new id, and `/api/tasks/broken` is
+    empty.
+
+
+    **Also captured, not built: task-067**, attaching images to feedback and issue
+    reports with clipboard paste as the primary method. Left in draft because the
+    interaction is the easy half. The hard half is where binaries live in a product
+    whose premise is diffable YAML in git -- sidecar files, git-lfs, inline base64
+    or an external store -- and that wants deciding before anyone writes a paste handler,
+    or the paste handler decides it by accident. The task lays out the four options
+    with their costs and recommends rejecting inline base64 explicitly.
+
+
+    430 tests pass; ruff, mypy, black clean.'
   data:
     ball: human
     ball_reason: review

@@ -143,6 +143,47 @@ def test_reject_task(client: TestClient, sample_task_in_review: str) -> None:
     assert any("Out of scope" in (entry["body"] or "") for entry in task["log"])
 
 
+def test_an_actor_id_with_spaces_works_end_to_end(
+    client: TestClient, sample_task_in_review: str, tmp_path: Path
+) -> None:
+    """A name-shaped id survives config, the API, the log and a URL query string.
+
+    The owner chose ids that read as names ("Jeff Posey") over terse ones. A space
+    passes through four encoders on the way to a log entry, so this walks the whole
+    path rather than trusting any one of them.
+    """
+    (tmp_path / ".agentjobs" / "config.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "project_name": "Test",
+                "tasks_directory": "tasks",
+                "actors": [
+                    {"name": "Jeff Posey", "kind": "human"},
+                    {"name": "test-agent", "kind": "agent"},
+                ],
+                "default_user": "Jeff Posey",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/approve",
+        json={"user": "Jeff Posey"},
+    )
+    assert response.status_code == 200
+    assert response.json()["task"]["log"][-1]["actor"] == "Jeff Posey"
+
+    # Reloaded from disk, so the YAML round trip is included rather than assumed.
+    reloaded = client.get(f"/api/tasks/{sample_task_in_review}").json()
+    assert reloaded["log"][-1]["actor"] == "Jeff Posey"
+
+    # And as a URL query value, where the space must be encoded rather than truncating
+    # the id at the first word.
+    page = client.get(f"/p/_local/tasks/{sample_task_in_review}").text
+    assert 'const CURRENT_USER = "Jeff Posey"' in page
+
+
 def test_an_unconfigured_actor_is_refused(client: TestClient, sample_task_in_review: str) -> None:
     """A typo'd or unknown id is rejected rather than written into the log.
 

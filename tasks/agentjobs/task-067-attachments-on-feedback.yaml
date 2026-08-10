@@ -1,0 +1,132 @@
+schema: 2
+id: task-067-attachments-on-feedback
+title: Attach images to feedback and issue reports, primarily by clipboard paste
+created: '2026-08-10T23:31:30.455098Z'
+updated: '2026-08-10T23:31:30.455886Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: 'Decide the storage question before this is claimed: where do binaries
+  live in a product whose premise is diffable YAML in git? Sidecar files, git-lfs,
+  inline base64, or an external store. The interaction work is straightforward once
+  that is settled.'
+archived: false
+priority: medium
+category: ux
+tags:
+- gui
+- workflow
+- schema
+effort: half a day once the storage decision is made
+assignment:
+  eligible: []
+spec:
+  summary: A screenshot is the fastest way to report a visual bug and there is nowhere
+    to put one. Support pasting images into the review and report-issue boxes -- after
+    deciding where binaries live in a product built on diffable YAML.
+  intent: 'Every defect found in this project so far has been visual -- a filter matching
+    nothing, a page of validation errors, a badge rendering an enum name. Each was
+    described in prose across several messages when a screenshot would have been unambiguous
+    and instant. Text is a poor encoding for ''look at this''.
+
+
+    The cost of capturing a finding has to be near zero or findings do not get captured;
+    that is the same argument that motivates task-065, and pasting a screenshot is
+    the lowest-friction capture there is.'
+  description: "The interaction is the easy half and the storage is the hard half.\
+    \ Decide the storage\nbefore building the paste handler, or the paste handler\
+    \ will decide it by accident.\n\n## The interaction\n\n**Paste from the clipboard\
+    \ is the primary method** and the one that has to feel\neffortless: take a screenshot,\
+    \ click into the feedback box, press Ctrl+V, submit. A\nbrowser gives this via\
+    \ the `paste` event's `clipboardData.items`, which carries an image\nblob directly\
+    \ -- no file picker involved. Drag-and-drop and a file input are worth having\n\
+    as fallbacks, but if pasting is awkward the feature has failed, because the moment\
+    \ being\ncaptured is \"look at this, it's wrong\" and any friction loses it.\n\
+    \nApplies to both surfaces that take prose from a human: the review panel's Request\n\
+    Changes box, and the Report Issue form (task-065). Same widget, both places.\n\
+    \n## The hard part: binaries in a product whose premise is diffable text\n\nAgentJobs\
+    \ is YAML files in git. That is not incidental -- it is the argument in\ndocs/schema-design.md\
+    \ section 7 for the whole storage model: diffable history, blame on a\nfield,\
+    \ atomic commits pairing a task with the code it describes. An image is a binary\n\
+    blob that has none of those properties, and a decision made carelessly here erodes\
+    \ the\npremise. Options, none free:\n\n- **Sidecar directory** (`tasks/attachments/<task-id>/<hash>.png`),\
+    \ referenced from the\n  task by relative path. Keeps YAML clean and readable,\
+    \ keeps everything in one git repo,\n  and a screenshot is small. Costs: repository\
+    \ growth is permanent since git keeps every\n  blob forever, and orphaned files\
+    \ outlive the entries that referenced them.\n- **git-lfs.** Solves growth properly,\
+    \ and adds a hard dependency plus a setup step to a\n  tool that currently needs\
+    \ nothing but Python. Probably wrong for a `pip install` product.\n- **Base64\
+    \ inline in the YAML.** Self-contained, needs no new machinery, and destroys the\n\
+    \  file's readability and diffability -- a 200KB screenshot as one unreadable\
+    \ line in a\n  record meant to be read by humans and agents. Recommend rejecting\
+    \ explicitly so it is\n  not revisited.\n- **External object store.** Correct\
+    \ at scale, wrong for a local-first tool, and breaks\n  the property that a checkout\
+    \ is complete.\n\nSidecar files are the likely answer. Decide it, record the rejected\
+    \ alternatives, and say\nwhat happens when the repository grows.\n\n## Schema\n\
+    \nAn attachment is a new concept and the schema has no home for it. `links[]`\
+    \ is close but\nholds a validated `url` -- a repo-relative file path is not a\
+    \ URL, and stretching it would\nrepeat the v1 mistake of one field straining across\
+    \ two meanings.\n\nA new optional field on the log entry is the natural shape\
+    \ and is **additive**, so under\nthe evolution policy in schema-design.md section\
+    \ 9 it needs no schema version bump: old\nfiles stay valid, and only files with\
+    \ attachments carry the field. Decide whether it\nbelongs on the log entry (the\
+    \ specific remark the image illustrates) or on the task\n(a general gallery).\
+    \ The log entry is more likely right, since an image is nearly always\nevidence\
+    \ for a particular statement.\n\n## Also worth settling\n\n- What is accepted:\
+    \ images only, or any file? Images only is a defensible narrowing and\n  much\
+    \ easier to render.\n- A size ceiling, and what happens when a paste exceeds it.\
+    \ Silently truncating or\n  failing after the user has typed their feedback would\
+    \ be the worst outcome.\n- Rendering: attachments shown inline in the log, or\
+    \ as links? Inline is the point --\n  a screenshot nobody clicks is a screenshot\
+    \ nobody sees.\n- Whether the CLI and API can attach too, or only the GUI. The\
+    \ API taking a base64 body\n  and writing a sidecar file keeps one storage path\
+    \ rather than two."
+  constraints: '- Do not compromise the diffability of task YAML. A record that a
+    human cannot read in a text editor has lost the property the storage model exists
+    for.
+
+    - Additive schema change only. Old task files must stay valid, and this must not
+    require a schema version bump (evolution policy, section 9).
+
+    - A checkout stays complete: an attachment must not depend on a service that might
+    not be there.
+
+    - Paste must work without a file picker.'
+  out_of_scope: Image editing, annotation, cropping. Thumbnailing or transcoding.
+    Video.
+  context:
+  - path: docs/schema-design.md
+    why: Section 7 argues for files over a database; section 9 is the additive-change
+      policy this must satisfy.
+  - path: src/agentjobs/api/templates/task_detail.html
+    why: The Request Changes box, one of the two surfaces.
+  - path: src/agentjobs/storage.py
+    why: All task I/O goes through here; sidecar files would too.
+acceptance:
+- id: ac-1
+  text: the storage model for binaries is decided and recorded, with the rejected
+    alternatives and the repository-growth consequence
+  status: pending
+- id: ac-2
+  text: pasting an image into the Request Changes box attaches it, with no file picker
+  status: pending
+- id: ac-3
+  text: the same works in the Report Issue form
+  status: pending
+- id: ac-4
+  text: attachments render inline where the entry is read, not as bare links
+  status: pending
+- id: ac-5
+  text: task YAML remains readable and diffable in a text editor
+  status: pending
+- id: ac-6
+  text: an oversized paste fails clearly and does not lose the prose already typed
+  status: pending
+deliverables: []
+dependencies:
+- task: task-065-report-issue-action
+  type: related
+  note: Second surface for the same widget; neither blocks the other.
+links: []
+branches: []
+log: []

@@ -3,7 +3,7 @@ id: task-050-schema-v2-models
 title: 'Schema v2: models -- state axes, spec, unified log, strict validation, version
   stamp'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T23:19:15.858945Z'
+updated: '2026-08-10T23:29:50.459368Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -246,7 +246,7 @@ log:
     v1_status: waiting_for_human
 - id: 3
   ts: '2026-08-10T19:37:31Z'
-  actor: jeffposey
+  actor: Jeff Posey
   type: transition
   body: "Approved by human \u2014 cleared to merge\n\nhuman approved this work through\
     \ the web UI. The ball is back with the agent, which must now rebase onto main,\

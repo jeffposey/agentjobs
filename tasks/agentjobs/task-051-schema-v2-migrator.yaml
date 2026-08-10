@@ -2,7 +2,7 @@ schema: 2
 id: task-051-schema-v2-migrator
 title: 'Schema v2: one-shot migrator and corpus migration'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T23:19:15.877864Z'
+updated: '2026-08-10T23:29:50.479551Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -217,7 +217,7 @@ log:
     v1_status: waiting_for_human
 - id: 3
   ts: '2026-08-10T20:09:12Z'
-  actor: jeffposey
+  actor: Jeff Posey
   type: transition
   body: "Approved by human \u2014 cleared to merge\n\nhuman approved this work through\
     \ the web UI. The ball is back with the agent, which must now rebase onto main,\

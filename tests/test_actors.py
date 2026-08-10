@@ -138,6 +138,48 @@ class TestExactlyOneHumanIsSupported:
         assert identity.problem is None
 
 
+class TestIdsWithSpaces:
+    """An actor id may contain spaces, so it can read as a person's name.
+
+    The textbook objection is that an id is a reference and `display_name` exists for
+    readability. The owner chose readability in the stored record, which is his to
+    choose -- these tests exist so the choice is safe rather than merely honoured. An id
+    travels through YAML, a URL query string and a CLI argument, and each has its own
+    way of mangling a space.
+    """
+
+    SPACED: Dict[str, Any] = {
+        "actors": [
+            {"name": "Jeff Posey", "kind": "human", "display_name": "Jeff Posey"},
+            {"name": "claude", "kind": "agent"},
+        ],
+        "default_user": "Jeff Posey",
+    }
+
+    def test_it_resolves_as_the_acting_user(self) -> None:
+        identity = human_identity(self.SPACED)
+
+        assert identity.ok
+        assert identity.user == "Jeff Posey"
+
+    def test_it_validates(self) -> None:
+        assert validate_actor(self.SPACED, "Jeff Posey") == "Jeff Posey"
+
+    def test_a_near_miss_is_still_refused(self) -> None:
+        # Two spaces, not one. Exactly the typo a space-bearing id invites.
+        with pytest.raises(UnknownActorError):
+            validate_actor(self.SPACED, "Jeff  Posey")
+
+    def test_it_survives_a_yaml_round_trip_unquoted(self) -> None:
+        # safe_dump does not quote a bare string with an internal space, and safe_load
+        # must read it back identically -- otherwise every task file holding the id
+        # would drift on its next write.
+        import yaml
+
+        dumped = yaml.safe_dump({"actor": "Jeff Posey"}, allow_unicode=False)
+        assert yaml.safe_load(dumped)["actor"] == "Jeff Posey"
+
+
 class TestValidation:
     def test_a_configured_actor_passes(self) -> None:
         assert validate_actor(UNIFIED, "jeffposey") == "jeffposey"

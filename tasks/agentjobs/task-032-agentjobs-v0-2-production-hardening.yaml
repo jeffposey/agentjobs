@@ -2,7 +2,7 @@ schema: 2
 id: task-032-agentjobs-v0-2-production-hardening
 title: AgentJobs v0.2.0 - Production Hardening
 created: '2025-10-26T18:30:00Z'
-updated: '2026-08-10T23:19:15.829261Z'
+updated: '2026-08-10T23:29:50.429155Z'
 lifecycle: closed
 outcome: cancelled
 archived: true
@@ -83,7 +83,7 @@ log:
     v1_status: waiting_for_human
 - id: 2
   ts: '2026-08-10T19:43:28Z'
-  actor: jeffposey
+  actor: Jeff Posey
   type: transition
   body: 'Rejected by human: old stale task, nothing waiting on it'
   data:
