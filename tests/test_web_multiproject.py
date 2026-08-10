@@ -73,6 +73,70 @@ class TestScopedPages:
         assert client.get("/p/ghost/tasks").status_code == 404
 
 
+class TestFilterAttributesAreUsable:
+    """The task list filters on data- attributes, so their *values* have to be right.
+
+    This shipped broken. `{{ task.lifecycle }}` rendered `Lifecycle.READY` under Python
+    3.11's mixin-enum change, so every filter matched nothing and the dashboard's
+    "View all N waiting tasks" link led to an empty page -- while the status badge in
+    the same row rendered correctly, because it compares rather than interpolates.
+
+    Asserting the rendered attribute, rather than that the attribute merely exists, is
+    the difference between catching this and not: the original check looked for
+    `data-ball=` and passed.
+    """
+
+    def test_filter_attributes_hold_bare_vocabulary_values(self, two_projects_web) -> None:
+        client, _ = two_projects_web
+
+        body = client.get("/p/alpha/tasks").text
+
+        assert 'data-lifecycle="ready"' in body
+        assert 'data-lifecycle="Lifecycle.' not in body
+        assert 'data-ball="agent"' in body
+        assert 'data-ball="Ball.' not in body
+        assert 'data-priority="high"' in body
+        assert 'data-priority="Priority.' not in body
+
+    def test_the_dashboard_waiting_link_targets_a_filter_that_matches(
+        self, two_projects_web
+    ) -> None:
+        # The reported symptom, end to end: the dashboard links to ?status=human, and
+        # a task whose ball is human must carry data-ball="human" for that to select it.
+        # Four waiting tasks, because the "View all N" link only appears past three --
+        # which is why the broken link was invisible until the backlog grew.
+        client, _ = two_projects_web
+        for index in range(4):
+            created = client.post(
+                "/api/projects/alpha/tasks",
+                json={
+                    "title": f"Waiting {index}",
+                    "description": "x",
+                    "category": "ops",
+                    "lifecycle": "ready",
+                },
+            ).json()
+            client.post(f"/api/projects/alpha/tasks/{created['id']}/claim", json={"agent": "codex"})
+            client.post(
+                f"/api/projects/alpha/tasks/{created['id']}/handoff",
+                json={
+                    "actor": "codex",
+                    "ball": "human",
+                    "ball_reason": "review",
+                    "ball_prompt": "Look at this.",
+                },
+            )
+
+        dashboard = client.get("/p/alpha/").text
+        assert "?status=human" in dashboard
+
+        listing = client.get("/p/alpha/tasks?status=human").text
+        assert 'data-ball="human"' in listing
+        # And the select offers the value the link uses, or the page loads pre-filtered
+        # to an option that is not there.
+        assert '<option value="human">' in listing
+
+
 class TestLinksCarryTheirProject:
     """A link that drops its project id opens a different project's task."""
 

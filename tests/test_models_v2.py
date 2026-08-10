@@ -17,9 +17,15 @@ from pydantic import ValidationError
 
 from agentjobs.models_v2 import (
     BALL_REASONS,
+    AcceptanceStatus,
     Ball,
     BallReason,
+    BranchStatus,
+    DeliverableStatus,
+    DependencyType,
     Lifecycle,
+    LinkRel,
+    LogEntryType,
     Outcome,
     Priority,
     SchemaVersionError,
@@ -570,6 +576,48 @@ class TestDefaults:
             < rank[Priority.MEDIUM]
             < (rank[Priority.LOW])
         )
+
+
+class TestEnumsRenderAsTheirValue:
+    """str() must give `ready`, not `Lifecycle.READY` (Python 3.11 mixin-enum change).
+
+    This shipped broken: the task list wrote `data-ball="Ball.HUMAN"` into its filter
+    attributes, so filtering by ball or lifecycle matched nothing, while the status badge
+    beside it rendered correctly because it *compares* rather than renders. Comparisons
+    are unaffected by the 3.11 change, which is what let the bug through every existing
+    test -- they assert on comparisons and on JSON, and Pydantic serialises by value.
+    """
+
+    ENUMS = [
+        Lifecycle,
+        Ball,
+        BallReason,
+        Outcome,
+        Priority,
+        AcceptanceStatus,
+        DeliverableStatus,
+        BranchStatus,
+        DependencyType,
+        LinkRel,
+        LogEntryType,
+    ]
+
+    @pytest.mark.parametrize("enum_cls", ENUMS, ids=lambda c: c.__name__)
+    def test_str_is_the_value(self, enum_cls: Any) -> None:
+        for member in enum_cls:
+            assert str(member) == member.value
+
+    @pytest.mark.parametrize("enum_cls", ENUMS, ids=lambda c: c.__name__)
+    def test_format_is_the_value(self, enum_cls: Any) -> None:
+        # f-strings and Jinja's `{{ }}` take this path.
+        for member in enum_cls:
+            assert f"{member}" == member.value
+
+    def test_comparison_against_a_bare_string_still_works(self) -> None:
+        # The property that kept the bug hidden must itself keep working: templates
+        # and routes compare against plain strings all over.
+        assert Ball.HUMAN == "human"
+        assert Lifecycle.CLOSED == "closed"
 
 
 class TestDocumentationMatchesTheModel:

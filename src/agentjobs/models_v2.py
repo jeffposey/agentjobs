@@ -1,13 +1,11 @@
-"""Schema v2 data models for AgentJobs.
+﻿"""Schema v2 data models for AgentJobs.
 
 Implements the design accepted in ``docs/schema-design.md``. Read that document for
 *why* any of this is shaped the way it is; this module is the enforcement.
 
-**These models are not yet wired into the application.** v1 (``models.py``) still runs
-storage, the manager, the API and the GUI. Replacing it in place would break 26 modules,
-roughly 180 field references and all 38 corpus files in a single commit, leaving main
-red until task-052. Task-051 owns the migration and the switchover; this module lands
-first so it can be reviewed on its own.
+This is **the** schema. Task-052 migrated the corpus and repointed storage, the manager,
+the API, the GUI and the CLI at these models, and deleted v1 (``models.py``) outright.
+A file without a ``schema: 2`` stamp is a v1 file and is refused by name.
 
 The machine-readable definition of the same schema lives in ``schema/agentjobs-v2.yaml``
 and the two are checked against each other by loading
@@ -45,7 +43,33 @@ SCHEMA_VERSION = 2
 # ---------------------------------------------------------------------------
 
 
-class Lifecycle(str, Enum):
+class ValueEnum(str, Enum):
+    """A string enum whose ``str()`` is its value, not ``ClassName.MEMBER``.
+
+    Python 3.11 changed ``__str__`` on mixin enums: ``str(Lifecycle.READY)`` became
+    ``"Lifecycle.READY"`` where it used to be ``"ready"``. Comparisons are unaffected --
+    these subclass ``str``, so ``task.ball == "human"`` is still True -- which is exactly
+    what makes the change dangerous. Every conditional keeps working while every
+    *rendered* value silently becomes wrong.
+
+    It escaped the test suite because tests assert on comparisons and on JSON, and
+    Pydantic serialises by value regardless. It only shows up where a template
+    interpolates an enum: `data-ball="Ball.HUMAN"` broke the task list's filters while
+    the badge beside them, which compares, rendered correctly.
+
+    Restoring the mixin's ``__str__`` and ``__format__`` fixes every such site at once,
+    rather than appending ``.value`` at each one and waiting for the next template to
+    forget.
+    """
+
+    __str__ = str.__str__
+
+    def __format__(self, format_spec: str) -> str:
+        """Format as the value too, so f-strings agree with str()."""
+        return str.__format__(self, format_spec)
+
+
+class Lifecycle(ValueEnum):
     """Where a task is in its life (design doc section 3)."""
 
     DRAFT = "draft"
@@ -54,7 +78,7 @@ class Lifecycle(str, Enum):
     CLOSED = "closed"
 
 
-class Ball(str, Enum):
+class Ball(ValueEnum):
     """Who acts next. Required while a task is open; null only when closed."""
 
     AGENT = "agent"
@@ -62,7 +86,7 @@ class Ball(str, Enum):
     EXTERNAL = "external"
 
 
-class BallReason(str, Enum):
+class BallReason(ValueEnum):
     """Why the ball holder holds it. Scoped to the holder -- see BALL_REASONS."""
 
     # ball: agent
@@ -101,7 +125,7 @@ A single flat enum with a scoping table, rather than three enums, so that
 """
 
 
-class Outcome(str, Enum):
+class Outcome(ValueEnum):
     """How a task ended. Set if and only if lifecycle is closed."""
 
     COMPLETED = "completed"
@@ -110,7 +134,7 @@ class Outcome(str, Enum):
     DUPLICATE = "duplicate"
 
 
-class Priority(str, Enum):
+class Priority(ValueEnum):
     """Relative urgency."""
 
     LOW = "low"
@@ -119,7 +143,7 @@ class Priority(str, Enum):
     CRITICAL = "critical"
 
 
-class AcceptanceStatus(str, Enum):
+class AcceptanceStatus(ValueEnum):
     """State of one acceptance criterion.
 
     Deliberately distinct from DeliverableStatus: a criterion is *verified* (met), a
@@ -133,7 +157,7 @@ class AcceptanceStatus(str, Enum):
     DROPPED = "dropped"
 
 
-class DeliverableStatus(str, Enum):
+class DeliverableStatus(ValueEnum):
     """State of one deliverable."""
 
     PENDING = "pending"
@@ -141,7 +165,7 @@ class DeliverableStatus(str, Enum):
     DROPPED = "dropped"
 
 
-class BranchStatus(str, Enum):
+class BranchStatus(ValueEnum):
     """Git branch lifecycle. Unchanged from v1 -- genuinely distinct."""
 
     ACTIVE = "active"
@@ -149,7 +173,7 @@ class BranchStatus(str, Enum):
     ABANDONED = "abandoned"
 
 
-class DependencyType(str, Enum):
+class DependencyType(ValueEnum):
     """Relationship to another task. v1's `depends_on` is renamed `needs`."""
 
     NEEDS = "needs"
@@ -157,7 +181,7 @@ class DependencyType(str, Enum):
     RELATED = "related"
 
 
-class LinkRel(str, Enum):
+class LinkRel(ValueEnum):
     """What an external link points at."""
 
     PR = "pr"
@@ -168,7 +192,7 @@ class LinkRel(str, Enum):
     OTHER = "other"
 
 
-class LogEntryType(str, Enum):
+class LogEntryType(ValueEnum):
     """Type of a log entry (design doc section 4)."""
 
     NOTE = "note"
