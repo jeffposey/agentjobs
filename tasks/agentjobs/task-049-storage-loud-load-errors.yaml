@@ -1,8 +1,8 @@
 id: task-049-storage-loud-load-errors
 title: 'Storage: stop swallowing task validation errors; report file, field, and error'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T20:15:44.389441Z'
-status: in_progress
+updated: '2026-08-10T20:25:22.038690Z'
+status: waiting_for_human
 priority: high
 category: infrastructure
 estimated_effort: 1-2 hours
@@ -34,15 +34,15 @@ success_criteria:
 - id: sc-1
   description: A task file with an invalid field no longer silently disappears; loading
     it produces an error naming the file, the field, and the validation message
-  status: pending
+  status: completed
 - id: sc-2
   description: Listings (API, CLI, GUI) still render all valid tasks when one file
     is broken, and visibly report the broken file
-  status: pending
+  status: completed
 - id: sc-3
   description: Tests cover the broken-file listing path and single-read path; poetry
     run pytest passes
-  status: pending
+  status: completed
 prompts:
   starter: "Implement per the task description and docs/schema-design.md \xA711 (D2).\
     \ Create branch `fix/task-049-storage-loud-load-errors` from main, record it in\
@@ -76,6 +76,77 @@ status_updates:
     it; list_tasks keeps returning the valid tasks while surfacing the broken ones
     rather than dropping them silently; API, CLI and GUI all show them. Tests with
     a deliberately broken fixture for both the listing path and the single-read path.'
+- timestamp: '2026-08-10T20:25:22.038665Z'
+  author: claude
+  status: waiting_for_human
+  summary: Broken task files are now loud everywhere; all 3 criteria met, 343 tests
+    pass
+  details: 'Three commits on fix/task-049-loud-load-errors, split into the storage
+    change and the surfaces that show it. 343 tests pass (15 new); ruff, mypy and
+    black clean across 62 files.
+
+
+    ## The change
+
+
+    load_task returned None both for a missing file and for a corrupt one. Those are
+    different answers. Missing is a legitimate reply to ''is there a task with this
+    id''; corrupt is not, and returning None for it dropped the task out of every
+    listing with a log line as the only evidence.
+
+
+    Now: TaskLoadError for a file that exists but cannot be read, None only for genuinely
+    absent. The error carries the path and a compressed field-level reason, so the
+    message is ''priority: Input should be low, medium, high or critical'' rather
+    than pydantic''s multi-line default with a docs URL.
+
+
+    load_all() returns tasks AND errors, so one bad file cannot take down the listing
+    of the other thirty-seven. Errors are returned rather than logged, deliberately:
+    that forces callers to decide what to display, which is what makes a broken file
+    visible in a UI instead of only in a log.
+
+
+    Surfaces: GET /api/tasks/broken; a 422 naming the file when reading a corrupt
+    task by id; a red banner on the web listing pages stating plainly that the file
+    is not in the list below; a stderr warning from `agentjobs list`.
+
+
+    ## Verified against a real server, not only in tests
+
+
+    Dropped a deliberately corrupt file into the registered sandbox project and confirmed
+    all four surfaces: valid tasks still listed, the broken file appeared in /broken
+    with its field-level reason, the page banner named it, and reading it directly
+    returned 422. Probe removed afterwards.
+
+
+    ## One test updated because it encoded the bug
+
+
+    test_load_task_with_invalid_yaml asserted `is None` for all three broken cases.
+    That is exactly the behaviour this task exists to remove, so it was rewritten
+    with the reasoning recorded in the test, plus a new test asserting missing files
+    still return None so the two cases stay distinguishable.
+
+
+    ## Why this mattered before task-052
+
+
+    Jeff sequenced 049 before the migration deliberately, and it was the right call.
+    Task-052 rewrites every task file in the corpus. If a converted file failed to
+    load afterwards, the old behaviour would have made it vanish from the listing
+    silently -- the failure mode hardest to notice, during the operation where noticing
+    matters most. The alarm is now wired up before the risky change runs.
+
+
+    ## Note for task-052
+
+
+    The v2 loader in models_v2.check_schema_version raises SchemaVersionError for
+    an unstamped file. When storage switches to v2 it should raise TaskLoadError for
+    those too, so a stray v1 file left behind by a partial migration is reported by
+    filename rather than crashing the listing.'
 comments: []
 deliverables:
 - path: src/agentjobs/storage.py
