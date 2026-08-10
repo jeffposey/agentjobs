@@ -30,6 +30,42 @@ description: 'Update the server-rendered GUI to v2 per docs/schema-design.md §5
   view, not a product surface to polish.
 
 
+  ## Scope boundary against task-058 (added 2026-08-10)
+
+
+  Both tasks now touch the v2 GUI and must not rewrite the same thing.
+
+
+  - **This task: the contents.** How a single task renders -- spec blocks, the unified
+  log, acceptance -- plus the editing affordances that make the GUI the primary human
+  editing surface (D2''s amendment).
+
+  - **Task-058: the shell.** Project switcher, project-scoped `/p/{project_id}/` URLs,
+  and the task list rendered as a hierarchy expandable to subtasks.
+
+
+  **One genuine conflict, unresolved on purpose.** This task specifies a `ball=human`
+  inbox as the primary home view. Task-058, per the owner''s direct instruction on
+  2026-08-10, makes a per-project hierarchical task tree the primary list. Both can
+  coexist on a project home -- inbox section above the tree -- but whichever task lands
+  second must confirm the arrangement with the owner rather than quietly overriding the
+  other.
+
+
+  Also note the owner''s standing constraint from 2026-08-10: **one project is selected
+  at a time; there is no merged all-projects view.** Any inbox this task builds is
+  scoped to the selected project.
+
+
+  ## Also inherited
+
+
+  Task-059 made Approve and Request Changes hand the ball back to the agent via
+  `in_progress`, which is v1''s closest expression of v2''s `ball: agent` /
+  `ball_reason: work`. On v2 those buttons should set the real thing. See task-059''s
+  status update for the reasoning and the rejected alternative.
+
+
   **Gated:** requires task-052 merged.'
 phases: []
 success_criteria:

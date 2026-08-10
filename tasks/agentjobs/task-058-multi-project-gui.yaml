@@ -1,84 +1,125 @@
 id: task-058-multi-project-gui
-title: 'Multi-project GUI: project switcher and a cross-project task view'
+title: 'Multi-project GUI: project switcher and a hierarchical task tree'
 created: '2026-08-10T06:14:30Z'
-updated: '2026-08-10T06:14:30Z'
+updated: '2026-08-10T07:16:02Z'
 status: draft
 priority: high
 category: ux
 estimated_effort: 1 working session
-human_summary: 'The half of multi-project support the owner actually sees: a project
-  switcher in the web UI and a cross-project view answering "what is waiting on me,
-  everywhere". Deliberately narrow — navigation and scoping chrome only, no changes to
-  how a task itself is rendered, because task-054 rewrites task rendering on schema v2
-  and building that twice would be waste.'
-description: 'Task-057 makes one server serve every registered project. This task makes
-  that visible and usable in the web UI, which is the interface the owner intends to
-  actually work through.
+human_summary: 'The shell the owner will actually work in: pick one project, then see
+  that project''s tasks as a hierarchy you can expand to reveal subtasks. Redesigned
+  2026-08-10 -- the original version was built around a cross-project view showing
+  every project''s tasks at once, and the owner rejected that shape: one project is
+  selected at a time. Now blocked on schema v2, because a task hierarchy needs the
+  parent field and v1 has no way to express one.'
+description: 'The shell of the GUI: which project you are looking at, and how you move
+  around inside it. Task-054 owns what a task itself looks like; this task owns
+  everything around it.
 
 
-  ## Scope, and the line that defines it
+  ## The design, as specified by the owner on 2026-08-10
 
 
-  **In scope — navigation and scoping:**
+  - **A project switcher.** One project is selected at a time. Switching is explicit.
+
+  - **A hierarchical task list** for the selected project, expandable to reveal
+  subtasks.
+
+  - **Not a merged view.** You do not see every project''s tasks at once. This is a
+  direct reversal of the original design and the reason this file was rewritten.
 
 
-  - A project switcher in the base layout, listing registered projects, showing which is
-  active.
-
-  - Project-scoped URLs: `/p/{project_id}/`, `/p/{project_id}/tasks`,
-  `/p/{project_id}/tasks/{task_id}`. The existing unscoped URLs redirect to the default
-  project rather than 404ing.
-
-  - A cross-project view at `/all` — every task from every registered project in one
-  list, each row naming its project, filterable by status and project. This is the "what
-  is waiting on me, everywhere" screen, and it is the single most valuable thing in this
-  task.
-
-  - Project name and task counts rendered wherever a project is identified, so it is
-  never ambiguous which project a task belongs to.
+  The reasoning behind the reversal, recorded so it is not undone later: when you are
+  working, you are in one project. A merged list optimises for surveying a portfolio,
+  which is not the job. Multi-project means *any* project reachable from one server,
+  not *all* projects on one screen.
 
 
-  **Out of scope — anything about how a task is displayed or edited:**
+  Consequence worth noting: `GET /api/all/tasks`, built in task-057 as the intended
+  centerpiece of this task, is now unused by the GUI. It is ~30 lines, read-only and
+  tested, so it is being kept rather than deleted -- if a "waiting on me everywhere"
+  screen is ever wanted it is already there. If it is still unused when the React
+  frontend lands, delete it then.
 
 
-  - task_detail.html''s rendering of description, criteria, status updates, comments,
-  deliverables. Untouched.
-
-  - Any editing affordance. Under D2''s amendment (docs/schema-design.md §11) the GUI
-  becomes the primary human editing surface, but that is **task-054**, on schema v2.
-  Building editing on v1 and then rebuilding it on v2 is exactly the duplicated work this
-  scope line exists to prevent.
+  ## Why this is blocked on schema v2
 
 
-  The distinction to hold onto: this task changes *which* tasks you are looking at and
-  how you move between them. Task-054 changes *what a task looks like* and what you can
-  do to it. The first survives the v2 rewrite; the second would not.
+  **v1 cannot represent a hierarchy.** `Task` in src/agentjobs/models.py has no
+  `parent` and no `children`. The nearest thing is `phases[]`, which is sub-units
+  *inside* one task, and v2 deletes it. There is no subtask concept in v1 at all.
 
 
-  ## The cross-project view is the point
+  An interim additive `parent` field on v1 was proposed and **rejected by the owner on
+  2026-08-10** in favour of doing the full v2 schema properly. Recorded because the
+  option is cheap and obvious enough that someone will re-propose it: the answer is no,
+  wait for v2.
 
 
-  Everything else here is plumbing made visible. The `/all` view is the thing that makes
-  running one AgentJobs across many projects better than running many AgentJobs — it is
-  the first screen that could not exist at all before task-057. Build it first, not last,
-  and judge the task on whether it is genuinely useful to look at.
+  So the dependency chain to this task is task-047 → 050 → 051 → 052. `parent` arrives
+  with the v2 models in task-050, and the queries this GUI needs (children of a task,
+  umbrella non-claimability) arrive with task-052 and task-045.
 
 
-  Note the ordering constraint it implies: because task ids are only unique within a
-  project, every link out of this view must carry its project id. A row that links to
-  `/tasks/task-001` instead of `/p/{project}/tasks/task-001` will silently open a
-  different project''s task. Test that specifically, with two projects that both contain
-  the same task id.
+  ## Scope boundary against task-054
 
 
-  ## Out of scope, additionally
+  Both tasks touch the GUI on v2, and they must not both rewrite the same thing.
 
 
-  - Cross-project search (the search router stays project-scoped for now).
+  - **This task: the shell.** Project switcher, project-scoped URLs, the task list as a
+  tree, navigation between them.
 
-  - Any registry editing from the UI — projects are registered from the CLI.
+  - **Task-054: the contents.** How a single task renders -- spec blocks, the unified
+  log, acceptance -- and the editing affordances that make the GUI the primary human
+  editing surface.
 
-  - Styling beyond matching what the existing templates already do.
+
+  Where they meet: task-054''s description makes a `ball=human` inbox the primary home
+  view, while this task makes the project tree the primary list. Both can coexist on a
+  project home -- an inbox section above the tree -- but whoever lands second should
+  confirm the shape with the owner rather than quietly overriding the other.
+
+
+  ## URLs
+
+
+  - `/p/{project_id}/` -- project home
+
+  - `/p/{project_id}/tasks` -- the hierarchical tree
+
+  - `/p/{project_id}/tasks/{task_id}` -- detail (rendered by task-054''s work)
+
+  - Legacy unscoped URLs redirect to the default project rather than 404ing
+
+
+  ## The bug this design invites
+
+
+  Task ids are only unique *within* a project -- every project will have a `task-001`.
+  Every link must carry its project id. A link to `/tasks/task-001` instead of
+  `/p/{project}/tasks/task-001` silently opens a different project''s task. Test it
+  specifically, with two projects that both contain the same id.
+
+
+  ## Also inherited from task-059
+
+
+  Task-059 deferred its sc-5 to this task: the review action buttons POST to the
+  unscoped `/api/tasks/{id}/...` because the pages have no project context yet. Once
+  scoped URLs exist here, point them at the scoped routes.
+
+
+  ## Out of scope
+
+
+  - Task detail rendering and editing. Task-054.
+
+  - Cross-project search or any merged task view. Explicitly rejected above.
+
+  - Registry editing from the UI -- projects are registered from the CLI.
+
+  - Restyling beyond what these changes require.
 
   '
 phases: []
@@ -88,97 +129,146 @@ success_criteria:
     registered projects, and indicates the active one
   status: pending
 - id: sc-2
-  description: Project-scoped URLs under /p/{project_id}/ serve dashboard, task list and
-    task detail for that project
+  description: Project-scoped URLs under /p/{project_id}/ serve project home, task tree
+    and task detail for that project
   status: pending
 - id: sc-3
-  description: Legacy unscoped URLs redirect to the default project rather than 404ing or
-    silently serving the wrong project
+  description: Legacy unscoped URLs redirect to the default project rather than 404ing
+    or silently serving the wrong project
   status: pending
 - id: sc-4
-  description: '/all lists every task across every registered project, each row naming
-    its project, filterable by status and by project'
+  description: The task list renders as a hierarchy using schema v2's parent field, with
+    subtasks collapsed under their parent and expandable
   status: pending
 - id: sc-5
   description: 'Verified with two projects that both contain a task with the same id:
-    every link from the cross-project view opens the correct project''s task. This is the
-    specific bug this feature invites'
+    every link opens the correct project''s task'
   status: pending
 - id: sc-6
-  description: task_detail.html's rendering of task content is unchanged — confirmed by
-    diff, not by inspection
+  description: Review action buttons address the project explicitly rather than the
+    server's working directory, closing task-059's deferred sc-5
   status: pending
 - id: sc-7
-  description: poetry run pytest passes, and the UI is exercised in a browser against two
-    real registered projects
+  description: No merged all-projects task view exists in the GUI
+  status: pending
+- id: sc-8
+  description: poetry run pytest passes, and the UI is exercised in a browser against
+    two real registered projects
   status: pending
 prompts:
   starter: '## Objective
 
-    Make the web UI multi-project: a switcher, project-scoped URLs, and one cross-project
-    view. Navigation only — do not touch how a task is rendered.
+    Build the GUI shell: pick one project, see its tasks as an expandable hierarchy.
+    Navigation and scoping only -- task-054 owns how a task renders.
 
 
     ## Read first
 
-    - This task''s description, particularly the scope line separating navigation from
-    task rendering. It exists to stop this task duplicating task-054.
+    - This task''s description. Two decisions in it are settled and must not be
+    relitigated: no merged all-projects view, and no interim parent field on v1.
 
-    - src/agentjobs/api/routes/web.py — the three existing routes.
+    - src/agentjobs/api/routes/web.py and the templates -- the current unscoped routes.
 
-    - src/agentjobs/api/templates/base.html, dashboard.html, task_list.html.
+    - src/agentjobs/projects.py and api/dependencies.py -- task-057''s registry and the
+    request_project dependency, which already resolves project_id from the path.
 
-    - Task-057''s implementation, which supplies the registry and /api/tasks/all.
+    - docs/schema-design.md section 2, for what `parent` actually is.
 
 
     ## Steps
 
-    1. Create branch feat/task-058-multi-project-gui from main. Record it in branches[]
-    and mark this task in_progress, in that order.
+    1. Confirm task-052 has landed, so v2 parent and its queries exist. If not, stop --
+    this task is not startable.
 
-    2. Build the /all cross-project view first. It is the reason the feature exists; if it
-    is not useful to look at, the rest does not matter.
+    2. Create branch feat/task-058-multi-project-gui from main, record it in branches[],
+    mark in_progress, in that order.
 
-    3. Then the switcher and the scoped URLs, with legacy redirects.
+    3. Switcher and scoped URLs first, then the tree.
 
     4. Verify in a browser with two projects registered that share a task id.
 
 
     ## Do not
 
-    - Add editing affordances. Task-054 owns the GUI as an editing surface, on v2.
+    - Build a merged cross-project view. The owner rejected it explicitly.
 
-    - Modify task_detail.html''s content rendering.
+    - Add an interim parent field to v1. Also explicitly rejected.
 
-    - Restyle. Match what is there.
+    - Rewrite task detail rendering. Task-054.
 
 
     ## Git workflow
 
     Small single-logical-change commits, Conventional Commits. Tests green before each.
-    When complete: STOP, set waiting_for_human through the status API with a summary and
-    a screenshot or equivalent evidence of the cross-project view. Do not merge.
+    When complete: STOP, set waiting_for_human through the status API with evidence of
+    the tree and switcher working. Do not merge.
 
     '
   followups: []
-status_updates: []
+status_updates:
+- timestamp: '2026-08-10T07:16:02Z'
+  author: claude
+  status: draft
+  summary: Redesigned by the owner; cross-project view removed, now blocked on schema v2
+  details: 'Rewritten before any implementation started, so nothing was thrown away.
+
+
+    The owner specified the shape directly: choose a project, then see a hierarchy of
+    that project''s tasks, expandable to reveal subtasks -- and explicitly NOT all
+    projects'' tasks at once. The original version of this task was built around a
+    cross-project `/all` view which it called "the point" of the feature. That is now
+    removed. The reasoning is in the description: when you are working you are in one
+    project, and multi-project means any project reachable from one server rather than
+    all projects on one screen.
+
+
+    This blocks the task on schema v2. v1''s Task model has no parent field and no
+    subtask concept, so a hierarchy is not representable; phases[] is sub-units inside a
+    single task and v2 deletes it. An interim additive parent field on v1 was proposed
+    -- cheap, and explicitly sanctioned by the evolution policy in docs/schema-design.md
+    section 9 -- and the owner rejected it in favour of doing the full v2 schema
+    properly. Dependency moved from task-057 to task-052 accordingly.
+
+
+    Also recorded: the /api/all/tasks endpoint built in task-057 is now unused by the
+    GUI. Kept rather than deleted (30 lines, read-only, tested); delete it if it is
+    still unused when the React frontend lands.
+
+
+    A scope boundary against task-054 was added, because both tasks now touch the v2
+    GUI: this task owns the shell (switcher, scoped URLs, tree), 054 owns task contents
+    and editing. Their one genuine overlap -- 054 wants a ball=human inbox as the home
+    view, this task wants the project tree -- is flagged in both files for whoever lands
+    second.'
 comments: []
 deliverables:
 - path: src/agentjobs/api/routes/web.py
   status: pending
-  description: Project-scoped web routes, legacy redirects, and the /all view
+  description: Project-scoped web routes, legacy redirects, hierarchical task list
 - path: src/agentjobs/api/templates/base.html
   status: pending
   description: Project switcher in the shared layout
 dependencies:
 - task_id: task-057-multi-project-registry
   type: depends_on
-  note: Supplies the registry, the project-scoped API, and /api/tasks/all. Nothing here
-    is buildable before it.
+  note: Completed 2026-08-10. Supplies the registry, scoped API routes and the
+    request_project dependency this GUI sits on.
+- task_id: task-052-schema-v2-manager-api
+  type: depends_on
+  note: Supplies schema v2's parent field and the subtask queries the hierarchy needs.
+    Added 2026-08-10 when the owner chose full v2 over an interim v1 parent field.
+- task_id: task-054-schema-v2-gui
+  type: related
+  note: Owns task detail rendering and editing; this task owns the shell around it. See
+    the scope boundary in the description.
+- task_id: task-059-review-surface-usability
+  type: related
+  note: Deferred its sc-5 (project-scoped review actions) to this task.
 external_links: []
 issues: []
 tags:
 - ux
-- multi-project
 - gui
+- multi-project
+- schema-v2
 branches: []
