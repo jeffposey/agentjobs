@@ -15,6 +15,7 @@ from .manager import TaskManager
 from .migration import migrate_tasks
 from .migration.reporter import MigrationReporter
 from .models import Priority, TaskStatus
+from .projects import ProjectError, ProjectRegistry
 from .storage import TaskStorage
 
 
@@ -118,21 +119,12 @@ def _build_manager(base_dir: Path) -> TaskManager:
     return TaskManager(storage)
 
 
-
 @app.command()
 def init(
-    project_name: Optional[str] = typer.Option(
-        None, help="Project display name."
-    ),
-    tasks_dir: Optional[str] = typer.Option(
-        None, help="Relative path for task YAML files."
-    ),
-    prompts_dir: Optional[str] = typer.Option(
-        None, help="Relative path for prompt files."
-    ),
-    port: Optional[int] = typer.Option(
-        None, help="Default port for the web UI."
-    ),
+    project_name: Optional[str] = typer.Option(None, help="Project display name."),
+    tasks_dir: Optional[str] = typer.Option(None, help="Relative path for task YAML files."),
+    prompts_dir: Optional[str] = typer.Option(None, help="Relative path for prompt files."),
+    port: Optional[int] = typer.Option(None, help="Default port for the web UI."),
 ) -> None:
     """Initialize AgentJobs in current directory."""
     base_dir = Path.cwd()
@@ -151,6 +143,16 @@ def init(
     _ensure_gitignore(base_dir)
     _resolve_tasks_dir(base_dir, config)
     typer.echo("✅ AgentJobs initialized successfully!")
+
+    # Register on the machine so one server can serve this project alongside others.
+    # A registration failure must not fail init -- the project is initialized either
+    # way, and it stays usable from its own directory.
+    try:
+        project = ProjectRegistry().add(base_dir)
+    except ProjectError as exc:
+        typer.echo(f"⚠️  Not registered for multi-project use: {exc}")
+    else:
+        typer.echo(f"   Registered as '{project.id}' — visible in 'agentjobs project list'.")
 
 
 @app.command()
@@ -180,18 +182,13 @@ def _find_process_by_port(port: int) -> Optional[int]:
     """Find PID of process listening on given port."""
     import platform
     import subprocess
-    
+
     system = platform.system()
-    
+
     try:
         if system == "Windows":
             # Use netstat on Windows
-            result = subprocess.run(
-                ["netstat", "-ano"],
-                capture_output=True,
-                text=True,
-                check=True
-            )
+            result = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, check=True)
             for line in result.stdout.splitlines():
                 if f":{port}" in line and "LISTENING" in line:
                     parts = line.split()
@@ -199,16 +196,13 @@ def _find_process_by_port(port: int) -> Optional[int]:
         else:
             # Use lsof on Unix-like systems
             result = subprocess.run(
-                ["lsof", "-ti", f":{port}"],
-                capture_output=True,
-                text=True,
-                check=False
+                ["lsof", "-ti", f":{port}"], capture_output=True, text=True, check=False
             )
             if result.returncode == 0 and result.stdout.strip():
                 return int(result.stdout.strip().split()[0])
     except (subprocess.CalledProcessError, ValueError, IndexError):
         pass
-    
+
     return None
 
 
@@ -219,15 +213,15 @@ def stop(
     """Stop the running web server."""
     import platform
     import subprocess
-    
+
     pid = _find_process_by_port(port)
-    
+
     if pid is None:
         typer.echo(f"No server found running on port {port}.")
         return
-    
+
     typer.echo(f"Stopping server (PID {pid}) on port {port}...")
-    
+
     try:
         if platform.system() == "Windows":
             subprocess.run(["taskkill", "/F", "/PID", str(pid)], check=True)
@@ -245,7 +239,7 @@ def status(
 ) -> None:
     """Check if the web server is running."""
     pid = _find_process_by_port(port)
-    
+
     if pid is None:
         typer.echo(f"❌ No server running on port {port}.")
         raise typer.Exit(1)
@@ -271,7 +265,7 @@ def restart(
         typer.echo(f"Stopping existing server (PID {pid})...")
         import platform
         import subprocess
-        
+
         try:
             if platform.system() == "Windows":
                 subprocess.run(["taskkill", "/F", "/PID", str(pid)], check=True)
@@ -280,20 +274,17 @@ def restart(
             typer.echo("✓ Server stopped.")
         except subprocess.CalledProcessError:
             typer.echo("Warning: Failed to stop existing server.", err=True)
-    
+
     # Start new server
     typer.echo(f"🚀 Starting AgentJobs server at http://{host}:{port}")
     import uvicorn
-    
+
     uvicorn.run(
         "agentjobs.api.main:app",
         host=host,
         port=port,
         reload=reload,
     )
-
-
-
 
 
 @app.command()
@@ -306,28 +297,28 @@ def open(
     import subprocess
     import time
     import webbrowser
-    
+
     url = f"http://{host}:{port}"
     pid = _find_process_by_port(port)
-    
+
     if pid is None:
         # Server not running, start it in background
         typer.echo(f"Starting AgentJobs server at {url}...")
-        
+
         if platform.system() == "Windows":
             # Start server in a new window (minimized)
             subprocess.Popen(
                 ["poetry", "run", "agentjobs", "serve", "--port", str(port), "--host", host],
-                creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.CREATE_NO_WINDOW
+                creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.CREATE_NO_WINDOW,
             )
         else:
             # Start server in background
             subprocess.Popen(
                 ["poetry", "run", "agentjobs", "serve", "--port", str(port), "--host", host],
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stderr=subprocess.DEVNULL,
             )
-        
+
         # Wait for server to start
         typer.echo("Waiting for server to initialize...")
         max_retries = 10
@@ -339,7 +330,7 @@ def open(
             typer.echo("Warning: Server may not have started successfully.", err=True)
     else:
         typer.echo(f"Server already running (PID {pid})")
-    
+
     # Open browser
     typer.echo(f"Opening {url}...")
     webbrowser.open(url)
@@ -347,20 +338,14 @@ def open(
 
 @app.command()
 def create(
-    title: Optional[str] = typer.Option(
-        None, help="Task title to use when creating the record."
-    ),
+    title: Optional[str] = typer.Option(None, help="Task title to use when creating the record."),
     id: Optional[str] = typer.Option(None, help="Optional explicit task identifier."),
-    description: Optional[str] = typer.Option(
-        None, help="Task description body."
-    ),
+    description: Optional[str] = typer.Option(None, help="Task description body."),
     priority: Priority = typer.Option(
         Priority.MEDIUM.value,
         help="Task priority label.",
     ),
-    category: str = typer.Option(
-        "general", help="Categorisation label for filtering."
-    ),
+    category: str = typer.Option("general", help="Categorisation label for filtering."),
 ) -> None:
     """Create new task."""
     base_dir = Path.cwd()
@@ -369,8 +354,8 @@ def create(
     manager = TaskManager(TaskStorage(tasks_dir))
 
     title = title or typer.prompt("Title")
-    description = description if description is not None else typer.prompt(
-        "Description", default=""
+    description = (
+        description if description is not None else typer.prompt("Description", default="")
     )
 
     task_id = id or manager.storage.generate_task_id()
@@ -404,17 +389,10 @@ def list_tasks(
         return
 
     for task in tasks:
-        status_value = (
-            task.status.value if hasattr(task.status, "value") else task.status
-        )
-        priority_value = (
-            task.priority.value
-            if hasattr(task.priority, "value")
-            else task.priority
-        )
+        status_value = task.status.value if hasattr(task.status, "value") else task.status
+        priority_value = task.priority.value if hasattr(task.priority, "value") else task.priority
         typer.echo(
-            f"- {task.id} | {task.title} "
-            f"[status={status_value}, priority={priority_value}]"
+            f"- {task.id} | {task.title} " f"[status={status_value}, priority={priority_value}]"
         )
 
 
@@ -453,6 +431,7 @@ def load_test_data(
 
     typer.echo(f"\n✅ Loaded {len(tasks)} test tasks")
     from collections import Counter
+
     status_counts = Counter(t.status for t in tasks)
     for status in TaskStatus:
         count = status_counts[status]
@@ -546,6 +525,55 @@ def work(
     typer.echo(f"\n✅ Task {task.id} marked COMPLETED!")
 
 
+project_app = typer.Typer(
+    name="project",
+    help="Manage which projects this machine's AgentJobs server can serve.",
+)
+app.add_typer(project_app)
+
+
+@project_app.command("add")
+def project_add(
+    path: str = typer.Argument(".", help="Project directory to register."),
+    project_id: Optional[str] = typer.Option(
+        None, "--id", help="Short id used in URLs. Derived from the project name if omitted."
+    ),
+    name: Optional[str] = typer.Option(None, "--name", help="Display name."),
+) -> None:
+    """Register a project directory."""
+    try:
+        project = ProjectRegistry().add(Path(path), project_id=project_id, name=name)
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"✅ Registered '{project.id}' ({project.name}) at {project.root}")
+
+
+@project_app.command("list")
+def project_list() -> None:
+    """List registered projects."""
+    projects = ProjectRegistry().list_projects()
+    if not projects:
+        typer.echo("No projects registered. Run 'agentjobs project add <path>'.")
+        return
+    for project in projects:
+        missing = "" if project.root.is_dir() else "  [missing]"
+        typer.echo(f"{project.id:20} {project.name:30} {project.root}{missing}")
+
+
+@project_app.command("remove")
+def project_remove(
+    project_id: str = typer.Argument(..., help="Id of the project to unregister."),
+) -> None:
+    """Unregister a project. Its files are never touched."""
+    try:
+        ProjectRegistry().remove(project_id)
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"✅ Unregistered '{project_id}'. No files were deleted.")
+
+
 @app.command()
 def show(task_id: str) -> None:
     """Show task details."""
@@ -562,7 +590,9 @@ def show(task_id: str) -> None:
 def migrate(
     source: str = typer.Argument(...),
     target_dir: str = typer.Argument(...),
-    prompts_dir: Optional[str] = typer.Option(None, "--prompts-dir", help="Optional prompts directory"),
+    prompts_dir: Optional[str] = typer.Option(
+        None, "--prompts-dir", help="Optional prompts directory"
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview migration"),
     report_file: str = typer.Option("migration-report.md", "--report", help="Report path"),
 ) -> None:
