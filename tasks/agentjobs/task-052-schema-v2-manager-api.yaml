@@ -2,11 +2,14 @@ schema: 2
 id: task-052-schema-v2-manager-api
 title: 'Schema v2: migrate the corpus and switch the application over'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T21:52:49.533627Z'
+updated: '2026-08-10T22:00:21.817494Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Claimed by claude.
+ball: human
+ball_reason: review
+ball_prompt: Review branch `feat/task-052-schema-v2-switchover` (5 commits) and approve
+  the merge or request changes. The commit worth reading closely is 415c910 -- the
+  atomic one. Do not merge without approval; the `pre-v2-migration` tag must stay
+  until this is merged and verified.
 archived: false
 priority: high
 category: architecture
@@ -290,33 +293,33 @@ acceptance:
 - id: sc-1
   text: 'Every file in tasks/agentjobs/ and tasks/test-data/ is schema v2, carries
     the ''schema: 2'' stamp, and loads under models_v2'
-  status: pending
+  status: met
 - id: sc-2
   text: Storage, manager, API, templates and CLI all operate on models_v2; nothing
     imports models.py and the file is deleted
-  status: pending
+  status: met
 - id: sc-3
   text: The corpus write and the code switchover are one commit, and the test suite
     is green in that commit
-  status: pending
+  status: met
 - id: sc-4
   text: mutate_task and its per-task locking survive the rewrite; the double-claim
     race test in tests/test_concurrency.py still passes
-  status: pending
+  status: met
 - id: sc-5
   text: An unmigrated or corrupt file is still reported loudly by filename rather
     than vanishing from listings; GET /api/tasks/broken returns [] for a healthy corpus
-  status: pending
+  status: met
 - id: sc-6
   text: display_status is used by the GUI and API rather than each surface switching
     on state fields itself
-  status: pending
+  status: met
 - id: sc-7
   text: Verified in a browser against a running server, not only via tests
-  status: pending
+  status: met
 - id: sc-8
   text: poetry run pytest passes; ruff, mypy and black stay clean
-  status: pending
+  status: met
 deliverables:
 - path: tasks/agentjobs/*.yaml
   note: Corpus migrated to schema v2
@@ -472,3 +475,119 @@ log:
     4. Handoff: v2 equivalent of waiting_for_human = handoff to human/review through
     the status API. Do not merge; pre-v2-migration tag stays until merged.'
   data: {}
+- id: 5
+  ts: '2026-08-10T22:00:21.792848Z'
+  actor: claude
+  type: decision
+  body: 'Decisions taken while porting, recorded because the diff does not explain
+    them.
+
+
+    - **`display_status` is a Pydantic computed field.** It is served by the API and
+    used by every template (sc-6), excluded by storage on write, and rejected as an
+    input key by `extra="forbid"`. Rejected: leaving it a plain property, which would
+    have meant each surface deriving its own label -- the drift the design doc forbids.
+
+    - **`storage.mutate_task` re-validates the model before writing.** Attribute assignment
+    does not re-run Pydantic validators, so without this the manager verbs could write
+    a task violating the five consistency rules. One check at the end of the mutation
+    rather than `validate_assignment`, which would trip on the intermediate state
+    of every multi-field transition.
+
+    - **`replace_task` and `PUT /tasks/{id}` were deleted.** A wholesale replace can
+    rewrite the append-only log, which is the one thing v2 guarantees it cannot. PATCH
+    covers content edits and deliberately excludes the state axes; the axes move only
+    through claim/handoff/release/close.
+
+    - **Webhook events are the v2 set only**: `task.handoff`, `task.question`, `task.closed`.
+    `task.status_changed` and `task.completed` no longer fire, because nothing computes
+    a v1 status to change.
+
+    - **`Webhook`/`WebhookStorage` moved to `webhooks.py`** in their own earlier commit.
+    They lived in models.py/storage.py, are unrelated to the task schema, and had
+    to survive v1''s deletion.
+
+    - **Taxonomy and dependency validation against config was NOT built.** The old
+    design-doc sketch for this task listed it; the rewritten task description does
+    not, and no success criterion covers it. Flagging rather than silently importing
+    scope.'
+  data: {}
+- id: 6
+  ts: '2026-08-10T22:00:21.817410Z'
+  actor: claude
+  type: handoff
+  body: 'Schema v2 switchover complete. All eight success criteria are met and marked.
+
+
+    **The commits**
+
+    - `402e763` refactor(webhooks): move Webhook and WebhookStorage into webhooks.py
+
+    - `415c910` feat(schema): migrate the corpus to v2 and switch the application
+    over -- the atomic commit (sc-1, sc-2, sc-3)
+
+    - `e58d38a` refactor(schema): delete schema v1
+
+    - `a5290ab` docs(schema): retire the v1 half of the schema reference
+
+    - plus this task''s own claim and progress commits
+
+
+    **What changed.** 39 task files (32 backlog + 7 test-data) converted by the task-051
+    migrator, all stamped `schema: 2`. Storage, manager, API, templates, CLI, client,
+    sample data, the markdown importer and the examples all run on models_v2. `models.py`
+    is deleted. The manager grew the state verbs -- claim, handoff, release, close,
+    add_log_entry -- each appending its own log entry, and the API grew an endpoint
+    per verb plus axis filters (`?ball=human` is the inbox).
+
+
+    **Verified.** 370 tests pass; ruff, mypy and black clean. Beyond the suite, against
+    a real server on :8791 with two registered projects (in an isolated `AGENTJOBS_HOME`,
+    so the machine registry was never touched):
+
+    - dashboard, task list, task detail, the project switcher and the picker all render,
+    with `display_status` labels rather than raw enum values
+
+    - the full loop over HTTP: create -> Ready, claim -> In progress (claude), handoff
+    -> Needs review, approve -> back to agent/work, close -> Completed; the log ends
+    transition/handoff/handoff/transition
+
+    - the review panel renders with its `ball_prompt` as the lead, posting to the
+    project-scoped API
+
+    - `GET /api/tasks/broken` returns `[]` for the real 32-file corpus (sc-5)
+
+    - dropping an unmigrated v1 file in made it appear in `/broken` named with the
+    fix ("Convert the corpus with: agentjobs migrate-schema"), the listing survived,
+    and the GUI named the file -- this migration''s own worst failure mode, tested
+    live
+
+    - the double-claim race test still passes against the rewritten storage (sc-4)
+
+
+    **What needs your eye in review**
+
+    1. The 17 `NEEDS REVIEW:` ball_prompts the migrator left where no status update
+    existed to derive an ask from. They are honest placeholders, not blockers, but
+    they are prose a human should improve.
+
+    2. `task-004` in test-data was `blocked` while unclaimed with no dependencies,
+    so its blocker was never recorded anywhere. It mapped to `ready`; the original
+    status is preserved in its log.
+
+    3. Whether deleting `replace_task`/`PUT` is the call you want -- see the decision
+    entry above.
+
+
+    **Left stale on purpose.** `docs/agent-workflow.md`, `api-reference.md`, `webhooks.md`,
+    `index.md` and the generated `docs/schema/v1/` tree still describe v1. `docs/task-schema.md`
+    and `ALLAGENTS.md` were updated because they are the field map and the agent contract
+    respectively -- leaving those wrong would misdirect the next agent. The rest is
+    a docs pass worth its own task. `prompts/` is deliberately untouched: those are
+    historical records of past tasks and should keep saying what was true when written.
+
+
+    Recovery: `git reset --hard pre-v2-migration` restores the last all-v1 state.'
+  data:
+    ball: human
+    ball_reason: review
