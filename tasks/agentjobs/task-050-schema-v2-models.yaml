@@ -2,8 +2,8 @@ id: task-050-schema-v2-models
 title: 'Schema v2: models -- state axes, spec, unified log, strict validation, version
   stamp'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T19:31:57.475887Z'
-status: waiting_for_human
+updated: '2026-08-10T19:41:54.134276Z'
+status: completed
 priority: high
 category: architecture
 estimated_effort: 1-2 days
@@ -208,6 +208,29 @@ status_updates:
     no CLI (053), no GUI (054). Nothing is wired in. Note also that config-driven
     acceptance criterion types (D5) remain deliberately deferred -- additive under
     the evolution policy, so they need not lengthen this chain.'
+- timestamp: '2026-08-10T19:37:31.323249Z'
+  author: human
+  status: in_progress
+  summary: "Approved by human \u2014 cleared to merge"
+  details: 'human approved this work through the web UI. The ball is back with the
+    agent, which must now rebase onto main, merge --no-ff, mark the branch merged
+    in branches[], and set this task completed. No merge has happened yet: the UI
+    records approval, it does not run git.'
+- timestamp: '2026-08-10T19:41:54.075283Z'
+  author: claude
+  status: completed
+  summary: Merged to main after Jeff approved through the GUI
+  details: 'Rebased onto main, merged --no-ff, branch marked merged and deleted locally.
+    Nothing pushed to origin.
+
+
+    Second approval driven from the web UI rather than chat.
+
+
+    Carried forward to task-051, which now owns the switchover as well as the migrator:
+    convert all 38 corpus files, repoint storage/manager/API/GUI/CLI at models_v2,
+    and delete v1. There is no partial state that keeps main green, so it is one atomic
+    change.'
 comments: []
 deliverables:
 - path: src/agentjobs/models.py
@@ -230,4 +253,4 @@ tags:
 - schema-v2
 branches:
 - name: feat/task-050-schema-v2-models
-  status: active
+  status: merged
