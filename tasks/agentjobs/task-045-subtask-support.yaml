@@ -3,11 +3,14 @@ id: task-045-subtask-support
 title: Sub-task behavior atop schema v2 (get_subtasks, umbrella non-claimability,
   ?parent= filter, GUI)
 created: '2026-07-06T19:25:45Z'
-updated: '2026-07-29T20:47:00Z'
+updated: '2026-08-10T22:34:19.800775Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
-ball_prompt: 'NEEDS REVIEW: finish specifying this task.'
+ball_prompt: 'Specified and ready to work, but gated: do not start until task-052
+  merges. Confirm the umbrella plan (parent the schema-v2 chain 050-054 under a new
+  task-063-schema-v2) and move this to ready once 052 is in.'
+archived: false
 priority: high
 category: infrastructure
 tags:
@@ -59,7 +62,27 @@ spec:
     \ mark the branch merged in branches[], close the task.\n\n## After merge\nCreate\
     \ the React milestone umbrella tasks and their sub-tasks using parent (see the\
     \ approved plan: Milestone 1 read-only browser M1.1-M1.8, Milestone 2 interactive\
-    \ M2.1-M2.2, Milestone 3 optional M3.1-M3.2)."
+    \ M2.1-M2.2, Milestone 3 optional M3.1-M3.2).\n\n---\n\n## First umbrella to build:\
+    \ the schema v2 chain\n\nOnce the behaviour above works, use it on the backlog\
+    \ that already exists rather than\ninventing a test hierarchy. Tasks **050, 051,\
+    \ 052, 053 and 054** are one effort -- design\nthe models, build the migrator,\
+    \ switch the application over, mirror it in the CLI, then\nrebuild the GUI on\
+    \ it. They are currently related only by `needs` dependencies, which\nrecords\
+    \ their *order* but not the fact that they are one piece of work.\n\nCreate an\
+    \ umbrella task (suggested id `task-063-schema-v2`, category `architecture`) and\n\
+    set `parent: task-063-schema-v2` on all five. Then confirm, in the GUI and via\
+    \ the API:\n\n- the umbrella lists its five children with their `display_status`\
+    \ badges\n- each child links back to the umbrella\n- the umbrella is **not** claimable\
+    \ while any child is open, and disappears from `/next`\n- `GET /api/tasks?parent=task-063-schema-v2`\
+    \ returns exactly those five\n\nThis doubles as the acceptance test for the feature:\
+    \ a hierarchy built from real tasks\nwith real state, rather than fixtures that\
+    \ only ever exercise the happy path.\n\nDo the same for the React milestones afterwards,\
+    \ as described above.\n\n**Why `parent` is empty everywhere today** (so it is\
+    \ not rediscovered as a bug): schema\nv1 had no such field, so task-051's migrator\
+    \ had nothing to convert -- every task came\nout flat because every task *was*\
+    \ flat. Task-052 deliberately left `parent` behaviour out\nof scope and pointed\
+    \ here. The field exists and validates; nothing populates or reads it\nyet.\n"
+  context: []
 acceptance:
 - id: sc-1
   text: get_subtasks returns exactly the children; a task with open children is excluded
@@ -75,17 +98,17 @@ acceptance:
   status: pending
 deliverables:
 - path: src/agentjobs/manager.py
-  status: pending
   note: get_subtasks + umbrella exclusion from claimability
+  status: pending
 - path: src/agentjobs/api/routes/tasks.py
-  status: pending
   note: ?parent= filter and parent validation
+  status: pending
 - path: src/agentjobs/api/models.py
-  status: pending
   note: parent on create/update request models
-- path: src/agentjobs/api/templates/task_detail.html
   status: pending
+- path: src/agentjobs/api/templates/task_detail.html
   note: Children list / parent link rendering
+  status: pending
 dependencies:
 - task: task-042-relocate-demo-tasks
   type: needs
@@ -103,14 +126,13 @@ dependencies:
 - task: task-052-schema-v2-manager-api
   type: needs
   note: Builds on the v2 manager/API (claimability, display_status)
+links: []
+branches: []
 log:
 - id: 1
   ts: '2026-07-29T20:47:00Z'
   actor: system
   type: note
-  data:
-    v1_status: draft
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
@@ -124,3 +146,25 @@ log:
     - ball_prompt: no status update to derive an ask from
 
     - spec.summary: no human_summary; derived from the description'
+  data:
+    v1_status: draft
+    migrated_to_schema: 2
+- id: 2
+  ts: '2026-08-10T22:34:19.800708Z'
+  actor: claude
+  type: handoff
+  body: 'Groomed while task-052 was in review. Added the first concrete umbrella to
+    build -- the schema v2 chain itself -- so the feature''s acceptance test is a
+    real hierarchy from the live backlog rather than fixtures.
+
+
+    Also recorded why `parent` is empty across the whole corpus today: v1 had no such
+    field, so the migrator had nothing to convert. That is expected state, not a migration
+    defect, and it was worth writing down before someone files it as a bug.
+
+
+    Replaces the ''NEEDS REVIEW: finish specifying this task.'' placeholder the migrator
+    left, since there was no v1 status update to derive an ask from.'
+  data:
+    ball: human
+    ball_reason: spec
