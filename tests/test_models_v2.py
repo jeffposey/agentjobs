@@ -45,7 +45,8 @@ def task_data(**overrides: Any) -> Dict[str, Any]:
         "ball_reason": "spec",
         "ball_prompt": "Finish specifying this.",
         "category": "infrastructure",
-        "spec": {"summary": "A one-line summary."},
+        # summary and description are both required, matching schema/agentjobs-v2.yaml.
+        "spec": {"summary": "A one-line summary.", "description": "What to do."},
     }
     base.update(overrides)
     return base
@@ -100,6 +101,41 @@ class TestAgreesWithTheLinkMLSchema:
 
         assert validate(dumped, "schema/agentjobs-v2.yaml", "Task").results
 
+    def test_required_fields_match_linkml_exactly(self) -> None:
+        """Required-ness must agree between the two definitions, not just field names.
+
+        This is the drift that actually happened: models_v2 had spec.intent and
+        spec.description optional while schema/agentjobs-v2.yaml required both. The
+        round-trip test above did not catch it, because the one example file fills in
+        every field. It only surfaced when the migrator produced 31 real tasks without
+        an intent. Comparing the schemas directly is what closes that gap.
+        """
+        import yaml as _yaml
+
+        linkml = _yaml.safe_load(
+            pathlib.Path("schema/agentjobs-v2.yaml").read_text(encoding="utf-8")
+        )
+
+        def linkml_required(class_name: str) -> set:
+            attrs = linkml["classes"][class_name].get("attributes") or {}
+            return {n for n, a in attrs.items() if (a or {}).get("required")}
+
+        def pydantic_required(model: Any) -> set:
+            return {(f.alias or n) for n, f in model.model_fields.items() if f.is_required()}
+
+        from agentjobs.models_v2 import AcceptanceCriterion, ContextPointer, LogEntry, Spec
+
+        for name, model in [
+            ("Spec", Spec),
+            ("ContextPointer", ContextPointer),
+            ("AcceptanceCriterion", AcceptanceCriterion),
+            ("LogEntry", LogEntry),
+        ]:
+            assert pydantic_required(model) == linkml_required(name), (
+                f"{name}: pydantic requires {sorted(pydantic_required(model))}, "
+                f"LinkML requires {sorted(linkml_required(name))}"
+            )
+
     def test_dumps_the_schema_stamp_under_its_alias(self) -> None:
         # The field is schema_version in Python because `schema` shadows a BaseModel
         # attribute; the file must still say `schema: 2`.
@@ -143,7 +179,13 @@ class TestStrictMode:
 
     def test_unknown_nested_field_is_rejected(self) -> None:
         with pytest.raises(ValidationError):
-            Task.model_validate(task_data(spec={"summary": "s", "sumary": "typo"}))
+            Task.model_validate(
+                task_data(spec={"summary": "s", "description": "d", "sumary": "typo"})
+            )
+
+    def test_spec_requires_a_description(self) -> None:
+        with pytest.raises(ValidationError, match="description"):
+            Task.model_validate(task_data(spec={"summary": "only a summary"}))
 
     def test_deleted_v1_fields_do_not_exist(self) -> None:
         for gone in ("phases", "prompts", "issues", "human_summary", "comments", "status"):
