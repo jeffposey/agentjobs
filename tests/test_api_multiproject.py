@@ -245,7 +245,9 @@ class TestSingleProjectCompatibility:
 
         with TestClient(app) as client:
             assert [t["title"] for t in client.get("/api/tasks").json()] == ["Solo task"]
-            assert [p["id"] for p in client.get("/api/projects").json()] == ["."]
+            # "_local", not ".": the implicit id has to be URL-safe now that pages
+            # are project-scoped, because "/p/./tasks" normalises to "/p/tasks".
+            assert [p["id"] for p in client.get("/api/projects").json()] == ["_local"]
 
         reset_dependency_cache()
 

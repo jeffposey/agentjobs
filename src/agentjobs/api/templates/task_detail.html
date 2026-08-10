@@ -24,7 +24,7 @@
                 {% endif %}
             </div>
         </div>
-        <a href="/tasks" class="px-4 py-2 bg-dark-surface border border-dark-border rounded-lg hover:bg-dark-border transition text-sm">
+        <a href="{{ base }}/tasks" class="px-4 py-2 bg-dark-surface border border-dark-border rounded-lg hover:bg-dark-border transition text-sm">
             ← Back to Tasks
         </a>
     </div>
@@ -476,7 +476,7 @@ document.addEventListener('alpine:init', () => {
         async approveTask() {
             if (!confirm('Approve this task and mark it as ready?')) return;
             try {
-                const response = await fetch('/api/tasks/{{ task.id }}/approve', {
+                const response = await fetch('/api/projects/{{ project.id }}/tasks/{{ task.id }}/approve', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({user: 'human'})
@@ -493,7 +493,7 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
             try {
-                const response = await fetch('/api/tasks/{{ task.id }}/request-changes', {
+                const response = await fetch('/api/projects/{{ project.id }}/tasks/{{ task.id }}/request-changes', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({user: 'human', feedback: this.feedbackText})
@@ -508,13 +508,13 @@ document.addEventListener('alpine:init', () => {
             const reason = prompt('Provide a reason for rejecting this task:');
             if (!reason) return;
             try {
-                const response = await fetch('/api/tasks/{{ task.id }}/reject', {
+                const response = await fetch('/api/projects/{{ project.id }}/tasks/{{ task.id }}/reject', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({user: 'human', reason: reason})
                 });
                 if (!response.ok) throw new Error('Failed to reject task');
-                window.location.href = '/tasks';
+                window.location.href = '{{ base }}/tasks';
             } catch (error) {
                 alert('Error: ' + error.message);
             }

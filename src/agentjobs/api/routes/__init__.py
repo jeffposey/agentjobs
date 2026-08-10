@@ -8,6 +8,7 @@ from .prompts import router as prompts_router
 from .search import router as search_router
 from .status import router as status_router
 from .tasks import router as tasks_router
+from .web import legacy_router as web_legacy_router
 from .web import router as web_router
 from .webhooks import router as webhooks_router
 
@@ -34,6 +35,7 @@ __all__ = [
     "search_router",
     "status_router",
     "tasks_router",
+    "web_legacy_router",
     "web_router",
     "webhooks_router",
 ]

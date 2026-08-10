@@ -55,7 +55,7 @@
                 {% for task in tasks %}
                 <tr
                     class="hover:bg-dark-border transition cursor-pointer"
-                    onclick="window.location.href='/tasks/{{ task.id }}'"
+                    onclick="window.location.href='{{ base }}/tasks/{{ task.id }}'"
                     x-show="matches($el.dataset)"
                     data-title="{{ task.title | lower | e }}"
                     data-status="{{ task.status | e }}"
