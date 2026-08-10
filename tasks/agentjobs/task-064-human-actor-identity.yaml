@@ -2,10 +2,13 @@ schema: 2
 id: task-064-human-actor-identity
 title: 'Human actor identity: stop recording every review action as ''human'''
 created: '2026-08-10T22:57:38.560179Z'
-updated: '2026-08-10T22:57:38.560964Z'
-lifecycle: ready
+updated: '2026-08-10T23:56:36.844934Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 category: developer_experience
@@ -15,6 +18,7 @@ tags:
 - provenance
 effort: 1-2 hours
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: Every GUI review action is logged with actor 'human', so the record shows
@@ -87,20 +91,278 @@ spec:
 acceptance:
 - id: ac-1
   text: config names at least one human actor and which one the GUI acts as
-  status: pending
+  status: met
 - id: ac-2
   text: approving, requesting changes and rejecting through the GUI each write the
     configured id as the log entry actor, not 'human'
-  status: pending
+  status: met
 - id: ac-3
   text: an unrecognised actor id is refused by the API rather than logged
-  status: pending
+  status: met
 - id: ac-4
   text: the choice between a separate humans list and a unified actors list is recorded
     as a decision
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
-log: []
+branches:
+- name: feat/task-064-human-actor-identity
+  status: active
+log:
+- id: 1
+  ts: '2026-08-10T23:04:58.748523Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 2
+  ts: '2026-08-10T23:12:06.489647Z'
+  actor: claude
+  type: decision
+  body: '**One `actors:` list carrying `kind`, not a separate `humans:` list.** ac-4
+    asked for this to be decided explicitly rather than by default.
+
+
+    D4 says a task file names an actor by bare id and that *kind* is resolved from
+    config. A single list where each entry declares its kind is that sentence expressed
+    directly. Two parallel lists would make kind a function of which key an entry
+    happens to sit under, which is the same fact stored in a second place -- the shape
+    v2 rejected for `display_status` and for embedded actor objects.
+
+
+    It also answers a question the two-list shape cannot: an actor id must be unique
+    across *both* kinds, since `actor:` in a log entry is one namespace. With two
+    lists nothing stops `jeff` appearing in both.
+
+
+    *Rejected: `humans:` alongside `agents:`.* Cheaper today -- no migration, mirrors
+    the existing key -- but it defers a merge that gets more expensive as more config
+    accumulates around each list.
+
+
+    *The cost, taken deliberately:* existing projects have `agents:`. Rather than
+    rewrite anyone''s config, `load_actors` reads both and merges them, with `actors:`
+    winning on a duplicate id. A project can adopt `actors:` for its people without
+    touching its agents on the same day. `agents:` is not deprecated in this task;
+    retiring it wants its own change once nothing depends on it.'
+  data: {}
+- id: 3
+  ts: '2026-08-10T23:12:06.500783Z'
+  actor: claude
+  type: handoff
+  body: 'All four acceptance criteria met.
+
+
+    **Changed.** New `actors.py` resolves the config vocabulary. `.agentjobs/config.yaml`
+    now has an `actors:` list -- jeff (human), claude and codex (agents) -- and `default_user:
+    jeff`. The three GUI buttons post the configured id instead of the literal ''human''.
+    The three human-action endpoints validate the actor and refuse an unknown one
+    with a 400 naming the configured ids. `agentjobs init` asks for your user id,
+    defaulting to the OS username.
+
+
+    **Two behaviours worth naming, because they are judgement calls not requirements.**
+    When config names no human, the review panel withholds the buttons and explains
+    how to configure one -- refusing to act beats writing an unattributable entry
+    into an append-only log. When config names two humans and no default, there is
+    no default user rather than a guess, for the same reason.
+
+
+    **Verified.** 419 tests pass; ruff, mypy, black clean. 17 new tests, including
+    that ''human'' -- the exact value every review action used to carry -- is now
+    refused. Checked against the running server rather than only in tests: the rendered
+    page carries `const CURRENT_USER = "jeff"`, no `user: ''human''` payload survives
+    anywhere in it, and POSTing `{"user":"human"}` to /approve returns 400 listing
+    the real actors.
+
+
+    **Historical entries keep saying ''human''.** The log is append-only; backfilling
+    a name onto actions taken before there was a name would be inventing a record.'
+  data:
+    ball: human
+    ball_reason: review
+- id: 4
+  ts: '2026-08-10T23:16:32.781368Z'
+  actor: jeff
+  type: handoff
+  body: 'Changes requested by jeff:
+
+
+    Let''s switch the agentjobs human name to "jeffposey". Go with disabling the buttons
+    and leading the user to configuring a username if there is none. For now simply
+    do not support multiple human users in config. Backlog supporting multiple human
+    users with a real account management task. Backfill entries saying "human" to
+    be "jeffposey".'
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 5
+  ts: '2026-08-10T23:22:16.729515Z'
+  actor: claude
+  type: decision
+  body: '**The backfill was mine to object to and yours to decide, and on reflection
+    your call is the better one.** Recording why, since the earlier handoff argued
+    the opposite and a future reader will find both.
+
+
+    I declined to backfill on the grounds that the log is append-only and writing
+    a name onto entries taken before there was one is inventing a record. That argument
+    does not survive contact with the specific facts. Every ''human'' entry was written
+    by the GUI, the GUI has only ever been reachable by you, and the placeholder had
+    exactly one possible referent. Rewriting an unambiguous placeholder to the identity
+    it always denoted is *resolving* a reference, not fabricating one -- the same
+    operation as expanding a relative path.
+
+
+    It would be fabrication if the referent were uncertain: several people with access,
+    or entries written by an API caller who was not you. Neither is true here, and
+    that is a fact about this corpus rather than a general licence. If task-066 lands
+    and several people use the instance, no comparable backfill is ever safe again.
+
+
+    *What was actually changed*: 8 references across 7 files, in `log[].actor` only
+    -- no `assignment.owner` or `eligible` entries held the placeholder. The rewrite
+    walks the model rather than the text, because `ball: human` is the Ball enum and
+    means ''a person acts next'', not ''a person named human''. The same word in two
+    namespaces is precisely what a find-and-replace would have destroyed; all 7 tasks
+    carrying `ball: human` are untouched and still answer `GET /api/tasks?ball=human`.'
+  data: {}
+- id: 6
+  ts: '2026-08-10T23:22:16.746029Z'
+  actor: claude
+  type: handoff
+  body: 'Second review round. Every item from your feedback:
+
+
+    **1. Renamed to `jeffposey`.** Config, the default user, and the test fixtures.
+
+
+    **2. Kept the disable-and-guide behaviour** when no user is configured, as you
+    confirmed.
+
+
+    **3. Multiple humans are now refused loudly rather than handled.** Previously
+    an ambiguous config silently produced no default user, which looked identical
+    to having none configured. `human_identity` now distinguishes the two and the
+    panel says which: ''no user configured, add yourself'' versus ''multiple configured,
+    AgentJobs supports one''. A stated `default_user` deliberately does **not** rescue
+    a multi-human config -- that would be half-support, confidently attributing an
+    action to whoever config listed first while the server still cannot tell who is
+    at the keyboard.
+
+
+    **4. Backfilled**, 8 references across 7 files. Reasoning in the decision entry
+    above, including why I now think you were right and I was wrong.
+
+
+    **5. Backlogged as task-066**, ''Support more than one human user (account management)''.
+    Left in draft: the identity model is a real decision -- session-less picker, real
+    auth, or trusted proxy header -- and the task''s ask is to choose it before writing
+    code, not to start building.
+
+
+    **Verified.** 424 tests pass; ruff, mypy, black clean. Against the running server:
+    the page acts as `jeffposey`, the panel reads ''Acting as jeffposey'', task-052
+    shows 2 entries by `jeffposey`, `/api/tasks/broken` is empty, and `?ball=human`
+    still returns 8 tasks -- proving the backfill did not touch the state enum.'
+  data:
+    ball: human
+    ball_reason: review
+- id: 7
+  ts: '2026-08-10T23:26:51.223847Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by jeffposey:
+
+
+    The username should support spaces, and I was just assuming it didn''t, but for
+    best readability, change my name to "Jeff Posey" and fix history to use that.'
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 8
+  ts: '2026-08-10T23:33:03.906967Z'
+  actor: claude
+  type: decision
+  body: '**Actor ids may contain spaces; the owner''s id is now `Jeff Posey`.** Recorded
+    because I argued against it first and a later reader deserves both sides.
+
+
+    The objection: an actor id is a *reference*. It appears in `actor:`, `assignment.owner`,
+    `assignment.eligible`, and in URL query values such as `?agent=`. Config already
+    carries `display_name` for readability, so the textbook split is a terse stable
+    id plus a pretty label, and putting the pretty label in the id makes `display_name`
+    redundant.
+
+
+    Overruled, and reasonably. The stored record is the product here -- the whole
+    premise is that a person or an agent reads the YAML directly -- so readability
+    *in the file* is a real requirement, not a nicety. `actor: Jeff Posey` needs no
+    lookup to understand; `actor: jeffposey` does. And the technical cost turned out
+    to be nil rather than merely small, which I verified instead of assuming: PyYAML
+    round-trips an unquoted internal space, FastAPI decodes `%20` in a query value,
+    and `/api/tasks/next?agent=Jeff%20Posey` resolves correctly.
+
+
+    *The residual cost, accepted:* near-miss ids are now easier to typo -- `Jeff  Posey`
+    with two spaces is a different id -- which is why `validate_actor` refusing an
+    unknown actor matters more than it did, and why there is now a test for exactly
+    that near miss. `display_name` stays in the schema and is still the right place
+    for a label that differs from the id; it simply happens to match today.
+
+
+    *Not done:* no format validation on actor ids. Constraining them would need a
+    rule that admits spaces but excludes whatever is genuinely dangerous, and nothing
+    has yet shown what that is.'
+  re: 7
+  data: {}
+- id: 9
+  ts: '2026-08-10T23:33:03.927155Z'
+  actor: claude
+  type: handoff
+  body: 'Third round: a one-word change with a design question inside it.
+
+
+    **Renamed** the actor id to `Jeff Posey` in config, and backfilled 9 references
+    across 8 files. Zero stale `human` or `jeffposey` ids remain anywhere in the corpus.
+
+
+    **Verified that spaces actually survive, rather than assuming.** They pass through
+    four encoders between the keyboard and a log entry, so each was checked: config
+    resolution, a YAML round trip unquoted, the API request body, the rendered page,
+    and -- the one I expected to break -- a URL query value. `GET /api/tasks/next?agent=Jeff%20Posey`
+    returns task-060 rather than truncating at the space. Six new tests cover the
+    path, including that `Jeff  Posey` with two spaces is correctly refused as a different
+    id.
+
+
+    **Live check:** the panel reads ''Acting as Jeff Posey'', the page posts as `Jeff
+    Posey`, task-052 shows 2 entries under the new id, and `/api/tasks/broken` is
+    empty.
+
+
+    **Also captured, not built: task-067**, attaching images to feedback and issue
+    reports with clipboard paste as the primary method. Left in draft because the
+    interaction is the easy half. The hard half is where binaries live in a product
+    whose premise is diffable YAML in git -- sidecar files, git-lfs, inline base64
+    or an external store -- and that wants deciding before anyone writes a paste handler,
+    or the paste handler decides it by accident. The task lays out the four options
+    with their costs and recommends rejecting inline base64 explicitly.
+
+
+    430 tests pass; ruff, mypy, black clean.'
+  data:
+    ball: human
+    ball_reason: review
+- id: 10
+  ts: '2026-08-10T23:56:36.844795Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work

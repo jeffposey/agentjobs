@@ -14,6 +14,7 @@ from agentjobs.models_v2 import Ball, Lifecycle, Outcome, Task
 from agentjobs.projects import Project
 
 from ..dependencies import (
+    current_identity,
     get_project,
     get_task_manager,
     get_templates,
@@ -50,6 +51,10 @@ def _context_base(
         "base": f"/p/{project.id}",
         "all_projects": list_projects(),
         "broken_files": broken_files or [],
+        # Who the review buttons act as, and why not when they cannot. The template
+        # surfaces the reason rather than silently falling back to an anonymous id.
+        "identity": current_identity(project),
+        "current_user": current_identity(project).user,
     }
 
 

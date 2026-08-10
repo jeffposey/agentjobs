@@ -2,7 +2,7 @@ schema: 2
 id: task-052-schema-v2-manager-api
 title: 'Schema v2: migrate the corpus and switch the application over'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T22:55:38.245425Z'
+updated: '2026-08-10T23:29:50.509954Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -636,7 +636,7 @@ log:
   data: {}
 - id: 8
   ts: '2026-08-10T22:43:06.718684Z'
-  actor: human
+  actor: Jeff Posey
   type: handoff
   body: "Changes requested by human:\n\n_needs_met treats a dependency on a non-existent\
     \ task as satisfied, so a typo'd or stale needs reference silently disables the\
@@ -726,7 +726,7 @@ log:
     ball_reason: review
 - id: 11
   ts: '2026-08-10T22:51:58.276081Z'
-  actor: human
+  actor: Jeff Posey
   type: handoff
   body: Approved by human through the web UI.
   data:

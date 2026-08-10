@@ -2,7 +2,7 @@ schema: 2
 id: task-032-agentjobs-v0-2-production-hardening
 title: AgentJobs v0.2.0 - Production Hardening
 created: '2025-10-26T18:30:00Z'
-updated: '2026-08-10T19:43:28Z'
+updated: '2026-08-10T23:29:50.429155Z'
 lifecycle: closed
 outcome: cancelled
 archived: true
@@ -13,6 +13,8 @@ tags:
 - production
 - v0.2
 effort: 2-3 weeks
+assignment:
+  eligible: []
 spec:
   summary: Prepare AgentJobs for production deployments by adding auth, deployment
     automation, monitoring, and GitHub syncing.
@@ -58,36 +60,38 @@ spec:
     \ (`phase-2`, draft)\n- **Monitoring & Logging** (`phase-3`, draft)\n- **GitHub\
     \ Integration** (`phase-4`, draft)\n- **Performance Optimization** (`phase-5`,\
     \ draft)"
+  context: []
+acceptance: []
 deliverables:
 - path: docs/v0.2-production-hardening.md
-  status: pending
   note: Architecture and rollout plan for AgentJobs v0.2.0
+  status: pending
+dependencies: []
+links: []
+branches: []
 log:
 - id: 1
   ts: '2025-10-26T21:30:00Z'
   actor: Codex
   type: transition
-  data:
-    v1_status: waiting_for_human
   body: 'Draft production-hardening brief awaiting review
 
 
     Expanded starter prompt with architecture, deployment, ops, integration, and performance
     requirements. Ready for human sign-off.'
+  data:
+    v1_status: waiting_for_human
 - id: 2
   ts: '2026-08-10T19:43:28Z'
-  actor: human
+  actor: Jeff Posey
   type: transition
+  body: 'Rejected by human: old stale task, nothing waiting on it'
   data:
     v1_status: archived
-  body: 'Rejected by human: old stale task, nothing waiting on it'
 - id: 3
   ts: '2026-08-10T19:43:28Z'
   actor: system
   type: note
-  data:
-    v1_status: archived
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
@@ -101,3 +105,6 @@ log:
     Needs human review:
 
     - assigned_to: ''TBD'' is not an actor id; dropped'
+  data:
+    v1_status: archived
+    migrated_to_schema: 2

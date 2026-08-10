@@ -1,15 +1,21 @@
-project_name: AgentJobs
+﻿project_name: AgentJobs
 tasks_directory: tasks/agentjobs
 prompts_directory: prompts
 gui:
   host: localhost
   port: 8765
   theme: dark
-agents:
+actors:
+  - name: Jeff Posey
+    kind: human
+    display_name: Jeff Posey
   - name: claude
+    kind: agent
     display_name: Claude (Lead Engineer)
   - name: codex
+    kind: agent
     display_name: Codex (Workhorse)
+default_user: Jeff Posey
 categories:
   - infrastructure
   - ux

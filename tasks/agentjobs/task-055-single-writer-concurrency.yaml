@@ -2,9 +2,10 @@ schema: 2
 id: task-055-single-writer-concurrency
 title: 'Storage: serialize writes so two agents cannot claim the same task'
 created: '2026-07-29T22:05:00Z'
-updated: '2026-08-10T20:53:10Z'
+updated: '2026-08-10T23:29:50.537171Z'
 lifecycle: closed
 outcome: completed
+archived: false
 priority: high
 category: infrastructure
 tags:
@@ -13,6 +14,8 @@ tags:
 - concurrency
 - phase-0
 effort: 2-3 hours
+assignment:
+  eligible: []
 spec:
   summary: TaskStorage.save_task does read-modify-write with no locking and no compare-and-swap,
     so two agents can both read a task as ready and both write it as active -- a silent
@@ -57,6 +60,7 @@ spec:
     \ commits. When complete and verified: STOP, set waiting_for_human, leave a comment\
     \ summarizing what changed and what the losing-writer behavior now is, and wait\
     \ for explicit approval before merging (rebase onto main + --no-ff)."
+  context: []
 acceptance:
 - id: sc-1
   text: A regression test reproduces the double-claim race against the current implementation,
@@ -79,19 +83,20 @@ acceptance:
   status: met
 deliverables:
 - path: src/agentjobs/storage.py
-  status: pending
   note: Advisory locking plus compare-and-swap around read-modify-write
+  status: pending
 - path: src/agentjobs/manager.py
-  status: pending
   note: Atomic claim path; typed conflict error for the losing writer
-- path: tests/test_concurrency.py
   status: pending
+- path: tests/test_concurrency.py
   note: Double-claim regression test that fails before the fix
+  status: pending
 dependencies:
 - task: task-048-schema-design
   type: related
   note: "Found during the design pass while evaluating storage; rationale recorded\
     \ in docs/schema-design.md \xA77"
+links: []
 branches:
 - name: fix/task-055-single-writer
   status: merged
@@ -100,8 +105,6 @@ log:
   ts: '2026-08-10T20:29:15Z'
   actor: claude
   type: transition
-  data:
-    v1_status: in_progress
   body: 'Claimed; last task before the v2 switchover
 
 
@@ -115,12 +118,12 @@ log:
     The race is not in save_task alone; it is in load -> decide -> save, so the lock
     has to span all three. Regression test drives real concurrent claims from threads
     and asserts exactly one wins.'
+  data:
+    v1_status: in_progress
 - id: 2
   ts: '2026-08-10T20:35:32Z'
   actor: claude
   type: transition
-  data:
-    v1_status: waiting_for_human
   body: 'Double-claim race closed and proven by mutation; 354 tests pass
 
 
@@ -157,37 +160,39 @@ log:
     Note for task-052: it rewrites this layer for v2, so it must carry mutate_task
     forward rather than reverting to load/save. And task-060 (agent dispatch) named
     055 a hard prerequisite -- that is now satisfied.'
+  data:
+    v1_status: waiting_for_human
 - id: 3
   ts: '2026-08-10T20:51:02Z'
-  actor: human
+  actor: Jeff Posey
   type: transition
-  data:
-    v1_status: in_progress
   body: "Approved by human \u2014 cleared to merge\n\nhuman approved this work through\
     \ the web UI. The ball is back with the agent, which must now rebase onto main,\
     \ merge --no-ff, mark the branch merged in branches[], and set this task completed.\
     \ No merge has happened yet: the UI records approval, it does not run git."
+  data:
+    v1_status: in_progress
 - id: 4
   ts: '2026-08-10T20:53:10Z'
   actor: claude
   type: transition
-  data:
-    v1_status: completed
   body: 'Approved by Jeff via GUI; merged to main
 
 
     Rebased, merged --no-ff, branch deleted. Nothing pushed. Satisfies the hard prerequisite
     task-060 named for agent dispatch.'
+  data:
+    v1_status: completed
 - id: 5
   ts: '2026-08-10T20:53:10Z'
   actor: system
   type: note
-  data:
-    v1_status: completed
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
     - v1 `status: completed` became lifecycle: closed / outcome: completed.
 
     - prompts.starter preserved in spec.description.'
+  data:
+    v1_status: completed
+    migrated_to_schema: 2

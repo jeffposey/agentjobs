@@ -1,0 +1,118 @@
+schema: 2
+id: task-066-multiple-human-users
+title: Support more than one human user (account management)
+created: '2026-08-10T23:20:39.069637Z'
+updated: '2026-08-10T23:20:39.070325Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Choose the identity model before any code is written -- session-less
+  picker, real authentication, trusted proxy header, or a combination -- and record
+  the choice with its reasoning. The rest of the task is mechanical once that is settled.
+archived: false
+priority: medium
+category: architecture
+tags:
+- gui
+- provenance
+- architecture
+effort: 1 session for the design pass, more to build
+assignment:
+  eligible: []
+spec:
+  summary: AgentJobs supports exactly one configured human. Decide and build an identity
+    model that lets several people act and be attributed correctly.
+  intent: 'Task-064 gave AgentJobs one human identity, read from config, so review
+    actions name a person instead of the literal string ''human''. It deliberately
+    supports exactly one: a config naming several people is refused, because the server
+    has no way to tell which of them is at the keyboard and guessing would reintroduce
+    the defect 064 existed to fix -- an action attributed to the wrong person is worse
+    than one attributed to nobody.
+
+
+    That refusal is a placeholder for this task. The moment a second person needs
+    to review anything -- a collaborator, a contractor, an interviewer given a look
+    -- AgentJobs is unusable for them, and the failure is a yellow box telling them
+    to edit YAML.'
+  description: 'The hard part is not a user list; 064 already has one. It is establishing
+    who is acting, per request, without turning a local single-binary tool into something
+    that needs a login server.
+
+
+    **Decide the identity model first, and record it.** The options differ enough
+    that building before choosing would waste the work:
+
+
+    - *Session-less selection.* A ''acting as'' picker in the header, stored in a
+    cookie or localStorage. Honest about what it is -- attribution, not authentication
+    -- and cheap. Anyone can claim to be anyone, which is fine for a trusted local
+    tool and not fine the moment the port is reachable.
+
+    - *Real authentication.* Passwords or an identity provider, sessions, logout.
+    Correct for a shared or exposed instance, and a large step for a tool whose selling
+    point is that it is a directory of YAML files with no infrastructure.
+
+    - *Delegate to the front door.* Take the user from a reverse proxy''s header,
+    so deployment decides the auth story and AgentJobs stays out of it. Strong fit
+    for the packaged-product goal; useless for someone running it locally.
+
+
+    The third plus the first is probably the answer -- picker locally, trusted header
+    when deployed -- but decide it explicitly.
+
+
+    **Then the mechanics**, whichever is chosen: several `kind: human` entries accepted
+    rather than refused; the acting user resolved per request instead of per project;
+    `human_identity`''s MULTIPLE branch replaced; the review panel showing who you
+    are acting as with a way to change it; and the API keeping its explicit `user`
+    field, since agents and scripts post directly and have no session.
+
+
+    **Worth deciding at the same time:** whether an actor id can be retired. People
+    leave, and the log is append-only, so their past entries must keep resolving after
+    they can no longer act.'
+  constraints: '- The log stays append-only. Retiring a person never rewrites their
+    history.
+
+    - The API keeps accepting an explicit actor: agents post directly and cannot hold
+    a session.
+
+    - Do not weaken validation. An unknown actor stays refused (D2).
+
+    - No silent fallback to a default identity when the acting user is unclear. That
+    is the exact failure 064 removed.'
+  out_of_scope: Per-user permissions and roles. This is about knowing who acted, not
+    restricting what they may do -- worth a separate task if it is ever wanted.
+  context:
+  - path: src/agentjobs/actors.py
+    why: human_identity and its MULTIPLE branch are what this replaces.
+  - path: tests/test_actors.py
+    why: TestExactlyOneHumanIsSupported encodes the limit being lifted.
+  - path: src/agentjobs/api/templates/task_detail.html
+    why: The review panel, which must show and let you change who you are.
+acceptance:
+- id: ac-1
+  text: the identity model is chosen and recorded as a decision, with the rejected
+    alternatives
+  status: pending
+- id: ac-2
+  text: 'several kind: human actors are accepted rather than refused'
+  status: pending
+- id: ac-3
+  text: the acting user is resolved per request, and the GUI shows who that is
+  status: pending
+- id: ac-4
+  text: an action is never attributed to a default when the acting user is unclear
+  status: pending
+- id: ac-5
+  text: whether an actor id can be retired is decided, and past log entries by a retired
+    actor still resolve
+  status: pending
+deliverables: []
+dependencies:
+- task: task-064-human-actor-identity
+  type: needs
+  note: Supplies the config vocabulary and the single-user identity this widens.
+links: []
+branches: []
+log: []

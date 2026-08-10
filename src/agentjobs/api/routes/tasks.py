@@ -7,13 +7,27 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.manager import TaskManager, TaskNotFoundError
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Outcome, Priority, Task
 
-from ..dependencies import get_task_manager
+from ..dependencies import get_project, get_task_manager, project_config
 from ..models import TaskCreateRequest, TaskUpdateRequest
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+
+def acting_user(project: Any, user: str) -> str:
+    """The actor id to record, refused if this project does not define it.
+
+    D2: an unrecognised id is a silent no-op that survives forever, and the log is the
+    one structure in this system that is never rewritten. Better to reject the action
+    than to write an attribution nobody can resolve later.
+    """
+    try:
+        return validate_actor(project_config(project), user)
+    except UnknownActorError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.get("", response_model=List[Task])
@@ -172,6 +186,7 @@ async def approve_task(
     task_id: str,
     payload: HumanActionRequest,
     manager: TaskManager = Depends(get_task_manager),
+    project: Any = Depends(get_project),
 ) -> Dict[str, Any]:
     """Record human approval and hand the ball back to the agent (agent/work).
 
@@ -181,10 +196,11 @@ async def approve_task(
     must now rebase, merge --no-ff, mark the branch merged, and close the task
     (ENGINEERING.md, "The Merge Gate").
     """
+    user = acting_user(project, payload.user)
     try:
         task = manager.handoff(
             task_id,
-            actor=payload.user,
+            actor=user,
             ball=Ball.AGENT,
             ball_reason=BallReason.WORK,
             ball_prompt=(
@@ -192,7 +208,7 @@ async def approve_task(
                 "the branch merged in branches[], and close this task completed. "
                 "No merge has happened yet: the UI records approval, it does not run git."
             ),
-            body=f"Approved by {payload.user} through the web UI.",
+            body=f"Approved by {user} through the web UI.",
         )
         return {"task": task.model_dump(mode="json")}
     except ValueError as exc:
@@ -207,20 +223,22 @@ async def request_changes(
     task_id: str,
     payload: FeedbackActionRequest,
     manager: TaskManager = Depends(get_task_manager),
+    project: Any = Depends(get_project),
 ) -> Dict[str, Any]:
     """Record requested changes and hand the ball back to the agent (agent/revise).
 
     The feedback is the payload of the handoff, so it rides in the ball_prompt and the
     log entry verbatim.
     """
+    user = acting_user(project, payload.user)
     try:
         task = manager.handoff(
             task_id,
-            actor=payload.user,
+            actor=user,
             ball=Ball.AGENT,
             ball_reason=BallReason.REVISE,
             ball_prompt=payload.feedback,
-            body=f"Changes requested by {payload.user}:\n\n{payload.feedback}",
+            body=f"Changes requested by {user}:\n\n{payload.feedback}",
         )
         return {"task": task.model_dump(mode="json")}
     except ValueError as exc:
@@ -235,14 +253,16 @@ async def reject_task(
     task_id: str,
     payload: RejectActionRequest,
     manager: TaskManager = Depends(get_task_manager),
+    project: Any = Depends(get_project),
 ) -> Dict[str, Any]:
     """Reject a task: closed as cancelled, archived, reason on the record."""
+    user = acting_user(project, payload.user)
     try:
         task = manager.close_task(
             task_id,
-            actor=payload.user,
+            actor=user,
             outcome=Outcome.CANCELLED,
-            body=f"Rejected by {payload.user}: {payload.reason}",
+            body=f"Rejected by {user}: {payload.reason}",
             archive=True,
         )
         return {"task": task.model_dump(mode="json")}

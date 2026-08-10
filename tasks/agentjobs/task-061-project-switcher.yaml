@@ -2,9 +2,10 @@ schema: 2
 id: task-061-project-switcher
 title: 'GUI: project switcher and project-scoped URLs'
 created: '2026-08-10T19:00:24Z'
-updated: '2026-08-10T19:15:53Z'
+updated: '2026-08-10T23:29:50.555197Z'
 lifecycle: closed
 outcome: completed
+archived: false
 priority: high
 category: ux
 tags:
@@ -12,6 +13,8 @@ tags:
 - gui
 - multi-project
 effort: 1 working session
+assignment:
+  eligible: []
 spec:
   summary: Split out of task-058 on 2026-08-10 because it was wrongly blocked. The
     server has been able to serve every registered project since task-057, but the
@@ -131,6 +134,7 @@ spec:
     Branch feat/task-061-project-switcher from main, record it in branches[], mark
     in_progress, in that order. Small commits, tests green before each. When complete:
     STOP, set waiting_for_human through the status API. Do not merge.'
+  context: []
 acceptance:
 - id: sc-1
   text: A project switcher appears in the base layout on every page, lists every registered
@@ -165,11 +169,11 @@ acceptance:
   status: met
 deliverables:
 - path: src/agentjobs/api/routes/web.py
-  status: pending
   note: Project-scoped web routes and legacy redirects
-- path: src/agentjobs/api/templates/base.html
   status: pending
+- path: src/agentjobs/api/templates/base.html
   note: Project switcher in the shared layout
+  status: pending
 dependencies:
 - task: task-057-multi-project-registry
   type: needs
@@ -181,6 +185,7 @@ dependencies:
 - task: task-059-review-surface-usability
   type: related
   note: Closes its deferred sc-5, project-scoped review actions.
+links: []
 branches:
 - name: feat/task-061-project-switcher
   status: merged
@@ -189,8 +194,6 @@ log:
   ts: '2026-08-10T19:02:09Z'
   actor: claude
   type: transition
-  data:
-    v1_status: in_progress
   body: 'Claimed; split out of task-058 to unblock the switcher
 
 
@@ -210,12 +213,12 @@ log:
     review action buttons at the scoped API to close task-059''s deferred sc-5. Verify
     with two real registered projects that share a task id -- the fixture from tests/test_api_multiproject.py
     already does this for the API.'
+  data:
+    v1_status: in_progress
 - id: 2
   ts: '2026-08-10T19:13:44Z'
   actor: claude
   type: transition
-  data:
-    v1_status: waiting_for_human
   body: 'Project switcher done; all 8 criteria met, 206 tests pass
 
 
@@ -297,22 +300,22 @@ log:
 
 
     Next up per your instruction: task-050, the v2 models.'
+  data:
+    v1_status: waiting_for_human
 - id: 3
   ts: '2026-08-10T19:14:31Z'
-  actor: human
+  actor: Jeff Posey
   type: transition
-  data:
-    v1_status: in_progress
   body: "Approved by human \u2014 cleared to merge\n\nhuman approved this work through\
     \ the web UI. The ball is back with the agent, which must now rebase onto main,\
     \ merge --no-ff, mark the branch merged in branches[], and set this task completed.\
     \ No merge has happened yet: the UI records approval, it does not run git."
+  data:
+    v1_status: in_progress
 - id: 4
   ts: '2026-08-10T19:15:53Z'
   actor: claude
   type: transition
-  data:
-    v1_status: completed
   body: 'Merged to main after Jeff approved through the web UI
 
 
@@ -335,16 +338,18 @@ log:
     -- the record should name who actually acted. Worth an identity/config setting
     when the GUI becomes the primary editing surface (task-054), and noted there rather
     than fixed mid-merge.'
+  data:
+    v1_status: completed
 - id: 5
   ts: '2026-08-10T19:15:53Z'
   actor: system
   type: note
-  data:
-    v1_status: completed
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
     - v1 `status: completed` became lifecycle: closed / outcome: completed.
 
     - prompts.starter preserved in spec.description.'
+  data:
+    v1_status: completed
+    migrated_to_schema: 2

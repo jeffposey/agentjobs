@@ -2,9 +2,10 @@ schema: 2
 id: task-049-storage-loud-load-errors
 title: 'Storage: stop swallowing task validation errors; report file, field, and error'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T20:28:37Z'
+updated: '2026-08-10T23:29:50.442623Z'
 lifecycle: closed
 outcome: completed
+archived: false
 priority: high
 category: infrastructure
 tags:
@@ -12,6 +13,8 @@ tags:
 - robustness
 - phase-0
 effort: 1-2 hours
+assignment:
+  eligible: []
 spec:
   summary: 'TaskStorage.load_task currently catches validation errors and returns
     None, so a broken task file silently vanishes from every listing. Make load failures
@@ -42,6 +45,7 @@ spec:
     \ commits. When complete and verified: STOP, set waiting_for_human, leave a comment\
     \ summarizing what changed, and wait for explicit approval before merging (rebase\
     \ onto main + --no-ff)."
+  context: []
 acceptance:
 - id: sc-1
   text: A task file with an invalid field no longer silently disappears; loading it
@@ -57,11 +61,13 @@ acceptance:
   status: met
 deliverables:
 - path: src/agentjobs/storage.py
-  status: pending
   note: load_task raises/reports structured errors instead of returning None
-- path: tests/test_storage.py
   status: pending
+- path: tests/test_storage.py
   note: Broken-fixture coverage for listing and single-read paths
+  status: pending
+dependencies: []
+links: []
 branches:
 - name: fix/task-049-loud-load-errors
   status: merged
@@ -70,8 +76,6 @@ log:
   ts: '2026-08-10T20:15:44Z'
   actor: claude
   type: transition
-  data:
-    v1_status: in_progress
   body: 'Claimed; sequenced before task-052 so a bad file during the migration is
     visible
 
@@ -96,12 +100,12 @@ log:
     it; list_tasks keeps returning the valid tasks while surfacing the broken ones
     rather than dropping them silently; API, CLI and GUI all show them. Tests with
     a deliberately broken fixture for both the listing path and the single-read path.'
+  data:
+    v1_status: in_progress
 - id: 2
   ts: '2026-08-10T20:25:22Z'
   actor: claude
   type: transition
-  data:
-    v1_status: waiting_for_human
   body: 'Broken task files are now loud everywhere; all 3 criteria met, 343 tests
     pass
 
@@ -172,36 +176,38 @@ log:
     an unstamped file. When storage switches to v2 it should raise TaskLoadError for
     those too, so a stray v1 file left behind by a partial migration is reported by
     filename rather than crashing the listing.'
+  data:
+    v1_status: waiting_for_human
 - id: 3
   ts: '2026-08-10T20:27:50Z'
-  actor: human
+  actor: Jeff Posey
   type: transition
-  data:
-    v1_status: in_progress
   body: "Approved by human \u2014 cleared to merge\n\nhuman approved this work through\
     \ the web UI. The ball is back with the agent, which must now rebase onto main,\
     \ merge --no-ff, mark the branch merged in branches[], and set this task completed.\
     \ No merge has happened yet: the UI records approval, it does not run git."
+  data:
+    v1_status: in_progress
 - id: 4
   ts: '2026-08-10T20:28:37Z'
   actor: claude
   type: transition
-  data:
-    v1_status: completed
   body: 'Approved by Jeff via GUI; merged to main
 
 
     Rebased, merged --no-ff, branch deleted. Nothing pushed.'
+  data:
+    v1_status: completed
 - id: 5
   ts: '2026-08-10T20:28:37Z'
   actor: system
   type: note
-  data:
-    v1_status: completed
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
     - v1 `status: completed` became lifecycle: closed / outcome: completed.
 
     - prompts.starter preserved in spec.description.'
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
