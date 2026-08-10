@@ -10,7 +10,7 @@ from __future__ import annotations
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
 import pytest
 
@@ -72,7 +72,9 @@ class TestTheRace:
         assert len(winners) == 1, f"expected exactly one winner, got {winners}"
         assert len(losers) == 7
         # And the file agrees with whoever won, rather than with the last writer.
-        assert storage.load_task(task.id).assigned_to == winners[0]
+        reloaded = storage.load_task(task.id)
+        assert reloaded is not None
+        assert reloaded.assigned_to == winners[0]
 
     def test_the_loser_is_told_why(self, tmp_path: Path) -> None:
         storage = TaskStorage(tmp_path)
@@ -114,6 +116,7 @@ class TestTheRace:
             thread.join(timeout=30)
 
         reloaded = storage.load_task(task.id)
+        assert reloaded is not None
         summaries = {u.summary for u in reloaded.status_updates}
         assert len(summaries) == 6, f"entries were lost: {sorted(summaries)}"
 
