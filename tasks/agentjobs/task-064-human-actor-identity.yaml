@@ -2,11 +2,15 @@ schema: 2
 id: task-064-human-actor-identity
 title: 'Human actor identity: stop recording every review action as ''human'''
 created: '2026-08-10T22:57:38.560179Z'
-updated: '2026-08-10T23:04:58.758045Z'
+updated: '2026-08-10T23:12:06.500848Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: 'Review branch `feat/task-064-human-actor-identity` and approve or request
+  changes. Worth a look specifically: the config shape decision above, and whether
+  withholding the review buttons when no user is configured is the behaviour you want,
+  versus letting them act anonymously. Approving this one will be the first action
+  in the repo recorded as `jeff` rather than `human`.'
 archived: false
 priority: high
 category: developer_experience
@@ -89,18 +93,18 @@ spec:
 acceptance:
 - id: ac-1
   text: config names at least one human actor and which one the GUI acts as
-  status: pending
+  status: met
 - id: ac-2
   text: approving, requesting changes and rejecting through the GUI each write the
     configured id as the log entry actor, not 'human'
-  status: pending
+  status: met
 - id: ac-3
   text: an unrecognised actor id is refused by the API rather than logged
-  status: pending
+  status: met
 - id: ac-4
   text: the choice between a separate humans list and a unified actors list is recorded
     as a decision
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -117,3 +121,69 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 2
+  ts: '2026-08-10T23:12:06.489647Z'
+  actor: claude
+  type: decision
+  body: '**One `actors:` list carrying `kind`, not a separate `humans:` list.** ac-4
+    asked for this to be decided explicitly rather than by default.
+
+
+    D4 says a task file names an actor by bare id and that *kind* is resolved from
+    config. A single list where each entry declares its kind is that sentence expressed
+    directly. Two parallel lists would make kind a function of which key an entry
+    happens to sit under, which is the same fact stored in a second place -- the shape
+    v2 rejected for `display_status` and for embedded actor objects.
+
+
+    It also answers a question the two-list shape cannot: an actor id must be unique
+    across *both* kinds, since `actor:` in a log entry is one namespace. With two
+    lists nothing stops `jeff` appearing in both.
+
+
+    *Rejected: `humans:` alongside `agents:`.* Cheaper today -- no migration, mirrors
+    the existing key -- but it defers a merge that gets more expensive as more config
+    accumulates around each list.
+
+
+    *The cost, taken deliberately:* existing projects have `agents:`. Rather than
+    rewrite anyone''s config, `load_actors` reads both and merges them, with `actors:`
+    winning on a duplicate id. A project can adopt `actors:` for its people without
+    touching its agents on the same day. `agents:` is not deprecated in this task;
+    retiring it wants its own change once nothing depends on it.'
+  data: {}
+- id: 3
+  ts: '2026-08-10T23:12:06.500783Z'
+  actor: claude
+  type: handoff
+  body: 'All four acceptance criteria met.
+
+
+    **Changed.** New `actors.py` resolves the config vocabulary. `.agentjobs/config.yaml`
+    now has an `actors:` list -- jeff (human), claude and codex (agents) -- and `default_user:
+    jeff`. The three GUI buttons post the configured id instead of the literal ''human''.
+    The three human-action endpoints validate the actor and refuse an unknown one
+    with a 400 naming the configured ids. `agentjobs init` asks for your user id,
+    defaulting to the OS username.
+
+
+    **Two behaviours worth naming, because they are judgement calls not requirements.**
+    When config names no human, the review panel withholds the buttons and explains
+    how to configure one -- refusing to act beats writing an unattributable entry
+    into an append-only log. When config names two humans and no default, there is
+    no default user rather than a guess, for the same reason.
+
+
+    **Verified.** 419 tests pass; ruff, mypy, black clean. 17 new tests, including
+    that ''human'' -- the exact value every review action used to carry -- is now
+    refused. Checked against the running server rather than only in tests: the rendered
+    page carries `const CURRENT_USER = "jeff"`, no `user: ''human''` payload survives
+    anywhere in it, and POSTing `{"user":"human"}` to /approve returns 400 listing
+    the real actors.
+
+
+    **Historical entries keep saying ''human''.** The log is append-only; backfilling
+    a name onto actions taken before there was a name would be inventing a record.'
+  data:
+    ball: human
+    ball_reason: review

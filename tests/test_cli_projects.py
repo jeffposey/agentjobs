@@ -1,4 +1,4 @@
-"""CLI tests for the project registry commands.
+﻿"""CLI tests for the project registry commands.
 
 The registry these exercise is redirected to a temp directory by the autouse
 ``isolate_project_registry`` fixture in conftest.py -- without it these would write the
@@ -132,6 +132,8 @@ class TestInitRegisters:
                 "prompts",
                 "--port",
                 "8765",
+                "--user",
+                "jeff",
             ],
         )
 
@@ -154,6 +156,8 @@ class TestInitRegisters:
                 "prompts",
                 "--port",
                 "8765",
+                "--user",
+                "jeff",
             ],
         )
 
@@ -170,6 +174,8 @@ class TestInitRegisters:
                 "prompts",
                 "--port",
                 "8765",
+                "--user",
+                "jeff",
             ],
         )
 

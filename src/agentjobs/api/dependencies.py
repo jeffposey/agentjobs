@@ -17,6 +17,7 @@ import yaml
 from fastapi import HTTPException, Request, status
 from fastapi.templating import Jinja2Templates
 
+from agentjobs.actors import default_user
 from agentjobs.manager import TaskManager
 from agentjobs.projects import (
     AmbiguousProjectError,
@@ -257,6 +258,28 @@ def get_task_manager(request: Request) -> TaskManager:
 def get_webhook_manager(request: Request) -> WebhookManager:
     """Provide a WebhookManager scoped to the project this request addresses."""
     return webhook_manager_for(request_project(request))
+
+
+def project_config(project: Project) -> dict:
+    """The config of the project a request addresses.
+
+    Read per call rather than cached: config is hand-edited, and a stale actor list
+    after adding yourself to it is exactly the kind of "why is it still wrong" that
+    costs an hour. It is one small YAML file.
+    """
+    if project.id == _IMPLICIT_PROJECT_ID:
+        return _load_config(_resolve_project_root())
+    return _load_config(project.root)
+
+
+def current_user(project: Project) -> Optional[str]:
+    """The actor id the GUI acts as for this project, or None if config names nobody."""
+    return default_user(project_config(project))
+
+
+def get_current_user(request: Request) -> Optional[str]:
+    """Provide the acting user to a route."""
+    return current_user(request_project(request))
 
 
 def get_templates() -> Jinja2Templates:

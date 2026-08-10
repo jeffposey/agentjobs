@@ -5,11 +5,17 @@ gui:
   host: localhost
   port: 8765
   theme: dark
-agents:
+actors:
+  - name: jeff
+    kind: human
+    display_name: Jeff Posey
   - name: claude
+    kind: agent
     display_name: Claude (Lead Engineer)
   - name: codex
+    kind: agent
     display_name: Codex (Workhorse)
+default_user: jeff
 categories:
   - infrastructure
   - ux

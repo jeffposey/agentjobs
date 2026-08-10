@@ -61,10 +61,25 @@
              x-markdown="content"></div>
         {% endif %}
         <p class="text-sm text-dark-muted">
-            These buttons record your decision in the task record and hand the work back
+            {% if current_user %}Acting as <strong>{{ current_user }}</strong>. {% endif %}These
+            buttons record your decision in the task record and hand the work back
             to the agent — <strong>they do not run git</strong>, so nothing is merged
             until the agent does it.
         </p>
+
+        {% if not current_user %}
+        {# Refusing to act beats acting anonymously: the log entry is permanent and an
+           unattributed approval cannot be traced to anyone later. #}
+        <div class="rounded-lg border border-yellow-600/50 bg-dark-bg p-4 text-sm">
+            <strong class="text-yellow-400">No user configured.</strong>
+            <span class="text-dark-muted">
+                These actions are disabled because the record would not say who took
+                them. Add yourself to <code>actors:</code> in
+                <code>.agentjobs/config.yaml</code> with <code>kind: human</code>, and
+                set <code>default_user:</code> to your id.
+            </span>
+        </div>
+        {% else %}
 
         <div class="flex flex-wrap gap-3">
             <button
@@ -116,6 +131,7 @@
                 </button>
             </div>
         </div>
+        {% endif %}
     </div>
     {% elif task.ball_prompt %}
     <div class="rounded-xl p-6 bg-dark-surface border border-dark-border">
@@ -372,6 +388,11 @@
 </div>
 
 <script>
+// Who these buttons act as. Rendered from config rather than hardcoded: every review
+// action used to be logged as the literal string "human", so the record showed that a
+// person acted but never which one.
+const CURRENT_USER = {{ (current_user or "") | tojson }};
+
 document.addEventListener('alpine:init', () => {
     Alpine.data('taskActions', () => ({
         showFeedback: false,
@@ -382,7 +403,7 @@ document.addEventListener('alpine:init', () => {
                 const response = await fetch('/api/projects/{{ project.id }}/tasks/{{ task.id }}/approve', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({user: 'human'})
+                    body: JSON.stringify({user: CURRENT_USER})
                 });
                 if (!response.ok) throw new Error('Failed to approve task');
                 window.location.reload();
@@ -399,7 +420,7 @@ document.addEventListener('alpine:init', () => {
                 const response = await fetch('/api/projects/{{ project.id }}/tasks/{{ task.id }}/request-changes', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({user: 'human', feedback: this.feedbackText})
+                    body: JSON.stringify({user: CURRENT_USER, feedback: this.feedbackText})
                 });
                 if (!response.ok) throw new Error('Failed to submit feedback');
                 window.location.reload();
@@ -414,7 +435,7 @@ document.addEventListener('alpine:init', () => {
                 const response = await fetch('/api/projects/{{ project.id }}/tasks/{{ task.id }}/reject', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({user: 'human', reason: reason})
+                    body: JSON.stringify({user: CURRENT_USER, reason: reason})
                 });
                 if (!response.ok) throw new Error('Failed to reject task');
                 window.location.href = '{{ base }}/tasks';

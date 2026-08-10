@@ -1,4 +1,4 @@
-"""CLI integration tests for AgentJobs."""
+﻿"""CLI integration tests for AgentJobs."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def test_output_encoding_survives_legacy_codepage_stream(monkeypatch) -> None:
 
     # Guard clause: confirm the stream really is hostile before the fix.
     try:
-        stream.write("❌")
+        stream.write("âŒ")
         stream.flush()
         pytest.fail("expected cp1252 stream to reject the emoji")
     except UnicodeEncodeError:
@@ -36,10 +36,10 @@ def test_output_encoding_survives_legacy_codepage_stream(monkeypatch) -> None:
     monkeypatch.setattr("sys.stdout", stream)
     _make_output_encoding_safe()
 
-    stream.write("❌ No server running.\n")
+    stream.write("âŒ No server running.\n")
     stream.flush()
 
-    assert "❌" in raw.getvalue().decode("utf-8")
+    assert "âŒ" in raw.getvalue().decode("utf-8")
 
 
 def test_cli_init_create_list_show(tmp_path: Path, monkeypatch) -> None:
@@ -49,7 +49,7 @@ def test_cli_init_create_list_show(tmp_path: Path, monkeypatch) -> None:
     result = runner.invoke(
         app,
         ["init"],
-        input="Test Project\ntasks\nprompts\n9000\n",
+        input="Test Project\ntasks\nprompts\n9000\njeff\n",
         catch_exceptions=False,
     )
     assert result.exit_code == 0
@@ -95,7 +95,7 @@ def test_work_command_flow(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     # Setup: Initialize and create a task
-    runner.invoke(app, ["init"], input="Test Project\ntasks\nprompts\n9000\n")
+    runner.invoke(app, ["init"], input="Test Project\ntasks\nprompts\n9000\njeff\n")
     runner.invoke(app, ["create"], input="Work Task\nDescription\n")
 
     # Manually move the task to ready/agent-available so it can be picked up
@@ -150,7 +150,7 @@ def test_list_tasks_filtering(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     # Setup: Initialize
-    runner.invoke(app, ["init"], input="Test Project\ntasks\nprompts\n9000\n")
+    runner.invoke(app, ["init"], input="Test Project\ntasks\nprompts\n9000\njeff\n")
 
     # Create PLANNED/HIGH task
     runner.invoke(
@@ -273,7 +273,7 @@ def test_show_task_not_found(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     # Initialize to ensure manager can run
-    runner.invoke(app, ["init"], input="Test Project\ntasks\nprompts\n9000\n")
+    runner.invoke(app, ["init"], input="Test Project\ntasks\nprompts\n9000\njeff\n")
 
     result = runner.invoke(app, ["show", "non-existent-id"])
     assert result.exit_code == 1

@@ -62,10 +62,14 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "tasks_directory": "tasks",
     "prompts_directory": "prompts",
     "gui": {"host": "localhost", "port": 8765, "theme": "dark"},
-    "agents": [
-        {"name": "claude", "display_name": "Claude (Lead Engineer)"},
-        {"name": "codex", "display_name": "Codex (Workhorse)"},
+    # One vocabulary of actors, each carrying its kind -- which is exactly what D4 says
+    # config resolves. A legacy `agents:` list is still read (see actors.load_actors),
+    # so an existing project keeps working without editing its config.
+    "actors": [
+        {"name": "claude", "kind": "agent", "display_name": "Claude (Lead Engineer)"},
+        {"name": "codex", "kind": "agent", "display_name": "Codex (Workhorse)"},
     ],
+    "default_user": None,
     "categories": [
         "infrastructure",
         "strategy_development",
@@ -128,19 +132,29 @@ def init(
     tasks_dir: Optional[str] = typer.Option(None, help="Relative path for task YAML files."),
     prompts_dir: Optional[str] = typer.Option(None, help="Relative path for prompt files."),
     port: Optional[int] = typer.Option(None, help="Default port for the web UI."),
+    user: Optional[str] = typer.Option(None, help="Your actor id, recorded on your actions."),
 ) -> None:
     """Initialize AgentJobs in current directory."""
+    import getpass
+
     base_dir = Path.cwd()
     project_name = project_name or typer.prompt("Project name")
     tasks_dir = tasks_dir or typer.prompt("Tasks dir", default="tasks")
     prompts_dir = prompts_dir or typer.prompt("Prompts dir", default="prompts")
     port = port or int(typer.prompt("Port", default="8765"))
+    # Asked at init because a project with no human configured records every review
+    # action anonymously, and nobody goes looking for that setting afterwards.
+    user = user or typer.prompt("Your user id", default=getpass.getuser().lower())
 
     config = copy.deepcopy(DEFAULT_CONFIG)
     config["project_name"] = project_name
     config["tasks_directory"] = tasks_dir
     config["prompts_directory"] = prompts_dir
     config["gui"]["port"] = port
+    config["actors"] = list(config["actors"]) + [
+        {"name": user, "kind": "human", "display_name": user}
+    ]
+    config["default_user"] = user
 
     _save_config(base_dir, config)
     _ensure_gitignore(base_dir)

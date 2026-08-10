@@ -1,7 +1,8 @@
-"""Tests for human action API endpoints (schema v2)."""
+﻿"""Tests for human action API endpoints (schema v2)."""
 
 from __future__ import annotations
 
+import yaml
 from pathlib import Path
 from typing import Iterator
 
@@ -14,11 +15,25 @@ from agentjobs.api.dependencies import reset_dependency_cache
 
 @pytest.fixture(autouse=True)
 def setup_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Set up test environment with temporary directories."""
+    """Set up test environment with temporary directories and a configured user."""
     tasks_dir = tmp_path / "tasks"
     tasks_dir.mkdir()
     agentjobs_dir = tmp_path / ".agentjobs"
     agentjobs_dir.mkdir()
+    (agentjobs_dir / "config.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "project_name": "Test",
+                "tasks_directory": "tasks",
+                "actors": [
+                    {"name": "jeff", "kind": "human", "display_name": "Jeff"},
+                    {"name": "test-agent", "kind": "agent"},
+                ],
+                "default_user": "jeff",
+            }
+        ),
+        encoding="utf-8",
+    )
 
     monkeypatch.setenv("AGENTJOBS_PROJECT_ROOT", str(tmp_path))
     monkeypatch.setenv("AGENTJOBS_TASKS_DIR", str(tasks_dir))
@@ -126,6 +141,55 @@ def test_reject_task(client: TestClient, sample_task_in_review: str) -> None:
     assert task["outcome"] == "cancelled"
     assert task["archived"] is True
     assert any("Out of scope" in (entry["body"] or "") for entry in task["log"])
+
+
+def test_an_unconfigured_actor_is_refused(client: TestClient, sample_task_in_review: str) -> None:
+    """A typo'd or unknown id is rejected rather than written into the log.
+
+    "human" is the specific value every review action used to be recorded as, so it
+    stands in for the whole class: the log is append-only, and an id nobody can resolve
+    is permanent once written.
+    """
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/approve",
+        json={"user": "human"},
+    )
+
+    assert response.status_code == 400
+    assert "not an actor in this project" in response.json()["detail"]
+
+
+def test_the_review_buttons_act_as_the_configured_user(
+    client: TestClient, sample_task_in_review: str
+) -> None:
+    """The rendered page must post the configured id, not the hardcoded string.
+
+    Asserting on what the page will actually send, not merely that a button exists --
+    the previous version of this template rendered three buttons that all posted
+    `user: 'human'`.
+    """
+    page = client.get(f"/p/_local/tasks/{sample_task_in_review}").text
+
+    assert 'const CURRENT_USER = "jeff"' in page
+    # The exact payload the three buttons used to send. Matching on the whole page for
+    # "'human'" is too broad -- the Human View tab legitimately contains it.
+    assert "user: 'human'" not in page
+    assert "Acting as" in page
+
+
+def test_review_actions_are_hidden_when_config_names_nobody(
+    client: TestClient, sample_task_in_review: str, tmp_path: Path
+) -> None:
+    """With no human configured the buttons are withheld, not silently anonymous."""
+    (tmp_path / ".agentjobs" / "config.yaml").write_text(
+        yaml.safe_dump({"project_name": "Test", "tasks_directory": "tasks"}),
+        encoding="utf-8",
+    )
+
+    page = client.get(f"/p/_local/tasks/{sample_task_in_review}").text
+
+    assert "No user configured" in page
+    assert "btn-approve" not in page
 
 
 def test_approve_nonexistent_task(client: TestClient) -> None:
