@@ -1,8 +1,8 @@
 id: task-059-review-surface-usability
 title: 'GUI: make the task record actually reviewable, and stop Approve from lying'
 created: '2026-08-10T06:49:31Z'
-updated: '2026-08-10T07:06:32.760967Z'
-status: waiting_for_human
+updated: '2026-08-10T07:35:58.128558Z'
+status: completed
 priority: high
 category: ux
 estimated_effort: 2-4 hours
@@ -307,6 +307,36 @@ status_updates:
     Pre-existing lint debt in tests/test_human_actions.py (7 ruff findings) and the
     migrate command, both task-047''s. No restyling beyond what these fixes needed.
     No diff view -- code review stays in git.'
+- timestamp: '2026-08-10T07:35:57.979889Z'
+  author: jeff
+  status: in_progress
+  summary: "Approved by Jeff \u2014 cleared to merge"
+  details: 'Jeff reviewed the rendered page and approved: "task 059 looks ok, better
+    than before, I found where it mentioned the task number, approved for now."
+
+
+    Recorded with author: jeff rather than claude, deliberately. docs/schema/understanding.md
+    calls out v1''s habit of putting a human''s words inside an entry authored by
+    the agent -- "JEFF''S IDEA #1" inside an entry whose author is claude -- as authorship
+    lying. The approval is Jeff''s; the merge below is the agent''s. Two entries,
+    two authors.
+
+
+    Mild feedback worth carrying forward, not acted on here: "I found where it mentioned
+    the task number" suggests the id placement is discoverable rather than obvious.
+    Left as-is since Jeff approved it, but if a later GUI pass wants a candidate,
+    making the id more prominent in the detail header is one.'
+- timestamp: '2026-08-10T07:35:58.065680Z'
+  author: claude
+  status: completed
+  summary: Merged to main after Jeff's approval
+  details: 'Rebased onto main, merged --no-ff, branch marked merged in branches[]
+    and deleted locally. Nothing pushed to origin.
+
+
+    sc-5 remains genuinely undone, not quietly closed: review action buttons still
+    POST to the unscoped /api/tasks/{id}/... because the web pages have no project
+    in their URL. Task-058 picks it up when it introduces scoped web routes.'
 comments: []
 deliverables:
 - path: src/agentjobs/api/templates/task_detail.html
@@ -331,4 +361,4 @@ tags:
 - workflow
 branches:
 - name: fix/task-059-review-surface
-  status: active
+  status: merged
