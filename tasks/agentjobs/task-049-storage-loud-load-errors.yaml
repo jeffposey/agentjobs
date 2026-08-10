@@ -7,10 +7,14 @@ priority: high
 category: infrastructure
 estimated_effort: 1-2 hours
 human_summary: 'TaskStorage.load_task currently catches validation errors and returns
-  None, so a broken task file silently vanishes from every listing -- the worst possible
-  failure mode for a system whose files are hand-editable. Make load failures loud
-  and precise. Decided during the schema design pass (task-048, decision D2) but lands
-  on the v1 schema, before and independently of schema v2.'
+  None, so a broken task file silently vanishes from every listing. Make load failures
+  loud and precise. Decided during the schema design pass (task-048, decision D2) but
+  lands on the v1 schema, before and independently of schema v2. Note the rationale was
+  restated when D2 was amended: this is not about protecting hand edits (no longer a
+  first-class interface) but about any writer -- a migrator or API bug that writes a
+  bad file must fail by name rather than make a task disappear. Under UI-primary
+  editing it is more urgent, not less: a vanished task is invisible to someone whose
+  only window into the data is the listing.'
 description: 'When a task YAML file fails model validation, `TaskStorage.load_task`
   swallows the error and returns None, and the task disappears from listings with no
   trace. Under the strict-everywhere posture decided in docs/schema-design.md (§11,
