@@ -1,146 +1,90 @@
 id: task-057-multi-project-registry
 title: 'Multi-project: a machine-level registry and project-scoped backend'
 created: '2026-08-10T06:14:30Z'
-updated: '2026-08-10T06:14:30Z'
-status: ready
+updated: '2026-08-10T06:17:23.628338Z'
+status: in_progress
 priority: high
 category: infrastructure
 estimated_effort: 1-2 working sessions
 human_summary: 'AgentJobs is single-project by construction: config is read from the
   current working directory, TaskStorage takes one tasks directory, and the API caches
-  exactly one of everything. Using it on a second project means a second server on a
-  second port with no shared view. This task adds a machine-level project registry and
-  makes the backend project-aware, so one running server can serve every registered
+  exactly one of everything. Using it on a second project means a second server on
+  a second port with no shared view. This task adds a machine-level project registry
+  and makes the backend project-aware, so one running server can serve every registered
   project. The GUI half is task-058; this task is the foundation under it.'
-description: 'The project owner''s goal for AgentJobs is to run **one** frontend and
-  work through it on every project on the machine that is complicated enough to benefit.
-  Nothing in the current backlog moves toward that, and the code actively prevents it.
-
-
-  ## What blocks it today
-
-
-  - `.agentjobs/config.yaml` is resolved relative to the process working directory
-  (`api/dependencies.py::_resolve_project_root`, falling back to `Path.cwd()`), so the
-  server serves whichever project it happens to have been launched from.
-
-  - `TaskStorage.__init__` takes a single `tasks_dir`. There is no notion of more than
-  one.
-
-  - `_get_storage`, `_get_webhook_storage` and `_get_webhook_manager` are all
-  `@lru_cache(maxsize=1)`. Even if a second project were resolvable, the cache would
-  hand back the first one''s storage.
-
-  - Every API route is mounted at `/api/tasks`, with no project in the path.
-
-
-  ## Design
-
-
-  **A registry, not a merged config.** A machine-level file — default
-  `~/.agentjobs/projects.yaml`, overridable with `AGENTJOBS_HOME` — maps a short project
-  id to that project''s root directory. It holds *only* the mapping. Each project keeps
-  owning its own `.agentjobs/config.yaml` exactly as it does now.
-
-
-  That split matters: a project''s config (categories, agents, tasks_directory) lives in
-  that project''s repo, is versioned with it, and travels when the repo is cloned to
-  another machine. The registry is machine-local and disposable — it is a list of what
-  this laptop happens to have checked out. Merging the two would either put
-  machine-specific paths into a versioned file or pull per-project taxonomy out of the
-  repo that defines it. Neither is acceptable.
-
-
-  **Project ids are the new namespace.** Task ids are only unique *within* a project —
-  every project will have a `task-001`. Any cross-project surface must therefore key on
-  the pair `(project_id, task_id)`. This is the sharp edge of the whole feature and the
-  most likely source of subtle bugs; it needs to be true in the API, in the cache keys,
-  and in every URL.
-
-
-  **Routing.** Add project-scoped routes and keep the existing flat ones working:
-
-
-  - `GET /api/projects` — the registry, with per-project task counts
-
-  - `GET|POST /api/projects/{project_id}/tasks/...` — the full existing task, status,
-  prompts, search and webhook surface, scoped
-
-  - `GET /api/tasks/...` — retained, resolving to the **default project** (see below),
-  so existing callers, the CLI, and the current GUI keep working unchanged
-
-
-  The default project is: the project whose root contains the process working directory,
-  if one is registered; otherwise the single registered project if there is exactly one;
-  otherwise none, and the flat routes return a 409 naming the ambiguity rather than
-  guessing.
-
-
-  **Cross-project reads.** `GET /api/tasks/all` (or `?project=*`) returns tasks from
-  every registered project, each carrying its `project_id`. This is what task-058''s
-  cross-project inbox is built on. Read-only: writes are always project-scoped, so there
-  is exactly one path that mutates a file.
-
-
-  ## Path safety — now load-bearing
-
-
-  `TaskStorage._task_path` (storage.py:27-33) joins the task id straight onto the tasks
-  directory with no containment check, and accepts any id ending in `.yaml` verbatim.
-  Today the blast radius is one project directory. Once one server serves paths drawn
-  from a machine-wide registry, that is a much worse shape to leave lying around.
-
-
-  Required here: resolve the composed path and assert it stays under the project''s tasks
-  directory, rejecting anything that does not. Registry lookup must be exact-match
-  against known ids, never a path join. This is hardening against a real weakness in our
-  own code, not a response to a known exploit — FastAPI does not match `/` in a plain
-  path parameter today, so the current route shapes are not obviously reachable.
-
-
-  ## Sequencing — why this lands before schema v2, and what that costs
-
-
-  Recorded because it reverses the order implied by docs/schema-design.md §12.
-
-
-  The v2 chain (050-054) is six sequential tasks, and the tool is not usable on a second
-  project at the end of any of them. Multi-project support is almost entirely orthogonal
-  to the schema: it touches config resolution, storage construction, dependency caching
-  and routing, none of which care what shape a task file has. Doing it first means the
-  tool gets used across real projects while v2 is being built, and dogfooding across
-  three projects will teach us more about whether the v2 state model is right than
-  another design pass would.
-
-
-  The cost is honest and small: `TaskStorage` and the dependency wiring get touched
-  twice, once here and once by task-050. That is cheap. The expensive overlap would be
-  the GUI, which is why task-058 is scoped to project navigation only and deliberately
-  does not touch task rendering — task-054 rewrites that on v2.
-
-
-  ## Out of scope
-
-
-  - Any GUI change. That is task-058.
-
-  - Anything schema v2. This lands on v1 models and must not anticipate them.
-
-  - Authentication, multi-user, or remote projects. The registry describes directories
-  on one machine, for one person.
-
-  - Fixing the double-claim race (task-055) or load-error swallowing (task-049), though
-  both get more urgent once one server writes to many projects. Note task-049 especially:
-  a task that silently vanishes from a listing is harder to notice when the listing spans
-  projects.
-
-  '
+description: "The project owner's goal for AgentJobs is to run **one** frontend and\
+  \ work through it on every project on the machine that is complicated enough to\
+  \ benefit. Nothing in the current backlog moves toward that, and the code actively\
+  \ prevents it.\n\n## What blocks it today\n\n- `.agentjobs/config.yaml` is resolved\
+  \ relative to the process working directory (`api/dependencies.py::_resolve_project_root`,\
+  \ falling back to `Path.cwd()`), so the server serves whichever project it happens\
+  \ to have been launched from.\n- `TaskStorage.__init__` takes a single `tasks_dir`.\
+  \ There is no notion of more than one.\n- `_get_storage`, `_get_webhook_storage`\
+  \ and `_get_webhook_manager` are all `@lru_cache(maxsize=1)`. Even if a second project\
+  \ were resolvable, the cache would hand back the first one's storage.\n- Every API\
+  \ route is mounted at `/api/tasks`, with no project in the path.\n\n## Design\n\n\
+  **A registry, not a merged config.** A machine-level file \u2014 default `~/.agentjobs/projects.yaml`,\
+  \ overridable with `AGENTJOBS_HOME` \u2014 maps a short project id to that project's\
+  \ root directory. It holds *only* the mapping. Each project keeps owning its own\
+  \ `.agentjobs/config.yaml` exactly as it does now.\n\nThat split matters: a project's\
+  \ config (categories, agents, tasks_directory) lives in that project's repo, is\
+  \ versioned with it, and travels when the repo is cloned to another machine. The\
+  \ registry is machine-local and disposable \u2014 it is a list of what this laptop\
+  \ happens to have checked out. Merging the two would either put machine-specific\
+  \ paths into a versioned file or pull per-project taxonomy out of the repo that\
+  \ defines it. Neither is acceptable.\n\n**Project ids are the new namespace.** Task\
+  \ ids are only unique *within* a project \u2014 every project will have a `task-001`.\
+  \ Any cross-project surface must therefore key on the pair `(project_id, task_id)`.\
+  \ This is the sharp edge of the whole feature and the most likely source of subtle\
+  \ bugs; it needs to be true in the API, in the cache keys, and in every URL.\n\n\
+  **Routing.** Add project-scoped routes and keep the existing flat ones working:\n\
+  \n- `GET /api/projects` \u2014 the registry, with per-project task counts\n- `GET|POST\
+  \ /api/projects/{project_id}/tasks/...` \u2014 the full existing task, status, prompts,\
+  \ search and webhook surface, scoped\n- `GET /api/tasks/...` \u2014 retained, resolving\
+  \ to the **default project** (see below), so existing callers, the CLI, and the\
+  \ current GUI keep working unchanged\n\nThe default project is: the project whose\
+  \ root contains the process working directory, if one is registered; otherwise the\
+  \ single registered project if there is exactly one; otherwise none, and the flat\
+  \ routes return a 409 naming the ambiguity rather than guessing.\n\n**Cross-project\
+  \ reads.** `GET /api/tasks/all` (or `?project=*`) returns tasks from every registered\
+  \ project, each carrying its `project_id`. This is what task-058's cross-project\
+  \ inbox is built on. Read-only: writes are always project-scoped, so there is exactly\
+  \ one path that mutates a file.\n\n## Path safety \u2014 now load-bearing\n\n`TaskStorage._task_path`\
+  \ (storage.py:27-33) joins the task id straight onto the tasks directory with no\
+  \ containment check, and accepts any id ending in `.yaml` verbatim. Today the blast\
+  \ radius is one project directory. Once one server serves paths drawn from a machine-wide\
+  \ registry, that is a much worse shape to leave lying around.\n\nRequired here:\
+  \ resolve the composed path and assert it stays under the project's tasks directory,\
+  \ rejecting anything that does not. Registry lookup must be exact-match against\
+  \ known ids, never a path join. This is hardening against a real weakness in our\
+  \ own code, not a response to a known exploit \u2014 FastAPI does not match `/`\
+  \ in a plain path parameter today, so the current route shapes are not obviously\
+  \ reachable.\n\n## Sequencing \u2014 why this lands before schema v2, and what that\
+  \ costs\n\nRecorded because it reverses the order implied by docs/schema-design.md\
+  \ \xA712.\n\nThe v2 chain (050-054) is six sequential tasks, and the tool is not\
+  \ usable on a second project at the end of any of them. Multi-project support is\
+  \ almost entirely orthogonal to the schema: it touches config resolution, storage\
+  \ construction, dependency caching and routing, none of which care what shape a\
+  \ task file has. Doing it first means the tool gets used across real projects while\
+  \ v2 is being built, and dogfooding across three projects will teach us more about\
+  \ whether the v2 state model is right than another design pass would.\n\nThe cost\
+  \ is honest and small: `TaskStorage` and the dependency wiring get touched twice,\
+  \ once here and once by task-050. That is cheap. The expensive overlap would be\
+  \ the GUI, which is why task-058 is scoped to project navigation only and deliberately\
+  \ does not touch task rendering \u2014 task-054 rewrites that on v2.\n\n## Out of\
+  \ scope\n\n- Any GUI change. That is task-058.\n- Anything schema v2. This lands\
+  \ on v1 models and must not anticipate them.\n- Authentication, multi-user, or remote\
+  \ projects. The registry describes directories on one machine, for one person.\n\
+  - Fixing the double-claim race (task-055) or load-error swallowing (task-049), though\
+  \ both get more urgent once one server writes to many projects. Note task-049 especially:\
+  \ a task that silently vanishes from a listing is harder to notice when the listing\
+  \ spans projects.\n"
 phases: []
 success_criteria:
 - id: sc-1
-  description: A registry at ~/.agentjobs/projects.yaml (AGENTJOBS_HOME-overridable) maps
-    project ids to roots, with a ProjectRegistry abstraction that is the only thing which
-    resolves an id to a path
+  description: A registry at ~/.agentjobs/projects.yaml (AGENTJOBS_HOME-overridable)
+    maps project ids to roots, with a ProjectRegistry abstraction that is the only
+    thing which resolves an id to a path
   status: pending
 - id: sc-2
   description: 'CLI: agentjobs project add/list/remove works, and agentjobs init registers
@@ -148,12 +92,12 @@ success_criteria:
   status: pending
 - id: sc-3
   description: One server serves two registered projects simultaneously; GET /api/projects
-    lists both, and each project''s tasks are reachable and writable under
-    /api/projects/{id}/tasks without cross-contamination
+    lists both, and each project''s tasks are reachable and writable under /api/projects/{id}/tasks
+    without cross-contamination
   status: pending
 - id: sc-4
-  description: The per-project caches are keyed by project id; a request for project B
-    never returns project A's storage. Regression test with two projects registered
+  description: The per-project caches are keyed by project id; a request for project
+    B never returns project A's storage. Regression test with two projects registered
   status: pending
 - id: sc-5
   description: Existing flat /api/tasks routes still work against the default project,
@@ -170,76 +114,69 @@ success_criteria:
     branch'
   status: pending
 - id: sc-8
-  description: poetry run pytest passes, and the existing single-project workflow in this
-    repo is verified working unchanged (serve, list, show, status update)
+  description: poetry run pytest passes, and the existing single-project workflow
+    in this repo is verified working unchanged (serve, list, show, status update)
   status: pending
 prompts:
-  starter: '## Objective
-
-    Make one AgentJobs server able to serve every project registered on the machine.
-    Backend only — the GUI is task-058.
-
-
-    ## Read first
-
-    - src/agentjobs/api/dependencies.py — the whole problem is here: cwd-relative config
-    resolution and three lru_cache(maxsize=1) singletons.
-
-    - src/agentjobs/storage.py — TaskStorage takes one dir; _task_path has no containment
-    check.
-
-    - src/agentjobs/cli.py — config load/save and the base_dir convention.
-
-    - .agentjobs/config.yaml — what stays per-project.
-
-    - This task''s description — the registry-vs-config split and the (project_id,
-    task_id) namespacing are the two decisions not to relitigate.
-
-
-    ## Steps
-
-    1. Create branch feat/task-057-multi-project-registry from main. Record it in
-    branches[] and mark this task in_progress, in that order.
-
-    2. ProjectRegistry first, with tests, before touching any route. It is the only thing
-    that turns an id into a path, and path containment is enforced at that boundary.
-
-    3. Re-key the dependency caches by project id. This is where a subtle bug will hide —
-    write the two-project regression test before you trust it.
-
-    4. Add the project-scoped routes; keep the flat ones working against a resolved
-    default.
-
-    5. CLI: project add/list/remove, and wire init to register.
-
-    6. Verify with two real projects, not fixtures: register this repo and one other
-    directory, run one server, and exercise both through the API.
-
-
-    ## Do not
-
-    - Touch the GUI templates. That is task-058.
-
-    - Anticipate schema v2 in any way. This lands on v1.
-
-    - Widen scope into task-049 or task-055 even though both become more urgent here.
-    Note them in a status update instead.
-
-
-    ## Git workflow
-
-    Small single-logical-change commits, Conventional Commits. Tests green before each.
-    When complete: STOP, set waiting_for_human through the status API with a summary of
-    what was done and what needs review. Do not merge.
-
-    '
+  starter: "## Objective\nMake one AgentJobs server able to serve every project registered\
+    \ on the machine. Backend only \u2014 the GUI is task-058.\n\n## Read first\n\
+    - src/agentjobs/api/dependencies.py \u2014 the whole problem is here: cwd-relative\
+    \ config resolution and three lru_cache(maxsize=1) singletons.\n- src/agentjobs/storage.py\
+    \ \u2014 TaskStorage takes one dir; _task_path has no containment check.\n- src/agentjobs/cli.py\
+    \ \u2014 config load/save and the base_dir convention.\n- .agentjobs/config.yaml\
+    \ \u2014 what stays per-project.\n- This task's description \u2014 the registry-vs-config\
+    \ split and the (project_id, task_id) namespacing are the two decisions not to\
+    \ relitigate.\n\n## Steps\n1. Create branch feat/task-057-multi-project-registry\
+    \ from main. Record it in branches[] and mark this task in_progress, in that order.\n\
+    2. ProjectRegistry first, with tests, before touching any route. It is the only\
+    \ thing that turns an id into a path, and path containment is enforced at that\
+    \ boundary.\n3. Re-key the dependency caches by project id. This is where a subtle\
+    \ bug will hide \u2014 write the two-project regression test before you trust\
+    \ it.\n4. Add the project-scoped routes; keep the flat ones working against a\
+    \ resolved default.\n5. CLI: project add/list/remove, and wire init to register.\n\
+    6. Verify with two real projects, not fixtures: register this repo and one other\
+    \ directory, run one server, and exercise both through the API.\n\n## Do not\n\
+    - Touch the GUI templates. That is task-058.\n- Anticipate schema v2 in any way.\
+    \ This lands on v1.\n- Widen scope into task-049 or task-055 even though both\
+    \ become more urgent here. Note them in a status update instead.\n\n## Git workflow\n\
+    Small single-logical-change commits, Conventional Commits. Tests green before\
+    \ each. When complete: STOP, set waiting_for_human through the status API with\
+    \ a summary of what was done and what needs review. Do not merge.\n"
   followups: []
-status_updates: []
+status_updates:
+- timestamp: '2026-08-10T06:17:23.628325Z'
+  author: claude
+  status: in_progress
+  summary: Claimed; branch feat/task-057-multi-project-registry created from main
+  details: 'Branch created from main at c0601b6, recorded in branches[] before this
+    transition.
+
+
+    Context for a zero-context reader: this task was created on 2026-08-10 immediately
+    after task-048''s design pass merged, and it deliberately reverses the implementation
+    order that docs/schema-design.md section 12 implied. The reasoning is in the description
+    under ''Sequencing''. The short version: the v2 chain is six sequential tasks
+    at the end of none of which agentjobs is usable on a second project, which is
+    the owner''s actual goal for the tool.
+
+
+    Plan for this session, in order, because the risk is concentrated at the start:
+
+    1. ProjectRegistry with path containment, tested, before any route changes.
+
+    2. Re-key the dependency caches by project id, with a two-project regression test
+    written before the change is trusted.
+
+    3. Project-scoped routes; retain the flat ones against a resolved default.
+
+    4. CLI project add/list/remove; init registers.
+
+    5. Verify against two real registered projects, not fixtures.'
 comments: []
 deliverables:
 - path: src/agentjobs/projects.py
   status: pending
-  description: ProjectRegistry — registry file I/O, id resolution, path containment
+  description: "ProjectRegistry \u2014 registry file I/O, id resolution, path containment"
 - path: src/agentjobs/api/dependencies.py
   status: pending
   description: Per-project keyed caches replacing the maxsize=1 singletons
@@ -252,8 +189,8 @@ deliverables:
 dependencies:
 - task_id: task-048-schema-design
   type: depends_on
-  note: Completed 2026-08-10. Sequencing decided during its sign-off; this task
-    deliberately lands before the v2 chain, see the description.
+  note: Completed 2026-08-10. Sequencing decided during its sign-off; this task deliberately
+    lands before the v2 chain, see the description.
 external_links: []
 issues: []
 tags:
@@ -261,4 +198,6 @@ tags:
 - multi-project
 - api
 - storage
-branches: []
+branches:
+- name: feat/task-057-multi-project-registry
+  status: active
