@@ -1,57 +1,41 @@
 id: task-051-schema-v2-migrator
 title: 'Schema v2: one-shot migrator and corpus migration'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-07-29T20:45:00Z'
-status: draft
+updated: '2026-08-10T19:49:06.324806Z'
+status: in_progress
 priority: high
 category: migration
 estimated_effort: half day
-human_summary: 'Build `agentjobs migrate-schema` (v1 YAML -> v2 per the mapping in
-  docs/schema-design.md §3/§8), run it over the whole corpus, and update the corpus
-  round-trip test to verify every file in v2 form.'
-description: 'Implement the v1 -> v2 converter decided in docs/schema-design.md §8
-  (D3) and migrate the repo''s task corpus with it.
-
-
-  Conversion rules (all specified in docs/schema-design.md):
-
-  - status -> lifecycle/ball/ball_reason/outcome per the §3 mapping table, including
-  the split for v1 `blocked` (claimed -> active + external/dependency; unclaimed ->
-  ready) and the last-status-update heuristic for `waiting_for_human`.
-
-  - ball_prompt synthesized from the last status update / handoff context where the
-  ball lands on a person; flagged for human review where no source text exists.
-
-  - assigned_to -> assignment.eligible (authoring-time values, lowercased) or
-  assignment.owner (only where genuinely in_progress).
-
-  - prompts.followups -> instruction log entries (7 files have them); status_updates
-  and comments -> the unified log; prompts.starter dropped where it restates the
-  description, appended to spec.description where it does not.
-
-  - phases[] -> description appendix (15 files); issues[]/comments are empty corpus-wide
-  and migrate to nothing.
-
-  - Nested checklist statuses: in_progress -> pending; others map by name.
-
-  - human_summary -> spec.summary; description -> spec blocks (mechanical split where
-  obvious, else everything into spec.description); estimated_effort -> effort;
-  external_links -> links; dependency task_id -> task, depends_on -> needs.
-
-  - schema: 2 stamped on every output file.
-
-
-  Also: update tests/test_task_corpus.py to validate the migrated corpus against the
-  v2 model (round-trip + `schema: 2` assertion). See the coordination note in task-050
-  about the intermediate red state between 050 and 051.
-
-
-  **Gated:** requires task-050 (the v2 model) merged or on the shared branch.'
+human_summary: "Build `agentjobs migrate-schema` (v1 YAML -> v2 per the mapping in\
+  \ docs/schema-design.md \xA73/\xA78), run it over the whole corpus, and update the\
+  \ corpus round-trip test to verify every file in v2 form."
+description: "Implement the v1 -> v2 converter decided in docs/schema-design.md \xA7\
+  8 (D3) and migrate the repo's task corpus with it.\n\nConversion rules (all specified\
+  \ in docs/schema-design.md):\n- status -> lifecycle/ball/ball_reason/outcome per\
+  \ the \xA73 mapping table, including the split for v1 `blocked` (claimed -> active\
+  \ + external/dependency; unclaimed -> ready) and the last-status-update heuristic\
+  \ for `waiting_for_human`.\n- ball_prompt synthesized from the last status update\
+  \ / handoff context where the ball lands on a person; flagged for human review where\
+  \ no source text exists.\n- assigned_to -> assignment.eligible (authoring-time values,\
+  \ lowercased) or assignment.owner (only where genuinely in_progress).\n- prompts.followups\
+  \ -> instruction log entries (7 files have them); status_updates and comments ->\
+  \ the unified log; prompts.starter dropped where it restates the description, appended\
+  \ to spec.description where it does not.\n- phases[] -> description appendix (15\
+  \ files); issues[]/comments are empty corpus-wide and migrate to nothing.\n- Nested\
+  \ checklist statuses: in_progress -> pending; others map by name.\n- human_summary\
+  \ -> spec.summary; description -> spec blocks (mechanical split where obvious, else\
+  \ everything into spec.description); estimated_effort -> effort; external_links\
+  \ -> links; dependency task_id -> task, depends_on -> needs.\n- schema: 2 stamped\
+  \ on every output file.\n\nAlso: update tests/test_task_corpus.py to validate the\
+  \ migrated corpus against the v2 model (round-trip + `schema: 2` assertion). See\
+  \ the coordination note in task-050 about the intermediate red state between 050\
+  \ and 051.\n\n**Gated:** requires task-050 (the v2 model) merged or on the shared\
+  \ branch."
 phases: []
 success_criteria:
 - id: sc-1
-  description: agentjobs migrate-schema converts a v1 file to valid v2 following every
-    mapping rule in docs/schema-design.md §3/§8
+  description: "agentjobs migrate-schema converts a v1 file to valid v2 following\
+    \ every mapping rule in docs/schema-design.md \xA73/\xA78"
   status: pending
 - id: sc-2
   description: Entire corpus (tasks/agentjobs/ + tasks/test-data/) migrated; corpus
@@ -62,13 +46,81 @@ success_criteria:
   description: Migrator refuses already-v2 files and unknown shapes with clear errors
   status: pending
 prompts:
-  starter: 'Implement per docs/schema-design.md §8 and this description. Branch
-    `feat/task-051-schema-v2-migrator` (or continue task-050''s branch per its coordination
-    note), record in branches[], mark in_progress. Migrate the corpus as its own commit
-    so the diff is reviewable file-by-file. When complete: STOP, set waiting_for_human,
-    comment a summary, await approval.'
+  starter: "Implement per docs/schema-design.md \xA78 and this description. Branch\
+    \ `feat/task-051-schema-v2-migrator` (or continue task-050's branch per its coordination\
+    \ note), record in branches[], mark in_progress. Migrate the corpus as its own\
+    \ commit so the diff is reviewable file-by-file. When complete: STOP, set waiting_for_human,\
+    \ comment a summary, await approval."
   followups: []
-status_updates: []
+status_updates:
+- timestamp: '2026-08-10T19:49:06.324773Z'
+  author: claude
+  status: in_progress
+  summary: Claimed; corpus measured first, and one design assumption is measurably
+    wrong
+  details: 'Branch feat/task-051-schema-v2-migrator created from main at e9116da.
+    Recovery tag `pre-v2-migration` created at the same commit: `git reset --hard
+    pre-v2-migration` undoes the entire migration in one command.
+
+
+    Jeff asked for extra care here. Safety measures adopted before any code was written:
+
+    1. Recovery tag, tree clean and everything committed first.
+
+    2. The migrator writes to a separate output directory. Nothing overwrites the
+    corpus until the output has been verified.
+
+    3. Field accounting is a gate, not a spot check: every v1 field must be mapped
+    or on an explicit intentionally-dropped list. An unrecognised field fails the
+    run rather than vanishing.
+
+    4. Every converted file must load under models_v2 AND validate against the LinkML
+    schema before any swap.
+
+    5. No `git checkout --` on uncommitted work and no `rm -rf`; both bit me earlier
+    today.
+
+
+    CORPUS MEASURED BEFORE DESIGNING THE MAPPING (38 files):
+
+    - issues[] non-empty in 0 files, confirming the design''s claim; migrates to nothing.
+
+    - comments[] non-empty in exactly 1 file, one entry, kind=question.
+
+    - phases[] non-empty in 15, prompts.followups in 7, matching the design''s counts.
+
+    - statuses: completed 18, draft 9, ready 4, waiting_for_human 3, archived 2, in_progress
+    1, blocked 1.
+
+    - assigned_to is messy and needs real handling, not a lowercase(): ''Codex'' x14,
+    ''claude'' x5, ''TBD'' x2, ''Claude + Codex'' x1. Two of those are not actor ids
+    at all.
+
+
+    FINDING THAT CONTRADICTS THE DESIGN, and the reason this task needed measuring
+    first: docs/schema-design.md section 7 justifies deleting prompts.starter on the
+    grounds that ''nearly every task''s starter restates its description''. Tested
+    by containment over the real corpus: exactly 1 of 38 starters is contained in
+    its description. The other 37 carry distinct text -- they are the agent briefings.
+    Dropping them as the design anticipates would destroy 37 real documents.
+
+
+    Decision: preserve every starter except the single true duplicate, appending it
+    to spec.description under a heading. The design''s intent (one briefing, not two)
+    is honoured because the result is one field; its stated mechanism (drop the starter)
+    is not, because the premise does not hold for this corpus. Recording it here rather
+    than silently deviating -- and it is worth Jeff knowing the design overestimated
+    the redundancy.
+
+
+    Other edge cases found: the single `blocked` task has no dependencies and no branch,
+    so its blockedness is not derivable from anything and the v1 status is the only
+    record -- the migrator preserves the original status in a log entry so nothing
+    is lost. One waiting_for_human task has no status updates at all, so there is
+    no source text for a ball_prompt; those get an explicit needs-review placeholder
+    rather than an invented ask. The two archived tasks differ: one was superseded
+    by phase-specific tasks, one was rejected as stale, so `outcome` is derived per
+    file rather than defaulted.'
 comments: []
 deliverables:
 - path: src/agentjobs/migrate.py
@@ -87,4 +139,6 @@ tags:
 - schema-design
 - schema-v2
 - migration
-branches: []
+branches:
+- name: feat/task-051-schema-v2-migrator
+  status: active
