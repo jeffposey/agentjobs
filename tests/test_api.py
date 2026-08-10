@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Iterator, Tuple
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,7 +15,7 @@ from agentjobs.storage import TaskStorage
 
 
 @pytest.fixture()
-def api_client(tmp_path) -> Tuple[TestClient, TaskManager]:
+def api_client(tmp_path) -> Iterator[Tuple[TestClient, TaskManager]]:
     """Provide a TestClient bound to a temporary storage directory."""
     reset_dependency_cache()
     storage = TaskStorage(tmp_path)

@@ -86,4 +86,5 @@ def test_convert_to_yaml_task(sample_markdown: Path) -> None:
     assert len(task.deliverables) == 3
     assert task.deliverables[0].status == "completed"
     assert task.prompts.starter
+    assert task.human_summary is not None
     assert "Build a new feature" in task.human_summary

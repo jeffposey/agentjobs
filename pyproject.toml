@@ -110,13 +110,8 @@ disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
 # Third-party packages that ship no type information and have no stubs available.
-# yaml is handled properly instead, via the types-PyYAML dev dependency.
-module = ["uvicorn.*", "httpx.*"]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-# yaml ships no type information. types-PyYAML is installed as a dev dependency for the
-# package's own modules; this silences the same complaint for third-party imports that
-# have no stubs available at all.
-module = ["uvicorn.*", "httpx.*"]
+# yaml is handled properly instead, via the types-PyYAML dev dependency, so its calls
+# are actually checked rather than waved through. flask is imported by one example
+# script and is not a dependency of the package at all.
+module = ["uvicorn.*", "httpx.*", "flask.*"]
 ignore_missing_imports = true

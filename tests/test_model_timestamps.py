@@ -66,6 +66,7 @@ class TestCommentUpdateContent:
     def test_updated_moves_ahead_of_created(self, comment: Comment) -> None:
         comment.update_content("revised")
 
+        assert comment.updated is not None
         assert comment.updated > comment.created
 
 

@@ -57,7 +57,7 @@ class TaskManager:
         description: str,
         priority: Priority = Priority.MEDIUM,
         category: str = "general",
-        **kwargs,
+        **kwargs: Any,
     ) -> Task:
         """Create a new task, generating an identifier when omitted."""
         task_id = id or self.storage.generate_task_id()

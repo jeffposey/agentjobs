@@ -49,6 +49,7 @@ def test_client_get_next_task() -> None:
 
     client = _client_with_handler(httpx.MockTransport(handler))
     task = client.get_next_task()
+    assert task is not None
     assert task.id == "task-123"
     client.close()
 

@@ -44,7 +44,13 @@ def load_task_specs(file_path: Path) -> List[MutableMapping[str, str]]:
 
     with file_path.open(mode="r", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
-        rows = [row for row in reader if row.get("title")]
+        # Annotated rather than inferred: list is invariant, so an inferred
+        # list[dict[str, str]] is not a list[MutableMapping[str, str]].
+        rows: List[MutableMapping[str, str]] = [
+            {str(key): str(value) for key, value in row.items()}
+            for row in reader
+            if row.get("title")
+        ]
     return rows
 
 

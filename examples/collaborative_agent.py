@@ -34,7 +34,7 @@ def main() -> None:
         print("No ready tasks available for assignment.")
         return
 
-    agent_cycle = cycle_agents(AGENTS)
+    agent_cycle = iter(cycle_agents(AGENTS))
 
     for task in ready_tasks:
         agent = next(agent_cycle)

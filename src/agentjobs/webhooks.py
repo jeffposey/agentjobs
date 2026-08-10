@@ -9,7 +9,7 @@ import json
 import logging
 import threading
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Dict, List, Optional
+from typing import Any, Coroutine, Dict, List, Optional
 
 import httpx
 
@@ -94,8 +94,13 @@ class WebhookManager:
         signature = self._compute_signature(payload_text, webhook.secret)
         asyncio.run(self._dispatch(webhook, payload_text, signature))
 
-    def _schedule(self, coro: Awaitable[None]) -> None:
-        """Schedule coroutine in background thread or existing event loop."""
+    def _schedule(self, coro: Coroutine[Any, Any, None]) -> None:
+        """Schedule coroutine in background thread or existing event loop.
+
+        Typed as Coroutine rather than Awaitable because that is what both branches
+        below actually require: asyncio.run and loop.create_task reject a bare
+        awaitable. Every caller already passes a coroutine.
+        """
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:

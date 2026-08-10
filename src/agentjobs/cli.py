@@ -6,7 +6,7 @@ import copy
 import json
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import typer
 import yaml
@@ -54,7 +54,10 @@ app = typer.Typer(
 
 CONFIG_DIR = Path(".agentjobs")
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
-DEFAULT_CONFIG = {
+# Annotated because the values are heterogeneous -- strings, ints, a nested dict and
+# a list of dicts. Without it mypy infers Collection[Collection[str]] from the
+# literal and rejects `config["gui"]["port"] = port` as an unsupported assignment.
+DEFAULT_CONFIG: Dict[str, Any] = {
     "project_name": "AgentJobs Project",
     "tasks_directory": "tasks",
     "prompts_directory": "prompts",

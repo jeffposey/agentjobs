@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,7 +13,7 @@ from agentjobs.api.dependencies import reset_dependency_cache
 
 
 @pytest.fixture(autouse=True)
-def setup_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def setup_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Set up test environment with temporary directories."""
     tasks_dir = tmp_path / "tasks"
     tasks_dir.mkdir()
@@ -47,7 +48,7 @@ def sample_task_waiting(client: TestClient) -> str:
         },
     )
     assert response.status_code == 201
-    return response.json()["id"]
+    return str(response.json()["id"])
 
 
 def test_approve_task(client: TestClient, sample_task_waiting: str) -> None:
