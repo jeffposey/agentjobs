@@ -66,12 +66,8 @@ class MarkdownTaskParser:
         objectives = self._extract_list_items(content, ["Objectives", "Goals"])
         deliverables = self._extract_deliverables(content)
         phases = self._extract_phases(content)
-        issues = self._extract_list_items(
-            content, ["Issues", "Known Issues", "Blockers"]
-        )
-        notes = self._extract_section(
-            content, ["Notes", "Additional Notes", "Comments", "Summary"]
-        )
+        issues = self._extract_list_items(content, ["Issues", "Known Issues", "Blockers"])
+        notes = self._extract_section(content, ["Notes", "Additional Notes", "Comments", "Summary"])
         human_summary = self._extract_human_summary(content)
 
         parsed = ParsedTask(
@@ -108,9 +104,7 @@ class MarkdownTaskParser:
         """Extract content from a markdown section."""
         for heading in section_headings:
             pattern = rf"^##\s+{re.escape(heading)}[^\n]*\n(.*?)(?=^##|\Z)"
-            match = re.search(
-                pattern, content, re.MULTILINE | re.DOTALL | re.IGNORECASE
-            )
+            match = re.search(pattern, content, re.MULTILINE | re.DOTALL | re.IGNORECASE)
             if match:
                 section_content = match.group(1).strip()
                 return section_content
@@ -153,7 +147,9 @@ class MarkdownTaskParser:
         """Trim text to a limited number of sentences and characters."""
         normalized = " ".join(text.split())
         sentences = re.split(r"(?<=[.!?])\s+", normalized)
-        selected = " ".join(sentence.strip() for sentence in sentences[:max_sentences] if sentence.strip())
+        selected = " ".join(
+            sentence.strip() for sentence in sentences[:max_sentences] if sentence.strip()
+        )
         if not selected:
             selected = normalized[: max_chars or len(normalized)]
         if max_chars is not None and len(selected) > max_chars:
@@ -188,17 +184,13 @@ class MarkdownTaskParser:
 
         return desc
 
-    def _extract_list_items(
-        self, content: str, section_headings: List[str]
-    ) -> List[str]:
+    def _extract_list_items(self, content: str, section_headings: List[str]) -> List[str]:
         """Extract list items from a section."""
         section_content = self._extract_section(content, section_headings)
         if not section_content:
             return []
 
-        items = re.findall(
-            r"^[-*]\s+(?:\[[ xX]\]\s+)?(.+)$", section_content, re.MULTILINE
-        )
+        items = re.findall(r"^[-*]\s+(?:\[[ xX]\]\s+)?(.+)$", section_content, re.MULTILINE)
         return [self._clean_markdown(item) for item in items]
 
     def _extract_deliverables(self, content: str) -> List[Dict[str, str]]:
@@ -244,9 +236,7 @@ class MarkdownTaskParser:
 
         for index, match in enumerate(matches):
             start = match.end()
-            end = matches[index + 1].start() if index + 1 < len(matches) else len(
-                content
-            )
+            end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
             block = content[start:end].strip()
             heading_text = match.group(0)
             phase_id = match.group("identifier").strip()

@@ -46,6 +46,6 @@ def test_task_yaml_loads_and_round_trips(path: Path) -> None:
 
     dumped = task.model_dump(mode="json", exclude_none=True)
     reparsed = Task.model_validate(dumped)
-    assert reparsed.model_dump(mode="json", exclude_none=True) == dumped, (
-        f"{path.name} does not survive a serialize/deserialize round trip"
-    )
+    assert (
+        reparsed.model_dump(mode="json", exclude_none=True) == dumped
+    ), f"{path.name} does not survive a serialize/deserialize round trip"

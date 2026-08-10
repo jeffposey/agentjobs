@@ -61,11 +61,7 @@ class WebhookManager:
     ) -> None:
         """Fire a webhook event asynchronously for all matching webhooks."""
         metadata = metadata or {}
-        webhooks = [
-            hook
-            for hook in self.list_webhooks()
-            if hook.active and event in hook.events
-        ]
+        webhooks = [hook for hook in self.list_webhooks() if hook.active and event in hook.events]
         if not webhooks:
             return
 

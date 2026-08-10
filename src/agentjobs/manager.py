@@ -185,11 +185,7 @@ class TaskManager:
 
     def get_next_task(self, priority: Optional[Priority] = None) -> Optional[Task]:
         """Get highest priority available task (READY status only)."""
-        candidates = [
-            task
-            for task in self.storage.list_tasks()
-            if task.status == TaskStatus.READY
-        ]
+        candidates = [task for task in self.storage.list_tasks() if task.status == TaskStatus.READY]
         if priority is not None:
             candidates = [task for task in candidates if task.priority == priority]
         if not candidates:
@@ -234,9 +230,7 @@ class TaskManager:
                 deliverable.status = "completed"
                 break
         else:
-            raise ValueError(
-                f"Deliverable '{deliverable_path}' not found for task '{task_id}'."
-            )
+            raise ValueError(f"Deliverable '{deliverable_path}' not found for task '{task_id}'.")
         return self.storage.save_task(task)
 
     def get_starter_prompt(self, task_id: str) -> str:

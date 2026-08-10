@@ -89,9 +89,7 @@ class TaskConverter:
         prompts = self._find_prompts(parsed, prompts_dir, fallback=description)
 
         branches = (
-            [Branch(name=parsed.branch.strip())]
-            if parsed.branch and parsed.branch.strip()
-            else []
+            [Branch(name=parsed.branch.strip())] if parsed.branch and parsed.branch.strip() else []
         )
 
         task = Task(

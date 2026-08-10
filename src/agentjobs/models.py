@@ -78,9 +78,7 @@ class Prompt(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    timestamp: datetime = Field(
-        ..., description="Timestamp for when the prompt was issued."
-    )
+    timestamp: datetime = Field(..., description="Timestamp for when the prompt was issued.")
     author: str = Field(..., description="Author of the prompt (agent or human name).")
     prompt_file: Optional[str] = Field(
         default=None, description="Optional path reference to the prompt file."
@@ -110,13 +108,9 @@ class StatusUpdate(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    timestamp: datetime = Field(
-        ..., description="Timestamp when the status update was recorded."
-    )
+    timestamp: datetime = Field(..., description="Timestamp when the status update was recorded.")
     author: str = Field(..., description="Author of the update (agent or collaborator).")
-    status: TaskStatus = Field(
-        ..., description="Workflow status the task transitioned to."
-    )
+    status: TaskStatus = Field(..., description="Workflow status the task transitioned to.")
     summary: str = Field(..., description="Short summary of the update.")
     details: Optional[str] = Field(
         default=None, description="Expanded detail for the status update."
@@ -161,9 +155,7 @@ class Dependency(BaseModel):
     status: Optional[str] = Field(
         default=None, description="Status of the dependency relationship."
     )
-    note: Optional[str] = Field(
-        default=None, description="Additional notes about the dependency."
-    )
+    note: Optional[str] = Field(default=None, description="Additional notes about the dependency.")
 
     @field_validator("type")
     @classmethod
@@ -248,12 +240,8 @@ class Task(BaseModel):
     updated: datetime = Field(..., description="Last update timestamp.")
 
     # Workflow
-    status: TaskStatus = Field(
-        default=TaskStatus.DRAFT, description="Current workflow status."
-    )
-    priority: Priority = Field(
-        default=Priority.MEDIUM, description="Relative priority weighting."
-    )
+    status: TaskStatus = Field(default=TaskStatus.DRAFT, description="Current workflow status.")
+    priority: Priority = Field(default=Priority.MEDIUM, description="Relative priority weighting.")
     category: str = Field(..., description="Task category for filtering.")
     assigned_to: Optional[str] = Field(
         default=None, description="Agent or teammate currently assigned."
@@ -268,9 +256,7 @@ class Task(BaseModel):
         description="Concise 1-2 sentence summary for human reviewers.",
     )
     description: str = Field(..., description="Markdown description of the task.")
-    phases: List[Phase] = Field(
-        default_factory=list, description="Phases tracked for this task."
-    )
+    phases: List[Phase] = Field(default_factory=list, description="Phases tracked for this task.")
     success_criteria: List[SuccessCriterion] = Field(
         default_factory=list, description="Success criteria checklist."
     )
@@ -375,9 +361,7 @@ class Webhook(BaseModel):
 
     id: str = Field(..., description="Unique webhook identifier.")
     url: HttpUrl = Field(..., description="Target URL for webhook delivery.")
-    events: List[str] = Field(
-        ..., description="List of events to trigger this webhook."
-    )
+    events: List[str] = Field(..., description="List of events to trigger this webhook.")
     secret: str = Field(..., description="Secret for HMAC signature verification.")
     active: bool = Field(default=True, description="Whether this webhook is active.")
     created: datetime = Field(..., description="When the webhook was created.")

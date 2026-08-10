@@ -39,9 +39,7 @@ class MigrationReporter:
         report_lines.append(
             f"**Generated**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
         )
-        report_lines.append(
-            f"**Mode**: {'Dry Run (Preview)' if dry_run else 'Live Migration'}\n"
-        )
+        report_lines.append(f"**Mode**: {'Dry Run (Preview)' if dry_run else 'Live Migration'}\n")
         report_lines.append("\n---\n")
 
         report_lines.append("## Summary\n")
@@ -79,17 +77,12 @@ class MigrationReporter:
         if dry_run:
             report_lines.append("- Review warnings and errors above.\n")
             report_lines.append("- Fix any critical issues in source files.\n")
-            report_lines.append(
-                "- Run migration without `--dry-run` to write YAML files.\n"
-            )
+            report_lines.append("- Run migration without `--dry-run` to write YAML files.\n")
         else:
-            report_lines.append(
-                "- Review generated YAML files in target directory.\n"
-            )
+            report_lines.append("- Review generated YAML files in target directory.\n")
             report_lines.append("- Verify task data integrity.\n")
             report_lines.append("- Test with `agentjobs serve` to view in browser.\n")
 
         report_path = Path(report_path)
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text("".join(report_lines), encoding="utf-8")
-

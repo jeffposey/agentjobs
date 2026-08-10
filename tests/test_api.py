@@ -214,9 +214,7 @@ def test_mark_deliverable_complete(api_client) -> None:
         category="ops",
         deliverables=[{"path": "docs/output.md", "status": "in_progress"}],
     )
-    response = client.patch(
-        f"/api/tasks/{task.id}/deliverables/docs%2Foutput.md"
-    )
+    response = client.patch(f"/api/tasks/{task.id}/deliverables/docs%2Foutput.md")
     assert response.status_code == 200
     body = response.json()
     assert body["deliverables"][0]["status"] == "completed"
