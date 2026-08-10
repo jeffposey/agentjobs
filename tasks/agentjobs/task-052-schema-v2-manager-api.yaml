@@ -2,7 +2,7 @@ schema: 2
 id: task-052-schema-v2-manager-api
 title: 'Schema v2: migrate the corpus and switch the application over'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T22:00:21.817494Z'
+updated: '2026-08-10T22:04:47.775004Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -591,3 +591,51 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 7
+  ts: '2026-08-10T22:04:47.774887Z'
+  actor: claude
+  type: progress
+  body: 'Two things found *after* the handoff entry above was written, so that entry
+    understates the branch. Both are fixed and committed; the ball stays with the
+    reviewer.
+
+
+    **1. The docs test caught my own docs rewrite.** `TestDocumentationMatchesTheModel`
+    requires every Task field and every closed vocabulary value to appear backticked
+    in `docs/task-schema.md`. My first pass replaced the field table with prose and
+    an annotated YAML example, which reads better but let eight field names and the
+    whole Priority vocabulary go undocumented. The table is back, alongside the example.
+    Worth noting in review: the guard works, and it caught a regression written by
+    the person who was supposed to be maintaining the page.
+
+
+    **2. A real Windows concurrency bug in the task-055 lock** (commit `adbbaea`).
+    The double-claim race test failed once during final verification: 1 winner and
+    6 losers out of 8 threads, with the eighth thread having raised something the
+    test did not catch. It was `PermissionError`. On Windows a lock file whose handle
+    has closed but whose delete has not completed is *delete-pending*, and opening
+    it returns ERROR_ACCESS_DENIED -> `PermissionError` (EACCES), not `FileExistsError`
+    (EEXIST). `locked()` retried only the latter, so a losing claimant crashed with
+    a permissions error instead of being told the task was taken.
+
+
+    It is pre-existing, from task-055, not introduced here -- but this branch made
+    it reachable, because re-validating inside `mutate_task` lengthens the critical
+    section. Frequency was about 1 attempt in 40 under eight-way contention, which
+    is precisely why a serial suite never saw it.
+
+
+    **The safety property was never in question**: exactly one claimant won on every
+    run, before and after the fix. This was an error-quality defect -- the loser got
+    an unhelpful crash instead of a clean refusal -- not a correctness one. Ten eight-way
+    races are now clean where one in five previously failed.
+
+
+    Both new tests simulate the failure rather than racing for it, so the regression
+    is deterministic, and one of them covers the cost of the fix: retrying EACCES
+    means a genuinely unwritable directory waits out the 10s timeout rather than failing
+    immediately, so the timeout message now names that case.
+
+
+    Final state: 372 tests pass; ruff, mypy and black clean. Eight commits on `feat/task-052-schema-v2-switchover`.'
+  data: {}
