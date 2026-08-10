@@ -1,8 +1,8 @@
 id: task-055-single-writer-concurrency
 title: 'Storage: serialize writes so two agents cannot claim the same task'
 created: '2026-07-29T22:05:00Z'
-updated: '2026-08-10T20:29:15.877885Z'
-status: in_progress
+updated: '2026-08-10T20:35:32.546745Z'
+status: waiting_for_human
 priority: high
 category: infrastructure
 estimated_effort: 2-3 hours
@@ -45,22 +45,22 @@ success_criteria:
 - id: sc-1
   description: A regression test reproduces the double-claim race against the current
     implementation, then passes once writes are serialized
-  status: pending
+  status: completed
 - id: sc-2
   description: Read-modify-write in storage is protected by advisory locking that
     works on Windows
-  status: pending
+  status: completed
 - id: sc-3
   description: A write whose underlying file changed since it was read fails with
     a typed conflict error rather than silently overwriting
-  status: pending
+  status: completed
 - id: sc-4
   description: The claim path checks claimability and sets the owner atomically; a
     losing claimer receives a reportable "already claimed" error
-  status: pending
+  status: completed
 - id: sc-5
   description: poetry run pytest passes
-  status: pending
+  status: completed
 prompts:
   starter: "Implement per the task description and docs/schema-design.md \xA77 (the\
     \ storage rejection entry, which explains why this is a locking fix rather than\
@@ -87,6 +87,43 @@ status_updates:
     The race is not in save_task alone; it is in load -> decide -> save, so the lock
     has to span all three. Regression test drives real concurrent claims from threads
     and asserts exactly one wins.'
+- timestamp: '2026-08-10T20:35:32.546735Z'
+  author: claude
+  status: waiting_for_human
+  summary: Double-claim race closed and proven by mutation; 354 tests pass
+  details: 'Two commits on fix/task-055-single-writer. 354 tests pass (11 new); ruff,
+    mypy, black clean.
+
+
+    The race was never inside save_task -- it was in the load -> decide -> save sequence
+    every caller wrote by hand. TaskStorage.mutate_task now holds a per-task advisory
+    lock across all three steps and re-reads inside it. Every mutating manager method
+    routes through it. Added manager.claim_task, which checks its precondition inside
+    the lock against a fresh read.
+
+
+    Proof it works, not just that tests pass: reverted claim_task to the old unlocked
+    shape and re-ran the 8-thread race. All eight agents won the same task -- the
+    exact double-claim bug. With the lock, exactly one wins and seven get a ValueError
+    naming the owner. Restored from a file copy rather than git checkout, given what
+    that command cost earlier today.
+
+
+    A second test caught a real gap mid-work: after converting update_status I had
+    left add_progress_update doing an unlocked read-modify-write, and concurrent appends
+    lost five of six entries. Converted all of them.
+
+
+    Lock design: O_CREAT|O_EXCL lockfile rather than fcntl/msvcrt. Atomic everywhere
+    this runs, no dependency, same behaviour on Windows and Unix. Cost is that a killed
+    process leaves a stale lock, so the wait times out with an error saying exactly
+    that instead of hanging. Locks are per task, so agents on different tasks never
+    contend.
+
+
+    Note for task-052: it rewrites this layer for v2, so it must carry mutate_task
+    forward rather than reverting to load/save. And task-060 (agent dispatch) named
+    055 a hard prerequisite -- that is now satisfied.'
 comments: []
 deliverables:
 - path: src/agentjobs/storage.py
