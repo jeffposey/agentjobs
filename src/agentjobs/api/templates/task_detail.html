@@ -6,6 +6,9 @@
 <div class="space-y-6">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
+            {# Selectable, because the id is what gets pasted into a CLI command or a
+               dependencies[] entry. #}
+            <div class="font-mono text-sm text-blue-400 select-all">{{ task.id }}</div>
             <h1 class="text-3xl font-bold">{{ task.title }}</h1>
             <div class="flex flex-wrap items-center gap-3 mt-3">
                 {% include "components/status_badge.html" %}
@@ -51,27 +54,33 @@
             <span class="text-2xl">⚠️</span> This task needs your review
         </h3>
         <p class="text-sm text-dark-text">
-            Review the agent's work below and take action:
+            Review the agent's work below and take action. These buttons record your
+            decision in the task record and hand the work back to the agent —
+            <strong>they do not run git</strong>, so nothing is merged until the agent
+            does it.
         </p>
 
         <div class="flex flex-wrap gap-3">
             <button
                 @click="approveTask"
+                title="Records your approval and returns the task to the agent, which then rebases, merges --no-ff, and closes it."
                 class="btn-approve bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg transition"
             >
-                ✓ Approve & Make Ready
+                ✓ Approve — agent may merge
             </button>
             <button
                 @click="showFeedback = !showFeedback"
+                title="Records your feedback and returns the task to the agent to revise."
                 class="btn-changes bg-yellow-600 hover:bg-yellow-700 text-white font-semibold px-4 py-2 rounded-lg transition"
             >
                 ✎ Request Changes
             </button>
             <button
                 @click="rejectTask"
+                title="Archives the task. Use Request Changes if the work should continue."
                 class="btn-reject bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg transition"
             >
-                ✗ Reject Task
+                ✗ Reject &amp; Archive
             </button>
         </div>
 
@@ -267,7 +276,25 @@
         </div>
         <div class="p-6 space-y-4">
             {% for update in task.status_updates | sort(attribute='timestamp', reverse=True) %}
-            <div class="border-l-2 border-blue-500 pl-4">
+            {#
+                Status updates are long on purpose: ALLAGENTS.md requires them to be
+                complete for a reader with zero context. So they get rendered as the
+                markdown they are written in, and collapsed by default -- the newest
+                entry open, because that is the one you came to read.
+
+                `tojson` rather than the hand-rolled backtick escaping used for the
+                description: it produces a correctly escaped JS string literal for any
+                input, including the backticks and ${...} that appear in these updates
+                whenever they quote a shell command. The attribute is single-quoted
+                because Jinja's tojson escapes ' but not ".
+            #}
+            <div
+                class="border-l-2 border-blue-500 pl-4"
+                x-data='{
+                    open: {{ "true" if loop.first else "false" }},
+                    content: {{ (update.details or "") | tojson }}
+                }'
+            >
                 <div class="flex flex-wrap items-center gap-2 text-xs text-dark-muted uppercase">
                     <span>{{ update.author }}</span>
                     <span>•</span>
@@ -277,7 +304,30 @@
                 </div>
                 <p class="mt-2 font-medium">{{ update.summary }}</p>
                 {% if update.details %}
-                <p class="mt-1 text-sm text-dark-muted">{{ update.details }}</p>
+                {% set is_long = update.details | length > 400 %}
+                <div class="relative">
+                    <div
+                        class="prose prose-invert max-w-none text-sm mt-2 prose-headings:text-dark-text prose-p:text-dark-muted prose-li:text-dark-muted prose-strong:text-dark-text prose-code:text-blue-300"
+                        {% if is_long %}
+                        :class="open ? '' : 'max-h-24 overflow-hidden'"
+                        {% endif %}
+                        x-markdown="content"
+                    ></div>
+                    {% if is_long %}
+                    <div
+                        x-show="!open"
+                        class="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-dark-surface to-transparent pointer-events-none"
+                    ></div>
+                    {% endif %}
+                </div>
+                {% if is_long %}
+                <button
+                    type="button"
+                    @click="open = !open"
+                    class="mt-2 text-xs text-blue-400 hover:text-blue-300 uppercase tracking-wide"
+                    x-text="open ? 'Show less' : 'Show more'"
+                >Show more</button>
+                {% endif %}
                 {% endif %}
             </div>
             {% endfor %}
@@ -302,7 +352,13 @@
                     <span class="px-2 py-0.5 rounded bg-dark-bg border border-dark-border">{{ comment.kind }}</span>
                     {% endif %}
                 </div>
-                <p class="mt-2 text-sm whitespace-pre-line">{{ comment.content }}</p>
+                {# whitespace-pre-line preserved line breaks but nothing else -- lists,
+                   code and emphasis all came through as literal punctuation. #}
+                <div
+                    class="prose prose-invert max-w-none text-sm mt-2 prose-headings:text-dark-text prose-p:text-dark-text prose-li:text-dark-text prose-code:text-blue-300"
+                    x-data='{ content: {{ (comment.content or "") | tojson }} }'
+                    x-markdown="content"
+                ></div>
             </div>
             {% endfor %}
         </div>
