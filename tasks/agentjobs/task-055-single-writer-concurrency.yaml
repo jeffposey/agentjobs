@@ -1,8 +1,8 @@
 id: task-055-single-writer-concurrency
 title: 'Storage: serialize writes so two agents cannot claim the same task'
 created: '2026-07-29T22:05:00Z'
-updated: '2026-08-10T20:35:32.546745Z'
-status: waiting_for_human
+updated: '2026-08-10T20:53:10.252157Z'
+status: completed
 priority: high
 category: infrastructure
 estimated_effort: 2-3 hours
@@ -124,6 +124,20 @@ status_updates:
     Note for task-052: it rewrites this layer for v2, so it must carry mutate_task
     forward rather than reverting to load/save. And task-060 (agent dispatch) named
     055 a hard prerequisite -- that is now satisfied.'
+- timestamp: '2026-08-10T20:51:02.658242Z'
+  author: human
+  status: in_progress
+  summary: "Approved by human \u2014 cleared to merge"
+  details: 'human approved this work through the web UI. The ball is back with the
+    agent, which must now rebase onto main, merge --no-ff, mark the branch merged
+    in branches[], and set this task completed. No merge has happened yet: the UI
+    records approval, it does not run git.'
+- timestamp: '2026-08-10T20:53:10.181395Z'
+  author: claude
+  status: completed
+  summary: Approved by Jeff via GUI; merged to main
+  details: Rebased, merged --no-ff, branch deleted. Nothing pushed. Satisfies the
+    hard prerequisite task-060 named for agent dispatch.
 comments: []
 deliverables:
 - path: src/agentjobs/storage.py
@@ -149,4 +163,4 @@ tags:
 - phase-0
 branches:
 - name: fix/task-055-single-writer
-  status: active
+  status: merged
