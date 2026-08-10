@@ -1,24 +1,28 @@
-"""Sample task fixtures exercising the AgentJobs workflow."""
+"""Sample task fixtures exercising the AgentJobs workflow (schema v2)."""
 
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import List
 
-from agentjobs.models import (
+from agentjobs.models_v2 import (
+    AcceptanceCriterion,
+    Assignment,
+    Ball,
+    BallReason,
     Deliverable,
-    Phase,
+    Lifecycle,
+    LogEntry,
+    LogEntryType,
+    Outcome,
     Priority,
-    Prompt,
-    Prompts,
-    StatusUpdate,
+    Spec,
     Task,
-    TaskStatus,
 )
 
 
 def create_sample_tasks() -> List[Task]:
-    """Generate sample tasks demonstrating all workflow states."""
+    """Generate sample tasks demonstrating the v2 state axes and log."""
     now = datetime.now(tz=timezone.utc)
     yesterday = now - timedelta(days=1)
     two_days_ago = now - timedelta(days=2)
@@ -27,11 +31,28 @@ def create_sample_tasks() -> List[Task]:
         Task(
             id="task-001",
             title="Design Database Schema for User Authentication",
-            human_summary=(
-                "Review and approve the proposed PostgreSQL schema for user authentication, "
-                "including multi-provider OAuth2 support and security policies."
+            created=two_days_ago,
+            updated=yesterday,
+            lifecycle=Lifecycle.ACTIVE,
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.DECISION,
+            ball_prompt=(
+                "Review the proposed authentication schema and answer: (1) multiple "
+                "OAuth accounts per user for the same provider? (2) audit logging for "
+                "authentication events? (3) session timeout policy (currently 24h)?"
             ),
-            description="""## Context
+            priority=Priority.HIGH,
+            category="architecture",
+            effort="2-3 days",
+            tags=["security", "database", "authentication"],
+            assignment=Assignment(owner="codex"),
+            spec=Spec(
+                summary=(
+                    "Review and approve the proposed PostgreSQL schema for user "
+                    "authentication, including multi-provider OAuth2 support and "
+                    "security policies."
+                ),
+                description="""## Context
 We need to implement a robust user authentication system supporting multiple OAuth2 providers (Google, GitHub, Microsoft).
 
 ## Proposed Schema
@@ -66,84 +87,73 @@ We need to implement a robust user authentication system supporting multiple OAu
 - All tokens encrypted at rest using AES-256
 - Session tokens rotated every 24 hours
 - Refresh tokens support optional (depends on provider)
-
-## Questions for Human Review
-1. Should we support multiple OAuth accounts per user (same provider)?
-2. Do we need audit logging for authentication events?
-3. What's the session timeout policy? (currently 24h)
 """,
-            status=TaskStatus.WAITING_FOR_HUMAN,
-            priority=Priority.HIGH,
-            category="architecture",
-            assigned_to="Codex",
-            estimated_effort="2-3 days",
-            created=two_days_ago,
-            updated=yesterday,
-            tags=["security", "database", "authentication"],
-            phases=[
-                Phase(
-                    id="phase-1",
-                    title="Schema Design",
-                    status=TaskStatus.COMPLETED,
-                    notes="Completed initial schema design based on OAuth2 best practices.",
-                    completed_at=yesterday,
-                ),
-                Phase(
-                    id="phase-2",
-                    title="Human Review & Approval",
-                    status=TaskStatus.WAITING_FOR_HUMAN,
-                    notes="Schema ready for review. Awaiting feedback on multi-account support and audit logging requirements.",
-                ),
-                Phase(
-                    id="phase-3",
-                    title="Implementation",
-                    status=TaskStatus.DRAFT,
-                    notes="Create migration scripts and ORM models after approval.",
-                ),
-            ],
-            prompts=Prompts(
-                starter="Design a PostgreSQL schema for user authentication supporting OAuth2 providers (Google, GitHub, Microsoft).",
-                followups=[
-                    Prompt(
-                        timestamp=yesterday,
-                        author="Codex",
-                        content="Schema design complete. Added encryption for tokens and session management. Ready for human review.",
-                    )
-                ],
             ),
-            status_updates=[
-                StatusUpdate(
-                    timestamp=yesterday,
-                    author="Codex",
-                    status=TaskStatus.WAITING_FOR_HUMAN,
-                    summary="Schema design complete, awaiting approval",
-                    details=(
-                        "Designed 3-table schema with security best practices. Need human input on "
-                        "multi-account support and audit logging."
-                    ),
-                )
+            acceptance=[
+                AcceptanceCriterion(
+                    id="ac-1", text="Schema DDL reviewed and approved", status="pending"
+                ),
+                AcceptanceCriterion(
+                    id="ac-2", text="Token encryption strategy documented", status="met"
+                ),
             ],
             deliverables=[
                 Deliverable(
-                    path="docs/schema/auth_schema.sql",
-                    status="completed",
-                    description="PostgreSQL schema DDL",
+                    path="docs/schema/auth_schema.sql", status="done", note="PostgreSQL schema DDL"
                 ),
                 Deliverable(
                     path="docs/schema/auth_erd.png",
-                    status="completed",
-                    description="Entity relationship diagram",
+                    status="done",
+                    note="Entity relationship diagram",
+                ),
+            ],
+            log=[
+                LogEntry(
+                    id=1,
+                    ts=two_days_ago,
+                    actor="codex",
+                    type=LogEntryType.TRANSITION,
+                    data={"lifecycle": "active", "ball": "agent", "ball_reason": "work"},
+                    body="Claimed by codex.",
+                ),
+                LogEntry(
+                    id=2,
+                    ts=yesterday,
+                    actor="codex",
+                    type=LogEntryType.HANDOFF,
+                    data={"ball": "human", "ball_reason": "decision"},
+                    body=(
+                        "Designed 3-table schema with security best practices. Need "
+                        "human input on multi-account support and audit logging."
+                    ),
                 ),
             ],
         ),
         Task(
             id="task-002",
             title="Implement Rate Limiting for Public API",
-            human_summary=(
-                "Approve rate limiting strategy: 100 req/min for free tier, 1000 req/min for paid tier. "
-                "Decide penalty box duration to unblock engineering."
+            created=two_days_ago,
+            updated=now - timedelta(hours=4),
+            lifecycle=Lifecycle.ACTIVE,
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.DECISION,
+            ball_prompt=(
+                "Pick the penalty box strategy (15-minute cooldown, 1-hour escalating, "
+                "or none) and decide whether auth endpoints get stricter per-endpoint "
+                "limits."
             ),
-            description="""## Objective
+            priority=Priority.CRITICAL,
+            category="infrastructure",
+            effort="1 week",
+            tags=["api", "security", "performance"],
+            assignment=Assignment(owner="codex"),
+            spec=Spec(
+                summary=(
+                    "Approve rate limiting strategy: 100 req/min for free tier, 1000 "
+                    "req/min for paid tier. Decide penalty box duration to unblock "
+                    "engineering."
+                ),
+                description="""## Objective
 Protect our public API from abuse while ensuring good UX for legitimate users.
 
 ## Proposed Strategy
@@ -171,133 +181,166 @@ When users repeatedly exceed limits:
 - Burst allowance: Allow 20% burst above limit for 5 seconds
 - Whitelisted IPs (internal services, monitoring): No limits
 - Rate limit bypass for emergencies: Admin override flag
-
-## Questions
-1. Which penalty box strategy? (A, B, or C)
-2. Should we log rate limit violations for security monitoring?
-3. Do we need per-endpoint limits (e.g., auth endpoints more strict)?
 """,
-            status=TaskStatus.WAITING_FOR_HUMAN,
-            priority=Priority.CRITICAL,
-            category="infrastructure",
-            assigned_to="Codex",
-            estimated_effort="1 week",
-            created=two_days_ago,
-            updated=now - timedelta(hours=4),
-            tags=["api", "security", "performance"],
-            phases=[
-                Phase(
-                    id="phase-1",
-                    title="Research & Design",
-                    status=TaskStatus.COMPLETED,
-                    notes="Researched industry standards (Stripe, GitHub, Twilio). Designed sliding window algorithm with Redis.",
-                    completed_at=yesterday,
-                ),
-                Phase(
-                    id="phase-2",
-                    title="Policy Approval",
-                    status=TaskStatus.WAITING_FOR_HUMAN,
-                    notes="Need human decision on penalty box strategy and per-endpoint limit strategy.",
-                ),
-            ],
-            prompts=Prompts(
-                starter="Design and implement rate limiting for our public API to prevent abuse."
             ),
-            status_updates=[
-                StatusUpdate(
-                    timestamp=now - timedelta(hours=4),
-                    author="Codex",
-                    status=TaskStatus.WAITING_FOR_HUMAN,
-                    summary="Rate limiting design ready, need policy decisions",
-                    details=(
-                        "Technical design is complete. Need human input on penalty box duration "
-                        "and per-endpoint limit strategy."
+            log=[
+                LogEntry(
+                    id=1,
+                    ts=two_days_ago,
+                    actor="codex",
+                    type=LogEntryType.TRANSITION,
+                    data={"lifecycle": "active", "ball": "agent", "ball_reason": "work"},
+                    body="Claimed by codex.",
+                ),
+                LogEntry(
+                    id=2,
+                    ts=yesterday,
+                    actor="codex",
+                    type=LogEntryType.PROGRESS,
+                    body=(
+                        "Researched industry standards (Stripe, GitHub, Twilio). "
+                        "Designed sliding window algorithm with Redis."
                     ),
-                )
+                ),
+                LogEntry(
+                    id=3,
+                    ts=now - timedelta(hours=4),
+                    actor="codex",
+                    type=LogEntryType.HANDOFF,
+                    data={"ball": "human", "ball_reason": "decision"},
+                    body=(
+                        "Technical design is complete. Need human input on penalty box "
+                        "duration and per-endpoint limit strategy."
+                    ),
+                ),
             ],
         ),
         Task(
             id="task-003",
             title="Add Dark Mode Toggle to Settings Page",
-            human_summary=(
-                "Adding dark mode support with system preference detection and a manual toggle in settings."
-            ),
-            description="""## Implementation Plan
+            created=now - timedelta(days=1),
+            updated=now - timedelta(hours=2),
+            lifecycle=Lifecycle.ACTIVE,
+            ball=Ball.AGENT,
+            ball_reason=BallReason.WORK,
+            ball_prompt="Execute the spec; log progress and hand off when done.",
+            priority=Priority.MEDIUM,
+            category="feature",
+            effort="3 days",
+            tags=["ui", "accessibility"],
+            assignment=Assignment(owner="codex"),
+            spec=Spec(
+                summary=(
+                    "Adding dark mode support with system preference detection and a "
+                    "manual toggle in settings."
+                ),
+                description="""## Implementation Plan
 1. Add theme context provider to React app
 2. Create toggle component in settings
 3. Store preference in localStorage
 4. Detect system preference on first load
 5. Apply CSS custom properties for color theming
 """,
-            status=TaskStatus.IN_PROGRESS,
-            priority=Priority.MEDIUM,
-            category="feature",
-            assigned_to="Codex",
-            estimated_effort="3 days",
-            created=now - timedelta(days=1),
-            updated=now - timedelta(hours=2),
-            tags=["ui", "accessibility"],
-            phases=[
-                Phase(
-                    id="phase-1",
-                    title="Theme Context",
-                    status=TaskStatus.COMPLETED,
-                    completed_at=now - timedelta(hours=6),
+            ),
+            log=[
+                LogEntry(
+                    id=1,
+                    ts=now - timedelta(days=1),
+                    actor="codex",
+                    type=LogEntryType.TRANSITION,
+                    data={"lifecycle": "active", "ball": "agent", "ball_reason": "work"},
+                    body="Claimed by codex.",
                 ),
-                Phase(
-                    id="phase-2",
-                    title="Toggle Component",
-                    status=TaskStatus.IN_PROGRESS,
-                ),
-                Phase(
-                    id="phase-3",
-                    title="CSS Variables",
-                    status=TaskStatus.DRAFT,
+                LogEntry(
+                    id=2,
+                    ts=now - timedelta(hours=2),
+                    actor="codex",
+                    type=LogEntryType.PROGRESS,
+                    body="Theme context landed; toggle component in progress.",
                 ),
             ],
-            prompts=Prompts(
-                starter="Add dark mode toggle to settings with system preference detection."
-            ),
         ),
         Task(
             id="task-004",
             title="Migrate to PostgreSQL 16",
-            human_summary=(
-                "PostgreSQL 16 migration blocked until DevOps provisions new production instances."
+            created=now - timedelta(days=5),
+            updated=now - timedelta(days=1),
+            lifecycle=Lifecycle.ACTIVE,
+            ball=Ball.EXTERNAL,
+            ball_reason=BallReason.SERVICE,
+            ball_prompt=(
+                "Waiting on DevOps to provision PostgreSQL 16 production instances "
+                "(DEVOPS-892). Resume the cutover once they exist."
             ),
-            description="""## Migration Plan
+            priority=Priority.HIGH,
+            category="infrastructure",
+            effort="1 day (once unblocked)",
+            tags=["database", "infrastructure"],
+            assignment=Assignment(owner="codex"),
+            spec=Spec(
+                summary=(
+                    "PostgreSQL 16 migration blocked until DevOps provisions new "
+                    "production instances."
+                ),
+                description="""## Migration Plan
 Upgrade from PostgreSQL 14 to 16 for performance improvements and new features.
 
 **Blocked on**: DevOps team provisioning new PostgreSQL 16 instances in production
 **Blocker ticket**: DEVOPS-892
 
 ## Testing Status
-- ✅ Dev environment migrated successfully
-- ✅ Staging environment migrated successfully
-- ❌ Production instances not yet provisioned
+- Dev environment migrated successfully
+- Staging environment migrated successfully
+- Production instances not yet provisioned
 """,
-            status=TaskStatus.BLOCKED,
-            priority=Priority.HIGH,
-            category="infrastructure",
-            assigned_to="Codex",
-            estimated_effort="1 day (once unblocked)",
-            created=now - timedelta(days=5),
-            updated=now - timedelta(days=1),
-            tags=["database", "infrastructure"],
-            prompts=Prompts(starter="Plan and execute migration to PostgreSQL 16."),
+            ),
+            log=[
+                LogEntry(
+                    id=1,
+                    ts=now - timedelta(days=5),
+                    actor="codex",
+                    type=LogEntryType.TRANSITION,
+                    data={"lifecycle": "active", "ball": "agent", "ball_reason": "work"},
+                    body="Claimed by codex.",
+                ),
+                LogEntry(
+                    id=2,
+                    ts=now - timedelta(days=1),
+                    actor="codex",
+                    type=LogEntryType.HANDOFF,
+                    data={"ball": "external", "ball_reason": "service"},
+                    body="Dev and staging migrated. Production blocked on DEVOPS-892.",
+                ),
+            ],
         ),
         Task(
             id="task-005",
             title="Enable CloudWatch Advanced Monitoring",
-            human_summary=(
-                "Request approval for $150/month CloudWatch advanced monitoring to unlock 1-second RDS metrics."
+            created=now - timedelta(days=3),
+            updated=now - timedelta(days=2),
+            lifecycle=Lifecycle.ACTIVE,
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.APPROVAL,
+            ball_prompt=(
+                "Approve or decline ~$150/month for CloudWatch Enhanced Monitoring "
+                "across 60 RDS instances (estimated 8x ROI)."
             ),
-            description="""## Proposal
+            priority=Priority.LOW,
+            category="infrastructure",
+            effort="1 hour to enable",
+            tags=["monitoring", "cost", "rds"],
+            assignment=Assignment(owner="codex"),
+            spec=Spec(
+                summary=(
+                    "Request approval for $150/month CloudWatch advanced monitoring to "
+                    "unlock 1-second RDS metrics."
+                ),
+                description="""## Proposal
 Enable CloudWatch Enhanced Monitoring for RDS instances to get 1-second granularity metrics.
 
 ## Cost
 - Current: $0/month (basic monitoring only)
-- Proposed: ~$150/month ($2.50 per instance × 60 instances)
+- Proposed: ~$150/month ($2.50 per instance x 60 instances)
 
 ## Benefits
 - 1-second metric granularity (vs 1-minute)
@@ -307,29 +350,47 @@ Enable CloudWatch Enhanced Monitoring for RDS instances to get 1-second granular
 
 ## Business Case
 Last month we had 3 database incidents that took >2 hours to diagnose due to lack of granular metrics.
-Expected time savings: ~6 hours/month × $200/hour = $1,200/month value.
+Expected time savings: ~6 hours/month x $200/hour = $1,200/month value.
 
 ROI: 8x return on investment.
-
-**Awaiting approval from Engineering Manager or CTO.**
 """,
-            status=TaskStatus.WAITING_FOR_HUMAN,
-            priority=Priority.LOW,
-            category="infrastructure",
-            assigned_to="Codex",
-            estimated_effort="1 hour to enable",
-            created=now - timedelta(days=3),
-            updated=now - timedelta(days=2),
-            tags=["monitoring", "cost", "rds"],
-            prompts=Prompts(
-                starter="Research and propose CloudWatch enhanced monitoring for RDS instances."
             ),
+            log=[
+                LogEntry(
+                    id=1,
+                    ts=now - timedelta(days=3),
+                    actor="codex",
+                    type=LogEntryType.TRANSITION,
+                    data={"lifecycle": "active", "ball": "agent", "ball_reason": "work"},
+                    body="Claimed by codex.",
+                ),
+                LogEntry(
+                    id=2,
+                    ts=now - timedelta(days=2),
+                    actor="codex",
+                    type=LogEntryType.HANDOFF,
+                    data={"ball": "human", "ball_reason": "approval"},
+                    body="Proposal complete. Awaiting spend approval from Engineering Manager or CTO.",
+                ),
+            ],
         ),
         Task(
             id="task-006",
             title="Fix Memory Leak in WebSocket Handler",
-            human_summary="Fixed memory leak caused by unclosed event listeners in WebSocket connections.",
-            description="""## Problem
+            created=now - timedelta(days=4),
+            updated=now - timedelta(hours=8),
+            lifecycle=Lifecycle.CLOSED,
+            outcome=Outcome.COMPLETED,
+            priority=Priority.CRITICAL,
+            category="bugfix",
+            effort="2 days",
+            tags=["performance", "websocket", "memory"],
+            spec=Spec(
+                summary=(
+                    "Fixed memory leak caused by unclosed event listeners in WebSocket "
+                    "connections."
+                ),
+                description="""## Problem
 WebSocket handler was leaking ~50MB/hour due to event listeners not being cleaned up on disconnect.
 
 ## Solution
@@ -342,55 +403,62 @@ WebSocket handler was leaking ~50MB/hour due to event listeners not being cleane
 - No more daily restarts required
 - Performance improved by 15%
 """,
-            status=TaskStatus.COMPLETED,
-            priority=Priority.CRITICAL,
-            category="bugfix",
-            assigned_to="Codex",
-            estimated_effort="2 days",
-            created=now - timedelta(days=4),
-            updated=now - timedelta(hours=8),
-            tags=["performance", "websocket", "memory"],
-            phases=[
-                Phase(
-                    id="phase-1",
-                    title="Investigation",
-                    status=TaskStatus.COMPLETED,
-                    completed_at=now - timedelta(days=2),
-                ),
-                Phase(
-                    id="phase-2",
-                    title="Fix Implementation",
-                    status=TaskStatus.COMPLETED,
-                    completed_at=now - timedelta(days=1),
-                ),
-                Phase(
-                    id="phase-3",
-                    title="Testing & Monitoring",
-                    status=TaskStatus.COMPLETED,
-                    completed_at=now - timedelta(hours=8),
-                ),
-            ],
-            prompts=Prompts(starter="Debug and fix memory leak in WebSocket handler."),
+            ),
             deliverables=[
                 Deliverable(
-                    path="src/websocket/handler.ts",
-                    status="completed",
-                    description="Fixed WebSocket handler",
+                    path="src/websocket/handler.ts", status="done", note="Fixed WebSocket handler"
                 ),
                 Deliverable(
                     path="tests/websocket/memory_test.ts",
-                    status="completed",
-                    description="Memory leak regression test",
+                    status="done",
+                    note="Memory leak regression test",
+                ),
+            ],
+            log=[
+                LogEntry(
+                    id=1,
+                    ts=now - timedelta(days=4),
+                    actor="codex",
+                    type=LogEntryType.TRANSITION,
+                    data={"lifecycle": "active", "ball": "agent", "ball_reason": "work"},
+                    body="Claimed by codex.",
+                ),
+                LogEntry(
+                    id=2,
+                    ts=now - timedelta(days=1),
+                    actor="codex",
+                    type=LogEntryType.PROGRESS,
+                    body="Leak isolated to unremoved listeners; fix and WeakMap tracking implemented.",
+                ),
+                LogEntry(
+                    id=3,
+                    ts=now - timedelta(hours=8),
+                    actor="codex",
+                    type=LogEntryType.TRANSITION,
+                    data={"lifecycle": "closed", "outcome": "completed"},
+                    body="Memory stable at ~200MB over 48h of monitoring. Closed: completed.",
                 ),
             ],
         ),
         Task(
             id="task-007",
             title="Implement GraphQL Pagination with Cursor Strategy",
-            human_summary=(
-                "Plan and implement cursor-based pagination for the GraphQL API to replace offset pagination."
-            ),
-            description="""## Objective
+            created=now - timedelta(hours=12),
+            updated=now - timedelta(hours=12),
+            lifecycle=Lifecycle.DRAFT,
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.SPEC,
+            ball_prompt="Finish specifying this task: confirm the rollout timeline and cursor format.",
+            priority=Priority.MEDIUM,
+            category="feature",
+            effort="1 week",
+            tags=["graphql", "api", "performance"],
+            spec=Spec(
+                summary=(
+                    "Plan and implement cursor-based pagination for the GraphQL API to "
+                    "replace offset pagination."
+                ),
+                description="""## Objective
 Replace offset-based pagination with cursor-based for better performance and consistency.
 
 ## Design
@@ -404,16 +472,6 @@ Replace offset-based pagination with cursor-based for better performance and con
 2. Deprecate offset pagination (6-month notice)
 3. Remove offset fields in v2.0 API
 """,
-            status=TaskStatus.DRAFT,
-            priority=Priority.MEDIUM,
-            category="feature",
-            assigned_to=None,
-            estimated_effort="1 week",
-            created=now - timedelta(hours=12),
-            updated=now - timedelta(hours=12),
-            tags=["graphql", "api", "performance"],
-            prompts=Prompts(
-                starter="Design and implement cursor-based pagination for GraphQL API."
             ),
         ),
     ]

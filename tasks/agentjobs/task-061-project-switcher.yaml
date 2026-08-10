@@ -1,126 +1,104 @@
+schema: 2
 id: task-061-project-switcher
 title: 'GUI: project switcher and project-scoped URLs'
 created: '2026-08-10T19:00:24Z'
-updated: '2026-08-10T19:15:53.990005Z'
-status: completed
+updated: '2026-08-10T19:15:53Z'
+lifecycle: closed
+outcome: completed
 priority: high
 category: ux
-estimated_effort: 1 working session
-human_summary: Split out of task-058 on 2026-08-10 because it was wrongly blocked.
-  The server has been able to serve every registered project since task-057, but the
-  web UI has three unscoped routes and shows only the default project -- so the owner
-  cannot see the second project he registered. The switcher needs nothing from schema
-  v2; only the hierarchical task tree does. This is the shortest path from where the
-  tool is to one that visibly does what it was built for.
-description: 'The API has been multi-project since task-057: `/api/projects` lists
-  every registered project with task counts, and `/api/projects/{project_id}/tasks/...`
-  serves each one. The web UI has not caught up. It has exactly three routes -- `/`,
-  `/tasks`, `/tasks/{task_id}` -- none of which mention a project, so the GUI renders
-  whichever project the server''s working directory resolves to and there is no way
-  to reach another.
+tags:
+- ux
+- gui
+- multi-project
+effort: 1 working session
+spec:
+  summary: Split out of task-058 on 2026-08-10 because it was wrongly blocked. The
+    server has been able to serve every registered project since task-057, but the
+    web UI has three unscoped routes and shows only the default project -- so the
+    owner cannot see the second project he registered. The switcher needs nothing
+    from schema v2; only the hierarchical task tree does. This is the shortest path
+    from where the tool is to one that visibly does what it was built for.
+  description: 'The API has been multi-project since task-057: `/api/projects` lists
+    every registered project with task counts, and `/api/projects/{project_id}/tasks/...`
+    serves each one. The web UI has not caught up. It has exactly three routes --
+    `/`, `/tasks`, `/tasks/{task_id}` -- none of which mention a project, so the GUI
+    renders whichever project the server''s working directory resolves to and there
+    is no way to reach another.
 
 
-  The owner registered two projects and asked whether there was a chooser. There was
-  not.
+    The owner registered two projects and asked whether there was a chooser. There
+    was not.
 
 
-  ## Why this is a separate task
+    ## Why this is a separate task
 
 
-  Task-058 was reshaped on 2026-08-10 to the owner''s design -- pick a project, then
-  see a hierarchy of its tasks -- and the whole task was gated on schema v2. That
-  was wrong, and the error is recorded here rather than quietly corrected: **only
-  the hierarchy needs v2.** A task tree needs the `parent` field, which does not exist
-  in v1. A project switcher needs the registry and the scoped API, both of which shipped
-  in task-057.
+    Task-058 was reshaped on 2026-08-10 to the owner''s design -- pick a project,
+    then see a hierarchy of its tasks -- and the whole task was gated on schema v2.
+    That was wrong, and the error is recorded here rather than quietly corrected:
+    **only the hierarchy needs v2.** A task tree needs the `parent` field, which does
+    not exist in v1. A project switcher needs the registry and the scoped API, both
+    of which shipped in task-057.
 
 
-  Bundling them pushed a switcher that was buildable immediately behind four more
-  tasks (047 -> 050 -> 051 -> 052). Splitting costs nothing and changes no decision:
-  task-058 keeps the tree and stays gated on v2.
+    Bundling them pushed a switcher that was buildable immediately behind four more
+    tasks (047 -> 050 -> 051 -> 052). Splitting costs nothing and changes no decision:
+    task-058 keeps the tree and stays gated on v2.
 
 
-  ## Scope
+    ## Scope
 
 
-  - **A project switcher in the base layout**, on every page, listing registered projects
-  and marking the active one. Uses `dependencies.list_projects()`.
+    - **A project switcher in the base layout**, on every page, listing registered
+    projects and marking the active one. Uses `dependencies.list_projects()`.
 
-  - **Project-scoped web routes**: `/p/{project_id}/`, `/p/{project_id}/tasks`, `/p/{project_id}/tasks/{task_id}`.
-  The `request_project` dependency already resolves `project_id` from the request
-  path, so the resolution logic exists -- this is wiring the web routes to it the
-  way the API routes already are.
+    - **Project-scoped web routes**: `/p/{project_id}/`, `/p/{project_id}/tasks`,
+    `/p/{project_id}/tasks/{task_id}`. The `request_project` dependency already resolves
+    `project_id` from the request path, so the resolution logic exists -- this is
+    wiring the web routes to it the way the API routes already are.
 
-  - **Legacy URLs keep working**: `/`, `/tasks`, `/tasks/{id}` redirect to the resolved
-  default project rather than 404ing. Bookmarks and the existing links in the templates
-  must not break.
+    - **Legacy URLs keep working**: `/`, `/tasks`, `/tasks/{id}` redirect to the resolved
+    default project rather than 404ing. Bookmarks and the existing links in the templates
+    must not break.
 
-  - **Review actions address their project.** This closes task-059''s deferred sc-5:
-  the Approve / Request Changes / Reject buttons POST to the unscoped `/api/tasks/{id}/...`
-  today, which only resolves correctly because the server happens to run from the
-  project being reviewed.
-
-
-  ## The bug this invites
+    - **Review actions address their project.** This closes task-059''s deferred sc-5:
+    the Approve / Request Changes / Reject buttons POST to the unscoped `/api/tasks/{id}/...`
+    today, which only resolves correctly because the server happens to run from the
+    project being reviewed.
 
 
-  Task ids are unique only *within* a project -- both registered projects can contain
-  a `task-001`. Every link must carry its project id, or a row silently opens a different
-  project''s task. Task-057''s test suite already registers two projects sharing an
-  id for exactly this reason; extend that pattern to the web routes.
+    ## The bug this invites
 
 
-  ## Out of scope
+    Task ids are unique only *within* a project -- both registered projects can contain
+    a `task-001`. Every link must carry its project id, or a row silently opens a
+    different project''s task. Task-057''s test suite already registers two projects
+    sharing an id for exactly this reason; extend that pattern to the web routes.
 
 
-  - The hierarchical task tree. Task-058, gated on schema v2''s `parent`.
+    ## Out of scope
 
-  - Task detail *rendering* and editing affordances. Task-054, on v2. This task may
-  change which URL the detail page lives at, not what it draws.
 
-  - Any merged all-projects view. The owner rejected that on 2026-08-10; one project
-  is selected at a time. Note `/api/all/tasks` exists from task-057 and stays unused
-  by the GUI.
+    - The hierarchical task tree. Task-058, gated on schema v2''s `parent`.
 
-  - Registry editing from the UI. Projects are registered from the CLI.
+    - Task detail *rendering* and editing affordances. Task-054, on v2. This task
+    may change which URL the detail page lives at, not what it draws.
 
-  '
-phases: []
-success_criteria:
-- id: sc-1
-  description: A project switcher appears in the base layout on every page, lists
-    every registered project, and marks the active one
-  status: completed
-- id: sc-2
-  description: /p/{project_id}/ serves dashboard, task list and task detail scoped
-    to that project
-  status: completed
-- id: sc-3
-  description: Legacy unscoped URLs redirect to the default project rather than 404ing
-    or silently serving the wrong one
-  status: completed
-- id: sc-4
-  description: 'Verified with two projects containing the same task id: every link
-    and every review action reaches the correct project''s task'
-  status: completed
-- id: sc-5
-  description: Review action buttons address the project explicitly, closing task-059's
-    deferred sc-5
-  status: completed
-- id: sc-6
-  description: An install with no registry and a single project still works unchanged
-    through the legacy URLs
-  status: completed
-- id: sc-7
-  description: poetry run pytest passes; ruff, mypy and black stay clean
-  status: completed
-- id: sc-8
-  description: 'Verified in a browser the way the gap was found: with agentjobs and
-    a second project registered, switch between them and confirm each shows its own
-    tasks'
-  status: completed
-prompts:
-  starter: '## Objective
+    - Any merged all-projects view. The owner rejected that on 2026-08-10; one project
+    is selected at a time. Note `/api/all/tasks` exists from task-057 and stays unused
+    by the GUI.
+
+    - Registry editing from the UI. Projects are registered from the CLI.
+
+
+    ---
+
+
+    ## Starter prompt (migrated from schema v1)
+
+
+    ## Objective
 
     Give the web UI a project switcher and project-scoped URLs. Navigation only.
 
@@ -152,17 +130,72 @@ prompts:
 
     Branch feat/task-061-project-switcher from main, record it in branches[], mark
     in_progress, in that order. Small commits, tests green before each. When complete:
-    STOP, set waiting_for_human through the status API. Do not merge.
+    STOP, set waiting_for_human through the status API. Do not merge.'
+acceptance:
+- id: sc-1
+  text: A project switcher appears in the base layout on every page, lists every registered
+    project, and marks the active one
+  status: met
+- id: sc-2
+  text: /p/{project_id}/ serves dashboard, task list and task detail scoped to that
+    project
+  status: met
+- id: sc-3
+  text: Legacy unscoped URLs redirect to the default project rather than 404ing or
+    silently serving the wrong one
+  status: met
+- id: sc-4
+  text: 'Verified with two projects containing the same task id: every link and every
+    review action reaches the correct project''s task'
+  status: met
+- id: sc-5
+  text: Review action buttons address the project explicitly, closing task-059's deferred
+    sc-5
+  status: met
+- id: sc-6
+  text: An install with no registry and a single project still works unchanged through
+    the legacy URLs
+  status: met
+- id: sc-7
+  text: poetry run pytest passes; ruff, mypy and black stay clean
+  status: met
+- id: sc-8
+  text: 'Verified in a browser the way the gap was found: with agentjobs and a second
+    project registered, switch between them and confirm each shows its own tasks'
+  status: met
+deliverables:
+- path: src/agentjobs/api/routes/web.py
+  status: pending
+  note: Project-scoped web routes and legacy redirects
+- path: src/agentjobs/api/templates/base.html
+  status: pending
+  note: Project switcher in the shared layout
+dependencies:
+- task: task-057-multi-project-registry
+  type: needs
+  note: Completed 2026-08-10. Supplies the registry, the scoped API and the request_project
+    dependency. Nothing else is required.
+- task: task-058-multi-project-gui
+  type: related
+  note: Split from it. 058 keeps the hierarchical tree and stays gated on schema v2.
+- task: task-059-review-surface-usability
+  type: related
+  note: Closes its deferred sc-5, project-scoped review actions.
+branches:
+- name: feat/task-061-project-switcher
+  status: merged
+log:
+- id: 1
+  ts: '2026-08-10T19:02:09Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: in_progress
+  body: 'Claimed; split out of task-058 to unblock the switcher
 
-    '
-  followups: []
-status_updates:
-- timestamp: '2026-08-10T19:02:09.753621Z'
-  author: claude
-  status: in_progress
-  summary: Claimed; split out of task-058 to unblock the switcher
-  details: 'Branch feat/task-061-project-switcher created from main at the task-047
-    merge, recorded in branches[] before this transition.
+
+    Branch feat/task-061-project-switcher created from main at the task-047 merge,
+    recorded in branches[] before this transition.
 
 
     Why this task exists: Jeff asked whether the GUI had a project chooser yet. It
@@ -177,11 +210,16 @@ status_updates:
     review action buttons at the scoped API to close task-059''s deferred sc-5. Verify
     with two real registered projects that share a task id -- the fixture from tests/test_api_multiproject.py
     already does this for the API.'
-- timestamp: '2026-08-10T19:13:44.644235Z'
-  author: claude
-  status: waiting_for_human
-  summary: Project switcher done; all 8 criteria met, 206 tests pass
-  details: 'There is now a project chooser. Two commits on feat/task-061-project-switcher.
+- id: 2
+  ts: '2026-08-10T19:13:44Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: waiting_for_human
+  body: 'Project switcher done; all 8 criteria met, 206 tests pass
+
+
+    There is now a project chooser. Two commits on feat/task-061-project-switcher.
     206 tests pass (19 new); ruff, mypy and black clean across 57 files.
 
 
@@ -259,20 +297,27 @@ status_updates:
 
 
     Next up per your instruction: task-050, the v2 models.'
-- timestamp: '2026-08-10T19:14:31.307569Z'
-  author: human
-  status: in_progress
-  summary: "Approved by human \u2014 cleared to merge"
-  details: 'human approved this work through the web UI. The ball is back with the
-    agent, which must now rebase onto main, merge --no-ff, mark the branch merged
-    in branches[], and set this task completed. No merge has happened yet: the UI
-    records approval, it does not run git.'
-- timestamp: '2026-08-10T19:15:53.927720Z'
-  author: claude
-  status: completed
-  summary: Merged to main after Jeff approved through the web UI
-  details: 'Rebased onto main, merged --no-ff, branch marked merged and deleted locally.
-    Nothing pushed to origin.
+- id: 3
+  ts: '2026-08-10T19:14:31Z'
+  actor: human
+  type: transition
+  data:
+    v1_status: in_progress
+  body: "Approved by human \u2014 cleared to merge\n\nhuman approved this work through\
+    \ the web UI. The ball is back with the agent, which must now rebase onto main,\
+    \ merge --no-ff, mark the branch merged in branches[], and set this task completed.\
+    \ No merge has happened yet: the UI records approval, it does not run git."
+- id: 4
+  ts: '2026-08-10T19:15:53Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: completed
+  body: 'Merged to main after Jeff approved through the web UI
+
+
+    Rebased onto main, merged --no-ff, branch marked merged and deleted locally. Nothing
+    pushed to origin.
 
 
     Worth recording: this is the first approval in the project''s history that did
@@ -290,31 +335,16 @@ status_updates:
     -- the record should name who actually acted. Worth an identity/config setting
     when the GUI becomes the primary editing surface (task-054), and noted there rather
     than fixed mid-merge.'
-comments: []
-deliverables:
-- path: src/agentjobs/api/routes/web.py
-  status: pending
-  description: Project-scoped web routes and legacy redirects
-- path: src/agentjobs/api/templates/base.html
-  status: pending
-  description: Project switcher in the shared layout
-dependencies:
-- task_id: task-057-multi-project-registry
-  type: depends_on
-  note: Completed 2026-08-10. Supplies the registry, the scoped API and the request_project
-    dependency. Nothing else is required.
-- task_id: task-058-multi-project-gui
-  type: related
-  note: Split from it. 058 keeps the hierarchical tree and stays gated on schema v2.
-- task_id: task-059-review-surface-usability
-  type: related
-  note: Closes its deferred sc-5, project-scoped review actions.
-external_links: []
-issues: []
-tags:
-- ux
-- gui
-- multi-project
-branches:
-- name: feat/task-061-project-switcher
-  status: merged
+- id: 5
+  ts: '2026-08-10T19:15:53Z'
+  actor: system
+  type: note
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: completed` became lifecycle: closed / outcome: completed.
+
+    - prompts.starter preserved in spec.description.'

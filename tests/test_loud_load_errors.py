@@ -20,11 +20,12 @@ from typer.testing import CliRunner
 from agentjobs.api.dependencies import TASKS_DIR_ENV, reset_dependency_cache
 from agentjobs.api.main import app
 from agentjobs.cli import app as cli_app
-from agentjobs.models import Priority, Task, TaskStatus
+from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Priority, Spec, Task
 from agentjobs.storage import TaskLoadError, TaskStorage
 
 NOW = datetime(2026, 8, 10, tzinfo=timezone.utc)
 BROKEN_FILENAME = "task-666-corrupt.yaml"
+UNMIGRATED_FILENAME = "task-777-unmigrated.yaml"
 
 
 def write_good_task(tasks_dir: Path, task_id: str = "task-100-good") -> Task:
@@ -34,12 +35,14 @@ def write_good_task(tasks_dir: Path, task_id: str = "task-100-good") -> Task:
         Task(
             id=task_id,
             title="A perfectly good task",
-            description="Nothing wrong here.",
             created=NOW,
             updated=NOW,
-            status=TaskStatus.READY,
+            lifecycle=Lifecycle.READY,
+            ball=Ball.AGENT,
+            ball_reason=BallReason.AVAILABLE,
             priority=Priority.HIGH,
             category="infrastructure",
+            spec=Spec(summary="Nothing wrong here.", description="Nothing wrong here."),
         )
     )
 
@@ -50,12 +53,16 @@ def write_broken_task(tasks_dir: Path) -> Path:
     path.write_text(
         yaml.safe_dump(
             {
+                "schema": 2,
                 "id": "task-666-corrupt",
                 "title": "Corrupt",
                 "created": "2026-08-10T00:00:00Z",
                 "updated": "2026-08-10T00:00:00Z",
+                "lifecycle": "ready",
+                "ball": "agent",
+                "ball_reason": "available",
                 "category": "infrastructure",
-                "description": "x",
+                "spec": {"summary": "x", "description": "x"},
                 "priority": "extremely-urgent",
             }
         ),
@@ -106,6 +113,20 @@ class TestStorageIsLoud:
             payload = exc.as_dict()
         assert payload["filename"] == BROKEN_FILENAME
         assert "priority" in payload["reason"]
+
+    def test_an_unmigrated_v1_file_is_reported_with_the_fix(self, corpus) -> None:
+        """A file with no `schema: 2` stamp is broken-with-a-reason, not invisible."""
+        tasks_dir, _ = corpus
+        (tasks_dir / UNMIGRATED_FILENAME).write_text(
+            "id: task-777-unmigrated\ntitle: Old\ncategory: x\ndescription: y\n",
+            encoding="utf-8",
+        )
+
+        result = TaskStorage(tasks_dir).load_all()
+
+        reasons = {error.path.name: error.reason for error in result.errors}
+        assert UNMIGRATED_FILENAME in reasons
+        assert "migrate-schema" in reasons[UNMIGRATED_FILENAME]
 
     def test_a_missing_file_is_still_a_plain_none(self, corpus) -> None:
         # Absent and broken must stay distinguishable; conflating them is the bug.

@@ -1,32 +1,50 @@
+schema: 2
 id: task-004
 title: Migrate to PostgreSQL 16
-created: '2025-10-21T17:44:03.663057Z'
-updated: '2025-10-26T17:44:03.712908Z'
-status: blocked
+created: '2025-10-21T17:44:03Z'
+updated: '2025-10-26T17:44:03Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 priority: high
 category: infrastructure
-assigned_to: Codex
-estimated_effort: 1 day (once unblocked)
-human_summary: PostgreSQL 16 migration blocked until DevOps provisions new production
-  instances.
-description: "## Migration Plan\nUpgrade from PostgreSQL 14 to 16 for performance\
-  \ improvements and new features.\n\n**Blocked on**: DevOps team provisioning new\
-  \ PostgreSQL 16 instances in production\n**Blocker ticket**: DEVOPS-892\n\n## Testing\
-  \ Status\n- \u2705 Dev environment migrated successfully\n- \u2705 Staging environment\
-  \ migrated successfully\n- \u274C Production instances not yet provisioned\n"
-phases: []
-success_criteria: []
-prompts:
-  starter: Plan and execute migration to PostgreSQL 16.
-  followups: []
-status_updates: []
-deliverables: []
-dependencies: []
-external_links: []
-issues: []
 tags:
 - test
 - example
 - database
 - infrastructure
-branches: []
+effort: 1 day (once unblocked)
+assignment:
+  eligible:
+  - codex
+spec:
+  summary: PostgreSQL 16 migration blocked until DevOps provisions new production
+    instances.
+  description: "## Migration Plan\nUpgrade from PostgreSQL 14 to 16 for performance\
+    \ improvements and new features.\n\n**Blocked on**: DevOps team provisioning new\
+    \ PostgreSQL 16 instances in production\n**Blocker ticket**: DEVOPS-892\n\n##\
+    \ Testing Status\n- \u2705 Dev environment migrated successfully\n- \u2705 Staging\
+    \ environment migrated successfully\n- \u274C Production instances not yet provisioned\n\
+    \n---\n\n## Starter prompt (migrated from schema v1)\n\nPlan and execute migration\
+    \ to PostgreSQL 16."
+log:
+- id: 1
+  ts: '2025-10-26T17:44:03Z'
+  actor: system
+  type: note
+  data:
+    v1_status: blocked
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: blocked` became lifecycle: ready / ball: agent / ball_reason: available.
+
+    - prompts.starter preserved in spec.description.
+
+
+    Needs human review:
+
+    - status: was ''blocked'' but unclaimed with no dependencies, so the blocker was
+    not recorded anywhere; mapped to ready and the original status preserved in the
+    log'

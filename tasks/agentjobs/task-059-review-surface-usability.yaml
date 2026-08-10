@@ -1,145 +1,129 @@
+schema: 2
 id: task-059-review-surface-usability
 title: 'GUI: make the task record actually reviewable, and stop Approve from lying'
 created: '2026-08-10T06:49:31Z'
-updated: '2026-08-10T07:35:58.128558Z'
-status: completed
+updated: '2026-08-10T07:35:58Z'
+lifecycle: closed
+outcome: completed
 priority: high
 category: ux
-estimated_effort: 2-4 hours
-human_summary: 'Found by the owner on 2026-08-10, the first time he tried to review
-  a completed task through the web UI instead of through git. Two problems, both hit
-  within a minute. Status updates render as an unformatted wall of text, because update.details
-  is interpolated into a <p> where HTML collapses every newline. And the Approve button
-  does not do what approval means in this project: it sets the task to ready, handing
-  it back to the agent pool, rather than executing the documented merge gate. Small
-  fixes, high leverage -- this is the screen the owner has to trust if the GUI is
-  ever going to be the primary interface.'
-description: 'Evidence, not speculation: the owner reviewed task-057 through the web
-  UI on 2026-08-10, called it awful, and went back to git. Everything below is what
-  he hit.
+tags:
+- ux
+- gui
+- review
+- workflow
+effort: 2-4 hours
+spec:
+  summary: 'Found by the owner on 2026-08-10, the first time he tried to review a
+    completed task through the web UI instead of through git. Two problems, both hit
+    within a minute. Status updates render as an unformatted wall of text, because
+    update.details is interpolated into a <p> where HTML collapses every newline.
+    And the Approve button does not do what approval means in this project: it sets
+    the task to ready, handing it back to the agent pool, rather than executing the
+    documented merge gate. Small fixes, high leverage -- this is the screen the owner
+    has to trust if the GUI is ever going to be the primary interface.'
+  description: 'Evidence, not speculation: the owner reviewed task-057 through the
+    web UI on 2026-08-10, called it awful, and went back to git. Everything below
+    is what he hit.
 
 
-  ## Problem 1 -- prose renders as a wall of text
+    ## Problem 1 -- prose renders as a wall of text
 
 
-  `task_detail.html` line 280 does `<p ...>{{ update.details }}</p>`. HTML collapses
-  newlines, so a multi-paragraph status update becomes one unbroken block: no paragraphs,
-  no lists, no headings, no code formatting. Comments (`comment.content`) have the
-  same problem.
+    `task_detail.html` line 280 does `<p ...>{{ update.details }}</p>`. HTML collapses
+    newlines, so a multi-paragraph status update becomes one unbroken block: no paragraphs,
+    no lists, no headings, no code formatting. Comments (`comment.content`) have the
+    same problem.
 
 
-  **The fix is nearly free, which is the main reason this is worth doing now.** The
-  machinery already exists and is already used for `task.description`: `base.html`
-  loads `marked` and defines an Alpine `x-markdown` directive, and line 167 renders
-  the description through it. Status updates and comments simply do not use it.
+    **The fix is nearly free, which is the main reason this is worth doing now.**
+    The machinery already exists and is already used for `task.description`: `base.html`
+    loads `marked` and defines an Alpine `x-markdown` directive, and line 167 renders
+    the description through it. Status updates and comments simply do not use it.
 
 
-  Also needed, because rendering alone will not fix the experience:
+    Also needed, because rendering alone will not fix the experience:
 
 
-  - Long entries collapse by default with a show-more affordance. These records are
-  long by design (see below) and a page of six full entries is unreadable regardless
-  of formatting.
+    - Long entries collapse by default with a show-more affordance. These records
+    are long by design (see below) and a page of six full entries is unreadable regardless
+    of formatting.
 
-  - Newest-first is already correct; keep it.
+    - Newest-first is already correct; keep it.
 
-  - The summary should read as the headline it is, with details subordinate.
-
-
-  **This is half our own fault, and the task should fix both halves.** Status updates
-  are long because ALLAGENTS.md requires them to be complete for a reader with zero
-  context, and that requirement is correct -- it is the whole premise of the project.
-  So the answer is not "write shorter updates". It is: render them properly, collapse
-  them by default, and make the first line genuinely scannable so the reader chooses
-  what to expand. If the agent-side writing convention needs a change too (a structured
-  lead line before the prose), propose it here rather than silently changing style.
+    - The summary should read as the headline it is, with details subordinate.
 
 
-  ## Problem 2 -- Approve does not approve
+    **This is half our own fault, and the task should fix both halves.** Status updates
+    are long because ALLAGENTS.md requires them to be complete for a reader with zero
+    context, and that requirement is correct -- it is the whole premise of the project.
+    So the answer is not "write shorter updates". It is: render them properly, collapse
+    them by default, and make the first line genuinely scannable so the reader chooses
+    what to expand. If the agent-side writing convention needs a change too (a structured
+    lead line before the prose), propose it here rather than silently changing style.
 
 
-  `POST /api/tasks/{id}/approve` (`routes/tasks.py`) calls `update_status(status=TaskStatus.READY)`.
-  Per ENGINEERING.md, approving a completed branch means: rebase onto main, merge
-  --no-ff, mark the branch merged, set the task completed. Setting it to `ready` means
-  the opposite of all of that -- `ready` is "claimable by any eligible agent", so
-  the button hands finished work back to the pool as though it were fresh.
+    ## Problem 2 -- Approve does not approve
 
 
-  `reject` is also blunt: it archives the task outright, with no lighter option between
-  "approved" and "gone".
+    `POST /api/tasks/{id}/approve` (`routes/tasks.py`) calls `update_status(status=TaskStatus.READY)`.
+    Per ENGINEERING.md, approving a completed branch means: rebase onto main, merge
+    --no-ff, mark the branch merged, set the task completed. Setting it to `ready`
+    means the opposite of all of that -- `ready` is "claimable by any eligible agent",
+    so the button hands finished work back to the pool as though it were fresh.
 
 
-  Decide and implement one of these, recording which and why:
+    `reject` is also blunt: it archives the task outright, with no lighter option
+    between "approved" and "gone".
 
 
-  - **Make the buttons honest.** Approve records human approval and moves the task
-  to a state that means "approved, awaiting merge", without claiming to have merged
-  anything -- because the GUI cannot merge, and should not pretend to.
-
-  - **Remove the buttons** until the v2 model can express this properly, leaving the
-  record read-only rather than actively misleading.
+    Decide and implement one of these, recording which and why:
 
 
-  Either is defensible; silently leaving a button that does the wrong thing is not.
-  The deeper fix genuinely belongs to schema v2: under the `ball` model, "approve"
-  means different things depending on why the human holds the ball (`review` vs `approval`
-  vs `decision`), which is precisely the distinction v1 cannot express. Note that
-  in the status update -- this task is first aid on v1, and task-054 owns the redesign.
+    - **Make the buttons honest.** Approve records human approval and moves the task
+    to a state that means "approved, awaiting merge", without claiming to have merged
+    anything -- because the GUI cannot merge, and should not pretend to.
+
+    - **Remove the buttons** until the v2 model can express this properly, leaving
+    the record read-only rather than actively misleading.
 
 
-  ## Problem 3 (smaller) -- the review actions are project-blind
+    Either is defensible; silently leaving a button that does the wrong thing is not.
+    The deeper fix genuinely belongs to schema v2: under the `ball` model, "approve"
+    means different things depending on why the human holds the ball (`review` vs
+    `approval` vs `decision`), which is precisely the distinction v1 cannot express.
+    Note that in the status update -- this task is first aid on v1, and task-054 owns
+    the redesign.
 
 
-  The buttons POST to the unscoped `/api/tasks/{id}/...`. That resolves correctly
-  only because the server happens to run from the project being reviewed. Once several
-  projects are registered, a review action from a project-scoped page must address
-  that project. Coordinate with task-058, which introduces the scoped URLs; if 058
-  lands first, just use its routes.
+    ## Problem 3 (smaller) -- the review actions are project-blind
 
 
-  ## Out of scope
+    The buttons POST to the unscoped `/api/tasks/{id}/...`. That resolves correctly
+    only because the server happens to run from the project being reviewed. Once several
+    projects are registered, a review action from a project-scoped page must address
+    that project. Coordinate with task-058, which introduces the scoped URLs; if 058
+    lands first, just use its routes.
 
 
-  - Any redesign of task rendering for schema v2. That is task-054.
+    ## Out of scope
 
-  - A diff view. Code review stays in git, and that is the right call -- do not build
-  a worse git.
 
-  - Restyling beyond what these fixes require.
+    - Any redesign of task rendering for schema v2. That is task-054.
 
-  '
-phases: []
-success_criteria:
-- id: sc-1
-  description: Status update details and comment content render as markdown, using
-    the existing x-markdown directive rather than a second mechanism
-  status: completed
-- id: sc-2
-  description: Long entries are collapsed by default with a show-more control, so
-    a task with six long updates is scannable without scrolling past a wall of text
-  status: completed
-- id: sc-3
-  description: The Approve and Reject buttons either do what their labels claim or
-    are removed; whichever is chosen is recorded with its reasoning in a status update
-  status: completed
-- id: sc-4
-  description: No button claims to have merged anything, because the GUI cannot merge
-  status: completed
-- id: sc-5
-  description: 'Review actions address the project explicitly rather than relying
-    on the server''s working directory (coordinate with task-058) [DEFERRED to task-058:
-    the web pages have no project in their URL yet, so there is no project context
-    for a review action to address. Not doable before 058 introduces scoped web routes.]'
-  status: pending
-- id: sc-6
-  description: 'Verified the way the bug was found: open task-057 in the browser and
-    confirm its status updates are readable and its review controls are honest'
-  status: completed
-- id: sc-7
-  description: poetry run pytest passes
-  status: completed
-prompts:
-  starter: '## Objective
+    - A diff view. Code review stays in git, and that is the right call -- do not
+    build a worse git.
+
+    - Restyling beyond what these fixes require.
+
+
+    ---
+
+
+    ## Starter prompt (migrated from schema v1)
+
+
+    ## Objective
 
     Make the task detail page a screen a human can actually review from. Two fixes:
     render prose properly, and stop the Approve button doing the opposite of approval.
@@ -188,17 +172,65 @@ prompts:
 
     Small single-logical-change commits, Conventional Commits. Tests green before
     each. When complete: STOP, set waiting_for_human through the status API. Do not
-    merge.
+    merge.'
+acceptance:
+- id: sc-1
+  text: Status update details and comment content render as markdown, using the existing
+    x-markdown directive rather than a second mechanism
+  status: met
+- id: sc-2
+  text: Long entries are collapsed by default with a show-more control, so a task
+    with six long updates is scannable without scrolling past a wall of text
+  status: met
+- id: sc-3
+  text: The Approve and Reject buttons either do what their labels claim or are removed;
+    whichever is chosen is recorded with its reasoning in a status update
+  status: met
+- id: sc-4
+  text: No button claims to have merged anything, because the GUI cannot merge
+  status: met
+- id: sc-5
+  text: 'Review actions address the project explicitly rather than relying on the
+    server''s working directory (coordinate with task-058) [DEFERRED to task-058:
+    the web pages have no project in their URL yet, so there is no project context
+    for a review action to address. Not doable before 058 introduces scoped web routes.]'
+  status: pending
+- id: sc-6
+  text: 'Verified the way the bug was found: open task-057 in the browser and confirm
+    its status updates are readable and its review controls are honest'
+  status: met
+- id: sc-7
+  text: poetry run pytest passes
+  status: met
+deliverables:
+- path: src/agentjobs/api/templates/task_detail.html
+  status: pending
+  note: Markdown rendering and collapsing for status updates and comments
+- path: src/agentjobs/api/routes/tasks.py
+  status: pending
+  note: Approve/reject semantics made honest, or the endpoints retired
+dependencies:
+- task: task-057-multi-project-registry
+  type: needs
+  note: Completed 2026-08-10. Its review is what surfaced every problem in this task.
+- task: task-058-multi-project-gui
+  type: related
+  note: Introduces project-scoped URLs; sc-5 should use them if 058 lands first.
+branches:
+- name: fix/task-059-review-surface
+  status: merged
+log:
+- id: 1
+  ts: '2026-08-10T06:57:07Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: in_progress
+  body: 'Claimed; scope extended by the owner to include visible task ids
 
-    '
-  followups: []
-status_updates:
-- timestamp: '2026-08-10T06:57:07.390486Z'
-  author: claude
-  status: in_progress
-  summary: Claimed; scope extended by the owner to include visible task ids
-  details: 'Branch fix/task-059-review-surface created from main at 713c993, recorded
-    in branches[] before this transition.
+
+    Branch fix/task-059-review-surface created from main at 713c993, recorded in branches[]
+    before this transition.
 
 
     SCOPE ADDED BY THE OWNER 2026-08-10: the task list hides task ids entirely. task_list.html
@@ -215,11 +247,16 @@ status_updates:
     something bigger: the v1 Task model has no parent field, so a task hierarchy is
     not representable at all today. phases[] is the nearest thing and v2 deletes it.
     This is being handled outside task-059; noted here so the two tasks do not drift.'
-- timestamp: '2026-08-10T07:06:32.760955Z'
-  author: claude
-  status: waiting_for_human
-  summary: Rendering, task ids and Approve semantics fixed; sc-5 deferred to task-058
-  details: 'Six of seven criteria met, 177 tests pass (2 new). Two commits on fix/task-059-review-surface,
+- id: 2
+  ts: '2026-08-10T07:06:32Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: waiting_for_human
+  body: 'Rendering, task ids and Approve semantics fixed; sc-5 deferred to task-058
+
+
+    Six of seven criteria met, 177 tests pass (2 new). Two commits on fix/task-059-review-surface,
     split by logical change.
 
 
@@ -307,58 +344,49 @@ status_updates:
     Pre-existing lint debt in tests/test_human_actions.py (7 ruff findings) and the
     migrate command, both task-047''s. No restyling beyond what these fixes needed.
     No diff view -- code review stays in git.'
-- timestamp: '2026-08-10T07:35:57.979889Z'
-  author: jeff
-  status: in_progress
-  summary: "Approved by Jeff \u2014 cleared to merge"
-  details: 'Jeff reviewed the rendered page and approved: "task 059 looks ok, better
-    than before, I found where it mentioned the task number, approved for now."
+- id: 3
+  ts: '2026-08-10T07:35:57Z'
+  actor: jeff
+  type: transition
+  data:
+    v1_status: in_progress
+  body: "Approved by Jeff \u2014 cleared to merge\n\nJeff reviewed the rendered page\
+    \ and approved: \"task 059 looks ok, better than before, I found where it mentioned\
+    \ the task number, approved for now.\"\n\nRecorded with author: jeff rather than\
+    \ claude, deliberately. docs/schema/understanding.md calls out v1's habit of putting\
+    \ a human's words inside an entry authored by the agent -- \"JEFF'S IDEA #1\"\
+    \ inside an entry whose author is claude -- as authorship lying. The approval\
+    \ is Jeff's; the merge below is the agent's. Two entries, two authors.\n\nMild\
+    \ feedback worth carrying forward, not acted on here: \"I found where it mentioned\
+    \ the task number\" suggests the id placement is discoverable rather than obvious.\
+    \ Left as-is since Jeff approved it, but if a later GUI pass wants a candidate,\
+    \ making the id more prominent in the detail header is one."
+- id: 4
+  ts: '2026-08-10T07:35:58Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: completed
+  body: 'Merged to main after Jeff''s approval
 
 
-    Recorded with author: jeff rather than claude, deliberately. docs/schema/understanding.md
-    calls out v1''s habit of putting a human''s words inside an entry authored by
-    the agent -- "JEFF''S IDEA #1" inside an entry whose author is claude -- as authorship
-    lying. The approval is Jeff''s; the merge below is the agent''s. Two entries,
-    two authors.
-
-
-    Mild feedback worth carrying forward, not acted on here: "I found where it mentioned
-    the task number" suggests the id placement is discoverable rather than obvious.
-    Left as-is since Jeff approved it, but if a later GUI pass wants a candidate,
-    making the id more prominent in the detail header is one.'
-- timestamp: '2026-08-10T07:35:58.065680Z'
-  author: claude
-  status: completed
-  summary: Merged to main after Jeff's approval
-  details: 'Rebased onto main, merged --no-ff, branch marked merged in branches[]
-    and deleted locally. Nothing pushed to origin.
+    Rebased onto main, merged --no-ff, branch marked merged in branches[] and deleted
+    locally. Nothing pushed to origin.
 
 
     sc-5 remains genuinely undone, not quietly closed: review action buttons still
     POST to the unscoped /api/tasks/{id}/... because the web pages have no project
     in their URL. Task-058 picks it up when it introduces scoped web routes.'
-comments: []
-deliverables:
-- path: src/agentjobs/api/templates/task_detail.html
-  status: pending
-  description: Markdown rendering and collapsing for status updates and comments
-- path: src/agentjobs/api/routes/tasks.py
-  status: pending
-  description: Approve/reject semantics made honest, or the endpoints retired
-dependencies:
-- task_id: task-057-multi-project-registry
-  type: depends_on
-  note: Completed 2026-08-10. Its review is what surfaced every problem in this task.
-- task_id: task-058-multi-project-gui
-  type: related
-  note: Introduces project-scoped URLs; sc-5 should use them if 058 lands first.
-external_links: []
-issues: []
-tags:
-- ux
-- gui
-- review
-- workflow
-branches:
-- name: fix/task-059-review-surface
-  status: merged
+- id: 5
+  ts: '2026-08-10T07:35:58Z'
+  actor: system
+  type: note
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: completed` became lifecycle: closed / outcome: completed.
+
+    - prompts.starter preserved in spec.description.'

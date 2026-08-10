@@ -1,72 +1,98 @@
+schema: 2
 id: task-050-schema-v2-models
 title: 'Schema v2: models -- state axes, spec, unified log, strict validation, version
   stamp'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T19:41:54.134276Z'
-status: completed
+updated: '2026-08-10T19:41:54Z'
+lifecycle: closed
+outcome: completed
 priority: high
 category: architecture
-estimated_effort: 1-2 days
-human_summary: 'Implement the v2 Task model designed in docs/schema-design.md: the
-  lifecycle/ball/ball_reason/ball_prompt state axes with consistency rules, the structured
-  spec block, the acceptance checklist, the unified append-only log, assignment (owner
-  + eligible), parent, the schema: 2 stamp, and strict validation. Models only --
-  the migrator, manager/API behavior, CLI, and GUI are separate downstream tasks.'
-description: "Implement the v2 Pydantic models exactly as specified in docs/schema-design.md\
-  \ (the accepted design; D1-D3 resolved in its \xA711). This task is the model layer\
-  \ only.\n\nScope (docs/schema-design.md sections in parentheses):\n- State axes\
-  \ (\xA73): lifecycle, ball, ball_reason (scoped vocabularies), ball_prompt, outcome,\
-  \ archived; the five consistency rules, model-enforced.\n- spec block (\xA72): summary,\
-  \ intent, description, constraints, out_of_scope, context pointers.\n- acceptance\
-  \ (\xA72): pending|met|failed|dropped, optional verify hint. deliverables: pending|done|dropped.\n\
-  - Unified log (\xA74): typed entries (note, progress, transition, handoff, decision,\
-  \ question, answer, instruction), typed actors, per-task integer ids, re: threading.\n\
-  - assignment (owner/eligible), parent, dependencies (task, type: needs|blocks|related,\
-  \ note), links (rel vocabulary, real URL validation), branches (unchanged).\n- schema:\
-  \ 2 stamp (\xA78): loader refuses files without it, with a loud error pointing at\
-  \ `agentjobs migrate-schema`.\n- Strict mode (\xA711 D2): extra=\"forbid\" everywhere;\
-  \ violations are errors at load and save.\n- Computed display_status (\xA73), derived,\
-  \ never stored.\n- Deletions (\xA711 D1): phases, prompts, issues, Comment, Dependency.status,\
-  \ human_summary do not exist in v2.\n- Regenerate/rewrite docs/task-schema.md to\
-  \ describe v2 (task-044 stretch goal folded in here).\n\nOut of scope: the corpus\
-  \ migrator (task-051), manager/API operations and taxonomy config validation (task-052),\
-  \ CLI (task-053), GUI (task-054).\n\nNote: the corpus test (tests/test_task_corpus.py)\
-  \ will fail against v1 files once the v2 model lands -- coordinate with task-051,\
-  \ which migrates the corpus and updates that test. Land 050 and 051 on one branch\
-  \ if the intermediate red state proves awkward to review; they remain separate commits/reviews\
-  \ either way.\n\n**Gated:** do not start until task-047 (enum typing) merges --\
-  \ v2 wants honestly-typed enums underneath it."
-phases: []
-success_criteria:
+tags:
+- schema-design
+- schema-v2
+effort: 1-2 days
+spec:
+  summary: 'Implement the v2 Task model designed in docs/schema-design.md: the lifecycle/ball/ball_reason/ball_prompt
+    state axes with consistency rules, the structured spec block, the acceptance checklist,
+    the unified append-only log, assignment (owner + eligible), parent, the schema:
+    2 stamp, and strict validation. Models only -- the migrator, manager/API behavior,
+    CLI, and GUI are separate downstream tasks.'
+  description: "Implement the v2 Pydantic models exactly as specified in docs/schema-design.md\
+    \ (the accepted design; D1-D3 resolved in its \xA711). This task is the model\
+    \ layer only.\n\nScope (docs/schema-design.md sections in parentheses):\n- State\
+    \ axes (\xA73): lifecycle, ball, ball_reason (scoped vocabularies), ball_prompt,\
+    \ outcome, archived; the five consistency rules, model-enforced.\n- spec block\
+    \ (\xA72): summary, intent, description, constraints, out_of_scope, context pointers.\n\
+    - acceptance (\xA72): pending|met|failed|dropped, optional verify hint. deliverables:\
+    \ pending|done|dropped.\n- Unified log (\xA74): typed entries (note, progress,\
+    \ transition, handoff, decision, question, answer, instruction), typed actors,\
+    \ per-task integer ids, re: threading.\n- assignment (owner/eligible), parent,\
+    \ dependencies (task, type: needs|blocks|related, note), links (rel vocabulary,\
+    \ real URL validation), branches (unchanged).\n- schema: 2 stamp (\xA78): loader\
+    \ refuses files without it, with a loud error pointing at `agentjobs migrate-schema`.\n\
+    - Strict mode (\xA711 D2): extra=\"forbid\" everywhere; violations are errors\
+    \ at load and save.\n- Computed display_status (\xA73), derived, never stored.\n\
+    - Deletions (\xA711 D1): phases, prompts, issues, Comment, Dependency.status,\
+    \ human_summary do not exist in v2.\n- Regenerate/rewrite docs/task-schema.md\
+    \ to describe v2 (task-044 stretch goal folded in here).\n\nOut of scope: the\
+    \ corpus migrator (task-051), manager/API operations and taxonomy config validation\
+    \ (task-052), CLI (task-053), GUI (task-054).\n\nNote: the corpus test (tests/test_task_corpus.py)\
+    \ will fail against v1 files once the v2 model lands -- coordinate with task-051,\
+    \ which migrates the corpus and updates that test. Land 050 and 051 on one branch\
+    \ if the intermediate red state proves awkward to review; they remain separate\
+    \ commits/reviews either way.\n\n**Gated:** do not start until task-047 (enum\
+    \ typing) merges -- v2 wants honestly-typed enums underneath it.\n\n---\n\n##\
+    \ Starter prompt (migrated from schema v1)\n\nImplement the v2 models per docs/schema-design.md\
+    \ (the design is decided; do not relitigate \xA77/\xA711). Branch `feat/task-050-schema-v2-models`\
+    \ from main, record in branches[], mark in_progress. Small conventional commits.\
+    \ When complete: STOP, set waiting_for_human, comment a summary, await approval\
+    \ to merge."
+acceptance:
 - id: sc-1
-  description: "v2 model matches docs/schema-design.md \xA72-\xA74 field-for-field,\
-    \ including all five consistency rules and the scoped ball_reason vocabularies"
-  status: completed
+  text: "v2 model matches docs/schema-design.md \xA72-\xA74 field-for-field, including\
+    \ all five consistency rules and the scoped ball_reason vocabularies"
+  status: met
 - id: sc-2
-  description: 'Strict everywhere: unknown fields rejected; a file without schema:
-    2 fails with an error naming agentjobs migrate-schema'
-  status: completed
+  text: 'Strict everywhere: unknown fields rejected; a file without schema: 2 fails
+    with an error naming agentjobs migrate-schema'
+  status: met
 - id: sc-3
-  description: display_status is computed, not stored, and covered by tests
-  status: completed
+  text: display_status is computed, not stored, and covered by tests
+  status: met
 - id: sc-4
-  description: docs/task-schema.md documents v2 and matches the model
-  status: completed
-prompts:
-  starter: "Implement the v2 models per docs/schema-design.md (the design is decided;\
-    \ do not relitigate \xA77/\xA711). Branch `feat/task-050-schema-v2-models` from\
-    \ main, record in branches[], mark in_progress. Small conventional commits. When\
-    \ complete: STOP, set waiting_for_human, comment a summary, await approval to\
-    \ merge."
-  followups: []
-status_updates:
-- timestamp: '2026-08-10T19:17:48.534164Z'
-  author: claude
-  status: in_progress
-  summary: Claimed; v2 models will land alongside v1 rather than replacing it
-  details: 'Branch feat/task-050-schema-v2-models created from main at the task-061
-    merge, recorded in branches[] before this transition. Gate satisfied: task-047
-    merged, so enums are honestly typed underneath this.
+  text: docs/task-schema.md documents v2 and matches the model
+  status: met
+deliverables:
+- path: src/agentjobs/models.py
+  status: pending
+  note: v2 Task model and nested types
+- path: docs/task-schema.md
+  status: pending
+  note: Rewritten for v2
+dependencies:
+- task: task-047-lint-typecheck-debt
+  type: needs
+  note: "Honestly-typed enums land first (docs/schema-design.md \xA710)"
+- task: task-048-schema-design
+  type: needs
+  note: Implements that design pass's output
+branches:
+- name: feat/task-050-schema-v2-models
+  status: merged
+log:
+- id: 1
+  ts: '2026-08-10T19:17:48Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: in_progress
+  body: 'Claimed; v2 models will land alongside v1 rather than replacing it
+
+
+    Branch feat/task-050-schema-v2-models created from main at the task-061 merge,
+    recorded in branches[] before this transition. Gate satisfied: task-047 merged,
+    so enums are honestly typed underneath this.
 
 
     SCOPE DECISION, made before writing code, because the task''s own note understates
@@ -107,14 +133,19 @@ status_updates:
     must load schema/examples/task-048.v2.yaml, which already validates against the
     v2 LinkML schema, so the two definitions are checked against each other rather
     than drifting.'
-- timestamp: '2026-08-10T19:31:57.475860Z'
-  author: claude
-  status: waiting_for_human
-  summary: v2 models implemented and cross-checked against LinkML; all 4 criteria
-    met, 285 tests pass
-  details: 'Three commits on feat/task-050-schema-v2-models. 285 tests pass (79 new);
-    ruff, mypy and black clean across 59 files. The running application is unaffected
-    -- verified by starting the server and hitting the dashboard, both projects, /api/projects
+- id: 2
+  ts: '2026-08-10T19:31:57Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: waiting_for_human
+  body: 'v2 models implemented and cross-checked against LinkML; all 4 criteria met,
+    285 tests pass
+
+
+    Three commits on feat/task-050-schema-v2-models. 285 tests pass (79 new); ruff,
+    mypy and black clean across 59 files. The running application is unaffected --
+    verified by starting the server and hitting the dashboard, both projects, /api/projects
     and /health after the change.
 
 
@@ -208,20 +239,27 @@ status_updates:
     no CLI (053), no GUI (054). Nothing is wired in. Note also that config-driven
     acceptance criterion types (D5) remain deliberately deferred -- additive under
     the evolution policy, so they need not lengthen this chain.'
-- timestamp: '2026-08-10T19:37:31.323249Z'
-  author: human
-  status: in_progress
-  summary: "Approved by human \u2014 cleared to merge"
-  details: 'human approved this work through the web UI. The ball is back with the
-    agent, which must now rebase onto main, merge --no-ff, mark the branch merged
-    in branches[], and set this task completed. No merge has happened yet: the UI
-    records approval, it does not run git.'
-- timestamp: '2026-08-10T19:41:54.075283Z'
-  author: claude
-  status: completed
-  summary: Merged to main after Jeff approved through the GUI
-  details: 'Rebased onto main, merged --no-ff, branch marked merged and deleted locally.
-    Nothing pushed to origin.
+- id: 3
+  ts: '2026-08-10T19:37:31Z'
+  actor: human
+  type: transition
+  data:
+    v1_status: in_progress
+  body: "Approved by human \u2014 cleared to merge\n\nhuman approved this work through\
+    \ the web UI. The ball is back with the agent, which must now rebase onto main,\
+    \ merge --no-ff, mark the branch merged in branches[], and set this task completed.\
+    \ No merge has happened yet: the UI records approval, it does not run git."
+- id: 4
+  ts: '2026-08-10T19:41:54Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: completed
+  body: 'Merged to main after Jeff approved through the GUI
+
+
+    Rebased onto main, merged --no-ff, branch marked merged and deleted locally. Nothing
+    pushed to origin.
 
 
     Second approval driven from the web UI rather than chat.
@@ -231,26 +269,16 @@ status_updates:
     convert all 38 corpus files, repoint storage/manager/API/GUI/CLI at models_v2,
     and delete v1. There is no partial state that keeps main green, so it is one atomic
     change.'
-comments: []
-deliverables:
-- path: src/agentjobs/models.py
-  status: pending
-  description: v2 Task model and nested types
-- path: docs/task-schema.md
-  status: pending
-  description: Rewritten for v2
-dependencies:
-- task_id: task-047-lint-typecheck-debt
-  type: depends_on
-  note: "Honestly-typed enums land first (docs/schema-design.md \xA710)"
-- task_id: task-048-schema-design
-  type: depends_on
-  note: Implements that design pass's output
-external_links: []
-issues: []
-tags:
-- schema-design
-- schema-v2
-branches:
-- name: feat/task-050-schema-v2-models
-  status: merged
+- id: 5
+  ts: '2026-08-10T19:41:54Z'
+  actor: system
+  type: note
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: completed` became lifecycle: closed / outcome: completed.
+
+    - prompts.starter preserved in spec.description.'

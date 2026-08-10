@@ -1,39 +1,37 @@
+schema: 2
 id: task-043-cors-vite-dev-origin
 title: Allow Vite dev-server origin in CORS config
-created: '2026-07-06T19:25:44.948348Z'
-updated: '2026-07-29T18:39:24.859895Z'
-status: completed
+created: '2026-07-06T19:25:44Z'
+updated: '2026-07-29T18:39:24Z'
+lifecycle: closed
+outcome: completed
 priority: high
 category: developer_experience
-assigned_to: claude
-estimated_effort: 15 minutes
-description: "The upcoming React frontend will run on the Vite dev server at `http://localhost:5173`\
-  \ during development. The FastAPI CORS middleware in `src/agentjobs/api/main.py`\
-  \ (lines ~38-47) currently allows only `http://localhost:8765` and `http://127.0.0.1:8765`,\
-  \ so browser requests from the React app would be blocked by CORS preflight.\n\n\
-  Append `http://localhost:5173` and `http://127.0.0.1:5173` to `allow_origins`. Keep\
-  \ the origins explicit \u2014 never switch to `\"*\"` while `allow_credentials=True`\
-  \ is set (the browser rejects that combination, and it would be a security regression\
-  \ anyway).\n\nNote: the React app will primarily use the Vite dev proxy (`/api`\
-  \ \u2192 `localhost:8765`), which avoids CORS entirely, but the direct-origin path\
-  \ should also work and this is a good opportunity to understand what CORS is."
-phases: []
-success_criteria:
-- id: sc-1
-  description: allow_origins includes http://localhost:5173 and http://127.0.0.1:5173;
-    allow_credentials stays True with explicit origins
-  status: completed
-- id: sc-2
-  description: OPTIONS preflight from Origin http://localhost:5173 returns access-control-allow-origin
-    for that origin
-  status: completed
-- id: sc-3
-  description: poetry run pytest passes
-  status: completed
-prompts:
-  starter: "## Objective\nAdd the Vite dev-server origins to the CORS allowlist in\
-    \ src/agentjobs/api/main.py.\n\n## Steps\n1. Create branch `feat/task-043-cors-vite-dev-origin`\
-    \ from main. Record it in branches[] and mark the task in_progress.\n2. In src/agentjobs/api/main.py,\
+tags:
+- react-frontend
+- learning
+- phase-0
+effort: 15 minutes
+assignment:
+  eligible:
+  - claude
+spec:
+  summary: The upcoming React frontend will run on the Vite dev server at http://localhost:5173
+    during development.
+  description: "The upcoming React frontend will run on the Vite dev server at `http://localhost:5173`\
+    \ during development. The FastAPI CORS middleware in `src/agentjobs/api/main.py`\
+    \ (lines ~38-47) currently allows only `http://localhost:8765` and `http://127.0.0.1:8765`,\
+    \ so browser requests from the React app would be blocked by CORS preflight.\n\
+    \nAppend `http://localhost:5173` and `http://127.0.0.1:5173` to `allow_origins`.\
+    \ Keep the origins explicit \u2014 never switch to `\"*\"` while `allow_credentials=True`\
+    \ is set (the browser rejects that combination, and it would be a security regression\
+    \ anyway).\n\nNote: the React app will primarily use the Vite dev proxy (`/api`\
+    \ \u2192 `localhost:8765`), which avoids CORS entirely, but the direct-origin\
+    \ path should also work and this is a good opportunity to understand what CORS\
+    \ is.\n\n---\n\n## Starter prompt (migrated from schema v1)\n\n## Objective\n\
+    Add the Vite dev-server origins to the CORS allowlist in src/agentjobs/api/main.py.\n\
+    \n## Steps\n1. Create branch `feat/task-043-cors-vite-dev-origin` from main. Record\
+    \ it in branches[] and mark the task in_progress.\n2. In src/agentjobs/api/main.py,\
     \ append `http://localhost:5173` and `http://127.0.0.1:5173` to `allow_origins`.\n\
     3. Restart the server and verify with a preflight request:\n   `curl.exe -i -X\
     \ OPTIONS http://localhost:8765/api/tasks -H \"Origin: http://localhost:5173\"\
@@ -49,14 +47,42 @@ prompts:
     \ response headers. The Vite proxy sidesteps this by making the browser talk only\
     \ to :5173 while Vite forwards to :8765 server-side. Both paths will work after\
     \ this task."
-  followups: []
-status_updates:
-- timestamp: '2026-07-29T18:32:02.289871Z'
-  author: claude
-  status: in_progress
-  summary: 'Started: adding Vite dev-server origins to the CORS allowlist'
-  details: 'Dependency task-042 completed and merged to main, unblocking this task
-    (moved straight from draft to in_progress). Branch feat/task-043-cors-vite-dev-origin
+acceptance:
+- id: sc-1
+  text: allow_origins includes http://localhost:5173 and http://127.0.0.1:5173; allow_credentials
+    stays True with explicit origins
+  status: met
+- id: sc-2
+  text: OPTIONS preflight from Origin http://localhost:5173 returns access-control-allow-origin
+    for that origin
+  status: met
+- id: sc-3
+  text: poetry run pytest passes
+  status: met
+deliverables:
+- path: src/agentjobs/api/main.py
+  status: done
+  note: Updated CORS allow_origins list
+dependencies:
+- task: task-042-relocate-demo-tasks
+  type: needs
+  note: Sequential Phase 0 ordering
+branches:
+- name: feat/task-043-cors-vite-dev-origin
+  status: merged
+  merged_at: '2026-07-29T18:39:24.850351Z'
+log:
+- id: 1
+  ts: '2026-07-29T18:32:02Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: in_progress
+  body: 'Started: adding Vite dev-server origins to the CORS allowlist
+
+
+    Dependency task-042 completed and merged to main, unblocking this task (moved
+    straight from draft to in_progress). Branch feat/task-043-cors-vite-dev-origin
     created from main.
 
 
@@ -64,11 +90,16 @@ status_updates:
     in src/agentjobs/api/main.py (keeping origins explicit -- never ''*'' while allow_credentials=True),
     add a regression test for the preflight since no CORS test exists today, verify
     a live OPTIONS preflight, run pytest.'
-- timestamp: '2026-07-29T18:34:28.679307Z'
-  author: claude
-  status: waiting_for_human
-  summary: 'Branch complete, ready for review: Vite dev origins allowed in CORS'
-  details: 'Done:
+- id: 2
+  ts: '2026-07-29T18:34:28Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: waiting_for_human
+  body: 'Branch complete, ready for review: Vite dev origins allowed in CORS
+
+
+    Done:
 
     - src/agentjobs/api/main.py: appended http://localhost:5173 and http://127.0.0.1:5173
     to allow_origins; allow_credentials stays True with explicit origins (added a
@@ -105,33 +136,37 @@ status_updates:
     Commits on feat/task-043-cors-vite-dev-origin: mark in_progress/record branch,
     the CORS change, the tests. Ready for review; on approval rebase onto main + --no-ff
     merge, mark branch merged, set task completed.'
-- timestamp: '2026-07-29T18:39:24.859867Z'
-  author: claude
-  status: completed
-  summary: Approved by Jeff; merging to main via --no-ff
-  details: 'Human review approved. Branch feat/task-043-cors-vite-dev-origin marked
-    merged. No rebase needed (main had not advanced since branch creation).
+- id: 3
+  ts: '2026-07-29T18:39:24Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: completed
+  body: 'Approved by Jeff; merging to main via --no-ff
+
+
+    Human review approved. Branch feat/task-043-cors-vite-dev-origin marked merged.
+    No rebase needed (main had not advanced since branch creation).
 
 
     Jeff confirmed the deferred black-formatting cleanup is the right call: that debt
     surfaced only because the lint toolchain was installed fresh on this machine,
     and it predates this task''s changes.'
-comments: []
-deliverables:
-- path: src/agentjobs/api/main.py
-  status: completed
-  description: Updated CORS allow_origins list
-dependencies:
-- task_id: task-042-relocate-demo-tasks
-  type: depends_on
-  note: Sequential Phase 0 ordering
-external_links: []
-issues: []
-tags:
-- react-frontend
-- learning
-- phase-0
-branches:
-- name: feat/task-043-cors-vite-dev-origin
-  status: merged
-  merged_at: '2026-07-29T18:39:24.850351Z'
+- id: 4
+  ts: '2026-07-29T18:39:24Z'
+  actor: system
+  type: note
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: completed` became lifecycle: closed / outcome: completed.
+
+    - prompts.starter preserved in spec.description.
+
+
+    Needs human review:
+
+    - spec.summary: no human_summary; derived from the description'

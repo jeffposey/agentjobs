@@ -1,71 +1,93 @@
+schema: 2
 id: task-051-schema-v2-migrator
 title: 'Schema v2: one-shot migrator and corpus migration'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T20:11:08.498689Z'
-status: completed
+updated: '2026-08-10T20:11:08Z'
+lifecycle: closed
+outcome: completed
 priority: high
 category: migration
-estimated_effort: half day
-human_summary: "Build `agentjobs migrate-schema` (v1 YAML -> v2 per the mapping in\
-  \ docs/schema-design.md \xA73/\xA78), run it over the whole corpus, and update the\
-  \ corpus round-trip test to verify every file in v2 form."
-description: "Implement the v1 -> v2 converter decided in docs/schema-design.md \xA7\
-  8 (D3) and migrate the repo's task corpus with it.\n\nConversion rules (all specified\
-  \ in docs/schema-design.md):\n- status -> lifecycle/ball/ball_reason/outcome per\
-  \ the \xA73 mapping table, including the split for v1 `blocked` (claimed -> active\
-  \ + external/dependency; unclaimed -> ready) and the last-status-update heuristic\
-  \ for `waiting_for_human`.\n- ball_prompt synthesized from the last status update\
-  \ / handoff context where the ball lands on a person; flagged for human review where\
-  \ no source text exists.\n- assigned_to -> assignment.eligible (authoring-time values,\
-  \ lowercased) or assignment.owner (only where genuinely in_progress).\n- prompts.followups\
-  \ -> instruction log entries (7 files have them); status_updates and comments ->\
-  \ the unified log; prompts.starter dropped where it restates the description, appended\
-  \ to spec.description where it does not.\n- phases[] -> description appendix (15\
-  \ files); issues[]/comments are empty corpus-wide and migrate to nothing.\n- Nested\
-  \ checklist statuses: in_progress -> pending; others map by name.\n- human_summary\
-  \ -> spec.summary; description -> spec blocks (mechanical split where obvious, else\
-  \ everything into spec.description); estimated_effort -> effort; external_links\
-  \ -> links; dependency task_id -> task, depends_on -> needs.\n- schema: 2 stamped\
-  \ on every output file.\n\nAlso: update tests/test_task_corpus.py to validate the\
-  \ migrated corpus against the v2 model (round-trip + `schema: 2` assertion). See\
-  \ the coordination note in task-050 about the intermediate red state between 050\
-  \ and 051.\n\n**Gated:** requires task-050 (the v2 model) merged or on the shared\
-  \ branch."
-phases: []
-success_criteria:
+tags:
+- schema-design
+- schema-v2
+- migration
+effort: half day
+spec:
+  summary: "Build `agentjobs migrate-schema` (v1 YAML -> v2 per the mapping in docs/schema-design.md\
+    \ \xA73/\xA78), run it over the whole corpus, and update the corpus round-trip\
+    \ test to verify every file in v2 form."
+  description: "Implement the v1 -> v2 converter decided in docs/schema-design.md\
+    \ \xA78 (D3) and migrate the repo's task corpus with it.\n\nConversion rules (all\
+    \ specified in docs/schema-design.md):\n- status -> lifecycle/ball/ball_reason/outcome\
+    \ per the \xA73 mapping table, including the split for v1 `blocked` (claimed ->\
+    \ active + external/dependency; unclaimed -> ready) and the last-status-update\
+    \ heuristic for `waiting_for_human`.\n- ball_prompt synthesized from the last\
+    \ status update / handoff context where the ball lands on a person; flagged for\
+    \ human review where no source text exists.\n- assigned_to -> assignment.eligible\
+    \ (authoring-time values, lowercased) or assignment.owner (only where genuinely\
+    \ in_progress).\n- prompts.followups -> instruction log entries (7 files have\
+    \ them); status_updates and comments -> the unified log; prompts.starter dropped\
+    \ where it restates the description, appended to spec.description where it does\
+    \ not.\n- phases[] -> description appendix (15 files); issues[]/comments are empty\
+    \ corpus-wide and migrate to nothing.\n- Nested checklist statuses: in_progress\
+    \ -> pending; others map by name.\n- human_summary -> spec.summary; description\
+    \ -> spec blocks (mechanical split where obvious, else everything into spec.description);\
+    \ estimated_effort -> effort; external_links -> links; dependency task_id -> task,\
+    \ depends_on -> needs.\n- schema: 2 stamped on every output file.\n\nAlso: update\
+    \ tests/test_task_corpus.py to validate the migrated corpus against the v2 model\
+    \ (round-trip + `schema: 2` assertion). See the coordination note in task-050\
+    \ about the intermediate red state between 050 and 051.\n\n**Gated:** requires\
+    \ task-050 (the v2 model) merged or on the shared branch.\n\n---\n\n## Starter\
+    \ prompt (migrated from schema v1)\n\nImplement per docs/schema-design.md \xA7\
+    8 and this description. Branch `feat/task-051-schema-v2-migrator` (or continue\
+    \ task-050's branch per its coordination note), record in branches[], mark in_progress.\
+    \ Migrate the corpus as its own commit so the diff is reviewable file-by-file.\
+    \ When complete: STOP, set waiting_for_human, comment a summary, await approval."
+acceptance:
 - id: sc-1
-  description: "agentjobs migrate-schema converts a v1 file to valid v2 following\
-    \ every mapping rule in docs/schema-design.md \xA73/\xA78"
-  status: completed
+  text: "agentjobs migrate-schema converts a v1 file to valid v2 following every mapping\
+    \ rule in docs/schema-design.md \xA73/\xA78"
+  status: met
 - id: sc-2
-  description: 'Entire corpus (tasks/agentjobs/ + tasks/test-data/) migrated; corpus
-    test passes against the v2 model; no information silently dropped (spot-check
-    phases/followups landed in description appendix / instruction log entries) [PARTIAL:
-    conversion of all 38 files is verified -- they convert, load under models_v2,
-    validate against LinkML, and lose no information. The WRITE is deliberately deferred:
-    v1 storage cannot read v2 files, so writing the corpus without the code switchover
-    leaves main broken. The write must be atomic with the switchover, which is task-052''s
+  text: 'Entire corpus (tasks/agentjobs/ + tasks/test-data/) migrated; corpus test
+    passes against the v2 model; no information silently dropped (spot-check phases/followups
+    landed in description appendix / instruction log entries) [PARTIAL: conversion
+    of all 38 files is verified -- they convert, load under models_v2, validate against
+    LinkML, and lose no information. The WRITE is deliberately deferred: v1 storage
+    cannot read v2 files, so writing the corpus without the code switchover leaves
+    main broken. The write must be atomic with the switchover, which is task-052''s
     content.]'
-  status: in_progress
+  status: pending
 - id: sc-3
-  description: Migrator refuses already-v2 files and unknown shapes with clear errors
-  status: completed
-prompts:
-  starter: "Implement per docs/schema-design.md \xA78 and this description. Branch\
-    \ `feat/task-051-schema-v2-migrator` (or continue task-050's branch per its coordination\
-    \ note), record in branches[], mark in_progress. Migrate the corpus as its own\
-    \ commit so the diff is reviewable file-by-file. When complete: STOP, set waiting_for_human,\
-    \ comment a summary, await approval."
-  followups: []
-status_updates:
-- timestamp: '2026-08-10T19:49:06.324773Z'
-  author: claude
-  status: in_progress
-  summary: Claimed; corpus measured first, and one design assumption is measurably
-    wrong
-  details: 'Branch feat/task-051-schema-v2-migrator created from main at e9116da.
-    Recovery tag `pre-v2-migration` created at the same commit: `git reset --hard
-    pre-v2-migration` undoes the entire migration in one command.
+  text: Migrator refuses already-v2 files and unknown shapes with clear errors
+  status: met
+deliverables:
+- path: src/agentjobs/migrate.py
+  status: pending
+  note: v1 -> v2 converter behind `agentjobs migrate-schema`
+- path: tests/test_task_corpus.py
+  status: pending
+  note: Corpus test updated to v2 expectations
+dependencies:
+- task: task-050-schema-v2-models
+  type: needs
+  note: Converts into the v2 model that task defines
+branches:
+- name: feat/task-051-schema-v2-migrator
+  status: merged
+log:
+- id: 1
+  ts: '2026-08-10T19:49:06Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: in_progress
+  body: 'Claimed; corpus measured first, and one design assumption is measurably wrong
+
+
+    Branch feat/task-051-schema-v2-migrator created from main at e9116da. Recovery
+    tag `pre-v2-migration` created at the same commit: `git reset --hard pre-v2-migration`
+    undoes the entire migration in one command.
 
 
     Jeff asked for extra care here. Safety measures adopted before any code was written:
@@ -126,15 +148,17 @@ status_updates:
     rather than an invented ask. The two archived tasks differ: one was superseded
     by phase-specific tasks, one was rejected as stale, so `outcome` is derived per
     file rather than defaulted.'
-- timestamp: '2026-08-10T20:05:48.748776Z'
-  author: claude
-  status: waiting_for_human
-  summary: Migrator complete and verified over all 38 files; the corpus WRITE is deliberately
-    not done
-  details: "Three commits. 328 tests pass (43 new); ruff, mypy and black clean across\
-    \ 61 files. The corpus is untouched -- `git status tasks/` is empty.\n\n## What\
-    \ is done\n\nsc-1 and sc-3 are met. `agentjobs migrate-schema` converts v1 to\
-    \ v2 per the section 3/8 mapping, refuses already-v2 files and unknown shapes,\
+- id: 2
+  ts: '2026-08-10T20:05:48Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: waiting_for_human
+  body: "Migrator complete and verified over all 38 files; the corpus WRITE is deliberately\
+    \ not done\n\nThree commits. 328 tests pass (43 new); ruff, mypy and black clean\
+    \ across 61 files. The corpus is untouched -- `git status tasks/` is empty.\n\n\
+    ## What is done\n\nsc-1 and sc-3 are met. `agentjobs migrate-schema` converts\
+    \ v1 to v2 per the section 3/8 mapping, refuses already-v2 files and unknown shapes,\
     \ and is dry-run by default.\n\nVerified over all 38 real files in both directories:\
     \ 38 convert, 38 load under models_v2, 38 validate against the LinkML schema,\
     \ 0 information losses, 18 review notes. Reproduce with:\n  poetry run agentjobs\
@@ -186,20 +210,27 @@ status_updates:
     \ description was short enough to be duplicated wholesale into the derived summary\
     \ -- so the text really was still present and the gate was right. The fixture\
     \ was too degenerate to lose anything. I fixed the fixture, not the gate."
-- timestamp: '2026-08-10T20:09:12.736186Z'
-  author: human
-  status: in_progress
-  summary: "Approved by human \u2014 cleared to merge"
-  details: 'human approved this work through the web UI. The ball is back with the
-    agent, which must now rebase onto main, merge --no-ff, mark the branch merged
-    in branches[], and set this task completed. No merge has happened yet: the UI
-    records approval, it does not run git.'
-- timestamp: '2026-08-10T20:11:08.437885Z'
-  author: claude
-  status: completed
-  summary: Merged to main; the corpus write carries forward to task-052
-  details: 'Rebased onto main, merged --no-ff, branch marked merged and deleted locally.
-    Nothing pushed to origin.
+- id: 3
+  ts: '2026-08-10T20:09:12Z'
+  actor: human
+  type: transition
+  data:
+    v1_status: in_progress
+  body: "Approved by human \u2014 cleared to merge\n\nhuman approved this work through\
+    \ the web UI. The ball is back with the agent, which must now rebase onto main,\
+    \ merge --no-ff, mark the branch merged in branches[], and set this task completed.\
+    \ No merge has happened yet: the UI records approval, it does not run git."
+- id: 4
+  ts: '2026-08-10T20:11:08Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: completed
+  body: 'Merged to main; the corpus write carries forward to task-052
+
+
+    Rebased onto main, merged --no-ff, branch marked merged and deleted locally. Nothing
+    pushed to origin.
 
 
     sc-2 remains partial and is NOT being quietly closed: the corpus is still entirely
@@ -215,24 +246,16 @@ status_updates:
 
     Also carried forward: task-050 delivered models_v2 alongside v1, so task-052 must
     delete models.py once nothing imports it.'
-comments: []
-deliverables:
-- path: src/agentjobs/migrate.py
-  status: pending
-  description: v1 -> v2 converter behind `agentjobs migrate-schema`
-- path: tests/test_task_corpus.py
-  status: pending
-  description: Corpus test updated to v2 expectations
-dependencies:
-- task_id: task-050-schema-v2-models
-  type: depends_on
-  note: Converts into the v2 model that task defines
-external_links: []
-issues: []
-tags:
-- schema-design
-- schema-v2
-- migration
-branches:
-- name: feat/task-051-schema-v2-migrator
-  status: merged
+- id: 5
+  ts: '2026-08-10T20:11:08Z'
+  actor: system
+  type: note
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: completed` became lifecycle: closed / outcome: completed.
+
+    - prompts.starter preserved in spec.description.'

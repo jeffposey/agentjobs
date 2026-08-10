@@ -1,24 +1,41 @@
-"""Business logic for managing AgentJobs tasks."""
+"""Business logic for managing AgentJobs tasks (schema v2).
+
+The manager owns the state axes. Every change to ``lifecycle``, ``ball``,
+``ball_reason``, ``ball_prompt`` or ``outcome`` flows through a verb here --
+claim, handoff, release, close -- and every verb appends a log entry, so the
+record always shows who moved the ball and why (design doc section 3, rule 5).
+Callers never write the axes directly.
+"""
 
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from .models import (
-    Comment,
+from .models_v2 import (
+    Ball,
+    BallReason,
+    DeliverableStatus,
+    DependencyType,
+    Lifecycle,
+    LogEntry,
+    LogEntryType,
+    Outcome,
     Priority,
-    Prompt,
-    Prompts,
-    StatusUpdate,
     Task,
-    TaskStatus,
+    utcnow,
 )
 from .storage import TaskLoadError, TaskStorage
 
 if TYPE_CHECKING:
     from .webhooks import WebhookManager
+
+
+class TaskNotFoundError(ValueError):
+    """The addressed task does not exist.
+
+    A subclass so API routes can map "no such task" to 404 while every other
+    ValueError -- a refused claim, an invalid transition -- maps to 409.
+    """
 
 
 class TaskManager:
@@ -28,23 +45,34 @@ class TaskManager:
         self.storage = storage
         self.webhook_manager = webhook_manager
 
+    # ------------------------------------------------------------------
+    # Reads
+    # ------------------------------------------------------------------
+
     def _ensure_task_exists(self, task_id: str) -> Task:
         """Retrieve an existing task or raise a descriptive error."""
         task = self.storage.load_task(task_id)
         if task is None:
-            raise ValueError(f"Task '{task_id}' not found.")
+            raise TaskNotFoundError(f"Task '{task_id}' not found.")
         return task
 
     def list_tasks(
         self,
         *,
-        status: Optional[TaskStatus] = None,
+        lifecycle: Optional[Lifecycle] = None,
+        ball: Optional[Ball] = None,
         priority: Optional[Priority] = None,
     ) -> List[Task]:
-        """Return all tasks optionally filtered by status and priority."""
+        """Return all tasks optionally filtered along the state axes.
+
+        ``ball=Ball.HUMAN`` is the human inbox -- the load-bearing query of the
+        v2 design (section 5).
+        """
         tasks = self.storage.list_tasks()
-        if status is not None:
-            tasks = [task for task in tasks if task.status == status]
+        if lifecycle is not None:
+            tasks = [task for task in tasks if task.lifecycle == lifecycle]
+        if ball is not None:
+            tasks = [task for task in tasks if task.ball == ball]
         if priority is not None:
             tasks = [task for task in tasks if task.priority == priority]
         return tasks
@@ -57,193 +85,69 @@ class TaskManager:
         """
         return self.storage.load_all().errors
 
-    def create_task(
-        self,
-        *,
-        id: Optional[str] = None,
-        title: str,
-        description: str,
-        priority: Priority = Priority.MEDIUM,
-        category: str = "general",
-        **kwargs: Any,
-    ) -> Task:
-        """Create a new task, generating an identifier when omitted."""
-        task_id = id or self.storage.generate_task_id()
-        if self.storage.load_task(task_id):
-            raise ValueError(f"Task '{task_id}' already exists.")
-
-        now = datetime.now(tz=timezone.utc)
-        prompts_payload = kwargs.pop("prompts", None)
-        prompts = (
-            Prompts.model_validate(prompts_payload)
-            if prompts_payload is not None
-            else Prompts(starter=description)
-        )
-
-        status_value = kwargs.pop("status", TaskStatus.DRAFT)
-        task_kwargs: Dict[str, object] = {
-            "id": task_id,
-            "title": title,
-            "description": description,
-            "priority": priority,
-            "category": category,
-            "created": now,
-            "updated": now,
-            "status": status_value,
-            "prompts": prompts,
-        }
-        task_kwargs.update(kwargs)
-
-        task = Task.model_validate(task_kwargs)
-        return self.storage.save_task(task)
-
     def get_task(self, task_id: str) -> Optional[Task]:
         """Get task by ID."""
         return self.storage.load_task(task_id)
 
-    def replace_task(self, task_id: str, **replacement: object) -> Task:
-        """Replace task fields with provided payload preserving identifiers."""
-        with self.storage.locked(task_id):
-            return self._replace_locked(task_id, replacement)
+    def search_tasks(self, query: str) -> List[Task]:
+        """Search tasks by query string."""
+        return self.storage.search_tasks(query)
 
-    def _replace_locked(self, task_id: str, replacement: Dict[str, object]) -> Task:
-        """Replace fields. Caller holds the lock."""
-        existing = self._ensure_task_exists(task_id)
-        payload = existing.model_dump(mode="python")
-        payload.update(replacement)
-        payload["id"] = task_id
-        payload.setdefault("created", existing.created)
-        payload.setdefault("prompts", existing.prompts)
-        payload.setdefault("status_updates", existing.status_updates)
-        payload.setdefault("deliverables", existing.deliverables)
-        payload.setdefault("dependencies", existing.dependencies)
-        payload.setdefault("external_links", existing.external_links)
-        payload.setdefault("issues", existing.issues)
-        payload.setdefault("branches", existing.branches)
-        payload.setdefault("success_criteria", existing.success_criteria)
-        payload.setdefault("phases", existing.phases)
-        payload.setdefault("tags", existing.tags)
-        task = Task.model_validate(payload)
-        return self.storage._write_task(task)
+    def _dependency_states(self) -> Dict[str, bool]:
+        """Every task id in this project, mapped to whether it is closed.
 
-    def update_task(self, task_id: str, **updates: object) -> Task:
-        """Apply a partial update to a task."""
+        Files that exist but cannot be loaded are included as *not* closed. A task whose
+        file is unreadable cannot be shown to be finished, and treating it as done would
+        let a gate open on the strength of a corrupt file.
+        """
+        result = self.storage.load_all()
+        states = {task.id: task.lifecycle is Lifecycle.CLOSED for task in result.tasks}
+        for error in result.errors:
+            states.setdefault(error.task_id, False)
+        return states
 
-        def apply(existing: Task) -> Task:
-            payload = existing.model_dump(mode="python")
-            payload.update(updates)
-            payload["id"] = existing.id
-            payload["created"] = existing.created
-            return Task.model_validate(payload)
+    def _unmet_needs(self, task: Task, states: Dict[str, bool]) -> List[str]:
+        """`needs` dependencies that do not permit this task to be claimed, with why.
 
-        return self.storage.mutate_task(task_id, apply)
+        A reference to a task that is not in the project blocks, and says so. It
+        previously did not: `states.get(id)` returned None for a dangling id, which is
+        not False, so a typo'd or renamed dependency silently disabled the gate
+        entirely. That is the failure mode D2 exists to prevent -- an edit that quietly
+        does nothing -- and it made the codebase strict about a misspelled field while
+        permissive about a misspelled task id.
 
-    def delete_task(self, task_id: str) -> bool:
-        """Delete task from storage."""
-        return self.storage.delete_task(task_id)
+        Blocking rather than validating at save is a narrower fix than
+        docs/schema-design.md issue 2 specifies; see the deferral recorded on task-052.
+        The choice between them matters less than the property both give you: a
+        dependency that cannot be evaluated is never silently treated as satisfied.
+        """
+        unmet: List[str] = []
+        for dep in task.dependencies:
+            if dep.type is not DependencyType.NEEDS:
+                continue
+            if dep.task not in states:
+                unmet.append(f"{dep.task} (not a task in this project)")
+            elif not states[dep.task]:
+                unmet.append(f"{dep.task} (still open)")
+        return unmet
 
-    def archive_task(self, task_id: str, *, author: Optional[str] = None) -> Task:
-        """Archive a task by setting its status and recording a status update."""
-        # Called for its side effect: it raises ValueError when the task is missing, so
-        # archiving an unknown id fails here rather than inside update_status. Only the
-        # binding was dead (ruff F841); dropping the call would remove the check.
-        self._ensure_task_exists(task_id)
-        update_author = author or "system"
-        archived = self.update_status(
-            task_id=task_id,
-            status=TaskStatus.ARCHIVED,
-            author=update_author,
-            summary="Task archived.",
-            details=None,
-        )
-        return archived
-
-    def update_status(
+    def get_next_task(
         self,
-        task_id: str,
+        priority: Optional[Priority] = None,
         *,
-        status: TaskStatus,
-        author: str,
-        summary: str,
-        details: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Task:
-        """Update task status with status update entry and fire webhook.
-
-        The read, the change and the write happen under the task's lock via
-        mutate_task. Doing them separately is what allowed two agents to both observe a
-        task as ready and both write themselves in as owner (task-055).
-        """
-        previous: List[TaskStatus] = []
-
-        def apply(task: Task) -> Task:
-            previous.append(task.status)
-            task.status = status
-            task.status_updates.append(
-                StatusUpdate(
-                    timestamp=datetime.now(tz=timezone.utc),
-                    author=author,
-                    status=status,
-                    summary=summary,
-                    details=details,
-                )
-            )
-            return task
-
-        task = self.storage.mutate_task(task_id, apply)
-        previous_status = previous[0]
-
-        # Fire webhook events
-        if self.webhook_manager:
-            event_metadata = metadata or {}
-            event_metadata.update(
-                {
-                    "triggered_by": author,
-                    "previous_status": previous_status.value,
-                }
-            )
-            self.webhook_manager.fire_event("task.status_changed", task, event_metadata)
-            if status == TaskStatus.COMPLETED:
-                self.webhook_manager.fire_event("task.completed", task, event_metadata)
-
-        return task
-
-    def claim_task(self, task_id: str, *, agent: str) -> Task:
-        """Take ownership of a ready task, or refuse because someone else already did.
-
-        The precondition is checked *inside* the lock against a fresh read, which is
-        the whole point: checking it beforehand is exactly the race. Two agents racing
-        this method produce one winner and one ValueError, never two owners.
-        """
-
-        def apply(task: Task) -> Task:
-            if task.status != TaskStatus.READY:
-                raise ValueError(
-                    f"Task '{task_id}' is not available to claim "
-                    f"(status is {task.status.value}"
-                    + (f", owned by {task.assigned_to}" if task.assigned_to else "")
-                    + ")"
-                )
-            task.status = TaskStatus.IN_PROGRESS
-            task.assigned_to = agent
-            task.status_updates.append(
-                StatusUpdate(
-                    timestamp=datetime.now(tz=timezone.utc),
-                    author=agent,
-                    status=TaskStatus.IN_PROGRESS,
-                    summary=f"Claimed by {agent}",
-                    details=None,
-                )
-            )
-            return task
-
-        return self.storage.mutate_task(task_id, apply)
-
-    def get_next_task(self, priority: Optional[Priority] = None) -> Optional[Task]:
-        """Get highest priority available task (READY status only)."""
-        candidates = [task for task in self.storage.list_tasks() if task.status == TaskStatus.READY]
-        if priority is not None:
-            candidates = [task for task in candidates if task.priority == priority]
+        agent: Optional[str] = None,
+    ) -> Optional[Task]:
+        """Highest-priority claimable task: ready, eligible, no unmet needs."""
+        tasks = self.storage.list_tasks()
+        states = self._dependency_states()
+        candidates = [
+            task
+            for task in tasks
+            if task.lifecycle is Lifecycle.READY
+            and (priority is None or task.priority == priority)
+            and (agent is None or not task.assignment.eligible or agent in task.assignment.eligible)
+            and not self._unmet_needs(task, states)
+        ]
         if not candidates:
             return None
         candidates.sort(
@@ -254,6 +158,339 @@ class TaskManager:
         )
         return candidates[0]
 
+    # ------------------------------------------------------------------
+    # Creation and generic edits
+    # ------------------------------------------------------------------
+
+    def create_task(
+        self,
+        *,
+        id: Optional[str] = None,
+        title: str,
+        description: str,
+        summary: Optional[str] = None,
+        priority: Priority = Priority.MEDIUM,
+        category: str = "general",
+        lifecycle: Lifecycle = Lifecycle.DRAFT,
+        **kwargs: Any,
+    ) -> Task:
+        """Create a new task, generating an identifier when omitted.
+
+        Tasks are born ``draft`` (ball: human/spec) or ``ready`` (ball:
+        agent/available). Any other starting state would skip the transitions the log
+        exists to record.
+        """
+        task_id = id or self.storage.generate_task_id()
+        if self.storage.load_task(task_id):
+            raise ValueError(f"Task '{task_id}' already exists.")
+
+        lifecycle = Lifecycle(lifecycle)
+        if lifecycle not in (Lifecycle.DRAFT, Lifecycle.READY):
+            raise ValueError(
+                f"A task cannot be created '{lifecycle.value}'; it starts draft or ready."
+            )
+
+        spec_payload = dict(kwargs.pop("spec", None) or {})
+        spec_payload.setdefault("description", description)
+        spec_payload.setdefault("summary", summary or title)
+
+        now = utcnow()
+        task_kwargs: Dict[str, object] = {
+            "id": task_id,
+            "title": title,
+            "created": now,
+            "updated": now,
+            "lifecycle": lifecycle,
+            "priority": priority,
+            "category": category,
+            "spec": spec_payload,
+        }
+        if lifecycle is Lifecycle.DRAFT:
+            task_kwargs.update(
+                ball=Ball.HUMAN,
+                ball_reason=BallReason.SPEC,
+                ball_prompt=kwargs.pop("ball_prompt", None) or "Finish specifying this task.",
+            )
+        else:
+            # agent/available: the spec is itself the ask, no prompt required.
+            task_kwargs.update(ball=Ball.AGENT, ball_reason=BallReason.AVAILABLE)
+            kwargs.pop("ball_prompt", None)
+        task_kwargs.update(kwargs)
+
+        task = Task.model_validate(task_kwargs)
+        return self.storage.save_task(task)
+
+    def update_task(self, task_id: str, **updates: object) -> Task:
+        """Apply a partial update to a task."""
+
+        def apply(existing: Task) -> Task:
+            payload = existing.model_dump(mode="python", by_alias=True, exclude={"display_status"})
+            payload.update(updates)
+            payload["id"] = existing.id
+            payload["created"] = existing.created
+            return Task.model_validate(payload)
+
+        return self._mutate(task_id, apply)
+
+    def delete_task(self, task_id: str) -> bool:
+        """Delete task from storage."""
+        return self.storage.delete_task(task_id)
+
+    def mark_deliverable_complete(
+        self,
+        task_id: str,
+        deliverable_path: str,
+    ) -> Task:
+        """Mark deliverable as done."""
+
+        def apply(task: Task) -> Task:
+            for deliverable in task.deliverables:
+                if deliverable.path == deliverable_path:
+                    deliverable.status = DeliverableStatus.DONE
+                    break
+            else:
+                raise ValueError(
+                    f"Deliverable '{deliverable_path}' not found for task '{task_id}'."
+                )
+            return task
+
+        return self._mutate(task_id, apply)
+
+    # ------------------------------------------------------------------
+    # The state verbs (design doc section 5)
+    #
+    # Preconditions are checked *inside* the lock against a fresh read via
+    # storage.mutate_task -- checking beforehand is exactly the double-claim race
+    # task-055 closed. Two agents racing claim_task produce one winner and one
+    # ValueError, never two owners.
+    # ------------------------------------------------------------------
+
+    def _mutate(self, task_id: str, mutator: Any) -> Task:
+        """mutate_task, with a missing task reported as TaskNotFoundError."""
+        if not self.storage._task_path(task_id).exists():
+            raise TaskNotFoundError(f"Task '{task_id}' not found.")
+        return self.storage.mutate_task(task_id, mutator)
+
+    @staticmethod
+    def _append_entry(
+        task: Task,
+        *,
+        actor: str,
+        type: LogEntryType,
+        body: Optional[str] = None,
+        re: Optional[int] = None,
+        data: Optional[Dict[str, Any]] = None,
+    ) -> LogEntry:
+        entry = LogEntry(
+            id=task.next_log_id(),
+            ts=utcnow(),
+            actor=actor,
+            type=type,
+            body=body,
+            re=re,
+            data=data or {},
+        )
+        task.log.append(entry)
+        return entry
+
+    def claim_task(self, task_id: str, *, agent: str) -> Task:
+        """Take ownership of a ready task, or refuse because someone else already did."""
+        states = self._dependency_states()
+
+        def apply(task: Task) -> Task:
+            if task.lifecycle is not Lifecycle.READY:
+                owner = task.assignment.owner
+                raise ValueError(
+                    f"Task '{task_id}' is not available to claim "
+                    f"(it is {task.display_status.lower()}"
+                    + (f", owned by {owner}" if owner else "")
+                    + ")"
+                )
+            if task.assignment.eligible and agent not in task.assignment.eligible:
+                eligible = ", ".join(task.assignment.eligible)
+                raise ValueError(
+                    f"Task '{task_id}' is claimable only by: {eligible} (not '{agent}')"
+                )
+            unmet = self._unmet_needs(task, states)
+            if unmet:
+                raise ValueError(f"Task '{task_id}' has unmet dependencies: {', '.join(unmet)}")
+            task.lifecycle = Lifecycle.ACTIVE
+            task.assignment.owner = agent
+            task.ball = Ball.AGENT
+            task.ball_reason = BallReason.WORK
+            task.ball_prompt = "Execute the spec; log progress and hand off when done."
+            self._append_entry(
+                task,
+                actor=agent,
+                type=LogEntryType.TRANSITION,
+                body=f"Claimed by {agent}.",
+                data={"lifecycle": "active", "ball": "agent", "ball_reason": "work"},
+            )
+            return task
+
+        return self._mutate(task_id, apply)
+
+    def handoff(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        ball: Ball,
+        ball_reason: BallReason,
+        ball_prompt: Optional[str] = None,
+        body: Optional[str] = None,
+    ) -> Task:
+        """Move the ball. The ask travels with it, by schema requirement."""
+
+        def apply(task: Task) -> Task:
+            if not task.is_open:
+                raise ValueError(f"Task '{task_id}' is closed; the ball cannot move.")
+            task.ball = Ball(ball)
+            task.ball_reason = BallReason(ball_reason)
+            task.ball_prompt = ball_prompt
+            self._append_entry(
+                task,
+                actor=actor,
+                type=LogEntryType.HANDOFF,
+                body=body or ball_prompt,
+                data={"ball": task.ball.value, "ball_reason": task.ball_reason.value},
+            )
+            return task
+
+        task = self._mutate(task_id, apply)
+        self._fire(
+            "task.handoff",
+            task,
+            {
+                "triggered_by": actor,
+                "ball": task.ball.value if task.ball else None,
+                "ball_reason": task.ball_reason.value if task.ball_reason else None,
+                "ball_prompt": task.ball_prompt,
+            },
+        )
+        return task
+
+    def release_task(self, task_id: str, *, actor: str, body: Optional[str] = None) -> Task:
+        """Bow out cleanly: active goes back to ready, unclaimed and available."""
+
+        def apply(task: Task) -> Task:
+            if task.lifecycle is not Lifecycle.ACTIVE:
+                raise ValueError(
+                    f"Task '{task_id}' is not active (it is {task.display_status.lower()}); "
+                    "only claimed work can be released."
+                )
+            task.lifecycle = Lifecycle.READY
+            task.assignment.owner = None
+            task.ball = Ball.AGENT
+            task.ball_reason = BallReason.AVAILABLE
+            task.ball_prompt = None
+            self._append_entry(
+                task,
+                actor=actor,
+                type=LogEntryType.TRANSITION,
+                body=body or f"Released by {actor}; back in the pool.",
+                data={"lifecycle": "ready", "ball": "agent", "ball_reason": "available"},
+            )
+            return task
+
+        return self._mutate(task_id, apply)
+
+    def close_task(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        outcome: Outcome,
+        body: Optional[str] = None,
+        archive: bool = False,
+    ) -> Task:
+        """End the task with an outcome. How it ended is data, not a lifecycle fork."""
+
+        def apply(task: Task) -> Task:
+            if not task.is_open:
+                raise ValueError(f"Task '{task_id}' is already closed.")
+            task.lifecycle = Lifecycle.CLOSED
+            task.outcome = Outcome(outcome)
+            task.ball = None
+            task.ball_reason = None
+            task.ball_prompt = None
+            task.assignment.owner = None
+            if archive:
+                task.archived = True
+            self._append_entry(
+                task,
+                actor=actor,
+                type=LogEntryType.TRANSITION,
+                body=body or f"Closed: {task.outcome.value}.",
+                data={"lifecycle": "closed", "outcome": task.outcome.value},
+            )
+            return task
+
+        task = self._mutate(task_id, apply)
+        self._fire(
+            "task.closed",
+            task,
+            {"triggered_by": actor, "outcome": task.outcome.value if task.outcome else None},
+        )
+        return task
+
+    def archive_task(self, task_id: str, *, author: Optional[str] = None) -> Task:
+        """Hide a task. An open task is closed as cancelled first; archived is a flag."""
+        actor = author or "system"
+        existing = self._ensure_task_exists(task_id)
+        if existing.is_open:
+            return self.close_task(
+                task_id,
+                actor=actor,
+                outcome=Outcome.CANCELLED,
+                body="Task archived.",
+                archive=True,
+            )
+
+        def apply(task: Task) -> Task:
+            task.archived = True
+            self._append_entry(
+                task,
+                actor=actor,
+                type=LogEntryType.NOTE,
+                body="Task archived.",
+                data={"archived": True},
+            )
+            return task
+
+        return self._mutate(task_id, apply)
+
+    # ------------------------------------------------------------------
+    # The log
+    # ------------------------------------------------------------------
+
+    def add_log_entry(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        type: LogEntryType,
+        body: Optional[str] = None,
+        re: Optional[int] = None,
+        data: Optional[Dict[str, Any]] = None,
+    ) -> Task:
+        """Append one entry to the unified log."""
+        entry_type = LogEntryType(type)
+        if entry_type is LogEntryType.TRANSITION:
+            raise ValueError(
+                "transition entries are appended by the manager's state verbs, "
+                "not written directly (design doc section 3, rule 5)"
+            )
+
+        def apply(task: Task) -> Task:
+            self._append_entry(task, actor=actor, type=entry_type, body=body, re=re, data=data)
+            return task
+
+        task = self._mutate(task_id, apply)
+        if entry_type is LogEntryType.QUESTION:
+            self._fire("task.question", task, {"triggered_by": actor, "body": body})
+        return task
+
     def add_progress_update(
         self,
         task_id: str,
@@ -262,106 +499,15 @@ class TaskManager:
         summary: str,
         details: Optional[str] = None,
     ) -> Task:
-        """Add progress update to task."""
+        """Append a progress entry to the log."""
+        body = f"{summary}\n\n{details}" if details else summary
+        return self.add_log_entry(task_id, actor=author, type=LogEntryType.PROGRESS, body=body)
 
-        def apply(task: Task) -> Task:
-            task.status_updates.append(
-                StatusUpdate(
-                    timestamp=datetime.now(tz=timezone.utc),
-                    author=author,
-                    status=task.status,
-                    summary=summary,
-                    details=details,
-                )
-            )
-            return task
+    # ------------------------------------------------------------------
+    # Webhooks
+    # ------------------------------------------------------------------
 
-        return self.storage.mutate_task(task_id, apply)
-
-    def mark_deliverable_complete(
-        self,
-        task_id: str,
-        deliverable_path: str,
-    ) -> Task:
-        """Mark deliverable as completed."""
-
-        def apply(task: Task) -> Task:
-            for deliverable in task.deliverables:
-                if deliverable.path == deliverable_path:
-                    deliverable.status = "completed"
-                    break
-            else:
-                raise ValueError(
-                    f"Deliverable '{deliverable_path}' not found for task '{task_id}'."
-                )
-            return task
-
-        return self.storage.mutate_task(task_id, apply)
-
-    def get_starter_prompt(self, task_id: str) -> str:
-        """Return the starter prompt for a task."""
-        task = self._ensure_task_exists(task_id)
-        return task.prompts.starter
-
-    def add_followup_prompt(
-        self,
-        task_id: str,
-        *,
-        author: str,
-        content: str,
-        context: str | None = None,
-    ) -> Task:
-        """Append a follow-up prompt entry to the task."""
-
-        def apply(task: Task) -> Task:
-            task.prompts.followups.append(
-                Prompt(
-                    timestamp=datetime.now(tz=timezone.utc),
-                    author=author,
-                    content=content,
-                    context=context,
-                )
-            )
-            return task
-
-        return self.storage.mutate_task(task_id, apply)
-
-    def search_tasks(self, query: str) -> List[Task]:
-        """Search tasks by query string."""
-        return self.storage.search_tasks(query)
-
-    def add_comment(
-        self,
-        task_id: str,
-        *,
-        author: str,
-        content: str,
-        kind: str = "comment",
-        reply_to: Optional[str] = None,
-    ) -> Comment:
-        """Add a comment to a task."""
-        comment = Comment(
-            id=f"c_{uuid.uuid4().hex[:12]}",
-            task_id=task_id,
-            author=author,
-            content=content,
-            created=datetime.now(tz=timezone.utc),
-            kind=kind,
-            reply_to=reply_to,
-        )
-
-        def apply(task: Task) -> Task:
-            task.comments.append(comment)
-            return task
-
-        task = self.storage.mutate_task(task_id, apply)
-
-        # Fire webhook event
+    def _fire(self, event: str, task: Task, metadata: Dict[str, Any]) -> None:
+        """Fire a webhook event when a webhook manager is attached."""
         if self.webhook_manager:
-            self.webhook_manager.fire_event(
-                "task.comment_created",
-                task,
-                {"triggered_by": author, "comment_id": comment.id},
-            )
-
-        return comment
+            self.webhook_manager.fire_event(event, task, metadata)

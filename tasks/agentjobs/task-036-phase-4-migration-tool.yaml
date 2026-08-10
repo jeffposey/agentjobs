@@ -1,78 +1,106 @@
+schema: 2
 id: task-036-phase-4-migration-tool
 title: 'Phase 4: Migration Tool'
 created: '2025-10-26T20:28:01Z'
 updated: '2025-10-26T20:28:01Z'
-status: completed
+lifecycle: closed
+outcome: completed
 priority: high
 category: migration
-assigned_to: Codex
-estimated_effort: 1 day
-human_summary: Wire the Markdown-to-AgentJobs migration pipeline into the CLI with reporting and end-to-end tests.
-description: |
-  Phase 4 connected the Markdown migration pipeline to the AgentJobs CLI so we
-  can ingest legacy tasks automatically. The converter, parser, and reporter were
-  finalized, the CLI gained a `migrate` command with rich options, and migration
-  tests validate round-tripping representative Task 031 files.
-phases:
-  - id: phase-1
-    title: 'Integrate migration tooling'
-    status: completed
-    notes: Parser, converter, reporter, CLI command, and tests merged.
-    completed_at: '2025-10-26T20:28:01Z'
-success_criteria:
-  - id: sc-1
-    description: CLI exposes `agentjobs migrate` with source/target options.
-    status: completed
-  - id: sc-2
-    description: Migration reporter generates summaries for converted tasks.
-    status: completed
-  - id: sc-3
-    description: Markdown fixtures convert to valid YAML that loads via TaskStorage.
-    status: completed
-prompts:
-  starter: prompts/task-031-phase-4-migration-tool.md
-  followups:
-    - timestamp: '2025-10-26T20:28:01Z'
-      author: Claude
-      prompt_file: prompts/task-031-phase-4.2-human-agent-ux.md
-      context: Migration tooling complete; focus shifts to UX polish next.
-status_updates:
-  - timestamp: '2025-10-26T20:28:01Z'
-    author: Codex
-    status: completed
-    summary: Migration pipeline connected to CLI and tested
-    details: Parser, converter, reporter, CLI entry, and pytest coverage shipped; Markdown tasks now import cleanly.
-deliverables:
-  - path: src/agentjobs/migration/parser.py
-    status: completed
-    description: Markdown parser extracting metadata, phases, and prompts.
-  - path: src/agentjobs/migration/converter.py
-    status: completed
-    description: Converter building Task models from parsed Markdown.
-  - path: src/agentjobs/migration/reporter.py
-    status: completed
-    description: Reporter producing migration summaries and outputs.
-  - path: src/agentjobs/cli.py
-    status: completed
-    description: CLI `migrate` command wiring modules together with options.
-  - path: tests/test_migration.py
-    status: completed
-    description: End-to-end migration tests covering success and edge cases.
-dependencies:
-  - task_id: task-035-phase-3-web-gui
-    type: depends_on
-    status: completed
-    note: Migration tool builds on the stable UI to surface migrated content.
-external_links:
-  - url: https://github.com/jeffposey/agentjobs/commit/08cab28
-    title: 'Commit 08cab28 - wire Phase 4 migration tool into CLI'
-issues: []
 tags:
-  - agentjobs
-  - phase-4
-  - migration
-  - tasks-2-0
+- agentjobs
+- phase-4
+- migration
+- tasks-2-0
+effort: 1 day
+assignment:
+  eligible:
+  - codex
+spec:
+  summary: Wire the Markdown-to-AgentJobs migration pipeline into the CLI with reporting
+    and end-to-end tests.
+  description: "Phase 4 connected the Markdown migration pipeline to the AgentJobs\
+    \ CLI so we\ncan ingest legacy tasks automatically. The converter, parser, and\
+    \ reporter were\nfinalized, the CLI gained a `migrate` command with rich options,\
+    \ and migration\ntests validate round-tripping representative Task 031 files.\n\
+    \n---\n\n## Starter prompt (migrated from schema v1)\n\nprompts/task-031-phase-4-migration-tool.md\n\
+    ---\n\n## Phases (migrated from schema v1)\n\n`phases[]` was deleted in v2; sub-tasks\
+    \ via `parent` are the one way to\nsubdivide. This is the historical record, preserved\
+    \ verbatim.\n\n- **Integrate migration tooling** (`phase-1`, completed)\n  - Parser,\
+    \ converter, reporter, CLI command, and tests merged.\n  - completed 2025-10-26T20:28:01Z"
+acceptance:
+- id: sc-1
+  text: CLI exposes `agentjobs migrate` with source/target options.
+  status: met
+- id: sc-2
+  text: Migration reporter generates summaries for converted tasks.
+  status: met
+- id: sc-3
+  text: Markdown fixtures convert to valid YAML that loads via TaskStorage.
+  status: met
+deliverables:
+- path: src/agentjobs/migration/parser.py
+  status: done
+  note: Markdown parser extracting metadata, phases, and prompts.
+- path: src/agentjobs/migration/converter.py
+  status: done
+  note: Converter building Task models from parsed Markdown.
+- path: src/agentjobs/migration/reporter.py
+  status: done
+  note: Reporter producing migration summaries and outputs.
+- path: src/agentjobs/cli.py
+  status: done
+  note: CLI `migrate` command wiring modules together with options.
+- path: tests/test_migration.py
+  status: done
+  note: End-to-end migration tests covering success and edge cases.
+dependencies:
+- task: task-035-phase-3-web-gui
+  type: needs
+  note: 'Migration tool builds on the stable UI to surface migrated content. (v1 status:
+    completed)'
+links:
+- url: https://github.com/jeffposey/agentjobs/commit/08cab28
+  rel: other
+  title: Commit 08cab28 - wire Phase 4 migration tool into CLI
 branches:
-  - name: main
-    status: merged
-    merged_at: '2025-10-26T20:28:01Z'
+- name: main
+  status: merged
+  merged_at: '2025-10-26T20:28:01Z'
+log:
+- id: 1
+  ts: '2025-10-26T20:28:01Z'
+  actor: Codex
+  type: transition
+  data:
+    v1_status: completed
+  body: 'Migration pipeline connected to CLI and tested
+
+
+    Parser, converter, reporter, CLI entry, and pytest coverage shipped; Markdown
+    tasks now import cleanly.'
+- id: 2
+  ts: '2025-10-26T20:28:01Z'
+  actor: Claude
+  type: instruction
+  body: 'See prompt file: prompts/task-031-phase-4.2-human-agent-ux.md
+
+
+    Context: Migration tooling complete; focus shifts to UX polish next.'
+- id: 3
+  ts: '2025-10-26T20:28:01Z'
+  actor: system
+  type: note
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: completed` became lifecycle: closed / outcome: completed.
+
+    - 1 phase(s) folded into spec.description as an appendix.
+
+    - prompts.starter preserved in spec.description.
+
+    - 1 followup prompt(s) became instruction entries.'

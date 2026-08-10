@@ -6,7 +6,6 @@ import errno
 import logging
 import os
 import time
-import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from dataclasses import field as dc_field
@@ -17,7 +16,8 @@ from typing import Any, Callable, Dict, Iterator, List, Optional
 import yaml
 from pydantic import ValidationError
 
-from .models import Task, Webhook
+from .models_v2 import SchemaVersionError, Task
+from .models_v2 import load_task as _validate_v2
 from .projects import contained_path
 
 logger = logging.getLogger(__name__)
@@ -136,7 +136,12 @@ class TaskStorage:
             )
 
         try:
-            return Task.model_validate(data)
+            return _validate_v2(data, source=path.name)
+        except SchemaVersionError as exc:
+            # A missing or wrong `schema` stamp is a per-file problem, not a server
+            # fault: wrap it so a stray unmigrated file is reported by filename in the
+            # broken-files listing instead of crashing the whole listing.
+            raise TaskLoadError(path, str(exc)) from exc
         except ValidationError as exc:
             raise TaskLoadError(path, _describe_validation_error(exc), errors=exc.errors()) from exc
 
@@ -154,6 +159,21 @@ class TaskStorage:
         with an error naming the file rather than blocking forever.
 
         The lock is per task, so two agents working different tasks never contend.
+
+        **Windows reports contention two different ways.** The obvious one is
+        ``FileExistsError`` (EEXIST). The other only appears under real concurrency: a
+        file whose last handle has closed but whose delete has not yet completed sits in
+        a *delete-pending* state, and opening it returns ERROR_ACCESS_DENIED, which
+        Python raises as ``PermissionError`` (EACCES). That is a lock still being
+        released, so it must be retried like any other contention -- treating it as a
+        hard error made a losing claimant crash with "Permission denied" instead of
+        being told the task was already taken. Roughly one attempt in forty, so it hides
+        well from a serial test.
+
+        The cost is that a genuine permissions problem also spins until the timeout
+        rather than failing immediately. The timeout message names that possibility,
+        which is the better trade: spurious failures under normal contention are worse
+        than a slow, well-described failure in a misconfigured directory.
         """
         lock_path = self._task_path(task_id).with_suffix(".lock")
         deadline = time.monotonic() + (self.LOCK_TIMEOUT_SECONDS if timeout is None else timeout)
@@ -162,17 +182,19 @@ class TaskStorage:
             try:
                 handle = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
                 break
-            except FileExistsError:
-                if time.monotonic() >= deadline:
-                    raise TaskLockTimeout(
-                        f"could not lock {lock_path.name} within "
-                        f"{self.LOCK_TIMEOUT_SECONDS}s; another writer is holding it, "
-                        "or a previous run died and left the lock behind"
-                    ) from None
-                time.sleep(self.LOCK_POLL_SECONDS)
+            except (FileExistsError, PermissionError):
+                pass
             except OSError as exc:  # pragma: no cover - unexpected filesystem failure
                 if exc.errno != errno.EEXIST:
                     raise
+            if time.monotonic() >= deadline:
+                raise TaskLockTimeout(
+                    f"could not lock {lock_path.name} within "
+                    f"{self.LOCK_TIMEOUT_SECONDS}s; another writer is holding it, a "
+                    "previous run died and left the lock behind, or the task directory "
+                    "is not writable"
+                ) from None
+            time.sleep(self.LOCK_POLL_SECONDS)
         try:
             os.write(handle, str(os.getpid()).encode("ascii"))
             yield
@@ -206,6 +228,14 @@ class TaskStorage:
             updated = mutator(current)
             if updated is None:
                 return current
+            # Mutators assign attributes, which pydantic does not re-validate, so the
+            # consistency rules are re-run here on the finished state -- one check at
+            # the end rather than validate_assignment tripping over every intermediate
+            # step of a multi-field transition. ValidationError subclasses ValueError,
+            # so callers refuse the write the same way they refuse a bad precondition.
+            Task.model_validate(
+                updated.model_dump(mode="python", by_alias=True, exclude={"display_status"})
+            )
             return self._write_task(updated)
 
     def save_task(self, task: Task) -> Task:
@@ -214,10 +244,22 @@ class TaskStorage:
             return self._write_task(task)
 
     def _write_task(self, task: Task) -> Task:
-        """Serialise a task to disk. Callers must already hold its lock."""
+        """Serialise a task to disk. Callers must already hold its lock.
+
+        ``by_alias=True`` is load-bearing: the version stamp is ``schema_version`` in
+        Python only because ``schema`` shadows a BaseModel attribute, and dumping
+        without the alias writes the wrong key -- a file the loader then rejects as
+        v1. ``display_status`` is computed for API responses and must never be
+        stored (design doc section 3).
+        """
         task.updated = datetime.now(tz=timezone.utc)
         path = self._task_path(task.id)
-        task_dict = task.model_dump(mode="json", exclude_none=True)
+        task_dict = task.model_dump(
+            mode="json",
+            by_alias=True,
+            exclude_none=True,
+            exclude={"display_status"},
+        )
         yaml_text = yaml.safe_dump(task_dict, sort_keys=False, allow_unicode=False)
         path.write_text(yaml_text, encoding="utf-8")
         return task
@@ -273,94 +315,12 @@ class TaskStorage:
         for task in self.list_tasks():
             haystacks = [
                 task.title,
-                task.human_summary,
-                task.description,
+                task.spec.summary,
+                task.spec.intent,
+                task.spec.description,
+                task.ball_prompt,
                 " ".join(task.tags),
             ]
             if any(normalized in (haystack or "").lower() for haystack in haystacks):
                 results.append(task)
         return results
-
-
-class WebhookStorage:
-    """YAML-based webhook storage."""
-
-    def __init__(self, webhooks_path: Path):
-        """Initialize webhook storage with path to webhooks.yaml file."""
-        self.webhooks_path = Path(webhooks_path)
-        self.webhooks_path.parent.mkdir(parents=True, exist_ok=True)
-        if not self.webhooks_path.exists():
-            self._write_webhooks([])
-
-    def _read_webhooks(self) -> List[dict]:
-        """Read webhooks from YAML file."""
-        try:
-            content = self.webhooks_path.read_text(encoding="utf-8")
-            data = yaml.safe_load(content) or []
-        except yaml.YAMLError as exc:  # pragma: no cover
-            logger.error("Failed to parse webhooks YAML: %s", exc)
-            return []
-        return data if isinstance(data, list) else []
-
-    def _write_webhooks(self, webhooks: List[dict]) -> None:
-        """Write webhooks to YAML file."""
-        yaml_text = yaml.safe_dump(webhooks, sort_keys=False, allow_unicode=False)
-        self.webhooks_path.write_text(yaml_text, encoding="utf-8")
-
-    def list_webhooks(self) -> List[Webhook]:
-        """List all webhooks."""
-        webhooks: List[Webhook] = []
-        for data in self._read_webhooks():
-            try:
-                webhook = Webhook.model_validate(data)
-                webhooks.append(webhook)
-            except ValidationError as exc:  # pragma: no cover
-                logger.error("Validation error loading webhook: %s", exc)
-        return webhooks
-
-    def get_webhook(self, webhook_id: str) -> Optional[Webhook]:
-        """Get webhook by ID."""
-        for data in self._read_webhooks():
-            if data.get("id") == webhook_id:
-                try:
-                    return Webhook.model_validate(data)
-                except ValidationError as exc:  # pragma: no cover
-                    logger.error("Validation error loading webhook %s: %s", webhook_id, exc)
-                    return None
-        return None
-
-    def save_webhook(self, webhook: Webhook) -> Webhook:
-        """Save or update a webhook."""
-        webhooks = self._read_webhooks()
-        webhooks = [w for w in webhooks if w.get("id") != webhook.id]
-        webhooks.append(webhook.model_dump(mode="json"))
-        self._write_webhooks(webhooks)
-        return webhook
-
-    def create_webhook(
-        self,
-        url: str,
-        events: List[str],
-        secret: str,
-        active: bool = True,
-    ) -> Webhook:
-        """Create a new webhook."""
-        webhook = Webhook(
-            id=f"wh_{uuid.uuid4().hex[:10]}",
-            url=url,
-            events=events,
-            secret=secret,
-            active=active,
-            created=datetime.now(tz=timezone.utc),
-        )
-        return self.save_webhook(webhook)
-
-    def delete_webhook(self, webhook_id: str) -> bool:
-        """Delete a webhook."""
-        webhooks = self._read_webhooks()
-        original_count = len(webhooks)
-        webhooks = [w for w in webhooks if w.get("id") != webhook_id]
-        if len(webhooks) < original_count:
-            self._write_webhooks(webhooks)
-            return True
-        return False

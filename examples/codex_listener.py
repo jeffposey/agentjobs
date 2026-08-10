@@ -1,6 +1,6 @@
 """
 Minimal webhook listener that auto-launches VS Code when AgentJobs
-tasks change to READY for Codex.
+hands a task's ball to the agent side (schema v2 `task.handoff` event).
 """
 
 from __future__ import annotations
@@ -46,8 +46,9 @@ def webhook():
     task = data.get("task", {})
     print(f"[INFO] Received {event}: {json.dumps(data, indent=2)}")
 
-    if event == "task.status_changed":
-        if task.get("status") == "ready" and task.get("assigned_to") == "Codex":
+    if event == "task.handoff":
+        eligible = (task.get("assignment") or {}).get("eligible") or []
+        if data.get("ball") == "agent" and (not eligible or "codex" in eligible):
             open_task_in_code(task["id"])
 
     return {"status": "ok"}

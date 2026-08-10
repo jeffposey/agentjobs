@@ -7,15 +7,17 @@ is the only reason to trust it.
 
 from __future__ import annotations
 
+import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
+from unittest.mock import patch
 
 import pytest
 
 from agentjobs.manager import TaskManager
-from agentjobs.models import Priority, Task, TaskStatus
+from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Priority, Spec, Task
 from agentjobs.storage import TaskLockTimeout, TaskStorage
 
 NOW = datetime(2026, 8, 10, tzinfo=timezone.utc)
@@ -26,12 +28,17 @@ def ready_task(storage: TaskStorage, task_id: str = "task-100-contended") -> Tas
         Task(
             id=task_id,
             title="Contended task",
-            description="Two agents will want this.",
             created=NOW,
             updated=NOW,
-            status=TaskStatus.READY,
+            lifecycle=Lifecycle.READY,
+            ball=Ball.AGENT,
+            ball_reason=BallReason.AVAILABLE,
             priority=Priority.HIGH,
             category="infrastructure",
+            spec=Spec(
+                summary="Two agents will want this.",
+                description="Two agents will want this.",
+            ),
         )
     )
 
@@ -74,7 +81,7 @@ class TestTheRace:
         # And the file agrees with whoever won, rather than with the last writer.
         reloaded = storage.load_task(task.id)
         assert reloaded is not None
-        assert reloaded.assigned_to == winners[0]
+        assert reloaded.assignment.owner == winners[0]
 
     def test_the_loser_is_told_why(self, tmp_path: Path) -> None:
         storage = TaskStorage(tmp_path)
@@ -117,8 +124,10 @@ class TestTheRace:
 
         reloaded = storage.load_task(task.id)
         assert reloaded is not None
-        summaries = {u.summary for u in reloaded.status_updates}
-        assert len(summaries) == 6, f"entries were lost: {sorted(summaries)}"
+        bodies = {entry.body for entry in reloaded.log}
+        assert len(bodies) == 6, f"entries were lost: {sorted(str(b) for b in bodies)}"
+        # And the append-only integrity rules held under contention.
+        assert [entry.id for entry in reloaded.log] == sorted(entry.id for entry in reloaded.log)
 
 
 class TestTheLockItself:
@@ -151,6 +160,55 @@ class TestTheLockItself:
         with storage.locked("task-300-a"):
             with storage.locked("task-301-b", timeout=0.5):
                 pass
+
+    def test_a_delete_pending_lock_is_contention_not_a_crash(self, tmp_path: Path) -> None:
+        """Windows reports a lock mid-release as PermissionError, not FileExistsError.
+
+        A file whose delete has not finished returns ERROR_ACCESS_DENIED on open, which
+        Python raises as PermissionError (EACCES, not EEXIST). The retry loop originally
+        matched only FileExistsError, so a losing claimant crashed with "Permission
+        denied" instead of being told the task was taken -- about one attempt in forty
+        under eight-way contention, which is why it survived a serial test suite.
+
+        Simulated rather than raced, so the regression is deterministic: the first open
+        fails the way Windows fails, and the lock must still be acquired on retry.
+        """
+        storage = TaskStorage(tmp_path)
+        ready_task(storage, "task-700-pending")
+        real_open = os.open
+        calls = {"n": 0}
+
+        def flaky_open(path, flags, *args, **kwargs):
+            if str(path).endswith("task-700-pending.lock") and flags & os.O_EXCL:
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    raise PermissionError(13, "Permission denied", str(path))
+            return real_open(path, flags, *args, **kwargs)
+
+        with patch("agentjobs.storage.os.open", side_effect=flaky_open):
+            with storage.locked("task-700-pending", timeout=2.0):
+                pass
+
+        assert calls["n"] >= 2, "the delete-pending failure should have been retried"
+
+    def test_an_unwritable_directory_still_times_out_rather_than_hanging(
+        self, tmp_path: Path
+    ) -> None:
+        """The cost of retrying EACCES: a real permissions fault waits for the timeout.
+
+        It must still end, and the message must name the possibility, or the trade is a
+        hang instead of an error.
+        """
+        storage = TaskStorage(tmp_path)
+        ready_task(storage, "task-701-denied")
+
+        def always_denied(path, flags, *args, **kwargs):
+            raise PermissionError(13, "Permission denied", str(path))
+
+        with patch("agentjobs.storage.os.open", side_effect=always_denied):
+            with pytest.raises(TaskLockTimeout, match="not writable"):
+                with storage.locked("task-701-denied", timeout=0.05):
+                    pass  # pragma: no cover
 
     def test_the_timeout_message_explains_the_stale_lock_case(self, tmp_path: Path) -> None:
         storage = TaskStorage(tmp_path)

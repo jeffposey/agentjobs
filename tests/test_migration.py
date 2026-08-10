@@ -9,7 +9,7 @@ import pytest
 
 from agentjobs.migration.converter import TaskConverter
 from agentjobs.migration.parser import MarkdownTaskParser
-from agentjobs.models import Priority, TaskStatus
+from agentjobs.models_v2 import Lifecycle, Outcome, Priority
 
 
 @pytest.fixture
@@ -68,7 +68,7 @@ def test_parse_markdown_task(sample_markdown: Path) -> None:
 
 
 def test_convert_to_yaml_task(sample_markdown: Path) -> None:
-    """Test converting parsed task to YAML-compatible model."""
+    """Test converting parsed task to a v2 model."""
     parser = MarkdownTaskParser()
     converter = TaskConverter()
 
@@ -76,15 +76,40 @@ def test_convert_to_yaml_task(sample_markdown: Path) -> None:
     task = converter.convert(parsed)
 
     assert task.id == "task-016-feature"
-    assert task.status == TaskStatus.COMPLETED
+    assert task.lifecycle is Lifecycle.CLOSED
+    assert task.outcome is Outcome.COMPLETED
     assert task.priority == Priority.HIGH
     assert task.category == "Feature Development"
-    assert task.assigned_to == "Codex"
-    assert len(task.phases) == 2
-    assert task.phases[0].status == TaskStatus.COMPLETED
-    assert task.phases[1].status == TaskStatus.IN_PROGRESS
+    # A closed import keeps the assignee as eligibility, not live ownership.
+    assert task.assignment.eligible == ["codex"]
     assert len(task.deliverables) == 3
-    assert task.deliverables[0].status == "completed"
-    assert task.prompts.starter
-    assert task.human_summary is not None
-    assert "Build a new feature" in task.human_summary
+    assert task.deliverables[0].status == "done"
+    # Phases have no v2 field; they are folded into the description.
+    assert "## Phases (imported)" in task.spec.description
+    assert "**Planning** (completed)" in task.spec.description
+    assert task.spec.summary
+    assert "Build a new feature" in task.spec.summary
+
+
+def test_convert_in_progress_task_gets_an_owner(tmp_path: Path) -> None:
+    """An active import must satisfy rule 5: owner present while active."""
+    content = dedent(
+        """
+        # Task 017: Active work
+
+        **Status**: In Progress
+        **Priority**: Medium
+
+        ## Objective
+
+        Something underway.
+        """
+    ).strip()
+    task_file = tmp_path / "task-017-active.md"
+    task_file.write_text(content, encoding="utf-8")
+
+    task = TaskConverter().convert(MarkdownTaskParser().parse_file(task_file))
+
+    assert task.lifecycle is Lifecycle.ACTIVE
+    assert task.assignment.owner == "unknown"
+    assert task.ball_prompt

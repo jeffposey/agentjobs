@@ -1,4 +1,4 @@
-"""API integration tests for AgentJobs REST interface."""
+"""API integration tests for AgentJobs REST interface (schema v2)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from agentjobs.api.dependencies import get_task_manager, reset_dependency_cache
 from agentjobs.api.main import app
 from agentjobs.manager import TaskManager
-from agentjobs.models import Priority, TaskStatus
+from agentjobs.models_v2 import Lifecycle, Priority
 from agentjobs.storage import TaskStorage
 
 
@@ -58,6 +58,9 @@ def test_create_task_success(api_client) -> None:
     body = response.json()
     assert body["title"] == "Write docs"
     assert body["priority"] == Priority.HIGH.value
+    assert body["lifecycle"] == "draft"
+    assert body["ball"] == "human"
+    assert body["spec"]["description"] == "Document the API"
     assert manager.get_task(body["id"]) is not None
 
 
@@ -79,29 +82,41 @@ def test_list_tasks_with_filters(api_client) -> None:
         description="Active",
         priority=Priority.MEDIUM,
         category="ops",
-        status=TaskStatus.READY,
+        lifecycle=Lifecycle.READY,
     )
-    manager.create_task(
+    in_progress = manager.create_task(
         title="In progress",
         description="Working",
         priority=Priority.CRITICAL,
         category="ops",
-        status=TaskStatus.READY,
+        lifecycle=Lifecycle.READY,
     )
-    critical = manager.get_next_task()
-    assert critical is not None
-    manager.update_status(
-        task_id=critical.id,
-        status=TaskStatus.IN_PROGRESS,
-        author="codex",
-        summary="Started",
-    )
+    manager.claim_task(in_progress.id, agent="codex")
 
-    response = client.get("/api/tasks", params={"status_filter": "ready"})
+    response = client.get("/api/tasks", params={"lifecycle": "ready"})
     assert response.status_code == 200
     bodies = response.json()
     assert len(bodies) == 1
-    assert bodies[0]["status"] == TaskStatus.READY.value
+    assert bodies[0]["lifecycle"] == "ready"
+
+    # The human inbox query returns nothing here: both tasks sit with the agent.
+    response = client.get("/api/tasks", params={"ball": "human"})
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_task_responses_carry_display_status(api_client) -> None:
+    """The API serves the computed label so surfaces stop deriving their own."""
+    client, manager = api_client
+    task = manager.create_task(
+        title="Labelled",
+        description="x",
+        category="ops",
+        lifecycle=Lifecycle.READY,
+    )
+    response = client.get(f"/api/tasks/{task.id}")
+    assert response.status_code == 200
+    assert response.json()["display_status"] == "Ready"
 
 
 def test_get_task_success(api_client) -> None:
@@ -134,35 +149,127 @@ def test_patch_task_updates_fields(api_client) -> None:
     )
     response = client.patch(
         f"/api/tasks/{task.id}",
-        json={"status": "in_progress", "assigned_to": "codex"},
+        json={"title": "Patched", "effort": "2 days"},
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == TaskStatus.IN_PROGRESS.value
-    assert body["assigned_to"] == "codex"
+    assert body["title"] == "Patched"
+    assert body["effort"] == "2 days"
 
 
-def test_status_update_endpoint(api_client) -> None:
+def test_patch_cannot_move_state_axes(api_client) -> None:
+    """The axes only move through the verbs; a PATCH with lifecycle is rejected."""
     client, manager = api_client
     task = manager.create_task(
-        title="Status",
-        description="Track",
-        priority=Priority.MEDIUM,
+        title="Guarded",
+        description="x",
         category="ops",
     )
+    response = client.patch(f"/api/tasks/{task.id}", json={"lifecycle": "closed"})
+    assert response.status_code == 400
+
+
+def test_claim_endpoint(api_client) -> None:
+    client, manager = api_client
+    task = manager.create_task(
+        title="Claim me",
+        description="x",
+        category="ops",
+        lifecycle=Lifecycle.READY,
+    )
+    response = client.post(f"/api/tasks/{task.id}/claim", json={"agent": "codex"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["lifecycle"] == "active"
+    assert body["assignment"]["owner"] == "codex"
+
+    # The loser gets a 409, not a 404: the task exists, the claim is refused.
+    response = client.post(f"/api/tasks/{task.id}/claim", json={"agent": "claude"})
+    assert response.status_code == 409
+
+
+def test_handoff_endpoint(api_client) -> None:
+    client, manager = api_client
+    task = manager.create_task(
+        title="Hand off",
+        description="x",
+        category="ops",
+        lifecycle=Lifecycle.READY,
+    )
+    manager.claim_task(task.id, agent="codex")
     response = client.post(
-        f"/api/tasks/{task.id}/status",
+        f"/api/tasks/{task.id}/handoff",
         json={
-            "status": "blocked",
-            "author": "codex",
-            "summary": "Waiting",
-            "details": "Need input",
+            "actor": "codex",
+            "ball": "human",
+            "ball_reason": "review",
+            "ball_prompt": "Review the diff.",
         },
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == TaskStatus.BLOCKED.value
-    assert body["status_updates"]
+    assert body["ball"] == "human"
+    assert body["ball_reason"] == "review"
+    assert body["log"][-1]["type"] == "handoff"
+
+    # A handoff without its ask is refused at the schema level.
+    response = client.post(
+        f"/api/tasks/{task.id}/handoff",
+        json={"actor": "human", "ball": "agent", "ball_reason": "revise"},
+    )
+    assert response.status_code == 409
+
+
+def test_release_endpoint(api_client) -> None:
+    client, manager = api_client
+    task = manager.create_task(
+        title="Release", description="x", category="ops", lifecycle=Lifecycle.READY
+    )
+    manager.claim_task(task.id, agent="codex")
+    response = client.post(f"/api/tasks/{task.id}/release", json={"actor": "codex"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["lifecycle"] == "ready"
+    assert body.get("assignment", {}).get("owner") is None
+
+
+def test_close_endpoint(api_client) -> None:
+    client, manager = api_client
+    task = manager.create_task(
+        title="Close", description="x", category="ops", lifecycle=Lifecycle.READY
+    )
+    manager.claim_task(task.id, agent="codex")
+    response = client.post(
+        f"/api/tasks/{task.id}/close",
+        json={"actor": "codex", "outcome": "completed", "body": "Done."},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["lifecycle"] == "closed"
+    assert body["outcome"] == "completed"
+
+    response = client.post(
+        f"/api/tasks/{task.id}/close",
+        json={"actor": "codex", "outcome": "cancelled"},
+    )
+    assert response.status_code == 409
+
+
+def test_log_endpoint_appends_and_rejects_transition(api_client) -> None:
+    client, manager = api_client
+    task = manager.create_task(title="Log", description="x", category="ops")
+    response = client.post(
+        f"/api/tasks/{task.id}/log",
+        json={"actor": "claude", "type": "decision", "body": "Chose A over B."},
+    )
+    assert response.status_code == 200
+    assert response.json()["log"][-1]["type"] == "decision"
+
+    response = client.post(
+        f"/api/tasks/{task.id}/log",
+        json={"actor": "claude", "type": "transition", "body": "sneaky"},
+    )
+    assert response.status_code == 409
 
 
 def test_get_next_task(api_client) -> None:
@@ -172,14 +279,14 @@ def test_get_next_task(api_client) -> None:
         description="Background",
         priority=Priority.LOW,
         category="ops",
-        status=TaskStatus.READY,
+        lifecycle=Lifecycle.READY,
     )
     critical = manager.create_task(
         title="Critical",
         description="Urgent",
         priority=Priority.CRITICAL,
         category="ops",
-        status=TaskStatus.READY,
+        lifecycle=Lifecycle.READY,
     )
     response = client.get("/api/tasks/next")
     assert response.status_code == 200
@@ -201,8 +308,9 @@ def test_add_progress_update(api_client) -> None:
     )
     assert response.status_code == 200
     body = response.json()
-    assert len(body["status_updates"]) == 1
-    assert body["status_updates"][0]["summary"] == "Halfway"
+    assert len(body["log"]) == 1
+    assert body["log"][0]["type"] == "progress"
+    assert body["log"][0]["body"].startswith("Halfway")
 
 
 def test_mark_deliverable_complete(api_client) -> None:
@@ -212,12 +320,12 @@ def test_mark_deliverable_complete(api_client) -> None:
         description="Ship",
         priority=Priority.MEDIUM,
         category="ops",
-        deliverables=[{"path": "docs/output.md", "status": "in_progress"}],
+        deliverables=[{"path": "docs/output.md", "status": "pending"}],
     )
     response = client.patch(f"/api/tasks/{task.id}/deliverables/docs%2Foutput.md")
     assert response.status_code == 200
     body = response.json()
-    assert body["deliverables"][0]["status"] == "completed"
+    assert body["deliverables"][0]["status"] == "done"
 
 
 def test_search_tasks(api_client) -> None:
@@ -241,42 +349,6 @@ def test_get_next_task_none(api_client) -> None:
     response = client.get("/api/tasks/next")
     assert response.status_code == 200
     assert response.json() is None
-
-
-def test_get_starter_prompt(api_client) -> None:
-    client, manager = api_client
-    task = manager.create_task(
-        title="Prompt",
-        description="Starter text",
-        priority=Priority.MEDIUM,
-        category="ops",
-    )
-    response = client.get(f"/api/tasks/{task.id}/prompts/starter")
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["starter"] == "Starter text"
-
-
-def test_add_followup_prompt(api_client) -> None:
-    client, manager = api_client
-    task = manager.create_task(
-        title="Prompt",
-        description="Starter text",
-        priority=Priority.MEDIUM,
-        category="ops",
-    )
-    response = client.post(
-        f"/api/tasks/{task.id}/prompts",
-        json={
-            "author": "codex",
-            "content": "Need clarification",
-            "context": "Followup",
-        },
-    )
-    assert response.status_code == 200
-    body = response.json()
-    assert len(body["prompts"]["followups"]) == 1
-    assert body["prompts"]["followups"][0]["author"] == "codex"
 
 
 @pytest.mark.parametrize(

@@ -1,75 +1,122 @@
+schema: 2
 id: task-038-phase-5-1-package-and-integrate
 title: 'Phase 5.1: Package and Integrate AgentJobs'
 created: '2025-10-26T19:30:00Z'
 updated: '2025-10-26T21:15:00Z'
-status: draft
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: 'NEEDS REVIEW: finish specifying this task.'
 priority: high
 category: deployment
-assigned_to: Codex
-estimated_effort: 2-3 days
-human_summary: Ship AgentJobs as an installable package, integrate it into the host project, and migrate the legacy tasks safely.
-description: |
-  Phase 5.1 prepares AgentJobs for everyday use by packaging the application,
-  wiring it into the host automation project, and migrating the existing task
-  catalog. The work verifies installation flows end-to-end, documents the
-  integration process, and ensures the self-management loop is reliable before
-  layering additional developer experience features.
-
-  Key activities:
-  - Build and publish the initial Python package (local install + version pinning)
-  - Update host project dependencies and CI to install AgentJobs
-  - Seed AgentJobs with migrated tasks from the prior system (34 total)
-  - Verify CLI/GUI interactions against migrated data
-  - Document integration steps for future rollouts
-phases:
-- id: phase-1
-  title: 'Package AgentJobs for distribution'
-  status: draft
-- id: phase-2
-  title: 'Integrate into host project'
-  status: draft
-- id: phase-3
-  title: 'Migrate existing tasks'
-  status: draft
-- id: phase-4
-  title: 'Document rollout'
-  status: draft
-success_criteria:
-- id: sc-1
-  description: AgentJobs package installs via pip in host environment without manual tweaks.
-  status: pending
-- id: sc-2
-  description: CI pipeline provisions AgentJobs and executes smoke tests.
-  status: pending
-- id: sc-3
-  description: Migrated tasks render correctly in GUI and CLI.
-  status: pending
-prompts:
-  starter: prompts/task-031-phase-5.1-package-and-integrate.md
-  followups: []
-status_updates: []
-deliverables:
-- path: docs/integration/agentjobs-package.md
-  status: pending
-  description: Step-by-step install and integration guide.
-- path: requirements.txt
-  status: pending
-  description: Added AgentJobs dependency pin for host project.
-- path: tasks/
-  status: pending
-  description: Migrated task catalog stored under AgentJobs management.
-dependencies:
-- task_id: task-037-phase-4-2-human-agent-ux
-  type: depends_on
-  status: completed
-  note: Builds on UX improvements to present migrated tasks cleanly.
-external_links: []
-issues: []
 tags:
 - agentjobs
 - deployment
 - integration
+effort: 2-3 days
+assignment:
+  eligible:
+  - codex
+spec:
+  summary: Ship AgentJobs as an installable package, integrate it into the host project,
+    and migrate the legacy tasks safely.
+  description: 'Phase 5.1 prepares AgentJobs for everyday use by packaging the application,
+
+    wiring it into the host automation project, and migrating the existing task
+
+    catalog. The work verifies installation flows end-to-end, documents the
+
+    integration process, and ensures the self-management loop is reliable before
+
+    layering additional developer experience features.
+
+
+    Key activities:
+
+    - Build and publish the initial Python package (local install + version pinning)
+
+    - Update host project dependencies and CI to install AgentJobs
+
+    - Seed AgentJobs with migrated tasks from the prior system (34 total)
+
+    - Verify CLI/GUI interactions against migrated data
+
+    - Document integration steps for future rollouts
+
+
+    ---
+
+
+    ## Starter prompt (migrated from schema v1)
+
+
+    prompts/task-031-phase-5.1-package-and-integrate.md
+
+    ---
+
+
+    ## Phases (migrated from schema v1)
+
+
+    `phases[]` was deleted in v2; sub-tasks via `parent` are the one way to
+
+    subdivide. This is the historical record, preserved verbatim.
+
+
+    - **Package AgentJobs for distribution** (`phase-1`, draft)
+
+    - **Integrate into host project** (`phase-2`, draft)
+
+    - **Migrate existing tasks** (`phase-3`, draft)
+
+    - **Document rollout** (`phase-4`, draft)'
+acceptance:
+- id: sc-1
+  text: AgentJobs package installs via pip in host environment without manual tweaks.
+  status: pending
+- id: sc-2
+  text: CI pipeline provisions AgentJobs and executes smoke tests.
+  status: pending
+- id: sc-3
+  text: Migrated tasks render correctly in GUI and CLI.
+  status: pending
+deliverables:
+- path: docs/integration/agentjobs-package.md
+  status: pending
+  note: Step-by-step install and integration guide.
+- path: requirements.txt
+  status: pending
+  note: Added AgentJobs dependency pin for host project.
+- path: tasks/
+  status: pending
+  note: Migrated task catalog stored under AgentJobs management.
+dependencies:
+- task: task-037-phase-4-2-human-agent-ux
+  type: needs
+  note: 'Builds on UX improvements to present migrated tasks cleanly. (v1 status:
+    completed)'
 branches:
 - name: main
   status: merged
   merged_at: '2025-10-26T21:15:00Z'
+log:
+- id: 1
+  ts: '2025-10-26T21:15:00Z'
+  actor: system
+  type: note
+  data:
+    v1_status: draft
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: draft` became lifecycle: draft / ball: human / ball_reason: spec.
+
+    - 4 phase(s) folded into spec.description as an appendix.
+
+    - prompts.starter preserved in spec.description.
+
+
+    Needs human review:
+
+    - ball_prompt: no status update to derive an ask from'

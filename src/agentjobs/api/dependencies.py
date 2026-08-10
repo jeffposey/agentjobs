@@ -24,7 +24,8 @@ from agentjobs.projects import (
     ProjectRegistry,
     UnknownProjectError,
 )
-from agentjobs.storage import TaskStorage, WebhookStorage
+from agentjobs.storage import TaskStorage
+from agentjobs.webhooks import WebhookStorage
 from agentjobs.webhooks import WebhookManager
 
 TASKS_DIR_ENV = "AGENTJOBS_TASKS_DIR"

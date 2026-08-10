@@ -1,67 +1,88 @@
+schema: 2
 id: task-033-phase-1-core-infrastructure
 title: 'Phase 1: Core Infrastructure'
 created: '2025-10-26T01:24:37Z'
 updated: '2025-10-26T01:24:37Z'
-status: completed
+lifecycle: closed
+outcome: completed
 priority: high
 category: infrastructure
-assigned_to: Codex
-estimated_effort: 1 day
-human_summary: Bootstrap AgentJobs with core models, YAML storage, CLI plumbing, and baseline tests.
-description: |
-  Phase 1 established the foundations for AgentJobs as a standalone task
-  management stack. The work produced the initial package layout, Typer CLI,
-  Pydantic task models, YAML-backed persistence layer, and TaskManager with
-  comprehensive unit tests. Documentation and packaging metadata were added to
-  support local development and distribution.
-phases:
-  - id: phase-1
-    title: 'Deliver core infrastructure'
-    status: completed
-    notes: Core package skeleton, models, storage, CLI, and tests implemented.
-    completed_at: '2025-10-26T01:24:37Z'
-success_criteria:
-  - id: sc-1
-    description: CLI can create and list tasks stored as YAML files.
-    status: completed
-  - id: sc-2
-    description: TaskManager passes unit tests for CRUD operations.
-    status: completed
-  - id: sc-3
-    description: Documentation introduces package usage and schema.
-    status: completed
-prompts:
-  starter: prompts/task-031-phase-1-core-infrastructure.md
-  followups: []
-status_updates:
-  - timestamp: '2025-10-26T01:24:37Z'
-    author: Codex
-    status: completed
-    summary: Core infrastructure merged on main
-    details: Initial AgentJobs package, models, storage, and CLI shipped with tests and docs.
-deliverables:
-  - path: src/agentjobs/models.py
-    status: completed
-    description: Core task schema implemented with Pydantic.
-  - path: src/agentjobs/storage.py
-    status: completed
-    description: YAML-backed persistence layer with CRUD helpers.
-  - path: src/agentjobs/cli.py
-    status: completed
-    description: Typer CLI supporting init, create, list commands.
-  - path: tests/test_manager.py
-    status: completed
-    description: Unit coverage for TaskManager behaviours.
-dependencies: []
-external_links:
-  - url: https://github.com/jeffposey/agentjobs/commit/af42e6c
-    title: 'Commit af42e6c - bootstrap agentjobs core infrastructure'
-issues: []
 tags:
-  - agentjobs
-  - phase-1
-  - tasks-2-0
+- agentjobs
+- phase-1
+- tasks-2-0
+effort: 1 day
+assignment:
+  eligible:
+  - codex
+spec:
+  summary: Bootstrap AgentJobs with core models, YAML storage, CLI plumbing, and baseline
+    tests.
+  description: "Phase 1 established the foundations for AgentJobs as a standalone\
+    \ task\nmanagement stack. The work produced the initial package layout, Typer\
+    \ CLI,\nPydantic task models, YAML-backed persistence layer, and TaskManager with\n\
+    comprehensive unit tests. Documentation and packaging metadata were added to\n\
+    support local development and distribution.\n\n---\n\n## Starter prompt (migrated\
+    \ from schema v1)\n\nprompts/task-031-phase-1-core-infrastructure.md\n---\n\n\
+    ## Phases (migrated from schema v1)\n\n`phases[]` was deleted in v2; sub-tasks\
+    \ via `parent` are the one way to\nsubdivide. This is the historical record, preserved\
+    \ verbatim.\n\n- **Deliver core infrastructure** (`phase-1`, completed)\n  - Core\
+    \ package skeleton, models, storage, CLI, and tests implemented.\n  - completed\
+    \ 2025-10-26T01:24:37Z"
+acceptance:
+- id: sc-1
+  text: CLI can create and list tasks stored as YAML files.
+  status: met
+- id: sc-2
+  text: TaskManager passes unit tests for CRUD operations.
+  status: met
+- id: sc-3
+  text: Documentation introduces package usage and schema.
+  status: met
+deliverables:
+- path: src/agentjobs/models.py
+  status: done
+  note: Core task schema implemented with Pydantic.
+- path: src/agentjobs/storage.py
+  status: done
+  note: YAML-backed persistence layer with CRUD helpers.
+- path: src/agentjobs/cli.py
+  status: done
+  note: Typer CLI supporting init, create, list commands.
+- path: tests/test_manager.py
+  status: done
+  note: Unit coverage for TaskManager behaviours.
+links:
+- url: https://github.com/jeffposey/agentjobs/commit/af42e6c
+  rel: other
+  title: Commit af42e6c - bootstrap agentjobs core infrastructure
 branches:
-  - name: main
-    status: merged
-    merged_at: '2025-10-26T01:24:37Z'
+- name: main
+  status: merged
+  merged_at: '2025-10-26T01:24:37Z'
+log:
+- id: 1
+  ts: '2025-10-26T01:24:37Z'
+  actor: Codex
+  type: transition
+  data:
+    v1_status: completed
+  body: 'Core infrastructure merged on main
+
+
+    Initial AgentJobs package, models, storage, and CLI shipped with tests and docs.'
+- id: 2
+  ts: '2025-10-26T01:24:37Z'
+  actor: system
+  type: note
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: completed` became lifecycle: closed / outcome: completed.
+
+    - 1 phase(s) folded into spec.description as an appendix.
+
+    - prompts.starter preserved in spec.description.'

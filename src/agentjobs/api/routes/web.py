@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from agentjobs.manager import TaskManager
-from agentjobs.models import Task, TaskStatus
+from agentjobs.models_v2 import Ball, Lifecycle, Outcome, Task
 from agentjobs.projects import Project
 
 from ..dependencies import (
@@ -54,25 +54,26 @@ def _context_base(
 
 
 def _sort_tasks_for_dashboard(tasks: List[Task]) -> List[Task]:
-    """Sort active tasks to prioritise critical and recently updated work."""
+    """Sort in-flight tasks to prioritise critical and recently updated work."""
     return sorted(
-        (task for task in tasks if task.is_active()),
+        (task for task in tasks if task.lifecycle in (Lifecycle.READY, Lifecycle.ACTIVE)),
         key=lambda task: (task.priority_rank(), -task.updated.timestamp()),
     )
 
 
 def _collect_recent_updates(tasks: List[Task]) -> List[Dict[str, Any]]:
-    """Flatten task updates into a sorted list for the dashboard."""
+    """Flatten log entries into a sorted list for the dashboard."""
     updates: List[Dict[str, Any]] = []
     for task in tasks:
-        for update in task.status_updates:
+        for entry in task.log:
+            body = (entry.body or "").strip()
             updates.append(
                 {
                     "task_id": task.id,
                     "task_title": task.title,
-                    "timestamp": update.timestamp,
-                    "summary": update.summary,
-                    "author": update.author,
+                    "timestamp": entry.ts,
+                    "summary": body.splitlines()[0] if body else entry.type.value,
+                    "author": entry.actor,
                 }
             )
     updates.sort(key=lambda record: record["timestamp"], reverse=True)
@@ -80,8 +81,8 @@ def _collect_recent_updates(tasks: List[Task]) -> List[Dict[str, Any]]:
 
 
 def _get_waiting_tasks(tasks: List[Task]) -> List[Task]:
-    """Return tasks currently waiting for human attention."""
-    waiting = [task for task in tasks if task.status == TaskStatus.WAITING_FOR_HUMAN]
+    """The human inbox: every open task whose ball a person holds."""
+    waiting = [task for task in tasks if task.ball is Ball.HUMAN]
     return sorted(
         waiting,
         key=lambda task: (task.priority_rank(), -task.updated.timestamp()),
@@ -90,8 +91,7 @@ def _get_waiting_tasks(tasks: List[Task]) -> List[Task]:
 
 def get_waiting_count(manager: TaskManager) -> int:
     """Count tasks waiting for human attention."""
-    waiting_tasks = manager.list_tasks(status=TaskStatus.WAITING_FOR_HUMAN)
-    return len(waiting_tasks)
+    return len(manager.list_tasks(ball=Ball.HUMAN))
 
 
 @router.get("", name="dashboard")
@@ -107,10 +107,12 @@ async def dashboard(
     waiting_tasks = _get_waiting_tasks(tasks)
     stats = {
         "total": len(tasks),
-        "in_progress": sum(1 for task in tasks if task.status == TaskStatus.IN_PROGRESS),
-        "blocked": sum(1 for task in tasks if task.status == TaskStatus.BLOCKED),
+        "in_progress": sum(
+            1 for task in tasks if task.lifecycle is Lifecycle.ACTIVE and task.ball is Ball.AGENT
+        ),
+        "blocked": sum(1 for task in tasks if task.ball is Ball.EXTERNAL),
         "waiting_for_human": len(waiting_tasks),
-        "completed": sum(1 for task in tasks if task.status == TaskStatus.COMPLETED),
+        "completed": sum(1 for task in tasks if task.outcome is Outcome.COMPLETED),
     }
     waiting_count = len(waiting_tasks)
 
@@ -141,9 +143,11 @@ async def task_list(
     tasks.sort(key=lambda task: (-task.updated.timestamp(), task.priority_rank()))
     waiting_count = get_waiting_count(manager)
 
+    # The filter accepts a lifecycle or a ball holder; both are single-valued facts
+    # about a task, so one select can offer them side by side.
     status_param = request.query_params.get("status", "").lower()
-    valid_statuses = {status.value for status in TaskStatus}
-    initial_status = status_param if status_param in valid_statuses else "all"
+    valid_filters = {value.value for value in Lifecycle} | {value.value for value in Ball}
+    initial_status = status_param if status_param in valid_filters else "all"
 
     context = {
         "request": request,
@@ -245,7 +249,7 @@ async def project_picker(
             tasks = TaskManager(_storage_for_picker(project)).list_tasks()
             counts = {
                 "total": len(tasks),
-                "waiting": sum(1 for task in tasks if task.status == TaskStatus.WAITING_FOR_HUMAN),
+                "waiting": sum(1 for task in tasks if task.ball is Ball.HUMAN),
             }
         except OSError:
             counts = {"total": 0, "waiting": 0}

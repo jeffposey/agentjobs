@@ -13,7 +13,7 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from agentjobs import Priority, TaskClient, TaskStatus
+from agentjobs import Ball, Lifecycle, Priority, TaskClient
 
 
 def main() -> None:
@@ -23,10 +23,10 @@ def main() -> None:
     high_priority = client.list_tasks(priority=Priority.HIGH)
     print(f"High priority tasks: {len(high_priority)}")
 
-    in_progress = client.list_tasks(status=TaskStatus.IN_PROGRESS)
+    in_progress = client.list_tasks(lifecycle=Lifecycle.ACTIVE, ball=Ball.AGENT)
     print(f"In progress: {len(in_progress)}")
 
-    blocked = client.list_tasks(status=TaskStatus.BLOCKED)
+    blocked = client.list_tasks(ball=Ball.EXTERNAL)
     print(f"Blocked: {len(blocked)}")
     for task in blocked:
         print(f"  - {task.title}")

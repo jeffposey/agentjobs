@@ -26,7 +26,7 @@ def main() -> None:
         print("No tasks found.")
         return
 
-    by_status: Counter[str] = collections.Counter(task.status for task in tasks)
+    by_status: Counter[str] = collections.Counter(task.display_status for task in tasks)
     by_priority: Counter[str] = collections.Counter(task.priority for task in tasks)
 
     print("Task Status Overview")

@@ -103,3 +103,19 @@ while working it — those belong on that task's branch, alongside the work they
 -   **Never** delete user data without explicit confirmation.
 -   **Always** use the `TaskStorage` abstraction; avoid direct file I/O on task files where possible.
 -   **Verify** local server startup (`poetry run agentjobs serve`) after modifying API routes.
+-   **Restart the server after changing models, storage, or task files.** A running
+    `agentjobs serve` holds the imported code in memory. If the task files change
+    underneath it — a schema migration, a checkout, a bulk edit — it reads new data with
+    old code and every file appears corrupt. This is what a stale server looks like:
+    dozens of validation errors naming fields that no longer exist. The application is
+    fine; the process is old. `agentjobs restart` before concluding anything is broken,
+    and never leave a stale server running for someone else to find.
+
+## Verification
+-   A passing suite is not evidence a feature works. Exercise the change the way a user
+    would, against a freshly started server.
+-   **Assert on rendered values, not on the presence of markup.** Checking that a page
+    contains `data-ball=` passes while it emits `data-ball="Ball.HUMAN"` and every
+    filter silently matches nothing. Assert the value a user's browser will act on.
+-   When a check passes, ask what it would have caught. If the answer is "nothing that
+    has ever gone wrong here", it is decoration.

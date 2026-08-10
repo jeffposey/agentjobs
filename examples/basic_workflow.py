@@ -31,17 +31,16 @@ def main() -> None:
         return
 
     print(f"[{AGENT_NAME}] Found task: {task.title}")
-    print(f"[{AGENT_NAME}] Priority: {task.priority}, Status: {task.status}")
+    print(f"[{AGENT_NAME}] Priority: {task.priority}, Status: {task.display_status}")
 
     print(f"[{AGENT_NAME}] Taking ownership...")
-    client.mark_in_progress(task.id, agent=AGENT_NAME)
+    task = client.claim_task(task.id, agent=AGENT_NAME)
 
-    prompt = client.get_starter_prompt(task.id)
     divider = "=" * 60
     print(f"\n{divider}")
     print(f"TASK: {task.title}")
     print(divider)
-    print(f"\n{prompt}\n")
+    print(f"\n{task.spec.description}\n")
     print(f"{divider}\n")
 
     print(f"[{AGENT_NAME}] Working on task...")
@@ -54,8 +53,8 @@ def main() -> None:
         agent=AGENT_NAME,
     )
 
-    print(f"[{AGENT_NAME}] Marking task complete...")
-    client.mark_completed(task.id, agent=AGENT_NAME)
+    print(f"[{AGENT_NAME}] Closing task...")
+    client.close_task(task.id, actor=AGENT_NAME, outcome="completed")
 
     print(f"[{AGENT_NAME}] ✅ Task {task.id} complete!")
 

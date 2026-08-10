@@ -1,250 +1,239 @@
+schema: 2
 id: task-052-schema-v2-manager-api
 title: 'Schema v2: migrate the corpus and switch the application over'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T21:30:00Z'
-status: ready
+updated: '2026-08-10T22:51:58.276252Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
+archived: false
 priority: high
 category: architecture
-assigned_to: TBD
-estimated_effort: 1-2 working sessions
-human_summary: 'The switchover. Run the proven migrator over all 38 task files, repoint
-  storage, the manager, the API, the templates and the CLI at models_v2, and delete v1.
-  There is no intermediate state where the application works, so the corpus write and
-  the code change land in one commit. Everything risky about this was de-risked first:
-  the migrator is verified against the real corpus, there is a recovery tag, broken
-  files now fail loudly, and writes are locked. Written as a cold-start handoff -- it
-  assumes no knowledge of the session that produced it.'
-description: 'This is the largest and most consequential task in the backlog. Read all
-  of it before starting. It is written for an agent with no memory of the sessions that
-  produced tasks 047-055.
+tags:
+- schema-v2
+- migration
+- architecture
+- handoff
+effort: 1-2 working sessions
+assignment:
+  owner: claude
+  eligible: []
+spec:
+  summary: 'The switchover. Run the proven migrator over all 38 task files, repoint
+    storage, the manager, the API, the templates and the CLI at models_v2, and delete
+    v1. There is no intermediate state where the application works, so the corpus
+    write and the code change land in one commit. Everything risky about this was
+    de-risked first: the migrator is verified against the real corpus, there is a
+    recovery tag, broken files now fail loudly, and writes are locked. Written as
+    a cold-start handoff -- it assumes no knowledge of the session that produced it.'
+  description: 'This is the largest and most consequential task in the backlog. Read
+    all of it before starting. It is written for an agent with no memory of the sessions
+    that produced tasks 047-055.
 
 
-  ## Where things stand right now
+    ## Where things stand right now
 
 
-  - Every task file on disk is **schema v1**. Nothing has been migrated.
+    - Every task file on disk is **schema v1**. Nothing has been migrated.
 
-  - `src/agentjobs/models.py` is v1 and runs the whole application.
+    - `src/agentjobs/models.py` is v1 and runs the whole application.
 
-  - `src/agentjobs/models_v2.py` exists, is complete, is tested, and is **wired to
-  nothing**.
+    - `src/agentjobs/models_v2.py` exists, is complete, is tested, and is **wired
+    to nothing**.
 
-  - `src/agentjobs/migrate_schema.py` converts v1 to v2 and has been run over the real
-  corpus in dry-run: 38 convert, 38 load, 38 validate against the LinkML schema, 0
-  information losses.
+    - `src/agentjobs/migrate_schema.py` converts v1 to v2 and has been run over the
+    real corpus in dry-run: 38 convert, 38 load, 38 validate against the LinkML schema,
+    0 information losses.
 
-  - 354 tests pass. `ruff`, `mypy` and `black` are clean. Keep them that way.
+    - 354 tests pass. `ruff`, `mypy` and `black` are clean. Keep them that way.
 
 
-  ## Why this cannot be split
+    ## Why this cannot be split
 
 
-  v1 storage cannot read v2 files, and v2 models cannot read v1 files. The moment the
-  corpus is written as v2, every part of the application that still expects v1 breaks:
-  26 modules import the models and there are roughly 180 references to fields v2
-  deletes. So the corpus write and the code switchover are **one commit**. Splitting
-  them leaves `main` broken, which the project''s own standards forbid.
+    v1 storage cannot read v2 files, and v2 models cannot read v1 files. The moment
+    the corpus is written as v2, every part of the application that still expects
+    v1 breaks: 26 modules import the models and there are roughly 180 references to
+    fields v2 deletes. So the corpus write and the code switchover are **one commit**.
+    Splitting them leaves `main` broken, which the project''s own standards forbid.
 
 
-  Within that constraint, keep the branch reviewable by landing preparation as separate
-  earlier commits (see the order below).
+    Within that constraint, keep the branch reviewable by landing preparation as separate
+    earlier commits (see the order below).
 
 
-  ## Do this in order
+    ## Do this in order
 
 
-  **1. Confirm the starting state.** `git status` clean, `poetry run pytest` green, and
-  `git tag -l pre-v2-migration` prints the tag. That tag marks the last commit where
-  every task file is v1; `git reset --hard pre-v2-migration` undoes the entire
-  migration. Do not delete it until this task is merged and verified.
+    **1. Confirm the starting state.** `git status` clean, `poetry run pytest` green,
+    and `git tag -l pre-v2-migration` prints the tag. That tag marks the last commit
+    where every task file is v1; `git reset --hard pre-v2-migration` undoes the entire
+    migration. Do not delete it until this task is merged and verified.
 
 
-  **2. Look at what the migration will produce, before producing it.**
+    **2. Look at what the migration will produce, before producing it.**
 
-  ```
+    ```
 
-  poetry run agentjobs migrate-schema --output-dir /tmp/preview --apply
+    poetry run agentjobs migrate-schema --output-dir /tmp/preview --apply
 
-  poetry run agentjobs migrate-schema --tasks-dir tasks/test-data --output-dir /tmp/preview-td --apply
+    poetry run agentjobs migrate-schema --tasks-dir tasks/test-data --output-dir /tmp/preview-td
+    --apply
 
-  ```
+    ```
 
-  These write to temp directories and leave the corpus alone. Read a few of the outputs.
-  The command prints 18 review notes; they are informational, not blockers, and are
-  explained under "The review notes" below.
+    These write to temp directories and leave the corpus alone. Read a few of the
+    outputs. The command prints 18 review notes; they are informational, not blockers,
+    and are explained under "The review notes" below.
 
 
-  **3. Port the code to v2 while the corpus is still v1.** Everything except the parts
-  that must change atomically can be written and reviewed first. Storage is the seam:
-  give it a v2 loader path and keep the v1 one until step 4.
+    **3. Port the code to v2 while the corpus is still v1.** Everything except the
+    parts that must change atomically can be written and reviewed first. Storage is
+    the seam: give it a v2 loader path and keep the v1 one until step 4.
 
 
-  **4. The atomic commit.** Run the migrator with `--apply` against both real
-  directories, switch storage/manager/API/templates/CLI to models_v2, update the corpus
-  test, and commit it all together. Tests must be green in this commit.
+    **4. The atomic commit.** Run the migrator with `--apply` against both real directories,
+    switch storage/manager/API/templates/CLI to models_v2, update the corpus test,
+    and commit it all together. Tests must be green in this commit.
 
 
-  **5. Delete `models.py`** once nothing imports it, as its own commit. Keeping it one
-  commit later makes step 4''s diff smaller and the deletion trivially revertible.
+    **5. Delete `models.py`** once nothing imports it, as its own commit. Keeping
+    it one commit later makes step 4''s diff smaller and the deletion trivially revertible.
 
 
-  ## What has to change
+    ## What has to change
 
 
-  Modules importing the models (all need review, most are mechanical):
+    Modules importing the models (all need review, most are mechanical):
 
 
-  `src/agentjobs/storage.py`, `manager.py`, `cli.py`, `client.py`, `webhooks.py`,
-  `test_data/sample_tasks.py`, `__init__.py`, `migration/converter.py`,
-  `api/models.py`, and `api/routes/{tasks,status,prompts,search,web,webhooks,projects}.py`.
+    `src/agentjobs/storage.py`, `manager.py`, `cli.py`, `client.py`, `webhooks.py`,
+    `test_data/sample_tasks.py`, `__init__.py`, `migration/converter.py`, `api/models.py`,
+    and `api/routes/{tasks,status,prompts,search,web,webhooks,projects}.py`.
 
 
-  Templates referencing deleted v1 fields:
-  `task_detail.html`, `task_list.html`, `dashboard.html`,
-  `components/status_badge.html`, `components/task_card.html`.
+    Templates referencing deleted v1 fields: `task_detail.html`, `task_list.html`,
+    `dashboard.html`, `components/status_badge.html`, `components/task_card.html`.
 
 
-  The v1 to v2 field map is in `docs/task-schema.md`, which documents both versions
-  side by side. The reasoning is in `docs/schema-design.md`.
+    The v1 to v2 field map is in `docs/task-schema.md`, which documents both versions
+    side by side. The reasoning is in `docs/schema-design.md`.
 
 
-  ## Decisions already made -- do not relitigate
+    ## Decisions already made -- do not relitigate
 
 
-  These were argued and settled. Re-opening them wastes a session.
+    These were argued and settled. Re-opening them wastes a session.
 
 
-  - **`status` becomes four fields**: `lifecycle`, `ball`, `ball_reason`, `outcome`,
-  plus `archived` as a separate flag. See `docs/schema-design.md` section 3.
+    - **`status` becomes four fields**: `lifecycle`, `ball`, `ball_reason`, `outcome`,
+    plus `archived` as a separate flag. See `docs/schema-design.md` section 3.
 
-  - **`display_status` is computed, never stored.** It already exists as a property on
-  the v2 Task. The GUI and API should use it instead of switching on status.
+    - **`display_status` is computed, never stored.** It already exists as a property
+    on the v2 Task. The GUI and API should use it instead of switching on status.
 
-  - **`prompts.starter` is preserved**, not dropped, contrary to what section 7 of the
-  design doc anticipated. Measured over the real corpus, only 1 of 38 starters restates
-  its description; the other 37 are distinct briefings. The migrator appends them to
-  `spec.description`.
+    - **`prompts.starter` is preserved**, not dropped, contrary to what section 7
+    of the design doc anticipated. Measured over the real corpus, only 1 of 38 starters
+    restates its description; the other 37 are distinct briefings. The migrator appends
+    them to `spec.description`.
 
-  - **`spec.intent` is optional; `spec.summary` and `spec.description` are required.**
+    - **`spec.intent` is optional; `spec.summary` and `spec.description` are required.**
 
-  - **`ball_prompt` is required whenever `ball` is set, except for `agent/available`.**
+    - **`ball_prompt` is required whenever `ball` is set, except for `agent/available`.**
 
-  - **Files, not a database.** Rejected at length in design doc section 7.
+    - **Files, not a database.** Rejected at length in design doc section 7.
 
 
-  ## Gotchas that cost time to find
+    ## Gotchas that cost time to find
 
 
-  - **`schema` shadows a Pydantic BaseModel attribute.** The v2 field is
-  `schema_version` in Python with `alias="schema"`. Always dump with `by_alias=True`,
-  or files will be written with the wrong key.
+    - **`schema` shadows a Pydantic BaseModel attribute.** The v2 field is `schema_version`
+    in Python with `alias="schema"`. Always dump with `by_alias=True`, or files will
+    be written with the wrong key.
 
-  - **The models and the LinkML schema can drift.** `tests/test_models_v2.py` has a
-  test comparing required-ness between `models_v2.py` and `schema/agentjobs-v2.yaml`
-  directly. If you change one, change the other; that test will tell you.
+    - **The models and the LinkML schema can drift.** `tests/test_models_v2.py` has
+    a test comparing required-ness between `models_v2.py` and `schema/agentjobs-v2.yaml`
+    directly. If you change one, change the other; that test will tell you.
 
-  - **`storage.mutate_task` must survive the rewrite.** Task-055 closed a real
-  double-claim race by holding a per-task lock across read-modify-write. Reverting
-  storage to load/save while porting to v2 silently reintroduces it. The race test in
-  `tests/test_concurrency.py` will catch it.
+    - **`storage.mutate_task` must survive the rewrite.** Task-055 closed a real double-claim
+    race by holding a per-task lock across read-modify-write. Reverting storage to
+    load/save while porting to v2 silently reintroduces it. The race test in `tests/test_concurrency.py`
+    will catch it.
 
-  - **Unreadable files must stay loud.** Task-049 made `load_task` raise `TaskLoadError`
-  rather than returning None. When storage moves to v2, a file with no `schema: 2`
-  stamp raises `SchemaVersionError` -- wrap that in `TaskLoadError` so a stray
-  unmigrated file is reported by filename instead of crashing the listing.
+    - **Unreadable files must stay loud.** Task-049 made `load_task` raise `TaskLoadError`
+    rather than returning None. When storage moves to v2, a file with no `schema:
+    2` stamp raises `SchemaVersionError` -- wrap that in `TaskLoadError` so a stray
+    unmigrated file is reported by filename instead of crashing the listing.
 
-  - **Lock files sit beside task files.** `*.lock` must not be globbed as tasks.
+    - **Lock files sit beside task files.** `*.lock` must not be globbed as tasks.
 
-  - **The GUI is project-scoped.** URLs are `/p/{project_id}/...`; every link is built
-  from a `base` context variable. Task ids are unique only *within* a project.
+    - **The GUI is project-scoped.** URLs are `/p/{project_id}/...`; every link is
+    built from a `base` context variable. Task ids are unique only *within* a project.
 
-  - **`poetry -C <dir> run` changes the working directory**, which silently made an
-  earlier session initialise the wrong project. Use the venv python directly when cwd
-  matters.
+    - **`poetry -C <dir> run` changes the working directory**, which silently made
+    an earlier session initialise the wrong project. Use the venv python directly
+    when cwd matters.
 
 
-  ## The review notes the migrator emits
+    ## The review notes the migrator emits
 
 
-  18 notes across the corpus, none of them blockers. They are places the converter
-  declined to invent data:
+    18 notes across the corpus, none of them blockers. They are places the converter
+    declined to invent data:
 
-  - 9 tasks have no status update to derive a `ball_prompt` from and get an explicit
-  `NEEDS REVIEW:` placeholder. A human can improve them later; a fabricated ask would
-  have been worse.
+    - 9 tasks have no status update to derive a `ball_prompt` from and get an explicit
+    `NEEDS REVIEW:` placeholder. A human can improve them later; a fabricated ask
+    would have been worse.
 
-  - 5 have no `human_summary`, so `spec.summary` is derived from the first sentence of
-  the description.
+    - 5 have no `human_summary`, so `spec.summary` is derived from the first sentence
+    of the description.
 
-  - 2 had `assigned_to: TBD`, which is not an actor id, and it is dropped.
+    - 2 had `assigned_to: TBD`, which is not an actor id, and it is dropped.
 
-  - 1 (`task-004`, in test-data) was `blocked` while unclaimed with no dependencies, so
-  its blocker was never recorded anywhere. It maps to `ready` and the original status is
-  preserved in a log entry.
+    - 1 (`task-004`, in test-data) was `blocked` while unclaimed with no dependencies,
+    so its blocker was never recorded anywhere. It maps to `ready` and the original
+    status is preserved in a log entry.
 
 
-  ## Verification before handing off
+    ## Verification before handing off
 
 
-  - `poetry run pytest` green; `ruff`, `mypy`, `black` clean.
+    - `poetry run pytest` green; `ruff`, `mypy`, `black` clean.
 
-  - Every task file starts with `schema: 2` and loads under `models_v2`.
+    - Every task file starts with `schema: 2` and loads under `models_v2`.
 
-  - Start the server and exercise it in a browser, not only through tests: the
-  dashboard, the task list, a task detail page, the project switcher, and a status
-  change through the API. Verify against **two** registered projects if any are
-  registered (`agentjobs project list`).
+    - Start the server and exercise it in a browser, not only through tests: the dashboard,
+    the task list, a task detail page, the project switcher, and a status change through
+    the API. Verify against **two** registered projects if any are registered (`agentjobs
+    project list`).
 
-  - Confirm no file in `tasks/` fails to load: `GET /api/tasks/broken` must return `[]`.
+    - Confirm no file in `tasks/` fails to load: `GET /api/tasks/broken` must return
+    `[]`.
 
 
-  ## Out of scope
+    ## Out of scope
 
 
-  - CLI command surface for the v2 verbs (`inbox`, `claim`, `handoff`) -- task-053.
+    - CLI command surface for the v2 verbs (`inbox`, `claim`, `handoff`) -- task-053.
 
-  - The v2 GUI redesign: inbox view, log rendering, editing affordances -- task-054.
+    - The v2 GUI redesign: inbox view, log rendering, editing affordances -- task-054.
 
-  - The hierarchical task tree and anything about `parent` behaviour -- task-058 and
-  task-045.
+    - The hierarchical task tree and anything about `parent` behaviour -- task-058
+    and task-045.
 
-  - Config-driven acceptance criterion types (D5) -- deliberately deferred, additive.
+    - Config-driven acceptance criterion types (D5) -- deliberately deferred, additive.
 
-  '
-phases: []
-success_criteria:
-- id: sc-1
-  description: 'Every file in tasks/agentjobs/ and tasks/test-data/ is schema v2, carries
-    the ''schema: 2'' stamp, and loads under models_v2'
-  status: pending
-- id: sc-2
-  description: Storage, manager, API, templates and CLI all operate on models_v2; nothing
-    imports models.py and the file is deleted
-  status: pending
-- id: sc-3
-  description: The corpus write and the code switchover are one commit, and the test
-    suite is green in that commit
-  status: pending
-- id: sc-4
-  description: mutate_task and its per-task locking survive the rewrite; the double-claim
-    race test in tests/test_concurrency.py still passes
-  status: pending
-- id: sc-5
-  description: An unmigrated or corrupt file is still reported loudly by filename rather
-    than vanishing from listings; GET /api/tasks/broken returns [] for a healthy corpus
-  status: pending
-- id: sc-6
-  description: display_status is used by the GUI and API rather than each surface
-    switching on state fields itself
-  status: pending
-- id: sc-7
-  description: Verified in a browser against a running server, not only via tests
-  status: pending
-- id: sc-8
-  description: poetry run pytest passes; ruff, mypy and black stay clean
-  status: pending
-prompts:
-  starter: '## Objective
+
+    ---
+
+
+    ## Starter prompt (migrated from schema v1)
+
+
+    ## Objective
 
     Migrate the task corpus to schema v2 and switch the application over to it. Delete
     schema v1.
@@ -255,12 +244,12 @@ prompts:
     1. This task''s description in full. It is written as a cold-start handoff and
     contains the sequence, the decisions not to relitigate, and the gotchas.
 
-    2. `docs/task-schema.md` -- both schema versions documented side by side. This is
-    the field map you will work from.
+    2. `docs/task-schema.md` -- both schema versions documented side by side. This
+    is the field map you will work from.
 
-    3. `docs/schema-design.md` sections 3, 4 and 8 -- the state model, the unified log,
-    and the version stamp. Sections 7 and 11 record rejected alternatives; do not
-    reopen them.
+    3. `docs/schema-design.md` sections 3, 4 and 8 -- the state model, the unified
+    log, and the version stamp. Sections 7 and 11 record rejected alternatives; do
+    not reopen them.
 
     4. `src/agentjobs/models_v2.py` -- the target model, including the five consistency
     rules it enforces.
@@ -270,58 +259,128 @@ prompts:
 
     ## First actions
 
-    - Verify: `git status` clean, `poetry run pytest` green, `git tag -l
-    pre-v2-migration` prints the tag.
+    - Verify: `git status` clean, `poetry run pytest` green, `git tag -l pre-v2-migration`
+    prints the tag.
 
     - Preview the migration into a temp directory and read some output before writing
     anything. The exact commands are in the description.
 
-    - Create branch `feat/task-052-schema-v2-switchover` from main, record it in
-    branches[], mark this task in_progress -- in that order.
+    - Create branch `feat/task-052-schema-v2-switchover` from main, record it in branches[],
+    mark this task in_progress -- in that order.
 
 
     ## The one rule that matters most
 
     The corpus write and the code switchover must be a single commit with green tests.
-    There is no intermediate state where the application works. Everything else can and
-    should be separate commits before and after it.
+    There is no intermediate state where the application works. Everything else can
+    and should be separate commits before and after it.
 
 
     ## If something goes wrong
 
-    `git reset --hard pre-v2-migration` restores the last state where every task file is
-    v1. The tag exists for exactly this. Do not delete it until this task is merged.
+    `git reset --hard pre-v2-migration` restores the last state where every task file
+    is v1. The tag exists for exactly this. Do not delete it until this task is merged.
 
 
     ## Git workflow
 
     Small conventional commits, tests green before each. When complete: STOP, set
     waiting_for_human through the status API with a summary of what changed and what
-    needs review. Do not merge.
+    needs review. Do not merge.'
+  context: []
+acceptance:
+- id: sc-1
+  text: 'Every file in tasks/agentjobs/ and tasks/test-data/ is schema v2, carries
+    the ''schema: 2'' stamp, and loads under models_v2'
+  status: met
+- id: sc-2
+  text: Storage, manager, API, templates and CLI all operate on models_v2; nothing
+    imports models.py and the file is deleted
+  status: met
+- id: sc-3
+  text: The corpus write and the code switchover are one commit, and the test suite
+    is green in that commit
+  status: met
+- id: sc-4
+  text: mutate_task and its per-task locking survive the rewrite; the double-claim
+    race test in tests/test_concurrency.py still passes
+  status: met
+- id: sc-5
+  text: An unmigrated or corrupt file is still reported loudly by filename rather
+    than vanishing from listings; GET /api/tasks/broken returns [] for a healthy corpus
+  status: met
+- id: sc-6
+  text: display_status is used by the GUI and API rather than each surface switching
+    on state fields itself
+  status: met
+- id: sc-7
+  text: Verified in a browser against a running server, not only via tests
+  status: met
+- id: sc-8
+  text: poetry run pytest passes; ruff, mypy and black stay clean
+  status: met
+deliverables:
+- path: tasks/agentjobs/*.yaml
+  note: Corpus migrated to schema v2
+  status: pending
+- path: src/agentjobs/storage.py
+  note: Reads and writes v2, keeping mutate_task locking and loud load errors
+  status: pending
+- path: src/agentjobs/manager.py
+  note: Operations on the v2 state axes and unified log
+  status: pending
+- path: src/agentjobs/models.py
+  note: Deleted once nothing imports it
+  status: pending
+dependencies:
+- task: task-051-schema-v2-migrator
+  type: needs
+  note: Completed 2026-08-10. Supplies the converter, verified against the real corpus
+    but deliberately not run on it.
+- task: task-050-schema-v2-models
+  type: needs
+  note: Completed 2026-08-10. Supplies models_v2, wired to nothing.
+- task: task-049-storage-loud-load-errors
+  type: needs
+  note: Completed 2026-08-10. A file that fails to load during this migration is now
+    visible instead of silently absent.
+- task: task-055-single-writer-concurrency
+  type: needs
+  note: Completed 2026-08-10. Supplies mutate_task, which this rewrite must preserve.
+links: []
+branches:
+- name: feat/task-052-schema-v2-switchover
+  status: active
+log:
+- id: 1
+  ts: '2026-08-10T21:22:19Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude
+  data:
+    v1_status: in_progress
+- id: 2
+  ts: '2026-08-10T21:30:00Z'
+  actor: claude
+  type: transition
+  body: 'Rewritten as a cold-start handoff; every prerequisite is now merged
 
-    '
-  followups: []
-status_updates:
-- timestamp: '2026-08-10T21:30:00Z'
-  author: claude
-  status: ready
-  summary: Rewritten as a cold-start handoff; every prerequisite is now merged
-  details: 'This task was a two-paragraph stub. It has been rewritten as a self-contained
-    handoff because the owner intends to run it in a fresh session, possibly with a
-    different model or a different tool entirely, and it is the riskiest change in the
-    project.
+
+    This task was a two-paragraph stub. It has been rewritten as a self-contained
+    handoff because the owner intends to run it in a fresh session, possibly with
+    a different model or a different tool entirely, and it is the riskiest change
+    in the project.
 
 
-    Everything that made it dangerous was deliberately built first, and all of it is
-    merged:
+    Everything that made it dangerous was deliberately built first, and all of it
+    is merged:
 
 
     - task-047 gave the codebase honestly-typed enums and fixed two latent NameError
-    bugs, one of which meant every successful webhook delivery had been crashing
-    invisibly.
+    bugs, one of which meant every successful webhook delivery had been crashing invisibly.
 
-    - task-050 delivered models_v2 alongside v1 rather than replacing it, so v2 could be
-    reviewed on its own without breaking the application.
+    - task-050 delivered models_v2 alongside v1 rather than replacing it, so v2 could
+    be reviewed on its own without breaking the application.
 
     - task-051 built the migrator with two independent safety gates -- field accounting
     and information-loss verification -- both mutation-tested, and verified it against
@@ -330,56 +389,350 @@ status_updates:
     - task-049 made unreadable files raise with filename and field instead of silently
     vanishing from listings. This matters most during exactly this migration.
 
-    - task-055 closed the double-claim race with per-task locking spanning
-    read-modify-write, proven by reverting the fix and watching all eight racing agents
-    win the same task.
+    - task-055 closed the double-claim race with per-task locking spanning read-modify-write,
+    proven by reverting the fix and watching all eight racing agents win the same
+    task.
 
 
-    The recovery tag `pre-v2-migration` marks the last commit where every task file is
-    v1.
+    The recovery tag `pre-v2-migration` marks the last commit where every task file
+    is v1.
 
 
     Two things the next agent should know that are easy to miss. First, the migrator
     preserves prompts.starter, which contradicts what section 7 of the design doc
     anticipated -- the design assumed starters restate their descriptions, and measured
-    over the real corpus only 1 of 38 does. Second, running the migrator over real data
-    exposed two genuine drifts between models_v2.py and schema/agentjobs-v2.yaml that
-    the unit tests could not see, because the single example file fills in every field;
-    both are fixed and a test now compares the two definitions directly.'
-comments: []
-deliverables:
-- path: tasks/agentjobs/*.yaml
-  status: pending
-  description: Corpus migrated to schema v2
-- path: src/agentjobs/storage.py
-  status: pending
-  description: Reads and writes v2, keeping mutate_task locking and loud load errors
-- path: src/agentjobs/manager.py
-  status: pending
-  description: Operations on the v2 state axes and unified log
-- path: src/agentjobs/models.py
-  status: pending
-  description: Deleted once nothing imports it
-dependencies:
-- task_id: task-051-schema-v2-migrator
-  type: depends_on
-  note: Completed 2026-08-10. Supplies the converter, verified against the real corpus
-    but deliberately not run on it.
-- task_id: task-050-schema-v2-models
-  type: depends_on
-  note: Completed 2026-08-10. Supplies models_v2, wired to nothing.
-- task_id: task-049-storage-loud-load-errors
-  type: depends_on
-  note: Completed 2026-08-10. A file that fails to load during this migration is now
-    visible instead of silently absent.
-- task_id: task-055-single-writer-concurrency
-  type: depends_on
-  note: Completed 2026-08-10. Supplies mutate_task, which this rewrite must preserve.
-external_links: []
-issues: []
-tags:
-- schema-v2
-- migration
-- architecture
-- handoff
-branches: []
+    over the real corpus only 1 of 38 does. Second, running the migrator over real
+    data exposed two genuine drifts between models_v2.py and schema/agentjobs-v2.yaml
+    that the unit tests could not see, because the single example file fills in every
+    field; both are fixed and a test now compares the two definitions directly.'
+  data:
+    v1_status: ready
+- id: 3
+  ts: '2026-08-10T21:22:19Z'
+  actor: system
+  type: note
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: in_progress` became lifecycle: active / ball: agent / ball_reason:
+    work.
+
+    - prompts.starter preserved in spec.description.'
+  data:
+    v1_status: in_progress
+    migrated_to_schema: 2
+- id: 4
+  ts: '2026-08-10T21:52:49.533467Z'
+  actor: claude
+  type: progress
+  body: 'Corpus migrated and application switched to v2; pausing mid-task
+
+
+    State at pause, on branch feat/task-052-schema-v2-switchover:
+
+
+    - Commit 402e763: Webhook + WebhookStorage moved into webhooks.py so they survive
+    models.py''s deletion.
+
+    - Commit 415c910 (the atomic commit): both corpora migrated in place (32 + 7 files,
+    all stamped ''schema: 2''), storage/manager/API/templates/CLI/client/sample-data/md-import/examples
+    ported to models_v2. 380 tests pass; ruff, mypy and black clean.
+
+
+    Decisions made while porting:
+
+    - display_status is a pydantic computed field: served by the API (sc-6), excluded
+    by storage on write, rejected as an input key. Three tests in test_models_v2.py
+    were updated accordingly.
+
+    - storage.mutate_task re-validates the mutated model before writing, because attribute
+    assignment bypasses the model validators; this is what enforces the consistency
+    rules on the verb path.
+
+    - manager.replace_task and the PUT endpoint were dropped: a wholesale replace
+    could rewrite the append-only log. PATCH excludes the state axes; they move only
+    through claim/handoff/release/close.
+
+    - Webhook events are the v2 set only (task.handoff, task.question, task.closed);
+    task.status_changed no longer fires.
+
+    - Taxonomy/dependency validation against config (old design-doc scope) was NOT
+    implemented; the rewritten task spec does not require it.
+
+
+    Remaining before handoff to review:
+
+    1. Delete models.py plus tests/test_models.py and the Comment half of tests/test_model_timestamps.py,
+    as its own commit (nothing else imports them; verified).
+
+    2. Update docs/task-schema.md (retire the v1 half) and check README references.
+
+    3. Browser verification per the task: dashboard, task list, task detail, project
+    switcher, a status change through the API, GET /api/tasks/broken returns [], against
+    two registered projects if any (agentjobs project list).
+
+    4. Handoff: v2 equivalent of waiting_for_human = handoff to human/review through
+    the status API. Do not merge; pre-v2-migration tag stays until merged.'
+  data: {}
+- id: 5
+  ts: '2026-08-10T22:00:21.792848Z'
+  actor: claude
+  type: decision
+  body: 'Decisions taken while porting, recorded because the diff does not explain
+    them.
+
+
+    - **`display_status` is a Pydantic computed field.** It is served by the API and
+    used by every template (sc-6), excluded by storage on write, and rejected as an
+    input key by `extra="forbid"`. Rejected: leaving it a plain property, which would
+    have meant each surface deriving its own label -- the drift the design doc forbids.
+
+    - **`storage.mutate_task` re-validates the model before writing.** Attribute assignment
+    does not re-run Pydantic validators, so without this the manager verbs could write
+    a task violating the five consistency rules. One check at the end of the mutation
+    rather than `validate_assignment`, which would trip on the intermediate state
+    of every multi-field transition.
+
+    - **`replace_task` and `PUT /tasks/{id}` were deleted.** A wholesale replace can
+    rewrite the append-only log, which is the one thing v2 guarantees it cannot. PATCH
+    covers content edits and deliberately excludes the state axes; the axes move only
+    through claim/handoff/release/close.
+
+    - **Webhook events are the v2 set only**: `task.handoff`, `task.question`, `task.closed`.
+    `task.status_changed` and `task.completed` no longer fire, because nothing computes
+    a v1 status to change.
+
+    - **`Webhook`/`WebhookStorage` moved to `webhooks.py`** in their own earlier commit.
+    They lived in models.py/storage.py, are unrelated to the task schema, and had
+    to survive v1''s deletion.
+
+    - **Taxonomy and dependency validation against config was NOT built.** The old
+    design-doc sketch for this task listed it; the rewritten task description does
+    not, and no success criterion covers it. Flagging rather than silently importing
+    scope.'
+  data: {}
+- id: 6
+  ts: '2026-08-10T22:00:21.817410Z'
+  actor: claude
+  type: handoff
+  body: 'Schema v2 switchover complete. All eight success criteria are met and marked.
+
+
+    **The commits**
+
+    - `402e763` refactor(webhooks): move Webhook and WebhookStorage into webhooks.py
+
+    - `415c910` feat(schema): migrate the corpus to v2 and switch the application
+    over -- the atomic commit (sc-1, sc-2, sc-3)
+
+    - `e58d38a` refactor(schema): delete schema v1
+
+    - `a5290ab` docs(schema): retire the v1 half of the schema reference
+
+    - plus this task''s own claim and progress commits
+
+
+    **What changed.** 39 task files (32 backlog + 7 test-data) converted by the task-051
+    migrator, all stamped `schema: 2`. Storage, manager, API, templates, CLI, client,
+    sample data, the markdown importer and the examples all run on models_v2. `models.py`
+    is deleted. The manager grew the state verbs -- claim, handoff, release, close,
+    add_log_entry -- each appending its own log entry, and the API grew an endpoint
+    per verb plus axis filters (`?ball=human` is the inbox).
+
+
+    **Verified.** 370 tests pass; ruff, mypy and black clean. Beyond the suite, against
+    a real server on :8791 with two registered projects (in an isolated `AGENTJOBS_HOME`,
+    so the machine registry was never touched):
+
+    - dashboard, task list, task detail, the project switcher and the picker all render,
+    with `display_status` labels rather than raw enum values
+
+    - the full loop over HTTP: create -> Ready, claim -> In progress (claude), handoff
+    -> Needs review, approve -> back to agent/work, close -> Completed; the log ends
+    transition/handoff/handoff/transition
+
+    - the review panel renders with its `ball_prompt` as the lead, posting to the
+    project-scoped API
+
+    - `GET /api/tasks/broken` returns `[]` for the real 32-file corpus (sc-5)
+
+    - dropping an unmigrated v1 file in made it appear in `/broken` named with the
+    fix ("Convert the corpus with: agentjobs migrate-schema"), the listing survived,
+    and the GUI named the file -- this migration''s own worst failure mode, tested
+    live
+
+    - the double-claim race test still passes against the rewritten storage (sc-4)
+
+
+    **What needs your eye in review**
+
+    1. The 17 `NEEDS REVIEW:` ball_prompts the migrator left where no status update
+    existed to derive an ask from. They are honest placeholders, not blockers, but
+    they are prose a human should improve.
+
+    2. `task-004` in test-data was `blocked` while unclaimed with no dependencies,
+    so its blocker was never recorded anywhere. It mapped to `ready`; the original
+    status is preserved in its log.
+
+    3. Whether deleting `replace_task`/`PUT` is the call you want -- see the decision
+    entry above.
+
+
+    **Left stale on purpose.** `docs/agent-workflow.md`, `api-reference.md`, `webhooks.md`,
+    `index.md` and the generated `docs/schema/v1/` tree still describe v1. `docs/task-schema.md`
+    and `ALLAGENTS.md` were updated because they are the field map and the agent contract
+    respectively -- leaving those wrong would misdirect the next agent. The rest is
+    a docs pass worth its own task. `prompts/` is deliberately untouched: those are
+    historical records of past tasks and should keep saying what was true when written.
+
+
+    Recovery: `git reset --hard pre-v2-migration` restores the last all-v1 state.'
+  data:
+    ball: human
+    ball_reason: review
+- id: 7
+  ts: '2026-08-10T22:04:47.774887Z'
+  actor: claude
+  type: progress
+  body: 'Two things found *after* the handoff entry above was written, so that entry
+    understates the branch. Both are fixed and committed; the ball stays with the
+    reviewer.
+
+
+    **1. The docs test caught my own docs rewrite.** `TestDocumentationMatchesTheModel`
+    requires every Task field and every closed vocabulary value to appear backticked
+    in `docs/task-schema.md`. My first pass replaced the field table with prose and
+    an annotated YAML example, which reads better but let eight field names and the
+    whole Priority vocabulary go undocumented. The table is back, alongside the example.
+    Worth noting in review: the guard works, and it caught a regression written by
+    the person who was supposed to be maintaining the page.
+
+
+    **2. A real Windows concurrency bug in the task-055 lock** (commit `adbbaea`).
+    The double-claim race test failed once during final verification: 1 winner and
+    6 losers out of 8 threads, with the eighth thread having raised something the
+    test did not catch. It was `PermissionError`. On Windows a lock file whose handle
+    has closed but whose delete has not completed is *delete-pending*, and opening
+    it returns ERROR_ACCESS_DENIED -> `PermissionError` (EACCES), not `FileExistsError`
+    (EEXIST). `locked()` retried only the latter, so a losing claimant crashed with
+    a permissions error instead of being told the task was taken.
+
+
+    It is pre-existing, from task-055, not introduced here -- but this branch made
+    it reachable, because re-validating inside `mutate_task` lengthens the critical
+    section. Frequency was about 1 attempt in 40 under eight-way contention, which
+    is precisely why a serial suite never saw it.
+
+
+    **The safety property was never in question**: exactly one claimant won on every
+    run, before and after the fix. This was an error-quality defect -- the loser got
+    an unhelpful crash instead of a clean refusal -- not a correctness one. Ten eight-way
+    races are now clean where one in five previously failed.
+
+
+    Both new tests simulate the failure rather than racing for it, so the regression
+    is deterministic, and one of them covers the cost of the fix: retrying EACCES
+    means a genuinely unwritable directory waits out the 10s timeout rather than failing
+    immediately, so the timeout message now names that case.
+
+
+    Final state: 372 tests pass; ruff, mypy and black clean. Eight commits on `feat/task-052-schema-v2-switchover`.'
+  data: {}
+- id: 8
+  ts: '2026-08-10T22:43:06.718684Z'
+  actor: human
+  type: handoff
+  body: "Changes requested by human:\n\n_needs_met treats a dependency on a non-existent\
+    \ task as satisfied, so a typo'd or stale needs reference silently disables the\
+    \ claimability gate. This contradicts schema-design.md issue #2, which specifies\
+    \ dependency ids are validated against the store at save, and D2's own justification\
+    \ for strictness \u2014 a tolerated typo that silently does nothing is the exact\
+    \ failure mode extra=\"forbid\" exists to prevent. Either validate dependencies[].task\
+    \ on save as the design says, or make a dangling reference block the claim and\
+    \ surface it. Silently ignoring it is the one option the design rules out. If\
+    \ it's deferred, it needs to be a recorded decision rather than a docstring."
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 9
+  ts: '2026-08-10T22:46:49.408534Z'
+  actor: claude
+  type: decision
+  body: '**Save-time validation of `dependencies[].task` is deferred; claim-time blocking
+    is implemented instead.** Recorded here rather than in a docstring, as the review
+    asked.
+
+
+    The review offered two options. I took the second, and this is why.
+
+
+    *Save-time validation, as schema-design.md issue 2 specifies, has an ordering
+    problem the design doc does not address.* Writing a task that references one not
+    yet created is normal and useful -- planning a chain top-down means task 050 names
+    051 before 051 exists. Task-051''s migrator writes 39 files in one pass, and validating
+    each against a store that is mid-write means the result depends on filename order.
+    Any bulk import has the same shape. Doing it properly needs a two-pass write or
+    a deferred-check mode, which is a real piece of design work.
+
+
+    *Claim-time blocking gives the property that actually matters* -- a dependency
+    that cannot be evaluated is never silently treated as satisfied -- with no ordering
+    constraint, because by claim time the whole store is readable. The gate now distinguishes
+    three cases and names which: still open, not a task in this project, and file
+    present but unreadable. That last one is new: a dependency whose file is corrupt
+    is no longer evidence that it is done.
+
+
+    *Rejected: blocking silently, or logging a warning.* Both reproduce the original
+    defect in a quieter form. The refusal names the id and the reason, so a typo is
+    visible the first time someone tries to claim.
+
+
+    **Still owed, and worth its own task:** a corpus-wide check that reports dangling
+    references without waiting for someone to attempt a claim -- the same shape as
+    `/api/tasks/broken`, which reports unreadable files rather than waiting for a
+    request to hit one. Claim-time blocking catches the reference you trip over; it
+    does not catch the one nobody has touched yet. I audited the live corpus while
+    making this change: 32 tasks, 0 dangling references of any type, 0 ready tasks
+    newly blocked, so nothing is hiding today.'
+  re: 8
+  data: {}
+- id: 10
+  ts: '2026-08-10T22:46:49.444759Z'
+  actor: claude
+  type: handoff
+  body: 'Responding to the review.
+
+
+    **Changed.** `_needs_met` is replaced by `_unmet_needs`, which returns the blocking
+    dependencies with a reason rather than a bare boolean, and `_dependency_states`
+    which maps every id in the project to whether it is closed. Unreadable files are
+    included as *not* closed. Both `claim_task` and `get_next_task` use it, so /next
+    and claim agree -- they previously shared a helper but rebuilt the id map differently,
+    which was its own latent drift.
+
+
+    **Verified.** Three new tests: a dependency that does not exist, one whose file
+    will not load, and a non-`needs` dependency which must still never block. 400
+    tests pass; ruff, mypy, black clean. The original probe that demonstrated the
+    defect now refuses with `task-999-does-not-exist (not a task in this project)`.
+
+
+    **Blast radius checked before claiming it was safe.** Tightening a gate can strand
+    real work, so I audited the live corpus: 32 tasks, 0 dangling references, 0 ready
+    tasks newly blocked. This change alters no existing task''s claimability.
+
+
+    The deferral of save-time validation is a separate decision entry threaded to
+    your request.'
+  data:
+    ball: human
+    ball_reason: review
+- id: 11
+  ts: '2026-08-10T22:51:58.276081Z'
+  actor: human
+  type: handoff
+  body: Approved by human through the web UI.
+  data:
+    ball: agent
+    ball_reason: work

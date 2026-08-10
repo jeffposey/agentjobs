@@ -7,7 +7,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from agentjobs.manager import TaskManager
-from agentjobs.models import Task
+from agentjobs.models_v2 import Task
 
 from ..dependencies import get_task_manager
 
