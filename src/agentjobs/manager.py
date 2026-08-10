@@ -103,6 +103,11 @@ class TaskManager:
 
     def replace_task(self, task_id: str, **replacement: object) -> Task:
         """Replace task fields with provided payload preserving identifiers."""
+        with self.storage.locked(task_id):
+            return self._replace_locked(task_id, replacement)
+
+    def _replace_locked(self, task_id: str, replacement: Dict[str, object]) -> Task:
+        """Replace fields. Caller holds the lock."""
         existing = self._ensure_task_exists(task_id)
         payload = existing.model_dump(mode="python")
         payload.update(replacement)
@@ -119,17 +124,19 @@ class TaskManager:
         payload.setdefault("phases", existing.phases)
         payload.setdefault("tags", existing.tags)
         task = Task.model_validate(payload)
-        return self.storage.save_task(task)
+        return self.storage._write_task(task)
 
     def update_task(self, task_id: str, **updates: object) -> Task:
         """Apply a partial update to a task."""
-        existing = self._ensure_task_exists(task_id)
-        payload = existing.model_dump(mode="python")
-        payload.update(updates)
-        payload["id"] = existing.id
-        payload["created"] = existing.created
-        task = Task.model_validate(payload)
-        return self.storage.save_task(task)
+
+        def apply(existing: Task) -> Task:
+            payload = existing.model_dump(mode="python")
+            payload.update(updates)
+            payload["id"] = existing.id
+            payload["created"] = existing.created
+            return Task.model_validate(payload)
+
+        return self.storage.mutate_task(task_id, apply)
 
     def delete_task(self, task_id: str) -> bool:
         """Delete task from storage."""
@@ -161,20 +168,30 @@ class TaskManager:
         details: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Task:
-        """Update task status with status update entry and fire webhook."""
-        task = self._ensure_task_exists(task_id)
-        previous_status = task.status
-        now = datetime.now(tz=timezone.utc)
-        task.status = status
-        update = StatusUpdate(
-            timestamp=now,
-            author=author,
-            status=status,
-            summary=summary,
-            details=details,
-        )
-        task.status_updates.append(update)
-        task = self.storage.save_task(task)
+        """Update task status with status update entry and fire webhook.
+
+        The read, the change and the write happen under the task's lock via
+        mutate_task. Doing them separately is what allowed two agents to both observe a
+        task as ready and both write themselves in as owner (task-055).
+        """
+        previous: List[TaskStatus] = []
+
+        def apply(task: Task) -> Task:
+            previous.append(task.status)
+            task.status = status
+            task.status_updates.append(
+                StatusUpdate(
+                    timestamp=datetime.now(tz=timezone.utc),
+                    author=author,
+                    status=status,
+                    summary=summary,
+                    details=details,
+                )
+            )
+            return task
+
+        task = self.storage.mutate_task(task_id, apply)
+        previous_status = previous[0]
 
         # Fire webhook events
         if self.webhook_manager:
@@ -190,6 +207,37 @@ class TaskManager:
                 self.webhook_manager.fire_event("task.completed", task, event_metadata)
 
         return task
+
+    def claim_task(self, task_id: str, *, agent: str) -> Task:
+        """Take ownership of a ready task, or refuse because someone else already did.
+
+        The precondition is checked *inside* the lock against a fresh read, which is
+        the whole point: checking it beforehand is exactly the race. Two agents racing
+        this method produce one winner and one ValueError, never two owners.
+        """
+
+        def apply(task: Task) -> Task:
+            if task.status != TaskStatus.READY:
+                raise ValueError(
+                    f"Task '{task_id}' is not available to claim "
+                    f"(status is {task.status.value}"
+                    + (f", owned by {task.assigned_to}" if task.assigned_to else "")
+                    + ")"
+                )
+            task.status = TaskStatus.IN_PROGRESS
+            task.assigned_to = agent
+            task.status_updates.append(
+                StatusUpdate(
+                    timestamp=datetime.now(tz=timezone.utc),
+                    author=agent,
+                    status=TaskStatus.IN_PROGRESS,
+                    summary=f"Claimed by {agent}",
+                    details=None,
+                )
+            )
+            return task
+
+        return self.storage.mutate_task(task_id, apply)
 
     def get_next_task(self, priority: Optional[Priority] = None) -> Optional[Task]:
         """Get highest priority available task (READY status only)."""
@@ -215,16 +263,20 @@ class TaskManager:
         details: Optional[str] = None,
     ) -> Task:
         """Add progress update to task."""
-        task = self._ensure_task_exists(task_id)
-        update = StatusUpdate(
-            timestamp=datetime.now(tz=timezone.utc),
-            author=author,
-            status=task.status,
-            summary=summary,
-            details=details,
-        )
-        task.status_updates.append(update)
-        return self.storage.save_task(task)
+
+        def apply(task: Task) -> Task:
+            task.status_updates.append(
+                StatusUpdate(
+                    timestamp=datetime.now(tz=timezone.utc),
+                    author=author,
+                    status=task.status,
+                    summary=summary,
+                    details=details,
+                )
+            )
+            return task
+
+        return self.storage.mutate_task(task_id, apply)
 
     def mark_deliverable_complete(
         self,
@@ -232,14 +284,19 @@ class TaskManager:
         deliverable_path: str,
     ) -> Task:
         """Mark deliverable as completed."""
-        task = self._ensure_task_exists(task_id)
-        for deliverable in task.deliverables:
-            if deliverable.path == deliverable_path:
-                deliverable.status = "completed"
-                break
-        else:
-            raise ValueError(f"Deliverable '{deliverable_path}' not found for task '{task_id}'.")
-        return self.storage.save_task(task)
+
+        def apply(task: Task) -> Task:
+            for deliverable in task.deliverables:
+                if deliverable.path == deliverable_path:
+                    deliverable.status = "completed"
+                    break
+            else:
+                raise ValueError(
+                    f"Deliverable '{deliverable_path}' not found for task '{task_id}'."
+                )
+            return task
+
+        return self.storage.mutate_task(task_id, apply)
 
     def get_starter_prompt(self, task_id: str) -> str:
         """Return the starter prompt for a task."""
@@ -255,15 +312,19 @@ class TaskManager:
         context: str | None = None,
     ) -> Task:
         """Append a follow-up prompt entry to the task."""
-        task = self._ensure_task_exists(task_id)
-        prompt = Prompt(
-            timestamp=datetime.now(tz=timezone.utc),
-            author=author,
-            content=content,
-            context=context,
-        )
-        task.prompts.followups.append(prompt)
-        return self.storage.save_task(task)
+
+        def apply(task: Task) -> Task:
+            task.prompts.followups.append(
+                Prompt(
+                    timestamp=datetime.now(tz=timezone.utc),
+                    author=author,
+                    content=content,
+                    context=context,
+                )
+            )
+            return task
+
+        return self.storage.mutate_task(task_id, apply)
 
     def search_tasks(self, query: str) -> List[Task]:
         """Search tasks by query string."""
@@ -279,7 +340,6 @@ class TaskManager:
         reply_to: Optional[str] = None,
     ) -> Comment:
         """Add a comment to a task."""
-        task = self._ensure_task_exists(task_id)
         comment = Comment(
             id=f"c_{uuid.uuid4().hex[:12]}",
             task_id=task_id,
@@ -289,8 +349,12 @@ class TaskManager:
             kind=kind,
             reply_to=reply_to,
         )
-        task.comments.append(comment)
-        self.storage.save_task(task)
+
+        def apply(task: Task) -> Task:
+            task.comments.append(comment)
+            return task
+
+        task = self.storage.mutate_task(task_id, apply)
 
         # Fire webhook event
         if self.webhook_manager:

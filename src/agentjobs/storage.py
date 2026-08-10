@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import errno
 import logging
+import os
+import time
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
 import yaml
 from pydantic import ValidationError
@@ -73,6 +77,10 @@ class LoadResult:
         return bool(self.errors)
 
 
+class TaskLockTimeout(Exception):
+    """Another writer held the task lock for longer than we were willing to wait."""
+
+
 class TaskStorage:
     """YAML-based task storage."""
 
@@ -132,11 +140,82 @@ class TaskStorage:
         except ValidationError as exc:
             raise TaskLoadError(path, _describe_validation_error(exc), errors=exc.errors()) from exc
 
+    LOCK_TIMEOUT_SECONDS = 10.0
+    LOCK_POLL_SECONDS = 0.01
+
+    @contextmanager
+    def locked(self, task_id: str, *, timeout: Optional[float] = None) -> Iterator[None]:
+        """Hold an exclusive advisory lock on one task for the duration of the block.
+
+        Implemented with O_CREAT|O_EXCL rather than fcntl or msvcrt: exclusive create
+        is atomic on every filesystem AgentJobs runs on, needs no third-party
+        dependency, and behaves the same on Windows and Unix. The cost is that a
+        process killed mid-write leaves a stale lock, which is why the wait times out
+        with an error naming the file rather than blocking forever.
+
+        The lock is per task, so two agents working different tasks never contend.
+        """
+        lock_path = self._task_path(task_id).with_suffix(".lock")
+        deadline = time.monotonic() + (self.LOCK_TIMEOUT_SECONDS if timeout is None else timeout)
+        handle = None
+        while True:
+            try:
+                handle = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                break
+            except FileExistsError:
+                if time.monotonic() >= deadline:
+                    raise TaskLockTimeout(
+                        f"could not lock {lock_path.name} within "
+                        f"{self.LOCK_TIMEOUT_SECONDS}s; another writer is holding it, "
+                        "or a previous run died and left the lock behind"
+                    ) from None
+                time.sleep(self.LOCK_POLL_SECONDS)
+            except OSError as exc:  # pragma: no cover - unexpected filesystem failure
+                if exc.errno != errno.EEXIST:
+                    raise
+        try:
+            os.write(handle, str(os.getpid()).encode("ascii"))
+            yield
+        finally:
+            os.close(handle)
+            try:
+                lock_path.unlink()
+            except FileNotFoundError:  # pragma: no cover - already cleaned up
+                pass
+
+    def mutate_task(self, task_id: str, mutator: Callable[[Task], Optional[Task]]) -> Task:
+        """Read, change and write one task while holding its lock.
+
+        This is the fix for the double-claim race, and the reason it is a method rather
+        than advice in a docstring. The race was never inside save_task; it was in the
+        load -> decide -> save sequence that every caller wrote by hand. Two agents
+        could both read a task as ready, both decide they had won it, and both write.
+        The second write silently overwrote the first, and nothing in the record showed
+        it happened.
+
+        The lock therefore spans all three steps, and the task is re-read *inside* it,
+        so a decision is never made on a copy that went stale while waiting.
+
+        The mutator may return None to mean "leave it alone", which is what lets a
+        caller check a precondition under the lock and decline.
+        """
+        with self.locked(task_id):
+            current = self.load_task(task_id)
+            if current is None:
+                raise ValueError(f"Task '{task_id}' not found.")
+            updated = mutator(current)
+            if updated is None:
+                return current
+            return self._write_task(updated)
+
     def save_task(self, task: Task) -> Task:
         """Save task to YAML file, returning the persisted Task instance."""
-        now = datetime.now(tz=timezone.utc)
-        task.updated = now
+        with self.locked(task.id):
+            return self._write_task(task)
 
+    def _write_task(self, task: Task) -> Task:
+        """Serialise a task to disk. Callers must already hold its lock."""
+        task.updated = datetime.now(tz=timezone.utc)
         path = self._task_path(task.id)
         task_dict = task.model_dump(mode="json", exclude_none=True)
         yaml_text = yaml.safe_dump(task_dict, sort_keys=False, allow_unicode=False)
