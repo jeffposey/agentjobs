@@ -12,6 +12,7 @@ import yaml
 from pydantic import ValidationError
 
 from .models import Comment, Task, Webhook
+from .projects import contained_path
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +26,18 @@ class TaskStorage:
         self.tasks_dir.mkdir(parents=True, exist_ok=True)
 
     def _task_path(self, task_id: str) -> Path:
-        """Resolve the path for a given task identifier."""
+        """Resolve the path for a given task identifier.
+
+        Task ids reach this method from URL path parameters, and one server now serves
+        task directories drawn from a machine-wide registry. So the composed path is
+        checked for containment rather than trusted: an id that resolves outside this
+        project's tasks directory raises instead of reading or writing the file.
+        """
         if task_id.endswith(".yaml"):
             filename = task_id
         else:
             filename = f"{task_id}.yaml"
-        return self.tasks_dir / filename
+        return contained_path(self.tasks_dir, filename)
 
     def load_task(self, task_id: str) -> Optional[Task]:
         """Load task from YAML file."""
