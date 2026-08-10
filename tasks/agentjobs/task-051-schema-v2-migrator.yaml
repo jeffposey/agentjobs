@@ -1,8 +1,8 @@
 id: task-051-schema-v2-migrator
 title: 'Schema v2: one-shot migrator and corpus migration'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T19:49:06.324806Z'
-status: in_progress
+updated: '2026-08-10T20:05:48.748786Z'
+status: waiting_for_human
 priority: high
 category: migration
 estimated_effort: half day
@@ -36,15 +36,20 @@ success_criteria:
 - id: sc-1
   description: "agentjobs migrate-schema converts a v1 file to valid v2 following\
     \ every mapping rule in docs/schema-design.md \xA73/\xA78"
-  status: pending
+  status: completed
 - id: sc-2
-  description: Entire corpus (tasks/agentjobs/ + tasks/test-data/) migrated; corpus
+  description: 'Entire corpus (tasks/agentjobs/ + tasks/test-data/) migrated; corpus
     test passes against the v2 model; no information silently dropped (spot-check
-    phases/followups landed in description appendix / instruction log entries)
-  status: pending
+    phases/followups landed in description appendix / instruction log entries) [PARTIAL:
+    conversion of all 38 files is verified -- they convert, load under models_v2,
+    validate against LinkML, and lose no information. The WRITE is deliberately deferred:
+    v1 storage cannot read v2 files, so writing the corpus without the code switchover
+    leaves main broken. The write must be atomic with the switchover, which is task-052''s
+    content.]'
+  status: in_progress
 - id: sc-3
   description: Migrator refuses already-v2 files and unknown shapes with clear errors
-  status: pending
+  status: completed
 prompts:
   starter: "Implement per docs/schema-design.md \xA78 and this description. Branch\
     \ `feat/task-051-schema-v2-migrator` (or continue task-050's branch per its coordination\
@@ -121,6 +126,66 @@ status_updates:
     rather than an invented ask. The two archived tasks differ: one was superseded
     by phase-specific tasks, one was rejected as stale, so `outcome` is derived per
     file rather than defaulted.'
+- timestamp: '2026-08-10T20:05:48.748776Z'
+  author: claude
+  status: waiting_for_human
+  summary: Migrator complete and verified over all 38 files; the corpus WRITE is deliberately
+    not done
+  details: "Three commits. 328 tests pass (43 new); ruff, mypy and black clean across\
+    \ 61 files. The corpus is untouched -- `git status tasks/` is empty.\n\n## What\
+    \ is done\n\nsc-1 and sc-3 are met. `agentjobs migrate-schema` converts v1 to\
+    \ v2 per the section 3/8 mapping, refuses already-v2 files and unknown shapes,\
+    \ and is dry-run by default.\n\nVerified over all 38 real files in both directories:\
+    \ 38 convert, 38 load under models_v2, 38 validate against the LinkML schema,\
+    \ 0 information losses, 18 review notes. Reproduce with:\n  poetry run agentjobs\
+    \ migrate-schema --output-dir /tmp/preview --apply\n  poetry run agentjobs migrate-schema\
+    \ --tasks-dir tasks/test-data --output-dir /tmp/preview-td --apply\n\n## What\
+    \ is NOT done, and why -- read this before approving\n\nsc-2 is PARTIAL. The corpus\
+    \ is not written.\n\nv1 storage cannot read v2 files. Writing 38 v2 files while\
+    \ storage, manager, the API, every template and the CLI still expect v1 leaves\
+    \ the application broken -- not one failing test, the whole thing. So the write\
+    \ has to be atomic with the code switchover, and the switchover is task-052's\
+    \ content: manager operations and the API surface on v2.\n\nI could have done\
+    \ both in this branch. I judged that wrong for two reasons. First, it would make\
+    \ this branch roughly 052+053+054 combined, at the end of a long session, in the\
+    \ one place where a mistake destroys the project's own memory. Second, Jeff asked\
+    \ specifically for care here. Doing the risky irreversible step in a rush to satisfy\
+    \ a checkbox is the opposite of that.\n\nRecommended sequencing: task-052 begins\
+    \ by running the migrator with --apply as its first commit, then switches the\
+    \ code over in the same branch. The migrator is already proven against the real\
+    \ data, so that first commit is mechanical and its output is already known.\n\n\
+    ## Two real defects this found in task-050's work\n\nBoth were invisible until\
+    \ the migrator produced 31 real tasks rather than one example file.\n\n1. models_v2\
+    \ and schema/agentjobs-v2.yaml disagreed on required-ness: LinkML required spec.intent\
+    \ and spec.description, Pydantic required neither. Task-050's round-trip test\
+    \ could not catch it because the single example file fills in every field. Fixed\
+    \ by meeting in the middle -- description required in Pydantic, intent optional\
+    \ in LinkML -- and, more importantly, by adding a test that compares required-ness\
+    \ between the two definitions directly so this class of drift cannot recur.\n\
+    2. LinkML required ball_prompt on every open task, contradicting the design's\
+    \ explicit exception for agent/available. Rule split so the exception is expressible;\
+    \ verified that a ready task passes while a human/review task with no ask still\
+    \ fails.\n\n## Deviation from the design, flagged earlier and now implemented\n\
+    \nprompts.starter is preserved rather than dropped. Design section 7 justifies\
+    \ deleting it on the grounds that starters restate their descriptions; measured\
+    \ over the real corpus, exactly 1 of 38 does. The other 37 are distinct briefings.\
+    \ They are appended to spec.description under a heading.\n\n## The 18 review notes\n\
+    \nNone block the migration; all are places the converter refused to invent something.\n\
+    - 9 tasks have no status update to derive a ball_prompt from, so they get an explicit\
+    \ NEEDS REVIEW placeholder rather than a fabricated ask.\n- 5 have no human_summary,\
+    \ so spec.summary is derived from the first sentence of the description.\n- 2\
+    \ had assigned_to: 'TBD', which is not an actor id and is dropped.\n- 1 (task-004)\
+    \ was `blocked` while unclaimed with no dependencies, so its blocker was never\
+    \ recorded anywhere; mapped to ready with the original status preserved in a log\
+    \ entry.\n\n## Safety measures actually used\n\nRecovery tag `pre-v2-migration`\
+    \ at e9116da; `git reset --hard pre-v2-migration` undoes everything. Converted\
+    \ only into temp directories. Committed the migrator before mutation-testing it,\
+    \ which is the discipline I failed twice earlier today. No `git checkout --` on\
+    \ uncommitted work and no `rm -rf` this session.\n\nOne test initially failed\
+    \ in an instructive way: 'description dropped' was not detected, because the fixture's\
+    \ description was short enough to be duplicated wholesale into the derived summary\
+    \ -- so the text really was still present and the gate was right. The fixture\
+    \ was too degenerate to lose anything. I fixed the fixture, not the gate."
 comments: []
 deliverables:
 - path: src/agentjobs/migrate.py
