@@ -1,8 +1,8 @@
 id: task-047-lint-typecheck-debt
 title: Fix two NameError bugs found by ruff, then clear lint/format/type debt
 created: '2026-07-29T18:42:51.398166Z'
-updated: '2026-08-10T08:02:04.569563Z'
-status: waiting_for_human
+updated: '2026-08-10T18:59:43.897446Z'
+status: completed
 priority: medium
 category: maintenance
 estimated_effort: 3-4 hours
@@ -369,6 +369,22 @@ status_updates:
 
     This unblocks task-050 (v2 models), which the design doc section 10 says wants
     honestly-typed enums underneath it.'
+- timestamp: '2026-08-10T18:59:43.737965Z'
+  author: jeff
+  status: in_progress
+  summary: "Approved by Jeff \u2014 cleared to merge"
+  details: 'Jeff approved on 2026-08-10: "merge + switcher and on to 050". Recorded
+    with author: jeff; the merge below is the agent''s own entry.'
+- timestamp: '2026-08-10T18:59:43.821601Z'
+  author: claude
+  status: completed
+  summary: Merged to main
+  details: 'Rebased onto main, merged --no-ff, branch marked merged and deleted locally.
+    Nothing pushed to origin.
+
+
+    Unblocks task-050 (schema v2 models), which docs/schema-design.md section 10 says
+    wants honestly-typed enums underneath it -- now delivered.'
 comments: []
 deliverables:
 - path: src/agentjobs/models.py
@@ -396,4 +412,4 @@ tags:
 - tooling
 branches:
 - name: fix/task-047-lint-typecheck-debt
-  status: active
+  status: merged
