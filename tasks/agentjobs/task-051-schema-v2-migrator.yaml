@@ -1,8 +1,8 @@
 id: task-051-schema-v2-migrator
 title: 'Schema v2: one-shot migrator and corpus migration'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T20:05:48.748786Z'
-status: waiting_for_human
+updated: '2026-08-10T20:11:08.498689Z'
+status: completed
 priority: high
 category: migration
 estimated_effort: half day
@@ -186,6 +186,35 @@ status_updates:
     \ description was short enough to be duplicated wholesale into the derived summary\
     \ -- so the text really was still present and the gate was right. The fixture\
     \ was too degenerate to lose anything. I fixed the fixture, not the gate."
+- timestamp: '2026-08-10T20:09:12.736186Z'
+  author: human
+  status: in_progress
+  summary: "Approved by human \u2014 cleared to merge"
+  details: 'human approved this work through the web UI. The ball is back with the
+    agent, which must now rebase onto main, merge --no-ff, mark the branch merged
+    in branches[], and set this task completed. No merge has happened yet: the UI
+    records approval, it does not run git.'
+- timestamp: '2026-08-10T20:11:08.437885Z'
+  author: claude
+  status: completed
+  summary: Merged to main; the corpus write carries forward to task-052
+  details: 'Rebased onto main, merged --no-ff, branch marked merged and deleted locally.
+    Nothing pushed to origin.
+
+
+    sc-2 remains partial and is NOT being quietly closed: the corpus is still entirely
+    v1. Task-052 owns running `agentjobs migrate-schema --apply` as its first commit
+    and switching storage, the manager, the API, the templates and the CLI over to
+    models_v2 in the same branch, because there is no intermediate state that keeps
+    main green.
+
+
+    The recovery tag `pre-v2-migration` stays in place until that migration is merged
+    and verified. It points at e9116da, the last commit where every task file is v1.
+
+
+    Also carried forward: task-050 delivered models_v2 alongside v1, so task-052 must
+    delete models.py once nothing imports it.'
 comments: []
 deliverables:
 - path: src/agentjobs/migrate.py
@@ -206,4 +235,4 @@ tags:
 - migration
 branches:
 - name: feat/task-051-schema-v2-migrator
-  status: active
+  status: merged
