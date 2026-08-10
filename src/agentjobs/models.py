@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TaskStatus(str, Enum):
@@ -352,23 +352,3 @@ class Comment(BaseModel):
         """Update the comment content and timestamp."""
         self.content = content
         self.updated = datetime.now(tz=timezone.utc)
-
-
-class Webhook(BaseModel):
-    """Webhook configuration for task event notifications."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    id: str = Field(..., description="Unique webhook identifier.")
-    url: HttpUrl = Field(..., description="Target URL for webhook delivery.")
-    events: List[str] = Field(..., description="List of events to trigger this webhook.")
-    secret: str = Field(..., description="Secret for HMAC signature verification.")
-    active: bool = Field(default=True, description="Whether this webhook is active.")
-    created: datetime = Field(..., description="When the webhook was created.")
-    last_triggered: Optional[datetime] = Field(
-        default=None, description="Last time this webhook was successfully triggered."
-    )
-
-    def record_trigger(self) -> None:
-        """Record that this webhook was triggered."""
-        self.last_triggered = datetime.now(tz=timezone.utc)

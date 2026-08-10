@@ -7,8 +7,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field, HttpUrl
 
-from agentjobs.models import Webhook
-from agentjobs.webhooks import WebhookManager
+from agentjobs.webhooks import Webhook, WebhookManager
 
 from ..dependencies import get_webhook_manager
 

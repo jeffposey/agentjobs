@@ -17,7 +17,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from agentjobs.models import Comment, Webhook
+from agentjobs.models import Comment
+from agentjobs.webhooks import Webhook
 
 
 @pytest.fixture()

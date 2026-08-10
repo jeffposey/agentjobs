@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 
 from agentjobs.models import TaskStatus
-from agentjobs.storage import TaskStorage, WebhookStorage
+from agentjobs.storage import TaskStorage
 from agentjobs.manager import TaskManager
-from agentjobs.webhooks import WebhookManager
+from agentjobs.webhooks import WebhookManager, WebhookStorage
 
 
 @pytest.fixture
