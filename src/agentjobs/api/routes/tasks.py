@@ -168,13 +168,37 @@ async def approve_task(
     payload: HumanActionRequest,
     manager: TaskManager = Depends(get_task_manager),
 ) -> Dict[str, Any]:
-    """Approve a waiting_for_human task and mark it ready."""
+    """Record human approval and hand the task back to the agent that owns it.
+
+    This used to set ``ready``, which is the opposite of approving: ``ready`` means
+    unclaimed and claimable by any eligible agent, so approving finished work threw it
+    back into the pool. Approval means the human is done and the agent acts next --
+    rebase, merge --no-ff, mark the branch merged, close the task (ENGINEERING.md, "The
+    Merge Gate").
+
+    Nothing here merges anything. The GUI cannot run git, and a button that implied
+    otherwise would be a worse lie than the one it replaces. It records the approval in
+    the task record -- which is the point, since approvals have until now lived only in
+    chat -- and moves the ball.
+
+    ``in_progress`` is the closest v1 can get. Neither v1 status means "approved,
+    awaiting merge": leaving it ``waiting_for_human`` would keep a task in the human's
+    inbox after the human finished with it. The schema v2 design resolves this properly
+    (``ball: agent``, ``ball_reason: work``), and ``in_progress`` is exactly what that
+    state maps back to in v1 -- see docs/schema-design.md section 3.
+    """
     try:
         task = manager.update_status(
             task_id=task_id,
-            status=TaskStatus.READY,
+            status=TaskStatus.IN_PROGRESS,
             author=payload.user,
-            summary=f"Approved by {payload.user}",
+            summary=f"Approved by {payload.user} — cleared to merge",
+            details=(
+                f"{payload.user} approved this work through the web UI. The ball is "
+                "back with the agent, which must now rebase onto main, merge --no-ff, "
+                "mark the branch merged in branches[], and set this task completed. "
+                "No merge has happened yet: the UI records approval, it does not run git."
+            ),
             metadata={"action": "approve"},
         )
         return {"task": task.model_dump(mode="json")}
@@ -191,21 +215,27 @@ async def request_changes(
     payload: FeedbackActionRequest,
     manager: TaskManager = Depends(get_task_manager),
 ) -> Dict[str, Any]:
-    """Request changes on a task with feedback."""
+    """Record requested changes and hand the task back to the agent.
+
+    Previously this left the status untouched, so a task the human had finished with
+    stayed in the human inbox and nothing indicated the agent had work to do. Like
+    approval, requesting changes moves the ball: the agent acts next.
+    """
     try:
-        # Add feedback comment
+        # The feedback is the payload of the handoff, so it goes in the record verbatim.
         manager.add_comment(
             task_id=task_id,
             author=payload.user,
             content=payload.feedback,
             kind="feedback",
         )
-        # Add status update (keep status same, just add note)
-        task = manager.add_progress_update(
+        task = manager.update_status(
             task_id=task_id,
+            status=TaskStatus.IN_PROGRESS,
             author=payload.user,
-            summary=f"Requested changes: {payload.feedback[:50]}...",
+            summary=f"Changes requested by {payload.user}",
             details=payload.feedback,
+            metadata={"action": "request_changes"},
         )
         return {"task": task.model_dump(mode="json")}
     except ValueError as exc:
