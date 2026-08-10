@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import logging
 import uuid
+from dataclasses import dataclass
+from dataclasses import field as dc_field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import yaml
 from pydantic import ValidationError
@@ -15,6 +17,60 @@ from .models import Task, Webhook
 from .projects import contained_path
 
 logger = logging.getLogger(__name__)
+
+
+def _describe_validation_error(exc: ValidationError) -> str:
+    """Render a pydantic error as 'field: message', naming the field that is wrong.
+
+    Pydantic's default rendering is several lines per error with a docs URL. The point
+    of this task is that a reader learns *which field* broke without opening a log
+    aggregator, so the first few errors are compressed onto one line.
+    """
+    parts = []
+    for error in exc.errors()[:3]:
+        location = ".".join(str(item) for item in error.get("loc", ())) or "(root)"
+        parts.append(f"{location}: {error.get('msg', 'invalid')}")
+    remaining = len(exc.errors()) - 3
+    if remaining > 0:
+        parts.append(f"and {remaining} more problem(s)")
+    return "; ".join(parts)
+
+
+class TaskLoadError(Exception):
+    """A task file exists but cannot be read as a task.
+
+    Carries the path and a field-level description so the message answers "which file,
+    which field, what is wrong" without further digging.
+    """
+
+    def __init__(self, path: Path, reason: str, *, errors: Optional[List[Any]] = None):
+        """Initialize with the offending file and a human-readable reason."""
+        self.path = Path(path)
+        self.task_id = self.path.stem
+        self.reason = reason
+        self.errors = errors or []
+        super().__init__(f"{self.path.name}: {reason}")
+
+    def as_dict(self) -> Dict[str, Any]:
+        """Serialisable form, for API responses and templates."""
+        return {
+            "task_id": self.task_id,
+            "path": str(self.path),
+            "filename": self.path.name,
+            "reason": self.reason,
+        }
+
+
+@dataclass
+class LoadResult:
+    """Tasks that loaded, plus the files that did not."""
+
+    tasks: List[Task] = dc_field(default_factory=list)
+    errors: List[TaskLoadError] = dc_field(default_factory=list)
+
+    @property
+    def has_errors(self) -> bool:
+        return bool(self.errors)
 
 
 class TaskStorage:
@@ -40,7 +96,18 @@ class TaskStorage:
         return contained_path(self.tasks_dir, filename)
 
     def load_task(self, task_id: str) -> Optional[Task]:
-        """Load task from YAML file."""
+        """Load a task from its YAML file.
+
+        Returns None when the file does not exist -- that is a legitimate answer to
+        "is there a task with this id".
+
+        Raises TaskLoadError when the file exists but cannot be read as a task. That
+        is *not* a legitimate answer: it used to return None here too, which made a
+        broken file indistinguishable from a missing one and dropped it out of every
+        listing with nothing but a log line as evidence. A task that silently vanishes
+        is the worst available failure mode, because the data it described is invisible
+        precisely when someone needs to notice it is wrong.
+        """
         path = self._task_path(task_id)
         if not path.exists():
             return None
@@ -48,19 +115,22 @@ class TaskStorage:
         try:
             content = path.read_text(encoding="utf-8")
             data = yaml.safe_load(content) or {}
-        except yaml.YAMLError as exc:  # pragma: no cover - defensive logging path
-            logger.error("Failed to parse YAML for %s: %s", path, exc)
-            return None
+        except yaml.YAMLError as exc:
+            raise TaskLoadError(path, f"invalid YAML: {exc}") from exc
+        except OSError as exc:
+            raise TaskLoadError(path, f"could not read the file: {exc}") from exc
 
         if not data:
-            logger.warning("Empty task data in %s", path)
-            return None
+            raise TaskLoadError(path, "the file is empty")
+        if not isinstance(data, dict):
+            raise TaskLoadError(
+                path, f"expected a mapping at the top level, found {type(data).__name__}"
+            )
 
         try:
             return Task.model_validate(data)
-        except ValidationError as exc:  # pragma: no cover - defensive logging path
-            logger.error("Validation error loading %s: %s", path, exc)
-            return None
+        except ValidationError as exc:
+            raise TaskLoadError(path, _describe_validation_error(exc), errors=exc.errors()) from exc
 
     def save_task(self, task: Task) -> Task:
         """Save task to YAML file, returning the persisted Task instance."""
@@ -73,14 +143,29 @@ class TaskStorage:
         path.write_text(yaml_text, encoding="utf-8")
         return task
 
-    def list_tasks(self) -> List[Task]:
-        """List all tasks."""
-        tasks: List[Task] = []
+    def load_all(self) -> "LoadResult":
+        """Load every task, keeping the broken ones instead of dropping them.
+
+        One unreadable file must not take down the listing of the other thirty-seven,
+        so errors are collected rather than raised. They are *returned* rather than
+        logged, so that callers have to decide what to do with them -- which is what
+        makes a broken file visible in the UI instead of only in a log nobody reads.
+        """
+        result = LoadResult()
         for path in sorted(self.tasks_dir.glob("*.yaml")):
-            task = self.load_task(path.stem)
+            try:
+                task = self.load_task(path.stem)
+            except TaskLoadError as exc:
+                logger.error("%s", exc)
+                result.errors.append(exc)
+                continue
             if task is not None:
-                tasks.append(task)
-        return tasks
+                result.tasks.append(task)
+        return result
+
+    def list_tasks(self) -> List[Task]:
+        """Every task that loads. Use load_all() when the broken ones matter too."""
+        return self.load_all().tasks
 
     def generate_task_id(self) -> str:
         """Generate the next task identifier in sequence."""
