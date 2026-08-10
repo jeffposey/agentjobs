@@ -2,10 +2,11 @@ schema: 2
 id: task-064-human-actor-identity
 title: 'Human actor identity: stop recording every review action as ''human'''
 created: '2026-08-10T22:57:38.560179Z'
-updated: '2026-08-10T22:57:38.560964Z'
-lifecycle: ready
+updated: '2026-08-10T23:04:58.758045Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: developer_experience
@@ -15,6 +16,7 @@ tags:
 - provenance
 effort: 1-2 hours
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: Every GUI review action is logged with actor 'human', so the record shows
@@ -102,5 +104,16 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
-log: []
+branches:
+- name: feat/task-064-human-actor-identity
+  status: active
+log:
+- id: 1
+  ts: '2026-08-10T23:04:58.748523Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
