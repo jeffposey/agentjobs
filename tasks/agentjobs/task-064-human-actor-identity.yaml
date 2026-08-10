@@ -2,13 +2,13 @@ schema: 2
 id: task-064-human-actor-identity
 title: 'Human actor identity: stop recording every review action as ''human'''
 created: '2026-08-10T22:57:38.560179Z'
-updated: '2026-08-10T23:33:03.927245Z'
+updated: '2026-08-10T23:56:36.844934Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Renamed to `Jeff Posey` and history backfilled again. Approve to merge,
-  or push back. Two new draft tasks are waiting for you separately: task-066 (multiple
-  human users) and task-067 (image attachments).'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 category: developer_experience
@@ -358,3 +358,11 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 10
+  ts: '2026-08-10T23:56:36.844795Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
