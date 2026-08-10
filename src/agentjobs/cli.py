@@ -14,7 +14,7 @@ import yaml
 from .manager import TaskManager
 from .migration import migrate_tasks
 from .migration.reporter import MigrationReporter
-from .models import Priority, TaskStatus
+from .models_v2 import Ball, Lifecycle, Outcome, Priority
 from .projects import ProjectError, ProjectRegistry
 from .storage import TaskStorage
 
@@ -72,7 +72,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "validation",
         "documentation",
     ],
-    "defaults": {"priority": "medium", "status": "draft"},
+    "defaults": {"priority": "medium", "lifecycle": "draft"},
 }
 
 
@@ -374,7 +374,8 @@ def create(
 
 @app.command("list")
 def list_tasks(
-    status: Optional[TaskStatus] = typer.Option(None),
+    lifecycle: Optional[Lifecycle] = typer.Option(None),
+    ball: Optional[Ball] = typer.Option(None),
     priority: Optional[Priority] = typer.Option(None),
 ) -> None:
     """List tasks."""
@@ -394,8 +395,10 @@ def list_tasks(
             err=True,
         )
 
-    if status is not None:
-        tasks = [task for task in tasks if task.status == status]
+    if lifecycle is not None:
+        tasks = [task for task in tasks if task.lifecycle == lifecycle]
+    if ball is not None:
+        tasks = [task for task in tasks if task.ball == ball]
     if priority is not None:
         tasks = [task for task in tasks if task.priority == priority]
 
@@ -404,10 +407,9 @@ def list_tasks(
         return
 
     for task in tasks:
-        status_value = task.status.value if hasattr(task.status, "value") else task.status
-        priority_value = task.priority.value if hasattr(task.priority, "value") else task.priority
         typer.echo(
-            f"- {task.id} | {task.title} " f"[status={status_value}, priority={priority_value}]"
+            f"- {task.id} | {task.title} "
+            f"[{task.display_status}, priority={task.priority.value}]"
         )
 
 
@@ -427,30 +429,34 @@ def load_test_data(
         target_dir = base_dir / target_dir
 
     storage = TaskStorage(target_dir)
-    manager = TaskManager(storage)
 
     tasks = create_sample_tasks()
     created_count = 0
     updated_count = 0
 
+    from .storage import TaskLoadError
+
     for task in tasks:
-        payload = task.model_dump(mode="python")
         try:
-            manager.create_task(**payload)
-            typer.echo(f"✓ Created {task.id}: {task.title}")
-            created_count += 1
-        except ValueError:
-            manager.replace_task(task.id, **payload)
+            existed = storage.load_task(task.id) is not None
+        except TaskLoadError:
+            # A broken or unmigrated file at this id is replaced, not preserved --
+            # this command exists to (re)seed demo data.
+            existed = True
+        storage.save_task(task)
+        if existed:
             typer.echo(f"↻ Updated {task.id}: {task.title}")
             updated_count += 1
+        else:
+            typer.echo(f"✓ Created {task.id}: {task.title}")
+            created_count += 1
 
     typer.echo(f"\n✅ Loaded {len(tasks)} test tasks")
     from collections import Counter
 
-    status_counts = Counter(t.status for t in tasks)
-    for status in TaskStatus:
-        count = status_counts[status]
-        typer.echo(f"   - {count} {status.value.replace('_', ' ')}")
+    status_counts = Counter(t.display_status for t in tasks)
+    for label, count in sorted(status_counts.items()):
+        typer.echo(f"   - {count} {label.lower()}")
 
     if created_count and updated_count:
         typer.echo(f"\n📦 {created_count} created, {updated_count} refreshed.")
@@ -504,40 +510,34 @@ def work(
     typer.echo(f"\n{divider}")
     typer.echo(f"TASK: {task.title}")
     typer.echo(f"ID: {task.id}")
-    typer.echo(f"Priority: {getattr(task.priority, 'value', task.priority)}")
+    typer.echo(f"Priority: {task.priority.value}")
     typer.echo(f"Category: {task.category}")
     typer.echo(f"{divider}\n")
 
-    if getattr(task.prompts, "starter", None):
-        typer.echo(task.prompts.starter)
-        typer.echo(f"\n{divider}\n")
+    typer.echo(task.spec.description)
+    typer.echo(f"\n{divider}\n")
 
     if not typer.confirm(f"Start working on this task as '{agent}'?"):
         typer.echo("Cancelled")
         raise typer.Exit(0)
 
-    manager.update_status(
-        task.id,
-        status=TaskStatus.IN_PROGRESS,
-        author=agent,
-        summary=f"Started by {agent}",
-    )
-    typer.echo("✓ Task marked IN_PROGRESS")
+    manager.claim_task(task.id, agent=agent)
+    typer.echo("✓ Task claimed (active, ball: agent/work)")
 
     typer.echo("\n💼 Work on the task, then return here when done...\n")
 
-    if not typer.confirm("Mark task as COMPLETED?", default=True):
-        typer.echo("Task still IN_PROGRESS. Use CLI to update later.")
+    if not typer.confirm("Close the task as completed?", default=True):
+        typer.echo("Task still claimed. Use the API or hand it off later.")
         raise typer.Exit(0)
 
     summary = typer.prompt("Summary of work done", default="Task completed")
-    manager.update_status(
+    manager.close_task(
         task.id,
-        status=TaskStatus.COMPLETED,
-        author=agent,
-        summary=summary,
+        actor=agent,
+        outcome=Outcome.COMPLETED,
+        body=summary,
     )
-    typer.echo(f"\n✅ Task {task.id} marked COMPLETED!")
+    typer.echo(f"\n✅ Task {task.id} closed: completed.")
 
 
 project_app = typer.Typer(
@@ -656,7 +656,7 @@ def show(task_id: str) -> None:
     if task is None:
         typer.secho(f"Task '{task_id}' not found.", fg=typer.colors.RED)
         raise typer.Exit(code=1)
-    typer.echo(json.dumps(task.model_dump(mode="json"), indent=2))
+    typer.echo(json.dumps(task.model_dump(mode="json", by_alias=True), indent=2))
 
 
 @app.command()

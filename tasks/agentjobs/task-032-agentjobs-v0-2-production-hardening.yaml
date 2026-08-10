@@ -1,46 +1,36 @@
+schema: 2
 id: task-032-agentjobs-v0-2-production-hardening
 title: AgentJobs v0.2.0 - Production Hardening
 created: '2025-10-26T18:30:00Z'
-updated: '2026-08-10T19:43:28.595146Z'
-status: archived
+updated: '2026-08-10T19:43:28Z'
+lifecycle: closed
+outcome: cancelled
+archived: true
 priority: medium
 category: infrastructure
-assigned_to: TBD
-estimated_effort: 2-3 weeks
-human_summary: Prepare AgentJobs for production deployments by adding auth, deployment
-  automation, monitoring, and GitHub syncing.
-description: "## Objective\n\nHarden AgentJobs for production deployments beyond the\
-  \ initial pilot environment by implementing\nauthentication, deployment automation,\
-  \ observability, and GitHub integration.\n\n## Scope\n\n1. **Authentication & Authorization**\n\
-  \   - API key authentication for REST endpoints\n   - Role-based access (admin,\
-  \ agent, viewer)\n   - Session management for the web GUI\n\n2. **Deployment Automation**\n\
-  \   - Docker container image\n   - `docker-compose` for the full stack\n   - Optional\
-  \ Kubernetes manifests for later scaling\n\n3. **Monitoring & Observability**\n\
-  \   - Prometheus metrics\n   - Health check endpoints\n   - Structured logging pipeline\n\
-  \n4. **GitHub Integration**\n   - Sync tasks with GitHub Issues\n   - Bi-directional\
-  \ updates\n   - Webhook support for external triggers\n\n5. **Performance & Scaling**\n\
-  \   - Database connection pooling\n   - Caching layer (Redis)\n   - Load and stress\
-  \ testing harness\n\n## Non-Goals\n\n- Multi-tenant support (future)\n- GUI task\
-  \ editing (Phase 6)\n- Mobile app experiences\n"
-phases:
-- id: phase-1
-  title: Authentication System
-  status: draft
-- id: phase-2
-  title: Docker & Deployment
-  status: draft
-- id: phase-3
-  title: Monitoring & Logging
-  status: draft
-- id: phase-4
-  title: GitHub Integration
-  status: draft
-- id: phase-5
-  title: Performance Optimization
-  status: draft
-success_criteria: []
-prompts:
-  starter: "## Objective\n\nProduce a production-ready release plan for AgentJobs\
+tags:
+- agentjobs
+- production
+- v0.2
+effort: 2-3 weeks
+spec:
+  summary: Prepare AgentJobs for production deployments by adding auth, deployment
+    automation, monitoring, and GitHub syncing.
+  description: "## Objective\n\nHarden AgentJobs for production deployments beyond\
+    \ the initial pilot environment by implementing\nauthentication, deployment automation,\
+    \ observability, and GitHub integration.\n\n## Scope\n\n1. **Authentication &\
+    \ Authorization**\n   - API key authentication for REST endpoints\n   - Role-based\
+    \ access (admin, agent, viewer)\n   - Session management for the web GUI\n\n2.\
+    \ **Deployment Automation**\n   - Docker container image\n   - `docker-compose`\
+    \ for the full stack\n   - Optional Kubernetes manifests for later scaling\n\n\
+    3. **Monitoring & Observability**\n   - Prometheus metrics\n   - Health check\
+    \ endpoints\n   - Structured logging pipeline\n\n4. **GitHub Integration**\n \
+    \  - Sync tasks with GitHub Issues\n   - Bi-directional updates\n   - Webhook\
+    \ support for external triggers\n\n5. **Performance & Scaling**\n   - Database\
+    \ connection pooling\n   - Caching layer (Redis)\n   - Load and stress testing\
+    \ harness\n\n## Non-Goals\n\n- Multi-tenant support (future)\n- GUI task editing\
+    \ (Phase 6)\n- Mobile app experiences\n\n---\n\n## Starter prompt (migrated from\
+    \ schema v1)\n\n## Objective\n\nProduce a production-ready release plan for AgentJobs\
     \ v0.2.0 that covers\nauthentication, deployment, observability, GitHub workflows,\
     \ and scaling\nconcerns. This iteration is design-heavy: assemble the technical\
     \ architecture,\nservice boundaries, deployment targets, and acceptance criteria\
@@ -61,29 +51,53 @@ prompts:
     \ Ready\n\n- Architecture brief reviewed and signed off by human stakeholders.\n\
     - Stories broken down into executable sub-tasks with clear acceptance criteria.\n\
     - Risks and mitigations called out explicitly.\n\nOnce the document is ready,\
-    \ update this task with links to the artifact and\ntransition it to `ready`.\n"
-  followups: []
-status_updates:
-- timestamp: '2025-10-26T21:30:00Z'
-  author: Codex
-  status: waiting_for_human
-  summary: Draft production-hardening brief awaiting review
-  details: Expanded starter prompt with architecture, deployment, ops, integration,
-    and performance requirements. Ready for human sign-off.
-- timestamp: '2026-08-10T19:43:28.595137Z'
-  author: human
-  status: archived
-  summary: 'Rejected by human: old stale task, nothing waiting on it'
-comments: []
+    \ update this task with links to the artifact and\ntransition it to `ready`.\n\
+    ---\n\n## Phases (migrated from schema v1)\n\n`phases[]` was deleted in v2; sub-tasks\
+    \ via `parent` are the one way to\nsubdivide. This is the historical record, preserved\
+    \ verbatim.\n\n- **Authentication System** (`phase-1`, draft)\n- **Docker & Deployment**\
+    \ (`phase-2`, draft)\n- **Monitoring & Logging** (`phase-3`, draft)\n- **GitHub\
+    \ Integration** (`phase-4`, draft)\n- **Performance Optimization** (`phase-5`,\
+    \ draft)"
 deliverables:
 - path: docs/v0.2-production-hardening.md
   status: pending
-  description: Architecture and rollout plan for AgentJobs v0.2.0
-dependencies: []
-external_links: []
-issues: []
-tags:
-- agentjobs
-- production
-- v0.2
-branches: []
+  note: Architecture and rollout plan for AgentJobs v0.2.0
+log:
+- id: 1
+  ts: '2025-10-26T21:30:00Z'
+  actor: Codex
+  type: transition
+  data:
+    v1_status: waiting_for_human
+  body: 'Draft production-hardening brief awaiting review
+
+
+    Expanded starter prompt with architecture, deployment, ops, integration, and performance
+    requirements. Ready for human sign-off.'
+- id: 2
+  ts: '2026-08-10T19:43:28Z'
+  actor: human
+  type: transition
+  data:
+    v1_status: archived
+  body: 'Rejected by human: old stale task, nothing waiting on it'
+- id: 3
+  ts: '2026-08-10T19:43:28Z'
+  actor: system
+  type: note
+  data:
+    v1_status: archived
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: archived` became lifecycle: closed / outcome: cancelled.
+
+    - 5 phase(s) folded into spec.description as an appendix.
+
+    - prompts.starter preserved in spec.description.
+
+
+    Needs human review:
+
+    - assigned_to: ''TBD'' is not an actor id; dropped'

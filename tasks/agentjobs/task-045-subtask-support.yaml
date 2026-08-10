@@ -1,125 +1,126 @@
+schema: 2
 id: task-045-subtask-support
 title: Sub-task behavior atop schema v2 (get_subtasks, umbrella non-claimability,
   ?parent= filter, GUI)
-created: '2026-07-06T19:25:45.710710Z'
+created: '2026-07-06T19:25:45Z'
 updated: '2026-07-29T20:47:00Z'
-status: draft
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: 'NEEDS REVIEW: finish specifying this task.'
 priority: high
 category: infrastructure
-assigned_to: claude
-estimated_effort: half day
-description: "AgentJobs has no working task hierarchy today. This task adds the *behavior*\
-  \ for parent/child sub-tasks; the schema fields themselves now land elsewhere.\n\n\
-  ## Reconciled with the schema design pass (2026-07-29, task-048 sc-4)\n\nThis task\
-  \ originally carried two schema changes: a `parent: Optional[str]` field, and the\
-  \ `assigned_to`/`supported_agents` ownership-vs-eligibility split. **Both are absorbed\
-  \ into schema v2** (docs/schema-design.md \xA72: `parent`, and `assignment.owner`\
-  \ / `assignment.eligible`), implemented by task-050 and migrated by task-051. What\
-  \ remains here is everything those fields need to actually *do*:\n\n**Manager** (src/agentjobs/manager.py):\
-  \ `get_subtasks(task_id)` returning children; umbrella tasks (any task with open\
-  \ children) are never claimable — excluded from /next and refused by claim (this\
-  \ extends task-052's claimability rule: ready + eligible + no open children + no\
-  \ unmet needs dependencies).\n\n**API**: accept `parent` on create/update request\
-  \ models (src/agentjobs/api/models.py); `?parent=` filter on GET /api/tasks\
-  \ (src/agentjobs/api/routes/tasks.py). Validate parent exists; reject self-parenting\
-  \ and cycles.\n\n**Jinja UI** (minimal — the React frontend will replace it):\
-  \ children list with display_status badges on a parent's detail page; 'part of\
-  \ task-xxx' link on a child (src/agentjobs/api/templates/task_detail.html).\n\n\
-  **Tests**: manager get_subtasks / claimability exclusion, API create-with-parent +\
-  \ filter + validation errors (missing/self/cyclic parent).\n\nAfter this task merges,\
-  \ the React milestone umbrella tasks (Milestone 1: read-only browser; Milestone 2:\
-  \ interactive human workflow; Milestone 3: maturity) and their children will be\
-  \ created using `parent`.\n\n**Gated:** do not start until task-052 (v2 manager/API)\
-  \ merges.\n"
-phases: []
-success_criteria:
-- id: sc-1
-  description: get_subtasks returns exactly the children; a task with open children
-    is excluded from /next and refused by claim
-  status: pending
-- id: sc-2
-  description: GET /api/tasks?parent=<id> returns exactly the children; creating a
-    task with a missing/self/cyclic parent is rejected with 400
-  status: pending
-- id: sc-3
-  description: Parent detail page lists children with display_status badges; child
-    page links to its parent; pytest green including new tests
-  status: pending
-prompts:
-  starter: '## Objective
-
-    Add sub-task behavior atop schema v2''s parent field per the task description.
-    The schema fields already exist (task-050); this is manager/API/GUI behavior and
-    tests only.
-
-
-    ## Steps
-
-    1. Create branch `feat/task-045-subtask-support` from main. Record it in branches[]
-    and mark the task in_progress (claim via the v2 API).
-
-    2. Manager: get_subtasks; umbrella exclusion from claimability. Tests.
-
-    3. API: parent on create/update, ?parent= filter, exists/self/cycle validation.
-    Tests.
-
-    4. Jinja detail template: children list on parents, parent link on children.
-
-    5. poetry run pytest, black/ruff/mypy. Verify manually via curl + browser, then
-    delete scratch tasks.
-
-
-    ## Git workflow (mandatory)
-
-    One logical change per commit (manager / API / UI). When the branch is complete
-    and verified: STOP, hand off to human review via the v2 handoff API with a
-    ball_prompt, and wait for explicit approval. On approval: rebase onto main, merge
-    with --no-ff, mark the branch merged in branches[], close the task.
-
-
-    ## After merge
-
-    Create the React milestone umbrella tasks and their sub-tasks using parent (see
-    the approved plan: Milestone 1 read-only browser M1.1-M1.8, Milestone 2 interactive
-    M2.1-M2.2, Milestone 3 optional M3.1-M3.2).'
-  followups: []
-status_updates: []
-comments: []
-deliverables:
-- path: src/agentjobs/manager.py
-  status: pending
-  description: get_subtasks + umbrella exclusion from claimability
-- path: src/agentjobs/api/routes/tasks.py
-  status: pending
-  description: ?parent= filter and parent validation
-- path: src/agentjobs/api/models.py
-  status: pending
-  description: parent on create/update request models
-- path: src/agentjobs/api/templates/task_detail.html
-  status: pending
-  description: Children list / parent link rendering
-dependencies:
-- task_id: task-042-relocate-demo-tasks
-  type: depends_on
-  note: Phase 0 hygiene first
-- task_id: task-043-cors-vite-dev-origin
-  type: depends_on
-  note: Phase 0 hygiene first
-- task_id: task-044-docs-git-workflow
-  type: depends_on
-  note: Phase 0 hygiene first
-- task_id: task-048-schema-design
-  type: depends_on
-  note: Reconciled 2026-07-29 -- this task's two schema changes were absorbed into
-    schema v2 (task-050); scope here narrowed to sub-task behavior.
-- task_id: task-052-schema-v2-manager-api
-  type: depends_on
-  note: Builds on the v2 manager/API (claimability, display_status)
-external_links: []
-issues: []
 tags:
 - react-frontend
 - learning
 - feature
 - schema-v2
-branches: []
+effort: half day
+assignment:
+  eligible:
+  - claude
+spec:
+  summary: AgentJobs has no working task hierarchy today.
+  description: "AgentJobs has no working task hierarchy today. This task adds the\
+    \ *behavior* for parent/child sub-tasks; the schema fields themselves now land\
+    \ elsewhere.\n\n## Reconciled with the schema design pass (2026-07-29, task-048\
+    \ sc-4)\n\nThis task originally carried two schema changes: a `parent: Optional[str]`\
+    \ field, and the `assigned_to`/`supported_agents` ownership-vs-eligibility split.\
+    \ **Both are absorbed into schema v2** (docs/schema-design.md \xA72: `parent`,\
+    \ and `assignment.owner` / `assignment.eligible`), implemented by task-050 and\
+    \ migrated by task-051. What remains here is everything those fields need to actually\
+    \ *do*:\n\n**Manager** (src/agentjobs/manager.py): `get_subtasks(task_id)` returning\
+    \ children; umbrella tasks (any task with open children) are never claimable \u2014\
+    \ excluded from /next and refused by claim (this extends task-052's claimability\
+    \ rule: ready + eligible + no open children + no unmet needs dependencies).\n\n\
+    **API**: accept `parent` on create/update request models (src/agentjobs/api/models.py);\
+    \ `?parent=` filter on GET /api/tasks (src/agentjobs/api/routes/tasks.py). Validate\
+    \ parent exists; reject self-parenting and cycles.\n\n**Jinja UI** (minimal \u2014\
+    \ the React frontend will replace it): children list with display_status badges\
+    \ on a parent's detail page; 'part of task-xxx' link on a child (src/agentjobs/api/templates/task_detail.html).\n\
+    \n**Tests**: manager get_subtasks / claimability exclusion, API create-with-parent\
+    \ + filter + validation errors (missing/self/cyclic parent).\n\nAfter this task\
+    \ merges, the React milestone umbrella tasks (Milestone 1: read-only browser;\
+    \ Milestone 2: interactive human workflow; Milestone 3: maturity) and their children\
+    \ will be created using `parent`.\n\n**Gated:** do not start until task-052 (v2\
+    \ manager/API) merges.\n\n---\n\n## Starter prompt (migrated from schema v1)\n\
+    \n## Objective\nAdd sub-task behavior atop schema v2's parent field per the task\
+    \ description. The schema fields already exist (task-050); this is manager/API/GUI\
+    \ behavior and tests only.\n\n## Steps\n1. Create branch `feat/task-045-subtask-support`\
+    \ from main. Record it in branches[] and mark the task in_progress (claim via\
+    \ the v2 API).\n2. Manager: get_subtasks; umbrella exclusion from claimability.\
+    \ Tests.\n3. API: parent on create/update, ?parent= filter, exists/self/cycle\
+    \ validation. Tests.\n4. Jinja detail template: children list on parents, parent\
+    \ link on children.\n5. poetry run pytest, black/ruff/mypy. Verify manually via\
+    \ curl + browser, then delete scratch tasks.\n\n## Git workflow (mandatory)\n\
+    One logical change per commit (manager / API / UI). When the branch is complete\
+    \ and verified: STOP, hand off to human review via the v2 handoff API with a ball_prompt,\
+    \ and wait for explicit approval. On approval: rebase onto main, merge with --no-ff,\
+    \ mark the branch merged in branches[], close the task.\n\n## After merge\nCreate\
+    \ the React milestone umbrella tasks and their sub-tasks using parent (see the\
+    \ approved plan: Milestone 1 read-only browser M1.1-M1.8, Milestone 2 interactive\
+    \ M2.1-M2.2, Milestone 3 optional M3.1-M3.2)."
+acceptance:
+- id: sc-1
+  text: get_subtasks returns exactly the children; a task with open children is excluded
+    from /next and refused by claim
+  status: pending
+- id: sc-2
+  text: GET /api/tasks?parent=<id> returns exactly the children; creating a task with
+    a missing/self/cyclic parent is rejected with 400
+  status: pending
+- id: sc-3
+  text: Parent detail page lists children with display_status badges; child page links
+    to its parent; pytest green including new tests
+  status: pending
+deliverables:
+- path: src/agentjobs/manager.py
+  status: pending
+  note: get_subtasks + umbrella exclusion from claimability
+- path: src/agentjobs/api/routes/tasks.py
+  status: pending
+  note: ?parent= filter and parent validation
+- path: src/agentjobs/api/models.py
+  status: pending
+  note: parent on create/update request models
+- path: src/agentjobs/api/templates/task_detail.html
+  status: pending
+  note: Children list / parent link rendering
+dependencies:
+- task: task-042-relocate-demo-tasks
+  type: needs
+  note: Phase 0 hygiene first
+- task: task-043-cors-vite-dev-origin
+  type: needs
+  note: Phase 0 hygiene first
+- task: task-044-docs-git-workflow
+  type: needs
+  note: Phase 0 hygiene first
+- task: task-048-schema-design
+  type: needs
+  note: Reconciled 2026-07-29 -- this task's two schema changes were absorbed into
+    schema v2 (task-050); scope here narrowed to sub-task behavior.
+- task: task-052-schema-v2-manager-api
+  type: needs
+  note: Builds on the v2 manager/API (claimability, display_status)
+log:
+- id: 1
+  ts: '2026-07-29T20:47:00Z'
+  actor: system
+  type: note
+  data:
+    v1_status: draft
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: draft` became lifecycle: draft / ball: human / ball_reason: spec.
+
+    - prompts.starter preserved in spec.description.
+
+
+    Needs human review:
+
+    - ball_prompt: no status update to derive an ask from
+
+    - spec.summary: no human_summary; derived from the description'

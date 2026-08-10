@@ -1,194 +1,179 @@
+schema: 2
 id: task-060-agent-dispatch
 title: 'Close the loop: make a human decision actually start an agent (design pass)'
 created: '2026-08-10T07:40:19Z'
 updated: '2026-08-10T07:40:19Z'
-status: ready
+lifecycle: ready
+ball: agent
+ball_reason: available
 priority: high
 category: architecture
-estimated_effort: a design session, then implementation tasks derived from it
-human_summary: 'The missing half of the workflow. AgentJobs can record that a human
-  approved something, but nothing acts on it -- the human still has to go tell an agent
-  in a chat window. Every handoff therefore routes through a person copying intent from
-  one tool to another, which is the manual step the whole project exists to remove.
-  Raised by the owner on 2026-08-10 after clicking through the review UI and asking
-  "the workflow of that kicking off an agent would still need to be implemented,
-  right?" -- correct, and there was no task for it. Design pass, not implementation:
-  the hard parts here are safety, runaway loops and process lifecycle, not code.'
-description: 'The owner asked, on 2026-08-10: after clicking Approve in the GUI, would
-  he still have to come tell the agent in chat? Yes. And there was no task covering it.
+tags:
+- architecture
+- workflow
+- agent-dx
+- design
+- collaborative
+effort: a design session, then implementation tasks derived from it
+spec:
+  summary: 'The missing half of the workflow. AgentJobs can record that a human approved
+    something, but nothing acts on it -- the human still has to go tell an agent in
+    a chat window. Every handoff therefore routes through a person copying intent
+    from one tool to another, which is the manual step the whole project exists to
+    remove. Raised by the owner on 2026-08-10 after clicking through the review UI
+    and asking "the workflow of that kicking off an agent would still need to be implemented,
+    right?" -- correct, and there was no task for it. Design pass, not implementation:
+    the hard parts here are safety, runaway loops and process lifecycle, not code.'
+  description: 'The owner asked, on 2026-08-10: after clicking Approve in the GUI,
+    would he still have to come tell the agent in chat? Yes. And there was no task
+    covering it.
 
 
-  ## The gap
+    ## The gap
 
 
-  AgentJobs today is a very good **record** of agent work and a **notifier** of humans.
-  It is not yet a system that causes work to happen. The loop looks like this:
+    AgentJobs today is a very good **record** of agent work and a **notifier** of
+    humans. It is not yet a system that causes work to happen. The loop looks like
+    this:
 
 
-  ```
+    ```
 
-  agent works -> sets waiting_for_human -> human sees it -> human tells an agent in a
-  chat window -> agent resumes
+    agent works -> sets waiting_for_human -> human sees it -> human tells an agent
+    in a chat window -> agent resumes
 
-  ^                                                                      |
+    ^                                                                      |
 
-  |______________________ the human is the message bus __________________|
+    |______________________ the human is the message bus __________________|
 
-  ```
-
-
-  Task-046 addresses the left-to-right half (agent notifies human) and explicitly calls
-  chat "a bootstrapping convenience for now" without ever scheduling its removal.
-  Nothing in the backlog addresses the return path. A grep of the whole task corpus for
-  spawn / launch / dispatch / headless found zero hits.
+    ```
 
 
-  **This is the difference between an AI-native task system and a task tracker with
-  AI-flavoured fields.** Jira with an MCP server can already record that a human
-  approved something. What it cannot do is turn that approval into a running agent in
-  the right repository with the right context. If AgentJobs does not do that, the
-  argument for building it instead of using an existing tracker gets considerably
-  weaker -- so this task is close to load-bearing for the product thesis.
+    Task-046 addresses the left-to-right half (agent notifies human) and explicitly
+    calls chat "a bootstrapping convenience for now" without ever scheduling its removal.
+    Nothing in the backlog addresses the return path. A grep of the whole task corpus
+    for spawn / launch / dispatch / headless found zero hits.
 
 
-  ## What already exists to build on
+    **This is the difference between an AI-native task system and a task tracker with
+    AI-flavoured fields.** Jira with an MCP server can already record that a human
+    approved something. What it cannot do is turn that approval into a running agent
+    in the right repository with the right context. If AgentJobs does not do that,
+    the argument for building it instead of using an existing tracker gets considerably
+    weaker -- so this task is close to load-bearing for the product thesis.
 
 
-  - **The event hook.** `manager.update_status()` fires HMAC-signed webhooks
-  (`task.status_changed`) via src/agentjobs/webhooks.py. Task-046 already names this as
-  the intended extension point for a notification service; a dispatcher is the same
-  hook with a different consumer.
-
-  - **The project registry** (task-057) knows where every project lives on this
-  machine, so a dispatcher knows which directory to run in.
-
-  - **The agent roster.** `.agentjobs/config.yaml` already lists agents (claude, codex).
-  What it lacks is any notion of how to *invoke* one.
-
-  - **Schema v2''s ball model** makes "who acts next" a required, queryable fact.
-  `ball: agent` is, almost literally, a dispatch queue. This is the strongest argument
-  for designing now and implementing after task-052 rather than building a v1
-  dispatcher that reads `status == in_progress` and guessing.
+    ## What already exists to build on
 
 
-  ## The questions this design pass must answer
+    - **The event hook.** `manager.update_status()` fires HMAC-signed webhooks (`task.status_changed`)
+    via src/agentjobs/webhooks.py. Task-046 already names this as the intended extension
+    point for a notification service; a dispatcher is the same hook with a different
+    consumer.
+
+    - **The project registry** (task-057) knows where every project lives on this
+    machine, so a dispatcher knows which directory to run in.
+
+    - **The agent roster.** `.agentjobs/config.yaml` already lists agents (claude,
+    codex). What it lacks is any notion of how to *invoke* one.
+
+    - **Schema v2''s ball model** makes "who acts next" a required, queryable fact.
+    `ball: agent` is, almost literally, a dispatch queue. This is the strongest argument
+    for designing now and implementing after task-052 rather than building a v1 dispatcher
+    that reads `status == in_progress` and guessing.
 
 
-  These are the reason this is a design task and not a two-hour implementation.
+    ## The questions this design pass must answer
 
 
-  **1. Safety. This spawns an autonomous coding agent from a button click.** An
-  approval in a browser would start a process that edits files, runs commands and makes
-  commits on the owner''s machine, unattended. That deserves deliberate design, not an
-  afternoon: per-project opt-in rather than global, an explicit enable step separate
-  from installing AgentJobs, a visible record of what was launched and why, and a kill
-  switch. Decide whether dispatch is ever allowed to run without a human present at
-  all.
+    These are the reason this is a design task and not a two-hour implementation.
 
 
-  **2. Runaway loops, which are the specific failure mode to fear.** The loop is
-  circular by design: agent finishes -> human approves -> agent runs -> finishes ->
-  ... A bug, or an agent that re-opens its own task, turns that into an unbounded
-  spend of tokens and unbounded writes to a repository. Needs at minimum: a dispatch
-  count per task, a cooldown, and a hard cap that fails loudly. Design this before
-  anything is wired up, not after the first incident.
+    **1. Safety. This spawns an autonomous coding agent from a button click.** An
+    approval in a browser would start a process that edits files, runs commands and
+    makes commits on the owner''s machine, unattended. That deserves deliberate design,
+    not an afternoon: per-project opt-in rather than global, an explicit enable step
+    separate from installing AgentJobs, a visible record of what was launched and
+    why, and a kill switch. Decide whether dispatch is ever allowed to run without
+    a human present at all.
 
 
-  **3. Concurrency stops being theoretical.** Task-055 (two agents can both claim one
-  ready task, because save_task read-modify-writes with no lock) is currently a latent
-  race that requires two humans running agents simultaneously. Automatic dispatch makes
-  it a routine occurrence. **Task-055 is a hard prerequisite for implementation**, not
-  a nice-to-have.
+    **2. Runaway loops, which are the specific failure mode to fear.** The loop is
+    circular by design: agent finishes -> human approves -> agent runs -> finishes
+    -> ... A bug, or an agent that re-opens its own task, turns that into an unbounded
+    spend of tokens and unbounded writes to a repository. Needs at minimum: a dispatch
+    count per task, a cooldown, and a hard cap that fails loudly. Design this before
+    anything is wired up, not after the first incident.
 
 
-  **4. How is an agent actually invoked?** Options to evaluate, with rejected
-  alternatives recorded: Claude Code headless (`claude -p`), the Claude Agent SDK, or a
-  generic per-agent command template in config so the mechanism is not
-  vendor-specific. The config-template option is probably right given the roster
-  already names codex alongside claude, but argue it rather than assuming it.
+    **3. Concurrency stops being theoretical.** Task-055 (two agents can both claim
+    one ready task, because save_task read-modify-writes with no lock) is currently
+    a latent race that requires two humans running agents simultaneously. Automatic
+    dispatch makes it a routine occurrence. **Task-055 is a hard prerequisite for
+    implementation**, not a nice-to-have.
 
 
-  **5. Process lifecycle.** Agent runs take minutes. Where does stdout go, how is a run
-  cancelled, what happens when one crashes halfway through a task, and how does a
-  half-finished run show up in the task record rather than as silence? Note the
-  precedent already in this repo: `WebhookManager._dispatch` runs in a detached asyncio
-  task, and a NameError in it went invisible for months (task-047). Do not repeat that
-  shape.
+    **4. How is an agent actually invoked?** Options to evaluate, with rejected alternatives
+    recorded: Claude Code headless (`claude -p`), the Claude Agent SDK, or a generic
+    per-agent command template in config so the mechanism is not vendor-specific.
+    The config-template option is probably right given the roster already names codex
+    alongside claude, but argue it rather than assuming it.
 
 
-  **6. What is the trigger, exactly?** A webhook consumer, a polling worker, or an
-  explicit "dispatch" button distinct from "approve"? Separating the two is worth
-  considering: it keeps approval meaning "I agree" rather than "spend money now".
+    **5. Process lifecycle.** Agent runs take minutes. Where does stdout go, how is
+    a run cancelled, what happens when one crashes halfway through a task, and how
+    does a half-finished run show up in the task record rather than as silence? Note
+    the precedent already in this repo: `WebhookManager._dispatch` runs in a detached
+    asyncio task, and a NameError in it went invisible for months (task-047). Do not
+    repeat that shape.
 
 
-  ## Deliverable
+    **6. What is the trigger, exactly?** A webhook consumer, a polling worker, or
+    an explicit "dispatch" button distinct from "approve"? Separating the two is worth
+    considering: it keeps approval meaning "I agree" rather than "spend money now".
 
 
-  A design document (suggest `docs/agent-dispatch-design.md`) in the shape of
-  docs/schema-design.md: what is proposed, why, what was rejected and why. Then derive
-  implementation tasks from it.
+    ## Deliverable
 
 
-  Recording the alternatives matters more than usual here, because "just shell out to
-  claude -p" is the obvious first answer and most of the difficulty is in everything
-  around it.
+    A design document (suggest `docs/agent-dispatch-design.md`) in the shape of docs/schema-design.md:
+    what is proposed, why, what was rejected and why. Then derive implementation tasks
+    from it.
 
 
-  ## Sequencing
+    Recording the alternatives matters more than usual here, because "just shell out
+    to claude -p" is the obvious first answer and most of the difficulty is in everything
+    around it.
 
 
-  The design pass is a document and can proceed at any time -- it does not have to wait
-  for the v2 chain. **Implementation should wait for task-052** (so it can use the ball
-  model rather than inferring intent from v1 statuses) **and task-055** (so automatic
-  dispatch is not built on a known write race).
+    ## Sequencing
 
 
-  ## Out of scope
+    The design pass is a document and can proceed at any time -- it does not have
+    to wait for the v2 chain. **Implementation should wait for task-052** (so it can
+    use the ball model rather than inferring intent from v1 statuses) **and task-055**
+    (so automatic dispatch is not built on a known write race).
 
 
-  - Building the dispatcher. Implementation tasks are derived from this pass.
+    ## Out of scope
 
-  - Remote or multi-machine execution. One machine, one person.
 
-  - Notification channels for the agent-to-human direction. Task-046.
+    - Building the dispatcher. Implementation tasks are derived from this pass.
 
-  - Any "accounts" or multi-user system.
+    - Remote or multi-machine execution. One machine, one person.
 
-  '
-phases: []
-success_criteria:
-- id: sc-1
-  description: A design document exists recording, for each decision, what is proposed,
-    why, and what was rejected with reasons
-  status: pending
-- id: sc-2
-  description: 'The safety question is answered explicitly: what opts a project in, what
-    a human must do before any agent can be launched unattended, and what the kill
-    switch is'
-  status: pending
-- id: sc-3
-  description: Runaway-loop protection is specified concretely (dispatch counts,
-    cooldown, hard cap and what happens when it trips), not gestured at
-  status: pending
-- id: sc-4
-  description: The invocation mechanism is chosen with alternatives recorded, and is not
-    silently locked to one vendor's CLI
-  status: pending
-- id: sc-5
-  description: Process lifecycle is specified -- output capture, cancellation, crash
-    handling -- and explicitly does not repeat the detached-task-swallows-errors shape
-    that hid the webhook bug in task-047
-  status: pending
-- id: sc-6
-  description: The relationship to task-046 (agent to human) and task-055 (write race)
-    is stated, including that 055 is a hard prerequisite for implementation
-  status: pending
-- id: sc-7
-  description: Implementation tasks are derived from the design, each independently
-    reviewable
-  status: pending
-prompts:
-  starter: '## Objective
+    - Notification channels for the agent-to-human direction. Task-046.
+
+    - Any "accounts" or multi-user system.
+
+
+    ---
+
+
+    ## Starter prompt (migrated from schema v1)
+
+
+    ## Objective
 
     Design how a human decision recorded in AgentJobs turns into an agent actually
     working. Produce a design document and derived tasks. **No implementation.**
@@ -196,8 +181,8 @@ prompts:
 
     ## This is collaborative
 
-    Like task-048, the owner leads. Surface trade-offs, push back where a mechanism adds
-    ceremony without buying anything, and record rejected alternatives with reasoning.
+    Like task-048, the owner leads. Surface trade-offs, push back where a mechanism
+    adds ceremony without buying anything, and record rejected alternatives with reasoning.
     Do not decide the safety posture alone -- it is the owner''s machine and the owner''s
     token spend.
 
@@ -210,13 +195,14 @@ prompts:
 
     - src/agentjobs/projects.py -- the registry knows where each project lives.
 
-    - tasks/agentjobs/task-046-*.yaml -- the other half of the loop, and where it stops.
+    - tasks/agentjobs/task-046-*.yaml -- the other half of the loop, and where it
+    stops.
 
     - tasks/agentjobs/task-055-*.yaml -- the write race that automatic dispatch makes
     routine.
 
-    - docs/schema-design.md section 5 -- the canonical loop and the webhook events v2
-    defines.
+    - docs/schema-design.md section 5 -- the canonical loop and the webhook events
+    v2 defines.
 
 
     ## Do not
@@ -230,37 +216,67 @@ prompts:
 
     ## Git workflow
 
-    Small commits, Conventional Commits. When the design is complete: STOP, set
-    waiting_for_human through the status API with a summary of the decisions needing
-    sign-off. Do not merge.
-
-    '
-  followups: []
-status_updates: []
-comments: []
+    Small commits, Conventional Commits. When the design is complete: STOP, set waiting_for_human
+    through the status API with a summary of the decisions needing sign-off. Do not
+    merge.'
+acceptance:
+- id: sc-1
+  text: A design document exists recording, for each decision, what is proposed, why,
+    and what was rejected with reasons
+  status: pending
+- id: sc-2
+  text: 'The safety question is answered explicitly: what opts a project in, what
+    a human must do before any agent can be launched unattended, and what the kill
+    switch is'
+  status: pending
+- id: sc-3
+  text: Runaway-loop protection is specified concretely (dispatch counts, cooldown,
+    hard cap and what happens when it trips), not gestured at
+  status: pending
+- id: sc-4
+  text: The invocation mechanism is chosen with alternatives recorded, and is not
+    silently locked to one vendor's CLI
+  status: pending
+- id: sc-5
+  text: Process lifecycle is specified -- output capture, cancellation, crash handling
+    -- and explicitly does not repeat the detached-task-swallows-errors shape that
+    hid the webhook bug in task-047
+  status: pending
+- id: sc-6
+  text: The relationship to task-046 (agent to human) and task-055 (write race) is
+    stated, including that 055 is a hard prerequisite for implementation
+  status: pending
+- id: sc-7
+  text: Implementation tasks are derived from the design, each independently reviewable
+  status: pending
 deliverables:
 - path: docs/agent-dispatch-design.md
   status: pending
-  description: The design, with rationale and rejected alternatives
+  note: The design, with rationale and rejected alternatives
 dependencies:
-- task_id: task-046-agent-human-handoff-loop
+- task: task-046-agent-human-handoff-loop
   type: related
   note: Covers agent-to-human notification. This task is the return path it never
     scheduled.
-- task_id: task-055-single-writer-concurrency
+- task: task-055-single-writer-concurrency
   type: related
   note: A hard prerequisite for implementation, not for the design pass. Automatic
     dispatch turns the double-claim race from latent to routine.
-- task_id: task-052-schema-v2-manager-api
+- task: task-052-schema-v2-manager-api
   type: related
   note: v2's ball model makes "who acts next" queryable, which is what a dispatcher
     needs. Implementation should wait for it; the design pass need not.
-external_links: []
-issues: []
-tags:
-- architecture
-- workflow
-- agent-dx
-- design
-- collaborative
-branches: []
+log:
+- id: 1
+  ts: '2026-08-10T07:40:19Z'
+  actor: system
+  type: note
+  data:
+    v1_status: ready
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: ready` became lifecycle: ready / ball: agent / ball_reason: available.
+
+    - prompts.starter preserved in spec.description.'

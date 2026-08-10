@@ -69,7 +69,11 @@ class TestAgreesWithTheLinkMLSchema:
         data = yaml.safe_load(EXAMPLE.read_text(encoding="utf-8"))
         task = load_task(data)
 
-        dumped = task.model_dump(mode="json", by_alias=True, exclude_none=True)
+        # display_status is computed for API responses; the stored form excludes it,
+        # exactly as TaskStorage._write_task does, and the strict loader rejects it.
+        dumped = task.model_dump(
+            mode="json", by_alias=True, exclude_none=True, exclude={"display_status"}
+        )
         reloaded = load_task(dumped)
 
         assert reloaded == task
@@ -85,7 +89,9 @@ class TestAgreesWithTheLinkMLSchema:
         from linkml.validator import validate
 
         task = load_task(yaml.safe_load(EXAMPLE.read_text(encoding="utf-8")))
-        dumped = task.model_dump(mode="json", by_alias=True, exclude_none=True)
+        dumped = task.model_dump(
+            mode="json", by_alias=True, exclude_none=True, exclude={"display_status"}
+        )
 
         report = validate(dumped, "schema/agentjobs-v2.yaml", "Task")
 
@@ -96,7 +102,9 @@ class TestAgreesWithTheLinkMLSchema:
         from linkml.validator import validate
 
         task = load_task(yaml.safe_load(EXAMPLE.read_text(encoding="utf-8")))
-        dumped = task.model_dump(mode="json", by_alias=True, exclude_none=True)
+        dumped = task.model_dump(
+            mode="json", by_alias=True, exclude_none=True, exclude={"display_status"}
+        )
         dumped["lifecycle"] = "nonsense"
 
         assert validate(dumped, "schema/agentjobs-v2.yaml", "Task").results
@@ -430,8 +438,12 @@ class TestParent:
 class TestDisplayStatus:
     """Derived on read, never stored (design doc section 3)."""
 
-    def test_it_is_not_a_field(self) -> None:
-        assert "display_status" not in Task.model_validate(task_data()).model_dump()
+    def test_it_is_not_a_stored_field(self) -> None:
+        # Computed for API responses, never stored: it is not a model field, and a
+        # file that contains it is rejected by name rather than round-tripped.
+        assert "display_status" not in Task.model_fields
+        with pytest.raises(ValidationError):
+            Task.model_validate(task_data(display_status="Ready"))
 
     @pytest.mark.parametrize(
         ("overrides", "expected"),

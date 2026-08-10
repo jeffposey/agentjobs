@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from agentjobs.models import TaskStatus
+from agentjobs.models_v2 import Ball, BallReason, Lifecycle
 from agentjobs.storage import TaskStorage
 from agentjobs.manager import TaskManager
 from agentjobs.webhooks import WebhookManager, WebhookStorage
@@ -110,31 +110,33 @@ def test_webhook_persistence(webhook_storage: WebhookStorage) -> None:
     assert retrieved.id == webhook.id
 
 
-def test_task_manager_fires_webhook_on_status_change(
+def test_task_manager_fires_webhook_on_handoff(
     task_manager: TaskManager,
     webhook_manager: WebhookManager,
 ) -> None:
-    """Test that TaskManager fires webhook on status change."""
-    # Create a webhook
+    """Test that TaskManager fires the v2 task.handoff event."""
+    # Create a webhook subscribed to the v2 handoff event
     webhook_manager.create_webhook(
         url="http://localhost:5000/webhook",
-        events=["task.status_changed"],
+        events=["task.handoff"],
         secret="test-secret",
     )
 
-    # Create and update task
+    # Create, claim and hand off a task (delivery will fail silently: nothing is
+    # listening on localhost, and that is fine -- this verifies the path completes).
     task = task_manager.create_task(
         title="Test Task",
         description="Test description",
         category="test",
+        lifecycle=Lifecycle.READY,
     )
-
-    # Update status (webhook will fire but won't actually deliver since localhost isn't listening)
-    task_manager.update_status(
-        task_id=task.id,
-        status=TaskStatus.IN_PROGRESS,
-        author="test-user",
-        summary="Starting work",
+    task_manager.claim_task(task.id, agent="test-agent")
+    task_manager.handoff(
+        task.id,
+        actor="test-agent",
+        ball=Ball.HUMAN,
+        ball_reason=BallReason.REVIEW,
+        ball_prompt="Review the work.",
     )
 
     # Just verify the method completes without error

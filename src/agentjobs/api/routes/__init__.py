@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from .health import router as health_router
 from .projects import router as projects_router
-from .prompts import router as prompts_router
 from .search import router as search_router
 from .status import router as status_router
 from .tasks import router as tasks_router
@@ -15,7 +14,6 @@ from .webhooks import router as webhooks_router
 PROJECT_SCOPED_ROUTERS = (
     tasks_router,
     status_router,
-    prompts_router,
     search_router,
     webhooks_router,
 )
@@ -31,7 +29,6 @@ __all__ = [
     "PROJECT_SCOPED_ROUTERS",
     "health_router",
     "projects_router",
-    "prompts_router",
     "search_router",
     "status_router",
     "tasks_router",

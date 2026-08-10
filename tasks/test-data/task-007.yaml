@@ -1,52 +1,66 @@
+schema: 2
 id: task-007
 title: Implement GraphQL Pagination with Cursor Strategy
-created: '2025-10-26T05:44:03.663057Z'
-updated: '2025-10-26T17:44:03.745050Z'
-status: ready
+created: '2025-10-26T05:44:03Z'
+updated: '2025-10-26T17:44:03Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 priority: medium
 category: feature
-estimated_effort: 1 week
-human_summary: Plan and implement cursor-based pagination for the GraphQL API to replace
-  offset pagination.
-description: '## Objective
-
-  Replace offset-based pagination with cursor-based for better performance and consistency.
-
-
-  ## Design
-
-  - Use base64-encoded cursors containing (timestamp, id)
-
-  - Implement forward/backward pagination
-
-  - Add `pageInfo` with hasNextPage/hasPreviousPage
-
-  - Support first/last/before/after arguments
-
-
-  ## Rollout
-
-  1. Implement new cursor fields alongside existing offset
-
-  2. Deprecate offset pagination (6-month notice)
-
-  3. Remove offset fields in v2.0 API
-
-  '
-phases: []
-success_criteria: []
-prompts:
-  starter: Design and implement cursor-based pagination for GraphQL API.
-  followups: []
-status_updates: []
-deliverables: []
-dependencies: []
-external_links: []
-issues: []
 tags:
 - test
 - example
 - graphql
 - api
 - performance
-branches: []
+effort: 1 week
+spec:
+  summary: Plan and implement cursor-based pagination for the GraphQL API to replace
+    offset pagination.
+  description: '## Objective
+
+    Replace offset-based pagination with cursor-based for better performance and consistency.
+
+
+    ## Design
+
+    - Use base64-encoded cursors containing (timestamp, id)
+
+    - Implement forward/backward pagination
+
+    - Add `pageInfo` with hasNextPage/hasPreviousPage
+
+    - Support first/last/before/after arguments
+
+
+    ## Rollout
+
+    1. Implement new cursor fields alongside existing offset
+
+    2. Deprecate offset pagination (6-month notice)
+
+    3. Remove offset fields in v2.0 API
+
+
+    ---
+
+
+    ## Starter prompt (migrated from schema v1)
+
+
+    Design and implement cursor-based pagination for GraphQL API.'
+log:
+- id: 1
+  ts: '2025-10-26T17:44:03Z'
+  actor: system
+  type: note
+  data:
+    v1_status: ready
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: ready` became lifecycle: ready / ball: agent / ball_reason: available.
+
+    - prompts.starter preserved in spec.description.'

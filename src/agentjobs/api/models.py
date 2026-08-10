@@ -1,22 +1,24 @@
-"""Request/response models for AgentJobs REST API."""
+"""Request/response models for AgentJobs REST API (schema v2)."""
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from agentjobs.models import (
+from agentjobs.models_v2 import (
+    AcceptanceCriterion,
+    Ball,
+    BallReason,
     Branch,
     Deliverable,
     Dependency,
-    ExternalLink,
-    Issue,
-    Phase,
+    Lifecycle,
+    Link,
+    LogEntryType,
+    Outcome,
     Priority,
-    Prompts,
-    SuccessCriterion,
-    TaskStatus,
+    Spec,
 )
 
 
@@ -28,7 +30,18 @@ class TaskCreateRequest(BaseModel):
         description="Optional explicit task identifier (e.g., task-042).",
     )
     title: str = Field(..., description="Task title summarising the work to be done.")
-    description: str = Field(..., description="Markdown-formatted task description.")
+    description: str = Field(..., description="Markdown working spec (spec.description).")
+    summary: Optional[str] = Field(
+        default=None,
+        description="One-or-two sentence spec.summary. Defaults to the title.",
+    )
+    intent: Optional[str] = Field(default=None, description="Why the task exists (spec.intent).")
+    constraints: Optional[str] = Field(
+        default=None, description="Hard requirements and prohibitions (spec.constraints)."
+    )
+    out_of_scope: Optional[str] = Field(
+        default=None, description="Explicit non-goals (spec.out_of_scope)."
+    )
     priority: Priority = Field(
         default=Priority.MEDIUM,
         description="Relative urgency for the new task.",
@@ -37,24 +50,22 @@ class TaskCreateRequest(BaseModel):
         default="general",
         description="Classification category used for filtering in the UI.",
     )
-    status: TaskStatus = Field(
-        default=TaskStatus.DRAFT,
-        description="Initial workflow status assigned to the task.",
+    lifecycle: Lifecycle = Field(
+        default=Lifecycle.DRAFT,
+        description="Initial lifecycle: draft (ball human/spec) or ready (agent/available).",
     )
-    assigned_to: Optional[str] = Field(
-        default=None, description="Agent or teammate assigned at creation time."
+    eligible: List[str] = Field(
+        default_factory=list,
+        description="Actor ids that may claim the task. Empty means anyone.",
     )
-    estimated_effort: Optional[str] = Field(
-        default=None, description="Estimated effort (time or complexity)."
+    effort: Optional[str] = Field(
+        default=None, description="Estimated effort (time or complexity). Free text."
     )
     tags: List[str] = Field(default_factory=list, description="Arbitrary tag labels.")
-    phases: List[Phase] = Field(
+    parent: Optional[str] = Field(default=None, description="Umbrella task id, if any.")
+    acceptance: List[AcceptanceCriterion] = Field(
         default_factory=list,
-        description="Optional project phases associated with the task.",
-    )
-    success_criteria: List[SuccessCriterion] = Field(
-        default_factory=list,
-        description="Checklist of success criteria for the task.",
+        description="Checklist defining done.",
     )
     deliverables: List[Deliverable] = Field(
         default_factory=list,
@@ -64,65 +75,106 @@ class TaskCreateRequest(BaseModel):
         default_factory=list,
         description="Task dependencies tracked in the system.",
     )
-    external_links: List[ExternalLink] = Field(
+    links: List[Link] = Field(
         default_factory=list,
         description="External references relevant to the task.",
-    )
-    issues: List[Issue] = Field(
-        default_factory=list,
-        description="Issues linked to the execution of the task.",
     )
     branches: List[Branch] = Field(
         default_factory=list,
         description="Git branches associated with the task lifecycle.",
     )
-    prompts: Optional[Prompts] = Field(
-        default=None,
-        description="Optional pre-populated prompts structure for the task.",
-    )
+
+    def manager_kwargs(self) -> Dict[str, Any]:
+        """Reshape the flat request into TaskManager.create_task keyword arguments."""
+        payload = self.model_dump(exclude_none=True, exclude={"eligible"})
+        spec = {
+            key: payload.pop(key)
+            for key in ("intent", "constraints", "out_of_scope")
+            if key in payload
+        }
+        if spec:
+            payload["spec"] = spec
+        if self.eligible:
+            payload["assignment"] = {"eligible": self.eligible}
+        return payload
 
 
 class TaskUpdateRequest(BaseModel):
-    """Payload for partially updating a task."""
+    """Payload for partially updating a task.
+
+    The state axes are deliberately absent: lifecycle, ball and outcome move only
+    through the claim/handoff/release/close verbs, which log their transitions.
+    """
 
     title: Optional[str] = None
-    description: Optional[str] = None
-    status: Optional[TaskStatus] = None
     priority: Optional[Priority] = None
     category: Optional[str] = None
-    assigned_to: Optional[str] = None
-    estimated_effort: Optional[str] = None
+    effort: Optional[str] = None
     tags: Optional[List[str]] = None
-    phases: Optional[List[Phase]] = None
-    success_criteria: Optional[List[SuccessCriterion]] = None
+    parent: Optional[str] = None
+    spec: Optional[Spec] = None
+    acceptance: Optional[List[AcceptanceCriterion]] = None
     deliverables: Optional[List[Deliverable]] = None
     dependencies: Optional[List[Dependency]] = None
-    external_links: Optional[List[ExternalLink]] = None
-    issues: Optional[List[Issue]] = None
+    links: Optional[List[Link]] = None
     branches: Optional[List[Branch]] = None
-    prompts: Optional[Prompts] = None
 
 
-class StatusUpdateRequest(BaseModel):
-    """Status transition payload."""
+class ClaimRequest(BaseModel):
+    """An agent takes ownership of a ready task."""
 
-    status: TaskStatus
-    author: str
-    summary: str
-    details: Optional[str] = None
+    agent: str = Field(..., description="Actor id claiming the task.")
+
+
+class HandoffRequest(BaseModel):
+    """The ball moves; the ask travels with it."""
+
+    actor: str = Field(..., description="Who is handing the work over.")
+    ball: Ball = Field(..., description="Who acts next.")
+    ball_reason: BallReason = Field(..., description="Why they hold it.")
+    ball_prompt: Optional[str] = Field(
+        default=None,
+        description="The ask, addressed to the new holder. Required except agent/available.",
+    )
+    body: Optional[str] = Field(
+        default=None, description="Log entry body; defaults to the ball_prompt."
+    )
+
+
+class ReleaseRequest(BaseModel):
+    """An agent bows out; the task returns to the pool."""
+
+    actor: str = Field(..., description="Who is releasing the task.")
+    body: Optional[str] = Field(default=None, description="Optional log entry body.")
+
+
+class CloseRequest(BaseModel):
+    """End the task with an outcome."""
+
+    actor: str = Field(..., description="Who is closing the task.")
+    outcome: Outcome = Field(..., description="How it ended.")
+    body: Optional[str] = Field(default=None, description="Optional log entry body.")
+    archive: bool = Field(default=False, description="Also hide the task from listings.")
+
+
+class LogAppendRequest(BaseModel):
+    """Append one entry to the unified log."""
+
+    actor: str = Field(..., description="Actor id writing the entry.")
+    type: LogEntryType = Field(
+        default=LogEntryType.NOTE,
+        description="Entry type. Transitions are manager-only and rejected here.",
+    )
+    body: Optional[str] = Field(default=None, description="Prose, markdown.")
+    re: Optional[int] = Field(
+        default=None, description="Optional id of the earlier entry this threads to."
+    )
+    data: Dict[str, Any] = Field(default_factory=dict, description="Optional structured payload.")
 
 
 class ProgressUpdateRequest(BaseModel):
-    """Progress update payload appended to task history."""
+    """Progress update payload appended to the task log."""
 
     author: str
     summary: str
     details: Optional[str] = None
-
-
-class PromptAddRequest(BaseModel):
-    """Request body for adding a follow-up prompt."""
-
-    author: str
-    content: str
-    context: Optional[str] = None

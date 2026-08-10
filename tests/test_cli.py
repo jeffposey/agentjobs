@@ -10,7 +10,6 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
-from agentjobs import TaskStatus
 from agentjobs.cli import app, _ensure_gitignore, _make_output_encoding_safe
 
 runner = CliRunner()
@@ -85,7 +84,9 @@ def test_cli_init_create_list_show(tmp_path: Path, monkeypatch) -> None:
     )
     assert show_result.exit_code == 0
     payload = json.loads(show_result.stdout)
-    assert payload["status"] == TaskStatus.DRAFT.value
+    assert payload["schema"] == 2
+    assert payload["lifecycle"] == "draft"
+    assert payload["ball"] == "human"
     assert payload["title"] == "Sample Task"
 
 
@@ -97,13 +98,16 @@ def test_work_command_flow(tmp_path: Path, monkeypatch) -> None:
     runner.invoke(app, ["init"], input="Test Project\ntasks\nprompts\n9000\n")
     runner.invoke(app, ["create"], input="Work Task\nDescription\n")
 
-    # Manually update task status to READY so it can be picked up
+    # Manually move the task to ready/agent-available so it can be picked up
     import yaml
 
     task_file = next((tmp_path / "tasks").glob("*.yaml"))
     content = yaml.safe_load(task_file.read_text())
-    content["status"] = "ready"
-    task_file.write_text(yaml.safe_dump(content))
+    content["lifecycle"] = "ready"
+    content["ball"] = "agent"
+    content["ball_reason"] = "available"
+    content.pop("ball_prompt", None)
+    task_file.write_text(yaml.safe_dump(content, sort_keys=False))
 
     # Run work command with mocked inputs
     # Inputs: Confirm Start (y), Confirm Complete (y), Summary
@@ -113,13 +117,14 @@ def test_work_command_flow(tmp_path: Path, monkeypatch) -> None:
 
     assert result.exit_code == 0
     assert "TASK: Work Task" in result.stdout
-    assert "Task marked IN_PROGRESS" in result.stdout
-    assert "marked COMPLETED" in result.stdout
+    assert "Task claimed" in result.stdout
+    assert "closed: completed" in result.stdout
 
-    # Verify task status on disk
+    # Verify task state on disk
     task_file = next((tmp_path / "tasks").glob("*.yaml"))
     content = task_file.read_text()
-    assert "status: completed" in content
+    assert "lifecycle: closed" in content
+    assert "outcome: completed" in content
     assert "Fixed the bug" in content
 
 
@@ -157,18 +162,21 @@ def test_list_tasks_filtering(tmp_path: Path, monkeypatch) -> None:
     # Create COMPLETED/LOW task (create as draft/medium default, then update manually to simulate state)
     runner.invoke(app, ["create", "--priority", "low", "--title", "Low Task"], input="\n")
 
-    # Find the Low Task file and update it
+    # Find the Low Task file and close it
     import yaml
 
     for task_file in (tmp_path / "tasks").glob("*.yaml"):
         content = yaml.safe_load(task_file.read_text())
         if content["title"] == "Low Task":
-            content["status"] = "completed"
-            task_file.write_text(yaml.safe_dump(content))
+            content["lifecycle"] = "closed"
+            content["outcome"] = "completed"
+            for key in ("ball", "ball_reason", "ball_prompt"):
+                content.pop(key, None)
+            task_file.write_text(yaml.safe_dump(content, sort_keys=False))
             break
 
-    # Test Filter by Status
-    result_status = runner.invoke(app, ["list", "--status", "completed"])
+    # Test Filter by Lifecycle
+    result_status = runner.invoke(app, ["list", "--lifecycle", "closed"])
     assert result_status.exit_code == 0
     assert "Low Task" in result_status.stdout
     assert "High Task" not in result_status.stdout

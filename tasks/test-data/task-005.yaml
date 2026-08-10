@@ -1,37 +1,54 @@
+schema: 2
 id: task-005
 title: Enable CloudWatch Advanced Monitoring
-created: '2025-10-23T17:44:03.663057Z'
-updated: '2025-10-26T17:44:03.723187Z'
-status: waiting_for_human
+created: '2025-10-23T17:44:03Z'
+updated: '2025-10-26T17:44:03Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: 'NEEDS REVIEW: state what this task is waiting on.'
 priority: low
 category: infrastructure
-assigned_to: Codex
-estimated_effort: 1 hour to enable
-human_summary: Request approval for $150/month CloudWatch advanced monitoring to unlock
-  1-second RDS metrics.
-description: "## Proposal\nEnable CloudWatch Enhanced Monitoring for RDS instances\
-  \ to get 1-second granularity metrics.\n\n## Cost\n- Current: $0/month (basic monitoring\
-  \ only)\n- Proposed: ~$150/month ($2.50 per instance \xD7 60 instances)\n\n## Benefits\n\
-  - 1-second metric granularity (vs 1-minute)\n- OS-level metrics (CPU, memory, disk\
-  \ I/O)\n- Better troubleshooting during incidents\n- Proactive performance optimization\n\
-  \n## Business Case\nLast month we had 3 database incidents that took >2 hours to\
-  \ diagnose due to lack of granular metrics.\nExpected time savings: ~6 hours/month\
-  \ \xD7 $200/hour = $1,200/month value.\n\nROI: 8x return on investment.\n\n**Awaiting\
-  \ approval from Engineering Manager or CTO.**\n"
-phases: []
-success_criteria: []
-prompts:
-  starter: Research and propose CloudWatch enhanced monitoring for RDS instances.
-  followups: []
-status_updates: []
-deliverables: []
-dependencies: []
-external_links: []
-issues: []
 tags:
 - test
 - example
 - monitoring
 - cost
 - rds
-branches: []
+effort: 1 hour to enable
+assignment:
+  owner: codex
+spec:
+  summary: Request approval for $150/month CloudWatch advanced monitoring to unlock
+    1-second RDS metrics.
+  description: "## Proposal\nEnable CloudWatch Enhanced Monitoring for RDS instances\
+    \ to get 1-second granularity metrics.\n\n## Cost\n- Current: $0/month (basic\
+    \ monitoring only)\n- Proposed: ~$150/month ($2.50 per instance \xD7 60 instances)\n\
+    \n## Benefits\n- 1-second metric granularity (vs 1-minute)\n- OS-level metrics\
+    \ (CPU, memory, disk I/O)\n- Better troubleshooting during incidents\n- Proactive\
+    \ performance optimization\n\n## Business Case\nLast month we had 3 database incidents\
+    \ that took >2 hours to diagnose due to lack of granular metrics.\nExpected time\
+    \ savings: ~6 hours/month \xD7 $200/hour = $1,200/month value.\n\nROI: 8x return\
+    \ on investment.\n\n**Awaiting approval from Engineering Manager or CTO.**\n\n\
+    ---\n\n## Starter prompt (migrated from schema v1)\n\nResearch and propose CloudWatch\
+    \ enhanced monitoring for RDS instances."
+log:
+- id: 1
+  ts: '2025-10-26T17:44:03Z'
+  actor: system
+  type: note
+  data:
+    v1_status: waiting_for_human
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: waiting_for_human` became lifecycle: active / ball: human / ball_reason:
+    review.
+
+    - prompts.starter preserved in spec.description.
+
+
+    Needs human review:
+
+    - ball_prompt: no status update to derive an ask from'

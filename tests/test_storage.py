@@ -1,4 +1,4 @@
-"""Tests for YAML-backed storage implementation."""
+"""Tests for YAML-backed storage implementation (schema v2)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 
-from agentjobs.models import Priority, Task, TaskStatus
+from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Priority, Spec, Task
 from agentjobs.storage import TaskLoadError, TaskStorage
 
 
@@ -19,10 +19,12 @@ def _build_task(task_id: str, title: str = "Sample") -> Task:
         title=title,
         created=now,
         updated=now,
-        status=TaskStatus.READY,
+        lifecycle=Lifecycle.READY,
+        ball=Ball.AGENT,
+        ball_reason=BallReason.AVAILABLE,
         priority=Priority.MEDIUM,
         category="testing",
-        description="Task description",
+        spec=Spec(summary=f"{title} summary", description="Task description"),
     )
 
 
@@ -39,14 +41,24 @@ def test_save_and_load_roundtrip(tmp_path: Path) -> None:
     assert reloaded.title == task.title
 
 
-def test_load_task_with_invalid_yaml(tmp_path: Path) -> None:
-    """A broken file raises instead of vanishing.
+def test_written_file_carries_the_schema_stamp_by_alias(tmp_path: Path) -> None:
+    """The stamp is written as `schema:`, not the Python-side `schema_version`.
 
-    This test previously asserted `is None` for all three cases -- it encoded the bug
-    task-049 exists to fix. Returning None made a broken file indistinguishable from a
-    missing one, so the task dropped out of every listing with only a log line as
-    evidence.
+    `schema` shadows a BaseModel attribute, so the field is aliased in Python; a dump
+    without by_alias writes the wrong key and produces a file the loader rejects as v1.
     """
+    storage = TaskStorage(tmp_path)
+    storage.save_task(_build_task("task-002"))
+
+    text = (tmp_path / "task-002.yaml").read_text(encoding="utf-8")
+    assert text.startswith("schema: 2")
+    assert "schema_version" not in text
+    # display_status is computed for API responses and must never be stored.
+    assert "display_status" not in text
+
+
+def test_load_task_with_invalid_yaml(tmp_path: Path) -> None:
+    """A broken file raises instead of vanishing (task-049)."""
     storage = TaskStorage(tmp_path)
 
     bad_file = tmp_path / "task-bad.yaml"
@@ -60,12 +72,34 @@ def test_load_task_with_invalid_yaml(tmp_path: Path) -> None:
         storage.load_task("task-empty")
 
     invalid_file = tmp_path / "task-invalid.yaml"
-    invalid_file.write_text("id: missing-fields\n", encoding="utf-8")
+    invalid_file.write_text("schema: 2\nid: missing-fields\n", encoding="utf-8")
     with pytest.raises(TaskLoadError) as caught:
         storage.load_task("task-invalid")
     # The point of the change: the message names the file and the fields.
     assert "task-invalid.yaml" in str(caught.value)
     assert "title" in str(caught.value)
+
+
+def test_unmigrated_v1_file_is_reported_by_filename(tmp_path: Path) -> None:
+    """A file with no `schema: 2` stamp raises TaskLoadError naming the migrator.
+
+    This is the failure mode of exactly this migration: a stray v1 file must show up in
+    the broken-files listing rather than crashing the whole listing or vanishing.
+    """
+    storage = TaskStorage(tmp_path)
+    v1_file = tmp_path / "task-old.yaml"
+    v1_file.write_text(
+        "id: task-old\ntitle: Old\nstatus: ready\ncategory: misc\ndescription: x\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(TaskLoadError, match="migrate-schema") as caught:
+        storage.load_task("task-old")
+    assert "task-old.yaml" in str(caught.value)
+
+    result = storage.load_all()
+    assert result.tasks == []
+    assert len(result.errors) == 1
+    assert result.errors[0].task_id == "task-old"
 
 
 def test_a_missing_file_still_returns_none(tmp_path: Path) -> None:
@@ -85,6 +119,17 @@ def test_list_and_search_tasks(tmp_path: Path) -> None:
     matches = storage.search_tasks("docs")
     assert len(matches) == 1
     assert matches[0].id == "task-002"
+
+
+def test_lock_files_are_not_globbed_as_tasks(tmp_path: Path) -> None:
+    """*.lock artifacts beside task files never appear in listings."""
+    storage = TaskStorage(tmp_path)
+    storage.save_task(_build_task("task-001"))
+    (tmp_path / "task-001.lock").write_text("1234", encoding="utf-8")
+
+    result = storage.load_all()
+    assert [task.id for task in result.tasks] == ["task-001"]
+    assert result.errors == []
 
 
 def test_delete_task(tmp_path: Path) -> None:

@@ -1,38 +1,36 @@
+schema: 2
 id: task-042-relocate-demo-tasks
 title: Relocate demo tasks to tasks/test-data/
-created: '2026-07-06T19:25:44.199247Z'
-updated: '2026-07-29T18:28:36.607165Z'
-status: completed
+created: '2026-07-06T19:25:44Z'
+updated: '2026-07-29T18:28:36Z'
+lifecycle: closed
+outcome: completed
 priority: high
 category: developer_experience
-assigned_to: claude
-estimated_effort: 30 minutes
-description: "The seven demo/sample tasks (task-001 through task-007 \u2014 fake auth\
-  \ schemas, rate limiters, dark-mode toggles, etc.) are commingled with the real\
-  \ internal AgentJobs roadmap in `tasks/agentjobs/`. README.md (~line 223) already\
-  \ documents a `tasks/test-data/` directory that does not exist. Move the demo tasks\
-  \ there so `tasks/agentjobs/` becomes the pure internal backlog.\n\nBecause `TaskStorage.list_tasks()`\
-  \ globs `*.yaml` non-recursively (src/agentjobs/storage.py:72), files moved out\
-  \ of `tasks/agentjobs/` disappear from the store automatically \u2014 no code change\
-  \ needed for the move itself.\n\nAlso check whether `agentjobs load-test-data` (src/agentjobs/cli.py)\
-  \ or `src/agentjobs/test_data/` reference these files by path and adjust if needed.\
-  \ Update README.md if its description of the layout needs correcting."
-phases: []
-success_criteria:
-- id: sc-1
-  description: tasks/test-data/ exists and contains task-001.yaml through task-007.yaml
-    (moved with git mv, history preserved)
-  status: completed
-- id: sc-2
-  description: GET /api/tasks lists only internal tasks (task-031 onward plus the
-    new react-frontend tasks)
-  status: completed
-- id: sc-3
-  description: poetry run pytest passes; agentjobs load-test-data still works or is
-    updated accordingly
-  status: completed
-prompts:
-  starter: "## Objective\nMove the demo tasks (task-001.yaml \u2026 task-007.yaml)\
+tags:
+- react-frontend
+- learning
+- phase-0
+effort: 30 minutes
+assignment:
+  eligible:
+  - claude
+spec:
+  summary: "The seven demo/sample tasks (task-001 through task-007 \u2014 fake auth\
+    \ schemas, rate limiters, dark-mode toggles, etc.) are commingled with the real\
+    \ internal AgentJobs roadmap in tasks/agentjobs/."
+  description: "The seven demo/sample tasks (task-001 through task-007 \u2014 fake\
+    \ auth schemas, rate limiters, dark-mode toggles, etc.) are commingled with the\
+    \ real internal AgentJobs roadmap in `tasks/agentjobs/`. README.md (~line 223)\
+    \ already documents a `tasks/test-data/` directory that does not exist. Move the\
+    \ demo tasks there so `tasks/agentjobs/` becomes the pure internal backlog.\n\n\
+    Because `TaskStorage.list_tasks()` globs `*.yaml` non-recursively (src/agentjobs/storage.py:72),\
+    \ files moved out of `tasks/agentjobs/` disappear from the store automatically\
+    \ \u2014 no code change needed for the move itself.\n\nAlso check whether `agentjobs\
+    \ load-test-data` (src/agentjobs/cli.py) or `src/agentjobs/test_data/` reference\
+    \ these files by path and adjust if needed. Update README.md if its description\
+    \ of the layout needs correcting.\n\n---\n\n## Starter prompt (migrated from schema\
+    \ v1)\n\n## Objective\nMove the demo tasks (task-001.yaml \u2026 task-007.yaml)\
     \ from `tasks/agentjobs/` to a new `tasks/test-data/` directory, making `tasks/agentjobs/`\
     \ the pure internal backlog.\n\n## Steps\n1. Create branch `chore/task-042-relocate-demo-tasks`\
     \ from main. Record it in this task's `branches[]` and mark the task in_progress.\n\
@@ -49,21 +47,51 @@ prompts:
     - `Get-ChildItem tasks/test-data` shows 7 files; `Get-ChildItem tasks/agentjobs`\
     \ shows only task-031+ and react-frontend tasks.\n- API task list and Jinja dashboard\
     \ totals reflect the removal.\n- pytest green."
-  followups: []
-status_updates:
-- timestamp: '2026-07-29T18:20:10.643601Z'
-  author: claude
-  status: in_progress
-  summary: 'Started: relocating demo tasks 001-007 to tasks/test-data/'
-  details: 'Branch chore/task-042-relocate-demo-tasks created from main. Plan: git
-    mv task-001..007.yaml to tasks/test-data/, check agentjobs load-test-data / src/agentjobs/test_data/
+acceptance:
+- id: sc-1
+  text: tasks/test-data/ exists and contains task-001.yaml through task-007.yaml (moved
+    with git mv, history preserved)
+  status: met
+- id: sc-2
+  text: GET /api/tasks lists only internal tasks (task-031 onward plus the new react-frontend
+    tasks)
+  status: met
+- id: sc-3
+  text: poetry run pytest passes; agentjobs load-test-data still works or is updated
+    accordingly
+  status: met
+deliverables:
+- path: tasks/test-data/
+  status: done
+  note: Relocated demo task YAML files
+branches:
+- name: chore/task-042-relocate-demo-tasks
+  status: merged
+  merged_at: '2026-07-29T18:28:36.599446Z'
+log:
+- id: 1
+  ts: '2026-07-29T18:20:10Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: in_progress
+  body: 'Started: relocating demo tasks 001-007 to tasks/test-data/
+
+
+    Branch chore/task-042-relocate-demo-tasks created from main. Plan: git mv task-001..007.yaml
+    to tasks/test-data/, check agentjobs load-test-data / src/agentjobs/test_data/
     for hardcoded paths, check README.md layout section, run pytest, verify GET /api/tasks
     no longer lists 001-007.'
-- timestamp: '2026-07-29T18:24:14.040317Z'
-  author: claude
-  status: waiting_for_human
-  summary: 'Branch complete, ready for review: demo tasks relocated to tasks/test-data/'
-  details: 'Done:
+- id: 2
+  ts: '2026-07-29T18:24:14Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: waiting_for_human
+  body: 'Branch complete, ready for review: demo tasks relocated to tasks/test-data/
+
+
+    Done:
 
     - git mv task-001..007.yaml -> tasks/test-data/ (history preserved as renames)
 
@@ -87,25 +115,32 @@ status_updates:
     Commits on chore/task-042-relocate-demo-tasks: mark in_progress/record branch,
     relocate the 7 files, fix load-test-data default. Ready for review; on approval
     rebase onto main + --no-ff merge, mark branch merged, set task completed.'
-- timestamp: '2026-07-29T18:28:36.607142Z'
-  author: claude
-  status: completed
-  summary: Approved by Jeff; merging to main via rebase + --no-ff
-  details: Human review approved. Branch chore/task-042-relocate-demo-tasks marked
-    merged. No rebase needed (main had not advanced since branch creation).
-comments: []
-deliverables:
-- path: tasks/test-data/
-  status: completed
-  description: Relocated demo task YAML files
-dependencies: []
-external_links: []
-issues: []
-tags:
-- react-frontend
-- learning
-- phase-0
-branches:
-- name: chore/task-042-relocate-demo-tasks
-  status: merged
-  merged_at: '2026-07-29T18:28:36.599446Z'
+- id: 3
+  ts: '2026-07-29T18:28:36Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: completed
+  body: 'Approved by Jeff; merging to main via rebase + --no-ff
+
+
+    Human review approved. Branch chore/task-042-relocate-demo-tasks marked merged.
+    No rebase needed (main had not advanced since branch creation).'
+- id: 4
+  ts: '2026-07-29T18:28:36Z'
+  actor: system
+  type: note
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: completed` became lifecycle: closed / outcome: completed.
+
+    - prompts.starter preserved in spec.description.
+
+
+    Needs human review:
+
+    - spec.summary: no human_summary; derived from the description'

@@ -1,69 +1,56 @@
+schema: 2
 id: task-006
 title: Fix Memory Leak in WebSocket Handler
-created: '2025-10-22T17:44:03.663057Z'
-updated: '2025-10-26T17:44:03.734736Z'
-status: completed
+created: '2025-10-22T17:44:03Z'
+updated: '2025-10-26T17:44:03Z'
+lifecycle: closed
+outcome: completed
 priority: critical
 category: bugfix
-assigned_to: Codex
-estimated_effort: 2 days
-human_summary: Fixed memory leak caused by unclosed event listeners in WebSocket connections.
-description: '## Problem
-
-  WebSocket handler was leaking ~50MB/hour due to event listeners not being cleaned
-  up on disconnect.
-
-
-  ## Solution
-
-  - Added cleanup handler for connection close events
-
-  - Implemented WeakMap for connection tracking
-
-  - Added memory usage monitoring
-
-
-  ## Results
-
-  - Memory usage stable at ~200MB (was growing to 2GB+ daily)
-
-  - No more daily restarts required
-
-  - Performance improved by 15%
-
-  '
-phases:
-- id: phase-1
-  title: Investigation
-  status: completed
-  completed_at: '2025-10-24T17:44:03.663057Z'
-- id: phase-2
-  title: Fix Implementation
-  status: completed
-  completed_at: '2025-10-25T17:44:03.663057Z'
-- id: phase-3
-  title: Testing & Monitoring
-  status: completed
-  completed_at: '2025-10-26T09:44:03.663057Z'
-success_criteria: []
-prompts:
-  starter: Debug and fix memory leak in WebSocket handler.
-  followups: []
-status_updates: []
-deliverables:
-- path: src/websocket/handler.ts
-  status: completed
-  description: Fixed WebSocket handler
-- path: tests/websocket/memory_test.ts
-  status: completed
-  description: Memory leak regression test
-dependencies: []
-external_links: []
-issues: []
 tags:
 - test
 - example
 - performance
 - websocket
 - memory
-branches: []
+effort: 2 days
+assignment:
+  eligible:
+  - codex
+spec:
+  summary: Fixed memory leak caused by unclosed event listeners in WebSocket connections.
+  description: "## Problem\nWebSocket handler was leaking ~50MB/hour due to event\
+    \ listeners not being cleaned up on disconnect.\n\n## Solution\n- Added cleanup\
+    \ handler for connection close events\n- Implemented WeakMap for connection tracking\n\
+    - Added memory usage monitoring\n\n## Results\n- Memory usage stable at ~200MB\
+    \ (was growing to 2GB+ daily)\n- No more daily restarts required\n- Performance\
+    \ improved by 15%\n\n---\n\n## Starter prompt (migrated from schema v1)\n\nDebug\
+    \ and fix memory leak in WebSocket handler.\n---\n\n## Phases (migrated from schema\
+    \ v1)\n\n`phases[]` was deleted in v2; sub-tasks via `parent` are the one way\
+    \ to\nsubdivide. This is the historical record, preserved verbatim.\n\n- **Investigation**\
+    \ (`phase-1`, completed)\n  - completed 2025-10-24T17:44:03.663057Z\n- **Fix Implementation**\
+    \ (`phase-2`, completed)\n  - completed 2025-10-25T17:44:03.663057Z\n- **Testing\
+    \ & Monitoring** (`phase-3`, completed)\n  - completed 2025-10-26T09:44:03.663057Z"
+deliverables:
+- path: src/websocket/handler.ts
+  status: done
+  note: Fixed WebSocket handler
+- path: tests/websocket/memory_test.ts
+  status: done
+  note: Memory leak regression test
+log:
+- id: 1
+  ts: '2025-10-26T17:44:03Z'
+  actor: system
+  type: note
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: completed` became lifecycle: closed / outcome: completed.
+
+    - 3 phase(s) folded into spec.description as an appendix.
+
+    - prompts.starter preserved in spec.description.'

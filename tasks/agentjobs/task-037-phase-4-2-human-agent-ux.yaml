@@ -1,79 +1,107 @@
+schema: 2
 id: task-037-phase-4-2-human-agent-ux
 title: 'Phase 4.2: Human-Agent Experience'
 created: '2025-10-26T20:28:04Z'
 updated: '2025-10-26T20:28:04Z'
-status: completed
+lifecycle: closed
+outcome: completed
 priority: high
 category: ux
-assigned_to: Codex
-estimated_effort: 1 day
-human_summary: Polish the experience with human summaries, waiting-for-human spotlight, nav badges, and tabbed human/agent views.
-description: |
-  Phase 4.2 focused on user experience refinements that make AgentJobs
-  comfortable for both humans and agents. The release introduced the
-  `WAITING_FOR_HUMAN` status, added concise human summaries, surfaced waiting
-  tasks prominently in the dashboard and navigation, and split task detail into
-  Human vs Agent tabs. Sample data fixtures now cover all workflow states.
-phases:
-  - id: phase-1
-    title: 'Deliver human-agent UX improvements'
-    status: completed
-    notes: Status additions, UI updates, nav badge, sample data all merged.
-    completed_at: '2025-10-26T20:28:04Z'
-success_criteria:
-  - id: sc-1
-    description: Waiting-for-human tasks highlighted in dashboard and navigation.
-    status: completed
-  - id: sc-2
-    description: Task detail separates human context from agent implementation notes.
-    status: completed
-  - id: sc-3
-    description: Sample data exercises new status and UI flows.
-    status: completed
-prompts:
-  starter: prompts/task-031-phase-4.2-human-agent-ux.md
-  followups:
-    - timestamp: '2025-10-26T20:28:04Z'
-      author: Claude
-      prompt_file: prompts/task-031-phase-5.2-agent-dx-improvements.md
-      context: UX polish complete; ready to improve agent developer experience next.
-status_updates:
-  - timestamp: '2025-10-26T20:28:04Z'
-    author: Codex
-    status: completed
-    summary: Human/agent UX shipped with waiting spotlight and tabbed detail view
-    details: Added WAITING_FOR_HUMAN status, nav badge, human summaries, sample data, and tabbed task detail UI.
-deliverables:
-  - path: src/agentjobs/models.py
-    status: completed
-    description: Added WAITING_FOR_HUMAN enum and human_summary field.
-  - path: src/agentjobs/api/templates/dashboard.html
-    status: completed
-    description: Spotlight card for waiting tasks plus updated stats grid.
-  - path: src/agentjobs/api/templates/task_detail.html
-    status: completed
-    description: Human/Agent tab UX with summaries and full markdown.
-  - path: src/agentjobs/api/templates/base.html
-    status: completed
-    description: Navigation badge showing waiting-for-human count.
-  - path: src/agentjobs/cli.py
-    status: completed
-    description: load-test-data command for generating realistic sample tasks.
-dependencies:
-  - task_id: task-036-phase-4-migration-tool
-    type: depends_on
-    status: completed
-    note: UX polish builds on migrated tasks to present them clearly.
-external_links:
-  - url: https://github.com/jeffposey/agentjobs/commit/d4378cd
-    title: 'Commit d4378cd - add waiting-for-human workflow and views'
-issues: []
 tags:
-  - agentjobs
-  - phase-4-2
-  - ux
-  - tasks-2-0
+- agentjobs
+- phase-4-2
+- ux
+- tasks-2-0
+effort: 1 day
+assignment:
+  eligible:
+  - codex
+spec:
+  summary: Polish the experience with human summaries, waiting-for-human spotlight,
+    nav badges, and tabbed human/agent views.
+  description: "Phase 4.2 focused on user experience refinements that make AgentJobs\n\
+    comfortable for both humans and agents. The release introduced the\n`WAITING_FOR_HUMAN`\
+    \ status, added concise human summaries, surfaced waiting\ntasks prominently in\
+    \ the dashboard and navigation, and split task detail into\nHuman vs Agent tabs.\
+    \ Sample data fixtures now cover all workflow states.\n\n---\n\n## Starter prompt\
+    \ (migrated from schema v1)\n\nprompts/task-031-phase-4.2-human-agent-ux.md\n\
+    ---\n\n## Phases (migrated from schema v1)\n\n`phases[]` was deleted in v2; sub-tasks\
+    \ via `parent` are the one way to\nsubdivide. This is the historical record, preserved\
+    \ verbatim.\n\n- **Deliver human-agent UX improvements** (`phase-1`, completed)\n\
+    \  - Status additions, UI updates, nav badge, sample data all merged.\n  - completed\
+    \ 2025-10-26T20:28:04Z"
+acceptance:
+- id: sc-1
+  text: Waiting-for-human tasks highlighted in dashboard and navigation.
+  status: met
+- id: sc-2
+  text: Task detail separates human context from agent implementation notes.
+  status: met
+- id: sc-3
+  text: Sample data exercises new status and UI flows.
+  status: met
+deliverables:
+- path: src/agentjobs/models.py
+  status: done
+  note: Added WAITING_FOR_HUMAN enum and human_summary field.
+- path: src/agentjobs/api/templates/dashboard.html
+  status: done
+  note: Spotlight card for waiting tasks plus updated stats grid.
+- path: src/agentjobs/api/templates/task_detail.html
+  status: done
+  note: Human/Agent tab UX with summaries and full markdown.
+- path: src/agentjobs/api/templates/base.html
+  status: done
+  note: Navigation badge showing waiting-for-human count.
+- path: src/agentjobs/cli.py
+  status: done
+  note: load-test-data command for generating realistic sample tasks.
+dependencies:
+- task: task-036-phase-4-migration-tool
+  type: needs
+  note: 'UX polish builds on migrated tasks to present them clearly. (v1 status: completed)'
+links:
+- url: https://github.com/jeffposey/agentjobs/commit/d4378cd
+  rel: other
+  title: Commit d4378cd - add waiting-for-human workflow and views
 branches:
-  - name: main
-    status: merged
-    merged_at: '2025-10-26T20:28:04Z'
+- name: main
+  status: merged
+  merged_at: '2025-10-26T20:28:04Z'
+log:
+- id: 1
+  ts: '2025-10-26T20:28:04Z'
+  actor: Codex
+  type: transition
+  data:
+    v1_status: completed
+  body: 'Human/agent UX shipped with waiting spotlight and tabbed detail view
+
+
+    Added WAITING_FOR_HUMAN status, nav badge, human summaries, sample data, and tabbed
+    task detail UI.'
+- id: 2
+  ts: '2025-10-26T20:28:04Z'
+  actor: Claude
+  type: instruction
+  body: 'See prompt file: prompts/task-031-phase-5.2-agent-dx-improvements.md
+
+
+    Context: UX polish complete; ready to improve agent developer experience next.'
+- id: 3
+  ts: '2025-10-26T20:28:04Z'
+  actor: system
+  type: note
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: completed` became lifecycle: closed / outcome: completed.
+
+    - 1 phase(s) folded into spec.description as an appendix.
+
+    - prompts.starter preserved in spec.description.
+
+    - 1 followup prompt(s) became instruction entries.'

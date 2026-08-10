@@ -1,123 +1,113 @@
+schema: 2
 id: task-062-onboard-projects-from-the-ui
 title: 'Onboarding: add or create AgentJobs projects from the UI, not the CLI'
 created: '2026-08-10T22:10:00Z'
 updated: '2026-08-10T22:10:00Z'
-status: ready
+lifecycle: ready
+ball: agent
+ball_reason: available
 priority: medium
 category: ux
-estimated_effort: half a working session
-human_summary: 'AgentJobs ships knowing about one project -- its own. Adding a second
-  currently means reading a hint in the UI that tells you to go and run a CLI command,
-  which is a poor first five minutes for a tool whose point is that you work through
-  its interface. Two flows are needed: register a directory that is already an
-  AgentJobs project, and turn an untracked directory into one. The REST endpoints are
-  the durable deliverable; the Jinja form deliberately is not, because the React
-  frontend replaces it.'
-description: 'The project switcher (task-061) lists registered projects and ends with
-  the line "Register more with `agentjobs project add`". Telling someone to leave the
-  UI and run a command is the wrong answer for the one workflow every new user hits
-  first.
+tags:
+- ux
+- multi-project
+- onboarding
+- api
+effort: half a working session
+spec:
+  summary: 'AgentJobs ships knowing about one project -- its own. Adding a second
+    currently means reading a hint in the UI that tells you to go and run a CLI command,
+    which is a poor first five minutes for a tool whose point is that you work through
+    its interface. Two flows are needed: register a directory that is already an AgentJobs
+    project, and turn an untracked directory into one. The REST endpoints are the
+    durable deliverable; the Jinja form deliberately is not, because the React frontend
+    replaces it.'
+  description: 'The project switcher (task-061) lists registered projects and ends
+    with the line "Register more with `agentjobs project add`". Telling someone to
+    leave the UI and run a command is the wrong answer for the one workflow every
+    new user hits first.
 
 
-  ## Two flows
+    ## Two flows
 
 
-  1. **Add an existing AgentJobs project.** The directory already has
-  `.agentjobs/config.yaml`. Register it: read its `project_name`, derive or accept an
-  id, add it to the machine registry.
+    1. **Add an existing AgentJobs project.** The directory already has `.agentjobs/config.yaml`.
+    Register it: read its `project_name`, derive or accept an id, add it to the machine
+    registry.
 
-  2. **Create a project in an untracked directory.** The directory exists but has no
-  AgentJobs config. Write one, create the tasks directory, then register it. This is
-  what `agentjobs init` does, minus the interactive prompts.
-
-
-  The UI should tell these apart by inspecting the path rather than making the user
-  declare which one they are doing.
+    2. **Create a project in an untracked directory.** The directory exists but has
+    no AgentJobs config. Write one, create the tasks directory, then register it.
+    This is what `agentjobs init` does, minus the interactive prompts.
 
 
-  ## Build the API properly; keep the HTML thin
+    The UI should tell these apart by inspecting the path rather than making the user
+    declare which one they are doing.
 
 
-  This is the part that decides whether the work survives.
+    ## Build the API properly; keep the HTML thin
 
 
-  The **endpoints are durable** -- `POST /api/projects` to register, and something like
-  `POST /api/projects/init` to create-then-register. The React frontend will call
-  exactly these. Give them real validation, real errors, and tests.
+    This is the part that decides whether the work survives.
 
 
-  The **Jinja form is disposable**. A page with a path field, an inspect step and a
-  confirm button is enough. Do not invest in a directory browser, autocomplete, or
-  styling beyond what the existing pages already use. The owner has asked to keep Web
-  UI work minimal ahead of the React/TS rebuild, and this task exists to make the API
-  right, not to make the Jinja page nice.
+    The **endpoints are durable** -- `POST /api/projects` to register, and something
+    like `POST /api/projects/init` to create-then-register. The React frontend will
+    call exactly these. Give them real validation, real errors, and tests.
 
 
-  ## Safety -- this writes to arbitrary paths
+    The **Jinja form is disposable**. A page with a path field, an inspect step and
+    a confirm button is enough. Do not invest in a directory browser, autocomplete,
+    or styling beyond what the existing pages already use. The owner has asked to
+    keep Web UI work minimal ahead of the React/TS rebuild, and this task exists to
+    make the API right, not to make the Jinja page nice.
 
 
-  Registering is harmless; creating is not. `POST /api/projects/init` takes a
-  filesystem path from a web request and writes files into it. Decide and record:
+    ## Safety -- this writes to arbitrary paths
 
 
-  - **Refuse to overwrite an existing config.** `agentjobs init` currently clobbers
-  `.agentjobs/config.yaml` with defaults, no prompt and no backup. That footgun already
-  cost a session -- it silently overwrote this repo''s own config during task-057
-  verification. Exposing it through a web form makes it materially worse, so this task
-  should fix `init` as well: refuse, or require an explicit overwrite flag.
-
-  - **The directory must already exist.** Do not create arbitrary parent directories
-  from a web request; require the user to have made it.
-
-  - **Reject paths that are already registered** under a different id, which the
-  registry already does -- surface the error rather than swallowing it.
+    Registering is harmless; creating is not. `POST /api/projects/init` takes a filesystem
+    path from a web request and writes files into it. Decide and record:
 
 
-  ## Notes
+    - **Refuse to overwrite an existing config.** `agentjobs init` currently clobbers
+    `.agentjobs/config.yaml` with defaults, no prompt and no backup. That footgun
+    already cost a session -- it silently overwrote this repo''s own config during
+    task-057 verification. Exposing it through a web form makes it materially worse,
+    so this task should fix `init` as well: refuse, or require an explicit overwrite
+    flag.
+
+    - **The directory must already exist.** Do not create arbitrary parent directories
+    from a web request; require the user to have made it.
+
+    - **Reject paths that are already registered** under a different id, which the
+    registry already does -- surface the error rather than swallowing it.
 
 
-  - `ProjectRegistry` in `src/agentjobs/projects.py` already does registration,
-  id-slugging and duplicate detection. This task is mostly exposing it, not writing it.
+    ## Notes
 
-  - Project ids are lowercase slugs matched exactly, never joined onto a path. Keep it
-  that way.
 
-  - Removing a project from the UI is **out of scope** for now: unregistering is
-  low-risk but the button sits next to data people care about, and the CLI covers it.
+    - `ProjectRegistry` in `src/agentjobs/projects.py` already does registration,
+    id-slugging and duplicate detection. This task is mostly exposing it, not writing
+    it.
 
-  '
-phases: []
-success_criteria:
-- id: sc-1
-  description: POST /api/projects registers an existing AgentJobs directory and returns
-    the stored project; errors (not a directory, no config, already registered, bad id)
-    are reported with usable messages
-  status: pending
-- id: sc-2
-  description: An endpoint creates an AgentJobs project in an existing untracked
-    directory and registers it, without interactive prompts
-  status: pending
-- id: sc-3
-  description: Neither endpoint overwrites an existing .agentjobs/config.yaml, and
-    `agentjobs init` is fixed to refuse silent clobbering too
-  status: pending
-- id: sc-4
-  description: A minimal page reachable from the project switcher performs both flows;
-    no directory browser, no styling beyond the existing pages
-  status: pending
-- id: sc-5
-  description: Tests cover both endpoints including the refusal cases; poetry run pytest
-    passes and ruff/mypy/black stay clean
-  status: pending
-- id: sc-6
-  description: Verified in a browser by adding a second real project on this machine
-    and switching to it, with no CLI use
-  status: pending
-prompts:
-  starter: '## Objective
+    - Project ids are lowercase slugs matched exactly, never joined onto a path. Keep
+    it that way.
 
-    Let someone add or create an AgentJobs project from the UI instead of being told to
-    run a CLI command.
+    - Removing a project from the UI is **out of scope** for now: unregistering is
+    low-risk but the button sits next to data people care about, and the CLI covers
+    it.
+
+
+    ---
+
+
+    ## Starter prompt (migrated from schema v1)
+
+
+    ## Objective
+
+    Let someone add or create an AgentJobs project from the UI instead of being told
+    to run a CLI command.
 
 
     ## Read first
@@ -149,33 +139,60 @@ prompts:
 
     ## Git workflow
 
-    Branch `feat/task-062-onboard-projects-from-the-ui` from main, record it in
-    branches[], mark in_progress. Small conventional commits. When complete: STOP, set
-    waiting_for_human through the status API. Do not merge.
-
-    '
-  followups: []
-status_updates: []
-comments: []
+    Branch `feat/task-062-onboard-projects-from-the-ui` from main, record it in branches[],
+    mark in_progress. Small conventional commits. When complete: STOP, set waiting_for_human
+    through the status API. Do not merge.'
+acceptance:
+- id: sc-1
+  text: POST /api/projects registers an existing AgentJobs directory and returns the
+    stored project; errors (not a directory, no config, already registered, bad id)
+    are reported with usable messages
+  status: pending
+- id: sc-2
+  text: An endpoint creates an AgentJobs project in an existing untracked directory
+    and registers it, without interactive prompts
+  status: pending
+- id: sc-3
+  text: Neither endpoint overwrites an existing .agentjobs/config.yaml, and `agentjobs
+    init` is fixed to refuse silent clobbering too
+  status: pending
+- id: sc-4
+  text: A minimal page reachable from the project switcher performs both flows; no
+    directory browser, no styling beyond the existing pages
+  status: pending
+- id: sc-5
+  text: Tests cover both endpoints including the refusal cases; poetry run pytest
+    passes and ruff/mypy/black stay clean
+  status: pending
+- id: sc-6
+  text: Verified in a browser by adding a second real project on this machine and
+    switching to it, with no CLI use
+  status: pending
 deliverables:
 - path: src/agentjobs/api/routes/projects.py
   status: pending
-  description: Register and create-and-register endpoints
+  note: Register and create-and-register endpoints
 - path: src/agentjobs/cli.py
   status: pending
-  description: init refuses to overwrite an existing config
+  note: init refuses to overwrite an existing config
 dependencies:
-- task_id: task-061-project-switcher
-  type: depends_on
+- task: task-061-project-switcher
+  type: needs
   note: Completed 2026-08-10. Supplies the switcher this onboarding flow hangs off.
-- task_id: task-057-multi-project-registry
-  type: depends_on
+- task: task-057-multi-project-registry
+  type: needs
   note: Completed 2026-08-10. Supplies ProjectRegistry, which these endpoints expose.
-external_links: []
-issues: []
-tags:
-- ux
-- multi-project
-- onboarding
-- api
-branches: []
+log:
+- id: 1
+  ts: '2026-08-10T22:10:00Z'
+  actor: system
+  type: note
+  data:
+    v1_status: ready
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: ready` became lifecycle: ready / ball: agent / ball_reason: available.
+
+    - prompts.starter preserved in spec.description.'

@@ -39,25 +39,31 @@
             <div class="text-sm">{{ task.updated.strftime('%Y-%m-%d %H:%M') }}</div>
         </div>
         <div class="bg-dark-surface rounded-lg border border-dark-border p-4">
-            <div class="text-xs text-dark-muted mb-1">Assigned To</div>
-            <div class="text-sm">{{ task.assigned_to or 'Unassigned' }}</div>
+            <div class="text-xs text-dark-muted mb-1">Owner</div>
+            <div class="text-sm">{{ task.assignment.owner or 'Unclaimed' }}</div>
         </div>
         <div class="bg-dark-surface rounded-lg border border-dark-border p-4">
             <div class="text-xs text-dark-muted mb-1">Effort</div>
-            <div class="text-sm">{{ task.estimated_effort or 'Not estimated' }}</div>
+            <div class="text-sm">{{ task.effort or 'Not estimated' }}</div>
         </div>
     </div>
 
-    {% if task.status == 'waiting_for_human' %}
+    {% if task.ball == 'human' %}
     <div class="human-actions-panel rounded-xl p-6 space-y-4 bg-yellow-950/30 border-2 border-yellow-600/50" x-data="taskActions()">
         <h3 class="text-lg font-semibold flex items-center gap-2 text-yellow-400">
-            <span class="text-2xl">⚠️</span> This task needs your review
+            <span class="text-2xl">⚠️</span> {{ task.display_status }} — the ball is with you
         </h3>
-        <p class="text-sm text-dark-text">
-            Review the agent's work below and take action. These buttons record your
-            decision in the task record and hand the work back to the agent —
-            <strong>they do not run git</strong>, so nothing is merged until the agent
-            does it.
+        {% if task.ball_prompt %}
+        {# The ask travels with the ball (schema v2, consistency rule 4). This is the
+           payload of the handoff, so it leads the panel. #}
+        <div class="prose prose-invert max-w-none text-sm prose-p:text-dark-text"
+             x-data='{ content: {{ task.ball_prompt | tojson }} }'
+             x-markdown="content"></div>
+        {% endif %}
+        <p class="text-sm text-dark-muted">
+            These buttons record your decision in the task record and hand the work back
+            to the agent — <strong>they do not run git</strong>, so nothing is merged
+            until the agent does it.
         </p>
 
         <div class="flex flex-wrap gap-3">
@@ -77,7 +83,7 @@
             </button>
             <button
                 @click="rejectTask"
-                title="Archives the task. Use Request Changes if the work should continue."
+                title="Closes the task as cancelled and archives it. Use Request Changes if the work should continue."
                 class="btn-reject bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg transition"
             >
                 ✗ Reject &amp; Archive
@@ -111,6 +117,15 @@
             </div>
         </div>
     </div>
+    {% elif task.ball_prompt %}
+    <div class="rounded-xl p-6 bg-dark-surface border border-dark-border">
+        <h3 class="text-sm font-medium text-dark-muted uppercase tracking-wide mb-2">
+            Current ask ({{ task.ball }}/{{ task.ball_reason }})
+        </h3>
+        <div class="prose prose-invert max-w-none text-sm prose-p:text-dark-text"
+             x-data='{ content: {{ task.ball_prompt | tojson }} }'
+             x-markdown="content"></div>
+    </div>
     {% endif %}
 
     <div class="bg-dark-surface rounded-lg border border-dark-border" x-data="{ tab: 'human' }">
@@ -138,30 +153,37 @@
         <div x-show="tab === 'human'" x-cloak class="p-6 space-y-6">
             <div>
                 <h2 class="text-lg font-semibold mb-4">Summary</h2>
-                <p class="text-lg text-dark-muted">
-                    {{ task.human_summary or (task.description | default('') | truncate(300, True, '…')) }}
-                </p>
+                <p class="text-lg text-dark-muted">{{ task.spec.summary }}</p>
             </div>
 
-            {% if task.phases %}
+            {% if task.spec.intent %}
             <div>
-                <h3 class="text-md font-semibold mb-3">Progress</h3>
+                <h3 class="text-md font-semibold mb-3">Why this task exists</h3>
+                <div class="prose prose-invert max-w-none text-sm prose-p:text-dark-muted"
+                     x-data='{ content: {{ task.spec.intent | tojson }} }'
+                     x-markdown="content"></div>
+            </div>
+            {% endif %}
+
+            {% if task.acceptance %}
+            <div>
+                <h3 class="text-md font-semibold mb-3">Acceptance</h3>
                 <div class="space-y-2">
-                    {% for phase in task.phases %}
+                    {% for criterion in task.acceptance %}
                     <div class="flex items-center gap-3 p-3 bg-dark-bg rounded-lg border border-dark-border">
                         <span class="text-xl">
-                            {% if phase.status == 'completed' %}✅
-                            {% elif phase.status == 'in_progress' %}🔄
-                            {% elif phase.status == 'blocked' %}🚫
-                            {% elif phase.status == 'waiting_for_human' %}🔔
+                            {% if criterion.status == 'met' %}✅
+                            {% elif criterion.status == 'failed' %}❌
+                            {% elif criterion.status == 'dropped' %}⊘
                             {% else %}⚪{% endif %}
                         </span>
                         <div class="flex-1">
-                            <div class="font-medium">{{ phase.title }}</div>
+                            <div class="font-medium">{{ criterion.text }}</div>
+                            {% if criterion.verify %}
+                            <code class="text-xs text-dark-muted">{{ criterion.verify }}</code>
+                            {% endif %}
                         </div>
-                        <span class="text-xs text-dark-muted uppercase tracking-wide">
-                            {{ phase.status.replace('_', ' ') if phase.status else 'planned' }}
-                        </span>
+                        <span class="text-xs text-dark-muted uppercase tracking-wide">{{ criterion.status }}</span>
                     </div>
                     {% endfor %}
                 </div>
@@ -169,79 +191,45 @@
             {% endif %}
         </div>
 
-        <div x-show="tab === 'agent'" x-cloak class="p-6">
-            <h2 class="text-lg font-semibold mb-4">Full Description</h2>
-            <div class="prose prose-invert max-w-none prose-headings:text-dark-text prose-p:text-dark-text prose-li:text-dark-text prose-code:text-blue-300 prose-pre:bg-dark-bg">
-                <div
-                    x-data="{ content: `{{ (task.description or '') | replace('\\', '\\\\') | replace('`', '\\`') | replace('${', '\\${') }}` }"
-                    x-markdown="content"
-                ></div>
-            </div>
-        </div>
-    </div>
-
-    {% if task.phases %}
-    <div class="bg-dark-surface rounded-lg border border-dark-border">
-        <div class="p-6 border-b border-dark-border">
-            <h2 class="text-lg font-semibold">Phases</h2>
-        </div>
-        <div class="divide-y divide-dark-border">
-            {% for phase in task.phases %}
-            {% set phase_status = (phase.status or 'planned') %}
-            <div class="p-4" x-data="{ expanded: false }">
-                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-                    <div class="flex-1">
-                        <h3 class="font-medium">{{ phase.title }}</h3>
-                        {% if phase.notes and phase.notes|length > 200 %}
-                        <div class="mt-2">
-                            <div x-show="!expanded" x-cloak class="prose prose-invert prose-sm max-w-none">
-                                <div
-                                    x-data="{ notes: `{{ (phase.notes[:200] ~ ('...' if phase.notes|length > 200 else '')) | replace('\\', '\\\\') | replace('`', '\\`') | replace('${', '\\${') }}` }"
-                                    x-markdown="notes"
-                                ></div>
-                            </div>
-                            <div x-show="expanded" x-transition x-cloak class="prose prose-invert prose-sm max-w-none">
-                                <div
-                                    x-data="{ notes: `{{ phase.notes | replace('\\', '\\\\') | replace('`', '\\`') | replace('${', '\\${') }}` }"
-                                    x-markdown="notes"
-                                ></div>
-                            </div>
-                            <button
-                                @click="expanded = !expanded"
-                                class="text-xs text-blue-400 hover:text-blue-300 mt-2"
-                                type="button"
-                            >
-                                <span x-show="!expanded" x-cloak>Show more</span>
-                                <span x-show="expanded" x-cloak>Show less</span>
-                            </button>
-                        </div>
-                        {% elif phase.notes %}
-                        <div class="mt-2 prose prose-invert prose-sm max-w-none">
-                            <div
-                                x-data="{ notes: `{{ phase.notes | replace('\\', '\\\\') | replace('`', '\\`') | replace('${', '\\${') }}` }"
-                                x-markdown="notes"
-                            ></div>
-                        </div>
-                        {% endif %}
-                    </div>
-                    <div class="flex flex-col items-start md:items-end gap-1 min-w-[140px]">
-                        <span class="px-2 py-1 text-xs rounded
-                            {% if phase_status == 'completed' %}bg-green-900 text-green-200
-                            {% elif phase_status == 'in_progress' %}bg-blue-900 text-blue-200
-                            {% elif phase_status == 'blocked' %}bg-red-900 text-red-200
-                            {% else %}bg-gray-700 text-gray-300{% endif %}">
-                            {{ phase_status.replace('_', ' ').title() }}
-                        </span>
-                        {% if phase.completed_at %}
-                        <span class="text-dark-muted text-xs">Completed {{ phase.completed_at.strftime('%Y-%m-%d') }}</span>
-                        {% endif %}
-                    </div>
+        <div x-show="tab === 'agent'" x-cloak class="p-6 space-y-6">
+            <div>
+                <h2 class="text-lg font-semibold mb-4">Working Spec</h2>
+                <div class="prose prose-invert max-w-none prose-headings:text-dark-text prose-p:text-dark-text prose-li:text-dark-text prose-code:text-blue-300 prose-pre:bg-dark-bg">
+                    <div
+                        x-data='{ content: {{ (task.spec.description or "") | tojson }} }'
+                        x-markdown="content"
+                    ></div>
                 </div>
             </div>
-            {% endfor %}
+            {% if task.spec.constraints %}
+            <div>
+                <h3 class="text-md font-semibold mb-3">Constraints</h3>
+                <div class="prose prose-invert max-w-none text-sm prose-p:text-dark-text prose-li:text-dark-text"
+                     x-data='{ content: {{ task.spec.constraints | tojson }} }'
+                     x-markdown="content"></div>
+            </div>
+            {% endif %}
+            {% if task.spec.out_of_scope %}
+            <div>
+                <h3 class="text-md font-semibold mb-3">Out of scope</h3>
+                <div class="prose prose-invert max-w-none text-sm prose-p:text-dark-muted prose-li:text-dark-muted"
+                     x-data='{ content: {{ task.spec.out_of_scope | tojson }} }'
+                     x-markdown="content"></div>
+            </div>
+            {% endif %}
+            {% if task.spec.context %}
+            <div>
+                <h3 class="text-md font-semibold mb-3">Read this first</h3>
+                <ul class="space-y-1 text-sm">
+                    {% for pointer in task.spec.context %}
+                    <li><code class="text-blue-300">{{ pointer.path }}</code>
+                        <span class="text-dark-muted">— {{ pointer.why }}</span></li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
         </div>
     </div>
-    {% endif %}
 
     {% if task.deliverables %}
     <div class="bg-dark-surface rounded-lg border border-dark-border">
@@ -253,15 +241,15 @@
             <div class="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div class="flex-1">
                     <code class="text-sm break-words">{{ deliverable.path }}</code>
-                    {% if deliverable.description %}
-                    <p class="text-sm text-dark-muted mt-1">{{ deliverable.description }}</p>
+                    {% if deliverable.note %}
+                    <p class="text-sm text-dark-muted mt-1">{{ deliverable.note }}</p>
                     {% endif %}
                 </div>
                 <div class="flex items-center gap-3">
                     <span class="text-lg">
-                        {% if deliverable.status == 'completed' %}✓{% elif deliverable.status == 'in_progress' %}~{% else %}○{% endif %}
+                        {% if deliverable.status == 'done' %}✓{% elif deliverable.status == 'dropped' %}⊘{% else %}○{% endif %}
                     </span>
-                    <span class="text-xs text-dark-muted uppercase tracking-wide">{{ deliverable.status.replace('_', ' ') }}</span>
+                    <span class="text-xs text-dark-muted uppercase tracking-wide">{{ deliverable.status }}</span>
                 </div>
             </div>
             {% endfor %}
@@ -269,42 +257,46 @@
     </div>
     {% endif %}
 
-    {% if task.status_updates %}
+    {% if task.log %}
     <div class="bg-dark-surface rounded-lg border border-dark-border">
         <div class="p-6 border-b border-dark-border">
-            <h2 class="text-lg font-semibold">Status Updates</h2>
+            <h2 class="text-lg font-semibold">Log</h2>
         </div>
         <div class="p-6 space-y-4">
-            {% for update in task.status_updates | sort(attribute='timestamp', reverse=True) %}
+            {% for entry in task.log | sort(attribute='id', reverse=True) %}
             {#
-                Status updates are long on purpose: ALLAGENTS.md requires them to be
+                Log entries are long on purpose: ALLAGENTS.md requires them to be
                 complete for a reader with zero context. So they get rendered as the
                 markdown they are written in, and collapsed by default -- the newest
                 entry open, because that is the one you came to read.
-
-                `tojson` rather than the hand-rolled backtick escaping used for the
-                description: it produces a correctly escaped JS string literal for any
-                input, including the backticks and ${...} that appear in these updates
-                whenever they quote a shell command. The attribute is single-quoted
-                because Jinja's tojson escapes ' but not ".
             #}
             <div
-                class="border-l-2 border-blue-500 pl-4"
+                class="border-l-2 pl-4
+                    {% if entry.type == 'handoff' %}border-orange-500
+                    {% elif entry.type == 'decision' %}border-purple-500
+                    {% elif entry.type == 'question' %}border-yellow-500
+                    {% elif entry.type == 'instruction' %}border-red-500
+                    {% else %}border-blue-500{% endif %}"
                 x-data='{
                     open: {{ "true" if loop.first else "false" }},
-                    content: {{ (update.details or "") | tojson }}
+                    content: {{ (entry.body or "") | tojson }}
                 }'
             >
                 <div class="flex flex-wrap items-center gap-2 text-xs text-dark-muted uppercase">
-                    <span>{{ update.author }}</span>
+                    <span>#{{ entry.id }}</span>
                     <span>•</span>
-                    <span>{{ update.timestamp.strftime('%Y-%m-%d %H:%M') }}</span>
+                    <span>{{ entry.actor }}</span>
                     <span>•</span>
-                    <span class="px-2 py-0.5 rounded bg-dark-bg border border-dark-border lowercase">{{ update.status.replace('_', ' ') }}</span>
+                    <span>{{ entry.ts.strftime('%Y-%m-%d %H:%M') }}</span>
+                    <span>•</span>
+                    <span class="px-2 py-0.5 rounded bg-dark-bg border border-dark-border lowercase">{{ entry.type }}</span>
+                    {% if entry.re %}
+                    <span>•</span>
+                    <span>re #{{ entry.re }}</span>
+                    {% endif %}
                 </div>
-                <p class="mt-2 font-medium">{{ update.summary }}</p>
-                {% if update.details %}
-                {% set is_long = update.details | length > 400 %}
+                {% if entry.body %}
+                {% set is_long = entry.body | length > 400 %}
                 <div class="relative">
                     <div
                         class="prose prose-invert max-w-none text-sm mt-2 prose-headings:text-dark-text prose-p:text-dark-muted prose-li:text-dark-muted prose-strong:text-dark-text prose-code:text-blue-300"
@@ -335,96 +327,7 @@
     </div>
     {% endif %}
 
-    {% if task.comments %}
-    <div class="bg-dark-surface rounded-lg border border-dark-border">
-        <div class="p-6 border-b border-dark-border">
-            <h2 class="text-lg font-semibold">Comments & Feedback</h2>
-        </div>
-        <div class="p-6 space-y-4">
-            {% for comment in task.comments | sort(attribute='created', reverse=True) %}
-            <div class="border-l-2 {% if comment.kind == 'feedback' %}border-yellow-500{% else %}border-blue-500{% endif %} pl-4">
-                <div class="flex flex-wrap items-center gap-2 text-xs text-dark-muted uppercase">
-                    <span>{{ comment.author }}</span>
-                    <span>•</span>
-                    <span>{{ comment.created.strftime('%Y-%m-%d %H:%M') }}</span>
-                    {% if comment.kind != 'comment' %}
-                    <span>•</span>
-                    <span class="px-2 py-0.5 rounded bg-dark-bg border border-dark-border">{{ comment.kind }}</span>
-                    {% endif %}
-                </div>
-                {# whitespace-pre-line preserved line breaks but nothing else -- lists,
-                   code and emphasis all came through as literal punctuation. #}
-                <div
-                    class="prose prose-invert max-w-none text-sm mt-2 prose-headings:text-dark-text prose-p:text-dark-text prose-li:text-dark-text prose-code:text-blue-300"
-                    x-data='{ content: {{ (comment.content or "") | tojson }} }'
-                    x-markdown="content"
-                ></div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    <div x-data="{ open: false }" class="bg-dark-surface rounded-lg border border-dark-border">
-        <button
-            type="button"
-            @click="open = !open"
-            class="w-full p-6 border-b border-dark-border flex items-center justify-between hover:bg-dark-border transition"
-        >
-            <span class="text-lg font-semibold">Agent Prompts</span>
-            <span x-text="open ? '▼' : '▶'"></span>
-        </button>
-        <div x-show="open" x-transition>
-            <div class="p-6 space-y-6">
-                {% if task.prompts and task.prompts.starter %}
-                <div>
-                    <h3 class="text-sm font-medium text-dark-muted uppercase tracking-wide mb-2">Starter Prompt</h3>
-                    <div class="prose prose-invert prose-sm max-w-none">
-                        <div
-                            x-data="{ prompt: `{{ (task.prompts.starter or '') | replace('\\', '\\\\') | replace('`', '\\`') | replace('${', '\\${') }}` }"
-                            x-markdown="prompt"
-                        ></div>
-                    </div>
-                </div>
-                {% endif %}
-                {% if task.prompts and task.prompts.followups %}
-                <div>
-                    <h3 class="text-sm font-medium text-dark-muted uppercase tracking-wide mb-2">Follow-up Prompts</h3>
-                    <div class="space-y-4">
-                        {% for followup in task.prompts.followups | sort(attribute='timestamp') %}
-                        <div class="border border-dark-border rounded-lg">
-                            <div class="px-4 py-2 text-xs text-dark-muted flex flex-wrap gap-2 uppercase tracking-wide">
-                                <span>{{ followup.author }}</span>
-                                <span>•</span>
-                                <span>{{ followup.timestamp.strftime('%Y-%m-%d %H:%M') }}</span>
-                                {% if followup.context %}
-                                <span>•</span>
-                                <span>{{ followup.context }}</span>
-                                {% endif %}
-                                {% if followup.prompt_file %}
-                                <span>•</span>
-                                <span>{{ followup.prompt_file }}</span>
-                                {% endif %}
-                            </div>
-                            <div class="bg-dark-bg border-t border-dark-border p-4 rounded-b">
-                                <div
-                                    class="prose prose-invert prose-sm max-w-none"
-                                    x-data="{ content: `{{ (followup.content or '') | replace('\\', '\\\\') | replace('`', '\\`') | replace('${', '\\${') }}` }"
-                                    x-markdown="content"
-                                ></div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% else %}
-                <p class="text-sm text-dark-muted">No follow-up prompts recorded for this task.</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    {% if task.dependencies or task.external_links %}
+    {% if task.dependencies or task.links %}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         {% if task.dependencies %}
         <div class="bg-dark-surface rounded-lg border border-dark-border">
@@ -434,11 +337,10 @@
             <div class="divide-y divide-dark-border">
                 {% for dependency in task.dependencies %}
                 <div class="p-4 space-y-1 text-sm">
-                    <div class="font-medium">{{ dependency.task_id }}</div>
-                    <div class="text-dark-muted capitalize">{{ dependency.type.replace('_', ' ') }}</div>
-                    {% if dependency.status %}
-                    <div class="text-xs text-dark-muted uppercase tracking-wide">{{ dependency.status }}</div>
-                    {% endif %}
+                    <div class="font-medium">
+                        <a href="{{ base }}/tasks/{{ dependency.task }}" class="text-blue-400 hover:text-blue-300">{{ dependency.task }}</a>
+                    </div>
+                    <div class="text-dark-muted capitalize">{{ dependency.type }}</div>
                     {% if dependency.note %}
                     <p class="text-dark-muted">{{ dependency.note }}</p>
                     {% endif %}
@@ -448,17 +350,18 @@
         </div>
         {% endif %}
 
-        {% if task.external_links %}
+        {% if task.links %}
         <div class="bg-dark-surface rounded-lg border border-dark-border">
             <div class="p-6 border-b border-dark-border">
-                <h2 class="text-lg font-semibold">External Links</h2>
+                <h2 class="text-lg font-semibold">Links</h2>
             </div>
             <ul class="divide-y divide-dark-border">
-                {% for link in task.external_links %}
+                {% for link in task.links %}
                 <li class="p-4">
                     <a href="{{ link.url }}" target="_blank" class="text-blue-400 hover:text-blue-300 underline">
                         {{ link.title or link.url }}
                     </a>
+                    <span class="text-xs text-dark-muted uppercase tracking-wide ml-2">{{ link.rel }}</span>
                 </li>
                 {% endfor %}
             </ul>
@@ -474,7 +377,7 @@ document.addEventListener('alpine:init', () => {
         showFeedback: false,
         feedbackText: '',
         async approveTask() {
-            if (!confirm('Approve this task and mark it as ready?')) return;
+            if (!confirm('Approve this work and hand the ball back to the agent to merge?')) return;
             try {
                 const response = await fetch('/api/projects/{{ project.id }}/tasks/{{ task.id }}/approve', {
                     method: 'POST',

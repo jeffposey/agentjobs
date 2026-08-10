@@ -1,50 +1,54 @@
+schema: 2
 id: task-003
 title: Add Dark Mode Toggle to Settings Page
-created: '2025-10-25T17:44:03.663057Z'
-updated: '2025-10-26T17:44:03.702464Z'
-status: in_progress
+created: '2025-10-25T17:44:03Z'
+updated: '2025-10-26T17:44:03Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Continue the work described in the spec.
 priority: medium
 category: feature
-assigned_to: Codex
-estimated_effort: 3 days
-human_summary: Adding dark mode support with system preference detection and a manual
-  toggle in settings.
-description: '## Implementation Plan
-
-  1. Add theme context provider to React app
-
-  2. Create toggle component in settings
-
-  3. Store preference in localStorage
-
-  4. Detect system preference on first load
-
-  5. Apply CSS custom properties for color theming
-
-  '
-phases:
-- id: phase-1
-  title: Theme Context
-  status: completed
-  completed_at: '2025-10-26T11:44:03.663057Z'
-- id: phase-2
-  title: Toggle Component
-  status: in_progress
-- id: phase-3
-  title: CSS Variables
-  status: draft
-success_criteria: []
-prompts:
-  starter: Add dark mode toggle to settings with system preference detection.
-  followups: []
-status_updates: []
-deliverables: []
-dependencies: []
-external_links: []
-issues: []
 tags:
 - test
 - example
 - ui
 - accessibility
-branches: []
+effort: 3 days
+assignment:
+  owner: codex
+spec:
+  summary: Adding dark mode support with system preference detection and a manual
+    toggle in settings.
+  description: "## Implementation Plan\n1. Add theme context provider to React app\n\
+    2. Create toggle component in settings\n3. Store preference in localStorage\n\
+    4. Detect system preference on first load\n5. Apply CSS custom properties for\
+    \ color theming\n\n---\n\n## Starter prompt (migrated from schema v1)\n\nAdd dark\
+    \ mode toggle to settings with system preference detection.\n---\n\n## Phases\
+    \ (migrated from schema v1)\n\n`phases[]` was deleted in v2; sub-tasks via `parent`\
+    \ are the one way to\nsubdivide. This is the historical record, preserved verbatim.\n\
+    \n- **Theme Context** (`phase-1`, completed)\n  - completed 2025-10-26T11:44:03.663057Z\n\
+    - **Toggle Component** (`phase-2`, in_progress)\n- **CSS Variables** (`phase-3`,\
+    \ draft)"
+log:
+- id: 1
+  ts: '2025-10-26T17:44:03Z'
+  actor: system
+  type: note
+  data:
+    v1_status: in_progress
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: in_progress` became lifecycle: active / ball: agent / ball_reason:
+    work.
+
+    - 3 phase(s) folded into spec.description as an appendix.
+
+    - prompts.starter preserved in spec.description.
+
+
+    Needs human review:
+
+    - ball_prompt: no status update to derive an ask from'

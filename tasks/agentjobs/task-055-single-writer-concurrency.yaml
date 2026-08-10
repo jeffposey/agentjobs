@@ -1,85 +1,113 @@
+schema: 2
 id: task-055-single-writer-concurrency
 title: 'Storage: serialize writes so two agents cannot claim the same task'
 created: '2026-07-29T22:05:00Z'
-updated: '2026-08-10T20:53:10.252157Z'
-status: completed
+updated: '2026-08-10T20:53:10Z'
+lifecycle: closed
+outcome: completed
 priority: high
 category: infrastructure
-estimated_effort: 2-3 hours
-human_summary: TaskStorage.save_task does read-modify-write with no locking and no
-  compare-and-swap, so two agents can both read a task as ready and both write it
-  as active -- a silent double-claim. Found during the schema design pass (task-048)
-  while evaluating whether a database was needed; the fix is to serialize writes rather
-  than change storage. The race exists in v1 today and is independent of the schema
-  v2 chain.
-description: "A correctness bug, not a hardening task. `TaskStorage.save_task` (src/agentjobs/storage.py)\
-  \ serializes a model to YAML and writes the file with no lock and no version check.\
-  \ `load_task` -> mutate -> `save_task` is therefore a classic lost-update sequence.\n\
-  \nTwo agents running `claim` against the same `ready` task will both observe it\
-  \ as claimable and both write themselves in as owner. The second write wins silently;\
-  \ the first agent believes it holds a task it does not. Nothing detects this, and\
-  \ nothing in the task record shows it happened.\n\nThis matters more under schema\
-  \ v2, which is explicitly designed for multiple eligible agents (`assignment.eligible`,\
-  \ `/next?agent=...`, `POST /claim`), but the bug is present in v1 and should be\
-  \ fixed there.\n\n## Why not a database\n\nEvaluated and rejected in docs/schema-design.md\
-  \ \xA77. MongoDB's atomic findAndModify would close this for free, but changing\
-  \ substrate to fix one race forfeits diffable task history, git blame, and atomic\
-  \ task-plus-code commits, and adds a service to run. Serializing writes is a ~50-line\
-  \ fix. Recorded there so the trade is not re-argued.\n\n## Scope\n\n- Advisory file\
-  \ locking around read-modify-write in storage (portalocker, or `os.O_EXCL` lockfiles\
-  \ -- must work on Windows, which is the primary dev platform).\n- A compare-and-swap\
-  \ guard: a write should fail if the file changed since it was read (`updated` timestamp\
-  \ or content hash), rather than blindly overwriting.\n- Make the manager/API the\
-  \ single writer for state transitions, so the claim path in particular is atomic:\
-  \ check claimable and set owner under one lock.\n- Decide and document what a losing\
-  \ writer sees -- a typed conflict error the CLI and API can report as \"task already\
-  \ claimed by X\", not a generic exception.\n- Tests: a concurrent double-claim regression\
-  \ test that fails against today's code. This is the acceptance criterion that matters;\
-  \ the rest is implementation.\n\n## Note on hand edits\n\nPer D2 as amended, direct\
-  \ file editing is an emergency hatch rather than a primary interface, so locking\
-  \ does not need to coordinate with a human in an editor. A concurrent hand edit\
-  \ that loses should surface as a git conflict or a CAS failure, which is the desired\
-  \ behavior either way."
-phases: []
-success_criteria:
-- id: sc-1
-  description: A regression test reproduces the double-claim race against the current
-    implementation, then passes once writes are serialized
-  status: completed
-- id: sc-2
-  description: Read-modify-write in storage is protected by advisory locking that
-    works on Windows
-  status: completed
-- id: sc-3
-  description: A write whose underlying file changed since it was read fails with
-    a typed conflict error rather than silently overwriting
-  status: completed
-- id: sc-4
-  description: The claim path checks claimability and sets the owner atomically; a
-    losing claimer receives a reportable "already claimed" error
-  status: completed
-- id: sc-5
-  description: poetry run pytest passes
-  status: completed
-prompts:
-  starter: "Implement per the task description and docs/schema-design.md \xA77 (the\
-    \ storage rejection entry, which explains why this is a locking fix rather than\
-    \ a database migration).\n\nStart with sc-1: write the failing concurrent double-claim\
-    \ test first, so the bug is demonstrated before it is fixed. Without that test\
-    \ this task cannot be shown to have worked.\n\nCreate branch `fix/task-055-single-writer-concurrency`\
-    \ from main, record it in branches[], mark the task in_progress. Small conventional\
+tags:
+- infrastructure
+- correctness
+- concurrency
+- phase-0
+effort: 2-3 hours
+spec:
+  summary: TaskStorage.save_task does read-modify-write with no locking and no compare-and-swap,
+    so two agents can both read a task as ready and both write it as active -- a silent
+    double-claim. Found during the schema design pass (task-048) while evaluating
+    whether a database was needed; the fix is to serialize writes rather than change
+    storage. The race exists in v1 today and is independent of the schema v2 chain.
+  description: "A correctness bug, not a hardening task. `TaskStorage.save_task` (src/agentjobs/storage.py)\
+    \ serializes a model to YAML and writes the file with no lock and no version check.\
+    \ `load_task` -> mutate -> `save_task` is therefore a classic lost-update sequence.\n\
+    \nTwo agents running `claim` against the same `ready` task will both observe it\
+    \ as claimable and both write themselves in as owner. The second write wins silently;\
+    \ the first agent believes it holds a task it does not. Nothing detects this,\
+    \ and nothing in the task record shows it happened.\n\nThis matters more under\
+    \ schema v2, which is explicitly designed for multiple eligible agents (`assignment.eligible`,\
+    \ `/next?agent=...`, `POST /claim`), but the bug is present in v1 and should be\
+    \ fixed there.\n\n## Why not a database\n\nEvaluated and rejected in docs/schema-design.md\
+    \ \xA77. MongoDB's atomic findAndModify would close this for free, but changing\
+    \ substrate to fix one race forfeits diffable task history, git blame, and atomic\
+    \ task-plus-code commits, and adds a service to run. Serializing writes is a ~50-line\
+    \ fix. Recorded there so the trade is not re-argued.\n\n## Scope\n\n- Advisory\
+    \ file locking around read-modify-write in storage (portalocker, or `os.O_EXCL`\
+    \ lockfiles -- must work on Windows, which is the primary dev platform).\n- A\
+    \ compare-and-swap guard: a write should fail if the file changed since it was\
+    \ read (`updated` timestamp or content hash), rather than blindly overwriting.\n\
+    - Make the manager/API the single writer for state transitions, so the claim path\
+    \ in particular is atomic: check claimable and set owner under one lock.\n- Decide\
+    \ and document what a losing writer sees -- a typed conflict error the CLI and\
+    \ API can report as \"task already claimed by X\", not a generic exception.\n\
+    - Tests: a concurrent double-claim regression test that fails against today's\
+    \ code. This is the acceptance criterion that matters; the rest is implementation.\n\
+    \n## Note on hand edits\n\nPer D2 as amended, direct file editing is an emergency\
+    \ hatch rather than a primary interface, so locking does not need to coordinate\
+    \ with a human in an editor. A concurrent hand edit that loses should surface\
+    \ as a git conflict or a CAS failure, which is the desired behavior either way.\n\
+    \n---\n\n## Starter prompt (migrated from schema v1)\n\nImplement per the task\
+    \ description and docs/schema-design.md \xA77 (the storage rejection entry, which\
+    \ explains why this is a locking fix rather than a database migration).\n\nStart\
+    \ with sc-1: write the failing concurrent double-claim test first, so the bug\
+    \ is demonstrated before it is fixed. Without that test this task cannot be shown\
+    \ to have worked.\n\nCreate branch `fix/task-055-single-writer-concurrency` from\
+    \ main, record it in branches[], mark the task in_progress. Small conventional\
     \ commits. When complete and verified: STOP, set waiting_for_human, leave a comment\
     \ summarizing what changed and what the losing-writer behavior now is, and wait\
     \ for explicit approval before merging (rebase onto main + --no-ff)."
-  followups: []
-status_updates:
-- timestamp: '2026-08-10T20:29:15.877874Z'
-  author: claude
-  status: in_progress
-  summary: Claimed; last task before the v2 switchover
-  details: 'Branch fix/task-055-single-writer from main. Sequenced before task-052
-    so the switchover inherits a correct storage implementation rather than porting
-    a racy one -- 052 rewrites this layer.
+acceptance:
+- id: sc-1
+  text: A regression test reproduces the double-claim race against the current implementation,
+    then passes once writes are serialized
+  status: met
+- id: sc-2
+  text: Read-modify-write in storage is protected by advisory locking that works on
+    Windows
+  status: met
+- id: sc-3
+  text: A write whose underlying file changed since it was read fails with a typed
+    conflict error rather than silently overwriting
+  status: met
+- id: sc-4
+  text: The claim path checks claimability and sets the owner atomically; a losing
+    claimer receives a reportable "already claimed" error
+  status: met
+- id: sc-5
+  text: poetry run pytest passes
+  status: met
+deliverables:
+- path: src/agentjobs/storage.py
+  status: pending
+  note: Advisory locking plus compare-and-swap around read-modify-write
+- path: src/agentjobs/manager.py
+  status: pending
+  note: Atomic claim path; typed conflict error for the losing writer
+- path: tests/test_concurrency.py
+  status: pending
+  note: Double-claim regression test that fails before the fix
+dependencies:
+- task: task-048-schema-design
+  type: related
+  note: "Found during the design pass while evaluating storage; rationale recorded\
+    \ in docs/schema-design.md \xA77"
+branches:
+- name: fix/task-055-single-writer
+  status: merged
+log:
+- id: 1
+  ts: '2026-08-10T20:29:15Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: in_progress
+  body: 'Claimed; last task before the v2 switchover
+
+
+    Branch fix/task-055-single-writer from main. Sequenced before task-052 so the
+    switchover inherits a correct storage implementation rather than porting a racy
+    one -- 052 rewrites this layer.
 
 
     Plan: a cross-platform advisory lock per task file (O_CREAT|O_EXCL lockfile, no
@@ -87,12 +115,17 @@ status_updates:
     The race is not in save_task alone; it is in load -> decide -> save, so the lock
     has to span all three. Regression test drives real concurrent claims from threads
     and asserts exactly one wins.'
-- timestamp: '2026-08-10T20:35:32.546735Z'
-  author: claude
-  status: waiting_for_human
-  summary: Double-claim race closed and proven by mutation; 354 tests pass
-  details: 'Two commits on fix/task-055-single-writer. 354 tests pass (11 new); ruff,
-    mypy, black clean.
+- id: 2
+  ts: '2026-08-10T20:35:32Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: waiting_for_human
+  body: 'Double-claim race closed and proven by mutation; 354 tests pass
+
+
+    Two commits on fix/task-055-single-writer. 354 tests pass (11 new); ruff, mypy,
+    black clean.
 
 
     The race was never inside save_task -- it was in the load -> decide -> save sequence
@@ -124,43 +157,37 @@ status_updates:
     Note for task-052: it rewrites this layer for v2, so it must carry mutate_task
     forward rather than reverting to load/save. And task-060 (agent dispatch) named
     055 a hard prerequisite -- that is now satisfied.'
-- timestamp: '2026-08-10T20:51:02.658242Z'
-  author: human
-  status: in_progress
-  summary: "Approved by human \u2014 cleared to merge"
-  details: 'human approved this work through the web UI. The ball is back with the
-    agent, which must now rebase onto main, merge --no-ff, mark the branch merged
-    in branches[], and set this task completed. No merge has happened yet: the UI
-    records approval, it does not run git.'
-- timestamp: '2026-08-10T20:53:10.181395Z'
-  author: claude
-  status: completed
-  summary: Approved by Jeff via GUI; merged to main
-  details: Rebased, merged --no-ff, branch deleted. Nothing pushed. Satisfies the
-    hard prerequisite task-060 named for agent dispatch.
-comments: []
-deliverables:
-- path: src/agentjobs/storage.py
-  status: pending
-  description: Advisory locking plus compare-and-swap around read-modify-write
-- path: src/agentjobs/manager.py
-  status: pending
-  description: Atomic claim path; typed conflict error for the losing writer
-- path: tests/test_concurrency.py
-  status: pending
-  description: Double-claim regression test that fails before the fix
-dependencies:
-- task_id: task-048-schema-design
-  type: related
-  note: "Found during the design pass while evaluating storage; rationale recorded\
-    \ in docs/schema-design.md \xA77"
-external_links: []
-issues: []
-tags:
-- infrastructure
-- correctness
-- concurrency
-- phase-0
-branches:
-- name: fix/task-055-single-writer
-  status: merged
+- id: 3
+  ts: '2026-08-10T20:51:02Z'
+  actor: human
+  type: transition
+  data:
+    v1_status: in_progress
+  body: "Approved by human \u2014 cleared to merge\n\nhuman approved this work through\
+    \ the web UI. The ball is back with the agent, which must now rebase onto main,\
+    \ merge --no-ff, mark the branch merged in branches[], and set this task completed.\
+    \ No merge has happened yet: the UI records approval, it does not run git."
+- id: 4
+  ts: '2026-08-10T20:53:10Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: completed
+  body: 'Approved by Jeff via GUI; merged to main
+
+
+    Rebased, merged --no-ff, branch deleted. Nothing pushed. Satisfies the hard prerequisite
+    task-060 named for agent dispatch.'
+- id: 5
+  ts: '2026-08-10T20:53:10Z'
+  actor: system
+  type: note
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: completed` became lifecycle: closed / outcome: completed.
+
+    - prompts.starter preserved in spec.description.'

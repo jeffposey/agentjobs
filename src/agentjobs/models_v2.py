@@ -21,7 +21,15 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, TypeAdapter, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    TypeAdapter,
+    computed_field,
+    model_validator,
+)
 
 SCHEMA_VERSION = 2
 """The version stamp every v2 file carries (design doc D3, section 8)."""
@@ -486,12 +494,16 @@ class Task(StrictModel):
 
     # ----- derived -----
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def display_status(self) -> str:
         """One human-readable label, derived on read and never stored.
 
         Storing it was rejected in design doc section 3: a denormalized copy of three
         fields is a drift bug waiting for its moment, and the derivation is this.
+        A computed field rather than a plain property so API responses carry it;
+        storage excludes it on write, and a file that contains it is rejected by
+        name (extra="forbid") rather than silently round-tripped.
         """
         if self.lifecycle is Lifecycle.CLOSED:
             label = (self.outcome or Outcome.COMPLETED).value.capitalize()

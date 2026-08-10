@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Query
 
-from agentjobs.models import Task, TaskStatus
+from agentjobs.models_v2 import Ball, Lifecycle, Task
 
 from ..dependencies import list_projects, storage_for
 
@@ -44,7 +44,8 @@ async def get_projects() -> List[Dict[str, Any]]:
 
 @router.get("/all/tasks", response_model=List[Dict[str, Any]])
 async def get_all_tasks(
-    status_filter: Optional[TaskStatus] = Query(default=None, alias="status"),
+    lifecycle_filter: Optional[Lifecycle] = Query(default=None, alias="lifecycle"),
+    ball_filter: Optional[Ball] = Query(default=None, alias="ball"),
     project_filter: Optional[str] = Query(default=None, alias="project"),
 ) -> List[Dict[str, Any]]:
     """Every task across every project, each tagged with the project it belongs to.
@@ -65,7 +66,9 @@ async def get_all_tasks(
         except OSError:
             continue
         for task in tasks:
-            if status_filter and task.status != status_filter:
+            if lifecycle_filter and task.lifecycle != lifecycle_filter:
+                continue
+            if ball_filter and task.ball != ball_filter:
                 continue
             rows.append(
                 {

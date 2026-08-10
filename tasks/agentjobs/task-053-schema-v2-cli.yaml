@@ -1,66 +1,71 @@
+schema: 2
 id: task-053-schema-v2-cli
 title: 'Schema v2: CLI mirrors -- inbox, next, claim, handoff, log, close'
 created: '2026-07-29T20:45:00Z'
 updated: '2026-07-29T20:45:00Z'
-status: draft
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: 'NEEDS REVIEW: finish specifying this task.'
 priority: medium
 category: developer_experience
-estimated_effort: half day
-human_summary: 'Mirror the v2 API surface in the Typer CLI: agentjobs inbox / next /
-  claim / handoff / log / close, rendering display_status and ball_prompt so the
-  handoff loop is fully drivable from a terminal.'
-description: 'Expose the v2 loop through the CLI, mirroring the API surface from
-  docs/schema-design.md §5:
-
-
-  - `agentjobs inbox` -- open tasks with ball=human, one row per task with its
-  ball_prompt (the human side of the loop).
-
-  - `agentjobs next [--agent NAME]` -- what an agent should claim.
-
-  - `agentjobs claim / handoff / log / close / release` -- the mutation verbs, with
-  the same required arguments as the API (handoff demands ball, ball_reason, and
-  ball_prompt).
-
-  - Listings render the computed display_status; broken files are reported per
-  task-049''s behavior.
-
-  - Tests for each command (typer CliRunner).
-
-
-  **Gated:** requires task-052 merged.'
-phases: []
-success_criteria:
-- id: sc-1
-  description: Each command exists, maps to the manager operation, and refuses the
-    same invalid inputs the API refuses
-  status: pending
-- id: sc-2
-  description: agentjobs inbox shows ball_prompt per row; agentjobs handoff without
-    a prompt is rejected
-  status: pending
-- id: sc-3
-  description: CLI tests pass; poetry run pytest green
-  status: pending
-prompts:
-  starter: 'Implement per docs/schema-design.md §5 and this description. Branch
-    `feat/task-053-schema-v2-cli` from main, record in branches[], mark in_progress.
-    When complete: STOP, set waiting_for_human, comment a summary, await approval.'
-  followups: []
-status_updates: []
-comments: []
-deliverables:
-- path: src/agentjobs/cli.py
-  status: pending
-  description: inbox/next/claim/handoff/log/release/close commands
-dependencies:
-- task_id: task-052-schema-v2-manager-api
-  type: depends_on
-  note: Mirrors that surface
-external_links: []
-issues: []
 tags:
 - schema-design
 - schema-v2
 - cli
-branches: []
+effort: half day
+spec:
+  summary: 'Mirror the v2 API surface in the Typer CLI: agentjobs inbox / next / claim
+    / handoff / log / close, rendering display_status and ball_prompt so the handoff
+    loop is fully drivable from a terminal.'
+  description: "Expose the v2 loop through the CLI, mirroring the API surface from\
+    \ docs/schema-design.md \xA75:\n\n- `agentjobs inbox` -- open tasks with ball=human,\
+    \ one row per task with its ball_prompt (the human side of the loop).\n- `agentjobs\
+    \ next [--agent NAME]` -- what an agent should claim.\n- `agentjobs claim / handoff\
+    \ / log / close / release` -- the mutation verbs, with the same required arguments\
+    \ as the API (handoff demands ball, ball_reason, and ball_prompt).\n- Listings\
+    \ render the computed display_status; broken files are reported per task-049's\
+    \ behavior.\n- Tests for each command (typer CliRunner).\n\n**Gated:** requires\
+    \ task-052 merged.\n\n---\n\n## Starter prompt (migrated from schema v1)\n\nImplement\
+    \ per docs/schema-design.md \xA75 and this description. Branch `feat/task-053-schema-v2-cli`\
+    \ from main, record in branches[], mark in_progress. When complete: STOP, set\
+    \ waiting_for_human, comment a summary, await approval."
+acceptance:
+- id: sc-1
+  text: Each command exists, maps to the manager operation, and refuses the same invalid
+    inputs the API refuses
+  status: pending
+- id: sc-2
+  text: agentjobs inbox shows ball_prompt per row; agentjobs handoff without a prompt
+    is rejected
+  status: pending
+- id: sc-3
+  text: CLI tests pass; poetry run pytest green
+  status: pending
+deliverables:
+- path: src/agentjobs/cli.py
+  status: pending
+  note: inbox/next/claim/handoff/log/release/close commands
+dependencies:
+- task: task-052-schema-v2-manager-api
+  type: needs
+  note: Mirrors that surface
+log:
+- id: 1
+  ts: '2026-07-29T20:45:00Z'
+  actor: system
+  type: note
+  data:
+    v1_status: draft
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: draft` became lifecycle: draft / ball: human / ball_reason: spec.
+
+    - prompts.starter preserved in spec.description.
+
+
+    Needs human review:
+
+    - ball_prompt: no status update to derive an ask from'

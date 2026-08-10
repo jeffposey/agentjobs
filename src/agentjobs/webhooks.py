@@ -17,7 +17,7 @@ import httpx
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError
 
-from .models import Task
+from .models_v2 import Task
 
 logger = logging.getLogger(__name__)
 

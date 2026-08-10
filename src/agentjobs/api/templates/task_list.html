@@ -18,12 +18,10 @@
                 <option value="all">All Status</option>
                 <option value="draft">Draft</option>
                 <option value="ready">Ready</option>
-                <option value="in_progress">In Progress</option>
-                <option value="blocked">Blocked</option>
-                <option value="waiting_for_human">⚠️ Waiting for Human</option>
-                <option value="under_review">Under Review</option>
-                <option value="completed">Completed</option>
-                <option value="archived">Archived</option>
+                <option value="active">Active</option>
+                <option value="human">⚠️ Needs Human</option>
+                <option value="external">Blocked</option>
+                <option value="closed">Closed</option>
             </select>
             <select x-model="priorityFilter" class="bg-dark-bg border border-dark-border rounded-lg px-4 py-2">
                 <option value="all">All Priorities</option>
@@ -58,7 +56,8 @@
                     onclick="window.location.href='{{ base }}/tasks/{{ task.id }}'"
                     x-show="matches($el.dataset)"
                     data-title="{{ task.title | lower | e }}"
-                    data-status="{{ task.status | e }}"
+                    data-lifecycle="{{ task.lifecycle | e }}"
+                    data-ball="{{ (task.ball or '') | e }}"
                     data-priority="{{ task.priority | e }}"
                     data-tags="{{ task.tags | join(',') | e }}"
                 >
@@ -76,7 +75,7 @@
                     <td class="px-6 py-4">
                         {% include "components/priority_badge.html" %}
                     </td>
-                    <td class="px-6 py-4 text-sm">{{ task.assigned_to or '—' }}</td>
+                    <td class="px-6 py-4 text-sm">{{ task.assignment.owner or '—' }}</td>
                     <td class="px-6 py-4 text-sm text-dark-muted">
                         <span class="js-local-datetime" data-iso-datetime="{{ task.updated.isoformat() }}">
                             {{ task.updated.strftime('%Y-%m-%d %H:%M %Z') }}
@@ -101,13 +100,18 @@
             scopeFilter: 'all',
             matches(dataset) {
                 const title = (dataset.title || '').toLowerCase();
-                const status = dataset.status || 'planned';
+                const lifecycle = dataset.lifecycle || 'draft';
+                const ball = dataset.ball || '';
                 const priority = dataset.priority || 'medium';
                 const tags = (dataset.tags || '').split(',').map(t => t.trim());
 
                 const searchTerm = this.search.trim().toLowerCase();
                 const searchMatches = searchTerm === '' || title.includes(searchTerm);
-                const statusMatches = this.statusFilter === 'all' || status === this.statusFilter;
+                // The filter offers lifecycles and ball holders in one select; a row
+                // matches when either axis holds the selected value.
+                const statusMatches = this.statusFilter === 'all'
+                    || lifecycle === this.statusFilter
+                    || ball === this.statusFilter;
                 const priorityMatches = this.priorityFilter === 'all' || priority === this.priorityFilter;
 
                 // Scope filter: test tasks have 'test' tag, project tasks are in agentjobs/ subdirectory

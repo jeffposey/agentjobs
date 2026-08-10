@@ -91,8 +91,17 @@ class TestLinksCarryTheirProject:
         # which only resolved correctly because of the server's working directory.
         client, _ = two_projects_web
         client.post(
-            f"/api/projects/beta/tasks/{SHARED_TASK_ID}/status",
-            json={"status": "waiting_for_human", "author": "jeff", "summary": "review me"},
+            f"/api/projects/beta/tasks/{SHARED_TASK_ID}/claim",
+            json={"agent": "codex"},
+        )
+        client.post(
+            f"/api/projects/beta/tasks/{SHARED_TASK_ID}/handoff",
+            json={
+                "actor": "codex",
+                "ball": "human",
+                "ball_reason": "review",
+                "ball_prompt": "review me",
+            },
         )
 
         body = client.get(f"/p/beta/tasks/{SHARED_TASK_ID}").text

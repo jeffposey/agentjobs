@@ -15,7 +15,7 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from agentjobs import TaskClient, TaskStatus
+from agentjobs import Lifecycle, TaskClient
 
 AGENTS = ("lead-agent", "support-agent", "qa-agent")
 
@@ -28,7 +28,7 @@ def cycle_agents(agents: Iterable[str]) -> Iterable[str]:
 def main() -> None:
     """Assign multiple tasks to different agents in a round-robin fashion."""
     client = TaskClient()
-    ready_tasks = client.list_tasks(status=TaskStatus.READY)
+    ready_tasks = client.list_tasks(lifecycle=Lifecycle.READY)
 
     if not ready_tasks:
         print("No ready tasks available for assignment.")
@@ -40,15 +40,11 @@ def main() -> None:
         agent = next(agent_cycle)
 
         print(f"\nAssigning '{task.title}' to {agent}")
-        client.mark_in_progress(
-            task.id,
-            agent=agent,
-            summary=f"Picked up by {agent}",
-        )
+        client.claim_task(task.id, agent=agent)
 
-        starter = client.get_starter_prompt(task.id)
+        spec = task.spec.description
         print(f"Priority: {task.priority.value}")
-        print(f"Instructions preview: {starter[:120]}{'...' if len(starter) > 120 else ''}")
+        print(f"Instructions preview: {spec[:120]}{'...' if len(spec) > 120 else ''}")
 
         client.add_progress_update(
             task.id,

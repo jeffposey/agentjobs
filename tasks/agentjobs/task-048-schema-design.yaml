@@ -1,160 +1,149 @@
+schema: 2
 id: task-048-schema-design
 title: Design the next iteration of the task schema (design pass, not implementation)
-created: '2026-07-29T19:16:49.852937Z'
-updated: '2026-08-10T06:11:44.819506Z'
-status: completed
+created: '2026-07-29T19:16:49Z'
+updated: '2026-08-10T06:11:44Z'
+lifecycle: closed
+outcome: completed
 priority: high
 category: architecture
-estimated_effort: a few working sessions
-human_summary: 'A deliberate design pass over the task schema before implementing
-  piecemeal changes, since the schema is the core of the product rather than incidental
-  plumbing. Collaborative: the owner has ideas to work through. Produces a design
-  doc with rationale and rejected alternatives, plus implementation tasks derived
-  from it. Should land before task-045''s schema changes.'
-description: 'Design the next iteration of the task schema as one deliberate pass,
-  before spending implementation effort on piecemeal changes. Per the project owner
-  (2026-07-29): the schema, the workflow, and the human/agent interfaces *are* the
-  product -- the rest is framework. So the schema deserves an explicit design pass
-  rather than incremental accretion.
+tags:
+- architecture
+- schema
+- design
+- collaborative
+effort: a few working sessions
+spec:
+  summary: 'A deliberate design pass over the task schema before implementing piecemeal
+    changes, since the schema is the core of the product rather than incidental plumbing.
+    Collaborative: the owner has ideas to work through. Produces a design doc with
+    rationale and rejected alternatives, plus implementation tasks derived from it.
+    Should land before task-045''s schema changes.'
+  description: 'Design the next iteration of the task schema as one deliberate pass,
+    before spending implementation effort on piecemeal changes. Per the project owner
+    (2026-07-29): the schema, the workflow, and the human/agent interfaces *are* the
+    product -- the rest is framework. So the schema deserves an explicit design pass
+    rather than incremental accretion.
 
 
-  **This task produces decisions and a written spec, not code.** Implementation follows
-  in separate tasks derived from it. It is also collaborative: it requires working
-  sessions with the project owner, who has ideas to work through. An agent should
-  not attempt to finalise this alone.
+    **This task produces decisions and a written spec, not code.** Implementation
+    follows in separate tasks derived from it. It is also collaborative: it requires
+    working sessions with the project owner, who has ideas to work through. An agent
+    should not attempt to finalise this alone.
 
 
-  ## Ordering note
+    ## Ordering note
 
 
-  This should land **before** task-045 implements its schema changes. Task-045 currently
-  carries two schema changes (parent/child `parent` field, and the `assigned_to`/`supported_agents`
-  split) that were specified in isolation. If a full design pass is happening, designing
-  those in isolation and then redesigning them is backwards. Expect this task to absorb,
-  reshape, or confirm task-045''s schema scope.
+    This should land **before** task-045 implements its schema changes. Task-045 currently
+    carries two schema changes (parent/child `parent` field, and the `assigned_to`/`supported_agents`
+    split) that were specified in isolation. If a full design pass is happening, designing
+    those in isolation and then redesigning them is backwards. Expect this task to
+    absorb, reshape, or confirm task-045''s schema scope.
 
 
-  ## Versioning decision (already made, 2026-07-29 -- recorded so it is not relitigated)
+    ## Versioning decision (already made, 2026-07-29 -- recorded so it is not relitigated)
 
 
-  We are **not** introducing schema versioning yet, deliberately:
+    We are **not** introducing schema versioning yet, deliberately:
 
 
-  - Additive changes are already free -- a new optional field with a default loads
-  old   YAML unchanged. Most of this pass is expected to be additive.
+    - Additive changes are already free -- a new optional field with a default loads
+    old   YAML unchanged. Most of this pass is expected to be additive.
 
-  - Git already holds the history, and there is currently one repo with one consumer.
+    - Git already holds the history, and there is currently one repo with one consumer.
 
-  - Versioning earns its keep for *non-additive* change (renames, type changes, changed   semantics).
-  The `assigned_to` split is exactly that shape, but one such change is a   one-off
-  script, not a framework.
+    - Versioning earns its keep for *non-additive* change (renames, type changes,
+    changed   semantics). The `assigned_to` split is exactly that shape, but one such
+    change is a   one-off script, not a framework.
 
-  - The real trigger is that agentjobs is a **packaged, installable** product: the
-  day   another project has its own `tasks/*.yaml` and runs `pip install -U agentjobs`,
-  those   files become the compatibility surface. At `0.1.0`, pre-1.0 semver still
-  permits   breaking changes -- which is exactly why now is the right time for one
-  deliberate   possibly-breaking pass, and the wrong time to lock in migration machinery
-  before   knowing what the migrations look like.
-
-
-  **Revisit versioning at the end of this pass**, once the shape has settled: that
-  is when a `schema_version` field has something meaningful to version *from*.
+    - The real trigger is that agentjobs is a **packaged, installable** product: the
+    day   another project has its own `tasks/*.yaml` and runs `pip install -U agentjobs`,
+    those   files become the compatibility surface. At `0.1.0`, pre-1.0 semver still
+    permits   breaking changes -- which is exactly why now is the right time for one
+    deliberate   possibly-breaking pass, and the wrong time to lock in migration machinery
+    before   knowing what the migrations look like.
 
 
-  ## Safety net to build first
+    **Revisit versioning at the end of this pass**, once the shape has settled: that
+    is when a `schema_version` field has something meaningful to version *from*.
 
 
-  Before changing anything, add a **round-trip corpus test**: assert the current model
-  can load every task YAML in the repo (`tasks/agentjobs/` and `tasks/test-data/`).
-  That catches accidental breakage during the pass with no versioning framework at
-  all, and it is cheap. This is the one piece of implementation this task should trigger
-  up front.
+    ## Safety net to build first
 
 
-  ## Observations to consider (found while writing docs/task-schema.md)
+    Before changing anything, add a **round-trip corpus test**: assert the current
+    model can load every task YAML in the repo (`tasks/agentjobs/` and `tasks/test-data/`).
+    That catches accidental breakage during the pass with no versioning framework
+    at all, and it is cheap. This is the one piece of implementation this task should
+    trigger up front.
 
 
-  Offered as design input, not as a predetermined agenda -- the owner''s own ideas
-  lead.
+    ## Observations to consider (found while writing docs/task-schema.md)
 
 
-  **1. Six parallel status vocabularies.** `TaskStatus` (8 values) for Task and Phase,
-  plus five separate ones: SuccessCriterion (`pending|in_progress|completed|failed`),
-  Deliverable (`pending|in_progress|completed`), Issue (`open|in_progress|resolved|wont_fix`),
-  Branch (`active|merged|abandoned`), and Dependency''s `type` (`depends_on|blocks|related`).
-  Some divergence is legitimate -- a branch is genuinely not "waiting_for_human".
-  But three of them are near-identical pending/in_progress/completed variants, and
-  it is worth deciding deliberately which are distinct concepts versus accidental
-  drift.
+    Offered as design input, not as a predetermined agenda -- the owner''s own ideas
+    lead.
 
 
-  **2. Two unvalidated free-text fields.** `Dependency.status` is `Optional[str]`
-  with no validator and no documented vocabulary -- it is unclear what it is even
-  for, given `type` already carries the relationship. `Comment.kind` documents `comment
-  | feedback | question` in its description but enforces nothing. Either constrain
-  them or drop them.
+    **1. Six parallel status vocabularies.** `TaskStatus` (8 values) for Task and
+    Phase, plus five separate ones: SuccessCriterion (`pending|in_progress|completed|failed`),
+    Deliverable (`pending|in_progress|completed`), Issue (`open|in_progress|resolved|wont_fix`),
+    Branch (`active|merged|abandoned`), and Dependency''s `type` (`depends_on|blocks|related`).
+    Some divergence is legitimate -- a branch is genuinely not "waiting_for_human".
+    But three of them are near-identical pending/in_progress/completed variants, and
+    it is worth deciding deliberately which are distinct concepts versus accidental
+    drift.
 
 
-  **3. `phases[]` versus sub-tasks.** `phases[]` are sub-units inside one task --
-  not claimable, no prompts, no comments. Task-045 proposes real parent/child sub-tasks.
-  If sub-tasks land, does `phases[]` still earn its place, or does it become a confusing
-  second way to express the same thing? Decide explicitly; do not let both drift.
+    **2. Two unvalidated free-text fields.** `Dependency.status` is `Optional[str]`
+    with no validator and no documented vocabulary -- it is unclear what it is even
+    for, given `type` already carries the relationship. `Comment.kind` documents `comment
+    | feedback | question` in its description but enforces nothing. Either constrain
+    them or drop them.
 
 
-  **4. `status_updates[]` versus `comments[]`.** Both are append-only, timestamped,
-  authored logs. The intended split seems to be agent-authored progress versus human-authored
-  discussion, but nothing enforces or documents that. Task-046 will lean heavily on
-  both for chat-independent resumption, so their roles should be crisp before then.
+    **3. `phases[]` versus sub-tasks.** `phases[]` are sub-units inside one task --
+    not claimable, no prompts, no comments. Task-045 proposes real parent/child sub-tasks.
+    If sub-tasks land, does `phases[]` still earn its place, or does it become a confusing
+    second way to express the same thing? Decide explicitly; do not let both drift.
 
 
-  **5. Ownership versus eligibility.** `assigned_to` is documented as "currently assigned"
-  but is used in practice as a static authoring-time label. See task-045.
+    **4. `status_updates[]` versus `comments[]`.** Both are append-only, timestamped,
+    authored logs. The intended split seems to be agent-authored progress versus human-authored
+    discussion, but nothing enforces or documents that. Task-046 will lean heavily
+    on both for chat-independent resumption, so their roles should be crisp before
+    then.
 
 
-  **6. Field-level provenance.** Nothing records *who* or *what* set a field, or when,
-  except in `status_updates`. If the goal is that a task record alone is sufficient
-  for a fresh agent, consider whether more of the record needs provenance.
+    **5. Ownership versus eligibility.** `assigned_to` is documented as "currently
+    assigned" but is used in practice as a static authoring-time label. See task-045.
 
 
-  ## Deliverable shape
+    **6. Field-level provenance.** Nothing records *who* or *what* set a field, or
+    when, except in `status_updates`. If the goal is that a task record alone is sufficient
+    for a fresh agent, consider whether more of the record needs provenance.
 
 
-  A design document (suggest `docs/schema-design.md`) capturing, for each change:
-  what changes, why, what breaks, and what was rejected and why. **The rejected alternatives
-  matter most** -- they are the part no future reader can recover from a diff, and
-  the part that stops the same debate recurring.
+    ## Deliverable shape
 
 
-  Then derive implementation tasks from it, sized so each is independently reviewable.
+    A design document (suggest `docs/schema-design.md`) capturing, for each change:
+    what changes, why, what breaks, and what was rejected and why. **The rejected
+    alternatives matter most** -- they are the part no future reader can recover from
+    a diff, and the part that stops the same debate recurring.
 
-  '
-phases: []
-success_criteria:
-- id: sc-1
-  description: 'Round-trip corpus test exists and passes: the model loads every task
-    YAML in tasks/agentjobs/ and tasks/test-data/'
-  status: completed
-- id: sc-2
-  description: docs/schema-design.md records every proposed change with motivation,
-    what breaks, migration needed, and alternatives rejected with reasons
-  status: completed
-- id: sc-3
-  description: Each of the six observations in the description has an explicit decision
-    recorded (adopt / reject / defer), not silently dropped
-  status: completed
-- id: sc-4
-  description: task-045's schema scope reconciled against the design -- confirmed,
-    reshaped, or absorbed -- and task-045 updated to match
-  status: completed
-- id: sc-5
-  description: Versioning revisited at the end of the pass with the answer recorded
-    either way, rather than left implicit
-  status: completed
-- id: sc-6
-  description: Implementation tasks derived from the design, each independently reviewable
-  status: completed
-prompts:
-  starter: '## Objective
+
+    Then derive implementation tasks from it, sized so each is independently reviewable.
+
+
+    ---
+
+
+    ## Starter prompt (migrated from schema v1)
+
+
+    ## Objective
 
     Facilitate and record a design pass over the task schema. The output is decisions
     and a written spec -- not code (with one exception, below).
@@ -213,16 +202,56 @@ prompts:
 
     Log each working session to this task''s status_updates as it happens, not just
     at the end. A design discussion is exactly the kind of context that is expensive
-    to lose and impossible to reconstruct from the resulting diff.
+    to lose and impossible to reconstruct from the resulting diff.'
+acceptance:
+- id: sc-1
+  text: 'Round-trip corpus test exists and passes: the model loads every task YAML
+    in tasks/agentjobs/ and tasks/test-data/'
+  status: met
+- id: sc-2
+  text: docs/schema-design.md records every proposed change with motivation, what
+    breaks, migration needed, and alternatives rejected with reasons
+  status: met
+- id: sc-3
+  text: Each of the six observations in the description has an explicit decision recorded
+    (adopt / reject / defer), not silently dropped
+  status: met
+- id: sc-4
+  text: task-045's schema scope reconciled against the design -- confirmed, reshaped,
+    or absorbed -- and task-045 updated to match
+  status: met
+- id: sc-5
+  text: Versioning revisited at the end of the pass with the answer recorded either
+    way, rather than left implicit
+  status: met
+- id: sc-6
+  text: Implementation tasks derived from the design, each independently reviewable
+  status: met
+deliverables:
+- path: docs/schema-design.md
+  status: done
+  note: The design spec, with rationale and rejected alternatives
+- path: tests/test_task_corpus.py
+  status: done
+  note: Round-trip test over every task YAML in the repo (32 passed 2026-07-29)
+dependencies:
+- task: task-044-docs-git-workflow
+  type: needs
+  note: Merged 2026-07-29; established the workflow this task follows
+branches:
+- name: docs/task-048-schema-design
+  status: merged
+log:
+- id: 1
+  ts: '2026-07-29T19:25:39Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: in_progress
+  body: 'Design pass opened; first working session with Jeff
 
-    '
-  followups: []
-status_updates:
-- timestamp: '2026-07-29T19:25:39.126043Z'
-  author: claude
-  status: in_progress
-  summary: Design pass opened; first working session with Jeff
-  details: 'Branch docs/task-048-schema-design created from main.
+
+    Branch docs/task-048-schema-design created from main.
 
 
     Session 1 opening. Jeff asked for (a) a visual view of the current schema rendered
@@ -237,15 +266,20 @@ status_updates:
 
     Recorded verbatim before analysis so the original framing is not lost. Analysis
     and trade-offs to follow in subsequent updates; no decision made yet.'
-- timestamp: '2026-07-29T20:48:00Z'
-  author: claude
-  status: waiting_for_human
-  summary: Sessions 2-3 -- design written, self-reviewed, D1-D3 decided with Jeff;
-    handing off for review
-  details: 'Session 2 (same day): the full design was drafted as docs/schema-design.md.
-    Jeff''s idea #1 (decompose status into who-waits/why) became the centerpiece:
-    lifecycle + ball + ball_reason + ball_prompt state axes. The session ended in
-    an API error mid-response; the draft doc survived intact.
+- id: 2
+  ts: '2026-07-29T20:48:00Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: waiting_for_human
+  body: 'Sessions 2-3 -- design written, self-reviewed, D1-D3 decided with Jeff; handing
+    off for review
+
+
+    Session 2 (same day): the full design was drafted as docs/schema-design.md. Jeff''s
+    idea #1 (decompose status into who-waits/why) became the centerpiece: lifecycle
+    + ball + ball_reason + ball_prompt state axes. The session ended in an API error
+    mid-response; the draft doc survived intact.
 
 
     Session 3 (fresh chat, no shared context -- itself a live test of the resumption
@@ -294,14 +328,28 @@ status_updates:
     only `--version` probes; adding `Bash(poetry run pytest:*)` would let the suite
     run without consulting the classifier at all, insulating future sessions from
     a repeat.'
-- timestamp: '2026-08-10T06:10:59.596448Z'
-  author: claude
-  status: completed
-  summary: Design approved by Jeff; branch merged to main
-  details: 'Jeff approved the schema v2 design for this pass on 2026-08-10, covering
-    all five decisions (D1-D5) as recorded in docs/schema-design.md section 11 --
-    including D4 and D5, which were added after the previous status update said there
-    were three.
+- id: 3
+  ts: '2026-07-29T20:48:00Z'
+  actor: claude
+  type: question
+  body: 'Design pass complete; requesting sign-off. Please review docs/schema-design.md
+    -- especially section 11 (the three decisions as recorded, check they match your
+    intent), section 12 (the implementation task breakdown and its sequencing), and
+    the reshaped task-045 / narrowed task-046. If approved: rebase docs/task-048-schema-design
+    onto main, merge --no-ff, mark the branch merged and this task completed. Task-049
+    is claimable immediately after; the v2 chain (050-054) starts once task-047 merges.'
+- id: 4
+  ts: '2026-08-10T06:10:59Z'
+  actor: claude
+  type: transition
+  data:
+    v1_status: completed
+  body: 'Design approved by Jeff; branch merged to main
+
+
+    Jeff approved the schema v2 design for this pass on 2026-08-10, covering all five
+    decisions (D1-D5) as recorded in docs/schema-design.md section 11 -- including
+    D4 and D5, which were added after the previous status update said there were three.
 
 
     Session 4 (fresh chat, zero context -- the third consecutive live test of the
@@ -336,36 +384,16 @@ status_updates:
     the v2 chain (task-050 onward), the priority is multi-project support -- one agentjobs
     frontend usable across every project on the machine. See the follow-up task created
     after this merge.'
-comments:
-- id: comment-1
-  task_id: task-048-schema-design
-  author: claude
-  content: 'Design pass complete; requesting sign-off. Please review docs/schema-design.md
-    -- especially section 11 (the three decisions as recorded, check they match your
-    intent), section 12 (the implementation task breakdown and its sequencing), and
-    the reshaped task-045 / narrowed task-046. If approved: rebase docs/task-048-schema-design
-    onto main, merge --no-ff, mark the branch merged and this task completed. Task-049
-    is claimable immediately after; the v2 chain (050-054) starts once task-047 merges.'
-  created: '2026-07-29T20:48:00Z'
-  kind: question
-deliverables:
-- path: docs/schema-design.md
-  status: completed
-  description: The design spec, with rationale and rejected alternatives
-- path: tests/test_task_corpus.py
-  status: completed
-  description: Round-trip test over every task YAML in the repo (32 passed 2026-07-29)
-dependencies:
-- task_id: task-044-docs-git-workflow
-  type: depends_on
-  note: Merged 2026-07-29; established the workflow this task follows
-external_links: []
-issues: []
-tags:
-- architecture
-- schema
-- design
-- collaborative
-branches:
-- name: docs/task-048-schema-design
-  status: merged
+- id: 5
+  ts: '2026-08-10T06:11:44Z'
+  actor: system
+  type: note
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: completed` became lifecycle: closed / outcome: completed.
+
+    - prompts.starter preserved in spec.description.'

@@ -21,17 +21,17 @@
                                 <div class="font-mono text-xs text-blue-400">{{ task.id }}</div>
                                 <h3 class="font-medium text-dark-text">{{ task.title }}</h3>
                                 <p class="text-sm text-dark-muted mt-1">
-                                    {{ (task.human_summary or task.description[:150]) | truncate(160, True, '…') }}
+                                    {{ (task.ball_prompt or task.spec.summary) | truncate(160, True, '…') }}
                                 </p>
                             </div>
                             <span class="px-2 py-1 bg-red-900 text-red-200 text-xs rounded whitespace-nowrap">
-                                Waiting
+                                {{ task.display_status }}
                             </span>
                         </div>
                     </a>
                     {% endfor %}
                     {% if waiting_tasks|length > 3 %}
-                    <a href="{{ base }}/tasks?status=waiting_for_human" class="block text-center text-sm text-blue-400 hover:text-blue-300 pt-2">
+                    <a href="{{ base }}/tasks?status=human" class="block text-center text-sm text-blue-400 hover:text-blue-300 pt-2">
                         View all {{ waiting_tasks|length }} waiting tasks →
                     </a>
                     {% endif %}
@@ -83,7 +83,7 @@
                         <pre class="bg-dark-bg rounded p-2 mt-1 text-xs">from agentjobs import TaskClient
 client = TaskClient()
 task = client.get_next_task()
-client.mark_in_progress(task.id, agent="agent-name")</pre>
+client.claim_task(task.id, agent="agent-name")</pre>
                     </div>
 
                     <div class="mt-4">

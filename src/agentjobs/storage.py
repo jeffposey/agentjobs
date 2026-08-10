@@ -16,7 +16,8 @@ from typing import Any, Callable, Dict, Iterator, List, Optional
 import yaml
 from pydantic import ValidationError
 
-from .models import Task
+from .models_v2 import SchemaVersionError, Task
+from .models_v2 import load_task as _validate_v2
 from .projects import contained_path
 
 logger = logging.getLogger(__name__)
@@ -135,7 +136,12 @@ class TaskStorage:
             )
 
         try:
-            return Task.model_validate(data)
+            return _validate_v2(data, source=path.name)
+        except SchemaVersionError as exc:
+            # A missing or wrong `schema` stamp is a per-file problem, not a server
+            # fault: wrap it so a stray unmigrated file is reported by filename in the
+            # broken-files listing instead of crashing the whole listing.
+            raise TaskLoadError(path, str(exc)) from exc
         except ValidationError as exc:
             raise TaskLoadError(path, _describe_validation_error(exc), errors=exc.errors()) from exc
 
@@ -205,6 +211,14 @@ class TaskStorage:
             updated = mutator(current)
             if updated is None:
                 return current
+            # Mutators assign attributes, which pydantic does not re-validate, so the
+            # consistency rules are re-run here on the finished state -- one check at
+            # the end rather than validate_assignment tripping over every intermediate
+            # step of a multi-field transition. ValidationError subclasses ValueError,
+            # so callers refuse the write the same way they refuse a bad precondition.
+            Task.model_validate(
+                updated.model_dump(mode="python", by_alias=True, exclude={"display_status"})
+            )
             return self._write_task(updated)
 
     def save_task(self, task: Task) -> Task:
@@ -213,10 +227,22 @@ class TaskStorage:
             return self._write_task(task)
 
     def _write_task(self, task: Task) -> Task:
-        """Serialise a task to disk. Callers must already hold its lock."""
+        """Serialise a task to disk. Callers must already hold its lock.
+
+        ``by_alias=True`` is load-bearing: the version stamp is ``schema_version`` in
+        Python only because ``schema`` shadows a BaseModel attribute, and dumping
+        without the alias writes the wrong key -- a file the loader then rejects as
+        v1. ``display_status`` is computed for API responses and must never be
+        stored (design doc section 3).
+        """
         task.updated = datetime.now(tz=timezone.utc)
         path = self._task_path(task.id)
-        task_dict = task.model_dump(mode="json", exclude_none=True)
+        task_dict = task.model_dump(
+            mode="json",
+            by_alias=True,
+            exclude_none=True,
+            exclude={"display_status"},
+        )
         yaml_text = yaml.safe_dump(task_dict, sort_keys=False, allow_unicode=False)
         path.write_text(yaml_text, encoding="utf-8")
         return task
@@ -272,8 +298,10 @@ class TaskStorage:
         for task in self.list_tasks():
             haystacks = [
                 task.title,
-                task.human_summary,
-                task.description,
+                task.spec.summary,
+                task.spec.intent,
+                task.spec.description,
+                task.ball_prompt,
                 " ".join(task.tags),
             ]
             if any(normalized in (haystack or "").lower() for haystack in haystacks):

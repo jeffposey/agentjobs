@@ -21,7 +21,7 @@ from agentjobs.api.dependencies import (
     reset_dependency_cache,
 )
 from agentjobs.api.main import app
-from agentjobs.models import Priority, Task, TaskStatus
+from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Priority, Spec, Task
 from agentjobs.projects import ProjectError, ProjectRegistry
 from agentjobs.storage import TaskStorage
 
@@ -43,12 +43,14 @@ def build_project(root: Path, name: str) -> TaskStorage:
         Task(
             id=SHARED_TASK_ID,
             title=f"{name} task",
-            description=f"Belongs to {name}",
             created=now,
             updated=now,
-            status=TaskStatus.READY,
+            lifecycle=Lifecycle.READY,
+            ball=Ball.AGENT,
+            ball_reason=BallReason.AVAILABLE,
             priority=Priority.HIGH,
             category="infrastructure",
+            spec=Spec(summary=f"Belongs to {name}", description=f"Belongs to {name}"),
         )
     )
     return storage
@@ -126,19 +128,15 @@ class TestScopedIsolation:
         client, _ = two_projects
 
         response = client.post(
-            f"/api/projects/alpha/tasks/{SHARED_TASK_ID}/status",
-            json={
-                "status": "in_progress",
-                "author": "claude",
-                "summary": "claimed in alpha",
-            },
+            f"/api/projects/alpha/tasks/{SHARED_TASK_ID}/claim",
+            json={"agent": "claude"},
         )
         assert response.status_code == 200
 
-        assert client.get(f"/api/projects/alpha/tasks/{SHARED_TASK_ID}").json()["status"] == (
-            "in_progress"
+        assert client.get(f"/api/projects/alpha/tasks/{SHARED_TASK_ID}").json()["lifecycle"] == (
+            "active"
         )
-        assert client.get(f"/api/projects/beta/tasks/{SHARED_TASK_ID}").json()["status"] == (
+        assert client.get(f"/api/projects/beta/tasks/{SHARED_TASK_ID}").json()["lifecycle"] == (
             "ready"
         )
 
@@ -212,16 +210,18 @@ class TestCrossProjectView:
 
         assert [r["project_id"] for r in rows] == ["beta"]
 
-    def test_filters_by_status(self, two_projects) -> None:
+    def test_filters_by_lifecycle_and_ball(self, two_projects) -> None:
         client, _ = two_projects
         client.post(
-            f"/api/projects/alpha/tasks/{SHARED_TASK_ID}/status",
-            json={"status": "in_progress", "author": "claude", "summary": "claimed"},
+            f"/api/projects/alpha/tasks/{SHARED_TASK_ID}/claim",
+            json={"agent": "claude"},
         )
 
-        rows = client.get("/api/all/tasks", params={"status": "in_progress"}).json()
-
+        rows = client.get("/api/all/tasks", params={"lifecycle": "active"}).json()
         assert [r["project_id"] for r in rows] == ["alpha"]
+
+        rows = client.get("/api/all/tasks", params={"ball": "agent"}).json()
+        assert {r["project_id"] for r in rows} == {"alpha", "beta"}
 
     def test_all_tasks_is_not_shadowed_by_a_task_named_all(self, two_projects) -> None:
         # /api/all/tasks deliberately avoids /api/tasks/all, which a task with id

@@ -65,12 +65,13 @@ def migrate_tasks(
             task = converter.convert(parsed, prompts_dir=prompts_path)
 
             warnings: List[str] = []
-            if not task.description or not task.description.strip():
+            description = task.spec.description or ""
+            if not description.strip():
                 warnings.append("Description is empty after migration")
-            if len(task.description.strip()) < 10:
+            if len(description.strip()) < 10:
                 warnings.append("Description is very short")
-            if not task.phases and not task.deliverables:
-                warnings.append("No phases or deliverables extracted")
+            if not task.deliverables:
+                warnings.append("No deliverables extracted")
 
             target_file = target_path / f"{task.id}.yaml"
             if not dry_run and storage is not None:

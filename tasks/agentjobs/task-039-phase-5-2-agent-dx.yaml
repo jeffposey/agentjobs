@@ -1,85 +1,114 @@
+schema: 2
 id: task-039-phase-5-2-agent-dx
 title: 'Phase 5.2: Agent Developer Experience'
 created: '2025-10-26T20:28:04Z'
 updated: '2025-10-26T20:28:04Z'
-status: completed
+lifecycle: closed
+outcome: completed
 priority: high
 category: developer_experience
-assigned_to: Codex
-estimated_effort: 1 day
-human_summary: Provide examples, documentation, and interactive CLI flows so agents can integrate with minimal friction.
-description: |
-  Phase 5.2 targeted the agent developer experience. The release added eight
-  runnable Python examples, a comprehensive Agent Workflow guide, an interactive
-  `agentjobs work` CLI helper, and dashboard onboarding content. These upgrades
-  make it straightforward for agents (and humans) to adopt AgentJobs.
-phases:
-  - id: phase-1
-    title: 'Deliver developer experience improvements'
-    status: completed
-    notes: Examples, docs, CLI workflow, and onboarding card shipped.
-    completed_at: '2025-10-26T20:28:04Z'
-success_criteria:
-  - id: sc-1
-    description: Examples directory demonstrates core workflows end to end.
-    status: completed
-  - id: sc-2
-    description: Documentation guides agents through APIs and best practices.
-    status: completed
-  - id: sc-3
-    description: CLI work command supports claiming and completing tasks interactively.
-    status: completed
-prompts:
-  starter: prompts/task-031-phase-5.2-agent-dx-improvements.md
-  followups:
-    - timestamp: '2025-10-26T20:28:04Z'
-      author: Claude
-      prompt_file: prompts/task-031-phase-5.3-bootstrap-self-management.md
-      context: Agent DX improvements done; proceed to bootstrap self-management.
-status_updates:
-  - timestamp: '2025-10-26T20:28:04Z'
-    author: Codex
-    status: completed
-    summary: Agent DX toolkit released with docs, examples, and CLI helper
-    details: Added comprehensive agent workflow guide, eight runnable examples, README quick start, dashboard onboarding, and interactive `agentjobs work` command.
-deliverables:
-  - path: docs/agent-workflow.md
-    status: completed
-    description: 400+ line guide covering TaskClient usage and patterns.
-  - path: examples/README.md
-    status: completed
-    description: Overview of agent examples and execution instructions.
-  - path: examples/basic_workflow.py
-    status: completed
-    description: Minimal example showing claim → complete lifecycle.
-  - path: src/agentjobs/cli.py
-    status: completed
-    description: '`agentjobs work` interactive CLI workflow for agents.'
-  - path: src/agentjobs/api/templates/dashboard.html
-    status: completed
-    description: Getting Started card surfacing new agent/onboarding docs.
-  - path: README.md
-    status: completed
-    description: Quick start documentation for agent integrations.
-dependencies:
-  - task_id: task-037-phase-4-2-human-agent-ux
-    type: depends_on
-    status: completed
-    note: Builds on UX improvements to provide guided onboarding content.
-  - task_id: task-038-phase-5-1-package-and-integrate
-    type: depends_on
-    status: completed
-    note: Requires packaged integration before developer tooling makes sense.
-external_links:
-  - url: https://github.com/jeffposey/agentjobs/commit/62665e5
-    title: 'Commit 62665e5 - add agent workflow examples and documentation'
-issues: []
 tags:
-  - agentjobs
-  - phase-5-2
-  - developer-experience
-  - tasks-2-0
+- agentjobs
+- phase-5-2
+- developer-experience
+- tasks-2-0
+effort: 1 day
+assignment:
+  eligible:
+  - codex
+spec:
+  summary: Provide examples, documentation, and interactive CLI flows so agents can
+    integrate with minimal friction.
+  description: "Phase 5.2 targeted the agent developer experience. The release added\
+    \ eight\nrunnable Python examples, a comprehensive Agent Workflow guide, an interactive\n\
+    `agentjobs work` CLI helper, and dashboard onboarding content. These upgrades\n\
+    make it straightforward for agents (and humans) to adopt AgentJobs.\n\n---\n\n\
+    ## Starter prompt (migrated from schema v1)\n\nprompts/task-031-phase-5.2-agent-dx-improvements.md\n\
+    ---\n\n## Phases (migrated from schema v1)\n\n`phases[]` was deleted in v2; sub-tasks\
+    \ via `parent` are the one way to\nsubdivide. This is the historical record, preserved\
+    \ verbatim.\n\n- **Deliver developer experience improvements** (`phase-1`, completed)\n\
+    \  - Examples, docs, CLI workflow, and onboarding card shipped.\n  - completed\
+    \ 2025-10-26T20:28:04Z"
+acceptance:
+- id: sc-1
+  text: Examples directory demonstrates core workflows end to end.
+  status: met
+- id: sc-2
+  text: Documentation guides agents through APIs and best practices.
+  status: met
+- id: sc-3
+  text: CLI work command supports claiming and completing tasks interactively.
+  status: met
+deliverables:
+- path: docs/agent-workflow.md
+  status: done
+  note: 400+ line guide covering TaskClient usage and patterns.
+- path: examples/README.md
+  status: done
+  note: Overview of agent examples and execution instructions.
+- path: examples/basic_workflow.py
+  status: done
+  note: "Minimal example showing claim \u2192 complete lifecycle."
+- path: src/agentjobs/cli.py
+  status: done
+  note: '`agentjobs work` interactive CLI workflow for agents.'
+- path: src/agentjobs/api/templates/dashboard.html
+  status: done
+  note: Getting Started card surfacing new agent/onboarding docs.
+- path: README.md
+  status: done
+  note: Quick start documentation for agent integrations.
+dependencies:
+- task: task-037-phase-4-2-human-agent-ux
+  type: needs
+  note: 'Builds on UX improvements to provide guided onboarding content. (v1 status:
+    completed)'
+- task: task-038-phase-5-1-package-and-integrate
+  type: needs
+  note: 'Requires packaged integration before developer tooling makes sense. (v1 status:
+    completed)'
+links:
+- url: https://github.com/jeffposey/agentjobs/commit/62665e5
+  rel: other
+  title: Commit 62665e5 - add agent workflow examples and documentation
 branches:
-  - name: main
-    status: merged
-    merged_at: '2025-10-26T20:28:04Z'
+- name: main
+  status: merged
+  merged_at: '2025-10-26T20:28:04Z'
+log:
+- id: 1
+  ts: '2025-10-26T20:28:04Z'
+  actor: Codex
+  type: transition
+  data:
+    v1_status: completed
+  body: 'Agent DX toolkit released with docs, examples, and CLI helper
+
+
+    Added comprehensive agent workflow guide, eight runnable examples, README quick
+    start, dashboard onboarding, and interactive `agentjobs work` command.'
+- id: 2
+  ts: '2025-10-26T20:28:04Z'
+  actor: Claude
+  type: instruction
+  body: 'See prompt file: prompts/task-031-phase-5.3-bootstrap-self-management.md
+
+
+    Context: Agent DX improvements done; proceed to bootstrap self-management.'
+- id: 3
+  ts: '2025-10-26T20:28:04Z'
+  actor: system
+  type: note
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: completed` became lifecycle: closed / outcome: completed.
+
+    - 1 phase(s) folded into spec.description as an appendix.
+
+    - prompts.starter preserved in spec.description.
+
+    - 1 followup prompt(s) became instruction entries.'

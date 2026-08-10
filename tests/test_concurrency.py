@@ -15,7 +15,7 @@ from typing import List
 import pytest
 
 from agentjobs.manager import TaskManager
-from agentjobs.models import Priority, Task, TaskStatus
+from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Priority, Spec, Task
 from agentjobs.storage import TaskLockTimeout, TaskStorage
 
 NOW = datetime(2026, 8, 10, tzinfo=timezone.utc)
@@ -26,12 +26,17 @@ def ready_task(storage: TaskStorage, task_id: str = "task-100-contended") -> Tas
         Task(
             id=task_id,
             title="Contended task",
-            description="Two agents will want this.",
             created=NOW,
             updated=NOW,
-            status=TaskStatus.READY,
+            lifecycle=Lifecycle.READY,
+            ball=Ball.AGENT,
+            ball_reason=BallReason.AVAILABLE,
             priority=Priority.HIGH,
             category="infrastructure",
+            spec=Spec(
+                summary="Two agents will want this.",
+                description="Two agents will want this.",
+            ),
         )
     )
 
@@ -74,7 +79,7 @@ class TestTheRace:
         # And the file agrees with whoever won, rather than with the last writer.
         reloaded = storage.load_task(task.id)
         assert reloaded is not None
-        assert reloaded.assigned_to == winners[0]
+        assert reloaded.assignment.owner == winners[0]
 
     def test_the_loser_is_told_why(self, tmp_path: Path) -> None:
         storage = TaskStorage(tmp_path)
@@ -117,8 +122,10 @@ class TestTheRace:
 
         reloaded = storage.load_task(task.id)
         assert reloaded is not None
-        summaries = {u.summary for u in reloaded.status_updates}
-        assert len(summaries) == 6, f"entries were lost: {sorted(summaries)}"
+        bodies = {entry.body for entry in reloaded.log}
+        assert len(bodies) == 6, f"entries were lost: {sorted(str(b) for b in bodies)}"
+        # And the append-only integrity rules held under contention.
+        assert [entry.id for entry in reloaded.log] == sorted(entry.id for entry in reloaded.log)
 
 
 class TestTheLockItself:

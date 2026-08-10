@@ -1,104 +1,93 @@
+schema: 2
 id: task-054-schema-v2-gui
 title: 'Schema v2: Jinja GUI -- inbox view, agent activity, v2 task detail'
 created: '2026-07-29T20:45:00Z'
 updated: '2026-07-29T20:45:00Z'
-status: draft
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: 'NEEDS REVIEW: finish specifying this task.'
 priority: medium
 category: ux
-estimated_effort: half day
-human_summary: 'Update the Jinja GUI to schema v2: a human inbox view (ball=human,
-  each row carrying its ball_prompt), an agent-activity view, and a task detail page
-  rendering spec, the unified log, and acceptance. Minimal polish -- the React frontend
-  will replace this, but the views define the shape React will implement.'
-description: 'Update the server-rendered GUI to v2 per docs/schema-design.md §5:
-
-
-  - Home/inbox: the ?ball=human query rendered as the primary view -- one row per
-  task, display_status badge, ball_prompt as the line item. Its inverse ("what are
-  the agents doing", ball=agent) alongside.
-
-  - Task detail: spec blocks (summary/intent/description/constraints/out_of_scope/
-  context), the unified log in order with entry-type styling (open questions visually
-  distinct), acceptance checklist with statuses, dependencies/links/branches.
-
-  - Remove all rendering of deleted v1 fields (phases, prompts, issues, comments).
-
-  - Broken files surfaced per task-049''s behavior, not omitted.
-
-
-  Keep it minimal: these templates are the wireframe for the React frontend''s home
-  view, not a product surface to polish.
-
-
-  ## Scope boundary against task-058 (added 2026-08-10)
-
-
-  Both tasks now touch the v2 GUI and must not rewrite the same thing.
-
-
-  - **This task: the contents.** How a single task renders -- spec blocks, the unified
-  log, acceptance -- plus the editing affordances that make the GUI the primary human
-  editing surface (D2''s amendment).
-
-  - **Task-058: the shell.** Project switcher, project-scoped `/p/{project_id}/` URLs,
-  and the task list rendered as a hierarchy expandable to subtasks.
-
-
-  **One genuine conflict, unresolved on purpose.** This task specifies a `ball=human`
-  inbox as the primary home view. Task-058, per the owner''s direct instruction on
-  2026-08-10, makes a per-project hierarchical task tree the primary list. Both can
-  coexist on a project home -- inbox section above the tree -- but whichever task lands
-  second must confirm the arrangement with the owner rather than quietly overriding the
-  other.
-
-
-  Also note the owner''s standing constraint from 2026-08-10: **one project is selected
-  at a time; there is no merged all-projects view.** Any inbox this task builds is
-  scoped to the selected project.
-
-
-  ## Also inherited
-
-
-  Task-059 made Approve and Request Changes hand the ball back to the agent via
-  `in_progress`, which is v1''s closest expression of v2''s `ball: agent` /
-  `ball_reason: work`. On v2 those buttons should set the real thing. See task-059''s
-  status update for the reasoning and the rejected alternative.
-
-
-  **Gated:** requires task-052 merged.'
-phases: []
-success_criteria:
-- id: sc-1
-  description: Inbox view lists exactly the open ball=human tasks, each with
-    display_status and ball_prompt
-  status: pending
-- id: sc-2
-  description: Task detail renders spec, log (typed entries, open questions distinct),
-    and acceptance; no references to deleted v1 fields remain in templates
-  status: pending
-- id: sc-3
-  description: Template tests / smoke tests pass; poetry run pytest green
-  status: pending
-prompts:
-  starter: 'Implement per docs/schema-design.md §5 and this description. Branch
-    `feat/task-054-schema-v2-gui` from main, record in branches[], mark in_progress.
-    When complete: STOP, set waiting_for_human, comment a summary, await approval.'
-  followups: []
-status_updates: []
-comments: []
-deliverables:
-- path: src/agentjobs/api/templates/
-  status: pending
-  description: Inbox, agent activity, and v2 task detail templates
-dependencies:
-- task_id: task-052-schema-v2-manager-api
-  type: depends_on
-  note: Renders that surface
-external_links: []
-issues: []
 tags:
 - schema-design
 - schema-v2
 - ux
-branches: []
+effort: half day
+spec:
+  summary: 'Update the Jinja GUI to schema v2: a human inbox view (ball=human, each
+    row carrying its ball_prompt), an agent-activity view, and a task detail page
+    rendering spec, the unified log, and acceptance. Minimal polish -- the React frontend
+    will replace this, but the views define the shape React will implement.'
+  description: "Update the server-rendered GUI to v2 per docs/schema-design.md \xA7\
+    5:\n\n- Home/inbox: the ?ball=human query rendered as the primary view -- one\
+    \ row per task, display_status badge, ball_prompt as the line item. Its inverse\
+    \ (\"what are the agents doing\", ball=agent) alongside.\n- Task detail: spec\
+    \ blocks (summary/intent/description/constraints/out_of_scope/ context), the unified\
+    \ log in order with entry-type styling (open questions visually distinct), acceptance\
+    \ checklist with statuses, dependencies/links/branches.\n- Remove all rendering\
+    \ of deleted v1 fields (phases, prompts, issues, comments).\n- Broken files surfaced\
+    \ per task-049's behavior, not omitted.\n\nKeep it minimal: these templates are\
+    \ the wireframe for the React frontend's home view, not a product surface to polish.\n\
+    \n## Scope boundary against task-058 (added 2026-08-10)\n\nBoth tasks now touch\
+    \ the v2 GUI and must not rewrite the same thing.\n\n- **This task: the contents.**\
+    \ How a single task renders -- spec blocks, the unified log, acceptance -- plus\
+    \ the editing affordances that make the GUI the primary human editing surface\
+    \ (D2's amendment).\n- **Task-058: the shell.** Project switcher, project-scoped\
+    \ `/p/{project_id}/` URLs, and the task list rendered as a hierarchy expandable\
+    \ to subtasks.\n\n**One genuine conflict, unresolved on purpose.** This task specifies\
+    \ a `ball=human` inbox as the primary home view. Task-058, per the owner's direct\
+    \ instruction on 2026-08-10, makes a per-project hierarchical task tree the primary\
+    \ list. Both can coexist on a project home -- inbox section above the tree --\
+    \ but whichever task lands second must confirm the arrangement with the owner\
+    \ rather than quietly overriding the other.\n\nAlso note the owner's standing\
+    \ constraint from 2026-08-10: **one project is selected at a time; there is no\
+    \ merged all-projects view.** Any inbox this task builds is scoped to the selected\
+    \ project.\n\n## Also inherited\n\nTask-059 made Approve and Request Changes hand\
+    \ the ball back to the agent via `in_progress`, which is v1's closest expression\
+    \ of v2's `ball: agent` / `ball_reason: work`. On v2 those buttons should set\
+    \ the real thing. See task-059's status update for the reasoning and the rejected\
+    \ alternative.\n\n**Gated:** requires task-052 merged.\n\n---\n\n## Starter prompt\
+    \ (migrated from schema v1)\n\nImplement per docs/schema-design.md \xA75 and this\
+    \ description. Branch `feat/task-054-schema-v2-gui` from main, record in branches[],\
+    \ mark in_progress. When complete: STOP, set waiting_for_human, comment a summary,\
+    \ await approval."
+acceptance:
+- id: sc-1
+  text: Inbox view lists exactly the open ball=human tasks, each with display_status
+    and ball_prompt
+  status: pending
+- id: sc-2
+  text: Task detail renders spec, log (typed entries, open questions distinct), and
+    acceptance; no references to deleted v1 fields remain in templates
+  status: pending
+- id: sc-3
+  text: Template tests / smoke tests pass; poetry run pytest green
+  status: pending
+deliverables:
+- path: src/agentjobs/api/templates/
+  status: pending
+  note: Inbox, agent activity, and v2 task detail templates
+dependencies:
+- task: task-052-schema-v2-manager-api
+  type: needs
+  note: Renders that surface
+log:
+- id: 1
+  ts: '2026-07-29T20:45:00Z'
+  actor: system
+  type: note
+  data:
+    v1_status: draft
+    migrated_to_schema: 2
+  body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
+
+
+    - v1 `status: draft` became lifecycle: draft / ball: human / ball_reason: spec.
+
+    - prompts.starter preserved in spec.description.
+
+
+    Needs human review:
+
+    - ball_prompt: no status update to derive an ask from'
