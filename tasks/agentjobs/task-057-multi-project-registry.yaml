@@ -1,8 +1,8 @@
 id: task-057-multi-project-registry
 title: 'Multi-project: a machine-level registry and project-scoped backend'
 created: '2026-08-10T06:14:30Z'
-updated: '2026-08-10T06:37:58.886046Z'
-status: waiting_for_human
+updated: '2026-08-10T06:48:07.509313Z'
+status: completed
 priority: high
 category: infrastructure
 estimated_effort: 1-2 working sessions
@@ -280,6 +280,31 @@ status_updates:
 
     NEXT: task-058 (GUI switcher, scoped URLs, cross-project view) is unblocked once
     this merges. Do not merge without explicit approval.'
+- timestamp: '2026-08-10T06:48:07.444503Z'
+  author: claude
+  status: completed
+  summary: Approved by Jeff after casual review; merged to main
+  details: 'Jeff reviewed the diff and the task record on 2026-08-10 and approved.
+    Explicitly a casual review, not a line-by-line audit -- recorded so a later reader
+    does not over-trust the depth of the sign-off.
+
+
+    Merged to main with --no-ff. Branch marked merged and deleted locally. Nothing
+    pushed to origin; pushing remains a separate act.
+
+
+    Review friction worth recording, because it is the first real evidence for what
+    the UI needs: Jeff tried to review through the web UI and found it close to useless
+    for the purpose. Two concrete problems, both now their own task: the Approve button
+    sets the task to ''ready'' rather than executing the documented merge gate, and
+    status updates render as an unformatted wall of text with no markdown, no structure,
+    and no collapsing. The second is partly self-inflicted -- these updates are long
+    because ALLAGENTS.md requires them to be complete for a zero-context reader --
+    which means the fix is on both sides: render them properly, and structure them
+    so the top of an entry is scannable.
+
+
+    Task-058 (multi-project GUI) is unblocked.'
 comments: []
 deliverables:
 - path: src/agentjobs/projects.py
@@ -308,4 +333,4 @@ tags:
 - storage
 branches:
 - name: feat/task-057-multi-project-registry
-  status: active
+  status: merged
