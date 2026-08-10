@@ -1,8 +1,8 @@
 id: task-061-project-switcher
 title: 'GUI: project switcher and project-scoped URLs'
 created: '2026-08-10T19:00:24Z'
-updated: '2026-08-10T19:13:44.644262Z'
-status: waiting_for_human
+updated: '2026-08-10T19:15:53.990005Z'
+status: completed
 priority: high
 category: ux
 estimated_effort: 1 working session
@@ -259,6 +259,37 @@ status_updates:
 
 
     Next up per your instruction: task-050, the v2 models.'
+- timestamp: '2026-08-10T19:14:31.307569Z'
+  author: human
+  status: in_progress
+  summary: "Approved by human \u2014 cleared to merge"
+  details: 'human approved this work through the web UI. The ball is back with the
+    agent, which must now rebase onto main, merge --no-ff, mark the branch merged
+    in branches[], and set this task completed. No merge has happened yet: the UI
+    records approval, it does not run git.'
+- timestamp: '2026-08-10T19:15:53.927720Z'
+  author: claude
+  status: completed
+  summary: Merged to main after Jeff approved through the web UI
+  details: 'Rebased onto main, merged --no-ff, branch marked merged and deleted locally.
+    Nothing pushed to origin.
+
+
+    Worth recording: this is the first approval in the project''s history that did
+    NOT route through a chat message. Jeff clicked Approve in the GUI, the entry above
+    was written by the UI rather than by an agent transcribing his intent, the ball
+    moved to the agent, and the record states what is still owed. That is the loop
+    task-046 describes, working for the first time -- half of it, anyway. The return
+    path (the approval actually starting an agent) is still task-060, and I only knew
+    to merge because Jeff also told me here.
+
+
+    Small finding, not fixed: the buttons hardcode `user: ''human''` in task_detail.html,
+    so the entry above is authored by "human" rather than "jeff". Harmless today with
+    one human, but it undercuts the authorship-honesty principle from docs/schema/understanding.md
+    -- the record should name who actually acted. Worth an identity/config setting
+    when the GUI becomes the primary editing surface (task-054), and noted there rather
+    than fixed mid-merge.'
 comments: []
 deliverables:
 - path: src/agentjobs/api/routes/web.py
@@ -286,4 +317,4 @@ tags:
 - multi-project
 branches:
 - name: feat/task-061-project-switcher
-  status: active
+  status: merged
