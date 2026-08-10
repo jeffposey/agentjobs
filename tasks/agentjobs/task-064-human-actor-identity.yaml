@@ -1,0 +1,106 @@
+schema: 2
+id: task-064-human-actor-identity
+title: 'Human actor identity: stop recording every review action as ''human'''
+created: '2026-08-10T22:57:38.560179Z'
+updated: '2026-08-10T22:57:38.560964Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- schema-v2
+- gui
+- provenance
+effort: 1-2 hours
+assignment:
+  eligible: []
+spec:
+  summary: Every GUI review action is logged with actor 'human', so the record shows
+    that a person acted but never which one. Give humans an id in config and wire
+    the buttons to it.
+  intent: 'The unified log names an actor on every entry, and that is the whole provenance
+    story in v2 (design doc section 4). The GUI undermines it: all three review buttons
+    hardcode `user: ''human''`, so approvals, change requests and rejections are recorded
+    anonymously.
+
+
+    On a single-user project this looks harmless. It is not, for two reasons. The
+    record is the product''s central claim -- a task file should tell a zero-context
+    reader what happened and who did it -- and ''human'' fails that for the half of
+    the workflow humans own. And the owner''s review history is one of the things
+    this repo is meant to make visible; anonymous entries cannot demonstrate who reviewed
+    what.
+
+
+    D4 already settled the design: actors are referenced by bare id and their kind
+    is resolved from config. Config has an `agents:` list and no equivalent for people.
+    This completes an accepted decision rather than making a new one.'
+  description: '**Config.** Add a people vocabulary to `.agentjobs/config.yaml` alongside
+    `agents:`. Single entry for now (`jeff`), and a way to name which one the GUI
+    acts as. Two shapes are worth weighing before writing code:
+
+
+    - `humans: [{name: jeff, display_name: Jeff Posey}]` plus `default_user: jeff`
+    -- mirrors `agents:`, obvious, but adds a second list that will want merging later.
+
+    - one `actors:` list with a `kind: human|agent` on each -- matches D4''s model
+    exactly, since kind is precisely what config is supposed to resolve. Migrating
+    the existing `agents:` key is the cost.
+
+
+    Recommend the second, but decide it explicitly and record the reasoning.
+
+
+    **GUI.** `task_detail.html` hardcodes `{user: ''human''}` in the fetch bodies
+    of approveTask, submitFeedback and rejectTask. Serve the configured user into
+    the template context and use it. Do not invent a login; a single configured identity
+    is the whole scope.
+
+
+    **API.** The three human-action endpoints take `user` from the request body. Keep
+    that -- the caller states who acted -- but validate it against the configured
+    actors so a typo is refused rather than written into the log, consistent with
+    D2.
+
+
+    **Explicitly not in scope:** authentication, sessions, multiple concurrent users,
+    per-user permissions. This is identity, not auth. When a second person actually
+    needs to use the instance, that is a different task with a different shape, and
+    this one should be revisited rather than extended.'
+  constraints: '- No login, no sessions, no passwords.
+
+    - An unknown actor id is refused, not silently accepted (D2).
+
+    - Existing task files keep their historical `actor: human` entries. The log is
+    append-only; do not rewrite history to backfill a name.'
+  out_of_scope: Authentication and multi-user support. Attributing the historical
+    entries already written as 'human' -- they stay as they are.
+  context:
+  - path: src/agentjobs/api/templates/task_detail.html
+    why: 'The three fetch calls that hardcode user: ''human''.'
+  - path: src/agentjobs/api/routes/tasks.py
+    why: approve / request-changes / reject endpoints take the user.
+  - path: docs/schema-design.md
+    why: D4 -- actors are referenced by bare id, kind resolved from config.
+acceptance:
+- id: ac-1
+  text: config names at least one human actor and which one the GUI acts as
+  status: pending
+- id: ac-2
+  text: approving, requesting changes and rejecting through the GUI each write the
+    configured id as the log entry actor, not 'human'
+  status: pending
+- id: ac-3
+  text: an unrecognised actor id is refused by the API rather than logged
+  status: pending
+- id: ac-4
+  text: the choice between a separate humans list and a unified actors list is recorded
+    as a decision
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log: []

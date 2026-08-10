@@ -1,0 +1,103 @@
+schema: 2
+id: task-065-report-issue-action
+title: 'Report Issue: capture a problem from any page, as a task'
+created: '2026-08-10T22:57:38.570148Z'
+updated: '2026-08-10T22:57:38.570777Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: developer_experience
+tags:
+- gui
+- workflow
+effort: 2-3 hours
+assignment:
+  eligible: []
+spec:
+  summary: Findings made while using the app have nowhere to go and end up in chat.
+    Add a project-wide Report Issue action that creates a task, pre-filled with where
+    the reporter was.
+  intent: 'Reviewing task-052 turned up two real defects -- enums rendering as `Lifecycle.READY`
+    so every task-list filter matched nothing, and a stale server making the corpus
+    look corrupt. Both were found *while* reviewing that task and neither was *about*
+    it, so there was nowhere in the product to put them and both were reported in
+    chat instead. Chat is not the system of record, which is the premise the whole
+    project rests on.
+
+
+    That is the gap: the review panel is scoped to one task''s ball, so it cannot
+    hold an observation about the system. Noticing is cheap and happens constantly;
+    the cost of recording it has to be near zero or it does not get recorded.'
+  description: '**A reported issue becomes a task.** This is settled, not a design
+    choice to make here: D1 deleted `issues[]` on the grounds that an issue is either
+    a log entry or it graduates to a task. Report Issue is a shortcut to creating
+    one, not a third feedback mechanism -- reintroducing a parallel issue store would
+    undo an accepted decision.
+
+
+    **Placement.** Global chrome, present on every page, next to the project switcher
+    in `base.html`. Deliberately *not* in the review panel: that panel means ''the
+    ball is with you on this task'', and an issue usually is not about the task on
+    screen. Keeping them separate is what stops one control behaving differently depending
+    on page state.
+
+
+    **Behaviour.** A short form -- title, description -- creating a task in `draft`
+    with `ball: human/spec` (someone must still decide it is worth doing) or `ready`
+    if the reporter marks it actionable. Tag it so reported issues are filterable.
+    Pre-fill context automatically: the page the reporter was on and, if they were
+    looking at a task, its id as a `related` dependency. That context is exactly what
+    is missing when an issue is rediscovered three weeks later.
+
+
+    **Attribution.** The reporter is the configured human actor from task-064; an
+    issue reported by ''human'' has the same defect that task addresses.
+
+
+    **Worth deciding while building:** whether the new task lands in the project being
+    viewed or a designated one. Viewing project A and filing a bug about AgentJobs
+    itself is the common case, and silently filing it into A would be wrong.'
+  constraints: '- Creates a normal task through the existing manager. No new store,
+    no resurrection of `issues[]`.
+
+    - Must not require leaving the page or losing what the reporter was doing.
+
+    - Available on every page, including the project picker and a task detail page
+    whose ball is not with a human.'
+  out_of_scope: Triage workflow, severity vocabularies, duplicate detection, and any
+    notion of an issue distinct from a task.
+  context:
+  - path: src/agentjobs/api/templates/base.html
+    why: Global chrome; where the action belongs.
+  - path: src/agentjobs/api/templates/task_detail.html
+    why: The review panel, for contrast -- task-scoped, moves the ball.
+  - path: docs/schema-design.md
+    why: 'D1 and section 6 issue 3: an issue graduates to a task.'
+acceptance:
+- id: ac-1
+  text: a Report Issue action is reachable from every page, including the project
+    picker
+  status: pending
+- id: ac-2
+  text: submitting it creates a real task, tagged, visible in the task list
+  status: pending
+- id: ac-3
+  text: the created task records where the reporter was, and links the task they were
+    viewing when there was one
+  status: pending
+- id: ac-4
+  text: the reporter is recorded as the configured human actor, not 'human'
+  status: pending
+- id: ac-5
+  text: which project a reported issue lands in is a recorded decision, not an accident
+  status: pending
+deliverables: []
+dependencies:
+- task: task-064-human-actor-identity
+  type: needs
+  note: 'Attribution: a report filed by ''human'' has the defect 064 fixes.'
+links: []
+branches: []
+log: []
