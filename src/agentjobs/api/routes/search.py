@@ -11,7 +11,7 @@ from agentjobs.models import Task
 
 from ..dependencies import get_task_manager
 
-router = APIRouter(prefix="/api", tags=["search"])
+router = APIRouter(prefix="", tags=["search"])
 
 
 @router.get("/search", response_model=List[Task])

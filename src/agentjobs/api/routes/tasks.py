@@ -13,7 +13,7 @@ from agentjobs.models import Comment, Priority, Task, TaskStatus
 from ..dependencies import get_task_manager
 from ..models import TaskCreateRequest, TaskUpdateRequest
 
-router = APIRouter(prefix="/api/tasks", tags=["tasks"])
+router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
 @router.get("", response_model=List[Task])

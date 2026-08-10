@@ -12,7 +12,7 @@ from agentjobs.models import Task
 from ..dependencies import get_task_manager
 from ..models import PromptAddRequest
 
-router = APIRouter(prefix="/api/tasks", tags=["prompts"])
+router = APIRouter(prefix="/tasks", tags=["prompts"])
 
 
 @router.get("/{task_id}/prompts/starter", response_model=Dict[str, str])
