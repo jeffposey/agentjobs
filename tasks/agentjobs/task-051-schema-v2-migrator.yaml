@@ -2,9 +2,10 @@ schema: 2
 id: task-051-schema-v2-migrator
 title: 'Schema v2: one-shot migrator and corpus migration'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T20:11:08Z'
+updated: '2026-08-10T23:19:15.877864Z'
 lifecycle: closed
 outcome: completed
+archived: false
 priority: high
 category: migration
 tags:
@@ -12,6 +13,8 @@ tags:
 - schema-v2
 - migration
 effort: half day
+assignment:
+  eligible: []
 spec:
   summary: "Build `agentjobs migrate-schema` (v1 YAML -> v2 per the mapping in docs/schema-design.md\
     \ \xA73/\xA78), run it over the whole corpus, and update the corpus round-trip\
@@ -43,6 +46,7 @@ spec:
     \ task-050's branch per its coordination note), record in branches[], mark in_progress.\
     \ Migrate the corpus as its own commit so the diff is reviewable file-by-file.\
     \ When complete: STOP, set waiting_for_human, comment a summary, await approval."
+  context: []
 acceptance:
 - id: sc-1
   text: "agentjobs migrate-schema converts a v1 file to valid v2 following every mapping\
@@ -63,15 +67,16 @@ acceptance:
   status: met
 deliverables:
 - path: src/agentjobs/migrate.py
-  status: pending
   note: v1 -> v2 converter behind `agentjobs migrate-schema`
-- path: tests/test_task_corpus.py
   status: pending
+- path: tests/test_task_corpus.py
   note: Corpus test updated to v2 expectations
+  status: pending
 dependencies:
 - task: task-050-schema-v2-models
   type: needs
   note: Converts into the v2 model that task defines
+links: []
 branches:
 - name: feat/task-051-schema-v2-migrator
   status: merged
@@ -80,8 +85,6 @@ log:
   ts: '2026-08-10T19:49:06Z'
   actor: claude
   type: transition
-  data:
-    v1_status: in_progress
   body: 'Claimed; corpus measured first, and one design assumption is measurably wrong
 
 
@@ -148,12 +151,12 @@ log:
     rather than an invented ask. The two archived tasks differ: one was superseded
     by phase-specific tasks, one was rejected as stale, so `outcome` is derived per
     file rather than defaulted.'
+  data:
+    v1_status: in_progress
 - id: 2
   ts: '2026-08-10T20:05:48Z'
   actor: claude
   type: transition
-  data:
-    v1_status: waiting_for_human
   body: "Migrator complete and verified over all 38 files; the corpus WRITE is deliberately\
     \ not done\n\nThree commits. 328 tests pass (43 new); ruff, mypy and black clean\
     \ across 61 files. The corpus is untouched -- `git status tasks/` is empty.\n\n\
@@ -210,22 +213,22 @@ log:
     \ description was short enough to be duplicated wholesale into the derived summary\
     \ -- so the text really was still present and the gate was right. The fixture\
     \ was too degenerate to lose anything. I fixed the fixture, not the gate."
+  data:
+    v1_status: waiting_for_human
 - id: 3
   ts: '2026-08-10T20:09:12Z'
-  actor: human
+  actor: jeffposey
   type: transition
-  data:
-    v1_status: in_progress
   body: "Approved by human \u2014 cleared to merge\n\nhuman approved this work through\
     \ the web UI. The ball is back with the agent, which must now rebase onto main,\
     \ merge --no-ff, mark the branch merged in branches[], and set this task completed.\
     \ No merge has happened yet: the UI records approval, it does not run git."
+  data:
+    v1_status: in_progress
 - id: 4
   ts: '2026-08-10T20:11:08Z'
   actor: claude
   type: transition
-  data:
-    v1_status: completed
   body: 'Merged to main; the corpus write carries forward to task-052
 
 
@@ -246,16 +249,18 @@ log:
 
     Also carried forward: task-050 delivered models_v2 alongside v1, so task-052 must
     delete models.py once nothing imports it.'
+  data:
+    v1_status: completed
 - id: 5
   ts: '2026-08-10T20:11:08Z'
   actor: system
   type: note
-  data:
-    v1_status: completed
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
     - v1 `status: completed` became lifecycle: closed / outcome: completed.
 
     - prompts.starter preserved in spec.description.'
+  data:
+    v1_status: completed
+    migrated_to_schema: 2

@@ -17,7 +17,7 @@ import yaml
 from fastapi import HTTPException, Request, status
 from fastapi.templating import Jinja2Templates
 
-from agentjobs.actors import default_user
+from agentjobs.actors import Identity, human_identity
 from agentjobs.manager import TaskManager
 from agentjobs.projects import (
     AmbiguousProjectError,
@@ -272,9 +272,14 @@ def project_config(project: Project) -> dict:
     return _load_config(project.root)
 
 
+def current_identity(project: Project) -> Identity:
+    """Who the GUI acts as for this project, or why it cannot tell."""
+    return human_identity(project_config(project))
+
+
 def current_user(project: Project) -> Optional[str]:
-    """The actor id the GUI acts as for this project, or None if config names nobody."""
-    return default_user(project_config(project))
+    """The actor id the GUI acts as for this project, or None if unresolvable."""
+    return current_identity(project).user
 
 
 def get_current_user(request: Request) -> Optional[str]:

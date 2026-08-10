@@ -6,7 +6,7 @@ gui:
   port: 8765
   theme: dark
 actors:
-  - name: jeff
+  - name: jeffposey
     kind: human
     display_name: Jeff Posey
   - name: claude
@@ -15,7 +15,7 @@ actors:
   - name: codex
     kind: agent
     display_name: Codex (Workhorse)
-default_user: jeff
+default_user: jeffposey
 categories:
   - infrastructure
   - ux

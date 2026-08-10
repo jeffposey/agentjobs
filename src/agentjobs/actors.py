@@ -86,19 +86,67 @@ def humans(config: Dict[str, Any]) -> List[Actor]:
     return [actor for actor in load_actors(config).values() if actor.is_human]
 
 
-def default_user(config: Dict[str, Any]) -> Optional[str]:
-    """The id the GUI acts as, or None when config names nobody.
+UNCONFIGURED = "unconfigured"
+MULTIPLE = "multiple"
 
-    ``default_user:`` when set, otherwise the only configured human. It deliberately
-    does not guess among several: an instance with two people and no stated default has
-    a question to answer, and attributing one person's approval to another is worse than
-    attributing it to nobody.
+
+@dataclass(frozen=True)
+class Identity:
+    """Who the GUI acts as, or why it cannot tell."""
+
+    user: Optional[str] = None
+    problem: Optional[str] = None
+    detail: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return self.user is not None
+
+
+def human_identity(config: Dict[str, Any]) -> Identity:
+    """Resolve the acting human, or say precisely why there isn't one.
+
+    Two failures, deliberately distinguished, because they need different guidance:
+    nobody is configured (add yourself), or several people are (not supported yet).
+
+    **Exactly one human is supported for now.** Several would need account management --
+    who is at the keyboard, and how the server knows -- which is a real feature, not a
+    config shape. Rather than half-support it by guessing or by silently taking the
+    first, a multi-human config is refused with a message pointing at the task that
+    covers it. Attributing one person's approval to another is the failure this whole
+    module exists to prevent, so approximating here would be self-defeating.
     """
-    configured = config.get("default_user")
-    if configured:
-        return str(configured)
     people = humans(config)
-    return people[0].id if len(people) == 1 else None
+    configured = config.get("default_user")
+
+    if len(people) > 1:
+        names = ", ".join(sorted(person.id for person in people))
+        return Identity(
+            problem=MULTIPLE,
+            detail=(
+                f"{len(people)} human actors are configured ({names}), and AgentJobs "
+                "supports one. It cannot know which of you is acting, and recording the "
+                "wrong person is worse than recording nobody. Leave one 'kind: human' "
+                "entry in .agentjobs/config.yaml until account management lands."
+            ),
+        )
+    if configured:
+        return Identity(user=str(configured))
+    if len(people) == 1:
+        return Identity(user=people[0].id)
+    return Identity(
+        problem=UNCONFIGURED,
+        detail=(
+            "No human actor is configured, so an action taken here could not say who "
+            "took it. Add an entry with 'kind: human' to 'actors:' in "
+            ".agentjobs/config.yaml and set 'default_user:' to its id."
+        ),
+    )
+
+
+def default_user(config: Dict[str, Any]) -> Optional[str]:
+    """The id the GUI acts as, or None when it cannot be resolved."""
+    return human_identity(config).user
 
 
 def validate_actor(config: Dict[str, Any], actor_id: str) -> str:

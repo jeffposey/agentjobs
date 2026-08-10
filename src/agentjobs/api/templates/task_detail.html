@@ -67,17 +67,16 @@
             until the agent does it.
         </p>
 
-        {% if not current_user %}
+        {% if not identity.ok %}
         {# Refusing to act beats acting anonymously: the log entry is permanent and an
-           unattributed approval cannot be traced to anyone later. #}
+           unattributed approval cannot be traced to anyone later. The two reasons need
+           different guidance, so the message comes from the resolver, not from here. #}
         <div class="rounded-lg border border-yellow-600/50 bg-dark-bg p-4 text-sm">
-            <strong class="text-yellow-400">No user configured.</strong>
-            <span class="text-dark-muted">
-                These actions are disabled because the record would not say who took
-                them. Add yourself to <code>actors:</code> in
-                <code>.agentjobs/config.yaml</code> with <code>kind: human</code>, and
-                set <code>default_user:</code> to your id.
-            </span>
+            <strong class="text-yellow-400">
+                {% if identity.problem == 'multiple' %}Multiple users configured.
+                {% else %}No user configured.{% endif %}
+            </strong>
+            <span class="text-dark-muted">{{ identity.detail }}</span>
         </div>
         {% else %}
 

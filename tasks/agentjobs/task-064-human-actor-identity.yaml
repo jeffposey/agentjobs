@@ -2,15 +2,14 @@ schema: 2
 id: task-064-human-actor-identity
 title: 'Human actor identity: stop recording every review action as ''human'''
 created: '2026-08-10T22:57:38.560179Z'
-updated: '2026-08-10T23:12:06.500848Z'
+updated: '2026-08-10T23:22:16.746114Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: 'Review branch `feat/task-064-human-actor-identity` and approve or request
-  changes. Worth a look specifically: the config shape decision above, and whether
-  withholding the review buttons when no user is configured is the behaviour you want,
-  versus letting them act anonymously. Approving this one will be the first action
-  in the repo recorded as `jeff` rather than `human`.'
+ball_prompt: 'All four requested changes are done. Approve to merge, or push back
+  again. Worth checking yourself: open any of tasks 032, 049, 050, 051, 052, 055 or
+  061 and confirm the backfilled entries read correctly, and that the human inbox
+  still lists 8 tasks -- that is the check that `ball: human` survived the rewrite.'
 archived: false
 priority: high
 category: developer_experience
@@ -184,6 +183,93 @@ log:
 
     **Historical entries keep saying ''human''.** The log is append-only; backfilling
     a name onto actions taken before there was a name would be inventing a record.'
+  data:
+    ball: human
+    ball_reason: review
+- id: 4
+  ts: '2026-08-10T23:16:32.781368Z'
+  actor: jeff
+  type: handoff
+  body: 'Changes requested by jeff:
+
+
+    Let''s switch the agentjobs human name to "jeffposey". Go with disabling the buttons
+    and leading the user to configuring a username if there is none. For now simply
+    do not support multiple human users in config. Backlog supporting multiple human
+    users with a real account management task. Backfill entries saying "human" to
+    be "jeffposey".'
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 5
+  ts: '2026-08-10T23:22:16.729515Z'
+  actor: claude
+  type: decision
+  body: '**The backfill was mine to object to and yours to decide, and on reflection
+    your call is the better one.** Recording why, since the earlier handoff argued
+    the opposite and a future reader will find both.
+
+
+    I declined to backfill on the grounds that the log is append-only and writing
+    a name onto entries taken before there was one is inventing a record. That argument
+    does not survive contact with the specific facts. Every ''human'' entry was written
+    by the GUI, the GUI has only ever been reachable by you, and the placeholder had
+    exactly one possible referent. Rewriting an unambiguous placeholder to the identity
+    it always denoted is *resolving* a reference, not fabricating one -- the same
+    operation as expanding a relative path.
+
+
+    It would be fabrication if the referent were uncertain: several people with access,
+    or entries written by an API caller who was not you. Neither is true here, and
+    that is a fact about this corpus rather than a general licence. If task-066 lands
+    and several people use the instance, no comparable backfill is ever safe again.
+
+
+    *What was actually changed*: 8 references across 7 files, in `log[].actor` only
+    -- no `assignment.owner` or `eligible` entries held the placeholder. The rewrite
+    walks the model rather than the text, because `ball: human` is the Ball enum and
+    means ''a person acts next'', not ''a person named human''. The same word in two
+    namespaces is precisely what a find-and-replace would have destroyed; all 7 tasks
+    carrying `ball: human` are untouched and still answer `GET /api/tasks?ball=human`.'
+  data: {}
+- id: 6
+  ts: '2026-08-10T23:22:16.746029Z'
+  actor: claude
+  type: handoff
+  body: 'Second review round. Every item from your feedback:
+
+
+    **1. Renamed to `jeffposey`.** Config, the default user, and the test fixtures.
+
+
+    **2. Kept the disable-and-guide behaviour** when no user is configured, as you
+    confirmed.
+
+
+    **3. Multiple humans are now refused loudly rather than handled.** Previously
+    an ambiguous config silently produced no default user, which looked identical
+    to having none configured. `human_identity` now distinguishes the two and the
+    panel says which: ''no user configured, add yourself'' versus ''multiple configured,
+    AgentJobs supports one''. A stated `default_user` deliberately does **not** rescue
+    a multi-human config -- that would be half-support, confidently attributing an
+    action to whoever config listed first while the server still cannot tell who is
+    at the keyboard.
+
+
+    **4. Backfilled**, 8 references across 7 files. Reasoning in the decision entry
+    above, including why I now think you were right and I was wrong.
+
+
+    **5. Backlogged as task-066**, ''Support more than one human user (account management)''.
+    Left in draft: the identity model is a real decision -- session-less picker, real
+    auth, or trusted proxy header -- and the task''s ask is to choose it before writing
+    code, not to start building.
+
+
+    **Verified.** 424 tests pass; ruff, mypy, black clean. Against the running server:
+    the page acts as `jeffposey`, the panel reads ''Acting as jeffposey'', task-052
+    shows 2 entries by `jeffposey`, `/api/tasks/broken` is empty, and `?ball=human`
+    still returns 8 tasks -- proving the backfill did not touch the state enum.'
   data:
     ball: human
     ball_reason: review

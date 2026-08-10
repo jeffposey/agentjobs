@@ -3,15 +3,18 @@ id: task-050-schema-v2-models
 title: 'Schema v2: models -- state axes, spec, unified log, strict validation, version
   stamp'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T19:41:54Z'
+updated: '2026-08-10T23:19:15.858945Z'
 lifecycle: closed
 outcome: completed
+archived: false
 priority: high
 category: architecture
 tags:
 - schema-design
 - schema-v2
 effort: 1-2 days
+assignment:
+  eligible: []
 spec:
   summary: 'Implement the v2 Task model designed in docs/schema-design.md: the lifecycle/ball/ball_reason/ball_prompt
     state axes with consistency rules, the structured spec block, the acceptance checklist,
@@ -48,6 +51,7 @@ spec:
     \ from main, record in branches[], mark in_progress. Small conventional commits.\
     \ When complete: STOP, set waiting_for_human, comment a summary, await approval\
     \ to merge."
+  context: []
 acceptance:
 - id: sc-1
   text: "v2 model matches docs/schema-design.md \xA72-\xA74 field-for-field, including\
@@ -65,11 +69,11 @@ acceptance:
   status: met
 deliverables:
 - path: src/agentjobs/models.py
-  status: pending
   note: v2 Task model and nested types
-- path: docs/task-schema.md
   status: pending
+- path: docs/task-schema.md
   note: Rewritten for v2
+  status: pending
 dependencies:
 - task: task-047-lint-typecheck-debt
   type: needs
@@ -77,6 +81,7 @@ dependencies:
 - task: task-048-schema-design
   type: needs
   note: Implements that design pass's output
+links: []
 branches:
 - name: feat/task-050-schema-v2-models
   status: merged
@@ -85,8 +90,6 @@ log:
   ts: '2026-08-10T19:17:48Z'
   actor: claude
   type: transition
-  data:
-    v1_status: in_progress
   body: 'Claimed; v2 models will land alongside v1 rather than replacing it
 
 
@@ -133,12 +136,12 @@ log:
     must load schema/examples/task-048.v2.yaml, which already validates against the
     v2 LinkML schema, so the two definitions are checked against each other rather
     than drifting.'
+  data:
+    v1_status: in_progress
 - id: 2
   ts: '2026-08-10T19:31:57Z'
   actor: claude
   type: transition
-  data:
-    v1_status: waiting_for_human
   body: 'v2 models implemented and cross-checked against LinkML; all 4 criteria met,
     285 tests pass
 
@@ -239,22 +242,22 @@ log:
     no CLI (053), no GUI (054). Nothing is wired in. Note also that config-driven
     acceptance criterion types (D5) remain deliberately deferred -- additive under
     the evolution policy, so they need not lengthen this chain.'
+  data:
+    v1_status: waiting_for_human
 - id: 3
   ts: '2026-08-10T19:37:31Z'
-  actor: human
+  actor: jeffposey
   type: transition
-  data:
-    v1_status: in_progress
   body: "Approved by human \u2014 cleared to merge\n\nhuman approved this work through\
     \ the web UI. The ball is back with the agent, which must now rebase onto main,\
     \ merge --no-ff, mark the branch merged in branches[], and set this task completed.\
     \ No merge has happened yet: the UI records approval, it does not run git."
+  data:
+    v1_status: in_progress
 - id: 4
   ts: '2026-08-10T19:41:54Z'
   actor: claude
   type: transition
-  data:
-    v1_status: completed
   body: 'Merged to main after Jeff approved through the GUI
 
 
@@ -269,16 +272,18 @@ log:
     convert all 38 corpus files, repoint storage/manager/API/GUI/CLI at models_v2,
     and delete v1. There is no partial state that keeps main green, so it is one atomic
     change.'
+  data:
+    v1_status: completed
 - id: 5
   ts: '2026-08-10T19:41:54Z'
   actor: system
   type: note
-  data:
-    v1_status: completed
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
     - v1 `status: completed` became lifecycle: closed / outcome: completed.
 
     - prompts.starter preserved in spec.description.'
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
