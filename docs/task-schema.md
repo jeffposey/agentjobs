@@ -1,14 +1,159 @@
 # Task Schema Reference
 
 Every task is a single YAML file. These files are the source of truth for the project —
-not a chat log, not an issue tracker. The schema below is defined by the Pydantic models
-in [`src/agentjobs/models.py`](../src/agentjobs/models.py), which is authoritative if
-this document ever drifts from it.
+not a chat log, not an issue tracker.
 
 Tasks live in the directory named by `tasks_directory` in `.agentjobs/config.yaml`
 (`tasks/agentjobs/` for this repo's own backlog). `TaskStorage` globs `*.yaml`
 non-recursively, so files in subdirectories are invisible to the store — that is how
 `tasks/test-data/` stays out of the real backlog.
+
+## Two schemas, briefly
+
+| | Defined by | State today |
+|---|---|---|
+| **[v2](#schema-v2)** | [`models_v2.py`](../src/agentjobs/models_v2.py) | Implemented and tested, **not yet in use**. No file on disk is v2 yet. |
+| **[v1](#schema-v1-current-on-disk-format)** | [`models.py`](../src/agentjobs/models.py) | What every task file currently contains, and what storage, the API and the GUI run on. |
+
+Both are documented because both are real right now. Task-051 converts the corpus and
+repoints the application at v2; when it lands, the v1 half of this page goes with it.
+
+A v2 file is identifiable at a glance: it starts with `schema: 2`. A file without that
+stamp is v1, and v2's loader refuses it by name rather than guessing
+(`agentjobs migrate-schema` converts it).
+
+The design behind v2, including the alternatives that were rejected, is in
+[schema-design.md](schema-design.md). This page is reference; that one is reasoning.
+
+---
+
+## Schema v2
+
+### The change everything follows from
+
+v1's single `status` answered three unrelated questions at once. v2 splits them:
+
+| Question | v2 field | Values |
+|---|---|---|
+| Where in its life? | `lifecycle` | `draft` · `ready` · `active` · `closed` |
+| Who acts next? | `ball` | `agent` · `human` · `external` — **required while open** |
+| Why do they hold it? | `ball_reason` | scoped to the holder, see below |
+| What must they do? | `ball_prompt` | prose — **required whenever the ball is set** |
+| How did it end? | `outcome` | `completed` · `cancelled` · `superseded` · `duplicate` |
+
+`archived` is a separate boolean, orthogonal to how the task ended.
+
+**`ball_reason` is scoped to whoever holds the ball.** `human/work` and `agent/review`
+are not representable:
+
+| `ball` | permitted `ball_reason` |
+|---|---|
+| `agent` | `available` · `work` · `revise` |
+| `human` | `spec` · `review` · `decision` · `approval` · `input` |
+| `external` | `dependency` · `service` |
+
+### Consistency rules
+
+Enforced by the model, not merely documented. These are what make limbo
+unrepresentable:
+
+1. `ball` is absent-or-null **if and only if** `lifecycle` is `closed`.
+2. `ball_reason` must belong to the current holder's vocabulary, and is required
+   whenever `ball` is set.
+3. `outcome` is set **if and only if** `lifecycle` is `closed`.
+4. `ball_prompt` is required whenever `ball` is set — except `agent/available`, where
+   the spec is itself the ask.
+5. `assignment.owner` must be empty while `draft` or `ready`, and present while
+   `active`.
+
+Null and absent mean the same thing for `ball`, `ball_reason` and `outcome`; omission
+is what the manager writes, and an explicit `null` is accepted on load.
+
+### Fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `schema` | int | Always `2`. Its absence means v1. |
+| `id`, `title`, `created`, `updated` | | As v1. |
+| `lifecycle`, `ball`, `ball_reason`, `ball_prompt`, `outcome`, `archived` | | The state axes, above. |
+| `priority` | enum | `low` · `medium` · `high` · `critical` |
+| `category`, `tags` | str, list | Project taxonomy. Validated against config by the manager, not the model. |
+| `effort` | str | Free text. An estimate, not a contract. |
+| `assignment` | object | `owner` (live, one actor id) and `eligible` (authoring-time list; empty means anyone). |
+| `parent` | str | Task id of an umbrella task. A task may not be its own parent. |
+| `spec` | object | See below. |
+| `acceptance[]` | list | `id`, `text`, optional `verify`, `status`: `pending` · `met` · `failed` · `dropped`. |
+| `deliverables[]` | list | `path`, `note`, `status`: `pending` · `done` · `dropped`. |
+| `dependencies[]` | list | `task`, `type`: `needs` · `blocks` · `related`, `note`. |
+| `links[]` | list | `url` (validated), `rel`: `pr` · `issue` · `doc` · `design` · `build` · `other`, `title`. |
+| `branches[]` | list | `name`, `status`: `active` · `merged` · `abandoned`, `merged_at`. |
+| `log[]` | list | The unified log. See below. |
+
+`acceptance` and `deliverables` keep separate vocabularies on purpose: a criterion is
+*verified* (`met`), a deliverable is *produced* (`done`).
+
+### `spec`
+
+One blob became six fields, split along the questions an agent actually asks:
+
+| Field | Answers |
+|---|---|
+| `summary` | what is this, in two sentences (**required**) |
+| `intent` | **why** does this task exist |
+| `description` | **what** to do |
+| `constraints` | hard requirements and prohibitions |
+| `out_of_scope` | explicit non-goals |
+| `context[]` | `{path, why}` — read these first, and why |
+
+### `log[]`
+
+One append-only typed log replaces v1's `status_updates`, `comments` and
+`prompts.followups`.
+
+```yaml
+log:
+  - id: 4                     # per-task integer, unique and ascending
+    ts: '2026-07-29T18:35:00Z'
+    actor: claude             # bare id; kind is resolved from config
+    type: handoff
+    re: 2                     # optional: threads to an earlier entry
+    data: {ball: human, ball_reason: review}
+    body: |
+      Branch complete and verified. Need: review the diff, approve or request changes.
+```
+
+Types: `note` · `progress` · `transition` · `handoff` · `decision` · `question` ·
+`answer` · `instruction`.
+
+Integrity rules, enforced: ids are unique and ascending, and `re:` must reference an
+**earlier** entry that exists. An open `question` is one with no `answer` threaded to
+it, which makes unresolved threads queryable.
+
+### `display_status`
+
+Computed on read, never stored — `Needs review`, `In progress (claude)`,
+`Blocked on task-044`, `Ready`, `Completed`. A stored copy of three fields is a drift
+bug waiting for its moment.
+
+### Gone from v2
+
+`phases` · `prompts` · `issues` · `comments` · `status_updates` · `human_summary` ·
+`dependencies[].status` · the `Comment` model. Unknown fields are rejected outright
+(`extra="forbid"`), so a stale key fails by name rather than being silently ignored.
+
+A complete worked example is
+[`schema/examples/task-048.v2.yaml`](https://github.com/jeffposey/agentjobs/blob/main/schema/examples/task-048.v2.yaml)
+— this repo's own design task, converted, annotated inline.
+
+---
+
+## Schema v1 (current on-disk format)
+
+!!! note "This is what your files contain today"
+    Everything below describes v1, which every task file currently uses and which
+    storage, the manager, the API and the GUI still run on. It is defined by
+    [`src/agentjobs/models.py`](../src/agentjobs/models.py), authoritative if this
+    document drifts. Task-051 migrates the corpus to v2 and retires this section.
 
 ## Minimal task
 

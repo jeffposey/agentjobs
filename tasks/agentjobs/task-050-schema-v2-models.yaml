@@ -1,87 +1,236 @@
 id: task-050-schema-v2-models
-title: 'Schema v2: models -- state axes, spec, unified log, strict validation, version stamp'
+title: 'Schema v2: models -- state axes, spec, unified log, strict validation, version
+  stamp'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-07-29T20:45:00Z'
-status: draft
+updated: '2026-08-10T19:41:54.134276Z'
+status: completed
 priority: high
 category: architecture
 estimated_effort: 1-2 days
 human_summary: 'Implement the v2 Task model designed in docs/schema-design.md: the
   lifecycle/ball/ball_reason/ball_prompt state axes with consistency rules, the structured
   spec block, the acceptance checklist, the unified append-only log, assignment (owner
-  + eligible), parent, the schema: 2 stamp, and strict validation. Models only -- the
-  migrator, manager/API behavior, CLI, and GUI are separate downstream tasks.'
-description: 'Implement the v2 Pydantic models exactly as specified in docs/schema-design.md
-  (the accepted design; D1-D3 resolved in its §11). This task is the model layer only.
-
-
-  Scope (docs/schema-design.md sections in parentheses):
-
-  - State axes (§3): lifecycle, ball, ball_reason (scoped vocabularies), ball_prompt,
-  outcome, archived; the five consistency rules, model-enforced.
-
-  - spec block (§2): summary, intent, description, constraints, out_of_scope, context
-  pointers.
-
-  - acceptance (§2): pending|met|failed|dropped, optional verify hint. deliverables:
-  pending|done|dropped.
-
-  - Unified log (§4): typed entries (note, progress, transition, handoff, decision,
-  question, answer, instruction), typed actors, per-task integer ids, re: threading.
-
-  - assignment (owner/eligible), parent, dependencies (task, type: needs|blocks|related,
-  note), links (rel vocabulary, real URL validation), branches (unchanged).
-
-  - schema: 2 stamp (§8): loader refuses files without it, with a loud error pointing
-  at `agentjobs migrate-schema`.
-
-  - Strict mode (§11 D2): extra="forbid" everywhere; violations are errors at load
-  and save.
-
-  - Computed display_status (§3), derived, never stored.
-
-  - Deletions (§11 D1): phases, prompts, issues, Comment, Dependency.status, human_summary
-  do not exist in v2.
-
-  - Regenerate/rewrite docs/task-schema.md to describe v2 (task-044 stretch goal folded
-  in here).
-
-
-  Out of scope: the corpus migrator (task-051), manager/API operations and taxonomy
-  config validation (task-052), CLI (task-053), GUI (task-054).
-
-
-  Note: the corpus test (tests/test_task_corpus.py) will fail against v1 files once
-  the v2 model lands -- coordinate with task-051, which migrates the corpus and updates
-  that test. Land 050 and 051 on one branch if the intermediate red state proves awkward
-  to review; they remain separate commits/reviews either way.
-
-
-  **Gated:** do not start until task-047 (enum typing) merges -- v2 wants honestly-typed
-  enums underneath it.'
+  + eligible), parent, the schema: 2 stamp, and strict validation. Models only --
+  the migrator, manager/API behavior, CLI, and GUI are separate downstream tasks.'
+description: "Implement the v2 Pydantic models exactly as specified in docs/schema-design.md\
+  \ (the accepted design; D1-D3 resolved in its \xA711). This task is the model layer\
+  \ only.\n\nScope (docs/schema-design.md sections in parentheses):\n- State axes\
+  \ (\xA73): lifecycle, ball, ball_reason (scoped vocabularies), ball_prompt, outcome,\
+  \ archived; the five consistency rules, model-enforced.\n- spec block (\xA72): summary,\
+  \ intent, description, constraints, out_of_scope, context pointers.\n- acceptance\
+  \ (\xA72): pending|met|failed|dropped, optional verify hint. deliverables: pending|done|dropped.\n\
+  - Unified log (\xA74): typed entries (note, progress, transition, handoff, decision,\
+  \ question, answer, instruction), typed actors, per-task integer ids, re: threading.\n\
+  - assignment (owner/eligible), parent, dependencies (task, type: needs|blocks|related,\
+  \ note), links (rel vocabulary, real URL validation), branches (unchanged).\n- schema:\
+  \ 2 stamp (\xA78): loader refuses files without it, with a loud error pointing at\
+  \ `agentjobs migrate-schema`.\n- Strict mode (\xA711 D2): extra=\"forbid\" everywhere;\
+  \ violations are errors at load and save.\n- Computed display_status (\xA73), derived,\
+  \ never stored.\n- Deletions (\xA711 D1): phases, prompts, issues, Comment, Dependency.status,\
+  \ human_summary do not exist in v2.\n- Regenerate/rewrite docs/task-schema.md to\
+  \ describe v2 (task-044 stretch goal folded in here).\n\nOut of scope: the corpus\
+  \ migrator (task-051), manager/API operations and taxonomy config validation (task-052),\
+  \ CLI (task-053), GUI (task-054).\n\nNote: the corpus test (tests/test_task_corpus.py)\
+  \ will fail against v1 files once the v2 model lands -- coordinate with task-051,\
+  \ which migrates the corpus and updates that test. Land 050 and 051 on one branch\
+  \ if the intermediate red state proves awkward to review; they remain separate commits/reviews\
+  \ either way.\n\n**Gated:** do not start until task-047 (enum typing) merges --\
+  \ v2 wants honestly-typed enums underneath it."
 phases: []
 success_criteria:
 - id: sc-1
-  description: v2 model matches docs/schema-design.md §2-§4 field-for-field, including
-    all five consistency rules and the scoped ball_reason vocabularies
-  status: pending
+  description: "v2 model matches docs/schema-design.md \xA72-\xA74 field-for-field,\
+    \ including all five consistency rules and the scoped ball_reason vocabularies"
+  status: completed
 - id: sc-2
-  description: 'Strict everywhere: unknown fields rejected; a file without schema: 2
-    fails with an error naming agentjobs migrate-schema'
-  status: pending
+  description: 'Strict everywhere: unknown fields rejected; a file without schema:
+    2 fails with an error naming agentjobs migrate-schema'
+  status: completed
 - id: sc-3
   description: display_status is computed, not stored, and covered by tests
-  status: pending
+  status: completed
 - id: sc-4
   description: docs/task-schema.md documents v2 and matches the model
-  status: pending
+  status: completed
 prompts:
-  starter: 'Implement the v2 models per docs/schema-design.md (the design is decided;
-    do not relitigate §7/§11). Branch `feat/task-050-schema-v2-models` from main, record
-    in branches[], mark in_progress. Small conventional commits. When complete: STOP,
-    set waiting_for_human, comment a summary, await approval to merge.'
+  starter: "Implement the v2 models per docs/schema-design.md (the design is decided;\
+    \ do not relitigate \xA77/\xA711). Branch `feat/task-050-schema-v2-models` from\
+    \ main, record in branches[], mark in_progress. Small conventional commits. When\
+    \ complete: STOP, set waiting_for_human, comment a summary, await approval to\
+    \ merge."
   followups: []
-status_updates: []
+status_updates:
+- timestamp: '2026-08-10T19:17:48.534164Z'
+  author: claude
+  status: in_progress
+  summary: Claimed; v2 models will land alongside v1 rather than replacing it
+  details: 'Branch feat/task-050-schema-v2-models created from main at the task-061
+    merge, recorded in branches[] before this transition. Gate satisfied: task-047
+    merged, so enums are honestly typed underneath this.
+
+
+    SCOPE DECISION, made before writing code, because the task''s own note understates
+    the problem.
+
+
+    The task says the corpus test ''will fail against v1 files once the v2 model lands''.
+    Measured, it is much larger than that: 26 modules import models, there are roughly
+    180 references to fields v2 deletes (phases 25/6/4, prompts 65/25/7, human_summary
+    17/5/4, across src/tests/templates), and 38 corpus files are v1. Replacing models.py
+    in place would break storage, manager, every API route, every template, the CLI
+    and the whole suite at once, and main would stay red until task-052 lands three
+    tasks later. That violates ''tests pass before every commit'' for days.
+
+
+    So v2 lands as a NEW module, src/agentjobs/models_v2.py, with v1 left untouched
+    and still running the application. The repo stays green at every commit and this
+    task stays independently reviewable, which is what its sizing intended.
+
+
+    This is explicitly task-050''s call to make: docs/index.md says ''Whether generated
+    models become the real models.py or stay a reference is task-050''s call.'' The
+    deliverable path in the task record says models.py; I am changing it to models_v2.py
+    and recording why here rather than silently.
+
+
+    Consequence handed to task-051: it now owns the switchover as well as the migrator
+    -- convert the corpus, then repoint storage and everything downstream at v2 and
+    delete v1. That makes 051 bigger than originally sized. Flagging it now rather
+    than at handoff.
+
+
+    Approach: hand-write the Pydantic models from docs/schema-design.md rather than
+    adopting schema/generated/models_v2_preview.py, because the design needs things
+    gen-pydantic does not express -- the five consistency rules as validators, ball_reason
+    scoped to the ball holder, extra=forbid, and a computed display_status. The generated
+    file stays as reference. Acceptance test that matters: the hand-written model
+    must load schema/examples/task-048.v2.yaml, which already validates against the
+    v2 LinkML schema, so the two definitions are checked against each other rather
+    than drifting.'
+- timestamp: '2026-08-10T19:31:57.475860Z'
+  author: claude
+  status: waiting_for_human
+  summary: v2 models implemented and cross-checked against LinkML; all 4 criteria
+    met, 285 tests pass
+  details: 'Three commits on feat/task-050-schema-v2-models. 285 tests pass (79 new);
+    ruff, mypy and black clean across 59 files. The running application is unaffected
+    -- verified by starting the server and hitting the dashboard, both projects, /api/projects
+    and /health after the change.
+
+
+    ## The scope decision, which is the main thing to review
+
+
+    v2 landed as a NEW module, src/agentjobs/models_v2.py. v1 is untouched and still
+    runs everything.
+
+
+    The task said replacing models.py would fail the corpus test. Measured, it is
+    much bigger: 26 modules import models, roughly 180 references to deleted fields
+    across src/tests/templates, and 38 v1 corpus files. Replacing in place breaks
+    storage, the manager, every route, every template and the CLI in one commit, and
+    main stays red until task-052 lands two tasks later. That is days of a broken
+    main in exchange for nothing.
+
+
+    docs/index.md explicitly assigns this call to task-050 (''Whether generated models
+    become the real models.py or stay a reference is task-050''s call''), so I made
+    it rather than escalating. The task''s deliverable said models.py; it is models_v2.py,
+    recorded here rather than silently.
+
+
+    Consequence, and it needs your awareness: task-051 now owns the switchover as
+    well as the migrator -- convert the corpus, repoint storage and everything downstream,
+    delete v1. That makes 051 materially bigger than its original sizing. It is the
+    right place for it, because the migration and the switchover have to be atomic
+    to keep main green, but it is no longer a small task.
+
+
+    ## What is enforced
+
+
+    The five consistency rules from design doc section 3, which are the design''s
+    actual claim -- that limbo is unrepresentable. An open task with no ball, a ball_reason
+    belonging to a different holder, a handoff with no ask, an outcome on an open
+    task, and an active task with no owner are all now impossible to construct. Errors
+    name what is wrong and what is permitted instead, because the reader is usually
+    an agent that has never opened the design doc.
+
+
+    ## Two things I added beyond the written spec
+
+
+    1. Log integrity rules the design implies but never states: entry ids unique and
+    ascending, and `re:` must point at an earlier entry that exists. An append-only
+    log that can thread forward, or to nothing, is not append-only. Flagging it because
+    it is a design decision I made rather than implemented.
+
+    2. ball_reason is one flat enum plus a scoping table rather than three separate
+    enums, so the field has a single type while still being unable to hold human/work.
+    The alternative (three enums, a union field) would have made every read site do
+    the narrowing.
+
+
+    ## Cross-checked in both directions
+
+
+    The Pydantic model loads schema/examples/task-048.v2.yaml, which linkml-validate
+    accepts -- so LinkML''s definition and mine agree on what a task is. And what
+    Pydantic *dumps* still validates against schema/agentjobs-v2.yaml, which is the
+    direction that actually rots. That second test has a companion asserting the check
+    can fail, so it cannot silently become a no-op.
+
+
+    ## Documentation
+
+
+    docs/task-schema.md now covers both versions rather than only v2. Documenting
+    only v2 would leave the live on-disk format undocumented for the two tasks it
+    takes to switch over. The v1 half carries a banner and goes away with task-051.
+    Three tests guard the page against drift: every enum value and every Task field
+    must appear on it.
+
+
+    ## A mistake worth recording
+
+
+    While mutation-testing the doc guard I ran `git checkout -- docs/task-schema.md`
+    to undo the deliberate breakage, and reverted the entire uncommitted v2 rewrite
+    with it. Redone, and nothing was lost, but the lesson is real: commit before mutation-testing,
+    or mutate a copy. This is the second time this session that a cleanup command
+    has been more destructive than intended.
+
+
+    ## Not done here, by scope
+
+
+    No migrator (051), no manager/API operations or taxonomy config validation (052),
+    no CLI (053), no GUI (054). Nothing is wired in. Note also that config-driven
+    acceptance criterion types (D5) remain deliberately deferred -- additive under
+    the evolution policy, so they need not lengthen this chain.'
+- timestamp: '2026-08-10T19:37:31.323249Z'
+  author: human
+  status: in_progress
+  summary: "Approved by human \u2014 cleared to merge"
+  details: 'human approved this work through the web UI. The ball is back with the
+    agent, which must now rebase onto main, merge --no-ff, mark the branch merged
+    in branches[], and set this task completed. No merge has happened yet: the UI
+    records approval, it does not run git.'
+- timestamp: '2026-08-10T19:41:54.075283Z'
+  author: claude
+  status: completed
+  summary: Merged to main after Jeff approved through the GUI
+  details: 'Rebased onto main, merged --no-ff, branch marked merged and deleted locally.
+    Nothing pushed to origin.
+
+
+    Second approval driven from the web UI rather than chat.
+
+
+    Carried forward to task-051, which now owns the switchover as well as the migrator:
+    convert all 38 corpus files, repoint storage/manager/API/GUI/CLI at models_v2,
+    and delete v1. There is no partial state that keeps main green, so it is one atomic
+    change.'
 comments: []
 deliverables:
 - path: src/agentjobs/models.py
@@ -93,7 +242,7 @@ deliverables:
 dependencies:
 - task_id: task-047-lint-typecheck-debt
   type: depends_on
-  note: Honestly-typed enums land first (docs/schema-design.md §10)
+  note: "Honestly-typed enums land first (docs/schema-design.md \xA710)"
 - task_id: task-048-schema-design
   type: depends_on
   note: Implements that design pass's output
@@ -102,4 +251,6 @@ issues: []
 tags:
 - schema-design
 - schema-v2
-branches: []
+branches:
+- name: feat/task-050-schema-v2-models
+  status: merged
