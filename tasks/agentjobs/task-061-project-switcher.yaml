@@ -1,8 +1,8 @@
 id: task-061-project-switcher
 title: 'GUI: project switcher and project-scoped URLs'
 created: '2026-08-10T19:00:24Z'
-updated: '2026-08-10T19:02:09.753675Z'
-status: in_progress
+updated: '2026-08-10T19:13:44.644262Z'
+status: waiting_for_human
 priority: high
 category: ux
 estimated_effort: 1 working session
@@ -90,35 +90,35 @@ success_criteria:
 - id: sc-1
   description: A project switcher appears in the base layout on every page, lists
     every registered project, and marks the active one
-  status: pending
+  status: completed
 - id: sc-2
   description: /p/{project_id}/ serves dashboard, task list and task detail scoped
     to that project
-  status: pending
+  status: completed
 - id: sc-3
   description: Legacy unscoped URLs redirect to the default project rather than 404ing
     or silently serving the wrong one
-  status: pending
+  status: completed
 - id: sc-4
   description: 'Verified with two projects containing the same task id: every link
     and every review action reaches the correct project''s task'
-  status: pending
+  status: completed
 - id: sc-5
   description: Review action buttons address the project explicitly, closing task-059's
     deferred sc-5
-  status: pending
+  status: completed
 - id: sc-6
   description: An install with no registry and a single project still works unchanged
     through the legacy URLs
-  status: pending
+  status: completed
 - id: sc-7
   description: poetry run pytest passes; ruff, mypy and black stay clean
-  status: pending
+  status: completed
 - id: sc-8
   description: 'Verified in a browser the way the gap was found: with agentjobs and
     a second project registered, switch between them and confirm each shows its own
     tasks'
-  status: pending
+  status: completed
 prompts:
   starter: '## Objective
 
@@ -177,6 +177,88 @@ status_updates:
     review action buttons at the scoped API to close task-059''s deferred sc-5. Verify
     with two real registered projects that share a task id -- the fixture from tests/test_api_multiproject.py
     already does this for the API.'
+- timestamp: '2026-08-10T19:13:44.644235Z'
+  author: claude
+  status: waiting_for_human
+  summary: Project switcher done; all 8 criteria met, 206 tests pass
+  details: 'There is now a project chooser. Two commits on feat/task-061-project-switcher.
+    206 tests pass (19 new); ruff, mypy and black clean across 57 files.
+
+
+    ## What you can do now
+
+
+    Start the server and pick a project from the header dropdown. Each project shows
+    only its own tasks. Verified live with this repo (31 tasks) and a sandbox project
+    (1 task) registered simultaneously.
+
+
+    - /p/{project_id}/ , /p/{project_id}/tasks , /p/{project_id}/tasks/{task_id} are
+    the canonical pages.
+
+    - Old URLs (/, /tasks, /tasks/{id}) redirect into the resolved default project,
+    so bookmarks keep working. Query strings survive.
+
+    - If no default resolves -- several projects registered and the server started
+    outside all of them -- you get a "Choose a project" page listing each with its
+    task count and how many are waiting on you, rather than a guess or an error.
+
+
+    ## Two design decisions worth reviewing
+
+
+    1. Legacy URLs redirect rather than render. The alternative was mounting the web
+    router twice like the API routers. Redirecting means one canonical URL per page,
+    so a saved link can never quietly show a different project than it did last time.
+    307 rather than 302 because the target is resolved per request from the working
+    directory and the registry -- it is not a permanent property of the URL and must
+    not be cached.
+
+    2. The ambiguous case gets a picker, not a 409. A bare error is a poor landing
+    page when the answer is simply "choose", and guessing would mean silently showing
+    you another project''s work.
+
+
+    ## Two bugs the new tests caught, both mine
+
+
+    - The implicit single-project id was ".", so the redirect target "/p/./tasks"
+    normalises to "/p/tasks" and single-project installs broke the instant pages became
+    scoped. Now "_local": still illegal as a registry id because of the leading underscore,
+    but URL-safe.
+
+    - _redirect_to_default called ProjectRegistry.resolve_default directly, which
+    knows nothing about implicit single-project mode, so it reported "no projects
+    registered" for an install that has one. All default resolution now goes through
+    one try_resolve_default_project, with the raising 409 variant built on top. While
+    fixing that I briefly lost the part of the 409 message that names the candidate
+    projects; the test caught it and it is restored.
+
+
+    ## Closed from another task
+
+
+    task-059''s deferred sc-5. The Approve / Request Changes / Reject buttons now
+    POST to /api/projects/{id}/... . Previously they only worked because the server
+    happened to run from the project being reviewed.
+
+
+    ## Limit of my verification
+
+
+    I checked status codes, emitted markup and rendered HTML, and confirmed a planted
+    colliding task id (the same id in both projects) resolves to the right one on
+    each. I cannot see the page -- whether the switcher looks right is yours to judge.
+
+
+    ## Not done here
+
+
+    The hierarchical task tree with expandable subtasks is task-058 and still needs
+    schema v2''s parent field. That is the remaining half of your GUI design.
+
+
+    Next up per your instruction: task-050, the v2 models.'
 comments: []
 deliverables:
 - path: src/agentjobs/api/routes/web.py
