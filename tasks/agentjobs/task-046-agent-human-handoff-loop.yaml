@@ -2,10 +2,11 @@ schema: 2
 id: task-046-agent-human-handoff-loop
 title: Formalize the agent-to-human handoff loop (status + notification, chat-independent)
 created: '2026-07-20T20:10:26Z'
-updated: '2026-08-11T05:55:51.915979Z'
-lifecycle: ready
+updated: '2026-08-11T06:01:49.509391Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: developer_experience
@@ -16,8 +17,10 @@ tags:
 - workflow
 effort: 1-2 hours
 assignment:
+  owner: codex
   eligible:
   - claude
+  - codex
 spec:
   summary: Right now the human-review step in the agent workflow (see [[merge-gate-workflow]]
     convention) has been happening informally through chat narration ('I'm stopping
@@ -123,7 +126,9 @@ dependencies:
   note: Added 2026-07-29 -- the loop this documents is v2's handoff machinery (docs/schema-design.md
     section 5); document and exercise it once it exists
 links: []
-branches: []
+branches:
+- name: docs/task-046-agent-human-handoff-loop
+  status: active
 log:
 - id: 1
   ts: '2026-07-29T20:47:00Z'
@@ -178,3 +183,20 @@ log:
     covering the handoff rules. That would have retired the task while leaving the
     wrong half of its scope shipped and wrong.'
   data: {}
+- id: 3
+  ts: '2026-08-11T06:01:48.799542Z'
+  actor: codex
+  type: decision
+  body: 'Jeff explicitly assigned task 046 to this Codex session. Added codex to assignment.eligible
+    while preserving claude, then attached docs/task-046-agent-human-handoff-loop.
+    Rejected alternative: impersonating claude to bypass the eligibility gate.'
+  data: {}
+- id: 4
+  ts: '2026-08-11T06:01:49.509283Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
