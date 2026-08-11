@@ -1,0 +1,176 @@
+schema: 2
+id: task-080-dispatch-model-profiles
+title: Design dispatch profiles for model, reasoning, and task difficulty
+created: '2026-08-11T03:14:06.695530Z'
+updated: '2026-08-11T03:14:06.696258Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: architecture
+tags:
+- dispatch
+- architecture
+- model-selection
+- cost-control
+- agent-routing
+effort: one design session, then derive implementation tasks
+assignment:
+  eligible: []
+spec:
+  summary: Add named, selectable dispatch policy profiles that translate a portable
+    task difficulty hint into a concrete runner, model, and reasoning-effort choice.
+    Profiles express cost/quality posture; task files do not hard-code vendor models.
+  intent: 'Let a user state a cost/quality preference once and let each task state
+    its difficulty in portable terms. Dispatch can then spend deliberately: economical
+    models for routine work, stronger models and higher reasoning for difficult work,
+    and an auditable explanation of every choice.'
+  description: 'Raised by Jeff on 2026-08-10. The dispatcher currently resolves one
+    runner per project, but that is too blunt: easy work and difficult architecture
+    work should not automatically consume the same model, and users should be able
+    to choose a recognizable cost/quality posture without specifying provider flags
+    on every dispatch.
+
+
+    Examples of the intended experience are named profiles such as financially conservative
+    and balanced (a mid-tier model for easier work, a frontier model for harder work),
+    maximum quality (the strongest available model for every task), or a high-usage
+    posture tied to an account''s available capacity. Product names like Claude Sonnet/Opus
+    and GPT/Codex model variants are examples of profile data, not schema vocabulary;
+    the available names and controls will change.
+
+
+    ## Design questions to resolve
+
+
+    1. Define a portable task-level difficulty vocabulary. T-shirt sizes are a candidate,
+    but the design must say what the levels mean, how an agent or human assigns them,
+    and how difficulty differs from `priority`, free-text `effort`, risk, and acceptance
+    completeness.
+
+    2. Define named policy profiles in machine-local dispatch configuration. A profile
+    maps difficulty and runner capabilities to a provider/model/reasoning-effort launch
+    choice.
+
+    3. Define selection precedence: machine default, project default, a profile chosen
+    for one dispatch, and any explicit one-run override. State what happens when difficulty
+    is absent or a profile has no matching rule.
+
+    4. Define a deterministic resolver that produces a launch plan before anything
+    starts. The plan must be explainable and previewable: which profile and difficulty
+    were used, which rule matched, and the exact runner/model/reasoning settings that
+    resulted.
+
+    5. Define the audit trail. Dispatch and dispatch-result information should preserve
+    both the declared inputs and the resolved choice so later readers can answer why
+    a particular model and effort level were used.
+
+    6. Define the CLI and GUI workflow for choosing a profile, seeing the default,
+    and previewing the resolved choice before a manual dispatch. Auto-dispatch and
+    bounded agent loops must use the same resolver, not a parallel policy path.
+
+    7. Inspect the current Claude Code and Codex CLI surfaces rather than assuming
+    their flags compose the same way. The abstraction should support provider-specific
+    launch capabilities without turning the generic runner interface into a lowest-common-denominator
+    string bag.
+
+
+    This is a design amendment first. Once the policy and security boundary are settled,
+    amend the existing dispatch tasks or derive narrowly scoped implementation tasks
+    rather than silently expanding several tasks at once.
+
+    '
+  constraints: '- Versioned task data may carry portable difficulty metadata, but
+    never executable argv, credentials, account details, or a machine-specific model
+    command.
+
+    - Concrete profiles and provider/model identifiers are machine-local capability
+    configuration for the same security reason runner definitions are machine-local.
+
+    - Missing or invalid mappings must produce a visible refusal or an explicitly
+    designed safe fallback; they must not silently select a more expensive model.
+
+    - Keep model and reasoning effort as separate resolved dimensions where a provider
+    supports both.
+
+    - Preserve the generic runner/capability abstraction chosen by task-077; Claude
+    may be the first implementation but must not be baked into task schema vocabulary.
+
+    - Difficulty is not priority, elapsed effort, risk, or a substitute for executable
+    acceptance criteria.'
+  out_of_scope: '- Automatically predicting difficulty from task prose.
+
+    - Live price shopping, quota scraping, or provider benchmarking.
+
+    - Hard-coding today''s commercial model catalog into the task schema.
+
+    - Implementing the full dispatcher, auto-dispatch, or agent-loop runtime in this
+    design task.'
+  context: []
+acceptance:
+- id: sc-1
+  text: The design chooses and defines a structured, portable task difficulty vocabulary,
+    including assignment ownership, absent/unknown behavior, and its distinction from
+    priority and effort
+  status: pending
+- id: sc-2
+  text: A machine-local named-profile schema and explicit precedence rules cover machine
+    and project defaults, per-dispatch selection, one-run overrides, and incomplete
+    mappings
+  status: pending
+- id: sc-3
+  text: A deterministic resolution algorithm produces an explainable launch plan containing
+    runner, provider/model, and reasoning effort; refusal and fallback behavior are
+    specified
+  status: pending
+- id: sc-4
+  text: Current Claude Code and Codex model/reasoning controls are verified from their
+    actual installed CLI or primary documentation, with capability differences recorded
+    rather than guessed
+  status: pending
+- id: sc-5
+  text: 'The security boundary is explicit and tested in the design: a cloned repository
+    or task may declare difficulty but cannot introduce a command, provider credential,
+    or unapproved machine-local model target'
+  status: pending
+- id: sc-6
+  text: Dispatch audit data records declared difficulty, selected profile, matched
+    rule, resolved model/reasoning settings, and override provenance so the choice
+    can be reconstructed later
+  status: pending
+- id: sc-7
+  text: CLI and GUI flows allow choosing and previewing profiles, and existing dispatch
+    tasks are amended or follow-up tasks are created to provide a reviewable implementation
+    path
+  status: pending
+deliverables:
+- path: docs/agent-dispatch-design.md
+  note: Model-selection profile and task-difficulty design amendment
+  status: pending
+dependencies:
+- task: task-060-agent-dispatch
+  type: related
+  note: Amends the approved dispatch design with model-selection policy.
+- task: task-068-dispatch-config
+  type: related
+  note: Profiles extend machine-local runner configuration and resolution.
+- task: task-069-dispatch-log-entries
+  type: related
+  note: Resolved model policy belongs in dispatch audit data.
+- task: task-073-dispatch-gui
+  type: related
+  note: The GUI needs profile selection and launch-plan preview.
+- task: task-077-dispatch-session-launcher
+  type: related
+  note: Profile resolution must target the runner capability abstraction selected
+    here.
+- task: task-078-agent-loops
+  type: related
+  note: Bounded loops should use the same model policy resolver on every iteration.
+links:
+- url: https://github.com/jeffposey/agentjobs/blob/main/docs/agent-dispatch-design.md
+  rel: design
+  title: Agent dispatch design
+branches: []
+log: []
