@@ -2,14 +2,13 @@ schema: 2
 id: task-046-agent-human-handoff-loop
 title: Formalize the agent-to-human handoff loop (status + notification, chat-independent)
 created: '2026-07-20T20:10:26Z'
-updated: '2026-08-11T06:12:26.262217Z'
+updated: '2026-08-11T06:15:45.620926Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Review branch docs/task-046-agent-human-handoff-loop (commit a9e19cd
-  was rebased; use the branch tip). Confirm the schema-v2 workflow rewrite, handoff/notification
-  rules, dispatch-guide pointer, regression test, and task-044 summary repair. Approve
-  the merge or request specific changes. Do not expect a merge yet.
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 category: developer_experience
@@ -378,3 +377,11 @@ log:
   body: Review branch tip is d37cbe0. The handoff prompt retains pre-rebase commit
     a9e19cd only as provenance and explicitly directs review to the branch tip.
   data: {}
+- id: 12
+  ts: '2026-08-11T06:15:45.620813Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
