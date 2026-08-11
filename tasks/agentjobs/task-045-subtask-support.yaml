@@ -3,13 +3,10 @@ id: task-045-subtask-support
 title: Sub-task behavior atop schema v2 (get_subtasks, umbrella non-claimability,
   ?parent= filter, GUI)
 created: '2026-07-06T19:25:45Z'
-updated: '2026-08-10T22:34:19.800775Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: 'Specified and ready to work, but gated: do not start until task-052
-  merges. Confirm the umbrella plan (parent the schema-v2 chain 050-054 under a new
-  task-063-schema-v2) and move this to ready once 052 is in.'
+updated: '2026-08-11T02:36:59.900866Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: high
 category: infrastructure
@@ -168,3 +165,44 @@ log:
   data:
     ball: human
     ball_reason: spec
+- id: 3
+  ts: '2026-08-11T02:36:59.900788Z'
+  actor: claude
+  type: note
+  body: 'Gate satisfied and promoted to ready. Two things changed since this was last
+    groomed, and the second changes how the work should be done.
+
+
+    **1. The gate is clear.** All five `needs` dependencies are closed/completed:
+    042, 043, 044, 048 and 052 (052 merged 2026-08-10). The old ball_prompt asked
+    Jeff to confirm the umbrella plan and move this to ready; he gave the go-ahead
+    on 2026-08-11 (''yes, readme and parent child work''). Proceeding with the umbrella
+    plan exactly as specified below -- parenting 050-054 under a new `task-063-schema-v2`.
+    That id is still free (verified: no such task exists). If Jeff dislikes the choice
+    of umbrella it is a one-line change, so it is not worth blocking on.
+
+
+    **2. This is now on the critical path for the project''s public face, and the
+    spec''s framing of the UI is out of date.** The description below says the Jinja
+    UI is ''minimal -- the React frontend will replace it''. That was true when it
+    was written and is not the operative fact now. Hierarchical tasks are the most
+    distinctive thing AgentJobs does, and task-079 rewrites the README around a screenshot
+    of exactly this view.
+
+
+    So the children list and parent link are not throwaway scaffolding -- they are
+    the screenshot. Build them to be looked at by a stranger who has never seen the
+    project: sensible typography, readable hierarchy, `display_status` badges that
+    make state obvious at a glance. The owner''s assessment of the current UI is ''a
+    bit large fonted and non professional looking'', so restraint on font sizes is
+    a concrete, stated ask.
+
+
+    **Verification note.** ENGINEERING.md''s rule applies with force here: assert
+    on rendered values, not on the presence of markup. A test that finds `data-status=`
+    while the template emits `Lifecycle.READY` passes and proves nothing. Confirmed
+    current state before starting: `parent` exists on the model (models_v2.py:398)
+    and validates against self-parenting, no task in the corpus sets it, there is
+    no `get_subtasks` in manager.py, and nothing in the templates renders it. Everything
+    in this spec is still unbuilt.'
+  data: {}

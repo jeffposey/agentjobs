@@ -1,0 +1,140 @@
+schema: 2
+id: task-079-readme-and-screenshot
+title: Rewrite the README front page around what makes AgentJobs different, with a
+  screenshot
+created: '2026-08-11T02:36:59.915733Z'
+updated: '2026-08-11T02:36:59.916419Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: documentation
+tags:
+- documentation
+- ux
+- public-face
+assignment:
+  eligible: []
+spec:
+  summary: The README opens with 'Lightweight task management system designed for
+    AI agent workflows' and a six-bullet feature list -- Structured Task Data, Browser-Based
+    GUI, REST API, Git-Friendly -- that describes every task tracker ever written.
+    There are no images and no link to the design documents. A first-time reader sees
+    a generic todo app and leaves before finding the three design docs that are the
+    project's strongest asset.
+  description: 'Raised 2026-08-11. The README is the project''s front page and currently
+    undersells it badly. This is the highest-leverage hour available to the project,
+    and it is a documentation task.
+
+
+    ## The diagnosis
+
+
+    Current front page, verbatim opening:
+
+
+    > AgentJobs -- Lightweight task management system designed for AI agent workflows.
+
+    > **Features:** Structured Task Data / Browser-Based GUI / REST API / Python Client
+    Library / Git-Friendly / Migration Tools
+
+
+    Every one of those bullets is true of Jira with a plugin. Nothing on the page
+    says what is actually unusual, and nothing links to where the thinking lives.
+
+
+    ## What is actually differentiating, and currently invisible
+
+
+    - **The ball model.** Every open task names who acts next, as a required, queryable
+    field. Limbo is unrepresentable. A handoff without a stated ask is rejected by
+    the schema. That is a real design position and it is not on the front page.
+
+    - **The resumption contract** (docs/schema-design.md section 5): a stateless agent
+    resumes from the record alone. This was tested, not asserted -- a headless agent
+    with zero context reconstructed a task and found three defects in the design that
+    dispatched it (task-060 log, 2026-08-11).
+
+    - **Three design documents with rejected alternatives recorded**: docs/schema-design.md,
+    docs/agent-dispatch-design.md, and docs/agent-loops-design.md when task-078 lands.
+    Projects of this size rarely record their design rationale at all, let alone the
+    alternatives they rejected. It is the strongest material here and it is reachable
+    only by browsing docs/.
+
+    - **Hierarchical tasks across multiple projects** -- once task-045 lands.
+
+
+    ## Scope
+
+
+    - Rewrite the top of README.md: what this is, who it is for, and why it is not
+    another tracker, in the first screen. Feature bullets move below the fold.
+
+    - **A screenshot above the fold**, showing the parent/child hierarchy with display_status
+    badges. This is why the task depends on 045.
+
+    - Link the design documents prominently, with a sentence each on what decision
+    they record. They are the differentiator; treat them as such.
+
+    - Keep it honest. Do not describe dispatch, agent loops or the React frontend
+    as though they exist. A roadmap section saying what is designed but unbuilt is
+    more credible than silence, and the design docs back it up.
+
+
+    ## UI polish, folded in for now
+
+
+    Jeff: the UI is ''a bit large fonted and non professional looking''. A screenshot
+    of an amateur-looking interface is worse than none. Enough typographic restraint
+    to be presentable is in scope. **If it turns out to be more than an hour, split
+    it into its own task rather than letting it swallow this one.**
+
+
+    ## Out of scope
+
+
+    - The React frontend.
+
+    - Any change to the product to make the screenshot better. Photograph what exists;
+    if something looks wrong, that is a bug report, not a prop.
+
+    '
+  context: []
+acceptance:
+- id: sc-1
+  text: The first screen of README.md states what is unusual about AgentJobs -- the
+    ball model and the resumption contract -- rather than listing features common
+    to every tracker
+  status: pending
+- id: sc-2
+  text: A screenshot showing the parent/child hierarchy with display_status badges
+    appears above the fold, committed to the repo and rendering on the GitHub page
+  status: pending
+- id: sc-3
+  text: The design documents are linked with a sentence each on what they decide,
+    reachable from the front page without browsing docs/
+  status: pending
+- id: sc-4
+  text: Nothing unbuilt is described as existing; designed-but-unbuilt work is labelled
+    as such
+  status: pending
+- id: sc-5
+  text: 'The UI in the screenshot is presentable: font sizes restrained, hierarchy
+    legible to a stranger'
+  status: pending
+deliverables:
+- path: README.md
+  note: Rewritten front page
+  status: pending
+- path: docs/img/
+  note: Screenshot committed to the repo
+  status: pending
+dependencies:
+- task: task-045-subtask-support
+  type: needs
+  note: The screenshot's subject. Prose can be drafted in parallel, but the deliverable
+    is not done without the hierarchy to photograph.
+links: []
+branches: []
+log: []
