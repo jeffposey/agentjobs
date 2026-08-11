@@ -15,12 +15,17 @@ Shared guidance for all AI agents working in this repository. Universal engineer
     and work there — **this is your first act, before anything is written.** Then `claim`
     the task and record the branch in `branches[]`. In that order, so no work is ever
     committed outside a branch. See [Why you get your own worktree](#why-you-get-your-own-worktree).
+    **Your task-record commits go to `main`, not to your branch** — see
+    [Task files live on main](ENGINEERING.md#task-files-live-on-main-always). Your branch
+    carries code; it never touches `tasks/`.
 3.  **Work**: Small, single-logical-change commits with tests green before each one.
     Stage explicit paths — never `git add -A`.
 4.  **Verify**: Run `poetry run pytest` and exercise the change the way a user would —
     a passing suite is not by itself evidence the feature works.
 5.  **Hand off**: `handoff` to `human`/`review` with a `ball_prompt` saying what was done
-    and what needs review. **Stop there** — do not merge.
+    and what needs review, and **commit that to `main`** — a handoff sitting on your
+    branch is invisible in the dashboard, so the human you are handing to will never see
+    it. **Stop there** — do not merge.
 6.  **On approval**: Rebase onto `main`, merge `--no-ff`, mark the branch `merged`,
     `close` the task with `outcome: completed`, and `git worktree remove` your worktree.
 
