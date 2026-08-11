@@ -160,7 +160,7 @@ def _child_rollup(children: List[Task]) -> Optional[Dict[str, Any]]:
         "other_closed_pct": round(100 * len(other_closed) / total),
         # Who needs to do what next, named. A count tells you an umbrella is stuck; an
         # id tells you where to go.
-        "waiting_on_human": [child for child in open_children if child.ball is Ball.HUMAN],
+        "waiting_on_human": [child for child in open_children if blocks_human(child)],
         "blocked": [child for child in open_children if child.ball is Ball.EXTERNAL],
         "in_flight": [child for child in open_children if child.lifecycle is Lifecycle.ACTIVE],
     }
@@ -185,18 +185,48 @@ def _collect_recent_updates(tasks: List[Task]) -> List[Dict[str, Any]]:
     return updates[:10]
 
 
-def _get_waiting_tasks(tasks: List[Task]) -> List[Task]:
-    """The human inbox: every open task whose ball a person holds."""
-    waiting = [task for task in tasks if task.ball is Ball.HUMAN]
-    return sorted(
-        waiting,
-        key=lambda task: (task.priority_rank(), -task.updated.timestamp()),
-    )
+def blocks_human(task: Task) -> bool:
+    """Work is stopped and a person is the reason.
+
+    An agent handed the ball back mid-branch and is now idle, a finished branch is
+    sitting at the merge gate, or a question is blocking work already under way. This
+    is the tier that earns an alert, and it should reach zero routinely.
+
+    ``ball`` is null once a task is closed, so holding it already implies open; the
+    only distinction left to draw is ``draft``.
+    """
+    return task.ball is Ball.HUMAN and task.lifecycle is not Lifecycle.DRAFT
+
+
+def awaits_human_input(task: Task) -> bool:
+    """A draft parked on a person: nothing is stopped, because it is not yet work.
+
+    ``draft`` already means "not yet work", so nobody is blocked -- the human is simply
+    whoever would eventually make the call. Counting these alongside the tier above is
+    what makes a badge that never reaches zero, and a badge that never reaches zero can
+    only be read by opening it, which is the work it existed to save.
+    """
+    return task.ball is Ball.HUMAN and task.lifecycle is Lifecycle.DRAFT
+
+
+def _inbox_order(tasks: List[Task]) -> List[Task]:
+    """Most urgent first, then most recently touched."""
+    return sorted(tasks, key=lambda task: (task.priority_rank(), -task.updated.timestamp()))
+
+
+def _get_blocking_tasks(tasks: List[Task]) -> List[Task]:
+    """The alerting tier of the human inbox."""
+    return _inbox_order([task for task in tasks if blocks_human(task)])
+
+
+def _get_backlog_tasks(tasks: List[Task]) -> List[Task]:
+    """The quiet tier: visible and counted, never styled as an alarm."""
+    return _inbox_order([task for task in tasks if awaits_human_input(task)])
 
 
 def get_waiting_count(manager: TaskManager) -> int:
-    """Count tasks waiting for human attention."""
-    return len(manager.list_tasks(ball=Ball.HUMAN))
+    """The badge number: tasks where a person is actually holding work up."""
+    return sum(1 for task in manager.list_tasks(ball=Ball.HUMAN) if blocks_human(task))
 
 
 @router.get("", name="dashboard")
@@ -209,7 +239,8 @@ async def dashboard(
 ) -> HTMLResponse:
     """Render the dashboard showing task statistics and recent updates."""
     tasks = manager.list_tasks()
-    waiting_tasks = _get_waiting_tasks(tasks)
+    waiting_tasks = _get_blocking_tasks(tasks)
+    backlog_tasks = _get_backlog_tasks(tasks)
     stats = {
         "total": len(tasks),
         "in_progress": sum(
@@ -217,6 +248,7 @@ async def dashboard(
         ),
         "blocked": sum(1 for task in tasks if task.ball is Ball.EXTERNAL),
         "waiting_for_human": len(waiting_tasks),
+        "awaiting_input": len(backlog_tasks),
         "completed": sum(1 for task in tasks if task.outcome is Outcome.COMPLETED),
     }
     waiting_count = len(waiting_tasks)
@@ -227,6 +259,7 @@ async def dashboard(
         "active_tasks": _sort_tasks_for_dashboard(tasks),
         "recent_updates": _collect_recent_updates(tasks),
         "waiting_tasks": waiting_tasks,
+        "backlog_tasks": backlog_tasks,
         **_context_base(
             project=project,
             waiting_count=waiting_count,
@@ -249,10 +282,18 @@ async def task_list(
     waiting_count = get_waiting_count(manager)
 
     # The filter accepts a lifecycle or a ball holder; both are single-valued facts
-    # about a task, so one select can offer them side by side.
+    # about a task, so one select can offer them side by side. "open" and "all" span
+    # both axes and are offered alongside them.
+    #
+    # The default is "open", not "all". Closed tasks accumulate monotonically and
+    # forever, so a default of "all" degrades toward archaeology as the repository
+    # ages, and the question people actually ask -- "what is open?" -- was not even
+    # on the menu. Closed work stays one deliberate click away.
     status_param = request.query_params.get("status", "").lower()
-    valid_filters = {value.value for value in Lifecycle} | {value.value for value in Ball}
-    initial_status = status_param if status_param in valid_filters else "all"
+    valid_filters = (
+        {"all", "open"} | {value.value for value in Lifecycle} | {value.value for value in Ball}
+    )
+    initial_status = status_param if status_param in valid_filters else "open"
 
     context = {
         "request": request,
@@ -363,7 +404,7 @@ async def project_picker(
             tasks = TaskManager(_storage_for_picker(project)).list_tasks()
             counts = {
                 "total": len(tasks),
-                "waiting": sum(1 for task in tasks if task.ball is Ball.HUMAN),
+                "waiting": sum(1 for task in tasks if blocks_human(task)),
             }
         except OSError:
             counts = {"total": 0, "waiting": 0}

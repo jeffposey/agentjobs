@@ -9,10 +9,14 @@
         <div class="flex items-start gap-4">
             <div class="text-4xl" aria-hidden="true">🔔</div>
             <div class="flex-1">
+                {# The heading has to be true of every task listed below it. "Waiting for
+                   Your Review" was not: this panel also carries decisions, approvals and
+                   plain questions. "Blocked on you" is what they have in common, and it
+                   is the reason this panel is allowed to look like an alarm. #}
                 <h2 class="text-xl font-bold text-red-300 mb-2">
-                    {{ waiting_tasks|length }} {{ 'Task' if waiting_tasks|length == 1 else 'Tasks' }} Waiting for Your Review
+                    {{ waiting_tasks|length }} {{ 'Task' if waiting_tasks|length == 1 else 'Tasks' }} Blocked on You
                 </h2>
-                <p class="text-dark-muted mb-4">These tasks need human input to proceed.</p>
+                <p class="text-dark-muted mb-4">Work has stopped on these until you act.</p>
                 <div class="space-y-2">
                     {% for task in waiting_tasks[:3] %}
                     <a href="{{ base }}/tasks/{{ task.id }}" class="block bg-dark-surface hover:bg-dark-border border border-dark-border rounded-lg p-4 transition">
@@ -41,10 +45,42 @@
     </div>
     {% endif %}
 
+    {# The quiet tier. Drafts parked on a person block nothing -- draft already means
+       "not yet work" -- so this is a list you visit, not an alarm you silence. It is
+       styled flat on purpose: no red, no bell, no badge. It still shows a count and
+       every item, because the failure this replaces was a nagging badge, and hiding
+       the backlog instead would only trade it for drafts that rot unseen. #}
+    {% if backlog_tasks %}
+    <div class="bg-dark-surface border border-dark-border rounded-lg p-6">
+        <div class="flex items-baseline justify-between gap-4 mb-1">
+            <h2 class="text-sm font-medium text-dark-text">
+                Backlog awaiting your input
+                <span class="text-dark-muted font-normal">({{ backlog_tasks|length }})</span>
+            </h2>
+            <a href="{{ base }}/tasks?status=draft" class="text-xs text-blue-400 hover:text-blue-300">
+                All drafts →
+            </a>
+        </div>
+        <p class="text-xs text-dark-muted mb-4">
+            Nothing is blocked by these. They are drafts that need a decision before they become work.
+        </p>
+        <div class="divide-y divide-dark-border">
+            {% for task in backlog_tasks %}
+            <a href="{{ base }}/tasks/{{ task.id }}" class="flex items-baseline gap-3 py-2 hover:bg-dark-border/40 transition rounded px-2 -mx-2">
+                <span class="font-mono text-xs text-blue-400 whitespace-nowrap">{{ task.id }}</span>
+                <span class="text-sm text-dark-text flex-1">{{ task.title }}</span>
+                <span class="text-xs text-dark-muted whitespace-nowrap">{{ task.ball_reason }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
         <div class="bg-dark-surface p-6 rounded-lg border border-dark-border">
-            <div class="text-sm text-dark-muted">Waiting for Human</div>
+            <div class="text-sm text-dark-muted">Blocked on You</div>
             <div class="text-3xl font-bold mt-2 text-orange-400">{{ stats.waiting_for_human or 0 }}</div>
+            <div class="text-xs text-dark-muted mt-1">+{{ stats.awaiting_input or 0 }} in backlog</div>
         </div>
         <div class="bg-dark-surface p-6 rounded-lg border border-dark-border">
             <div class="text-sm text-dark-muted">In Progress</div>

@@ -3,7 +3,7 @@
 {% block title %}Tasks - AgentJobs{% endblock %}
 
 {% block content %}
-<div x-data="taskList('{{ initial_status | default("all") }}')" x-cloak>
+<div x-data="taskList('{{ initial_status | default("open") }}')" x-cloak>
     <div class="bg-dark-surface rounded-lg border border-dark-border p-6 mb-6">
         <div class="flex flex-col md:flex-row gap-4">
             <div class="flex-1">
@@ -15,6 +15,9 @@
                 >
             </div>
             <select x-model="statusFilter" class="bg-dark-bg border border-dark-border rounded-lg px-4 py-2">
+                {# "Open" leads because it is the question people actually ask, and it is
+                   the default. "All Status" still reaches closed work in one click. #}
+                <option value="open">Open (not closed)</option>
                 <option value="all">All Status</option>
                 <option value="draft">Draft</option>
                 <option value="ready">Ready</option>
@@ -118,10 +121,10 @@
 </div>
 
 <script>
-    function taskList(initialStatus = 'all') {
+    function taskList(initialStatus = 'open') {
         return {
             search: '',
-            statusFilter: initialStatus || 'all',
+            statusFilter: initialStatus || 'open',
             priorityFilter: 'all',
             scopeFilter: 'all',
             expanded: {},
@@ -135,6 +138,13 @@
                 // child inside a collapsed parent -- and the row most likely to be
                 // hidden that way is a sub-task waiting on a human, which is the one
                 // row this list exists to surface.
+                //
+                // "open" is a filter by this rule, so the default view is flat. That is
+                // deliberate rather than incidental: a closed umbrella is filtered out
+                // under "open", and in tree mode its open children would then be
+                // permanently unreachable -- there would be no parent row left to
+                // expand. Depth indentation still renders, so the outline survives;
+                // only collapsing does not. "All Status" restores the tree.
                 return this.search.trim() !== ''
                     || this.statusFilter !== 'all'
                     || this.priorityFilter !== 'all'
@@ -156,8 +166,12 @@
                 const searchTerm = this.search.trim().toLowerCase();
                 const searchMatches = searchTerm === '' || title.includes(searchTerm);
                 // The filter offers lifecycles and ball holders in one select; a row
-                // matches when either axis holds the selected value.
+                // matches when either axis holds the selected value. "open" spans both
+                // axes and is defined as "not closed" rather than as a list of
+                // outcomes, so a future Outcome member cannot leak into the default
+                // view by being forgotten here.
                 const statusMatches = this.statusFilter === 'all'
+                    || (this.statusFilter === 'open' && lifecycle !== 'closed')
                     || lifecycle === this.statusFilter
                     || ball === this.statusFilter;
                 const priorityMatches = this.priorityFilter === 'all' || priority === this.priorityFilter;
