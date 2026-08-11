@@ -62,11 +62,12 @@ class TaskManager:
         lifecycle: Optional[Lifecycle] = None,
         ball: Optional[Ball] = None,
         priority: Optional[Priority] = None,
+        parent: Optional[str] = None,
     ) -> List[Task]:
         """Return all tasks optionally filtered along the state axes.
 
         ``ball=Ball.HUMAN`` is the human inbox -- the load-bearing query of the
-        v2 design (section 5).
+        v2 design (section 5). ``parent`` narrows to one umbrella's children.
         """
         tasks = self.storage.list_tasks()
         if lifecycle is not None:
@@ -75,6 +76,8 @@ class TaskManager:
             tasks = [task for task in tasks if task.ball == ball]
         if priority is not None:
             tasks = [task for task in tasks if task.priority == priority]
+        if parent is not None:
+            tasks = [task for task in tasks if task.parent == parent]
         return tasks
 
     def load_errors(self) -> List[TaskLoadError]:
@@ -131,15 +134,45 @@ class TaskManager:
                 unmet.append(f"{dep.task} (still open)")
         return unmet
 
+    def get_subtasks(self, task_id: str) -> List[Task]:
+        """The tasks whose ``parent`` is this one, ordered by id.
+
+        Raises TaskNotFoundError for an id that is not a task. "No children" and "no
+        such task" are different answers and an empty list conflates them -- which
+        matters most for the caller most likely to get the id wrong, a URL.
+        """
+        self._ensure_task_exists(task_id)
+        children = [task for task in self.storage.list_tasks() if task.parent == task_id]
+        children.sort(key=lambda task: task.id)
+        return children
+
+    def _open_children(self) -> Dict[str, List[str]]:
+        """Parent task id -> ids of its children that are still open, sorted.
+
+        A parent absent from this mapping has no open children and is therefore
+        claimable like any other task. Files that fail to load are not counted: their
+        `parent` cannot be read, so they are invisible as children of anything. They
+        still show up in the broken-files listing, which is where an unreadable file
+        gets dealt with.
+        """
+        open_children: Dict[str, List[str]] = {}
+        for task in self.storage.list_tasks():
+            if task.parent and task.is_open:
+                open_children.setdefault(task.parent, []).append(task.id)
+        for ids in open_children.values():
+            ids.sort()
+        return open_children
+
     def get_next_task(
         self,
         priority: Optional[Priority] = None,
         *,
         agent: Optional[str] = None,
     ) -> Optional[Task]:
-        """Highest-priority claimable task: ready, eligible, no unmet needs."""
+        """Highest-priority claimable task: ready, eligible, no unmet needs, no open children."""
         tasks = self.storage.list_tasks()
         states = self._dependency_states()
+        open_children = self._open_children()
         candidates = [
             task
             for task in tasks
@@ -147,6 +180,7 @@ class TaskManager:
             and (priority is None or task.priority == priority)
             and (agent is None or not task.assignment.eligible or agent in task.assignment.eligible)
             and not self._unmet_needs(task, states)
+            and task.id not in open_children
         ]
         if not candidates:
             return None
@@ -161,6 +195,43 @@ class TaskManager:
     # ------------------------------------------------------------------
     # Creation and generic edits
     # ------------------------------------------------------------------
+
+    def _validate_parent(self, task_id: str, parent: Optional[str]) -> None:
+        """Refuse a parent that does not exist, is the task itself, or closes a cycle.
+
+        The model already rejects self-parenting, because that check needs nothing but
+        the task. The other two need the whole store, which is why they live here: a
+        dangling `parent` is the same failure `_unmet_needs` guards against on
+        dependencies -- an id that looks meaningful, points at nothing, and quietly
+        disables every behaviour keyed on it.
+        """
+        if parent is None:
+            return
+        if parent == task_id:
+            raise ValueError(f"Task '{task_id}' cannot be its own parent.")
+
+        parents = {task.id: task.parent for task in self.storage.list_tasks()}
+        if parent not in parents:
+            raise ValueError(f"Parent task '{parent}' does not exist.")
+
+        # Walk up from the proposed parent. Meeting this task means the edit would
+        # close a loop; meeting anything twice means a loop is already up there and is
+        # not this edit's doing, so stop rather than spin.
+        ancestry = [parent]
+        seen = {parent}
+        cursor = parents[parent]
+        while cursor is not None:
+            if cursor == task_id:
+                chain = " -> ".join([task_id, *reversed(ancestry)])
+                raise ValueError(
+                    f"Task '{task_id}' cannot be parented to '{parent}': that would "
+                    f"create a cycle ({chain})."
+                )
+            if cursor in seen:
+                break
+            seen.add(cursor)
+            ancestry.append(cursor)
+            cursor = parents.get(cursor)
 
     def create_task(
         self,
@@ -183,6 +254,8 @@ class TaskManager:
         task_id = id or self.storage.generate_task_id()
         if self.storage.load_task(task_id):
             raise ValueError(f"Task '{task_id}' already exists.")
+        parent = kwargs.get("parent")
+        self._validate_parent(task_id, parent if isinstance(parent, str) else None)
 
         lifecycle = Lifecycle(lifecycle)
         if lifecycle not in (Lifecycle.DRAFT, Lifecycle.READY):
@@ -224,6 +297,9 @@ class TaskManager:
         """Apply a partial update to a task."""
 
         def apply(existing: Task) -> Task:
+            if "parent" in updates:
+                parent = updates["parent"]
+                self._validate_parent(existing.id, parent if isinstance(parent, str) else None)
             payload = existing.model_dump(mode="python", by_alias=True, exclude={"display_status"})
             payload.update(updates)
             payload["id"] = existing.id
@@ -296,6 +372,7 @@ class TaskManager:
     def claim_task(self, task_id: str, *, agent: str) -> Task:
         """Take ownership of a ready task, or refuse because someone else already did."""
         states = self._dependency_states()
+        open_children = self._open_children()
 
         def apply(task: Task) -> Task:
             if task.lifecycle is not Lifecycle.READY:
@@ -314,6 +391,13 @@ class TaskManager:
             unmet = self._unmet_needs(task, states)
             if unmet:
                 raise ValueError(f"Task '{task_id}' has unmet dependencies: {', '.join(unmet)}")
+            children = open_children.get(task_id)
+            if children:
+                raise ValueError(
+                    f"Task '{task_id}' is an umbrella task: it has open sub-tasks "
+                    f"({', '.join(children)}). Claim one of those instead -- an umbrella "
+                    "is finished by its children, so there is no work to take here."
+                )
             task.lifecycle = Lifecycle.ACTIVE
             task.assignment.owner = agent
             task.ball = Ball.AGENT
