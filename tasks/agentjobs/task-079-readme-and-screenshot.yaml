@@ -3,13 +3,13 @@ id: task-079-readme-and-screenshot
 title: Rewrite the README front page around what makes AgentJobs different, with a
   screenshot
 created: '2026-08-11T02:36:59.915733Z'
-updated: '2026-08-11T05:24:16.066865Z'
+updated: '2026-08-11T05:30:47.062798Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Review commit c5c20a1 on docs/task-079-readme-and-screenshot. The blocking
-  PyPI/install claim is corrected and sc-4 is met again; optional opening polish is
-  included. Approve or request changes. Do not merge until approved.
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 category: documentation
@@ -398,3 +398,11 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 13
+  ts: '2026-08-11T05:30:47.062634Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
