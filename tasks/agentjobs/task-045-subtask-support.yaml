@@ -3,29 +3,26 @@ id: task-045-subtask-support
 title: Sub-task behavior atop schema v2 (get_subtasks, umbrella non-claimability,
   ?parent= filter, GUI)
 created: '2026-07-06T19:25:45Z'
-updated: '2026-08-11T03:18:53.850860Z'
+updated: '2026-08-11T04:36:16.672845Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: "Sub-task behaviour is built and verified on branch `feat/task-045-subtask-support`\n\
-  (4 commits: manager, API, GUI, docs). Nothing is merged -- that is your call.\n\n\
-  **What to look at, in the order it is quickest to judge:**\n\n1. Open `task-063-schema-v2`\
-  \ in the dashboard. That umbrella is real and was built by\n   this feature: five\
-  \ children, \"2 open of 5\", each badged with its own state. Then open\n   `task-053-schema-v2-cli`\
-  \ and follow \"Part of\" back up. This view is what task-079's\n   README screenshot\
-  \ will show, so the thing to judge is whether it looks like something\n   a stranger\
-  \ would take seriously. You called the current UI \"a bit large fonted and\n   non\
-  \ professional looking\" -- the section is deliberately smaller than the headings\n\
-  \   around it, which may now read as *too* quiet next to them.\n2. Three decisions\
-  \ are logged above, each with what I rejected. The one most worth your\n   disagreement\
-  \ is putting parent validation in the manager rather than the API route,\n   which\
-  \ is a deviation from where the spec's deliverable note put it.\n3. `git -C ../aj-045\
-  \ log --oneline main..` and the diff, if you want the code.\n\n**Note the branch\
-  \ is not checked out anywhere you can see.** Work happened in the\n`../aj-045` worktree;\
-  \ the shared clone stayed on main throughout, which is why this\nhandoff is visible\
-  \ to you at all.\n\nOn approval I will rebase onto main, merge --no-ff, mark the\
-  \ branch merged, close this\ntask, and remove the worktree. The React milestone\
-  \ umbrellas the spec mentions come\nafter that, and I have not created them."
+ball_prompt: "Round 2 is built and committed. Six commits on `feat/task-045-subtask-support`;\
+  \ still\nnot merged.\n\n**New since you last looked:**\n\n- The task list nests\
+  \ children under their parent, collapsed, with \"N sub-tasks, M open\".\n  You confirmed\
+  \ the toggle and the filter behaviour work.\n- `task-063-schema-v2` now shows a\
+  \ progress bar, \"3 of 5 complete, 2 open\", and\n  \"Waiting on a human: task-053,\
+  \ task-054\".\n- That task's description was rewritten to be about the schema-v2\
+  \ effort rather than\n  about being an umbrella. Worth reading as the answer to\
+  \ your question -- it is what I\n  think an umbrella record should contain.\n\n\
+  **Two decisions are logged above** with what I rejected: why a filtered list goes\
+  \ flat,\nand why the roll-up is derived rather than stored. The second is the direct\
+  \ answer to\n\"are they really supposed to be a shell task\": the record stays thin,\
+  \ the view does not.\n\n**Still true from round 1:** the expand/collapse is JavaScript\
+  \ and the suite does not\nclick it. 500 tests assert the data it reads. You have\
+  \ now clicked it, which is the\nevidence I could not produce.\n\nSay the word and\
+  \ I will rebase onto main, merge --no-ff, mark the branch merged, close\nthis task\
+  \ and remove the worktree."
 archived: false
 priority: high
 category: infrastructure
@@ -364,6 +361,175 @@ log:
   type: handoff
   body: 'Handed to Jeff for review: sub-task behaviour built, verified against the
     real corpus, not merged.'
+  data:
+    ball: human
+    ball_reason: review
+- id: 10
+  ts: '2026-08-11T04:36:16.583869Z'
+  actor: claude
+  type: progress
+  body: 'Review round 2. Jeff looked at the branch on a review server and asked for
+    two things,
+
+    both now built (commits 5 and 6 on the branch).
+
+
+    **1. The task list nested sub-tasks under their parent.** Children were drawn
+    as
+
+    top-level rows, so an umbrella and its five stages read as six unrelated tasks.
+    They now
+
+    sit under the parent, collapsed, behind a toggle stating the count. Top-level
+    rows keep
+
+    the table''s recency sort; children sort by id, so the list and the detail page
+    show the
+
+    same children in the same order.
+
+
+    **2. The umbrella page rolls up its children.** It previously said "2 open of
+    5" and
+
+    nothing else. It now shows a progress bar, "3 of 5 complete, 2 open", and names
+    any
+
+    child whose ball is with a human, blocked, or in flight.
+
+
+    **And the umbrella''s own description was rewritten** (task-063, committed to
+    main
+
+    separately). Jeff''s objection was that a top-level task is "text saying I are
+    a umbrella"
+
+    -- and he was right about that specific record, because I had written its description
+
+    about the *mechanism* rather than about the schema-v2 effort. It now says what
+    the five
+
+    tasks were, why the work was split that way, and what done means for the arc.
+
+
+    Verified: 500 tests pass (13 more than round 1), black/ruff/mypy clean, and the
+    whole
+
+    thing re-checked against the real corpus on a restarted server -- task-063 renders
+
+    "3 of 5 complete, 2 open", a 60% bar, and "Waiting on a human: task-053, task-054".
+
+
+    One thing worth recording because it cost time: the review server was showing
+
+    `UndefinedError: ''rollup'' is undefined` after I added the roll-up. The server
+    was stale
+
+    -- Jinja re-reads templates from disk per request, but uvicorn without --reload
+    holds
+
+    the Python route code in memory, so a new template was rendering against an old
+    context.
+
+    This is exactly the failure ENGINEERING.md''s "Restart the server" rule describes,
+    in a
+
+    form that looks like a template bug.'
+  data: {}
+- id: 11
+  ts: '2026-08-11T04:36:16.610426Z'
+  actor: claude
+  type: decision
+  body: '**A filtered task list goes flat; nesting applies only to the default view.**
+
+
+    As soon as a search term or any non-"all" filter is active, every matching row
+    is drawn
+
+    regardless of whether its parent is expanded, and child rows gain a "part of <id>"
+    hint.
+
+
+    Why: a nested filtered list hides a matching child inside a collapsed parent.
+    The row
+
+    most likely to be hidden that way is a sub-task whose ball is with a human --
+    the exact
+
+    row the list exists to surface, and the same class of silent-empty-result the
+
+    verification rule in ENGINEERING.md is about.
+
+
+    Rejected: keeping the tree under filters and auto-expanding any parent with a
+    matching
+
+    descendant. It preserves the outline, but it means the set of visible rows depends
+    on
+
+    two interacting rules instead of one, and "why is this row here" stops being answerable
+
+    from what you typed. Jeff confirmed the flat behaviour reads fine.
+
+
+    Also rejected: filtering server-side so the tree could be rebuilt per query. The
+    list''s
+
+    filtering has always been client-side and instant; moving it to the server to
+    serve one
+
+    edge case would be a visible regression in exchange for a tidier implementation.'
+  data: {}
+- id: 12
+  ts: '2026-08-11T04:36:16.638307Z'
+  actor: claude
+  type: decision
+  body: '**An umbrella''s roll-up is derived on read, never stored on the parent.**
+
+
+    Jeff asked whether umbrella tasks are "really supposed to be a shell task". The
+    record
+
+    stays thin; the *view* got richer.
+
+
+    Storing a rolled-up status on the parent would put two records in the position
+    of
+
+    knowing whether an effort is done, and they would disagree the first time a child
+    moved
+
+    -- the same reasoning that makes `display_status` computed rather than persisted
+    (design
+
+    doc section 3). Nothing about an umbrella needs to be written down that its children
+    do
+
+    not already say.
+
+
+    What was genuinely missing was not state but content: an umbrella''s `spec` should
+    carry
+
+    the arc of the whole effort. That is a writing problem, not a schema one, and
+    it is
+
+    fixed in task-063 rather than in the model.
+
+
+    Rejected: a `rollup` or `progress` field on Task, cached and updated when a child
+    moves.
+
+    It needs a write path from every child transition to its parent, which is a second
+
+    place for the log to be wrong.'
+  data: {}
+- id: 13
+  ts: '2026-08-11T04:36:16.672744Z'
+  actor: claude
+  type: handoff
+  body: 'Round 2 handed back to Jeff: list nesting and umbrella roll-up built, still
+    not merged.'
   data:
     ball: human
     ball_reason: review

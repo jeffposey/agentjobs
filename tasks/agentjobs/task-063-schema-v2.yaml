@@ -2,7 +2,7 @@ schema: 2
 id: task-063-schema-v2
 title: 'Schema v2: models, migrator, application, CLI, GUI'
 created: '2026-08-11T03:17:08.422110Z'
-updated: '2026-08-11T03:17:08.422803Z'
+updated: '2026-08-11T03:59:40.776449Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -15,33 +15,90 @@ tags:
 assignment:
   eligible: []
 spec:
-  summary: Umbrella over the five tasks that moved AgentJobs from schema v1 to v2.
-  description: 'Schema v2 was one piece of work delivered in five parts: design the
-    models, build the
+  summary: Replacing AgentJobs' single `status` field with four orthogonal state axes,
+    across the models, the corpus, the application, the CLI and the GUI.
+  intent: 'Schema v1 had one `status` field carrying three unrelated facts: how far
+    along the work
 
-    migrator, switch the application over, mirror it in the CLI, then rebuild the
-    GUI on it.
+    was, who had to act next, and how it ended. Any move overwrote the other two.
+    The most
 
+    expensive symptom was that "waiting for a human" was a status, so a task waiting
+    on a
 
-    Until now those five were related only by `needs` dependencies, which records
-    their
+    review looked identical to a task nobody had started, and there was no query that
 
-    *order* but not the fact that they are one effort. `parent` records that (task-045).
-
-
-    This umbrella is not itself work. It is finished when its children are, and the
-    manager
-
-    refuses a claim on it while any child is open.
+    answered "what needs me".
 
 
-    Category is `infrastructure` rather than the `architecture` suggested in task-045:
-    this
+    v2 separates them: `lifecycle` (how far along), `ball` + `ball_reason` (who acts
+    next
 
-    project''s config defines no `architecture` category, and inventing one to file
-    a single
+    and why), `outcome` (how it ended, set only at the end). `ball == human` is then
+    a real
 
-    task is a bigger change than the task called for.
+    inbox, and the review gate has something to hang on.
+
+    '
+  description: 'Five tasks, in dependency order:
+
+
+    | | | |
+
+    |---|---|---|
+
+    | **050** | Models | The state axes and the consistency rules between them, the
+    structured spec block, the acceptance checklist, the unified append-only log,
+    `assignment`, `parent`, the `schema: 2` stamp, strict validation. Models only.
+    |
+
+    | **051** | Migrator | `agentjobs migrate-schema`, built against those models
+    and proven against the real corpus, plus a round-trip test over every file. |
+
+    | **052** | Switchover | Run the proven migrator over all 38 task files and repoint
+    storage, manager, API, templates and CLI at v2 in the same commit, then delete
+    v1. |
+
+    | **053** | CLI | The verbs at the command line -- `inbox`, `next`, `claim`, `handoff`,
+    `log`, `close` -- rendering `display_status` and `ball_prompt` so the loop is
+    drivable from a terminal. |
+
+    | **054** | GUI | The Jinja UI on the axes: an inbox view, an agent-activity view,
+    a detail page rendering spec, log and acceptance. |
+
+
+    The split is not arbitrary. There is no intermediate state in which a half-migrated
+
+    application works, so the corpus write and the code change had to land together
+    -- which
+
+    is only reviewable if everything risky about it happened *earlier*, in tasks that
+    could
+
+    each be judged on their own. That is what 050 and 051 are for: finished models
+    to write
+
+    the migrator against, and a migrator proven against real data before it was ever
+    pointed
+
+    at the corpus for keeps.
+
+
+    053 and 054 are still open. The application has been on v2 since 052 merged (2026-08-10);
+
+    the CLI and the Jinja GUI have not caught up.
+
+
+    **Done** when a task''s state is readable from the four axes alone in every interface.
+
+
+    Sequencing was recorded as `needs` dependencies from the start. What was missing
+    was
+
+    anywhere to say the five are *one effort* rather than five neighbours -- which
+    is what
+
+    `parent` records, and what task-045 built.
 
     '
   context: []
