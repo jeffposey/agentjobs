@@ -2,16 +2,17 @@ schema: 2
 id: task-075-agent-worktree-isolation
 title: 'Isolate concurrent agents: a worktree per agent, not one shared checkout'
 created: '2026-08-11T01:10:16.518759Z'
-updated: '2026-08-11T02:41:35.798628Z'
+updated: '2026-08-11T02:44:16.056101Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: 'Layer 1 is ready to merge: ENGINEERING.md gains a Worktree Lifecycle
-  section and an explicit `git add -A` prohibition, ALLAGENTS.md''s task lifecycle
-  now starts with ''worktree, branch, then claim''. Review and approve, and the next
-  agent to read the repo instructions will set up its own worktree without being told
-  -- which was your point. The task stays open afterwards for sc-3 (should AgentJobs
-  manage worktrees), sc-4 (GUI branch banner) and sc-5 (dispatch cwd, with task-077).'
+ball_prompt: 'Rescoped per your note -- two commits now on feat/task-075-worktree-convention.
+  The mandate and the three incidents moved to ALLAGENTS.md where the at-risk reader
+  is; ENGINEERING.md keeps a short conditional note (alone: checkout is fine, sharing
+  a clone: worktree) plus the one fact everyone needs, that the checked-out branch
+  decides what the dashboard shows. Review and approve to merge. Task stays open for
+  sc-3 (should AgentJobs manage worktrees), sc-4 (GUI branch banner) and sc-5 (dispatch
+  cwd, with task-077).'
 archived: false
 priority: high
 category: developer_experience
@@ -196,6 +197,71 @@ log:
     `git worktree add C:/projects/aj-075 -b feat/task-075-worktree-convention` and
     the shared clone was never checked out, so the agent working task-062 earlier
     today would have been undisturbed by it.'
+  data:
+    ball: human
+    ball_reason: review
+- id: 4
+  ts: '2026-08-11T02:44:16.038155Z'
+  actor: claude
+  type: decision
+  body: 'The worktree mandate belongs to agents, not to every contributor.
+
+
+    Jeff, on reading the first pass: ''not every engineer needs to do it on their
+    own machine, its more for agents safety.'' Correct, and the first commit got it
+    wrong. ENGINEERING.md opens by declaring itself universal practice for human and
+    AI contributors alike, so a mandatory worktree-per-task there tells a solo engineer
+    in their own clone to do something that buys them nothing. A person alone in a
+    clone has no peer to collide with.
+
+
+    The hazard is specific to agents: several run against one clone, none can see
+    the others, and none will get an error when a checkout moves the tree under a
+    peer. So the mandate and the three incidents now live in ALLAGENTS.md under ''Why
+    you get your own worktree'', addressed to the reader who is actually at risk,
+    along with the recovery procedure for a commit that swept in someone else''s files.
+
+
+    ENGINEERING.md keeps two things. A short conditional note -- alone, checkout is
+    fine; sharing a clone, take a worktree -- because a second *human* on one clone
+    has the same problem and should not have to read the agent handbook to find that
+    out. And the one fact every contributor needs regardless: tasks are YAML files,
+    so the checked-out branch decides what the dashboard shows. That one is not about
+    isolation at all; it is a property of git-as-database that presents as a missing
+    task, and it belongs in the engineering handbook whoever you are.
+
+
+    The `git add -A` line softened from a prohibition to ordinary hygiene (''stage
+    explicit paths'') in ENGINEERING.md, with the strong form and the recovery steps
+    kept in ALLAGENTS.md. Same reasoning: for a solo engineer `git add -A` commits
+    their own mess, which is a preference; for an agent it commits a peer''s work,
+    which is damage.
+
+
+    Rejected: leaving the mandate in ENGINEERING.md with a parenthetical ''agents
+    especially''. Guidance that applies to one audience but is filed under universal
+    practice trains everyone to read the handbook as advisory, which is expensive
+    for the parts of it that are not.'
+  data: {}
+- id: 5
+  ts: '2026-08-11T02:44:16.056030Z'
+  actor: claude
+  type: handoff
+  body: 'Second commit, 657ba39, rescopes the first. ENGINEERING.md declares itself
+    universal practice for human and AI contributors, so a mandatory worktree-per-task
+    there was wrong -- it is an agent-safety measure, and a solo engineer gains nothing
+    from it.
+
+
+    Moved to ALLAGENTS.md: the mandate, the three 2026-08-11 incidents, and the recovery
+    procedure for a commit that swept in a peer''s files. Kept in ENGINEERING.md:
+    a conditional note, since a second human on one clone has the same problem and
+    should not need the agent handbook to learn it; and the git-as-database consequence
+    -- the checked-out branch decides what the GUI shows -- which is not about isolation
+    and matters to everyone.
+
+
+    Docs only, no code. sc-1 and sc-2 remain met.'
   data:
     ball: human
     ball_reason: review
