@@ -393,6 +393,60 @@ class TestHierarchyOnTheDetailPage:
 
         assert "2 open" in page
 
+    def test_the_rollup_counts_only_completed_children(self, web_client) -> None:
+        client, manager = web_client
+        manager.claim_task(CHILD_A, agent="codex")
+        manager.close_task(CHILD_A, actor="codex", outcome=Outcome.COMPLETED)
+
+        page = client.get(f"/p/solo/tasks/{UMBRELLA}").text
+
+        assert "1 of 2 complete" in page
+        assert 'style="width: 50%"' in page
+
+    def test_an_abandoned_child_is_finished_but_not_complete(self, web_client) -> None:
+        """Counting it as complete would let an effort report itself done because half
+        of it was cancelled."""
+        client, manager = web_client
+        manager.claim_task(CHILD_A, agent="codex")
+        manager.close_task(CHILD_A, actor="codex", outcome=Outcome.CANCELLED)
+
+        page = client.get(f"/p/solo/tasks/{UMBRELLA}").text
+
+        assert "0 of 2 complete" in page
+        assert 'style="width: 0%"' in page
+
+    def test_the_rollup_names_the_child_waiting_on_a_human(self, web_client) -> None:
+        client, manager = web_client
+        manager.claim_task(CHILD_A, agent="codex")
+        manager.handoff(
+            CHILD_A,
+            actor="codex",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Look at the diff.",
+        )
+
+        page = client.get(f"/p/solo/tasks/{UMBRELLA}").text
+
+        assert "Waiting on a human:" in page
+        assert f'href="/p/solo/tasks/{CHILD_A}" class="font-mono hover:underline"' in page
+
+    def test_the_rollup_names_a_child_in_progress(self, web_client) -> None:
+        client, manager = web_client
+        manager.claim_task(CHILD_B, agent="codex")
+
+        page = client.get(f"/p/solo/tasks/{UMBRELLA}").text
+
+        assert "In progress:" in page
+        assert CHILD_B in page
+
+    def test_a_flat_task_has_no_rollup(self, web_client) -> None:
+        client, _ = web_client
+
+        page = client.get(f"/p/solo/tasks/{UNRELATED}").text
+
+        assert "complete ·" not in page
+
     def test_a_child_links_back_to_its_parent(self, web_client) -> None:
         client, _ = web_client
 

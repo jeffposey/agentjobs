@@ -131,6 +131,41 @@ def _nest_tasks(tasks: List[Task]) -> List[Dict[str, Any]]:
     return rows
 
 
+def _child_rollup(children: List[Task]) -> Optional[Dict[str, Any]]:
+    """What an umbrella's children add up to. Derived on read, never stored.
+
+    An umbrella has no state of its own -- that is the point of it. Storing a rolled-up
+    status on the parent would put two records in the position of knowing whether the
+    effort is done, and they would drift the first time a child moved (design doc
+    section 3, the same reasoning that makes `display_status` computed).
+
+    "Complete" means closed *and* completed. A cancelled or superseded child is finished
+    with, but counting it as complete would let an effort report itself done because
+    half of it was abandoned.
+    """
+    if not children:
+        return None
+    closed = [child for child in children if child.lifecycle is Lifecycle.CLOSED]
+    completed = [child for child in closed if child.outcome is Outcome.COMPLETED]
+    other_closed = [child for child in closed if child.outcome is not Outcome.COMPLETED]
+    open_children = [child for child in children if child.is_open]
+    total = len(children)
+    return {
+        "total": total,
+        "completed": len(completed),
+        "other_closed": len(other_closed),
+        "open": len(open_children),
+        # Percentages of the whole, for the bar. Integers: a bar is not a measurement.
+        "completed_pct": round(100 * len(completed) / total),
+        "other_closed_pct": round(100 * len(other_closed) / total),
+        # Who needs to do what next, named. A count tells you an umbrella is stuck; an
+        # id tells you where to go.
+        "waiting_on_human": [child for child in open_children if child.ball is Ball.HUMAN],
+        "blocked": [child for child in open_children if child.ball is Ball.EXTERNAL],
+        "in_flight": [child for child in open_children if child.lifecycle is Lifecycle.ACTIVE],
+    }
+
+
 def _collect_recent_updates(tasks: List[Task]) -> List[Dict[str, Any]]:
     """Flatten log entries into a sorted list for the dashboard."""
     updates: List[Dict[str, Any]] = []
@@ -259,6 +294,7 @@ async def task_detail(
         "task": task,
         "children": children,
         "open_children": [child for child in children if child.is_open],
+        "rollup": _child_rollup(children),
         # None when the id points at nothing: a dangling parent is refused on write, but
         # a file edited by hand can still carry one, and the page should show the task
         # rather than 500 over it.

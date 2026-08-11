@@ -161,11 +161,39 @@
         that child's three state axes, never the parent's.
     #}
     <div class="bg-dark-surface rounded-lg border border-dark-border">
-        <div class="px-6 py-4 border-b border-dark-border flex flex-wrap items-baseline justify-between gap-2">
-            <h2 class="text-base font-semibold">Sub-tasks</h2>
-            <span class="text-xs text-dark-muted">
-                {{ open_children | length }} open of {{ children | length }}
-            </span>
+        <div class="px-6 py-4 border-b border-dark-border space-y-3">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 class="text-base font-semibold">Sub-tasks</h2>
+                <span class="text-xs text-dark-muted">
+                    {{ rollup.completed }} of {{ rollup.total }} complete · {{ rollup.open }} open
+                </span>
+            </div>
+            {# Widths are data, so they are inline styles: Tailwind generates its classes
+               ahead of time from source text, and a computed class name yields no width
+               at all. #}
+            <div class="flex h-1.5 w-full overflow-hidden rounded bg-dark-bg">
+                <div class="bg-green-600" style="width: {{ rollup.completed_pct }}%"></div>
+                <div class="bg-gray-600" style="width: {{ rollup.other_closed_pct }}%"></div>
+            </div>
+            {# Counts say an effort is stuck; ids say where to go. #}
+            {% if rollup.waiting_on_human %}
+            <div class="text-xs text-orange-300">
+                Waiting on a human:
+                {% for child in rollup.waiting_on_human %}<a href="{{ base }}/tasks/{{ child.id }}" class="font-mono hover:underline">{{ child.id }}</a>{{ "" if loop.last else ", " }}{% endfor %}
+            </div>
+            {% endif %}
+            {% if rollup.blocked %}
+            <div class="text-xs text-red-300">
+                Blocked:
+                {% for child in rollup.blocked %}<a href="{{ base }}/tasks/{{ child.id }}" class="font-mono hover:underline">{{ child.id }}</a>{{ "" if loop.last else ", " }}{% endfor %}
+            </div>
+            {% endif %}
+            {% if rollup.in_flight %}
+            <div class="text-xs text-blue-300">
+                In progress:
+                {% for child in rollup.in_flight %}<a href="{{ base }}/tasks/{{ child.id }}" class="font-mono hover:underline">{{ child.id }}</a>{{ "" if loop.last else ", " }}{% endfor %}
+            </div>
+            {% endif %}
         </div>
         <div class="divide-y divide-dark-border">
             {% for child in children %}
