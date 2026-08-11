@@ -2,12 +2,11 @@ schema: 2
 id: task-058-multi-project-gui
 title: 'Multi-project GUI: hierarchical task tree with expandable subtasks'
 created: '2026-08-10T06:14:30Z'
-updated: '2026-08-10T07:16:02Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Redesigned by the owner; cross-project view removed, now blocked on schema
-  v2.
+updated: '2026-08-11T05:55:51.964749Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
 priority: high
 category: ux
 tags:
@@ -16,6 +15,8 @@ tags:
 - multi-project
 - schema-v2
 effort: 1 working session
+assignment:
+  eligible: []
 spec:
   summary: 'The shell the owner will actually work in: pick one project, then see
     that project''s tasks as a hierarchy you can expand to reveal subtasks. Redesigned
@@ -94,6 +95,7 @@ spec:
     \ commits, Conventional Commits. Tests green before each. When complete: STOP,\
     \ set waiting_for_human through the status API with evidence of the tree and switcher\
     \ working. Do not merge."
+  context: []
 acceptance:
 - id: sc-1
   text: A project switcher appears in the base layout on every page, lists all registered
@@ -128,11 +130,11 @@ acceptance:
   status: pending
 deliverables:
 - path: src/agentjobs/api/routes/web.py
-  status: pending
   note: Project-scoped web routes, legacy redirects, hierarchical task list
-- path: src/agentjobs/api/templates/base.html
   status: pending
+- path: src/agentjobs/api/templates/base.html
   note: Project switcher in the shared layout
+  status: pending
 dependencies:
 - task: task-057-multi-project-registry
   type: needs
@@ -149,13 +151,13 @@ dependencies:
 - task: task-059-review-surface-usability
   type: related
   note: Deferred its sc-5 (project-scoped review actions) to this task.
+links: []
+branches: []
 log:
 - id: 1
   ts: '2026-08-10T07:16:02Z'
   actor: claude
   type: transition
-  data:
-    v1_status: draft
   body: 'Redesigned by the owner; cross-project view removed, now blocked on schema
     v2
 
@@ -190,16 +192,48 @@ log:
     contents and editing. Their one genuine overlap -- 054 wants a ball=human inbox
     as the home view, this task wants the project tree -- is flagged in both files
     for whoever lands second.'
+  data:
+    v1_status: draft
 - id: 2
   ts: '2026-08-10T07:16:02Z'
   actor: system
   type: note
-  data:
-    v1_status: draft
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
     - v1 `status: draft` became lifecycle: draft / ball: human / ball_reason: spec.
 
     - prompts.starter preserved in spec.description.'
+  data:
+    v1_status: draft
+    migrated_to_schema: 2
+- id: 3
+  ts: '2026-08-11T05:55:51.964667Z'
+  actor: claude
+  type: decision
+  body: 'Promoted draft -> ready in a backlog grooming pass, 2026-08-11.
+
+
+    Unlike tasks 046 and 053 this one carried a real, accurate block: its ball_prompt
+    read ''Redesigned by the owner; cross-project view removed, now blocked on schema
+    v2'', because a hierarchical task tree needs `parent` and v1 had no way to express
+    one. The owner rejected an interim additive `parent` on v1 on 2026-08-10 in favour
+    of doing v2 properly.
+
+
+    That block is now clear. `parent` landed with the v2 models in task-050, the corpus
+    and application moved to v2 in task-052, and the queries this GUI needs -- `get_subtasks()`
+    and umbrella non-claimability in `get_next_task()` -- landed with task-045. The
+    stated dependency chain (047 -> 050 -> 051 -> 052) is fully closed. The remaining
+    scope is unchanged and still wanted: the project-scoped `/p/{id}/` URLs and the
+    task list rendered as an expandable hierarchy.
+
+
+    Carrying forward two things its description already flags, so the next reader
+    does not have to reconstruct them: the ordering conflict with task-054 over what
+    owns the project home page is real and unresolved on purpose -- whichever lands
+    second confirms the arrangement with the owner rather than overriding the other;
+    and task-059 deferred its sc-5 here, so the review buttons still POST to unscoped
+    `/api/tasks/{id}/...` routes and should be pointed at the scoped ones once these
+    URLs exist.'
+  data: {}

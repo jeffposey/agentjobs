@@ -2,11 +2,11 @@ schema: 2
 id: task-046-agent-human-handoff-loop
 title: Formalize the agent-to-human handoff loop (status + notification, chat-independent)
 created: '2026-07-20T20:10:26Z'
-updated: '2026-07-29T20:47:00Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: 'NEEDS REVIEW: finish specifying this task.'
+updated: '2026-08-11T05:55:51.915979Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
 priority: high
 category: developer_experience
 tags:
@@ -87,6 +87,7 @@ spec:
     \ AgentJobs task record the single source of truth for where work stands, so that\
     \ eventually neither the human nor a future agent needs this conversation's history\
     \ to know what happened or what's next."
+  context: []
 acceptance:
 - id: sc-1
   text: 'ALLAGENTS.md and/or ENGINEERING.md document: (a) tasks must carry a human_summary
@@ -108,11 +109,11 @@ acceptance:
   status: pending
 deliverables:
 - path: ALLAGENTS.md
-  status: pending
   note: Human-handoff and self-sufficient-task-content rules
-- path: docs/agent-workflow.md
   status: pending
+- path: docs/agent-workflow.md
   note: Chat-independent resumption model documented
+  status: pending
 dependencies:
 - task: task-044-docs-git-workflow
   type: needs
@@ -121,14 +122,13 @@ dependencies:
   type: needs
   note: Added 2026-07-29 -- the loop this documents is v2's handoff machinery (docs/schema-design.md
     section 5); document and exercise it once it exists
+links: []
+branches: []
 log:
 - id: 1
   ts: '2026-07-29T20:47:00Z'
   actor: system
   type: note
-  data:
-    v1_status: draft
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
@@ -142,3 +142,39 @@ log:
     - ball_prompt: no status update to derive an ask from
 
     - spec.summary: no human_summary; derived from the description'
+  data:
+    v1_status: draft
+    migrated_to_schema: 2
+- id: 2
+  ts: '2026-08-11T05:55:51.915918Z'
+  actor: claude
+  type: decision
+  body: 'Promoted draft -> ready in a backlog grooming pass, 2026-08-11.
+
+
+    It was sitting at ball: human / ball_reason: spec with the prompt ''NEEDS REVIEW:
+    finish specifying this task'', a state the schema-v1 migrator assigned to every
+    draft it could not derive an ask from. That was never true here: the task was
+    specified in July and narrowed again on 2026-07-29 against task-048''s schema
+    design. Nothing was waiting on a human. It was invisible to get_next_task() for
+    ten months over a migration artifact.
+
+
+    Its `needs` gate on task-052 is satisfied -- v2 merged 2026-08-10.
+
+
+    It is also worth more than its own description suggests. The narrowed scope is
+    ''document the resumption contract in ALLAGENTS.md and docs/agent-workflow.md''.
+    ALLAGENTS.md has since been rewritten and covers its half. **docs/agent-workflow.md
+    has not, and is still entirely schema v1**: 310 lines documenting `ready` status,
+    mark-complete/mark-blocked, `prompts.starter` and `prompts.followups`, `phases`,
+    and a ''Task States'' section built on the single `status` field v2 deleted. Every
+    one of those fields is gone. This is not stale prose, it is a document handing
+    agents instructions for an API that no longer exists, and it is the file this
+    task already owns as a deliverable.
+
+
+    Rejected alternative: closing it as completed on the strength of ALLAGENTS.md
+    covering the handoff rules. That would have retired the task while leaving the
+    wrong half of its scope shipped and wrong.'
+  data: {}

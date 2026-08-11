@@ -2,11 +2,10 @@ schema: 2
 id: task-041-phase-6-human-workflow-ux
 title: 'Phase 6: Human-Agent Workflow UX'
 created: '2025-10-27T00:38:06Z'
-updated: '2025-10-27T00:38:06Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: 'NEEDS REVIEW: finish specifying this task.'
+updated: '2026-08-11T05:55:51.888372Z'
+lifecycle: closed
+outcome: superseded
+archived: false
 priority: high
 category: ux
 tags:
@@ -16,6 +15,8 @@ tags:
 - webhooks
 - phase-6
 effort: 1-2 weeks
+assignment:
+  eligible: []
 spec:
   summary: Objective Dramatically improve the human experience when reviewing and
     approving agent work by implementing GitHub Issues-inspired workflow automation.
@@ -41,6 +42,7 @@ spec:
     \ draft)\n  - Add threaded comments to tasks for human-agent communication\n-\
     \ **Codex Auto-Trigger** (`phase-4`, draft)\n  - Local listener that opens VS\
     \ Code and starts Codex when webhooks fire"
+  context: []
 acceptance:
 - id: sc-1
   text: Humans can approve/reject waiting_for_human tasks with one click
@@ -56,20 +58,20 @@ acceptance:
   status: pending
 deliverables:
 - path: src/agentjobs/api/templates/task_detail.html
-  status: pending
   note: Updated task detail page with action buttons
+  status: pending
 - path: src/agentjobs/models.py
-  status: pending
   note: Webhook and Comment models
+  status: pending
 - path: src/agentjobs/webhooks.py
-  status: pending
   note: Webhook firing logic with HMAC security
+  status: pending
 - path: examples/codex_listener.py
-  status: pending
   note: Example local listener that auto-triggers Codex
-- path: docs/webhooks.md
   status: pending
+- path: docs/webhooks.md
   note: Webhook documentation and integration guide
+  status: pending
 dependencies:
 - task: task-040-phase-5-3-self-management
   type: needs
@@ -81,14 +83,12 @@ links:
 - url: https://docs.github.com/en/webhooks
   rel: other
   title: GitHub Webhooks - Technical reference
+branches: []
 log:
 - id: 1
   ts: '2025-10-27T00:38:06Z'
   actor: system
   type: note
-  data:
-    v1_status: draft
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
@@ -106,3 +106,43 @@ log:
     - assigned_to: ''TBD'' is not an actor id; dropped
 
     - spec.summary: no human_summary; derived from the description'
+  data:
+    v1_status: draft
+    migrated_to_schema: 2
+- id: 2
+  ts: '2026-08-11T05:55:51.888205Z'
+  actor: claude
+  type: transition
+  body: 'Closed as superseded in a backlog grooming pass, 2026-08-11. Written 2025-10-27
+    as a four-phase umbrella; all four phases have since been built or deliberately
+    replaced by later, better-specified work.
+
+
+    - *Phase 1, human action buttons* -- built. task-059 shipped the review actions
+    and, more to the point, fixed the fact that Approve did not do what its label
+    claimed. task-064 then made those actions attribute to a named human instead of
+    the anonymous ''human''.
+
+    - *Phase 2, webhook system* -- built. `src/agentjobs/webhooks.py` fires HMAC-signed
+    events; `docs/webhooks.md` documents them.
+
+    - *Phase 3, comments and feedback* -- replaced by something better. Schema v2
+    (task-050, task-052) unified comments and status updates into one append-only
+    typed log, which is what this phase was reaching for. task-065 covers capturing
+    a finding from anywhere in the UI; task-067 covers attaching images to it.
+
+    - *Phase 4, Codex auto-trigger* -- superseded by the whole dispatch hierarchy
+    under task-060. `examples/codex_listener.py` is the prototype this phase asked
+    for; task-060''s design pass established that the hard parts are safety, runaway
+    loops and process lifecycle, not the trigger, and tasks 068-078 and 080 carry
+    that work.
+
+
+    Rejected alternative: re-pointing this task at whatever remains and keeping it
+    as the parent of the human-UX cluster. Nothing distinct remains -- every acceptance
+    criterion here is met or has a named successor -- and an umbrella with no unclaimed
+    work under it only clutters the queue. Its one lasting contribution, the GitHub-Issues-as-model
+    framing, is already embedded in the tasks that replaced it.'
+  data:
+    lifecycle: closed
+    outcome: superseded

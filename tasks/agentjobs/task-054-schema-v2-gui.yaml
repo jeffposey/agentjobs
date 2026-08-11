@@ -2,11 +2,10 @@ schema: 2
 id: task-054-schema-v2-gui
 title: 'Schema v2: Jinja GUI -- inbox view, agent activity, v2 task detail'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-11T03:17:10.892678Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: 'NEEDS REVIEW: finish specifying this task.'
+updated: '2026-08-11T05:56:28.260318Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: medium
 category: ux
@@ -55,7 +54,34 @@ spec:
     \ (migrated from schema v1)\n\nImplement per docs/schema-design.md \xA75 and this\
     \ description. Branch `feat/task-054-schema-v2-gui` from main, record in branches[],\
     \ mark in_progress. When complete: STOP, set waiting_for_human, comment a summary,\
-    \ await approval."
+    \ await approval.\n\n## Narrowed 2026-08-11 (backlog grooming pass)\n\nRoughly\
+    \ half of this task shipped under other ids while it sat in `draft`, so the\n\
+    scope below is what is *left*. The original description is preserved above; where\
+    \ it\nconflicts with this section, this section wins.\n\n**Already done, do not\
+    \ rebuild:**\n\n- *Task detail on v2.* `src/agentjobs/api/templates/task_detail.html`\
+    \ is 521 lines and\n  renders `spec.summary`, `spec.intent`, `spec.description`,\
+    \ `spec.constraints`,\n  `spec.out_of_scope`, `spec.context`, the acceptance checklist,\
+    \ and the unified log\n  sorted newest-first with entry-type styling. This arrived\
+    \ incrementally through\n  task-059 (making the record readable, markdown rendering,\
+    \ collapsing long entries)\n  and task-064 (attributing actions to a named human).\
+    \ sc-2 is marked met.\n- *Removing deleted v1 fields.* `grep -rn \"phases|prompts|\\\
+    .issues|\\.comments|\n  status_updates|human_summary\" src/agentjobs/api/templates/`\
+    \ returns nothing. The\n  templates carry no reference to any field v2 deleted.\
+    \ Also part of sc-2.\n\n**Still missing, and the whole of the remaining scope:**\n\
+    \n- *The inbox view.* There is no page that answers \"what needs me\". The dashboard\n\
+    \  interpolates `task.ball_prompt or task.spec.summary` into a row and stops there;\n\
+    \  nothing filters to open `ball == human`. This is the single most load-bearing\
+    \ view\n  in the v2 design (docs/schema-design.md section 5) -- separating `ball`\
+    \ from\n  `lifecycle` was justified *by* the existence of a real inbox, and without\
+    \ it the\n  schema change has not paid for itself in the UI.\n- *The agent-activity\
+    \ view.* Its inverse, `ball == agent`: what is claimed, by whom,\n  and what is\
+    \ merely available.\n\n**Unchanged:** the ordering conflict with task-058 over\
+    \ the project home page stands.\nThis task wants the inbox as the primary home\
+    \ view; task-058 wants the per-project\nhierarchy, on the owner's direct instruction\
+    \ of 2026-08-10. They can coexist -- inbox\nabove the tree -- but whichever lands\
+    \ second confirms the arrangement with the owner\nrather than quietly overriding\
+    \ the other. Keep the inbox scoped to the selected\nproject; there is no merged\
+    \ all-projects view.\n"
   context: []
 acceptance:
 - id: sc-1
@@ -65,7 +91,7 @@ acceptance:
 - id: sc-2
   text: Task detail renders spec, log (typed entries, open questions distinct), and
     acceptance; no references to deleted v1 fields remain in templates
-  status: pending
+  status: met
 - id: sc-3
   text: Template tests / smoke tests pass; poetry run pytest green
   status: pending
@@ -98,3 +124,31 @@ log:
   data:
     v1_status: draft
     migrated_to_schema: 2
+- id: 2
+  ts: '2026-08-11T05:56:28.260249Z'
+  actor: claude
+  type: decision
+  body: 'Narrowed and promoted draft -> ready in a backlog grooming pass, 2026-08-11.
+
+
+    Like task-046 and task-053 it was parked at ball: human / ball_reason: spec on
+    the schema-v1 migrator''s generic ''NEEDS REVIEW'' prompt, not on any real question,
+    and its `needs` gate on task-052 closed when v2 merged on 2026-08-10.
+
+
+    Unlike those two it could not simply be promoted, because part of it had already
+    been built under other ids. Task-059 and task-064 rewrote the task detail page
+    onto v2 while this task sat in draft. So sc-2 -- task detail renders spec, log
+    and acceptance, with no deleted v1 fields left in the templates -- is met, verified
+    by reading task_detail.html and by grepping the template directory for every v2-deleted
+    field name (no hits). The remaining scope is the inbox view and the agent-activity
+    view, and spec.description now says so in a dated appendix rather than leaving
+    a future reader to discover it by rebuilding a page that already exists.
+
+
+    Rejected alternative: closing this as superseded by task-059 and raising the inbox
+    as a new task. The inbox is the reason the ball axis exists -- it is the original
+    intent of this task, not an offshoot of it -- and moving it to a new id would
+    strand the recorded scope boundary against task-058 and the inherited note from
+    task-059 about the review buttons.'
+  data: {}

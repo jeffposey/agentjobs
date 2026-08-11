@@ -2,11 +2,10 @@ schema: 2
 id: task-038-phase-5-1-package-and-integrate
 title: 'Phase 5.1: Package and Integrate AgentJobs'
 created: '2025-10-26T19:30:00Z'
-updated: '2025-10-26T21:15:00Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: 'NEEDS REVIEW: finish specifying this task.'
+updated: '2026-08-11T05:55:51.878030Z'
+lifecycle: closed
+outcome: superseded
+archived: false
 priority: high
 category: deployment
 tags:
@@ -70,6 +69,7 @@ spec:
     - **Migrate existing tasks** (`phase-3`, draft)
 
     - **Document rollout** (`phase-4`, draft)'
+  context: []
 acceptance:
 - id: sc-1
   text: AgentJobs package installs via pip in host environment without manual tweaks.
@@ -82,19 +82,20 @@ acceptance:
   status: pending
 deliverables:
 - path: docs/integration/agentjobs-package.md
-  status: pending
   note: Step-by-step install and integration guide.
+  status: pending
 - path: requirements.txt
-  status: pending
   note: Added AgentJobs dependency pin for host project.
-- path: tasks/
   status: pending
+- path: tasks/
   note: Migrated task catalog stored under AgentJobs management.
+  status: pending
 dependencies:
 - task: task-037-phase-4-2-human-agent-ux
   type: needs
   note: 'Builds on UX improvements to present migrated tasks cleanly. (v1 status:
     completed)'
+links: []
 branches:
 - name: main
   status: merged
@@ -104,9 +105,6 @@ log:
   ts: '2025-10-26T21:15:00Z'
   actor: system
   type: note
-  data:
-    v1_status: draft
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
@@ -120,3 +118,47 @@ log:
     Needs human review:
 
     - ball_prompt: no status update to derive an ask from'
+  data:
+    v1_status: draft
+    migrated_to_schema: 2
+- id: 2
+  ts: '2026-08-11T05:55:51.877932Z'
+  actor: claude
+  type: transition
+  body: 'Closed as superseded in a backlog grooming pass, 2026-08-11. Written 2025-10-26
+    against a shape of the project that no longer exists.
+
+
+    Each of its five activities, and where it actually went:
+
+
+    - *Build and publish the initial Python package* -- `pyproject.toml` carries the
+    full distribution metadata (name, license, homepage, classifiers, `packages =
+    [{include = "agentjobs", from = "src"}]`) and the console entry point. Nothing
+    is missing to build a wheel. Publishing to PyPI was never done and is a separate
+    decision, not a leftover of this task -- if it is wanted, raise it as its own
+    task rather than reviving this one.
+
+    - *Update host project dependencies and CI* -- there is no host project. AgentJobs
+    was extracted into its own repository, so the integration target this task was
+    written to serve does not exist. `requirements.txt` and `docs/integration/agentjobs-package.md`,
+    its two deliverables, are artifacts of that vanished arrangement.
+
+    - *Seed AgentJobs with migrated tasks (34 total)* -- done, twice over. The v1
+    corpus was imported, then migrated wholesale to schema v2 by task-051''s migrator
+    and task-052''s switchover.
+
+    - *Verify CLI/GUI against migrated data* -- covered by task-052''s acceptance
+    and by task-059''s review-surface work.
+
+    - *Document rollout* -- task-079 rewrote the README around installation from source,
+    and `docs/installation.md` exists.
+
+
+    Rejected alternative: keeping it open and rewriting it into a ''publish to PyPI''
+    task. That would preserve an id whose entire spec, acceptance and deliverables
+    would be discarded, which is a new task wearing an old number. The three acceptance
+    criteria here all reference the host environment and are unsatisfiable as written.'
+  data:
+    lifecycle: closed
+    outcome: superseded
