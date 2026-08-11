@@ -2,14 +2,13 @@ schema: 2
 id: task-062-onboard-projects-from-the-ui
 title: 'Onboarding: add or create AgentJobs projects from the UI, not the CLI'
 created: '2026-08-10T22:10:00Z'
-updated: '2026-08-11T00:22:04.571449Z'
+updated: '2026-08-11T00:36:58.427657Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review feature commit a2e6077 on feat/task-062-onboard-projects-from-the-ui.
-  Focus on the arbitrary-path safety rules, typed POST /api/projects and /api/projects/init
-  contracts, and the intentionally minimal Jinja inspect/confirm flow. Full suite:
-  445 passed; Black, Ruff, and MyPy clean; live browser add/switch flow passed.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: medium
 category: ux
@@ -260,3 +259,11 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 7
+  ts: '2026-08-11T00:36:58.427554Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
