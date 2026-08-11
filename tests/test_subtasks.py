@@ -13,8 +13,9 @@ Verification).
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
-from typing import Iterator, Tuple
+from typing import Iterator, List, Tuple
 
 import pytest
 import yaml
@@ -408,3 +409,103 @@ class TestHierarchyOnTheDetailPage:
 
         assert "Sub-tasks" not in page
         assert "Part of" not in page
+
+
+def _row_ids(page: str) -> List[str]:
+    """The task ids of the list's rows, in the order the table draws them."""
+    return re.findall(r'<tr\b[^>]*\bdata-id="([^"]+)"', page)
+
+
+def _ancestors(page: str, task_id: str) -> str:
+    """The data-ancestors value of one row -- what governs whether it is drawn."""
+    match = re.search(
+        rf'<tr\b[^>]*\bdata-id="{re.escape(task_id)}"[^>]*\bdata-ancestors="([^"]*)"',
+        page,
+    )
+    assert match is not None, f"no row for {task_id}"
+    return match.group(1)
+
+
+class TestHierarchyInTheTaskList:
+    def test_children_are_drawn_under_their_parent_in_id_order(self, web_client) -> None:
+        """Id order among siblings, matching get_subtasks and the detail page.
+
+        The table itself sorts by recency, which for numbered stages under one umbrella
+        would draw 054 above 050 -- the same five tasks in a different order on two
+        pages of the same UI.
+        """
+        client, _ = web_client
+
+        ids = _row_ids(client.get("/p/solo/tasks").text)
+        start = ids.index(UMBRELLA)
+
+        assert ids[start + 1 : start + 3] == [CHILD_A, CHILD_B]
+
+    def test_every_task_is_drawn_exactly_once(self, web_client) -> None:
+        client, _ = web_client
+
+        ids = _row_ids(client.get("/p/solo/tasks").text)
+
+        assert sorted(ids) == sorted([UMBRELLA, CHILD_A, CHILD_B, UNRELATED])
+
+    def test_a_child_row_names_the_ancestors_that_govern_it(self, web_client) -> None:
+        """The value, not the attribute: the JS hides a row whose ancestor is collapsed."""
+        client, _ = web_client
+
+        page = client.get("/p/solo/tasks").text
+
+        assert _ancestors(page, CHILD_A) == UMBRELLA
+        assert _ancestors(page, UMBRELLA) == ""
+        assert _ancestors(page, UNRELATED) == ""
+
+    def test_a_grandchild_names_the_whole_chain(self, web_client) -> None:
+        client, manager = web_client
+        _ready(manager, "task-103-grandchild", "Grandchild", parent=CHILD_A)
+
+        page = client.get("/p/solo/tasks").text
+
+        assert _ancestors(page, "task-103-grandchild") == f"{UMBRELLA},{CHILD_A}"
+
+    def test_a_parent_row_states_how_many_children_it_has(self, web_client) -> None:
+        client, _ = web_client
+
+        page = client.get("/p/solo/tasks").text
+
+        assert "2 sub-tasks, 2 open" in page
+
+    def test_the_count_is_singular_for_one_child(self, web_client) -> None:
+        client, manager = web_client
+        _ready(manager, "task-104-only", "Only child", parent=UNRELATED)
+
+        page = client.get("/p/solo/tasks").text
+
+        assert "1 sub-task, 1 open" in page
+
+    def test_a_closed_child_counts_as_a_child_but_not_as_open(self, web_client) -> None:
+        client, manager = web_client
+        manager.claim_task(CHILD_A, agent="codex")
+        manager.close_task(CHILD_A, actor="codex", outcome=Outcome.COMPLETED)
+
+        page = client.get("/p/solo/tasks").text
+
+        assert "2 sub-tasks, 1 open" in page
+
+    def test_a_task_pointing_at_a_parent_that_does_not_exist_is_still_drawn(
+        self, web_client, tmp_path: Path
+    ) -> None:
+        """The manager refuses to write one; a hand-edited file can still carry one.
+
+        Treating it as a root is a judgement call. Dropping the row is not available:
+        a task that vanishes from the listing is invisible exactly when someone needs
+        to notice it is wrong.
+        """
+        client, manager = web_client
+        stray = manager.get_task(UNRELATED).model_copy(
+            update={"id": "task-900-stray", "parent": "task-nope"}
+        )
+        manager.storage.save_task(stray)
+
+        page = client.get("/p/solo/tasks").text
+
+        assert "task-900-stray" in _row_ids(page)
+        assert _ancestors(page, "task-900-stray") == ""

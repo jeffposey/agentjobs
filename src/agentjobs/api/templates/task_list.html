@@ -50,24 +50,50 @@
                 </tr>
             </thead>
             <tbody class="divide-y divide-dark-border">
-                {% for task in tasks %}
+                {% for row in rows %}
+                {% set task = row.task %}
                 <tr
                     class="hover:bg-dark-border transition cursor-pointer"
                     onclick="window.location.href='{{ base }}/tasks/{{ task.id }}'"
-                    x-show="matches($el.dataset)"
+                    x-show="visible($el.dataset)"
+                    data-id="{{ task.id | e }}"
+                    data-ancestors="{{ row.ancestors | join(',') | e }}"
                     data-title="{{ task.title | lower | e }}"
                     data-lifecycle="{{ task.lifecycle | e }}"
                     data-ball="{{ (task.ball or '') | e }}"
                     data-priority="{{ task.priority | e }}"
                     data-tags="{{ task.tags | join(',') | e }}"
                 >
-                    <td class="px-6 py-4 min-w-[220px]">
+                    {# Indent by depth. An inline style rather than a class because the
+                       depth is data, and Tailwind's classes are generated ahead of time
+                       from source text -- a computed class name silently produces no
+                       padding at all. #}
+                    <td class="py-4 pr-6 min-w-[220px]" style="padding-left: {{ 1.5 + row.depth * 1.5 }}rem">
                         {# The id is the handle used everywhere else -- CLI, branch names,
                            dependencies[], commit messages. Showing only the title made the
                            list unusable for anyone who thinks in task numbers. #}
                         <div class="font-mono text-xs text-blue-400">{{ task.id }}</div>
                         <div class="font-medium">{{ task.title }}</div>
-                        <div class="text-sm text-dark-muted">{{ task.category }}</div>
+                        <div class="text-sm text-dark-muted">
+                            {{ task.category }}
+                            {% if row.ancestors %}
+                            {# Only while the list is flat: when the row is nested under
+                               its parent, the indent already says this. #}
+                            <span x-show="flattened" class="text-xs">· part of <span class="font-mono">{{ row.ancestors[-1] }}</span></span>
+                            {% endif %}
+                        </div>
+                        {% if row.child_count %}
+                        {# .stop, or the row's own click handler navigates away instead. #}
+                        <button
+                            type="button"
+                            @click.stop="toggle('{{ task.id }}')"
+                            class="mt-1 text-xs text-blue-400 hover:text-blue-300"
+                            x-show="!flattened"
+                        >
+                            <span x-text="expanded['{{ task.id }}'] ? '▾' : '▸'">▸</span>
+                            {{ row.child_count }} sub-task{{ '' if row.child_count == 1 else 's' }}{% if row.open_children %}, {{ row.open_children }} open{% endif %}
+                        </button>
+                        {% endif %}
                     </td>
                     <td class="px-6 py-4">
                         {% include "components/status_badge.html" %}
@@ -98,6 +124,28 @@
             statusFilter: initialStatus || 'all',
             priorityFilter: 'all',
             scopeFilter: 'all',
+            expanded: {},
+            toggle(id) {
+                this.expanded[id] = !this.expanded[id];
+            },
+            get flattened() {
+                // Any active search or filter means the reader is asking a question,
+                // not browsing an outline, so the tree stops applying and every
+                // matching row is drawn. Nesting a filtered list would hide a matching
+                // child inside a collapsed parent -- and the row most likely to be
+                // hidden that way is a sub-task waiting on a human, which is the one
+                // row this list exists to surface.
+                return this.search.trim() !== ''
+                    || this.statusFilter !== 'all'
+                    || this.priorityFilter !== 'all'
+                    || this.scopeFilter !== 'all';
+            },
+            visible(dataset) {
+                if (!this.matches(dataset)) return false;
+                if (this.flattened) return true;
+                const ancestors = (dataset.ancestors || '').split(',').filter(Boolean);
+                return ancestors.every(id => this.expanded[id]);
+            },
             matches(dataset) {
                 const title = (dataset.title || '').toLowerCase();
                 const lifecycle = dataset.lifecycle || 'draft';

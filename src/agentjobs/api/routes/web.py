@@ -66,6 +66,71 @@ def _sort_tasks_for_dashboard(tasks: List[Task]) -> List[Task]:
     )
 
 
+def _nest_tasks(tasks: List[Task]) -> List[Dict[str, Any]]:
+    """Order tasks so each parent is followed by its children, depth first.
+
+    Returns one row per task, in the order the table should draw them, carrying what
+    the template cannot work out for itself: how deep the row sits, the ancestors whose
+    expansion governs its visibility, and how many children it has.
+
+    Two shapes are handled deliberately rather than left to chance, because both would
+    otherwise make rows *disappear* -- the worst way for a listing to report a data
+    problem:
+
+    - a `parent` naming a task this project does not have. The manager refuses to write
+      one, but a hand-edited file can still carry it, so the task is drawn as a root.
+    - a cycle. Nothing in a cycle is reachable from a root, so anything the walk did not
+      emit is appended flat at the end.
+
+    Top-level rows keep the order they arrive in, so the table's sort still decides
+    where an umbrella sits. Children are ordered by id instead, matching `get_subtasks`
+    and therefore the detail page: an umbrella's children are usually numbered stages,
+    and drawing 054 above 050 because it was touched more recently reads as a shuffle.
+    """
+    by_id = {task.id: task for task in tasks}
+    children: Dict[Optional[str], List[Task]] = {}
+    for task in tasks:
+        children.setdefault(task.parent if task.parent in by_id else None, []).append(task)
+    for parent, siblings in children.items():
+        if parent is not None:
+            siblings.sort(key=lambda task: task.id)
+
+    rows: List[Dict[str, Any]] = []
+
+    def walk(task: Task, ancestors: List[str]) -> None:
+        kids = children.get(task.id, [])
+        rows.append(
+            {
+                "task": task,
+                "depth": len(ancestors),
+                "ancestors": ancestors,
+                "child_count": len(kids),
+                "open_children": sum(1 for kid in kids if kid.is_open),
+            }
+        )
+        for kid in kids:
+            if kid.id in ancestors or kid.id == task.id:
+                continue
+            walk(kid, [*ancestors, task.id])
+
+    for root in children.get(None, []):
+        walk(root, [])
+
+    drawn = {row["task"].id for row in rows}
+    for task in tasks:
+        if task.id not in drawn:
+            rows.append(
+                {
+                    "task": task,
+                    "depth": 0,
+                    "ancestors": [],
+                    "child_count": 0,
+                    "open_children": 0,
+                }
+            )
+    return rows
+
+
 def _collect_recent_updates(tasks: List[Task]) -> List[Dict[str, Any]]:
     """Flatten log entries into a sorted list for the dashboard."""
     updates: List[Dict[str, Any]] = []
@@ -157,6 +222,7 @@ async def task_list(
     context = {
         "request": request,
         "tasks": tasks,
+        "rows": _nest_tasks(tasks),
         "initial_status": initial_status,
         **_context_base(
             project=project,
