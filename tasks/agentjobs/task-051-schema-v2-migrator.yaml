@@ -2,7 +2,7 @@ schema: 2
 id: task-051-schema-v2-migrator
 title: 'Schema v2: one-shot migrator and corpus migration'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T23:29:50.479551Z'
+updated: '2026-08-11T03:17:09.390268Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -15,6 +15,7 @@ tags:
 effort: half day
 assignment:
   eligible: []
+parent: task-063-schema-v2
 spec:
   summary: "Build `agentjobs migrate-schema` (v1 YAML -> v2 per the mapping in docs/schema-design.md\
     \ \xA73/\xA78), run it over the whole corpus, and update the corpus round-trip\

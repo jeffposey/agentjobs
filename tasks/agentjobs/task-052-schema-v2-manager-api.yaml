@@ -2,7 +2,7 @@ schema: 2
 id: task-052-schema-v2-manager-api
 title: 'Schema v2: migrate the corpus and switch the application over'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T23:29:50.509954Z'
+updated: '2026-08-11T03:17:09.890776Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -16,6 +16,7 @@ tags:
 effort: 1-2 working sessions
 assignment:
   eligible: []
+parent: task-063-schema-v2
 spec:
   summary: 'The switchover. Run the proven migrator over all 38 task files, repoint
     storage, the manager, the API, the templates and the CLI at models_v2, and delete

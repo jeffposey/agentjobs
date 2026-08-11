@@ -1,0 +1,53 @@
+schema: 2
+id: task-063-schema-v2
+title: 'Schema v2: models, migrator, application, CLI, GUI'
+created: '2026-08-11T03:17:08.422110Z'
+updated: '2026-08-11T03:17:08.422803Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: infrastructure
+tags:
+- schema-v2
+- umbrella
+assignment:
+  eligible: []
+spec:
+  summary: Umbrella over the five tasks that moved AgentJobs from schema v1 to v2.
+  description: 'Schema v2 was one piece of work delivered in five parts: design the
+    models, build the
+
+    migrator, switch the application over, mirror it in the CLI, then rebuild the
+    GUI on it.
+
+
+    Until now those five were related only by `needs` dependencies, which records
+    their
+
+    *order* but not the fact that they are one effort. `parent` records that (task-045).
+
+
+    This umbrella is not itself work. It is finished when its children are, and the
+    manager
+
+    refuses a claim on it while any child is open.
+
+
+    Category is `infrastructure` rather than the `architecture` suggested in task-045:
+    this
+
+    project''s config defines no `architecture` category, and inventing one to file
+    a single
+
+    task is a bigger change than the task called for.
+
+    '
+  context: []
+acceptance: []
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log: []

@@ -3,11 +3,29 @@ id: task-045-subtask-support
 title: Sub-task behavior atop schema v2 (get_subtasks, umbrella non-claimability,
   ?parent= filter, GUI)
 created: '2026-07-06T19:25:45Z'
-updated: '2026-08-11T03:06:15.610417Z'
+updated: '2026-08-11T03:18:53.850860Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Sub-task behaviour is built and verified on branch `feat/task-045-subtask-support`\n\
+  (4 commits: manager, API, GUI, docs). Nothing is merged -- that is your call.\n\n\
+  **What to look at, in the order it is quickest to judge:**\n\n1. Open `task-063-schema-v2`\
+  \ in the dashboard. That umbrella is real and was built by\n   this feature: five\
+  \ children, \"2 open of 5\", each badged with its own state. Then open\n   `task-053-schema-v2-cli`\
+  \ and follow \"Part of\" back up. This view is what task-079's\n   README screenshot\
+  \ will show, so the thing to judge is whether it looks like something\n   a stranger\
+  \ would take seriously. You called the current UI \"a bit large fonted and\n   non\
+  \ professional looking\" -- the section is deliberately smaller than the headings\n\
+  \   around it, which may now read as *too* quiet next to them.\n2. Three decisions\
+  \ are logged above, each with what I rejected. The one most worth your\n   disagreement\
+  \ is putting parent validation in the manager rather than the API route,\n   which\
+  \ is a deviation from where the spec's deliverable note put it.\n3. `git -C ../aj-045\
+  \ log --oneline main..` and the diff, if you want the code.\n\n**Note the branch\
+  \ is not checked out anywhere you can see.** Work happened in the\n`../aj-045` worktree;\
+  \ the shared clone stayed on main throughout, which is why this\nhandoff is visible\
+  \ to you at all.\n\nOn approval I will rebase onto main, merge --no-ff, mark the\
+  \ branch merged, close this\ntask, and remove the worktree. The React milestone\
+  \ umbrellas the spec mentions come\nafter that, and I have not created them."
 archived: false
 priority: high
 category: infrastructure
@@ -86,15 +104,15 @@ acceptance:
 - id: sc-1
   text: get_subtasks returns exactly the children; a task with open children is excluded
     from /next and refused by claim
-  status: pending
+  status: met
 - id: sc-2
   text: GET /api/tasks?parent=<id> returns exactly the children; creating a task with
     a missing/self/cyclic parent is rejected with 400
-  status: pending
+  status: met
 - id: sc-3
   text: Parent detail page lists children with display_status badges; child page links
     to its parent; pytest green including new tests
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs/manager.py
   note: get_subtasks + umbrella exclusion from claimability
@@ -219,3 +237,133 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 5
+  ts: '2026-08-11T03:18:53.726169Z'
+  actor: claude
+  type: progress
+  body: "Built, in four commits on `feat/task-045-subtask-support` (worktree `../aj-045`).\n\
+    \n**Manager** (`src/agentjobs/manager.py`). `get_subtasks(id)` returns the children\
+    \ in id\norder and raises `TaskNotFoundError` for an id that is not a task. `_open_children()`\n\
+    maps parent -> open child ids; `get_next_task` skips any task in it and `claim_task`\n\
+    refuses one, naming the children. `_validate_parent()` refuses a parent that does\
+    \ not\nexist or that would close a cycle, and is called from both `create_task`\
+    \ and\n`update_task`. `list_tasks(parent=...)` added.\n\n**API** (`src/agentjobs/api/routes/tasks.py`).\
+    \ `GET /api/tasks?parent=<id>`. `parent`\nwas already on the create/update request\
+    \ models; the manager's ValueErrors reach the\nclient as 400 through the handlers\
+    \ those routes already had.\n\n**GUI** (`task_detail.html`, `routes/web.py`).\
+    \ A parent lists its sub-tasks above the\nspec -- title, id, and that child's\
+    \ own `display_status` badge, rendered by the existing\nbadge component -- with\
+    \ an \"N open of M\" count and a line saying it is not claimable\nwhile a child\
+    \ is open. A child says what it is part of, above its title, linking up by\ntitle\
+    \ rather than by bare id. Both links are built from `base`, so they stay inside\
+    \ the\nproject.\n\n**Docs.** `docs/task-schema.md`'s `parent` row now states the\
+    \ behaviour, not just the\nself-parent constraint.\n\n**Verified.** 487 tests\
+    \ pass (30 new in `tests/test_subtasks.py`); black, ruff and mypy\nclean. The\
+    \ rendering assertions were confirmed to bite: changing the template to emit\n\
+    `child.lifecycle` instead of `child.display_status` fails\n`test_children_carry_their_own_rendered_status`,\
+    \ which is the exact failure\nENGINEERING.md's verification rule describes.\n\n\
+    Then exercised as a user, against a server running this branch's code over the\
+    \ real\ntask corpus (port 8790, so nothing running on 8765 was disturbed; it was\
+    \ stopped\nafterwards):\n\n- `GET /api/tasks?parent=task-063-schema-v2` returns\
+    \ exactly 050-054.\n- The umbrella page shows \"2 open of 5\" and five rows badged\
+    \ Completed, Completed,\n  Completed, Needs spec, Needs spec -- each child's own\
+    \ state, no enum reprs.\n- task-053's page shows \"Part of Schema v2: models,\
+    \ migrator, application, CLI, GUI\"\n  linking to `/p/_local/tasks/task-063-schema-v2`.\n\
+    - `POST /api/tasks/task-063-schema-v2/claim` -> 409, naming 053 and 054.\n- `get_next_task()`\
+    \ offers task-080, not the umbrella.\n\n**Not done:** the React milestone umbrellas\
+    \ the spec mentions for \"after this task\nmerges\". They are after the merge,\
+    \ and creating them now would put a dozen task files\non main ahead of a review\
+    \ that could still change the shape of the feature."
+  data: {}
+- id: 6
+  ts: '2026-08-11T03:18:53.747056Z'
+  actor: claude
+  type: decision
+  body: '**Parent validation lives in the manager, not in the API route.**
+
+
+    The spec put it under "API: validate parent exists; reject self-parenting and
+    cycles",
+
+    and the deliverable note says `routes/tasks.py`. I put it in `TaskManager` instead,
+    and
+
+    let the route''s existing `ValueError -> 400` handlers carry it to the client.
+    The
+
+    acceptance criterion is met either way -- a bad parent is a 400.
+
+
+    Why: the CLI, `client.py` and any agent driving the manager directly would all
+    bypass a
+
+    route-level check, and a rule that only the web API enforces is a rule the corpus
+    can
+
+    still be edited around. It is the same reasoning that put `_unmet_needs` in the
+    manager.
+
+
+    Rejected: duplicating the check in the route for an API-shaped error message.
+    The
+
+    manager''s messages already name the task, the parent and the cycle chain, so
+    the
+
+    duplicate would only add a second place to forget.'
+  data: {}
+- id: 7
+  ts: '2026-08-11T03:18:53.768456Z'
+  actor: claude
+  type: decision
+  body: '**`?parent=` matches one id exactly; there is no way to ask for top-level
+    tasks.**
+
+
+    `GET /api/tasks?parent=<id>` returns that umbrella''s children and nothing else.
+    It
+
+    cannot express "tasks with no parent", which is the natural next request once
+    a listing
+
+    wants to show a tree.
+
+
+    Rejected for now: a sentinel like `?parent=none`. It needs a reserved value that
+    can
+
+    never be a task id, and it is guesswork about what the React task list will actually
+
+    want -- easier to add against a real caller than to design blind and support forever.
+
+    The acceptance criterion asks only for the children of an id.'
+  data: {}
+- id: 8
+  ts: '2026-08-11T03:18:53.790735Z'
+  actor: claude
+  type: decision
+  body: '**The umbrella is `task-063-schema-v2`, category `infrastructure`, not `architecture`.**
+
+
+    The spec suggested `architecture`. This project''s `.agentjobs/config.yaml` defines
+    no
+
+    such category, and adding one to file a single task is a larger change than task-045
+
+    called for. `infrastructure` is what the five children already use.
+
+
+    The reasoning is recorded in the umbrella''s own description too, so a reader
+    who finds
+
+    it there does not have to come back here.'
+  data: {}
+- id: 9
+  ts: '2026-08-11T03:18:53.850773Z'
+  actor: claude
+  type: handoff
+  body: 'Handed to Jeff for review: sub-task behaviour built, verified against the
+    real corpus, not merged.'
+  data:
+    ball: human
+    ball_reason: review

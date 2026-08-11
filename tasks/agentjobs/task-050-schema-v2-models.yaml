@@ -3,7 +3,7 @@ id: task-050-schema-v2-models
 title: 'Schema v2: models -- state axes, spec, unified log, strict validation, version
   stamp'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-10T23:29:50.459368Z'
+updated: '2026-08-11T03:17:08.904237Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -15,6 +15,7 @@ tags:
 effort: 1-2 days
 assignment:
   eligible: []
+parent: task-063-schema-v2
 spec:
   summary: 'Implement the v2 Task model designed in docs/schema-design.md: the lifecycle/ball/ball_reason/ball_prompt
     state axes with consistency rules, the structured spec block, the acceptance checklist,
