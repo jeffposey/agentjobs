@@ -29,6 +29,24 @@ Shared guidance for all AI agents working in this repository. Universal engineer
 6.  **On approval**: Rebase onto `main`, merge `--no-ff`, mark the branch `merged`,
     `close` the task with `outcome: completed`, and `git worktree remove` your worktree.
 
+### The Resumption Contract
+
+A task must be sufficient working memory for a new agent session with no access to the
+chat that created it or to the session that last worked it.
+
+-   `spec.summary` is one or two sentences that orient a zero-context reader. It is
+    distinct from `spec.description`, which is the detailed working specification; do
+    not make the summary a clipped first line or force a reader to parse the description
+    merely to learn what the task is.
+-   `ball_prompt` is the current holder's concrete ask. Keep it current; the spec says
+    what the task is, while the prompt says what must happen next.
+-   The newest handoff, every binding `decision`, every unanswered `question`, progress
+    and verification evidence, branches, dependencies, acceptance criteria, and
+    deliverables must let the next session reconstruct what is done and what remains.
+-   Before ending a session, move any fact needed for resumption out of chat and into
+    the task log. If a fresh reader would still need the transcript, the handoff is not
+    complete.
+
 State is four fields, not one (schema v2 — see [docs/task-schema.md](docs/task-schema.md)):
 `lifecycle` (`draft`/`ready`/`active`/`closed`), `ball` (who acts next — `agent`/`human`/
 `external`, required while open), `ball_reason` (scoped to the holder), and `outcome`
@@ -98,6 +116,15 @@ able to read the task YAML alone and know what happened and what is next.
     `external`/`service` (blocked on a third party), or `human`/`decision` (needs a
     call) rather than leaving a task sitting with the agent while nothing happens to it.
     An open task always names who acts next — that is what the schema enforces.
+
+-   At a human decision or review point, record the progress and evidence, then use the
+    handoff API with `ball: human`, the precise reason, and a self-contained
+    `ball_prompt`. Notify through the interactive channel available today (chat and,
+    when available, push notification), but never put information only in the alert.
+-   Durable notification delivery is future work. Schema v2's HMAC-signed
+    `task.handoff` webhook is the extension point for a pluggable notification service;
+    it replaces the v1 `task.status_changed` event for this purpose. Do not build or
+    assume such a receiver as part of an ordinary handoff.
 
 ## Reporting Standards
 -   **Conciseness**: Be brief. Use bullet points.

@@ -277,7 +277,7 @@ where the context already is*:
 You are the agent `claude` working task `task-060-agent-dispatch` in project
 `agentjobs` (root: C:/projects/agentjobs). AgentJobs is serving at
 http://localhost:8765. Read the task record and follow the resumption contract in
-docs/schema-design.md section 5. Dispatch run id: run_a1b2c3d4.
+docs/agent-workflow.md. Dispatch run id: run_a1b2c3d4.
 ```
 
 !!! warning "Amended 2026-08-11 — the stub pointed at a dead document"
@@ -288,11 +288,10 @@ docs/schema-design.md section 5. Dispatch run id: run_a1b2c3d4.
     2026-08-11 — the first headless agent run under this design found the bug in the
     prompt that dispatched it.
 
-    Task-070 must point the stub at whatever is *current* at implementation time. If
-    task-046 finishes rewriting `agent-workflow.md` for v2 first, point there; until
-    then, `schema-design.md` section 5 is the contract. A hardcoded doc path in a
-    prompt is a maintenance hazard either way, and the implementing task should add a
-    test asserting the referenced file exists and mentions the contract.
+    Task-046 rewrote `agent-workflow.md` for v2 and made it the operational guide; it
+    links to `schema-design.md` section 5 as the canonical contract. Task-070 should
+    retain the guide path and a test asserting that the referenced file exists and
+    links to the contract.
 
 Fixed text plus five substitutions. It never needs to change when the schema changes,
 it cannot drift out of sync with the task record, and it is small enough to read in the

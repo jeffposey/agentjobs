@@ -105,13 +105,23 @@ what is checked out before filing anything.
 ### The Merge Gate
 Work does not merge itself. When a branch is complete and verified:
 
-1.  **Stop.** Set the task to `waiting_for_human` through the status API, with a status
-    update stating what was done and what needs review.
+1.  **Stop.** Use the handoff API to set `ball: human` / `ball_reason: review`, with a
+    `ball_prompt` and handoff log entry stating what was done and what needs review.
+    Notify the human through whatever interactive channel is available (the chat reply
+    and, when the host provides it, a push notification). The notification is only a
+    wake-up signal; the task record must contain the complete review request.
 2.  Wait for **explicit** human approval. Absence of objection is not approval.
 3.  On approval: rebase onto `main`, then merge with `--no-ff` (the merge commit is the
     reviewable unit of work, so fast-forward is not acceptable).
 4.  Mark the branch `merged` in `branches[]` and set the task `completed`.
 5.  Delete the local branch once merged.
+
+AgentJobs does not yet deliver durable out-of-session notifications. The intended
+extension point is the existing HMAC-signed webhook system in
+`src/agentjobs/webhooks.py`: schema v2 emits `task.handoff` with the new ball holder and
+`ball_prompt` (replacing v1's broader `task.status_changed` event). A future pluggable
+service can subscribe to human-directed handoffs and route email, SMS, mobile push, or
+desktop alerts. Building that service is separate work.
 
 Pushing to the remote is a separate act from merging; do not assume approval to merge
 carries approval to push.
