@@ -3,7 +3,7 @@ id: task-079-readme-and-screenshot
 title: Rewrite the README front page around what makes AgentJobs different, with a
   screenshot
 created: '2026-08-11T02:36:59.915733Z'
-updated: '2026-08-11T02:36:59.916419Z'
+updated: '2026-08-11T04:48:08.146569Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -137,4 +137,40 @@ dependencies:
     is not done without the hierarchy to photograph.
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-11T04:48:08.146467Z'
+  actor: claude
+  type: note
+  body: "**The gate is clear.** This task's only `needs` dependency, task-045-subtask-support,\n\
+    merged on 2026-08-11 (c0d7ba4) and is closed completed. The hierarchy view the\n\
+    screenshot is meant to show now exists and is live.\n\n**What to photograph.**\
+    \ Two real hierarchies are in the corpus, both rendered by the\nrunning dashboard\
+    \ on port 8765:\n\n- `task-060-agent-dispatch` -- 12 children, \"12 sub-tasks,\
+    \ 12 open\" in the list.\n- `task-063-schema-v2` -- 5 children, \"3 of 5 complete,\
+    \ 2 open\", a 60% progress bar,\n  and \"Waiting on a human: task-053, task-054\"\
+    \ on its detail page.\n\nThe detail page of task-063 is the better single image:\
+    \ it shows the roll-up, the\nchildren with their own `display_status` badges,\
+    \ and the ball model in one frame. The\ntask list, with the umbrella expanded,\
+    \ is the better second image if two are wanted.\nBoth views were built to be looked\
+    \ at by a stranger, which is what this task asked for.\n\n**One practical gap,\
+    \ worth knowing before starting.** Acceptance sc-2 wants a\nscreenshot committed\
+    \ to the repo and rendering on GitHub, and there is currently no way\nin this\
+    \ project to take one: no playwright, no selenium, no image tooling in\npyproject.toml,\
+    \ and no images in the repo. Options are to have Jeff capture it from his\nbrowser,\
+    \ or to install a headless browser as a dev dependency -- which is a real\ndependency\
+    \ decision, not a detail, and should be raised as a `question` rather than\ndecided\
+    \ quietly.\n\n**On the folded-in UI polish.** Task-045 already applied restraint\
+    \ to the two surfaces\nthe screenshot will show (the sub-tasks section and the\
+    \ list rows use smaller type than\nthe headings around them). Jeff reviewed both\
+    \ in the GUI and approved. Whatever remains\nis elsewhere on the page, so measure\
+    \ before assuming the polish work is still needed --\nand the instruction in the\
+    \ spec stands: if it exceeds an hour, split it out rather than\nletting it swallow\
+    \ this task.\n\n**Accuracy warning for the rewrite.** The spec's acceptance says\
+    \ nothing unbuilt may be\ndescribed as existing. As of 2026-08-11 that specifically\
+    \ means: dispatch is designed\nand unbuilt (tasks 068-080 are open), agent loops\
+    \ are designed and unbuilt (078), the\nReact frontend does not exist, and the\
+    \ CLI and Jinja GUI have not caught up to schema\nv2 (053, 054 are open). Hierarchical\
+    \ tasks, the ball model, multi-project support and\nthe migrator are real and\
+    \ shipped."
+  data: {}
