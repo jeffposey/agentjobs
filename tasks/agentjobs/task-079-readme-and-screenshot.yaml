@@ -3,50 +3,13 @@ id: task-079-readme-and-screenshot
 title: Rewrite the README front page around what makes AgentJobs different, with a
   screenshot
 created: '2026-08-11T02:36:59.915733Z'
-updated: '2026-08-11T05:19:50.181884Z'
+updated: '2026-08-11T05:24:16.066865Z'
 lifecycle: active
-ball: agent
-ball_reason: revise
-ball_prompt: 'Changes requested -- one blocking item, the rest optional.
-
-
-  **Blocking:** README.md line 71 says `pip install agentjobs`, but the package is
-  not on
-
-  PyPI (pypi.org returns 404 as of 2026-08-11) and the repo has no publish workflow.
-  That is
-
-  the first command a new reader runs and it fails, and it is unbuilt-described-as-existing,
-
-  which sc-4 forbids. sc-4 has been flipped back to `pending`. Either publish the
-  package or
-
-  replace the Installation section with the clone + `poetry install` path that works.
-  Verify
-
-  against PyPI before marking sc-4 met again.
-
-
-  **Optional polish** (take or leave, does not gate approval) -- see the full review
-  logged
-
-  as the preceding `note` entry: the first screen states the ball model and the resumption
-
-  contract twice, once in prose and again in the bullets; the zero-context-agent result
-  is
-
-  unnumbered and unlinked when task-060 records three defects; and the README never
-  shows an
-
-  actual task record despite arguing the record is the product.
-
-
-  Everything else verified clean: all CLI flags, the Python client sample, the schema-design
-
-  anchor, the shipped-vs-unbuilt labelling, and the screenshot (sc-2 and sc-5 stand
-  as met).
-
-  Do not merge; hand back for review when the install path is fixed.'
+ball: human
+ball_reason: review
+ball_prompt: Review commit c5c20a1 on docs/task-079-readme-and-screenshot. The blocking
+  PyPI/install claim is corrected and sc-4 is met again; optional opening polish is
+  included. Approve or request changes. Do not merge until approved.
 archived: false
 priority: high
 category: documentation
@@ -159,7 +122,7 @@ acceptance:
 - id: sc-4
   text: Nothing unbuilt is described as existing; designed-but-unbuilt work is labelled
     as such
-  status: pending
+  status: met
 - id: sc-5
   text: 'The UI in the screenshot is presentable: font sizes restrained, hierarchy
     legible to a stranger'
@@ -408,3 +371,30 @@ log:
   data:
     ball: agent
     ball_reason: revise
+- id: 11
+  ts: '2026-08-11T05:24:16.035666Z'
+  actor: codex
+  type: progress
+  body: 'Corrected the unpublished-package installation path
+
+
+    Committed c5c20a1. Verified https://pypi.org/pypi/agentjobs/json returns HTTP
+    404 on 2026-08-11, removed the false pip install claim, stated that AgentJobs
+    is not yet on PyPI, and documented clone + poetry install. Verified Poetry -P
+    keeps the caller working directory so the cloned package can initialize another
+    project. Also applied the optional editorial polish: moved the audience sentence
+    under the tagline, added a YAML handoff fragment, linked and numbered the three-defect
+    zero-context test, and removed duplicate ball/resumption bullets. Verified 18
+    local README targets, no stale pip command, git diff --check, and pytest (502
+    passed).'
+  data: {}
+- id: 12
+  ts: '2026-08-11T05:24:16.066771Z'
+  actor: codex
+  type: handoff
+  body: The blocking install defect is fixed and verified against PyPI (404). README
+    now gives the working clone + Poetry route and no longer implies a published package.
+    Optional editorial feedback was incorporated. All 502 tests pass; ready for review.
+  data:
+    ball: human
+    ball_reason: review
