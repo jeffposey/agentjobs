@@ -2,13 +2,10 @@ schema: 2
 id: task-070-dispatch-runner
 title: 'Dispatch: the runner and its supervisor process'
 created: '2026-08-11T00:21:32.484450Z'
-updated: '2026-08-11T00:21:32.485202Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Derived from the task-060 dispatch design pass. Do not start until that
-  design is approved and merged -- the decisions here follow from it and would change
-  with it.
+updated: '2026-08-11T01:56:16.479724Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: high
 category: infrastructure
@@ -98,11 +95,47 @@ dependencies:
   type: needs
   note: Derived from the same design pass; this task builds on it.
 - task: task-060-agent-dispatch
-  type: related
-  note: The design pass this task was derived from.
+  type: needs
+  note: 'The design pass these specs derive from. Was the gate: nothing here could
+    start until it was approved. Satisfied 2026-08-11.'
+- task: task-076-dispatch-permission-posture
+  type: needs
+  note: The runner cannot be written without knowing what permissions it passes; a
+    headless permission prompt is a silent denial. Design section 4.
+- task: task-077-dispatch-session-launcher
+  type: needs
+  note: May supersede most of this task. Do not implement a supervisor before deciding
+    whether Claude Code's own one should be driven.
 links:
 - url: https://github.com/jeffposey/agentjobs/blob/main/docs/agent-dispatch-design.md
   rel: design
   title: Agent dispatch design pass (task-060)
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-11T01:43:19.022663Z'
+  actor: claude
+  type: note
+  body: 'Re-encoded: draft / human / spec was the wrong vocabulary for what was meant.
+
+
+    These seven were created `draft` with the ball on Jeff and `ball_reason: spec`,
+    carrying a prompt saying ''do not start until the task-060 design is approved''.
+    But `spec` means *this task is not finished being specified and a human must finish
+    writing it*. That was not true of any of them -- they were fully specified and
+    merely gated. The effect was that all seven were unreachable: not claimable, and
+    sitting in the human inbox asking for work that was already done.
+
+
+    The gate was a dependency all along. `get_next_task()` returns only `ready` tasks
+    with no unmet `needs` dependencies, so the correct encoding was `ready` with a
+    `needs` edge to task-060 -- which would have gated them exactly as intended and
+    then released them automatically the moment 060 closed. Corrected to that now;
+    task-060 is closed, so they are claimable.
+
+
+    Recorded rather than quietly fixed because it is a lesson about the schema''s
+    own vocabulary: `ball_reason` says *why a person is holding this*, and ''because
+    I said so earlier'' is not one of the reasons. Sequencing belongs in `dependencies[]`,
+    not in the ball.'
+  data: {}

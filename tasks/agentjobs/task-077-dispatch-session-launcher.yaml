@@ -1,0 +1,153 @@
+schema: 2
+id: task-077-dispatch-session-launcher
+title: 'Decide: should dispatch launch a remote-controllable session instead of a
+  batch run?'
+created: '2026-08-11T01:56:16.465216Z'
+updated: '2026-08-11T01:56:16.465927Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: architecture
+tags:
+- dispatch
+- architecture
+- design
+assignment:
+  eligible: []
+spec:
+  summary: The dispatch design assumed `claude -p` -- fire and forget, no way in once
+    it starts. The installed CLI (2.1.220) has `--remote-control`, `--bg`, `-w --worktree`,
+    `--session-id` and a machine-readable `claude agents --json`. Claude Code already
+    has a dispatcher, and it calls them 'dispatched sessions'. If AgentJobs drives
+    that instead of reimplementing it, tasks 070 and 072 shrink to a wrapper, section
+    9's supervisor model is mostly wrong, and a dispatched run becomes something Jeff
+    can pick up on his phone rather than a batch he can only read afterwards.
+  description: 'Raised by Jeff on 2026-08-11: ''could our dispatcher create real remote-controllable
+    sessions? then I could follow up on them interactively if I want, and it would
+    be tracked.''
+
+
+    Recorded in docs/agent-dispatch-design.md section 4 as an open amendment.
+
+
+    ## Why this matters more than a flag choice
+
+
+    It changes what dispatch *is*. As designed, a dispatched run is a batch: it starts,
+    it works, it reports, and the only way to influence it is to cancel it. That is
+    why the design invested so heavily in supervision -- output capture, crash reconciliation,
+    forced ball moves, a rule that runs die with their supervisor. All of that is
+    scaffolding for the fact that nobody can see inside a running batch.
+
+
+    A remote-controllable session inverts that. It is visible and steerable from any
+    device, which removes the reason for most of the scaffolding and removes the objection
+    that dispatch will always feel worse than the VS Code extension. It would stop
+    competing with the extension and start feeding it.
+
+
+    ## What is verified (2026-08-11, CLI 2.1.220)
+
+
+    From `claude --help` and `claude agents --help`:
+
+
+    - `--remote-control [name]` -- interactive session with Remote Control enabled.
+
+    - `--bg` / `--background` -- start as a background agent, return immediately.
+
+    - `claude agents --json [--all]` -- active and completed sessions as JSON, explicitly
+    ''for scripting; does not require a TTY''. Confirmed working: returns `[]` with
+    no sessions running.
+
+    - `-w` / `--worktree [name]` -- a git worktree per session, which is most of task-075''s
+    layer 2 for dispatched runs specifically.
+
+    - `--session-id <uuid>` -- the caller assigns the id, so a run id and a session
+    id can be the same value.
+
+    - `claude agents --allow-dangerously-skip-permissions` -- an upstream permission
+    posture for dispatched sessions that task-076 should read before inventing one.
+
+
+    ## What is NOT verified and must be, first
+
+
+    These are cheap to test and the decision is worthless without them:
+
+
+    1. Does `--remote-control` compose with `--bg`, or does remote control require
+    an interactive foreground session?
+
+    2. Does a session started non-interactively actually appear on other devices,
+    or does Remote Control require the session to have been started from a TTY?
+
+    3. What permission mode does a backgrounded session default to, and can it be
+    set per invocation?
+
+    4. What does `claude agents --json` report for a session''s state, and is it enough
+    to drive the outcome vocabulary in design section 9?
+
+
+    **Run these as experiments before deciding anything.** The 2026-08-11 read-only
+    run is the precedent: two minutes of actually trying it beat a day of reasoning
+    about it, and found three defects in the design while it was at it.
+
+
+    ## The decision to record
+
+
+    Whether AgentJobs drives `claude agents` or supervises its own processes -- and
+    if it drives, what remains of design section 9. Record the rejected option with
+    reasons either way. Note the obvious cost of driving it: it is vendor-specific,
+    which cuts against the section 4 argument for a generic runner template. A plausible
+    resolution is that the argv template stays generic and a runner may declare that
+    its sessions are managed externally -- but argue it, do not assume it.
+
+
+    ## Out of scope
+
+
+    Implementing it. This is a decision task, like task-060 was.'
+  context: []
+acceptance:
+- id: sc-1
+  text: The four unverified questions are answered by actually running the CLI, with
+    the commands and their output recorded in the task log
+  status: pending
+- id: sc-2
+  text: 'A decision is recorded in docs/agent-dispatch-design.md: drive claude agents,
+    or supervise our own processes, with the rejected option and its reasoning'
+  status: pending
+- id: sc-3
+  text: 'If driving: design section 9 is rewritten to say what remains, and the ''runs
+    do not outlive their supervisor'' decision is explicitly revisited -- a remote-controlled
+    session is not an orphan'
+  status: pending
+- id: sc-4
+  text: The vendor-lock tension with section 4's generic-runner argument is addressed
+    rather than ignored
+  status: pending
+- id: sc-5
+  text: task-070 and task-072 are rescoped or closed as superseded, with the reason
+    recorded on each
+  status: pending
+deliverables:
+- path: docs/agent-dispatch-design.md
+  note: Resolve the open amendment in section 4; rewrite section 9 if driving
+  status: pending
+dependencies:
+- task: task-060-agent-dispatch
+  type: related
+  note: The design pass this amends.
+- task: task-076-dispatch-permission-posture
+  type: related
+  note: 'Overlaps: upstream already has a permission posture for dispatched sessions.'
+- task: task-075-agent-worktree-isolation
+  type: related
+  note: '`claude -w` may supply worktree isolation for dispatched runs for free.'
+links: []
+branches: []
+log: []

@@ -3,6 +3,13 @@
 **Status: ACCEPTED — D1–D3 resolved with Jeff on 2026-08-10 (§11). Nothing here is
 implemented; implementation tasks are derived in §13.**
 
+**Amended 2026-08-11** after a read-only headless run against task-069 tested the
+assumption this whole design rests on — that a zero-context agent can resume from the
+task record alone. It could, and it found three defects in the design that dispatched
+it: the prompt stub pointed at a dead document (§4), the human-clocked rule read
+evidence it never required to be unforgeable (§2), and permission posture was never
+specified (§4). Corrections are marked inline and dated. Nothing in D1–D4 changed.
+
 Produced under task-060. This document is the deliverable of the dispatch design pass:
 how a human decision recorded in AgentJobs turns into an agent actually running, what
 keeps that safe, and what was rejected on the way. Implementation happens in separate
@@ -70,6 +77,35 @@ A useful consequence: the rule is checkable in one line at spawn time — resolv
 entry that caused this dispatch, look up its actor in the project's actor vocabulary,
 refuse unless `kind == human`. It is not a policy that has to be maintained across the
 codebase; it is a precondition on one function.
+
+### The rule is only as good as the evidence it reads (added 2026-08-11)
+
+The check resolves a log entry and trusts its `actor` field. So the rule's integrity
+rests entirely on **log entries being unforgeable**, and as originally written this
+design never said they were.
+
+The precedent is already in the codebase. `manager.add_log_entry` refuses to append a
+`transition` entry (`manager.py:479`) on the grounds that a transition not accompanying
+a real state change is a lie. `dispatch` entries have exactly the same property, with a
+sharper consequence: a caller who can POST an arbitrary log entry can write one naming a
+human as its actor, then cite it as `caused_by` — and the one rule this entire design
+rests on is satisfied by a fabricated record. Every counter in §7 is downstream of the
+same evidence.
+
+**Therefore:**
+
+- `add_log_entry` must refuse `dispatch` and `dispatch_result` for the same reason it
+  refuses `transition`. Both are written by the dispatcher as a side effect of a real
+  event, never by a caller. (task-069 defines the types; task-071 enforces this.)
+- The `caused_by` entry must be resolved **from the stored task** at spawn time, never
+  taken from the request body. A request that supplies its own justification is not
+  evidence.
+- The causing entry must be recent — a stale human approval from six months ago should
+  not authorize a run today. Task-071 should pick a window and state it.
+
+Raised as an open question by the read-only dispatch experiment on 2026-08-11, which
+declined to decide it alone. Recorded here rather than left to task-071 to rediscover,
+because it is a property of the *rule*, not of the endpoint that enforces it.
 
 ---
 
@@ -191,8 +227,22 @@ where the context already is*:
 You are the agent `claude` working task `task-060-agent-dispatch` in project
 `agentjobs` (root: C:/projects/agentjobs). AgentJobs is serving at
 http://localhost:8765. Read the task record and follow the resumption contract in
-docs/agent-workflow.md. Dispatch run id: run_a1b2c3d4.
+docs/schema-design.md section 5. Dispatch run id: run_a1b2c3d4.
 ```
+
+!!! warning "Amended 2026-08-11 — the stub pointed at a dead document"
+    This stub originally pointed at `docs/agent-workflow.md`. That file is entirely
+    v1-era (`mark_in_progress`, `TaskStatus`, `status_updates`) and contains no
+    resumption contract, so **every dispatched agent would have been sent to a stale
+    document as its first instruction.** Found by the read-only dispatch experiment on
+    2026-08-11 — the first headless agent run under this design found the bug in the
+    prompt that dispatched it.
+
+    Task-070 must point the stub at whatever is *current* at implementation time. If
+    task-046 finishes rewriting `agent-workflow.md` for v2 first, point there; until
+    then, `schema-design.md` section 5 is the contract. A hardcoded doc path in a
+    prompt is a maintenance hazard either way, and the implementing task should add a
+    test asserting the referenced file exists and mentions the contract.
 
 Fixed text plus five substitutions. It never needs to change when the schema changes,
 it cannot drift out of sync with the task record, and it is small enough to read in the
@@ -225,6 +275,78 @@ every outcome we need to distinguish.
 
 Note what (c) *is not*: it is not a shell command string. Argv is a list, substitution
 is per element, and nothing is interpolated into a shell. See §10.
+
+### Open amendment: dispatch may be a *session launcher*, not a batch runner (2026-08-11)
+
+**Not yet decided. Recorded because it may reshape §9 and three derived tasks.**
+
+This design assumed the only headless option was `claude -p` — fire and forget, no way
+in once it starts. Jeff asked whether a dispatched run could instead be a **remote-
+controllable session** he can pick up interactively from another device. Inspecting the
+installed CLI (2.1.220), the answer appears to be yes, and more of this design already
+exists upstream than was known when it was written. Verified from `claude --help` and
+`claude agents --help`:
+
+| Flag | What it gives us | What it displaces here |
+|---|---|---|
+| `--remote-control [name]` | Interactive session with Remote Control enabled | The premise that a dispatched run is unattendable |
+| `--bg` / `--background` | Start as a background agent, return immediately | §9's supervisor thread per run |
+| `claude agents --json` | Active + completed sessions as JSON, **no TTY required** | §8/§9's run ledger and directory layout |
+| `-w` / `--worktree [name]` | Session gets its own git worktree | Most of task-075's layer 2, for dispatched runs |
+| `--session-id <uuid>` | Caller assigns the id | Correlating a run id with a session |
+| `--max-budget-usd` | Per-run spend ceiling (with `--print` only) | Part of §7, for batch runs |
+
+The CLI's own word for these is "dispatched sessions". **Claude Code already has a
+dispatcher.** The open question is whether AgentJobs should drive it rather than
+reimplement a worse one.
+
+If it should, these change:
+
+- **§9's process lifecycle is largely wrong.** No supervisor thread, no run directories,
+  no pid tracking, no startup reconciliation — `--bg` returns immediately and
+  `claude agents --json` is the ledger. Tasks 070 and 072 shrink to a wrapper.
+- **"Runs do not outlive their supervisor" (§9) becomes indefensible.** It was chosen to
+  avoid an unsupervised orphan. A remote-controlled session is not an orphan — it is
+  reachable, visible, and stoppable from any device. Killing it because the AgentJobs
+  server restarted would be actively wrong.
+- **The wall-clock timeout (§7) needs different semantics.** Thirty minutes is right for
+  a batch run and wrong for a session a human might pick up hours later.
+- **The value argument changes.** §1 justified dispatch as removing a manual step. If a
+  dispatched run is a real session that appears on Jeff's phone, dispatch stops
+  competing with the VS Code extension and starts feeding it.
+
+**Not verified, and load-bearing before deciding:** whether `--remote-control` composes
+with `--bg`; whether a session started non-interactively actually surfaces on other
+devices; and what permission mode a backgrounded session defaults to (note
+`claude agents --allow-dangerously-skip-permissions`, which "make[s] bypass-permissions
+mode available to dispatched sessions without defaulting to it" — an upstream posture
+that task-076 should read before inventing its own).
+
+D1–D4 are unaffected: who may cause a dispatch, and that approval is not dispatch, are
+independent of what a dispatch starts. Tracked as task-077.
+
+### Permission posture: the gap this design left (added 2026-08-11)
+
+Nothing above says **what a dispatched agent is allowed to do**, and that turns out to
+be the difference between a useful run and a useless one. A headless agent that cannot
+run `pytest` cannot satisfy any acceptance criterion in the derived tasks; one that can
+run anything is an unsupervised process with full shell access, which every gate in §6
+exists to avoid granting casually.
+
+Mechanically this lives in the runner's argv, so it looks like the operator's business.
+It is not — it is the actual risk boundary of the whole feature, and burying it in a
+config example means it gets chosen by whoever copies the example first. Deferred to a
+task of its own rather than answered here (§13, task-076): the question is what a run
+may do without a human present, and it deserves the same treatment §6 gave the enable
+gate.
+
+Related, and settled: **credentials are not AgentJobs' problem.** `claude -p` uses
+whatever the local Claude Code install is authenticated with — a subscription login on
+this machine, with no `ANTHROPIC_API_KEY` in the environment (verified 2026-08-11). The
+child inherits the operator's own auth. This strengthens (b)'s rejection above: the SDK
+would have made AgentJobs hold credentials that, under (c), it never sees. It also means
+§7's limits govern a **usage window, not a per-token bill** — worth knowing when
+choosing the numbers.
 
 ---
 
@@ -611,6 +733,10 @@ live with; 7 is the automation, deliberately last.
    live run status with a cancel button, a link to the run's output, and the
    per-project enable/disable toggle from D2 — enable/disable only, never runner
    definition.
+
+7a. **Permission posture for a dispatched agent (task-076, added 2026-08-11).** What a
+   run may do without a human present. Blocks task-070, because the runner cannot be
+   written without an answer. See §4.
 
 7. **Auto-dispatch (opt-in).** `auto_dispatch: true` per project, the budget caps from
    §7 with their ball-moving refusals, and the audit that a dispatch caused by an

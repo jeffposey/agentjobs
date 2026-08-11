@@ -1,0 +1,120 @@
+schema: 2
+id: task-076-dispatch-permission-posture
+title: Decide what a dispatched agent is allowed to do without a human present
+created: '2026-08-11T01:43:18.956698Z'
+updated: '2026-08-11T01:43:18.957397Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: architecture
+tags:
+- dispatch
+- architecture
+- design
+assignment:
+  eligible: []
+spec:
+  summary: The dispatch design specifies four safety gates around *starting* a run
+    and says nothing about what the run may then do. That is the actual risk boundary.
+    A headless agent that cannot run pytest satisfies no acceptance criterion in tasks
+    068-075; one that can run anything is an unsupervised shell on the owner's machine.
+    Mechanically the answer sits in the runner's argv, which makes it look like an
+    operator detail -- it is not, and burying it in a config example means it gets
+    chosen by whoever copies the example first.
+  description: 'Found by the read-only dispatch experiment on 2026-08-11 (see task-060''s
+    log and docs/agent-dispatch-design.md section 4). The experiment was run read-only
+    precisely because the write-enabled version needed a permission decision nobody
+    had made.
+
+
+    ## The question
+
+
+    A dispatched agent runs with nobody watching. Between ''can only read'' and ''can
+    do anything'', where does it sit, and does that vary by project?
+
+
+    ## What is already known
+
+
+    - Read-only is genuinely useful and was proven so: the 2026-08-11 run produced
+    a correct plan and three real defect reports in 143 seconds without write access.
+    **A read-only dispatch mode may be the right first version**, and it sidesteps
+    this question rather than answering it.
+
+    - Edits without commands means untested code. The derived tasks all require `poetry
+    run pytest`.
+
+    - Full permissions in an isolated worktree (task-075) is a materially different
+    risk from full permissions in the shared checkout. **Decide task-075 first or
+    in parallel** -- containment changes the answer.
+
+    - Credentials are not in scope: `claude -p` uses the local install''s own subscription
+    auth and AgentJobs never sees a token.
+
+
+    ## Options to evaluate, with the rejected ones recorded
+
+
+    1. **Read-only dispatch only.** Reports, plans, reviews. No writes ever. Smallest
+    useful thing, and the experiment is evidence it has value.
+
+    2. **Edits accepted, commands allow-listed.** A per-runner allow-list (`pytest`,
+    `ruff`, `git status`). More useful, and the allow-list is a maintenance surface
+    that will be widened under pressure.
+
+    3. **Full permissions, contained by a worktree.** Most useful, and depends entirely
+    on task-075 being real containment rather than a convention.
+
+    4. **Per-project choice** among the above, machine-local like every other dispatch
+    setting.
+
+
+    ## Why this blocks task-070
+
+
+    The runner cannot be written without knowing what flags it passes. Answer this
+    before implementing, not after discovering the first dispatched run stalled on
+    a permission prompt with no human to answer it -- which in headless mode is not
+    a prompt but a silent denial.
+
+
+    ## Out of scope
+
+
+    Authentication for the dashboard. Separate concern, and it becomes urgent only
+    if the dashboard is exposed beyond localhost.'
+  context: []
+acceptance:
+- id: sc-1
+  text: A decision is recorded in docs/agent-dispatch-design.md section 4 with the
+    rejected options and their reasoning, in the style of the rest of that document
+  status: pending
+- id: sc-2
+  text: The decision states explicitly whether a dispatched agent may run shell commands
+    unattended, and if so which
+  status: pending
+- id: sc-3
+  text: 'The interaction with task-075 is stated: what changes if runs are contained
+    in a per-task worktree versus the shared checkout'
+  status: pending
+- id: sc-4
+  text: task-070's spec is updated with the concrete flags its runner template must
+    pass, so it is implementable without reopening this question
+  status: pending
+deliverables:
+- path: docs/agent-dispatch-design.md
+  note: Permission posture decision in section 4
+  status: pending
+dependencies:
+- task: task-060-agent-dispatch
+  type: related
+  note: The design pass that left this gap; found by its own validation experiment.
+- task: task-075-agent-worktree-isolation
+  type: related
+  note: Containment changes the answer. Decide together or 075 first.
+links: []
+branches: []
+log: []
