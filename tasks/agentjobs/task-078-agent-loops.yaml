@@ -1,0 +1,123 @@
+schema: 2
+id: task-078-agent-loops
+title: 'Agent loops: make acceptance criteria executable so a loop can stop itself'
+created: '2026-08-11T02:29:29.362319Z'
+updated: '2026-08-11T02:29:29.363023Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: architecture
+tags:
+- architecture
+- design
+- workflow
+- dispatch
+assignment:
+  eligible: []
+spec:
+  summary: 'The hard part of agent loops was never running them, it was stopping them.
+    AgentJobs already owns both things loops lack -- a termination condition (acceptance[])
+    and a durable iteration history (log[]) that survives the session that produced
+    it. The missing piece is making acceptance criteria *evaluable*: an optional `check`
+    command per criterion whose exit code decides met/unmet. That one field turns
+    a loop from ''an agent runs repeatedly'' into ''an agent converges on a stated
+    definition of done'', and it is the precondition for decision D5 (bounded autonomy)
+    in the dispatch design.'
+  description: "Design pass, in the shape of task-060. Raised by Jeff on 2026-08-11:\
+    \ agent loops are the direction the whole project has been pointing at, and he\
+    \ amended D4 the same day to make them possible (see docs/agent-dispatch-design.md\
+    \ section 2a).\n\n## The thesis to argue or reject\n\nAnyone can write `while\
+    \ true: claude -p`. What nobody has is a loop that knows when it is done, knows\
+    \ whether iteration 12 improved on iteration 11, and leaves a record you can audit\
+    \ next week. Most agent-loop demos terminate because a human was watching or the\
+    \ money ran out.\n\nA loop run in a chat window dies with the window and leaves\
+    \ nothing. A loop expressed as task state is diffable, resumable by a different\
+    \ agent, and reviewable later. **That is AgentJobs' actual contribution to agent\
+    \ loops: not running them, but giving them a memory and a termination condition.**\
+    \ If that claim is wrong, this task should say so and stop.\n\n## The schema change\
+    \ this rests on\n\n```yaml\nacceptance:\n  - id: sc-1\n    text: The double-claim\
+    \ race is closed\n    check: poetry run pytest tests/test_concurrency.py -q\n\
+    ```\n\nAn optional command per criterion. Exit zero means met. Questions the design\
+    \ must answer, not assume:\n\n- Where does a check run, with what permissions,\
+    \ and under what timeout? It is arbitrary code from a task file -- the same argv-not-shell\
+    \ discipline as dispatch applies, and the same machine-local-versus-versioned\
+    \ question. A check committed to a repository is a command that runs on whoever\
+    \ clones it.\n- Who may set `check`? An agent writing its own passing check is\
+    \ grading its own homework, and that is the whole failure mode.\n- Does a check\
+    \ result get logged per evaluation, or only on change? Per evaluation is honest\
+    \ and noisy; on change is readable and hides flapping.\n- What about criteria\
+    \ that cannot be checked? Most of them. A task with a mix of evaluable and prose\
+    \ criteria can loop toward the former and must hand off for the latter -- say\
+    \ exactly how.\n\n## The loop itself\n\nPer D5, an authorized chain carries an\
+    \ evaluable termination condition, an iteration cap, and a ceiling. Design the\
+    \ guardrails concretely, each failing loudly to `ball: human`:\n\n- **Thrash detection**:\
+    \ N consecutive iterations with unchanged check results stop the chain. Pick N\
+    \ and justify it.\n- **Regression guard**: a criterion that was met and becomes\
+    \ unmet stops the chain. Going backwards is worse than not progressing.\n- **Authorization\
+    \ record**: what a human actually approves, and how it is resolved from the stored\
+    \ task rather than the request (section 2's forgeability requirement).\n\n## Which\
+    \ loops are worth running\n\nState the discriminator, because it is what keeps\
+    \ this from being indiscriminate automation: loops pay off where a cheap objective\
+    \ oracle exists -- failing tests, lint, typecheck, a machine-checkable criterion.\
+    \ They do not pay off where 'good' requires taste, which is most feature work\
+    \ and exactly where the human review step earns its place. **Build the oracle-backed\
+    \ case and refuse the general one.**\n\n## Honest counter-argument to address\n\
+    \nMost of what people credit to 'agent loops' is the *inner* loop -- write, test,\
+    \ fix -- which every agent CLI already does for free inside one session. The marginal\
+    \ value of an outer loop is real but smaller than the discourse suggests, and\
+    \ essentially all of the runaway risk lives in it. The design should say what\
+    \ the outer loop buys that the inner one does not, or scope down.\n\n## Out of\
+    \ scope\n\n- Implementing it. Derive tasks, as task-060 did.\n- Multi-agent generator/critic\
+    \ loops. Note as a possible later shape; do not design now.\n- Scheduled/recurring\
+    \ loops (wake every N and check). Cron with judgement; different problem, and\
+    \ smaller.\n"
+  context: []
+acceptance:
+- id: sc-1
+  text: A design document exists recording, for each decision, what is proposed, why,
+    and what was rejected -- in the shape of docs/schema-design.md and docs/agent-dispatch-design.md
+  status: pending
+- id: sc-2
+  text: 'The acceptance[].check schema change is specified: where it runs, with what
+    permissions and timeout, who may set it, and how results are logged'
+  status: pending
+- id: sc-3
+  text: 'The security question is answered explicitly: a check is arbitrary code from
+    a task file, so a cloned repository must not be able to run commands on the machine
+    that clones it'
+  status: pending
+- id: sc-4
+  text: D5's three bounds and the guardrails (thrash detection, regression guard)
+    are specified concretely with chosen numbers and what happens when each trips
+    -- not gestured at
+  status: pending
+- id: sc-5
+  text: Tasks with a mix of evaluable and prose criteria have a stated behaviour,
+    since that is the common case
+  status: pending
+- id: sc-6
+  text: 'The counter-argument is addressed: what an outer loop buys that the inner
+    loop does not already provide for free'
+  status: pending
+- id: sc-7
+  text: Implementation tasks are derived, each independently reviewable
+  status: pending
+deliverables:
+- path: docs/agent-loops-design.md
+  note: The design, with rationale and rejected alternatives
+  status: pending
+- path: docs/agent-dispatch-design.md
+  note: Section 2a updated with the resolved mechanism
+  status: pending
+dependencies:
+- task: task-060-agent-dispatch
+  type: related
+  note: D5 amends that design; this task designs the mechanism D5 depends on.
+- task: task-077-dispatch-session-launcher
+  type: related
+  note: A loop iteration is a dispatch; what a dispatch starts is decided there.
+links: []
+branches: []
+log: []

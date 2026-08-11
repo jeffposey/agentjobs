@@ -57,6 +57,12 @@ Everything else in this document is subordinate to one rule.
 > **A dispatch may only be caused by a log entry whose actor is a human.**
 > An agent handoff never causes a dispatch, in any mode, ever.
 
+!!! danger "Superseded 2026-08-11 by D5 — read §2a before implementing this"
+    Jeff amended D4 the day after approving it. The rule above was right about the
+    *property* it protected and too narrow about the mechanism. It is retained here
+    because the reasoning below is still the reasoning; **§2a states what actually
+    governs.** Where the two conflict, §2a wins.
+
 The feared failure mode is the circular one: agent finishes → something starts an agent →
 it finishes → ... unbounded tokens, unbounded writes to a repository. The usual defence
 is counters and cooldowns, which bound the blast radius of a loop that is still, in
@@ -77,6 +83,50 @@ A useful consequence: the rule is checkable in one line at spawn time — resolv
 entry that caused this dispatch, look up its actor in the project's actor vocabulary,
 refuse unless `kind == human`. It is not a policy that has to be maintained across the
 codebase; it is a precondition on one function.
+
+## 2a. What actually governs: bounded autonomy (D5, 2026-08-11)
+
+> **No autonomous cycle runs unbounded.**
+> A chain of dispatches may proceed without a human act per turn, provided a human
+> authorized the chain in advance with a bound the loop can evaluate *itself*.
+
+D4 guaranteed boundedness by requiring a human at every turn. That works, and it costs a
+click per cycle for no safety gain once the real property is named. The property is
+**boundedness**, not human causation. A human-set bound declared up front delivers it
+just as completely and is strictly more useful.
+
+An authorized chain must carry all three:
+
+1. **A terminating condition the loop can evaluate.** Executable acceptance checks — a
+   command per criterion whose exit code decides met/unmet. **A chain with no evaluable
+   termination condition is refused, not capped.** This is the load-bearing clause: it
+   is what makes the loop stop *because it is done* rather than because it ran out of
+   allowance.
+2. **A maximum iteration count**, set at authorization time.
+3. **A ceiling** — wall-clock, and budget where the runner reports one.
+
+Guardrails on top, all of which fail loudly to `ball: human` with the reason named:
+
+- **Thrash detection.** If N consecutive iterations leave the check results unchanged,
+  stop. A loop that is not converging is not working, and iteration count alone will not
+  notice.
+- **§7's caps now bind here.** They were scoped to auto-dispatch (D3) because a human
+  clicking is a decision; a loop is not clicking, so the per-task counts and cooldown
+  apply to every iteration after the first.
+- **Regression guard.** A criterion that was `met` and becomes unmet stops the chain. An
+  agent that breaks a passing check to make a failing one pass is going backwards.
+- **The authorization is the human act.** §2's forgeability requirement (below) applies
+  to it unchanged — the authorizing entry is resolved from the stored task, never from
+  the request.
+
+What this does *not* license: a standing queue that drains itself, or a chain whose
+termination condition is prose a human has to read. Those remain refused. The
+distinction that makes loops safe is the same one that makes them worth running — they
+pay off exactly where a cheap objective oracle exists (tests, lint, typecheck) and not
+where "good" requires taste.
+
+Mechanism designed in **task-078**, including the `acceptance[].check` schema change
+this rule depends on. Nothing here is implemented.
 
 ### The rule is only as good as the evidence it reads (added 2026-08-11)
 
@@ -672,7 +722,18 @@ always, because they are correctness rather than spend. Conservative starting nu
 **D4 (agent's call, recorded for objection) — the loop is human-clocked (§2).** Not put
 to a vote because it is a consequence of D1 rather than an independent choice, but it is
 the load-bearing rule and the one to revisit first if the design ever feels too
-restrictive.
+restrictive. **Superseded by D5 the following day** — which is what "revisit first" was
+for.
+
+**D5 — bounded autonomy replaces human clocking (§2a). Jeff, 2026-08-11.** In his words:
+"change that D4 ruling so it doesn't need human clicks for no reason, just ensure there
+are acceptance criteria that will stop it, plus safety guardrails." A chain may proceed
+without a human act per turn if a human authorized it in advance with an evaluable
+termination condition, an iteration cap, and a ceiling. *Rejected:* keeping D4 — it
+bought no safety that a declared bound does not, and it foreclosed the agent-loop
+workload that motivated dispatch in the first place. *Also rejected:* allowing chains
+whose termination is prose — a condition only a human can evaluate is not a termination
+condition for an unattended loop, so those stay refused rather than merely capped.
 
 ---
 
