@@ -2,13 +2,9 @@ schema: 2
 id: task-062-onboard-projects-from-the-ui
 title: 'Onboarding: add or create AgentJobs projects from the UI, not the CLI'
 created: '2026-08-10T22:10:00Z'
-updated: '2026-08-11T00:36:58.427657Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-11T00:37:56.143910Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: ux
@@ -19,7 +15,6 @@ tags:
 - api
 effort: half a working session
 assignment:
-  owner: codex
   eligible: []
 spec:
   summary: 'AgentJobs ships knowing about one project -- its own. Adding a second
@@ -193,7 +188,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-062-onboard-projects-from-the-ui
-  status: active
+  status: merged
+  merged_at: '2026-08-11T00:37:56.087621Z'
 log:
 - id: 1
   ts: '2026-08-10T22:10:00Z'
@@ -267,3 +263,13 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 8
+  ts: '2026-08-11T00:37:56.143831Z'
+  actor: codex
+  type: transition
+  body: 'Approved by Jeff Posey and merged into main with --no-ff. Full verification
+    remained: 445 tests passed; Black, Ruff, MyPy clean; live browser onboarding and
+    project switching passed.'
+  data:
+    lifecycle: closed
+    outcome: completed
