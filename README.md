@@ -12,11 +12,7 @@ decision and question log, and the acceptance criteria. That
 with a zero-context agent, which reconstructed the work and found defects in the design
 that dispatched it.
 
-![Placeholder for the AgentJobs schema-v2 hierarchy detail page](docs/img/task-063-schema-v2-detail-placeholder.svg)
-
-> **Screenshot placeholder:** replace this image with Jeff's capture of
-> `task-063-schema-v2` before merge. The live page shows a five-child hierarchy, a 60%
-> roll-up, two tasks waiting on a human, and each child's derived status.
+![AgentJobs showing the schema-v2 parent task, its progress roll-up, and five children with derived status badges](docs/img/task-063-schema-v2-detail.png)
 
 ## Why this is not another task tracker
 
