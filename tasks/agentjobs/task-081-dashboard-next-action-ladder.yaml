@@ -2,18 +2,9 @@ schema: 2
 id: task-081-dashboard-next-action-ladder
 title: One contextual next-action panel on the dashboard
 created: '2026-08-11T07:13:28.934302Z'
-updated: '2026-08-11T07:41:57.700906Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review branch `feat/task-081-next-action-ladder` (2 commits, worktree
-  ../aj-081). All five ladder rungs are now clickable without approving anything:
-  a demo server on port 8792 serves five throwaway projects, one per rung, on an isolated
-  registry -- switch between them with the project switcher. Tier 4 now shows a disabled
-  ''Create task'' button rather than a CLI snippet, as asked; the empty-project rung
-  keeps its snippets deliberately, since a first-run reader has no other path to a
-  first task. Review actions were considered for the blocked panel and deliberately
-  not added -- see the decision entry. Approve to merge --no-ff, or say what to change.'
+updated: '2026-08-11T07:52:33.419512Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: ux
@@ -22,7 +13,6 @@ tags:
 - workflow
 effort: half a day
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'The dashboard stacks independent panels, so it shows a red alert and a
@@ -106,31 +96,31 @@ spec:
 acceptance:
 - id: ac-1
   text: exactly one next-action panel renders on the dashboard in every state
-  status: pending
+  status: met
 - id: ac-2
   text: the ladder ranks blocked-on-you above backlog, backlog above next-up, and
     next-up above the create nudge
-  status: pending
+  status: met
 - id: ac-3
   text: the next-up panel names the task get_next_task() selects and links to it,
     without reimplementing the selection in the route
-  status: pending
+  status: met
 - id: ac-4
   text: when the project has tasks but none are claimable, the panel nudges toward
     creating one
-  status: pending
+  status: met
 - id: ac-5
   text: when the project has no tasks at all, the existing getting-started content
     still renders
-  status: pending
+  status: met
 - id: ac-6
   text: the backlog count stays visible on the stat tile while an alert is showing,
     and links to the draft list
-  status: pending
+  status: met
 - id: ac-7
   text: tests assert which single panel renders for each state, and that the others
     do not
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-080-attention-tiers
@@ -139,7 +129,7 @@ dependencies:
 links: []
 branches:
 - name: feat/task-081-next-action-ladder
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-11T07:13:48.929730Z'
@@ -384,3 +374,43 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 9
+  ts: '2026-08-11T07:52:33.310933Z'
+  actor: jeff
+  type: note
+  body: 'Approved after clicking through all five rungs on the demo server: "the ladders
+    looked good". Two notes from the review: the blocked panel showed no action buttons
+    because no user identity is registered (task-064 territory, not a defect here),
+    and the empty-project rung should use the disabled Create task button rather than
+    telling a human to use the CLI -- applied in the third commit.'
+  data: {}
+- id: 10
+  ts: '2026-08-11T07:52:33.335044Z'
+  actor: claude
+  type: decision
+  body: 'The empty-project rung uses the disabled Create task button, not a CLI command.
+
+
+    This reverses the earlier decision on this branch to keep `agentjobs create` there
+    for first-run readers. The concern was that a disabled button strands someone
+    with no other path to a first task; the owner reviewed that reasoning and chose
+    the button anyway, on the grounds that a human should never be told to open a
+    terminal to do the thing the page is for. The rocket, heading, docs link and the
+    agent-facing TaskClient snippet all stay -- the snippet''s audience is a script,
+    not the reader.
+
+
+    The stranding concern is real until task-090 lands, and that task now carries
+    an acceptance criterion tying the ladder''s fourth rung to the new form.'
+  data: {}
+- id: 11
+  ts: '2026-08-11T07:52:33.419396Z'
+  actor: claude
+  type: transition
+  body: Merged to main as 586f8ff (--no-ff), three commits. All seven acceptance criteria
+    met; 554 tests pass, up from 531 at the start of this work. Verified live on both
+    the real corpus and five purpose-built demo projects, one per rung. Not pushed
+    -- merging is not approval to push.
+  data:
+    lifecycle: closed
+    outcome: completed
