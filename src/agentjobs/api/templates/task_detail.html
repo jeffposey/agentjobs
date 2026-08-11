@@ -6,6 +6,16 @@
 <div class="space-y-6">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
+            {% if task.parent %}
+            {# Upward link. Small and above the title: it is context for what you are
+               reading, not a thing to read. The title comes from the parent record when
+               it loads, so the link says what it leads to rather than only where. #}
+            <div class="text-xs text-dark-muted mb-1">
+                Part of
+                <a href="{{ base }}/tasks/{{ task.parent }}" class="text-blue-400 hover:text-blue-300">{{ parent_task.title if parent_task else task.parent }}</a>
+                <span class="font-mono">{{ task.parent }}</span>
+            </div>
+            {% endif %}
             {# Selectable, because the id is what gets pasted into a CLI command or a
                dependencies[] entry. #}
             <div class="font-mono text-sm text-blue-400 select-all">{{ task.id }}</div>
@@ -140,6 +150,69 @@
         <div class="prose prose-invert max-w-none text-sm prose-p:text-dark-text"
              x-data='{ content: {{ task.ball_prompt | tojson }} }'
              x-markdown="content"></div>
+    </div>
+    {% endif %}
+
+    {% if children %}
+    {#
+        An umbrella's children are the substance of the page, so they sit above the
+        spec rather than below the log. Each row is one line: the id you would paste,
+        the title you would read, and the child's own display_status -- derived from
+        that child's three state axes, never the parent's.
+    #}
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="px-6 py-4 border-b border-dark-border space-y-3">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 class="text-base font-semibold">Sub-tasks</h2>
+                <span class="text-xs text-dark-muted">
+                    {{ rollup.completed }} of {{ rollup.total }} complete · {{ rollup.open }} open
+                </span>
+            </div>
+            {# Widths are data, so they are inline styles: Tailwind generates its classes
+               ahead of time from source text, and a computed class name yields no width
+               at all. #}
+            <div class="flex h-1.5 w-full overflow-hidden rounded bg-dark-bg">
+                <div class="bg-green-600" style="width: {{ rollup.completed_pct }}%"></div>
+                <div class="bg-gray-600" style="width: {{ rollup.other_closed_pct }}%"></div>
+            </div>
+            {# Counts say an effort is stuck; ids say where to go. #}
+            {% if rollup.waiting_on_human %}
+            <div class="text-xs text-orange-300">
+                Waiting on a human:
+                {% for child in rollup.waiting_on_human %}<a href="{{ base }}/tasks/{{ child.id }}" class="font-mono hover:underline">{{ child.id }}</a>{{ "" if loop.last else ", " }}{% endfor %}
+            </div>
+            {% endif %}
+            {% if rollup.blocked %}
+            <div class="text-xs text-red-300">
+                Blocked:
+                {% for child in rollup.blocked %}<a href="{{ base }}/tasks/{{ child.id }}" class="font-mono hover:underline">{{ child.id }}</a>{{ "" if loop.last else ", " }}{% endfor %}
+            </div>
+            {% endif %}
+            {% if rollup.in_flight %}
+            <div class="text-xs text-blue-300">
+                In progress:
+                {% for child in rollup.in_flight %}<a href="{{ base }}/tasks/{{ child.id }}" class="font-mono hover:underline">{{ child.id }}</a>{{ "" if loop.last else ", " }}{% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        <div class="divide-y divide-dark-border">
+            {% for child in children %}
+            <div class="px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div class="min-w-0">
+                    <a href="{{ base }}/tasks/{{ child.id }}" class="text-sm font-medium hover:text-blue-300">{{ child.title }}</a>
+                    <div class="font-mono text-xs text-dark-muted">{{ child.id }}</div>
+                </div>
+                <span data-child-status="{{ child.display_status }}">
+                    {% with task = child %}{% include "components/status_badge.html" %}{% endwith %}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% if open_children %}
+        <div class="px-6 py-3 border-t border-dark-border text-xs text-dark-muted">
+            Not claimable while a sub-task is open — an umbrella is finished by its children.
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 

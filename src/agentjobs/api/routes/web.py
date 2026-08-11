@@ -66,6 +66,106 @@ def _sort_tasks_for_dashboard(tasks: List[Task]) -> List[Task]:
     )
 
 
+def _nest_tasks(tasks: List[Task]) -> List[Dict[str, Any]]:
+    """Order tasks so each parent is followed by its children, depth first.
+
+    Returns one row per task, in the order the table should draw them, carrying what
+    the template cannot work out for itself: how deep the row sits, the ancestors whose
+    expansion governs its visibility, and how many children it has.
+
+    Two shapes are handled deliberately rather than left to chance, because both would
+    otherwise make rows *disappear* -- the worst way for a listing to report a data
+    problem:
+
+    - a `parent` naming a task this project does not have. The manager refuses to write
+      one, but a hand-edited file can still carry it, so the task is drawn as a root.
+    - a cycle. Nothing in a cycle is reachable from a root, so anything the walk did not
+      emit is appended flat at the end.
+
+    Top-level rows keep the order they arrive in, so the table's sort still decides
+    where an umbrella sits. Children are ordered by id instead, matching `get_subtasks`
+    and therefore the detail page: an umbrella's children are usually numbered stages,
+    and drawing 054 above 050 because it was touched more recently reads as a shuffle.
+    """
+    by_id = {task.id: task for task in tasks}
+    children: Dict[Optional[str], List[Task]] = {}
+    for task in tasks:
+        children.setdefault(task.parent if task.parent in by_id else None, []).append(task)
+    for parent, siblings in children.items():
+        if parent is not None:
+            siblings.sort(key=lambda task: task.id)
+
+    rows: List[Dict[str, Any]] = []
+
+    def walk(task: Task, ancestors: List[str]) -> None:
+        kids = children.get(task.id, [])
+        rows.append(
+            {
+                "task": task,
+                "depth": len(ancestors),
+                "ancestors": ancestors,
+                "child_count": len(kids),
+                "open_children": sum(1 for kid in kids if kid.is_open),
+            }
+        )
+        for kid in kids:
+            if kid.id in ancestors or kid.id == task.id:
+                continue
+            walk(kid, [*ancestors, task.id])
+
+    for root in children.get(None, []):
+        walk(root, [])
+
+    drawn = {row["task"].id for row in rows}
+    for task in tasks:
+        if task.id not in drawn:
+            rows.append(
+                {
+                    "task": task,
+                    "depth": 0,
+                    "ancestors": [],
+                    "child_count": 0,
+                    "open_children": 0,
+                }
+            )
+    return rows
+
+
+def _child_rollup(children: List[Task]) -> Optional[Dict[str, Any]]:
+    """What an umbrella's children add up to. Derived on read, never stored.
+
+    An umbrella has no state of its own -- that is the point of it. Storing a rolled-up
+    status on the parent would put two records in the position of knowing whether the
+    effort is done, and they would drift the first time a child moved (design doc
+    section 3, the same reasoning that makes `display_status` computed).
+
+    "Complete" means closed *and* completed. A cancelled or superseded child is finished
+    with, but counting it as complete would let an effort report itself done because
+    half of it was abandoned.
+    """
+    if not children:
+        return None
+    closed = [child for child in children if child.lifecycle is Lifecycle.CLOSED]
+    completed = [child for child in closed if child.outcome is Outcome.COMPLETED]
+    other_closed = [child for child in closed if child.outcome is not Outcome.COMPLETED]
+    open_children = [child for child in children if child.is_open]
+    total = len(children)
+    return {
+        "total": total,
+        "completed": len(completed),
+        "other_closed": len(other_closed),
+        "open": len(open_children),
+        # Percentages of the whole, for the bar. Integers: a bar is not a measurement.
+        "completed_pct": round(100 * len(completed) / total),
+        "other_closed_pct": round(100 * len(other_closed) / total),
+        # Who needs to do what next, named. A count tells you an umbrella is stuck; an
+        # id tells you where to go.
+        "waiting_on_human": [child for child in open_children if child.ball is Ball.HUMAN],
+        "blocked": [child for child in open_children if child.ball is Ball.EXTERNAL],
+        "in_flight": [child for child in open_children if child.lifecycle is Lifecycle.ACTIVE],
+    }
+
+
 def _collect_recent_updates(tasks: List[Task]) -> List[Dict[str, Any]]:
     """Flatten log entries into a sorted list for the dashboard."""
     updates: List[Dict[str, Any]] = []
@@ -157,6 +257,7 @@ async def task_list(
     context = {
         "request": request,
         "tasks": tasks,
+        "rows": _nest_tasks(tasks),
         "initial_status": initial_status,
         **_context_base(
             project=project,
@@ -187,9 +288,17 @@ async def task_detail(
             "404.html", context, status_code=status.HTTP_404_NOT_FOUND
         )
 
+    children = manager.get_subtasks(task_id)
     context = {
         "request": request,
         "task": task,
+        "children": children,
+        "open_children": [child for child in children if child.is_open],
+        "rollup": _child_rollup(children),
+        # None when the id points at nothing: a dangling parent is refused on write, but
+        # a file edited by hand can still carry one, and the page should show the task
+        # rather than 500 over it.
+        "parent_task": manager.get_task(task.parent) if task.parent else None,
         **_context_base(project=project, waiting_count=get_waiting_count(manager)),
     }
     return templates.TemplateResponse("task_detail.html", context)
