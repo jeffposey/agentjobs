@@ -1,0 +1,132 @@
+schema: 2
+id: task-081-dashboard-next-action-ladder
+title: One contextual next-action panel on the dashboard
+created: '2026-08-11T07:13:28.934302Z'
+updated: '2026-08-11T07:13:28.935060Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: ux
+tags:
+- gui
+- workflow
+effort: half a day
+assignment:
+  eligible: []
+spec:
+  summary: 'The dashboard stacks independent panels, so it shows a red alert and a
+    quiet backlog nudge at the same time and answers ''what should I do next?'' twice
+    at once. Collapse them into a single contextual panel chosen by a four-step ladder:
+    blocked on you, else backlog, else the next claimable task, else create one.'
+  intent: 'task-080 split the human inbox into an alerting tier and a quiet backlog
+
+    tier, which fixed a badge that never reached zero. It left both panels rendering
+
+    independently, so a dashboard with work in both tiers shows two calls to action
+    at once
+
+    and ranks neither.
+
+
+    A dashboard''s job is to answer one question -- what should I do next -- with
+    one answer.
+
+    Two panels of equal visual weight make the reader do the ranking, which is the
+    work the
+
+    page exists to do for them.'
+  description: "## The ladder\n\nExactly one panel renders, chosen in this order.\
+    \ The first match wins and the rest are\nsuppressed:\n\n1. **Blocked on you**\
+    \ -- any task where `blocks_human()` holds. The existing red alert\n   panel.\
+    \ Work is stopped; nothing else on the page competes with that.\n2. **Backlog\
+    \ awaiting your input** -- any task where `awaits_human_input()` holds. The\n\
+    \   existing calm panel. Nothing is blocked, but you are the one who would unpark\
+    \ it.\n3. **Next up** -- a new panel naming the task `get_next_task()` selects,\
+    \ linked. This\n   already works: the manager picks the highest-priority `ready`\
+    \ task with no unmet\n   `needs`, no open children, and matching eligibility.\
+    \ Do not reimplement that\n   selection in the route.\n4. **Nothing claimable**\
+    \ -- nudge toward creating a task.\n\n## Tier 4 has two flavours\n\nThey are different\
+    \ situations and deserve different words:\n\n- **The project has tasks, but none\
+    \ are claimable.** Everything ready is an umbrella or\n  dependency-blocked. Short\
+    \ nudge toward creating work, with the CLI command.\n- **The project has no tasks\
+    \ at all.** The existing `stats.total == 0` getting-started\n  block already covers\
+    \ this well, including the agent-side `TaskClient` snippet, and a\n  fresh install\
+    \ is exactly when that is worth reading. Keep that content; it becomes the\n \
+    \ empty-project flavour of tier 4 rather than a fifth independent panel.\n\nTier\
+    \ 4 shows the `agentjobs create` command rather than a button, because there is\
+    \ no\ntask-creation page in the web UI yet -- only the CLI and the API. task-082\
+    \ adds the form\nand upgrades this to a real button.\n\n## The backlog must stay\
+    \ traceable when its panel is suppressed\n\nUnder the ladder, the backlog panel\
+    \ is hidden whenever anything is blocked on you --\nwhich is most days. Left there,\
+    \ that reintroduces the failure task-080 existed to fix,\njust through a different\
+    \ door: a draft nobody sees, rotting quietly.\n\nSo the `+N in backlog` line already\
+    \ on the \"Blocked on You\" stat tile stays\n**unconditional**, and becomes a\
+    \ link to the draft list. The ladder governs which\n*panel* is shown; the tile\
+    \ is the always-present trace that something is parked. That\npairing is what\
+    \ makes suppressing the panel safe, so it is not an optional extra."
+  constraints: "- Exactly one next-action panel renders at a time. Two panels competing\n\
+    \  is the defect being fixed, not a lesser version of it.\n- The backlog stays\
+    \ traceable when its panel is suppressed: the stat-tile count is\n  unconditional\
+    \ and links to the draft list. Without that, this change re-creates the\n  invisible-backlog\
+    \ failure task-080 removed.\n- Reuse `get_next_task()`. The selection rules --\
+    \ unmet `needs`, open children,\n  eligibility -- already exist in the manager\
+    \ and must not be duplicated in a route,\n  where they would drift from the CLI's\
+    \ answer to the same question.\n- No new schema fields, and no change to the two\
+    \ tier predicates from task-080.\n- Assert on rendered values, not on the presence\
+    \ of markup."
+  out_of_scope: 'The create-task form and its POST route -- that is task-082, which
+
+    upgrades tier 4 from a CLI hint to a button. Dispatching or launching an agent,
+    which is
+
+    the 068-078 epic; tier 3 links to the task, it does not start it. Auto-refresh
+    or live
+
+    updates.'
+  context:
+  - path: src/agentjobs/api/templates/dashboard.html
+    why: The three independent panels that become one ladder, and the stat tile.
+  - path: src/agentjobs/api/routes/web.py
+    why: The dashboard route; blocks_human/awaits_human_input live here.
+  - path: src/agentjobs/manager.py
+    why: get_next_task() at ~line 166 already implements tier 3's selection.
+  - path: tests/test_attention_tiers.py
+    why: Where the tier tests live; the ladder tests belong beside them.
+acceptance:
+- id: ac-1
+  text: exactly one next-action panel renders on the dashboard in every state
+  status: pending
+- id: ac-2
+  text: the ladder ranks blocked-on-you above backlog, backlog above next-up, and
+    next-up above the create nudge
+  status: pending
+- id: ac-3
+  text: the next-up panel names the task get_next_task() selects and links to it,
+    without reimplementing the selection in the route
+  status: pending
+- id: ac-4
+  text: when the project has tasks but none are claimable, the panel nudges toward
+    creating one
+  status: pending
+- id: ac-5
+  text: when the project has no tasks at all, the existing getting-started content
+    still renders
+  status: pending
+- id: ac-6
+  text: the backlog count stays visible on the stat tile while an alert is showing,
+    and links to the draft list
+  status: pending
+- id: ac-7
+  text: tests assert which single panel renders for each state, and that the others
+    do not
+  status: pending
+deliverables: []
+dependencies:
+- task: task-080-attention-tiers
+  type: needs
+  note: Supplies blocks_human/awaits_human_input and both panels.
+links: []
+branches: []
+log: []
