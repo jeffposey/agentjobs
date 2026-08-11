@@ -3,13 +3,50 @@ id: task-079-readme-and-screenshot
 title: Rewrite the README front page around what makes AgentJobs different, with a
   screenshot
 created: '2026-08-11T02:36:59.915733Z'
-updated: '2026-08-11T05:03:42.622398Z'
+updated: '2026-08-11T05:19:50.181884Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Review commits 79c8398 and 816b3d4 on docs/task-079-readme-and-screenshot.
-  The real task-063 screenshot is now above the fold and all acceptance criteria are
-  met. Approve or request changes; do not merge until approved.
+ball: agent
+ball_reason: revise
+ball_prompt: 'Changes requested -- one blocking item, the rest optional.
+
+
+  **Blocking:** README.md line 71 says `pip install agentjobs`, but the package is
+  not on
+
+  PyPI (pypi.org returns 404 as of 2026-08-11) and the repo has no publish workflow.
+  That is
+
+  the first command a new reader runs and it fails, and it is unbuilt-described-as-existing,
+
+  which sc-4 forbids. sc-4 has been flipped back to `pending`. Either publish the
+  package or
+
+  replace the Installation section with the clone + `poetry install` path that works.
+  Verify
+
+  against PyPI before marking sc-4 met again.
+
+
+  **Optional polish** (take or leave, does not gate approval) -- see the full review
+  logged
+
+  as the preceding `note` entry: the first screen states the ball model and the resumption
+
+  contract twice, once in prose and again in the bullets; the zero-context-agent result
+  is
+
+  unnumbered and unlinked when task-060 records three defects; and the README never
+  shows an
+
+  actual task record despite arguing the record is the product.
+
+
+  Everything else verified clean: all CLI flags, the Python client sample, the schema-design
+
+  anchor, the shipped-vs-unbuilt labelling, and the screenshot (sc-2 and sc-5 stand
+  as met).
+
+  Do not merge; hand back for review when the install path is fixed.'
 archived: false
 priority: high
 category: documentation
@@ -122,7 +159,7 @@ acceptance:
 - id: sc-4
   text: Nothing unbuilt is described as existing; designed-but-unbuilt work is labelled
     as such
-  status: met
+  status: pending
 - id: sc-5
   text: 'The UI in the screenshot is presentable: font sizes restrained, hierarchy
     legible to a stranger'
@@ -257,3 +294,117 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 9
+  ts: '2026-08-11T05:19:50.126894Z'
+  actor: claude
+  type: note
+  body: "**Review of 79c8398 and 816b3d4 (docs/task-079-readme-and-screenshot).**\n\
+    \nVerdict: substantially better than what it replaced, and the spec's diagnosis\
+    \ was right.\nOne factual defect blocks approval; the rest is optional polish.\n\
+    \n## Blocking: `pip install agentjobs` does not work\n\nREADME.md line 71 carries\
+    \ this over from the old README, unaudited.\n`https://pypi.org/pypi/agentjobs/json`\
+    \ returns 404 as of 2026-08-11. There is no publish\nworkflow (`.github/` contains\
+    \ no workflows), the version is `0.1.0`, and nothing in\n`pyproject.toml` describes\
+    \ a release path.\n\nThis is the first command a stranger runs, and it fails.\
+    \ It is also precisely the class\nof claim sc-4 forbids -- unbuilt described as\
+    \ existing -- so **sc-4 is not met** and has\nbeen flipped back to `pending`.\
+    \ Fix by either publishing the package or replacing the\nInstallation block with\
+    \ the clone + `poetry install` path that actually works. Do not\nmark sc-4 met\
+    \ again without checking PyPI rather than assuming.\n\n## Verified and correct\n\
+    \nEverything else claimed was checked against the code on the branch:\n\n- CLI:\
+    \ `open`, `work --agent`, `create --title/--priority`, `list --lifecycle`, `serve`,\n\
+    \  `status`, `stop`, `restart --reload`, `project add/list` all exist with those\
+    \ flags\n  (src/agentjobs/cli.py).\n- Python sample: `Ball`, `BallReason`, `TaskClient`\
+    \ are exported from `agentjobs/__init__.py`;\n  `get_next_task(agent=)`, `claim_task(id,\
+    \ agent=)`, `handoff_task(id, actor=, ball=,\n  ball_reason=, ball_prompt=)` match\
+    \ the real signatures in client.py.\n- The `docs/schema-design.md#the-resumption-contract`\
+    \ anchor resolves (line 379).\n- Shipped-vs-unbuilt labelling for dispatch, agent\
+    \ loops and the React frontend is\n  accurate and well handled. This part of the\
+    \ task was done properly.\n\n## Screenshot: accepted\n\ndocs/img/task-063-schema-v2-detail.png\
+    \ is legible and shows exactly what sc-2 asked for\nin one frame -- the roll-up\
+    \ bar, \"3 of 5 complete / 2 open\", five children with their own\nderived status\
+    \ badges, the waiting-on-a-human line, and \"Not claimable while a sub-task is\n\
+    open\". Alt text is accurate. The two \"Needs spec\" badges make the project look\
+    \ unfinished\nat the moment of the pitch, but they are honest and on-message;\
+    \ leave them.\n\nOne product observation, not a change to this task: the \"Phase\
+    \ 3 Web UI\" label in the top\nright of the chrome is internal jargon a first-time\
+    \ visitor cannot parse. That is a bug\nreport against the UI, not a request to\
+    \ retouch the image (the spec forbids retouching).\n\n## Non-blocking editorial\
+    \ notes\n\nTake or leave these; they do not gate approval.\n\n1. **The first screen\
+    \ says everything twice.** Paragraph 2 is the ball model and so is\n   bullet\
+    \ 1; paragraph 3 is the resumption contract and so is bullet 2. Roughly half the\n\
+    \   above-the-fold budget is restatement. Cut the first two bullets or cut the\
+    \ prose --\n   not both.\n\n2. **The strongest evidence is stated most weakly.**\
+    \ \"has been exercised with a\n   zero-context agent, which reconstructed the\
+    \ work and found defects in the design that\n   dispatched it\" is passive, unnumbered\
+    \ and unlinked. The task-060 log records *three*\n   defects, on a date, in a\
+    \ readable record. A number and a link are what separate this\n   from a boast,\
+    \ and it is the single most persuasive fact the project has.\n\n3. **The README\
+    \ never shows a task record.** Thirty lines argue that the record is the\n   product,\
+    \ and no record appears. A six-line YAML fragment showing `ball`, `ball_reason`\n\
+    \   and `ball_prompt` would carry more weight than the entire bullet list. The\
+    \ screenshot\n   shows the UI; the thesis is about the format.\n\n4. Minor: the\
+    \ who-is-this-for sentence (\"AgentJobs is for developers coordinating coding\n\
+    \   agents...\") sits at line 31, below the screenshot. It belongs directly under\
+    \ the\n   tagline -- it is the answer to \"is this for me\". And \"Agents are\
+    \ *often* stateless\"\n   hedges your own premise; drop \"often\".\n\n5. Deliberately\
+    \ **not** requested: calling AgentJobs a \"protocol\" overreaches slightly for\n\
+    \   something installed with a package manager, but it is consistent with treating\
+    \ the\n   schema as the product and it is why the tagline lands. Keep it. Noted\
+    \ here so it is not\n   re-raised as an open question later.\n\nAlso worth knowing:\
+    \ linking `tasks/agentjobs/task-053-*.yaml` and `task-054-*.yaml` from\nthe README\
+    \ is honest dogfooding, but those files will close, and the README will then be\n\
+    pointing a stranger at completed work as though it were pending. Not a blocker;\
+    \ a\nmaintenance cost to accept knowingly."
+  data: {}
+- id: 10
+  ts: '2026-08-11T05:19:50.181793Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by Jeff Posey:
+
+
+    Changes requested -- one blocking item, the rest optional.
+
+
+    **Blocking:** README.md line 71 says `pip install agentjobs`, but the package
+    is not on
+
+    PyPI (pypi.org returns 404 as of 2026-08-11) and the repo has no publish workflow.
+    That is
+
+    the first command a new reader runs and it fails, and it is unbuilt-described-as-existing,
+
+    which sc-4 forbids. sc-4 has been flipped back to `pending`. Either publish the
+    package or
+
+    replace the Installation section with the clone + `poetry install` path that works.
+    Verify
+
+    against PyPI before marking sc-4 met again.
+
+
+    **Optional polish** (take or leave, does not gate approval) -- see the full review
+    logged
+
+    as the preceding `note` entry: the first screen states the ball model and the
+    resumption
+
+    contract twice, once in prose and again in the bullets; the zero-context-agent
+    result is
+
+    unnumbered and unlinked when task-060 records three defects; and the README never
+    shows an
+
+    actual task record despite arguing the record is the product.
+
+
+    Everything else verified clean: all CLI flags, the Python client sample, the schema-design
+
+    anchor, the shipped-vs-unbuilt labelling, and the screenshot (sc-2 and sc-5 stand
+    as met).
+
+    Do not merge; hand back for review when the install path is fixed.'
+  data:
+    ball: agent
+    ball_reason: revise
