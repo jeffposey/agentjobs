@@ -2,11 +2,11 @@ schema: 2
 id: task-062-onboard-projects-from-the-ui
 title: 'Onboarding: add or create AgentJobs projects from the UI, not the CLI'
 created: '2026-08-10T22:10:00Z'
-updated: '2026-08-11T00:21:14.360106Z'
+updated: '2026-08-11T00:22:04.571449Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: 'Review commit 8768cf6 on feat/task-062-onboard-projects-from-the-ui.
+ball_prompt: 'Review feature commit a2e6077 on feat/task-062-onboard-projects-from-the-ui.
   Focus on the arbitrary-path safety rules, typed POST /api/projects and /api/projects/init
   contracts, and the intentionally minimal Jinja inspect/confirm flow. Full suite:
   445 passed; Black, Ruff, and MyPy clean; live browser add/switch flow passed.'
@@ -248,6 +248,15 @@ log:
   type: handoff
   body: 'Implementation complete and verified; handing off for human review. Commit:
     8768cf6.'
+  data:
+    ball: human
+    ball_reason: review
+- id: 6
+  ts: '2026-08-11T00:22:04.571346Z'
+  actor: codex
+  type: handoff
+  body: Refreshed the review pointer after removing an unrelated task-060 commit from
+    this branch history; implementation is unchanged.
   data:
     ball: human
     ball_reason: review
