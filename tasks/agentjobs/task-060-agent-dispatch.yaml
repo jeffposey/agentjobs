@@ -2,13 +2,9 @@ schema: 2
 id: task-060-agent-dispatch
 title: 'Close the loop: make a human decision actually start an agent (design pass)'
 created: '2026-08-10T07:40:19Z'
-updated: '2026-08-11T00:59:20.236329Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-11T01:01:08.532692Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: architecture
@@ -20,7 +16,6 @@ tags:
 - collaborative
 effort: a design session, then implementation tasks derived from it
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'The missing half of the workflow. AgentJobs can record that a human approved
@@ -277,7 +272,7 @@ dependencies:
 links: []
 branches:
 - name: docs/task-060-agent-dispatch-design
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-10T07:40:19Z'
@@ -457,3 +452,34 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 8
+  ts: '2026-08-11T01:01:08.532594Z'
+  actor: claude
+  type: transition
+  body: 'Approved by Jeff; rebased onto main and merged --no-ff. Branch deleted. Nothing
+    pushed.
+
+
+    Delivered: docs/agent-dispatch-design.md (13 sections, decisions D1-D4 with rejected
+    alternatives, added to the mkdocs nav) and seven derived implementation tasks,
+    068-074, created draft so they are not claimable until sequenced.
+
+
+    Next for whoever picks this up: task-068 (machine-local dispatch config) has no
+    dependencies and is the entry point. 069 (the two log entry types) is also independent
+    and could run in parallel. Both hard prerequisites the design named -- 055 and
+    052 -- are closed.
+
+
+    One open concern Jeff should settle before 071 lands, recorded here rather than
+    left in chat: the design''s default of one concurrent run machine-wide will bind
+    manual dispatch across multiple registered projects long before any per-task cap
+    does. It is a one-line config default, but the right value depends on how many
+    projects he expects to dispatch from in one sitting.
+
+
+    Rebase note: main had moved (task-062 merged while this branch was open). Rebased
+    cleanly, 452 tests pass on the merge result.'
+  data:
+    lifecycle: closed
+    outcome: completed
