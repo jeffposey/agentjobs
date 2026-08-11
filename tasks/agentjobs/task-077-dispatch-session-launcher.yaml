@@ -3,7 +3,7 @@ id: task-077-dispatch-session-launcher
 title: 'Decide: should dispatch launch a remote-controllable session instead of a
   batch run?'
 created: '2026-08-11T01:56:16.465216Z'
-updated: '2026-08-11T02:09:04.914574Z'
+updated: '2026-08-11T04:37:06.903143Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -16,6 +16,7 @@ tags:
 - design
 assignment:
   eligible: []
+parent: task-060-agent-dispatch
 spec:
   summary: The dispatch design assumed `claude -p` -- fire and forget, no way in once
     it starts. The installed CLI (2.1.220) has `--remote-control`, `--bg`, `-w --worktree`,
@@ -139,9 +140,6 @@ deliverables:
   note: Resolve the open amendment in section 4; rewrite section 9 if driving
   status: pending
 dependencies:
-- task: task-060-agent-dispatch
-  type: related
-  note: The design pass this amends.
 - task: task-076-dispatch-permission-posture
   type: related
   note: 'Overlaps: upstream already has a permission posture for dispatched sessions.'

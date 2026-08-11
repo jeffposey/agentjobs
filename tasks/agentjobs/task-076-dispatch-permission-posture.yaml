@@ -2,7 +2,7 @@ schema: 2
 id: task-076-dispatch-permission-posture
 title: Decide what a dispatched agent is allowed to do without a human present
 created: '2026-08-11T01:43:18.956698Z'
-updated: '2026-08-11T01:43:18.957397Z'
+updated: '2026-08-11T04:37:06.885919Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -15,6 +15,7 @@ tags:
 - design
 assignment:
   eligible: []
+parent: task-060-agent-dispatch
 spec:
   summary: The dispatch design specifies four safety gates around *starting* a run
     and says nothing about what the run may then do. That is the actual risk boundary.
@@ -109,9 +110,6 @@ deliverables:
   note: Permission posture decision in section 4
   status: pending
 dependencies:
-- task: task-060-agent-dispatch
-  type: related
-  note: The design pass that left this gap; found by its own validation experiment.
 - task: task-075-agent-worktree-isolation
   type: related
   note: Containment changes the answer. Decide together or 075 first.

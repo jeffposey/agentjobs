@@ -2,7 +2,7 @@ schema: 2
 id: task-075-agent-worktree-isolation
 title: 'Isolate concurrent agents: a worktree per agent, not one shared checkout'
 created: '2026-08-11T01:10:16.518759Z'
-updated: '2026-08-11T03:00:04.636105Z'
+updated: '2026-08-11T04:37:06.866911Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -15,6 +15,7 @@ tags:
 - correctness
 assignment:
   eligible: []
+parent: task-060-agent-dispatch
 spec:
   summary: 'Several agents work this repo in one checkout with one HEAD, and on 2026-08-11
     that caused three failures in one afternoon: one agent''s uncommitted files swept
@@ -111,9 +112,6 @@ dependencies:
   type: related
   note: Its clean-working-tree precondition is evaluated against whichever tree the
     dispatcher looks at; isolation decides which tree that is.
-- task: task-060-agent-dispatch
-  type: related
-  note: The design pass during which these failures were observed.
 links: []
 branches:
 - name: feat/task-075-worktree-convention

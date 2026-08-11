@@ -2,7 +2,7 @@ schema: 2
 id: task-060-agent-dispatch
 title: 'Close the loop: make a human decision actually start an agent (design pass)'
 created: '2026-08-10T07:40:19Z'
-updated: '2026-08-11T01:01:08.532692Z'
+updated: '2026-08-11T04:37:06.959274Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -483,3 +483,22 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 9
+  ts: '2026-08-11T04:37:06.959183Z'
+  actor: Jeff Posey
+  type: decision
+  body: 'Dispatch is one task hierarchy, per Jeff''s 2026-08-10 direction. `task-060-agent-dispatch`
+    is the parent; tasks 068 through 078 and task 080 are its children. Task 079 remains
+    separate because it is project documentation rather than dispatch work.
+
+
+    `parent` records that these tasks are one effort. Existing `needs` edges on the
+    original derived implementation tasks remain because they separately record sequencing
+    and the completed design gate. Redundant `related` edges from later children back
+    to task 060 were removed.
+
+
+    Rejected: leaving the dispatch backlog connected only by dependency and related
+    edges. Those express ordering or association, but they do not let the UI or API
+    present the work as one hierarchy.'
+  data: {}

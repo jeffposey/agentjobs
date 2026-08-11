@@ -2,7 +2,7 @@ schema: 2
 id: task-069-dispatch-log-entries
 title: 'Schema: dispatch and dispatch_result log entries'
 created: '2026-08-11T00:21:32.478917Z'
-updated: '2026-08-11T01:43:19.003474Z'
+updated: '2026-08-11T04:37:06.759369Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -14,6 +14,7 @@ tags:
 - architecture
 assignment:
   eligible: []
+parent: task-060-agent-dispatch
 spec:
   summary: 'Two new LogEntryType values so a dispatch is a durable, git-tracked fact
     on the task rather than machine-local state: `dispatch` (who authorized, what

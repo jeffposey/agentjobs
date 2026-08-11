@@ -2,7 +2,7 @@ schema: 2
 id: task-078-agent-loops
 title: 'Agent loops: make acceptance criteria executable so a loop can stop itself'
 created: '2026-08-11T02:29:29.362319Z'
-updated: '2026-08-11T02:29:29.363023Z'
+updated: '2026-08-11T04:37:06.920110Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -16,6 +16,7 @@ tags:
 - dispatch
 assignment:
   eligible: []
+parent: task-060-agent-dispatch
 spec:
   summary: 'The hard part of agent loops was never running them, it was stopping them.
     AgentJobs already owns both things loops lack -- a termination condition (acceptance[])
@@ -112,9 +113,6 @@ deliverables:
   note: Section 2a updated with the resolved mechanism
   status: pending
 dependencies:
-- task: task-060-agent-dispatch
-  type: related
-  note: D5 amends that design; this task designs the mechanism D5 depends on.
 - task: task-077-dispatch-session-launcher
   type: related
   note: A loop iteration is a dispatch; what a dispatch starts is decided there.
