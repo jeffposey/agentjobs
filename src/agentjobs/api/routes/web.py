@@ -282,10 +282,18 @@ async def task_list(
     waiting_count = get_waiting_count(manager)
 
     # The filter accepts a lifecycle or a ball holder; both are single-valued facts
-    # about a task, so one select can offer them side by side.
+    # about a task, so one select can offer them side by side. "open" and "all" span
+    # both axes and are offered alongside them.
+    #
+    # The default is "open", not "all". Closed tasks accumulate monotonically and
+    # forever, so a default of "all" degrades toward archaeology as the repository
+    # ages, and the question people actually ask -- "what is open?" -- was not even
+    # on the menu. Closed work stays one deliberate click away.
     status_param = request.query_params.get("status", "").lower()
-    valid_filters = {value.value for value in Lifecycle} | {value.value for value in Ball}
-    initial_status = status_param if status_param in valid_filters else "all"
+    valid_filters = (
+        {"all", "open"} | {value.value for value in Lifecycle} | {value.value for value in Ball}
+    )
+    initial_status = status_param if status_param in valid_filters else "open"
 
     context = {
         "request": request,

@@ -226,3 +226,28 @@ class TestTheDashboardSeparatesTheTiers:
         assert BACKLOG_PANEL in page
         assert PARKED_DRAFT.id in page
         assert ALERT_PANEL not in page
+
+
+class TestTheTaskListDefaultsToOpen:
+    def test_the_default_filter_handed_to_the_browser_is_open(self, client_for) -> None:
+        """The value the Alpine component initialises with is what the user gets."""
+        client, base = client_for([BLOCKED_ON_HUMAN, FINISHED])
+
+        assert "taskList('open')" in client.get(f"{base}/tasks").text
+
+    @pytest.mark.parametrize("status", ["all", "closed", "draft", "human"])
+    def test_an_explicit_status_still_wins(self, client_for, status: str) -> None:
+        """Closed work stays one deliberate click away; no option was removed."""
+        client, base = client_for([BLOCKED_ON_HUMAN, FINISHED])
+
+        assert f"taskList('{status}')" in client.get(f"{base}/tasks?status={status}").text
+
+    def test_an_unrecognised_status_falls_back_to_open_not_all(self, client_for) -> None:
+        client, base = client_for([FINISHED])
+
+        assert "taskList('open')" in client.get(f"{base}/tasks?status=nonsense").text
+
+    def test_open_is_offered_as_a_choice(self, client_for) -> None:
+        client, base = client_for([FINISHED])
+
+        assert '<option value="open">' in client.get(f"{base}/tasks").text
