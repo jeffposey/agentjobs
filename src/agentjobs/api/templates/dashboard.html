@@ -120,11 +120,29 @@
             Every open task is waiting on a dependency, or is an umbrella finished by its children.
             Adding work is the useful move.
         </p>
-        <pre class="bg-dark-bg rounded p-2 text-xs overflow-x-auto">agentjobs create --title "..." --priority high</pre>
+        {# A disabled button rather than a CLI snippet: it says what the affordance will
+           be and where it will live, which a command in a code block does not. Disabled
+           controls are normally a UX smell precisely because they do not explain
+           themselves, so the reason sits next to it rather than in a tooltip. #}
+        <div class="flex items-center gap-3">
+            <button
+                type="button"
+                disabled
+                aria-describedby="create-task-unavailable"
+                class="px-3 py-2 rounded-md text-sm font-medium bg-dark-bg border border-dark-border text-dark-muted cursor-not-allowed opacity-60"
+            >
+                Create task
+            </button>
+            <span id="create-task-unavailable" class="text-xs text-dark-muted">
+                Not yet implemented — arrives with the browser UI (task-090).
+            </span>
+        </div>
     </div>
 
-    {# Tier 4, second flavour: a fresh install. Same rung of the ladder, but a first-run
-       reader needs the agent-side snippet too, not just a create command. #}
+    {# Tier 4, second flavour: a fresh install. Deliberately keeps its command snippets
+       where the rung above drops them. A disabled button is the right answer for someone
+       who already has tasks and knows the tool; it strands a first-run reader, who has no
+       other path to a first task until task-090 lands. #}
     {% elif next_action == 'empty_project' %}
     <div class="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border-2 border-blue-500/30 rounded-lg p-6">
         <div class="flex items-start gap-4">

@@ -322,6 +322,25 @@ class TestTheBacklogStaysTraceableWhenSuppressed:
         assert BACKLOG_PANEL not in panel_region(page)
         assert "+1 in backlog" in page
 
+    def test_the_nothing_claimable_rung_offers_a_disabled_create_button(self, client_for) -> None:
+        """The affordance is named and explained rather than left as a CLI snippet."""
+        client, base = client_for([FINISHED])
+
+        panel = panel_region(client.get(f"{base}/").text)
+
+        assert "disabled" in panel
+        assert "Create task" in panel
+        assert "Not yet implemented" in panel
+        assert "agentjobs create" not in panel
+
+    def test_the_empty_project_rung_keeps_its_instructions(self, client_for) -> None:
+        """A first-run reader has no other path to a first task, so the command stays."""
+        client, base = client_for([])
+
+        panel = panel_region(client.get(f"{base}/").text)
+
+        assert "agentjobs create" in panel
+
     def test_the_tile_count_links_to_the_draft_list(self, client_for) -> None:
         client, base = client_for([BLOCKED_ON_HUMAN, PARKED_DRAFT])
 
