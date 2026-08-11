@@ -60,51 +60,40 @@ poetry run agentjobs init  # If starting fresh
     -   `fix(storage): handle missing yaml files gracefully`
     -   `docs: update installation guide`
 
-### Worktree Lifecycle
-
-This repository is worked by several agents at once, sharing one clone. A clone has one
-working tree and one `HEAD`, so two agents in it are two processes editing the same
-files and fighting over which branch is checked out. **Work each task in its own git
-worktree.**
-
-```bash
-git worktree add ../aj-045 -b feat/task-045-subtask-support   # then work in ../aj-045
-git worktree remove ../aj-045                                  # after the branch merges
-```
-
--   Create the worktree **first** — before the branch exists in the shared clone, before
-    claiming, before anything is written.
--   Name it after the task (`../aj-045`), and put it beside the clone, not inside it.
--   Remove it once the branch is merged and deleted. A worktree for a closed task is
-    litter; `git worktree list` is the inventory.
--   **Never `git checkout` in the shared clone** to start work. That is the specific act
-    that replaces the tree under whoever else is in there.
--   Committing task metadata straight to `main` (see the exception below) does not need a
-    worktree. Anything that goes on a branch does.
-
-This is not ceremony. On 2026-08-11 the absence of it produced three failures in one
-afternoon: an agent's `git add -A` swept a second agent's uncommitted files into its
-commit; an agent checked out its own branch and replaced the tree under a peer that was
-mid-task; and an agent finished and left the clone on `main`, so a task waiting for
-review was invisible in the dashboard and looked like a bug. **Because tasks are YAML
-files in this repository, whichever branch is checked out silently decides what the GUI
-shows** — a task under review on a branch does not exist as far as `main` is concerned.
-
-Related: agent CLIs may be able to do this for you — Claude Code takes `--worktree`.
-
 ### Branch Lifecycle
 -   Create the branch **before** marking the task `in_progress`, so no committed work
-    exists outside a branch. In practice `git worktree add -b` does both at once.
+    exists outside a branch.
 -   Record it in the task's `branches[]` field (`name`, `status: active`) as part of the
     same update that sets `in_progress`.
 -   Branch from an up-to-date `main`.
 
+### Sharing a clone
+
+Working alone in your own clone, `git checkout -b` is fine and nothing below applies.
+
+It stops being fine the moment something else is working the same clone — a second
+person, or an agent. A clone has one working tree and one `HEAD`, so a checkout replaces
+the files under whoever else is in there. **When you are not alone in a clone, take a
+worktree instead of checking out:**
+
+```bash
+git worktree add ../aj-045 -b feat/task-045-subtask-support
+git worktree remove ../aj-045      # after the branch merges
+```
+
+Agents in this repository are required to do this — see
+[ALLAGENTS.md](ALLAGENTS.md#task-lifecycle) — because several of them routinely run
+against one clone and none of them can see the others.
+
+One consequence is worth knowing whoever you are, because it looks like a bug and is
+not: **tasks are YAML files in this repository, so whichever branch is checked out
+decides what the dashboard shows.** A task handed to you for review on a branch does not
+exist as far as `main` is concerned. If the GUI is missing something you expect, check
+what is checked out before filing anything.
+
 ### Commit Hygiene
--   **Never `git add -A` or `git add .`** Stage the specific paths the task owns. With
-    several agents in play, `-A` stages whatever a peer happens to have in flight, and
-    the damage is only recoverable if someone notices within the minute. If a commit has
-    already swept in another agent's work: `git reset --soft HEAD~1`, then
-    `git restore --staged` their paths. Never `git checkout --` them.
+-   Stage explicit paths. `git add -A` commits whatever happens to be in the tree, which
+    is your own mess when you are alone and someone else's work when you are not.
 -   One logical change per commit. If the commit message needs the word "and", it is
     probably two commits.
 -   Tests pass before every commit, not just at the end of the branch.

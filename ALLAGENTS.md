@@ -14,9 +14,7 @@ Shared guidance for all AI agents working in this repository. Universal engineer
 2.  **Worktree, branch, then claim**: `git worktree add ../aj-<nnn> -b <type>/task-<nnn>-<slug>`
     and work there — **this is your first act, before anything is written.** Then `claim`
     the task and record the branch in `branches[]`. In that order, so no work is ever
-    committed outside a branch and no other agent's tree moves under them. You are not
-    the only agent in this repository. See
-    [ENGINEERING.md](ENGINEERING.md#worktree-lifecycle).
+    committed outside a branch. See [Why you get your own worktree](#why-you-get-your-own-worktree).
 3.  **Work**: Small, single-logical-change commits with tests green before each one.
     Stage explicit paths — never `git add -A`.
 4.  **Verify**: Run `poetry run pytest` and exercise the change the way a user would —
@@ -38,6 +36,37 @@ dependencies are returned by `get_next_task()`.
 
 `ball_prompt` is required whenever the ball is set: a handoff without a stated ask is a
 notification with no payload, and the schema rejects it.
+
+### Why you get your own worktree
+
+**You are not the only agent in this repository, and you cannot see the others.** Several
+run against one clone. A clone has one working tree and one `HEAD`, so `git checkout`
+replaces the files under whichever peer is mid-task — you will not get an error, and
+neither will they.
+
+A human working alone does not need this; they have no peer to collide with. You do.
+
+-   Create the worktree **before** the branch, the claim, or anything written to disk.
+-   Name it for the task, beside the clone rather than inside it: `../aj-045`.
+-   `git worktree remove` it once the branch is merged. `git worktree list` is the
+    inventory, and a worktree for a closed task is litter.
+-   **Never `git checkout` in the shared clone** to start work.
+-   Committing task metadata straight to `main` (the narrow exception in ENGINEERING.md)
+    does not need one. Anything that goes on a branch does.
+-   Your CLI may do this for you — Claude Code takes `--worktree`.
+
+Three failures on 2026-08-11, all in one afternoon, all from skipping this:
+
+1.  An agent ran `git add -A` and committed a peer's uncommitted, in-flight files.
+    Recovered only because it was noticed within a minute. **Recovery, if it happens to
+    you:** `git reset --soft HEAD~1`, then `git restore --staged` their paths. Never
+    `git checkout --` them — that destroys work you did not write.
+2.  An agent checked out its own branch and replaced the tree under a peer mid-task. The
+    peer's next commit would have gone to the wrong branch.
+3.  An agent finished and left the clone on `main`. The owner opened the dashboard, did
+    not see a task waiting for review, and reasonably concluded the product was broken.
+    It was not: **tasks are YAML files here, so the checked-out branch decides what the
+    GUI shows.** Before reporting that a task is missing, check what is checked out.
 
 ### Logging Work to the Task
 The task record — not the surrounding conversation — is the source of truth for where
