@@ -139,10 +139,9 @@
         </div>
     </div>
 
-    {# Tier 4, second flavour: a fresh install. Deliberately keeps its command snippets
-       where the rung above drops them. A disabled button is the right answer for someone
-       who already has tasks and knows the tool; it strands a first-run reader, who has no
-       other path to a first task until task-090 lands. #}
+    {# Tier 4, second flavour: a fresh install. Same disabled button as the rung above --
+       a human is never told to go to a terminal to do the thing this page is for. The
+       agent snippet stays because its audience is a script, not the reader. #}
     {% elif next_action == 'empty_project' %}
     <div class="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border-2 border-blue-500/30 rounded-lg p-6">
         <div class="flex items-start gap-4">
@@ -154,7 +153,19 @@
                 <div class="space-y-3 text-sm">
                     <div>
                         <strong class="text-dark-text">For Humans:</strong>
-                        <pre class="bg-dark-bg rounded p-2 mt-1 text-xs overflow-x-auto">agentjobs create --title "My First Task" --priority high</pre>
+                        <div class="flex items-center gap-3 mt-1">
+                            <button
+                                type="button"
+                                disabled
+                                aria-describedby="create-task-unavailable-empty"
+                                class="px-3 py-2 rounded-md text-sm font-medium bg-dark-bg border border-dark-border text-dark-muted cursor-not-allowed opacity-60"
+                            >
+                                Create task
+                            </button>
+                            <span id="create-task-unavailable-empty" class="text-xs text-dark-muted">
+                                Not yet implemented — arrives with the browser UI (task-090).
+                            </span>
+                        </div>
                     </div>
 
                     <div>

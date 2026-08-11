@@ -333,13 +333,20 @@ class TestTheBacklogStaysTraceableWhenSuppressed:
         assert "Not yet implemented" in panel
         assert "agentjobs create" not in panel
 
-    def test_the_empty_project_rung_keeps_its_instructions(self, client_for) -> None:
-        """A first-run reader has no other path to a first task, so the command stays."""
+    def test_the_empty_project_rung_also_offers_the_button_not_a_command(
+        self, client_for
+    ) -> None:
+        """A human is never sent to a terminal to do the thing this page is for."""
         client, base = client_for([])
 
         panel = panel_region(client.get(f"{base}/").text)
 
-        assert "agentjobs create" in panel
+        assert "Getting Started with AgentJobs" in panel
+        assert "Create task" in panel
+        assert "Not yet implemented" in panel
+        assert "agentjobs create" not in panel
+        # The agent snippet stays: its audience is a script, not the reader.
+        assert "TaskClient" in panel
 
     def test_the_tile_count_links_to_the_draft_list(self, client_for) -> None:
         client, base = client_for([BLOCKED_ON_HUMAN, PARKED_DRAFT])
