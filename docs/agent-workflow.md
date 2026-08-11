@@ -1,310 +1,263 @@
 # Agent Workflow Guide
 
-Complete guide for integrating AI agents with AgentJobs.
+AgentJobs is a durable handoff protocol for agents, humans, and external dependencies.
+The task YAML is the source of truth. Chat can wake a participant or make an interactive
+session convenient, but it is never required working memory.
 
-## Quick Start
+The canonical contract is [schema design section 5](schema-design.md#the-resumption-contract).
+This guide shows how to apply it with the schema-v2 Python client.
+
+## The Core Model
+
+Schema v2 separates questions that v1 compressed into one `status` field:
+
+| Field | Question | Examples |
+| --- | --- | --- |
+| `lifecycle` | Where is the task in its life? | `draft`, `ready`, `active`, `closed` |
+| `ball` | Who acts next? | `agent`, `human`, `external` |
+| `ball_reason` | Why do they hold it? | `work`, `review`, `decision`, `dependency` |
+| `ball_prompt` | What must that holder do next? | A concrete, self-contained ask |
+| `outcome` | How did a closed task end? | `completed`, `cancelled`, `superseded`, `duplicate` |
+
+Every open task has a ball holder. Every non-available handoff has an ask. UI labels
+such as "Needs review" or "Blocked" are computed from these fields; they are not stored
+state.
+
+## Resume Without Chat History
+
+A fresh agent session resumes from the record alone, in the order defined by the
+[resumption contract](schema-design.md#the-resumption-contract):
+
+1. Read `spec`. `spec.summary` gives a one-or-two sentence orientation for a
+   zero-context reader; `spec.description` is the detailed working specification.
+2. Read the state axes and `ball_prompt` to learn who acts now and the immediate ask.
+3. Read `log[]` newest-first: begin with the latest `handoff`, preserve every binding
+   `decision`, and identify unanswered `question` entries.
+4. Read `acceptance[]` to learn what done means and what has already been verified.
+
+Also inspect `deliverables[]`, `dependencies[]`, `parent`, and `branches[]` when they
+apply. Before ending a session, write every resumption-critical fact to the log and make
+the `ball_prompt` current. A handoff is defective if the next participant needs the chat
+transcript to discover what happened, why a decision was made, or what to do next.
+
+## Canonical Agent Loop
 
 ```python
-from agentjobs import TaskClient
+from agentjobs import Ball, BallReason, TaskClient
 
-client = TaskClient()  # defaults to http://localhost:8765
+agent = "my-agent"
 
-# Get next task
-task = client.get_next_task()
-
-# Take ownership
-client.mark_in_progress(task.id, agent="my-agent")
-
-# Get instructions
-prompt = client.get_starter_prompt(task.id)
-
-# Work on task...
-# (your implementation)
-
-# Complete
-client.mark_completed(task.id, agent="my-agent")
-```
-
-## Installation
-
-```bash
-pip install agentjobs
-```
-
-## Task Client API
-
-### Initialization
-
-```python
-from agentjobs import TaskClient
-
-# Default (localhost:8765)
-client = TaskClient()
-
-# Custom URL
-client = TaskClient(base_url="http://agentjobs.example.com:8765")
-
-# With timeout
-client = TaskClient(timeout=60.0)
-
-# Context manager (auto-closes)
 with TaskClient() as client:
-    tasks = client.list_tasks()
+    task = client.get_next_task(agent=agent)
+    if task is None:
+        raise SystemExit("No claimable task")
+
+    task = client.claim_task(task.id, agent=agent)
+
+    # Work in the task branch, record decisions, and verify the result.
+    client.add_progress_update(
+        task.id,
+        agent=agent,
+        summary="Implemented and verified the requested change",
+        details="Changed src/feature.py. `poetry run pytest` passed.",
+    )
+
+    client.handoff_task(
+        task.id,
+        actor=agent,
+        ball=Ball.HUMAN,
+        ball_reason=BallReason.REVIEW,
+        ball_prompt=(
+            "Review branch feat/task-123-feature. Approve the merge or request "
+            "specific changes. Tests: `poetry run pytest` passed."
+        ),
+        body=(
+            "Implemented the feature and added regression coverage. The branch is "
+            "complete; no merge has been performed."
+        ),
+    )
 ```
 
-### Querying Tasks
+The claim is atomic: one eligible agent wins and other claimants receive an error.
+`get_next_task()` returns only ready, eligible tasks with no unmet `needs` dependency
+and no open child tasks.
+
+For AgentJobs repository work, create the worktree and branch before claiming. Task
+metadata is updated and committed on `main`; code and documentation stay on the task
+branch. Repository contributors must also follow `ALLAGENTS.md` and `ENGINEERING.md`.
+
+## Resume an Existing Task
+
+Do not assume an open task belongs to the current conversation. Fetch it and reconstruct
+the state from the record:
 
 ```python
-from agentjobs import Priority, TaskStatus
+from agentjobs import Ball, TaskClient
 
-# Get next task (highest priority, ready status)
-task = client.get_next_task()
+with TaskClient() as client:
+    task = client.get_task("task-123-feature")
 
-# Filter by priority
-task = client.get_next_task(priority=Priority.HIGH)
-task = client.get_next_task(priority="critical")
+    if task.ball is not Ball.AGENT:
+        raise SystemExit(
+            f"Do not work yet: {task.ball.value} holds the ball. "
+            f"Current ask: {task.ball_prompt}"
+        )
 
-# List all tasks
-tasks = client.list_tasks()
-
-# Filter by status
-in_progress = client.list_tasks(status=TaskStatus.IN_PROGRESS)
-blocked = client.list_tasks(status="blocked")
-
-# Filter by priority
-high_priority = client.list_tasks(priority=Priority.HIGH)
-
-# Get specific task
-task = client.get_task("task-001")
-
-# Search
-results = client.search_tasks("database optimization")
+    latest_handoff = next(
+        (entry for entry in reversed(task.log) if entry.type.value == "handoff"),
+        None,
+    )
 ```
 
-### Task Ownership
+Then follow the reading order above. A human approval or change request is itself a
+handoff entry, so a new session does not need the conversation in which it was given.
+
+## State Verbs and Handoffs
+
+Use a state verb for every ownership change. Do not patch `lifecycle`, `ball`,
+`ball_reason`, or `outcome` directly; manager verbs enforce consistency and append the
+transition history.
+
+### Human Review, Approval, Input, or Decision
+
+At any human-decision point:
+
+1. Record what changed, decisions made, verification performed, and remaining risk in
+   the task log.
+2. Call `handoff_task()` with `ball="human"`, the precise reason (`review`, `approval`,
+   `decision`, `input`, or `spec`), and a self-contained `ball_prompt`.
+3. Commit the task-record update where the project workflow requires it.
+4. Notify through whatever interactive channel is available today: the chat reply and,
+   when the host provides it, push notification. The notification is only a wake-up
+   signal; all substance belongs in the task record.
+5. Stop. Do not merge or make the decision on the human's behalf.
+
+The web UI can record approval or requested changes. Approval hands the ball back as
+`agent/work` with instructions to rebase, merge, update branch metadata, and close.
+Requested changes hand it back as `agent/revise`, with the feedback preserved in both
+`ball_prompt` and the handoff log.
+
+### External Block
+
+If claimed work cannot proceed, hand off to `external/dependency` for another task or
+`external/service` for a third party, outage, or provisioning step. State the exact
+unblocking event in `ball_prompt` and record what was tried. A ready task with an unmet
+`needs` dependency stays ready and is simply not claimable; do not duplicate that fact as
+stored blocked state.
+
+### Release or Close
+
+- `release_task()` returns active work to `ready` / `agent/available` and clears the
+  owner. Use it when bowing out, not when waiting on a named participant.
+- `close_task()` ends the lifecycle and records an outcome. A closed task has no ball.
+  Closing as completed follows verification and, where required, explicit approval.
+
+## Durable Logging
+
+The unified `log[]` replaces v1's status updates, comments, and follow-up prompts.
 
 ```python
-# Take ownership (mark in progress)
-client.mark_in_progress(
-    task.id,
-    agent="my-agent",
-    summary="Starting Phase 1"  # optional
-)
+from agentjobs import TaskClient
 
-# Mark complete
-client.mark_completed(
-    task.id,
-    agent="my-agent",
-    summary="All deliverables finished"  # optional
-)
-
-# Mark blocked
-client.mark_blocked(
-    task.id,
-    reason="Waiting for API access",
-    agent="my-agent"
-)
+with TaskClient() as client:
+    client.add_log_entry(
+        "task-123-feature",
+        actor="my-agent",
+        type="decision",
+        body=(
+            "Used the existing cache abstraction because it preserves invalidation "
+            "semantics. Rejected a second cache client because it would split policy."
+        ),
+    )
+    client.add_log_entry(
+        "task-123-feature",
+        actor="my-agent",
+        type="question",
+        body="Should failed imports be retried automatically?",
+    )
 ```
 
-### Progress Updates
+Use `progress` for work and verification, `decision` for a choice plus reasoning and a
+rejected alternative, `question` and `answer` with `re` for open threads, and
+`instruction` for a durable directive. State changes create their own `transition` or
+`handoff` entries; callers cannot forge transitions directly.
+
+## Querying the Queues
 
 ```python
-# Add update
-client.add_progress_update(
-    task.id,
-    summary="Phase 1 complete",
-    details="Created files: src/module.py, tests/test_module.py. All tests passing.",
-    agent="my-agent"
-)
+from agentjobs import TaskClient
+
+with TaskClient() as client:
+    ready = client.list_tasks(lifecycle="ready")
+    human_inbox = client.list_tasks(ball="human")
+    externally_blocked = client.list_tasks(ball="external")
+    high_priority = client.list_tasks(priority="high")
+    task = client.get_task("task-123-feature")
+    matches = client.search_tasks("cache invalidation")
 ```
 
-### Prompts
+The human inbox is `ball=human`, not a stored waiting status. The blocked list is
+`ball=external`, not a stored blocked status.
+
+## Creating a Self-Sufficient Task
 
 ```python
-# Get starter prompt (your working instructions)
-prompt = client.get_starter_prompt(task.id)
+from agentjobs import TaskClient
 
-# Add followup prompt (for multi-phase work)
-client.add_followup_prompt(
-    task.id,
-    content="Phase 2: Optimize for performance",
-    author="human-reviewer",
-    context="Phase 1 approved"
-)
+with TaskClient() as client:
+    task = client.create_task(
+        title="Add bounded retry handling",
+        summary=(
+            "Import jobs currently fail permanently on transient upstream errors; "
+            "add bounded retries while preserving non-retryable failures."
+        ),
+        description=(
+            "Retry HTTP 429 and 5xx responses up to three times with capped backoff. "
+            "Do not retry validation failures. Add deterministic tests."
+        ),
+        priority="high",
+        category="infrastructure",
+        lifecycle="ready",
+        eligible=["my-agent"],
+    )
 ```
 
-### Deliverables
+`spec.summary` is not a role-specific "human field" and the description is not an
+agent-only field. Both audiences use the same record: the summary provides orientation;
+the description supplies detail.
 
-```python
-# Mark deliverable complete
-client.mark_deliverable_complete(
-    task.id,
-    deliverable_path="src/feature.py"
-)
-```
+## Notifications and Future Extension
 
-### Creating Tasks
+AgentJobs currently relies on the active host's available channel--chat and, when
+available, push notification--to alert a human after the durable handoff is written. It
+does not yet provide a general email, SMS, mobile-push, desktop-toast, or accounts
+service.
 
-```python
-from agentjobs import Priority
+The intended extension point already exists in `src/agentjobs/webhooks.py`. Webhooks are
+HMAC-signed, and schema v2 emits `task.handoff` with the ball holder and `ball_prompt`.
+A future pluggable notification service can subscribe to handoffs where `ball=human` and
+route them to configured channels. This is the schema-v2 replacement for the older
+`task.status_changed` extension point; the receiver and account/channel model remain
+explicitly out of scope here.
 
-task = client.create_task(
-    title="Implement caching layer",
-    description="Add Redis caching to reduce database load...",
-    priority=Priority.HIGH,
-    category="performance",
-    assigned_to="my-agent",
-    estimated_effort="2 days",
-    human_summary="Add Redis caching to reduce database queries by 80%"
-)
-```
-
-## Task Object
-
-```python
-task = client.get_task("task-001")
-
-# Metadata
-task.id              # "task-001"
-task.title           # "Implement Feature X"
-task.status          # TaskStatus.IN_PROGRESS
-task.priority        # Priority.HIGH
-task.category        # "infrastructure"
-task.assigned_to     # "codex"
-task.estimated_effort # "1 week"
-
-# Content
-task.human_summary   # Concise 1-2 sentence summary
-task.description     # Full markdown implementation details
-
-# Structure
-task.phases          # List[Phase] - progress tracking
-task.deliverables    # List[Deliverable] - files to create
-task.dependencies    # List[Dependency] - task relationships
-task.external_links  # List[ExternalLink] - docs, PRs
-
-# History
-task.status_updates  # List[StatusUpdate] - timeline
-task.prompts         # Prompts object (starter + followups)
-
-# Timestamps
-task.created         # datetime
-task.updated         # datetime
-```
-
-## Common Patterns
-
-### Continuous Processing
-
-```python
-import time
-
-while True:
-    task = client.get_next_task()
-    if not task:
-        time.sleep(30)  # wait for new tasks
-        continue
-
-    # Process task
-    client.mark_in_progress(task.id, agent="agent")
-    # ... do work ...
-    client.mark_completed(task.id, agent="agent")
-```
-
-### Error Handling
+## Errors and Server Setup
 
 ```python
 from agentjobs import TaskClient, TaskClientError
 
 try:
-    task = client.get_task("task-999")
-except TaskClientError as e:
-    print(f"Error: {e}")
-    # Handle 404, connection errors, etc.
+    with TaskClient(base_url="http://localhost:8765", timeout=60) as client:
+        task = client.get_task("task-123-feature")
+except TaskClientError as exc:
+    print(f"AgentJobs request failed: {exc}")
 ```
 
-### Multi-Phase Tasks
-
-```python
-task = client.get_task("task-001")
-
-for phase in task.phases:
-    if phase.status == "draft":
-        print(f"Working on: {phase.title}")
-        # ... do phase work ...
-
-        client.add_progress_update(
-            task.id,
-            summary=f"Completed {phase.title}",
-            agent="agent"
-        )
-        break
-```
-
-## Examples
-
-See [examples/](../examples/) directory for complete working code:
-- [basic_workflow.py](../examples/basic_workflow.py) - Simple workflow
-- [continuous_agent.py](../examples/continuous_agent.py) - Continuous processing
-- [custom_filters.py](../examples/custom_filters.py) - Query with filters
-
-## CLI Alternative
-
-Interactive workflow:
+AgentJobs is not yet published to PyPI. Install and start it from a clone:
 
 ```bash
-agentjobs work --agent my-agent --priority high
+poetry install
+poetry run agentjobs serve
 ```
 
-This will:
-1. Find next high-priority task
-2. Display prompt
-3. Prompt you to start
-4. Mark in progress
-5. Wait for you to complete work
-6. Mark completed
-
-## Best Practices
-
-1. **Always identify yourself**: Use meaningful `agent` parameter
-2. **Add progress updates**: Keep humans informed
-3. **Check task.phases**: Multi-phase tasks need incremental updates
-4. **Handle no tasks gracefully**: Poll or wait when queue is empty
-5. **Use context managers**: `with TaskClient() as client:` auto-closes
-6. **Catch errors**: Network issues happen, handle `TaskClientError`
-
-## Human vs Agent Views
-
-Tasks have two content fields:
-
-- **human_summary**: Concise 1-2 sentences for human reviewers
-- **description**: Full markdown implementation details for agents
-
-**As an agent**: Use `get_starter_prompt()` for your instructions, not `task.description` directly.
-
-## Task States
-
-- **draft**: Captured but not yet ready to pick up
-- **ready**: Ready to work on — the only status `get_next_task()` returns
-- **in_progress**: Agent actively working
-- **blocked**: Cannot proceed (external dependency)
-- **waiting_for_human**: Needs human review/approval
-- **under_review**: Code review in progress
-- **completed**: Work finished
-- **archived**: No longer relevant
-
-## Server Setup
-
-Agents need AgentJobs server running:
-
-```bash
-# Start server
-agentjobs serve
-
-# Server runs on http://localhost:8765
-```
-
-Or use custom server URL in client:
-```python
-client = TaskClient(base_url="http://agentjobs.company.com:8765")
-```
+See the [task schema reference](task-schema.md), [API reference](api-reference.md), and
+[schema-v2 design](schema-design.md) for the complete field and endpoint contracts.
