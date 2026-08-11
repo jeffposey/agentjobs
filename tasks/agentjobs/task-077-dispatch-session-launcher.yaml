@@ -3,7 +3,7 @@ id: task-077-dispatch-session-launcher
 title: 'Decide: should dispatch launch a remote-controllable session instead of a
   batch run?'
 created: '2026-08-11T01:56:16.465216Z'
-updated: '2026-08-11T01:56:16.465927Z'
+updated: '2026-08-11T02:09:04.914574Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -150,4 +150,42 @@ dependencies:
   note: '`claude -w` may supply worktree isolation for dispatched runs for free.'
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-11T02:09:04.914455Z'
+  actor: Jeff Posey
+  type: decision
+  body: 'Direction set by Jeff, 2026-08-11: design around Claude Code''s own dispatcher
+    rather than rolling our own supervisor.
+
+
+    In his words: ''I''d love for us to try the claude remote controllable dispatcher
+    CLI. definitely design around using that instead of rolling our own... if it makes
+    it more claude-dependent that''s ok, but try to keep support for doing same with
+    other agent CLIs, we''ll investigate how codex compares at some point.''
+
+
+    This resolves the vendor-lock tension in sc-4 by accepting it, with a constraint:
+    increased Claude dependence is acceptable, but the runner abstraction must not
+    become a Claude-shaped hole that no other CLI can fill. The shape that satisfies
+    both is probably a runner *capability* declaration -- a runner states whether
+    its sessions are externally managed (Claude: `--bg` plus `claude agents --json`)
+    or supervised by us (the section 9 model, retained as the fallback for a CLI without
+    a session manager). Codex gets evaluated against that later.
+
+
+    Rejected by this decision: reimplementing supervision, output capture, run directories
+    and crash reconciliation when the CLI already provides a session manager with
+    a scriptable JSON interface. The original section 9 was written without knowing
+    that existed.
+
+
+    sc-4 is therefore no longer ''address the tension'' but ''design the two-mode
+    runner abstraction''. The four unverified questions in sc-1 still gate everything
+    -- verify before building.'
+  data:
+    decided_by: Jeff Posey
+    affects:
+    - sc-4
+    - task-070
+    - task-072
