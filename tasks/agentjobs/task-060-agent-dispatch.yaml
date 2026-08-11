@@ -2,20 +2,13 @@ schema: 2
 id: task-060-agent-dispatch
 title: 'Close the loop: make a human decision actually start an agent (design pass)'
 created: '2026-08-10T07:40:19Z'
-updated: '2026-08-11T00:24:01.400072Z'
+updated: '2026-08-11T00:59:20.236329Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Design pass complete -- review docs/agent-dispatch-design.md and the
-  seven derived tasks (068-074), then approve or push back. Three things are worth
-  your attention specifically. (1) D4, the human-clocked rule: it makes runaway loops
-  structurally impossible, and it permanently forecloses chained autonomy. That is
-  the trade to accept or reject. (2) D2 as I resolved it: you asked for both a CLI
-  and a GUI toggle, so the GUI can enable and disable a project but cannot define
-  what command runs -- check that split is what you wanted. (3) Runs do not outlive
-  their supervisor: restarting the server kills a mid-flight agent, which I chose
-  over an unsupervised orphan with no kill switch. Nothing is implemented; the derived
-  tasks are draft and not claimable until you approve.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 category: architecture
@@ -456,3 +449,11 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 7
+  ts: '2026-08-11T00:59:20.236227Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
