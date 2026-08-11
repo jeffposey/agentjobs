@@ -270,3 +270,21 @@ async def project_picker(
         "all_projects": projects,
     }
     return templates.TemplateResponse("project_picker.html", context)
+
+
+@legacy_router.get("/projects/new", name="project_onboarding")
+async def project_onboarding(
+    request: Request,
+    templates: Jinja2Templates = Depends(get_templates),
+) -> HTMLResponse:
+    """Render the deliberately small inspect-and-confirm onboarding form."""
+    projects = list_projects()
+    context = {
+        "request": request,
+        "current_year": datetime.utcnow().year,
+        "waiting_count": 0,
+        "project": try_resolve_default_project(),
+        "base": "",
+        "all_projects": projects,
+    }
+    return templates.TemplateResponse("project_onboarding.html", context)

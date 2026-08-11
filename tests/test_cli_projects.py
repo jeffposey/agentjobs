@@ -141,8 +141,9 @@ class TestInitRegisters:
         assert "Registered as 'fresh-project'" in result.output
         assert [p.id for p in registry().list_projects()] == ["fresh-project"]
 
-    def test_init_still_succeeds_when_registration_fails(self, tmp_path: Path, monkeypatch) -> None:
-        # Registration is a convenience; a project must be initialized either way.
+    def test_init_refuses_to_overwrite_an_existing_config(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
         monkeypatch.chdir(tmp_path)
         runner.invoke(
             app,
@@ -160,8 +161,9 @@ class TestInitRegisters:
                 "jeff",
             ],
         )
+        config_path = tmp_path / ".agentjobs" / "config.yaml"
+        original = config_path.read_bytes()
 
-        # Re-running init in the same directory: the root is already registered.
         result = runner.invoke(
             app,
             [
@@ -179,9 +181,7 @@ class TestInitRegisters:
             ],
         )
 
-        assert result.exit_code == 0, result.output
-        assert "initialized successfully" in result.output
-        # The warning proves the failure branch ran, rather than the test passing
-        # because registration quietly succeeded.
-        assert "Not registered for multi-project use" in result.output
-        assert (tmp_path / ".agentjobs" / "config.yaml").exists()
+        assert result.exit_code == 1
+        assert "Refusing to initialize" in result.output
+        assert "already exists" in result.output
+        assert config_path.read_bytes() == original

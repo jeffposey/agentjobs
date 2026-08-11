@@ -46,9 +46,11 @@
     {% else %}
     <div class="bg-dark-surface border border-dark-border rounded-lg p-6">
         <p class="text-dark-muted">
-            No projects are registered yet. Register one from its directory:
+            No projects are registered yet.
         </p>
-        <pre class="mt-3 bg-dark-bg border border-dark-border rounded p-3 text-sm overflow-x-auto"><code>agentjobs project add .</code></pre>
+        <a href="/projects/new" class="inline-block mt-3 text-blue-400 hover:text-blue-300">
+            Add or create a project
+        </a>
     </div>
     {% endif %}
 </div>

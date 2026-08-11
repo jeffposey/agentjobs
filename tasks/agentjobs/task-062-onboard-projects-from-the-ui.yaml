@@ -2,10 +2,14 @@ schema: 2
 id: task-062-onboard-projects-from-the-ui
 title: 'Onboarding: add or create AgentJobs projects from the UI, not the CLI'
 created: '2026-08-10T22:10:00Z'
-updated: '2026-08-10T22:10:00Z'
-lifecycle: ready
+updated: '2026-08-11T00:36:58.427657Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
+archived: false
 priority: medium
 category: ux
 tags:
@@ -14,6 +18,9 @@ tags:
 - onboarding
 - api
 effort: half a working session
+assignment:
+  owner: codex
+  eligible: []
 spec:
   summary: 'AgentJobs ships knowing about one project -- its own. Adding a second
     currently means reading a hint in the UI that tells you to go and run a CLI command,
@@ -142,39 +149,40 @@ spec:
     Branch `feat/task-062-onboard-projects-from-the-ui` from main, record it in branches[],
     mark in_progress. Small conventional commits. When complete: STOP, set waiting_for_human
     through the status API. Do not merge.'
+  context: []
 acceptance:
 - id: sc-1
   text: POST /api/projects registers an existing AgentJobs directory and returns the
     stored project; errors (not a directory, no config, already registered, bad id)
     are reported with usable messages
-  status: pending
+  status: met
 - id: sc-2
   text: An endpoint creates an AgentJobs project in an existing untracked directory
     and registers it, without interactive prompts
-  status: pending
+  status: met
 - id: sc-3
   text: Neither endpoint overwrites an existing .agentjobs/config.yaml, and `agentjobs
     init` is fixed to refuse silent clobbering too
-  status: pending
+  status: met
 - id: sc-4
   text: A minimal page reachable from the project switcher performs both flows; no
     directory browser, no styling beyond the existing pages
-  status: pending
+  status: met
 - id: sc-5
   text: Tests cover both endpoints including the refusal cases; poetry run pytest
     passes and ruff/mypy/black stay clean
-  status: pending
+  status: met
 - id: sc-6
   text: Verified in a browser by adding a second real project on this machine and
     switching to it, with no CLI use
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs/api/routes/projects.py
-  status: pending
   note: Register and create-and-register endpoints
+  status: done
 - path: src/agentjobs/cli.py
-  status: pending
   note: init refuses to overwrite an existing config
+  status: done
 dependencies:
 - task: task-061-project-switcher
   type: needs
@@ -182,17 +190,80 @@ dependencies:
 - task: task-057-multi-project-registry
   type: needs
   note: Completed 2026-08-10. Supplies ProjectRegistry, which these endpoints expose.
+links: []
+branches:
+- name: feat/task-062-onboard-projects-from-the-ui
+  status: active
 log:
 - id: 1
   ts: '2026-08-10T22:10:00Z'
   actor: system
   type: note
-  data:
-    v1_status: ready
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
     - v1 `status: ready` became lifecycle: ready / ball: agent / ball_reason: available.
 
     - prompts.starter preserved in spec.description.'
+  data:
+    v1_status: ready
+    migrated_to_schema: 2
+- id: 2
+  ts: '2026-08-11T00:09:39.438337Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 3
+  ts: '2026-08-11T00:20:47.811890Z'
+  actor: codex
+  type: decision
+  body: Initialization refuses any existing .agentjobs/config.yaml instead of offering
+    an overwrite flag. Web-triggered tasks/prompts paths must stay inside the submitted
+    existing root. This rejects the alternatives of silent replacement and web writes
+    outside that root because both make a localhost form capable of damaging unrelated
+    project state.
+  data: {}
+- id: 4
+  ts: '2026-08-11T00:20:47.834163Z'
+  actor: codex
+  type: progress
+  body: 'Implemented and verified UI project onboarding.
+
+
+    Added typed inspect/register/initialize APIs, shared safe project setup used by
+    CLI init, and a minimal inspect/confirm page linked from the switcher. Verification:
+    Black, Ruff, and MyPy clean; full pytest suite 445 passed. Live browser initialized
+    a disposable second project through the form, landed on its dashboard, switched
+    to AgentJobs and back, and reported no console errors. The disposable registration
+    and scratch directory were removed after verification.'
+  data: {}
+- id: 5
+  ts: '2026-08-11T00:21:14.359980Z'
+  actor: codex
+  type: handoff
+  body: 'Implementation complete and verified; handing off for human review. Commit:
+    8768cf6.'
+  data:
+    ball: human
+    ball_reason: review
+- id: 6
+  ts: '2026-08-11T00:22:04.571346Z'
+  actor: codex
+  type: handoff
+  body: Refreshed the review pointer after removing an unrelated task-060 commit from
+    this branch history; implementation is unchanged.
+  data:
+    ball: human
+    ball_reason: review
+- id: 7
+  ts: '2026-08-11T00:36:58.427554Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
