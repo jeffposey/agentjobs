@@ -1,0 +1,91 @@
+schema: 2
+id: task-069-dispatch-log-entries
+title: 'Schema: dispatch and dispatch_result log entries'
+created: '2026-08-11T00:21:32.478917Z'
+updated: '2026-08-11T00:21:32.479578Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Derived from the task-060 dispatch design pass. Do not start until that
+  design is approved and merged -- the decisions here follow from it and would change
+  with it.
+archived: false
+priority: high
+category: infrastructure
+tags:
+- dispatch
+- architecture
+assignment:
+  eligible: []
+spec:
+  summary: 'Two new LogEntryType values so a dispatch is a durable, git-tracked fact
+    on the task rather than machine-local state: `dispatch` (who authorized, what
+    argv ran, against which commit) and `dispatch_result` (how it ended). Also reserves
+    the `dispatcher` actor id and adds the derived dispatch count. Design section
+    3.'
+  description: 'Derived from docs/agent-dispatch-design.md section 3.
+
+
+    ## Scope
+
+
+    - Add `dispatch` and `dispatch_result` to `LogEntryType` with their `data` payloads
+    documented (design section 3 shows both).
+
+    - Reserve a `dispatcher` actor id. `validate_actor` checks against the project''s
+    configured vocabulary, and the dispatcher must be able to write the forced ball
+    moves in design section 9 without every project having to add it to `actors:`
+    by hand.
+
+    - A derived `Task.dispatch_count` (and `dispatches_since(ts)`) that counts `dispatch`
+    log entries. **No stored counter field** -- the count is derived so it cannot
+    drift from the evidence for it, and so it needs no migration.
+
+    - Update docs/task-schema.md and the LinkML schema in `schema/` so the generated
+    reference does not drift.
+
+
+    ## Why this is a schema change and that is fine
+
+
+    This project decided (schema-design section 9) to make schema changes cheap rather
+    than route around them. Encoding dispatch as `type: note` with a magic `data`
+    key would be exactly the ''documented but unenforced'' shape v2 was built to remove.'
+  context: []
+acceptance:
+- id: sc-1
+  text: LogEntryType gains dispatch and dispatch_result; both round-trip through YAML
+    and validate with their documented data payloads
+  status: pending
+- id: sc-2
+  text: validate_actor accepts 'dispatcher' without it being listed in a project's
+    actors:, and the reservation is tested against a project config that defines other
+    actors
+  status: pending
+- id: sc-3
+  text: Task.dispatch_count is derived from the log with no stored field, and a task
+    with three dispatch entries reports three
+  status: pending
+- id: sc-4
+  text: schema/ and docs/task-schema.md regenerated; the corpus still validates
+  status: pending
+deliverables:
+- path: src/agentjobs/models_v2.py
+  note: Two log entry types, derived count
+  status: pending
+- path: src/agentjobs/actors.py
+  note: Reserved dispatcher actor
+  status: pending
+- path: schema/agentjobs-v2.yaml
+  note: Kept in step with the models
+  status: pending
+dependencies:
+- task: task-060-agent-dispatch
+  type: related
+  note: The design pass this task was derived from.
+links:
+- url: https://github.com/jeffposey/agentjobs/blob/main/docs/agent-dispatch-design.md
+  rel: design
+  title: Agent dispatch design pass (task-060)
+branches: []
+log: []

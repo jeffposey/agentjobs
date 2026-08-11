@@ -1,0 +1,108 @@
+schema: 2
+id: task-070-dispatch-runner
+title: 'Dispatch: the runner and its supervisor process'
+created: '2026-08-11T00:21:32.484450Z'
+updated: '2026-08-11T00:21:32.485202Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Derived from the task-060 dispatch design pass. Do not start until that
+  design is approved and merged -- the decisions here follow from it and would change
+  with it.
+archived: false
+priority: high
+category: infrastructure
+tags:
+- dispatch
+- architecture
+assignment:
+  eligible: []
+spec:
+  summary: 'Actually start an agent: spawn the resolved argv in the project root,
+    stream output to a run directory, and supervise it from a dedicated blocking thread
+    that is guaranteed to write a terminal dispatch_result on every path -- including
+    when the supervisor itself raises. Explicitly not the detached asyncio shape that
+    hid the webhook NameError for months (task-047). Design section 9.'
+  description: 'Derived from docs/agent-dispatch-design.md section 9.
+
+
+    ## Scope
+
+
+    - Spawn with `subprocess.Popen`, cwd = project root, process group (`CREATE_NEW_PROCESS_GROUP`
+    on Windows, `start_new_session` on POSIX) so an agent that shells out to pytest
+    does not leave it behind.
+
+    - The three-line prompt stub from design section 4. **Compose nothing else** --
+    the resumption contract already guarantees the record is sufficient.
+
+    - Stream stdout/stderr to `~/.agentjobs/runs/<run_id>/`, to disk not memory: the
+    interesting case is a crash, and a buffer loses exactly that.
+
+    - One supervisor thread per run, blocking on `wait()`, whose body is wrapped so
+    a terminal `dispatch_result` is written on **every** exit path, with `outcome:
+    crashed` plus traceback if the supervisor itself raises.
+
+    - Write the run directory and meta.yaml (`status: starting`) **before** Popen,
+    so a supervisor that dies mid-spawn still leaves a row.
+
+    - The outcome vocabulary from design section 9, including `finished_without_handoff`:
+    exit 0 with an unmoved ball is a failure, because the agent stopped without stating
+    what it needs.
+
+    - Wall-clock timeout (default 1800s) terminating the process group.
+
+
+    ## Verification that matters
+
+
+    A passing suite is not evidence here. Test with a fake runner script that exits
+    non-zero, one that hangs past the timeout, one that emits megabytes, and one that
+    spawns a grandchild -- and assert a terminal log entry exists in every case. Windows
+    is the reference platform, not the port.'
+  context: []
+acceptance:
+- id: sc-1
+  text: A run spawns the resolved argv in the project root and streams stdout and
+    stderr to the run directory as it goes, not at exit
+  status: pending
+- id: sc-2
+  text: 'Every terminating path writes exactly one dispatch_result entry: exit 0,
+    non-zero exit, timeout, and an exception raised inside the supervisor itself (tested
+    by injecting one)'
+  status: pending
+- id: sc-3
+  text: Exit 0 with an unmoved ball produces outcome finished_without_handoff and
+    moves the ball to human, rather than being reported as success
+  status: pending
+- id: sc-4
+  text: The wall-clock timeout terminates the whole process group; a grandchild process
+    spawned by the fake runner is gone afterwards, verified on Windows
+  status: pending
+- id: sc-5
+  text: No asyncio task, and no code path where an exception is logged and swallowed
+    without a task-visible record -- the task-047 shape
+  status: pending
+deliverables:
+- path: src/agentjobs/dispatch/runner.py
+  note: Spawn, stream, supervise, terminal entry
+  status: pending
+- path: tests/test_dispatch_runner.py
+  note: Fake runners covering every outcome
+  status: pending
+dependencies:
+- task: task-068-dispatch-config
+  type: needs
+  note: Derived from the same design pass; this task builds on it.
+- task: task-069-dispatch-log-entries
+  type: needs
+  note: Derived from the same design pass; this task builds on it.
+- task: task-060-agent-dispatch
+  type: related
+  note: The design pass this task was derived from.
+links:
+- url: https://github.com/jeffposey/agentjobs/blob/main/docs/agent-dispatch-design.md
+  rel: design
+  title: Agent dispatch design pass (task-060)
+branches: []
+log: []

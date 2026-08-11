@@ -2,10 +2,14 @@ schema: 2
 id: task-060-agent-dispatch
 title: 'Close the loop: make a human decision actually start an agent (design pass)'
 created: '2026-08-10T07:40:19Z'
-updated: '2026-08-10T07:40:19Z'
-lifecycle: ready
+updated: '2026-08-11T00:59:20.236329Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
+archived: false
 priority: high
 category: architecture
 tags:
@@ -15,6 +19,9 @@ tags:
 - design
 - collaborative
 effort: a design session, then implementation tasks derived from it
+assignment:
+  owner: claude
+  eligible: []
 spec:
   summary: 'The missing half of the workflow. AgentJobs can record that a human approved
     something, but nothing acts on it -- the human still has to go tell an agent in
@@ -219,40 +226,41 @@ spec:
     Small commits, Conventional Commits. When the design is complete: STOP, set waiting_for_human
     through the status API with a summary of the decisions needing sign-off. Do not
     merge.'
+  context: []
 acceptance:
 - id: sc-1
   text: A design document exists recording, for each decision, what is proposed, why,
     and what was rejected with reasons
-  status: pending
+  status: met
 - id: sc-2
   text: 'The safety question is answered explicitly: what opts a project in, what
     a human must do before any agent can be launched unattended, and what the kill
     switch is'
-  status: pending
+  status: met
 - id: sc-3
   text: Runaway-loop protection is specified concretely (dispatch counts, cooldown,
     hard cap and what happens when it trips), not gestured at
-  status: pending
+  status: met
 - id: sc-4
   text: The invocation mechanism is chosen with alternatives recorded, and is not
     silently locked to one vendor's CLI
-  status: pending
+  status: met
 - id: sc-5
   text: Process lifecycle is specified -- output capture, cancellation, crash handling
     -- and explicitly does not repeat the detached-task-swallows-errors shape that
     hid the webhook bug in task-047
-  status: pending
+  status: met
 - id: sc-6
   text: The relationship to task-046 (agent to human) and task-055 (write race) is
     stated, including that 055 is a hard prerequisite for implementation
-  status: pending
+  status: met
 - id: sc-7
   text: Implementation tasks are derived from the design, each independently reviewable
-  status: pending
+  status: met
 deliverables:
 - path: docs/agent-dispatch-design.md
-  status: pending
   note: The design, with rationale and rejected alternatives
+  status: done
 dependencies:
 - task: task-046-agent-human-handoff-loop
   type: related
@@ -266,17 +274,186 @@ dependencies:
   type: related
   note: v2's ball model makes "who acts next" queryable, which is what a dispatcher
     needs. Implementation should wait for it; the design pass need not.
+links: []
+branches:
+- name: docs/task-060-agent-dispatch-design
+  status: active
 log:
 - id: 1
   ts: '2026-08-10T07:40:19Z'
   actor: system
   type: note
-  data:
-    v1_status: ready
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
     - v1 `status: ready` became lifecycle: ready / ball: agent / ball_reason: available.
 
     - prompts.starter preserved in spec.description.'
+  data:
+    v1_status: ready
+    migrated_to_schema: 2
+- id: 2
+  ts: '2026-08-11T00:09:26.443755Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 3
+  ts: '2026-08-11T00:24:01.344137Z'
+  actor: claude
+  type: decision
+  body: 'D4 (agent''s call): the dispatch loop is human-clocked.
+
+
+    A dispatch may only be caused by a log entry whose actor is a human. An agent
+    handoff never causes a dispatch, in any mode. This makes the circular failure
+    mode -- agent finishes, agent starts, repeat -- structurally impossible rather
+    than merely capped, and demotes counters and cooldowns to a backstop against a
+    bug in the dispatcher itself.
+
+
+    Rejected: permitting agent-caused dispatch and bounding it with counts, cooldowns
+    and a hard cap. That is the obvious design and it defends a loop that is still
+    permitted to exist; every protection is then a number someone can raise at 2am.
+    The accepted cost of the chosen rule is real and permanent: ''agent finishes,
+    next agent picks up automatically'' will never work. Every turn of the wheel costs
+    one human click.
+
+
+    Recorded as an agent decision rather than put to Jeff, because it follows from
+    D1 (dispatch separate from approval) rather than being an independent choice.
+    It is the first thing to revisit if the design ever feels too restrictive.'
+  data:
+    decision: D4
+    design: docs/agent-dispatch-design.md#2
+- id: 4
+  ts: '2026-08-11T00:24:01.361786Z'
+  actor: claude
+  type: decision
+  body: 'Dispatch composes no prompt; it passes a pointer to the task record.
+
+
+    The dispatch payload is three fixed lines plus five substitutions: you are agent
+    X working task Y in project Z, the server is at this URL, read the record. Schema-design
+    section 5''s resumption contract already guarantees a task record is sufficient
+    to resume from, and ball_prompt is required by the schema whenever the ball is
+    set.
+
+
+    Rejected: templating a rich prompt from summary + last handoff + acceptance. It
+    is a second copy of the resumption contract that will drift from the first, it
+    makes the dispatcher depend on schema shape, and it papers over the real bug in
+    the case it appears to solve -- if the record is not sufficient to resume from,
+    fix the record.
+
+
+    This is the decision that removed most of the apparent difficulty from the invocation
+    question.'
+  data:
+    design: docs/agent-dispatch-design.md#4
+- id: 5
+  ts: '2026-08-11T00:24:01.380534Z'
+  actor: claude
+  type: note
+  body: 'Prerequisites are satisfied. task-055 (single-writer concurrency) and task-052
+    (schema v2 manager API) are both closed/completed as of 2026-08-10, so implementation
+    of the derived tasks is unblocked. The design pass itself never needed either.
+
+
+    Gap noted for whoever picks up task-068: the v2 CLI verbs do not exist yet (`agentjobs
+    claim` is not a command; this task''s own claim went through the Python API).
+    The `agentjobs dispatch` command group should follow task-053''s conventions rather
+    than inventing its own.'
+  data: {}
+- id: 6
+  ts: '2026-08-11T00:24:01.399991Z'
+  actor: claude
+  type: handoff
+  body: 'Design pass for agent dispatch complete. Branch docs/task-060-agent-dispatch-design,
+    two commits, nothing merged.
+
+
+    **What exists now.** docs/agent-dispatch-design.md, in the shape of docs/schema-design.md:
+    13 sections, every decision with its rationale and the alternative it beat, a
+    rejected-alternatives section, and the four decisions (D1-D4) recorded with what
+    was rejected. Added to the mkdocs nav. Plus seven derived implementation tasks,
+    068-074, created draft.
+
+
+    **The six questions the task set as its agenda, answered.**
+
+
+    1. *Safety.* Four gates, each independently sufficient to stop a run: master switch,
+    runner must exist machine-locally, per-project enablement, and a DISPATCH_DISABLED
+    sentinel file checked immediately before every spawn. The runner argv lives in
+    ~/.agentjobs/dispatch.yaml and never in the versioned project config -- otherwise
+    `git clone` of any repository carries a ''run this command on Jeff''s machine''
+    payload that the project''s own config legitimises. Kill switch at three scopes;
+    `agentjobs dispatch stop` is one command with no arguments that writes the sentinel
+    and kills everything. Dispatch never *initiates* without a human; runs do *continue*
+    while nobody is watching.
+
+
+    2. *Runaway loops.* Answered structurally first (D4) and numerically second: 3
+    dispatches per task per day, 10 lifetime, 60s cooldown, 1 concurrent run, 30 minute
+    wall clock. Per your call, the budget caps bind auto-dispatch only; one live run
+    per task and the timeout bind everything, because they are correctness rather
+    than spend. Tripping a per-task cap refuses the run, logs the specific limit,
+    and moves the ball to you -- a task that burns its daily cap is telling you something
+    is wrong with the task.
+
+
+    3. *Concurrency.* task-055 is closed, so the hard prerequisite is met. Dispatch
+    adds what a file lock cannot cover: the dispatcher claims before it spawns (so
+    losing a race costs a rejected HTTP request, not a wasted model call), and a per-task
+    run lock held for the process lifetime using the same O_CREAT|O_EXCL primitive
+    055 chose.
+
+
+    4. *Invocation.* A named runner with an argv template in machine-local config.
+    Claude Code headless is the shipped default template, not the mechanism. The Agent
+    SDK was rejected mainly because an in-process agent crash takes the supervisor
+    with it -- a supervisor that dies with its child cannot report on it -- and secondarily
+    because it makes AgentJobs hold API credentials it currently never touches. Argv
+    is a list; there is no shell anywhere in the design.
+
+
+    5. *Process lifecycle.* One blocking supervisor thread per run, guaranteed to
+    write a terminal dispatch_result on every path including its own exception. Run
+    directory and meta.yaml written before Popen so a supervisor that dies mid-spawn
+    still leaves a row. Output streamed to disk, not buffered. Runs do not outlive
+    their supervisor, and startup reconciliation turns anything found non-terminal
+    into a task-visible ''interrupted''. Explicitly not the detached asyncio shape
+    that hid the webhook NameError for months (task-047). One outcome worth flagging:
+    exit 0 with an unmoved ball counts as a failure, because the agent stopped without
+    saying what it needs.
+
+
+    6. *Trigger.* An explicit Dispatch action, distinct from Approve, per your call.
+    A webhook consumer on task.handoff was rejected despite being the obvious reuse:
+    it fires on agent handoffs too, so safety would rest on filtering correctly rather
+    than on never being asked.
+
+
+    **Process note.** Another agent switched the shared working directory to feat/task-062-onboard-projects-from-the-ui
+    partway through. My first commit had swept their in-flight files in; I reset it
+    and recommitted only mine, leaving their working tree untouched. The task files
+    here were committed through a git worktree for the same reason. Worth knowing
+    that two agents in one checkout is a live hazard.
+
+
+    452 tests pass. Nothing merged, nothing pushed.'
+  data:
+    ball: human
+    ball_reason: review
+- id: 7
+  ts: '2026-08-11T00:59:20.236227Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
