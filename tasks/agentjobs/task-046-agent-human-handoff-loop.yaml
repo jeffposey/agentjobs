@@ -2,13 +2,9 @@ schema: 2
 id: task-046-agent-human-handoff-loop
 title: Formalize the agent-to-human handoff loop (status + notification, chat-independent)
 created: '2026-07-20T20:10:26Z'
-updated: '2026-08-11T06:15:45.620926Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-11T06:17:32.460532Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -19,7 +15,6 @@ tags:
 - workflow
 effort: 1-2 hours
 assignment:
-  owner: codex
   eligible:
   - claude
   - codex
@@ -130,7 +125,8 @@ dependencies:
 links: []
 branches:
 - name: docs/task-046-agent-human-handoff-loop
-  status: active
+  status: merged
+  merged_at: '2026-08-11T06:17:32.383900Z'
 log:
 - id: 1
   ts: '2026-07-29T20:47:00Z'
@@ -385,3 +381,23 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 13
+  ts: '2026-08-11T06:17:32.431074Z'
+  actor: codex
+  type: progress
+  body: 'Approved branch merged and verified on main.
+
+
+    Rebased review branch to 9869462, merged with --no-ff as commit 63c1c88. On merged
+    main: 512 pytest tests passed; MkDocs build, Black, and Ruff passed.'
+  data: {}
+- id: 14
+  ts: '2026-08-11T06:17:32.460436Z'
+  actor: codex
+  type: transition
+  body: Completed after Jeff Posey approved through the web UI. Branch docs/task-046-agent-human-handoff-loop
+    was rebased, merged into main with --no-ff as 63c1c88, marked merged, and verified
+    on merged main.
+  data:
+    lifecycle: closed
+    outcome: completed
