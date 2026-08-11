@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Add a project - AgentJobs{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+    <div>
+        <h1 class="text-3xl font-bold">Add a project</h1>
+        <p class="text-dark-muted mt-2">
+            Enter an existing directory. AgentJobs will inspect it before making changes.
+        </p>
+    </div>
+
+    <form id="project-form" class="bg-dark-surface border border-dark-border rounded-lg p-6 space-y-4">
+        <div>
+            <label for="project-path" class="block text-sm font-medium mb-1">Directory path</label>
+            <input
+                id="project-path"
+                name="path"
+                type="text"
+                required
+                class="w-full bg-dark-bg border border-dark-border rounded px-3 py-2"
+                placeholder="C:\projects\my-project"
+            >
+        </div>
+
+        <button
+            id="inspect-button"
+            type="submit"
+            class="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white"
+        >
+            Inspect
+        </button>
+
+        <div id="inspection" class="hidden border-t border-dark-border pt-4 space-y-3">
+            <p id="inspection-message"></p>
+            <div>
+                <label for="project-id" class="block text-sm font-medium mb-1">Project id</label>
+                <input id="project-id" type="text" class="w-full bg-dark-bg border border-dark-border rounded px-3 py-2">
+            </div>
+            <div>
+                <label for="project-name" class="block text-sm font-medium mb-1">Project name</label>
+                <input id="project-name" type="text" class="w-full bg-dark-bg border border-dark-border rounded px-3 py-2">
+            </div>
+            <button
+                id="confirm-button"
+                type="button"
+                class="px-4 py-2 rounded bg-green-700 hover:bg-green-600 text-white"
+            >
+                Confirm
+            </button>
+        </div>
+
+        <p id="project-error" class="hidden text-red-400"></p>
+    </form>
+</div>
+
+<script>
+    (() => {
+        const form = document.getElementById('project-form');
+        const pathInput = document.getElementById('project-path');
+        const inspection = document.getElementById('inspection');
+        const message = document.getElementById('inspection-message');
+        const idInput = document.getElementById('project-id');
+        const nameInput = document.getElementById('project-name');
+        const confirmButton = document.getElementById('confirm-button');
+        const error = document.getElementById('project-error');
+        let inspected = null;
+
+        const showError = (text) => {
+            error.textContent = text;
+            error.classList.remove('hidden');
+        };
+
+        const request = async (url, body) => {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body),
+            });
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.detail || 'Request failed.');
+            return payload;
+        };
+
+        pathInput.addEventListener('input', () => {
+            inspected = null;
+            inspection.classList.add('hidden');
+        });
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            error.classList.add('hidden');
+            inspection.classList.add('hidden');
+            try {
+                inspected = await request('/api/projects/inspect', {path: pathInput.value});
+                pathInput.value = inspected.path;
+                idInput.value = inspected.suggested_id;
+                nameInput.value = inspected.project_name;
+                message.textContent = inspected.action === 'register'
+                    ? 'This is already an AgentJobs project. Confirm to register it.'
+                    : 'This directory is untracked. Confirm to initialize and register it.';
+                inspection.classList.remove('hidden');
+            } catch (requestError) {
+                showError(requestError.message);
+            }
+        });
+
+        confirmButton.addEventListener('click', async () => {
+            if (!inspected) return;
+            error.classList.add('hidden');
+            confirmButton.disabled = true;
+            try {
+                const common = {path: inspected.path, id: idInput.value};
+                const project = inspected.action === 'register'
+                    ? await request('/api/projects', {...common, name: nameInput.value})
+                    : await request('/api/projects/init', {
+                        ...common,
+                        project_name: nameInput.value,
+                    });
+                window.location.href = `/p/${encodeURIComponent(project.id)}/`;
+            } catch (requestError) {
+                showError(requestError.message);
+                confirmButton.disabled = false;
+            }
+        });
+    })();
+</script>
+{% endblock %}

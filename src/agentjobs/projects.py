@@ -60,9 +60,7 @@ class Project:
 
     def load_config(self) -> dict:
         """Read this project's configuration, or an empty mapping if it has none."""
-        if not self.config_path.exists():
-            return {}
-        return yaml.safe_load(self.config_path.read_text(encoding="utf-8")) or {}
+        return load_project_config(self.root)
 
     def tasks_dir(self) -> Path:
         """Resolve this project's tasks directory from its own config."""
@@ -85,12 +83,49 @@ def default_home() -> Path:
     return Path.home() / ".agentjobs"
 
 
+def load_project_config(root: Path, *, required: bool = False) -> dict:
+    """Load and minimally validate a project's AgentJobs configuration."""
+    resolved_root = Path(root).expanduser().resolve()
+    config_path = resolved_root / CONFIG_RELATIVE
+    if not config_path.is_file():
+        if required:
+            raise ProjectError(
+                f"No AgentJobs config found at {config_path}. Initialize the project first."
+            )
+        return {}
+    try:
+        loaded = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        raise ProjectError(f"Cannot read AgentJobs config at {config_path}: {exc}") from exc
+    if loaded is None:
+        loaded = {}
+    if not isinstance(loaded, dict):
+        raise ProjectError(f"Invalid AgentJobs config at {config_path}: expected a mapping.")
+    for field in ("project_name", "tasks_directory"):
+        value = loaded.get(field)
+        if value is not None and not isinstance(value, str):
+            raise ProjectError(
+                f"Invalid AgentJobs config at {config_path}: {field} must be a string."
+            )
+    return loaded
+
+
 def slugify_project_id(value: str) -> str:
     """Derive a valid project id from arbitrary text, usually a directory name."""
     slug = re.sub(r"[^a-z0-9._-]+", "-", value.strip().lower()).strip("-._")
-    if not slug or not _ID_PATTERN.match(slug):
+    if not slug:
         raise ProjectError(f"Cannot derive a valid project id from {value!r}")
-    return slug
+    return validate_project_id(slug)
+
+
+def validate_project_id(value: str) -> str:
+    """Return a valid lowercase project id or raise a usable input error."""
+    if not _ID_PATTERN.match(value):
+        raise ProjectError(
+            f"Invalid project id {value!r}: use lowercase letters, digits, '.', '-' or '_', "
+            "starting with a letter or digit."
+        )
+    return value
 
 
 class ProjectRegistry:
@@ -202,19 +237,12 @@ class ProjectRegistry:
         if not resolved_root.is_dir():
             raise ProjectError(f"Not a directory: {resolved_root}")
 
-        config: dict = {}
-        config_path = resolved_root / CONFIG_RELATIVE
-        if config_path.exists():
-            config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        config = load_project_config(resolved_root)
 
         identifier = project_id or slugify_project_id(
             config.get("project_name") or resolved_root.name
         )
-        if not _ID_PATTERN.match(identifier):
-            raise ProjectError(
-                f"Invalid project id {identifier!r}: use lowercase letters, digits, "
-                "'.', '-' or '_', starting with a letter or digit."
-            )
+        validate_project_id(identifier)
 
         entries = [entry for entry in self._read() if entry.get("id") != identifier]
         for entry in entries:

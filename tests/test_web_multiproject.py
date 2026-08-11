@@ -234,6 +234,11 @@ class TestSwitcher:
 
         assert "Beta" in client.get("/p/beta/").text
 
+    def test_switcher_links_to_project_onboarding(self, two_projects_web) -> None:
+        client, _ = two_projects_web
+
+        assert 'href="/projects/new"' in client.get("/p/alpha/").text
+
 
 class TestSingleProjectCompatibility:
     def test_env_pinned_install_still_serves_the_legacy_urls(

@@ -6,7 +6,7 @@ import copy
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import typer
 import yaml
@@ -15,6 +15,7 @@ from .manager import TaskManager
 from .migration import migrate_tasks
 from .migration.reporter import MigrationReporter
 from .models_v2 import Ball, Lifecycle, Outcome, Priority
+from .project_setup import DEFAULT_CONFIG, build_project_config, initialize_project
 from .projects import ProjectError, ProjectRegistry
 from .storage import TaskStorage
 
@@ -54,30 +55,6 @@ app = typer.Typer(
 
 CONFIG_DIR = Path(".agentjobs")
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
-# Annotated because the values are heterogeneous -- strings, ints, a nested dict and
-# a list of dicts. Without it mypy infers Collection[Collection[str]] from the
-# literal and rejects `config["gui"]["port"] = port` as an unsupported assignment.
-DEFAULT_CONFIG: Dict[str, Any] = {
-    "project_name": "AgentJobs Project",
-    "tasks_directory": "tasks",
-    "prompts_directory": "prompts",
-    "gui": {"host": "localhost", "port": 8765, "theme": "dark"},
-    # One vocabulary of actors, each carrying its kind -- which is exactly what D4 says
-    # config resolves. A legacy `agents:` list is still read (see actors.load_actors),
-    # so an existing project keeps working without editing its config.
-    "actors": [
-        {"name": "claude", "kind": "agent", "display_name": "Claude (Lead Engineer)"},
-        {"name": "codex", "kind": "agent", "display_name": "Codex (Workhorse)"},
-    ],
-    "default_user": None,
-    "categories": [
-        "infrastructure",
-        "strategy_development",
-        "validation",
-        "documentation",
-    ],
-    "defaults": {"priority": "medium", "lifecycle": "draft"},
-}
 
 
 def _load_config(base_dir: Path) -> dict:
@@ -87,14 +64,6 @@ def _load_config(base_dir: Path) -> dict:
         return copy.deepcopy(DEFAULT_CONFIG)
     content = config_path.read_text(encoding="utf-8")
     return yaml.safe_load(content) or copy.deepcopy(DEFAULT_CONFIG)
-
-
-def _save_config(base_dir: Path, config: dict) -> None:
-    """Persist AgentJobs configuration to disk."""
-    config_path = base_dir / CONFIG_FILE
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_yaml = yaml.safe_dump(config, sort_keys=False, allow_unicode=False)
-    config_path.write_text(config_yaml, encoding="utf-8")
 
 
 def _ensure_gitignore(base_dir: Path) -> None:
@@ -138,6 +107,13 @@ def init(
     import getpass
 
     base_dir = Path.cwd()
+    if (base_dir / CONFIG_FILE).exists():
+        typer.secho(
+            f"Refusing to initialize {base_dir}: {CONFIG_FILE} already exists; "
+            "no files were changed.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
     project_name = project_name or typer.prompt("Project name")
     tasks_dir = tasks_dir or typer.prompt("Tasks dir", default="tasks")
     prompts_dir = prompts_dir or typer.prompt("Prompts dir", default="prompts")
@@ -146,19 +122,19 @@ def init(
     # action anonymously, and nobody goes looking for that setting afterwards.
     user = user or typer.prompt("Your user id", default=getpass.getuser().lower())
 
-    config = copy.deepcopy(DEFAULT_CONFIG)
-    config["project_name"] = project_name
-    config["tasks_directory"] = tasks_dir
-    config["prompts_directory"] = prompts_dir
-    config["gui"]["port"] = port
-    config["actors"] = list(config["actors"]) + [
-        {"name": user, "kind": "human", "display_name": user}
-    ]
-    config["default_user"] = user
-
-    _save_config(base_dir, config)
+    config = build_project_config(
+        project_name=project_name,
+        tasks_directory=tasks_dir,
+        prompts_directory=prompts_dir,
+        port=port,
+        user=user,
+    )
+    try:
+        initialize_project(base_dir, config)
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
     _ensure_gitignore(base_dir)
-    _resolve_tasks_dir(base_dir, config)
     typer.echo("✅ AgentJobs initialized successfully!")
 
     # Register on the machine so one server can serve this project alongside others.
