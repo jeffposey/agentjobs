@@ -2,11 +2,19 @@ schema: 2
 id: task-080-attention-tiers
 title: 'Two tiers of attention: stop backlog nagging, default the list to open work'
 created: '2026-08-11T06:31:21.682113Z'
-updated: '2026-08-11T06:32:32.087314Z'
+updated: '2026-08-11T06:44:31.644949Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: 'Review branch `feat/task-080-attention-tiers` (2 commits, worktree ../aj-080).
+  It splits the human inbox into a blocking tier that still badges and a quiet draft
+  backlog that does not, and makes the task list default to open work. Worth a look
+  in a browser as well as the diff: the dashboard now shows task-066 and task-067
+  in a flat backlog section with no badge, and the task list opens on Open instead
+  of All Status. Two judgement calls to confirm -- the default task list is flat rather
+  than a tree (see the decision entry for why a tree would hide rows), and the alert
+  heading is now ''Blocked on You'' rather than ''Waiting for Your Review''. Approve
+  to merge --no-ff, or say what to change.'
 archived: false
 priority: high
 category: ux
@@ -204,3 +212,145 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 2
+  ts: '2026-08-11T06:44:31.581248Z'
+  actor: claude
+  type: progress
+  body: 'Both parts implemented on `feat/task-080-attention-tiers` (worktree ../aj-080).
+
+
+    **Part one -- two tiers.** `blocks_human()` and `awaits_human_input()` in
+
+    `src/agentjobs/api/routes/web.py` are now the single definition of each tier.
+
+    `blocks_human` is `ball is HUMAN and lifecycle is not DRAFT`; a closed task has
+    a null
+
+    ball, so holding the ball already implies open and no extra check is needed. The
+    badge,
+
+    the dashboard alert panel, the umbrella child rollup (`_summarise_children`) and
+    the
+
+    project-switcher counts all call these instead of re-deriving `task.ball is Ball.HUMAN`
+
+    inline -- that inline rule existed in three separate places and would otherwise
+    have
+
+    drifted apart.
+
+
+    The dashboard gained a flat "Backlog awaiting your input" section listing the
+    draft tier
+
+    with a plain count: no red, no bell, no badge. The alert heading changed from
+    "Waiting
+
+    for Your Review" to "Blocked on You" because the panel also carries decisions,
+
+    approvals and questions, so the old heading was false for some of what it listed.
+
+
+    **Part two -- the task list default.** Added an `Open (not closed)` option defined
+    as
+
+    `lifecycle != closed` and made it the default; `initial_status` falls back to
+    `open`
+
+    rather than `all`. Defined by lifecycle rather than by enumerating outcomes so
+    a future
+
+    `Outcome` member cannot leak into the default view. No option was removed and
+
+    `?status=all` / `?status=closed` still work.
+
+
+    **Verified against a live server** (a second instance on port 8790 from the worktree,
+    so
+
+    the owner''s server on 8765 was left alone), reading the real task corpus:
+
+    - badge: ABSENT (was showing 2)
+
+    - alert panel rendered: False
+
+    - backlog count: 2, containing task-066 and task-067
+
+    - "Blocked on You" tile: 0, with "+2 in backlog" beneath it
+
+    - task list default filter: `taskList(''open'')`; `?status=all` -> `taskList(''all'')`
+
+    - status options: open, all, draft, ready, active, human, external, closed
+
+
+    **Tests.** `tests/test_attention_tiers.py`, 18 new tests. Full suite 531 passed
+    (was
+
+    513). Assertions are on rendered values -- the integer inside the badge span,
+    the string
+
+    handed to the Alpine component -- not on markup presence. black and ruff clean;
+    mypy
+
+    clean on `src`. mypy reports 5 pre-existing errors in `tests/test_subtasks.py`,
+    a file
+
+    this branch does not touch.'
+  data: {}
+- id: 3
+  ts: '2026-08-11T06:44:31.602348Z'
+  actor: claude
+  type: decision
+  body: 'The default task list view is flat rather than a collapsible tree.
+
+
+    `flattened` already treats any non-`all` status as a filter, so defaulting to
+    `open`
+
+    flattens the list. Rejected alternative: exempt `open` so the tree still applies
+    by
+
+    default. That is broken, not merely different -- a closed umbrella is filtered
+    out under
+
+    `open`, and `visible()` hides any row whose ancestors are not expanded, so the
+    closed
+
+    umbrella''s *open* children would have no parent row left to expand and would
+    be
+
+    unreachable in the default view. The row most likely to vanish that way is exactly
+    the
+
+    kind this list exists to surface.
+
+
+    Depth indentation is rendered from `row.depth` independently of the tree state,
+    so the
+
+    outline survives; only collapsing is lost, and `All Status` restores it.'
+  data: {}
+- id: 4
+  ts: '2026-08-11T06:44:31.622782Z'
+  actor: claude
+  type: note
+  body: "Two known limitations, neither blocking, both deliberate.\n\n1. The alert\
+    \ panel's \"View all N waiting tasks\" link points at `?status=human`, which is\n\
+    \   a superset of the blocking tier -- it also matches parked drafts. The link\
+    \ only\n   appears when more than three tasks are blocked. Making it exact would\
+    \ mean adding a\n   `blocking` option to the status select, which is more vocabulary\
+    \ than the fix needs.\n\n2. The task list's row-level filtering is client-side\
+    \ Alpine, so a Python test cannot\n   assert that a closed row is absent from\
+    \ the rendered default view. What is asserted\n   is the value the browser initialises\
+    \ with (`taskList('open')`), which is the input\n   that decides the outcome.\
+    \ The predicate itself was checked by hand against the live\n   server."
+  data: {}
+- id: 5
+  ts: '2026-08-11T06:44:31.644851Z'
+  actor: claude
+  type: handoff
+  body: Implementation complete and verified against a live server; needs review before
+    merge.
+  data:
+    ball: human
+    ball_reason: review
