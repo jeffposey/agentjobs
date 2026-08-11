@@ -2,17 +2,10 @@ schema: 2
 id: task-075-agent-worktree-isolation
 title: 'Isolate concurrent agents: a worktree per agent, not one shared checkout'
 created: '2026-08-11T01:10:16.518759Z'
-updated: '2026-08-11T02:44:16.056101Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Rescoped per your note -- two commits now on feat/task-075-worktree-convention.
-  The mandate and the three incidents moved to ALLAGENTS.md where the at-risk reader
-  is; ENGINEERING.md keeps a short conditional note (alone: checkout is fine, sharing
-  a clone: worktree) plus the one fact everyone needs, that the checked-out branch
-  decides what the dashboard shows. Review and approve to merge. Task stays open for
-  sc-3 (should AgentJobs manage worktrees), sc-4 (GUI branch banner) and sc-5 (dispatch
-  cwd, with task-077).'
+updated: '2026-08-11T03:00:04.636105Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: high
 category: developer_experience
@@ -21,7 +14,6 @@ tags:
 - agent-dx
 - correctness
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'Several agents work this repo in one checkout with one HEAD, and on 2026-08-11
@@ -125,7 +117,7 @@ dependencies:
 links: []
 branches:
 - name: feat/task-075-worktree-convention
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-11T02:41:35.760728Z'
@@ -265,3 +257,54 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 6
+  ts: '2026-08-11T03:00:04.614624Z'
+  actor: claude
+  type: progress
+  body: 'Approved by Jeff and merged to main (c8ad756). Branch deleted, worktree removed.
+    The task stays open; only the documentation layer is done.
+
+
+    **Landed:** the worktree convention in ALLAGENTS.md (agents), a short conditional
+    note in ENGINEERING.md (anyone sharing a clone), and -- added during review --
+    the reversal of the rule that sent status transitions to a task''s branch. Task
+    files now live on main, always.
+
+
+    That last change came out of Jeff trying to approve this very task in the GUI
+    and finding it still showed `ready`. It was not a mistake on his part: the handoff
+    was committed to this branch, the dashboard reads the main clone''s working tree,
+    so the review request was invisible to the reviewer. The merge gate depends on
+    a human seeing a request; the old rule guaranteed they could not. The worktree
+    convention added in the same branch made it airtight, since the shared clone is
+    then never on the review branch. A rule this task introduced broke the gate this
+    task was meant to protect -- worth remembering before the next workflow change.
+
+
+    **Still open, and why each was left:**
+
+
+    - *Should AgentJobs manage worktrees itself?* Deferred, not decided. The convention
+    costs nothing and works today; build the pool only after the convention is seen
+    failing. `claude --worktree` may cover dispatched runs for free -- task-077 should
+    establish that first.
+
+    - *GUI states which branch it is showing.* Not done, and it is now the most valuable
+    remaining piece: it is the last defence when someone is looking at the wrong tree,
+    and it is a small code change.
+
+    - *Dispatch cwd.* Belongs with task-077, which is still deciding what a dispatched
+    run is.
+
+
+    Released back to ready so any agent can pick up the remainder.'
+  data: {}
+- id: 7
+  ts: '2026-08-11T03:00:04.636028Z'
+  actor: claude
+  type: transition
+  body: Documentation layer merged; remaining scope is unclaimed and available.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
