@@ -1,0 +1,193 @@
+schema: 2
+id: task-080-attention-tiers
+title: 'Two tiers of attention: stop backlog nagging, default the list to open work'
+created: '2026-08-11T06:31:21.682113Z'
+updated: '2026-08-11T06:31:21.682811Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- gui
+- workflow
+- notifications
+effort: half a day
+assignment:
+  eligible: []
+spec:
+  summary: 'Both listing surfaces treat everything as equally worth your attention:
+    the badge counts every open task a human holds, so a parked draft nags as loudly
+    as a branch at the merge gate, and the task list defaults to showing closed work
+    alongside live work. Split the human inbox into two tiers along the lifecycle
+    axis the schema already carries, and default the task list to open tasks only.'
+  intent: 'A red badge that never reaches zero stops being a signal. Once it is
+
+    permanently lit, the only way to read it is to open it, which is precisely the
+    work the
+
+    badge existed to save.
+
+
+    Observed 2026-08-11: a grooming pass took the human inbox from eight-plus tasks
+    down to
+
+    two. Both survivors -- task-066 and task-067 -- are `draft`, parked on a design
+    decision
+
+    nobody is currently blocked by. No agent is idle for them. No branch is unmerged.
+    Yet the
+
+    dashboard headlines them as "Tasks Waiting for Your Review", which is simply false,
+    and
+
+    the badge in the header treats them identically to a merge gate.
+
+
+    The damage is not cosmetic. The owner''s first instinct on seeing the permanent
+    badge was
+
+    to archive a task he did not want to lose, purely to clear the number. A notification
+
+    design that pressures its user into destructive bookkeeping to silence it is worse
+    than
+
+    no notification at all.
+
+
+    The task list has the same disease in a different place: its status filter defaults
+    to
+
+    "All Status", so the default view of the work is dominated by tasks that are finished
+    and
+
+    require nothing. The common case -- "what is open?" -- is not even offered as
+    an option,
+
+    while the rare case -- "show me everything including the closed ones" -- is the
+    default.
+
+    Both surfaces make the same mistake of treating every record as equally worth
+    attention.'
+  description: "## The distinction the badge is missing\n\nIt is **not** importance.\
+    \ `_get_waiting_tasks` does not read `priority` at all, so\nre-prioritising the\
+    \ parked drafts to `low` would change the count by zero. Anyone\nreaching for\
+    \ priority to fix this is treating a symptom.\n\nThe real property is **whether\
+    \ work is stopped**.\n\n- `ball: human` and lifecycle is **not** `draft` -- something\
+    \ is genuinely halted. An\n  agent handed the ball back mid-branch and is now\
+    \ idle; a completed branch is sitting at\n  the merge gate; a question is blocking\
+    \ progress that has already started. This earns an\n  alert, and it should reach\
+    \ zero routinely.\n- `ball: human` and lifecycle **is** `draft` -- nothing is\
+    \ halted. `draft` already means\n  \"not yet work\". The human is not a bottleneck,\
+    \ merely the person who would eventually\n  make the call. This is backlog, and\
+    \ backlog is a list you visit, not an alarm you\n  silence.\n\nThe schema already\
+    \ encodes this. No new field is needed -- the display simply is not\nreading a\
+    \ distinction the data has carried since v2.\n\n## What changes\n\n`_get_waiting_tasks`\
+    \ and `get_waiting_count` (`src/agentjobs/api/routes/web.py`, around\nlines 188-199)\
+    \ are the single predicate behind every surface. Split them into two, then\nmake\
+    \ every consumer name which tier it means:\n\n- the header badge in `base.html`\
+    \ -- blocked tier only\n- the dashboard's \"Waiting for Your Review\" panel --\
+    \ blocked tier only, and its heading\n  must be true of everything it lists\n\
+    - `stats.waiting_for_human` on the dashboard tiles\n- `_summarise_children`'s\
+    \ `waiting_on_human` (web.py ~line 163), so an umbrella does not\n  report a draft\
+    \ child as blocking\n- the per-project `waiting` counts in the project switcher\
+    \ (web.py ~line 366)\n\nThose last two matter more than they look: three separate\
+    \ places currently re-derive the\nsame predicate inline. Leaving any of them on\
+    \ the old rule produces a dashboard that\ndisagrees with its own project switcher,\
+    \ which is a harder bug to trust than the one being\nfixed. One definition, imported\
+    \ everywhere.\n\nThe backlog tier needs a home that is genuinely visible -- a\
+    \ labelled section with a plain\ncount, in a place the owner passes anyway. Hiding\
+    \ it would trade a nagging badge for a\ndraft that silently rots, which is the\
+    \ worse failure of the two.\n\n## Part two: the task list defaults to noise\n\n\
+    The status select in `task_list.html` offers `all / draft / ready / active / human\
+    \ /\nexternal / closed`, and `all` is the default. Two problems in one control:\n\
+    \n- There is no way to ask the question people actually ask. \"Show me what is\
+    \ open\" is not\n  an available option; you would have to check four of the seven\
+    \ in turn.\n- The default is the loudest possible answer. As the repository accumulates\
+    \ closed tasks\n  -- which it does monotonically and forever -- the default view\
+    \ degrades toward being\n  mostly archaeology.\n\nAdd an **Open** option meaning\
+    \ `lifecycle != closed`, and make it the default. That keeps\ndraft (needs spec),\
+    \ ready, active, and everything awaiting review or blocked; it drops\nevery closed\
+    \ task regardless of outcome -- completed, cancelled, superseded, duplicate.\n\
+    Filtering on `lifecycle` rather than enumerating outcomes is deliberate: `Outcome`\
+    \ is set\nif and only if a task is closed, so a new outcome added later is excluded\
+    \ automatically\nrather than silently leaking into the default view.\n\nSeeing\
+    \ closed work must remain one deliberate click away -- `All Status` keeps working,\n\
+    and a direct `?status=closed` link keeps working. The default changes; nothing\
+    \ is\nremoved."
+  constraints: "- No new schema field, and no schema version bump. The distinction\
+    \ is\n  already carried by `lifecycle`; a parallel field would be a second thing\
+    \ to maintain and\n  would drift from the first.\n- The backlog tier stays visible\
+    \ and stays counted. The goal is to stop it *alarming*, not\n  to stop it existing.\n\
+    - Do not edit any task's data to fix a display bug. task-066 and task-067 stay\
+    \ exactly as\n  they are, including their `ball`.\n- One shared definition of\
+    \ each tier. No inline re-derivation of the predicate at call\n  sites.\n- Closed\
+    \ work stays reachable. Changing the task list's default must not remove any\n\
+    \  existing option, and an explicit `?status=closed` or `?status=all` URL must\
+    \ still work.\n- The Open filter is defined as `lifecycle != closed`, not as an\
+    \ enumeration of outcomes,\n  so a future `Outcome` member cannot leak into the\
+    \ default view.\n- Assert on rendered values, not on the presence of markup --\
+    \ see the verification note in\n  ENGINEERING.md."
+  out_of_scope: 'Snooze or defer-until dates, per-user notification preferences, and
+    any
+
+    change to the `ball_reason` vocabulary. Archiving, retiring, or re-prioritising
+    task-066
+
+    and task-067. Separately worth doing but not here: both carry `ball_reason: spec`
+    when
+
+    their specs are complete and what they actually await is a decision -- a data
+    correction,
+
+    not a display one.'
+  context:
+  - path: src/agentjobs/api/routes/web.py
+    why: _get_waiting_tasks and get_waiting_count are the single predicate; _summarise_children
+      and the project listing re-derive it inline.
+  - path: src/agentjobs/api/templates/base.html
+    why: The header badge -- the surface that never reaches zero.
+  - path: src/agentjobs/api/templates/dashboard.html
+    why: The 'Waiting for Your Review' panel and the waiting_for_human tile.
+  - path: src/agentjobs/api/templates/task_list.html
+    why: The status select and its Alpine visible() predicate; default is 'all'.
+  - path: docs/task-schema.md
+    why: Section on the four state axes; lifecycle already means what this needs.
+acceptance:
+- id: ac-1
+  text: the header badge counts only open, non-draft tasks whose ball a human holds
+  status: pending
+- id: ac-2
+  text: draft tasks held by a human appear in a labelled backlog list with a plain
+    count, not styled as an alert
+  status: pending
+- id: ac-3
+  text: the dashboard's review panel lists no drafts, and its heading is true of every
+    task it does list
+  status: pending
+- id: ac-4
+  text: with only draft tasks parked on a human, the badge is absent rather than showing
+    a non-zero count
+  status: pending
+- id: ac-5
+  text: the project switcher counts and umbrella child summaries use the same two
+    definitions as the dashboard, imported rather than re-derived
+  status: pending
+- id: ac-6
+  text: the task list offers an Open filter meaning lifecycle != closed, which keeps
+    draft, ready, active, and anything awaiting a human or blocked externally
+  status: pending
+- id: ac-7
+  text: Open is the default view of the task list; seeing closed tasks requires choosing
+    All Status or an explicit ?status= URL
+  status: pending
+- id: ac-8
+  text: tests assert the rendered count and the tier a task lands in, and that a closed
+    task is absent from the default task list, not merely that the markup exists
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log: []
