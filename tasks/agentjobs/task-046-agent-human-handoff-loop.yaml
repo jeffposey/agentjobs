@@ -2,11 +2,14 @@ schema: 2
 id: task-046-agent-human-handoff-loop
 title: Formalize the agent-to-human handoff loop (status + notification, chat-independent)
 created: '2026-07-20T20:10:26Z'
-updated: '2026-08-11T06:09:29.426618Z'
+updated: '2026-08-11T06:12:26.262217Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: Review branch docs/task-046-agent-human-handoff-loop (commit a9e19cd
+  was rebased; use the branch tip). Confirm the schema-v2 workflow rewrite, handoff/notification
+  rules, dispatch-guide pointer, regression test, and task-044 summary repair. Approve
+  the merge or request specific changes. Do not expect a merge yet.
 archived: false
 priority: high
 category: developer_experience
@@ -100,23 +103,23 @@ acceptance:
     channel is available today (chat reply / PushNotification), (d) a forward pointer
     to a future pluggable notification service built on the existing task.status_changed
     webhook'
-  status: pending
+  status: met
 - id: sc-2
   text: Re-verify tasks 042-045 already satisfy the human_summary requirement (spot
     check); fix any that don't
-  status: pending
+  status: met
 - id: sc-3
   text: 'docs/agent-workflow.md updated to describe the resumption model: a fresh
     agent session picks up a task using only its YAML content (no chat history) and
     can tell what''s done and what''s next from status_updates/comments alone'
-  status: pending
+  status: met
 deliverables:
 - path: ALLAGENTS.md
   note: Human-handoff and self-sufficient-task-content rules
-  status: pending
+  status: done
 - path: docs/agent-workflow.md
   note: Chat-independent resumption model documented
-  status: pending
+  status: done
 dependencies:
 - task: task-044-docs-git-workflow
   type: needs
@@ -340,4 +343,38 @@ log:
     Verification so far: 512 pytest tests pass; Black and Ruff pass; MkDocs builds
     with three pre-existing warnings outside edited files. MyPy reports five pre-existing
     test_subtasks.py errors.'
+  data: {}
+- id: 9
+  ts: '2026-08-11T06:12:05.273938Z'
+  actor: codex
+  type: progress
+  body: 'Final post-rebase verification passed.
+
+
+    Branch docs/task-046-agent-human-handoff-loop is rebased onto local main. poetry
+    run pytest: 512 passed. poetry run mkdocs build: passed with three pre-existing
+    link warnings in task-schema.md and webhooks.md. poetry run black --check . and
+    poetry run ruff check --no-cache .: passed. poetry run mypy . remains non-green
+    with five pre-existing errors in tests/test_subtasks.py; no task-046 file is implicated.'
+  data: {}
+- id: 10
+  ts: '2026-08-11T06:12:05.306438Z'
+  actor: codex
+  type: handoff
+  body: 'Task 046 is branch-complete and verified. Rewrote docs/agent-workflow.md
+    against the real schema-v2 TaskClient; documented the zero-context resumption
+    contract and human notification behavior in ALLAGENTS.md and ENGINEERING.md; updated
+    the dispatch prompt stub; added documentation regression coverage; spot-checked
+    tasks 042-045 and repaired task 044 summary. Full suite: 512 passed; docs build
+    and Black/Ruff pass. MyPy has five pre-existing test_subtasks.py errors. Notification
+    sent through the available chat reply; this host exposes no PushNotification tool.'
+  data:
+    ball: human
+    ball_reason: review
+- id: 11
+  ts: '2026-08-11T06:12:26.262073Z'
+  actor: codex
+  type: note
+  body: Review branch tip is d37cbe0. The handoff prompt retains pre-rebase commit
+    a9e19cd only as provenance and explicitly directs review to the branch tip.
   data: {}
