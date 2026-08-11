@@ -2,10 +2,16 @@ schema: 2
 id: task-075-agent-worktree-isolation
 title: 'Isolate concurrent agents: a worktree per agent, not one shared checkout'
 created: '2026-08-11T01:10:16.518759Z'
-updated: '2026-08-11T01:10:16.519447Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-11T02:41:35.798628Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: 'Layer 1 is ready to merge: ENGINEERING.md gains a Worktree Lifecycle
+  section and an explicit `git add -A` prohibition, ALLAGENTS.md''s task lifecycle
+  now starts with ''worktree, branch, then claim''. Review and approve, and the next
+  agent to read the repo instructions will set up its own worktree without being told
+  -- which was your point. The task stays open afterwards for sc-3 (should AgentJobs
+  manage worktrees), sc-4 (GUI branch banner) and sc-5 (dispatch cwd, with task-077).'
 archived: false
 priority: high
 category: developer_experience
@@ -14,6 +20,7 @@ tags:
 - agent-dx
 - correctness
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: 'Several agents work this repo in one checkout with one HEAD, and on 2026-08-11
@@ -73,12 +80,12 @@ acceptance:
   text: ENGINEERING.md's branch lifecycle requires a per-agent worktree and prohibits
     `git add -A`, with the three 2026-08-11 failures named so the rule reads as a
     consequence rather than ceremony
-  status: pending
+  status: met
 - id: sc-2
   text: The workflow is documented end to end -- create worktree, branch, claim, work,
     merge, remove worktree -- and an agent following it never touches the shared checkout's
     HEAD
-  status: pending
+  status: met
 - id: sc-3
   text: A decision entry records whether AgentJobs manages worktrees itself (layer
     2) or the convention is sufficient, with the reasoning and the rejected option
@@ -115,5 +122,80 @@ dependencies:
   type: related
   note: The design pass during which these failures were observed.
 links: []
-branches: []
-log: []
+branches:
+- name: feat/task-075-worktree-convention
+  status: active
+log:
+- id: 1
+  ts: '2026-08-11T02:41:35.760728Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 2
+  ts: '2026-08-11T02:41:35.785076Z'
+  actor: claude
+  type: decision
+  body: 'Layer 1 only: the convention, documented. Layers 2 and 3 stay open.
+
+
+    Jeff asked the right question -- ''shouldn''t the agent starting on a new task
+    create the worktree?'' -- and the answer is yes, which makes this a documentation
+    change before it is anything else. An agent told by a human to make a worktree
+    is the same coordination-by-remembering that failed three times on 2026-08-11.
+    An agent that reads ENGINEERING.md and does it unprompted is a fix.
+
+
+    Scoped to sc-1 and sc-2 deliberately, and the task stays open for the rest:
+
+
+    - **sc-3** (does AgentJobs manage worktrees itself?) is deferred, not decided.
+    Layer 1 costs nothing and works today; layer 2 should not be built until layer
+    1 is observed failing. Also note `claude --worktree` exists, so for dispatched
+    runs the CLI may supply this for free -- task-077 should establish that before
+    AgentJobs builds a worktree pool it does not need.
+
+    - **sc-4** (GUI states which branch it is showing) is not done. It remains the
+    cheapest fix to the most confusing of the three failures, and it is a code change
+    rather than a doc change.
+
+    - **sc-5** (dispatch cwd) belongs with task-077, which is deciding what a dispatched
+    run even is.
+
+
+    Rejected: closing this task on the documentation alone. Three of five criteria
+    would be unmet, and a closed task is how a known problem becomes an unknown one.'
+  data: {}
+- id: 3
+  ts: '2026-08-11T02:41:35.798547Z'
+  actor: claude
+  type: handoff
+  body: 'Documented the convention that three separate failures on 2026-08-11 were
+    caused by not having.
+
+
+    **ENGINEERING.md** gains a `Worktree Lifecycle` section ahead of Branch Lifecycle:
+    one worktree per task, created before the branch and before the claim, removed
+    after merge, never `git checkout` in the shared clone. It states the three failures
+    as the reason, including the product-specific one -- because tasks are YAML files
+    in the repository, whichever branch is checked out silently decides what the dashboard
+    shows, so a task under review on a branch does not exist as far as main is concerned.
+    Commit Hygiene gains a `git add -A` prohibition with the recovery procedure, since
+    that failure is only recoverable if caught immediately.
+
+
+    **ALLAGENTS.md** step 2 becomes ''Worktree, branch, then claim'' with the command,
+    and step 6 ends with removing the worktree. Step 3 repeats the staging rule where
+    an agent will actually be looking when it commits.
+
+
+    Docs-only; no code touched. Verified by dogfooding: this branch was made with
+    `git worktree add C:/projects/aj-075 -b feat/task-075-worktree-convention` and
+    the shared clone was never checked out, so the agent working task-062 earlier
+    today would have been undisturbed by it.'
+  data:
+    ball: human
+    ball_reason: review

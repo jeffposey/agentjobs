@@ -11,16 +11,20 @@ Shared guidance for all AI agents working in this repository. Universal engineer
     is what "done" means. Read the `log[]` newest-first: the last `handoff`, and every
     `decision` and open `question` since. **Decisions are binding — do not relitigate
     them.** Check `dependencies[]` and confirm they are satisfied before starting.
-2.  **Branch, then claim**: Create the branch first, then `claim` the task and record the
-    branch in `branches[]` — in that order, so no work is ever committed outside a
-    branch. See [ENGINEERING.md](ENGINEERING.md#branch-lifecycle).
+2.  **Worktree, branch, then claim**: `git worktree add ../aj-<nnn> -b <type>/task-<nnn>-<slug>`
+    and work there — **this is your first act, before anything is written.** Then `claim`
+    the task and record the branch in `branches[]`. In that order, so no work is ever
+    committed outside a branch and no other agent's tree moves under them. You are not
+    the only agent in this repository. See
+    [ENGINEERING.md](ENGINEERING.md#worktree-lifecycle).
 3.  **Work**: Small, single-logical-change commits with tests green before each one.
+    Stage explicit paths — never `git add -A`.
 4.  **Verify**: Run `poetry run pytest` and exercise the change the way a user would —
     a passing suite is not by itself evidence the feature works.
 5.  **Hand off**: `handoff` to `human`/`review` with a `ball_prompt` saying what was done
     and what needs review. **Stop there** — do not merge.
-6.  **On approval**: Rebase onto `main`, merge `--no-ff`, mark the branch `merged`, and
-    `close` the task with `outcome: completed`.
+6.  **On approval**: Rebase onto `main`, merge `--no-ff`, mark the branch `merged`,
+    `close` the task with `outcome: completed`, and `git worktree remove` your worktree.
 
 State is four fields, not one (schema v2 — see [docs/task-schema.md](docs/task-schema.md)):
 `lifecycle` (`draft`/`ready`/`active`/`closed`), `ball` (who acts next — `agent`/`human`/
