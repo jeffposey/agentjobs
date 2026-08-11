@@ -3,26 +3,9 @@ id: task-045-subtask-support
 title: Sub-task behavior atop schema v2 (get_subtasks, umbrella non-claimability,
   ?parent= filter, GUI)
 created: '2026-07-06T19:25:45Z'
-updated: '2026-08-11T04:36:16.672845Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Round 2 is built and committed. Six commits on `feat/task-045-subtask-support`;\
-  \ still\nnot merged.\n\n**New since you last looked:**\n\n- The task list nests\
-  \ children under their parent, collapsed, with \"N sub-tasks, M open\".\n  You confirmed\
-  \ the toggle and the filter behaviour work.\n- `task-063-schema-v2` now shows a\
-  \ progress bar, \"3 of 5 complete, 2 open\", and\n  \"Waiting on a human: task-053,\
-  \ task-054\".\n- That task's description was rewritten to be about the schema-v2\
-  \ effort rather than\n  about being an umbrella. Worth reading as the answer to\
-  \ your question -- it is what I\n  think an umbrella record should contain.\n\n\
-  **Two decisions are logged above** with what I rejected: why a filtered list goes\
-  \ flat,\nand why the roll-up is derived rather than stored. The second is the direct\
-  \ answer to\n\"are they really supposed to be a shell task\": the record stays thin,\
-  \ the view does not.\n\n**Still true from round 1:** the expand/collapse is JavaScript\
-  \ and the suite does not\nclick it. 500 tests assert the data it reads. You have\
-  \ now clicked it, which is the\nevidence I could not produce.\n\nSay the word and\
-  \ I will rebase onto main, merge --no-ff, mark the branch merged, close\nthis task\
-  \ and remove the worktree."
+updated: '2026-08-11T04:41:39.478649Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: infrastructure
@@ -33,7 +16,6 @@ tags:
 - schema-v2
 effort: half day
 assignment:
-  owner: claude
   eligible:
   - claude
 spec:
@@ -113,16 +95,16 @@ acceptance:
 deliverables:
 - path: src/agentjobs/manager.py
   note: get_subtasks + umbrella exclusion from claimability
-  status: pending
+  status: done
 - path: src/agentjobs/api/routes/tasks.py
   note: ?parent= filter and parent validation
-  status: pending
+  status: done
 - path: src/agentjobs/api/models.py
   note: parent on create/update request models
-  status: pending
+  status: done
 - path: src/agentjobs/api/templates/task_detail.html
   note: Children list / parent link rendering
-  status: pending
+  status: done
 dependencies:
 - task: task-042-relocate-demo-tasks
   type: needs
@@ -143,7 +125,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-045-subtask-support
-  status: active
+  status: merged
+  merged_at: '2026-08-11T00:00:00Z'
 log:
 - id: 1
   ts: '2026-07-29T20:47:00Z'
@@ -533,3 +516,42 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 14
+  ts: '2026-08-11T04:41:39.445570Z'
+  actor: claude
+  type: note
+  body: 'Audited the corpus after merging, because the parent edges already on disk
+    were written
+
+    by code that had no validation: Codex parented the twelve dispatch tasks under
+
+    task-060-agent-dispatch while this branch was still in review, using main''s manager.
+
+
+    Clean -- 50 tasks, no dangling parents, none self-parented, no cycles. Two umbrellas
+
+    exist: task-060-agent-dispatch (12 children, 12 open) and task-063-schema-v2 (5
+
+    children, 2 open).
+
+
+    Worth knowing about task-060: it is already `closed`, so the non-claimability
+    rule does
+
+    not apply to it and nothing changed for it. Had it still been open with twelve
+    open
+
+    children, this merge would have made it unclaimable -- correct behaviour, but
+    it would
+
+    have appeared out of nowhere to whoever tried to claim it.'
+  data: {}
+- id: 15
+  ts: '2026-08-11T04:41:39.478532Z'
+  actor: claude
+  type: transition
+  body: 'Approved by Jeff after reviewing the GUI; rebased onto main and merged --no-ff
+    as c0d7ba4. Six commits: manager, API, detail page, docs, list nesting, roll-up.'
+  data:
+    lifecycle: closed
+    outcome: completed
