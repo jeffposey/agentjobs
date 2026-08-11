@@ -2,7 +2,7 @@ schema: 2
 id: task-066-multiple-human-users
 title: Support more than one human user (account management)
 created: '2026-08-10T23:20:39.069637Z'
-updated: '2026-08-10T23:20:39.070325Z'
+updated: '2026-08-11T06:05:20.518417Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -115,4 +115,34 @@ dependencies:
   note: Supplies the config vocabulary and the single-user identity this widens.
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-11T06:05:20.518358Z'
+  actor: claude
+  type: note
+  body: 'Reviewed in the 2026-08-11 grooming pass and **deliberately left as-is**,
+    at lifecycle: draft / ball: human / ball_reason: spec.
+
+
+    That pass promoted four other drafts (046, 053, 054, 058) out of the same state,
+    so the reason this one was not promoted is worth recording -- otherwise the next
+    groomer re-derives the analysis, or worse, promotes it for consistency.
+
+
+    The four promoted tasks were parked by an artifact: `agentjobs migrate-schema`
+    assigned every v1 draft it could not derive an ask from a generic ''NEEDS REVIEW:
+    finish specifying this task'' prompt, and those four were in fact fully specified.
+    No human was actually being waited on.
+
+
+    This task is different: it was authored on v2, its ball_reason is accurate, and
+    its first acceptance criterion is that the identity model is *chosen* and recorded
+    as a decision with the rejected alternatives -- an unmade design call, not missing
+    prose. The ball is correctly with a human. Promoting it would put a real open
+    design question into the claimable pool, where an agent would answer it by default
+    rather than by decision.
+
+
+    To unpark it: answer the design question, record it as a decision entry, then
+    promote.'
+  data: {}

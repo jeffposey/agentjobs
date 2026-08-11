@@ -3,7 +3,7 @@ id: task-077-dispatch-session-launcher
 title: 'Decide: should dispatch launch a remote-controllable session instead of a
   batch run?'
 created: '2026-08-11T01:56:16.465216Z'
-updated: '2026-08-11T04:37:06.903143Z'
+updated: '2026-08-11T06:05:20.487880Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -187,3 +187,41 @@ log:
     - sc-4
     - task-070
     - task-072
+- id: 2
+  ts: '2026-08-11T06:05:20.487805Z'
+  actor: claude
+  type: note
+  body: 'Why this is the recommended next action out of the dispatch hierarchy, from
+    the 2026-08-11 grooming pass. Recorded so the sequencing argument survives the
+    conversation it was made in.
+
+
+    As of 2026-08-11 the claimable dispatch tasks are 068, 069, 075, 076, 077, 078
+    and 080; 070 is blocked on 068 + 069 + 076 + 077, and 071, 072, 073 and 074 sit
+    behind 070. So the hierarchy narrows to a single gate, and this task is on it.
+
+
+    Two reasons to take it before the others on that gate:
+
+
+    1. **Reach.** It gates 070, which gates 071 and 072, which gate 073, which gates
+    074 -- five tasks downstream. Nothing else currently claimable moves as much.
+
+    2. **It may delete work rather than add it.** This task''s own sc-5 says 070 and
+    072 are to be rescoped or closed as superseded depending on the answer. If the
+    answer is ''drive `claude agents`'', design section 9''s supervisor model is mostly
+    wrong and both tasks shrink to a wrapper. Building 068''s runner argv templates
+    or 070''s supervisor first therefore risks implementing a process model this task
+    then discards. Doing it first is the option whose downside is a delay; doing it
+    later is the option whose downside is rework.
+
+
+    Suggested order after this one: task-076, the other undecided gate on 070 and
+    also a decision rather than an implementation, then 068 and 069 in parallel, then
+    070.
+
+
+    Not a decision -- the owner has not been asked to ratify a sequence, and any of
+    068, 069, 075, 078 or 080 is a defensible thing to pick up instead. This is the
+    reasoning, so that whoever picks differently is doing so knowingly.'
+  data: {}

@@ -2,7 +2,7 @@ schema: 2
 id: task-063-schema-v2
 title: 'Schema v2: models, migrator, application, CLI, GUI'
 created: '2026-08-11T03:17:08.422110Z'
-updated: '2026-08-11T03:59:40.776449Z'
+updated: '2026-08-11T06:05:20.507792Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -107,4 +107,61 @@ deliverables: []
 dependencies: []
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-11T06:05:20.498683Z'
+  actor: claude
+  type: note
+  body: 'Gap found while grooming on 2026-08-11: **there is no manager verb for `draft`
+    -> `ready`.**
+
+
+    ALLAGENTS.md states that the state axes move only through the manager verbs --
+    claim, handoff, release, close -- each of which appends its own log entry, and
+    that editing them directly skips the record of why they moved. But those four
+    verbs do not cover this transition. `claim_task` requires `ready` and moves to
+    `active`; `release_task` requires `active`; `handoff` moves the ball and refuses
+    to touch `lifecycle`; `close_task` ends the task. Promoting a specified draft
+    into the claimable pool -- the single most common editorial act in grooming a
+    backlog -- has to go through `update_task(lifecycle=...)`, which appends nothing
+    and is exactly the direct edit the rule forbids.
+
+
+    Four tasks were promoted this way in the 2026-08-11 pass (046, 053, 054, 058).
+    Each got a hand-written `decision` entry carrying the reasoning, because otherwise
+    the transition would appear in the YAML with no explanation of who moved it or
+    why. That worked, but it worked by discipline, and the argument for verbs in the
+    first place is that the record should not depend on discipline.
+
+
+    Filed against this umbrella because it is a hole in the v2 verb set rather than
+    a bug in any one child. Deliberately not acted on: adding a verb is a schema and
+    API change, it is nobody''s current task, and inventing one mid-grooming is the
+    kind of unasked scope growth the pass was meant to reduce.'
+  data: {}
+- id: 2
+  ts: '2026-08-11T06:05:20.507745Z'
+  actor: claude
+  type: question
+  body: 'Open question raised 2026-08-11, unanswered: should the v2 verb set gain
+    a promotion verb (`ready`/`promote`/`groom`) covering `draft` -> `ready`, per
+    the note above?
+
+
+    **For:** it closes the one lifecycle transition an editor performs routinely and
+    cannot currently perform through a verb, and it would make the log entry automatic
+    rather than conventional.
+
+
+    **Against:** the verb set is deliberately small, and `draft` -> `ready` is an
+    editorial act rather than a workflow move -- it has no actor handing anything
+    to anyone, which is what the other four verbs all model. A fifth verb that does
+    not share that shape may be the wrong fix; requiring `update_task` to append a
+    transition entry whenever `lifecycle` changes would cover this case and every
+    other direct edit at once.
+
+
+    The second option looks better to me and is the one I would take, but it touches
+    the manager''s mutation path rather than adding a method, so it wants a decision
+    before anyone writes it.'
+  data: {}

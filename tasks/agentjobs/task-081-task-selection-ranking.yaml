@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: 'Design: what ranks the claimable queue, and what /next must explain'
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-11T04:56:38.398545Z'
+updated: '2026-08-11T06:05:20.474393Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -133,4 +133,43 @@ dependencies:
   note: '`parent` now records which tasks are one effort -- a ranking signal.'
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-11T06:05:20.474281Z'
+  actor: claude
+  type: note
+  body: 'Live evidence for this task''s premise, produced accidentally on 2026-08-11
+    and recorded here because it is a measurement, not an opinion.
+
+
+    A backlog grooming pass closed two tasks and promoted four. Before it, `get_next_task()`
+    returned **task-080**. After it, the same call returned **task-058**. No priority
+    changed. No dependency closed. No one decided that 058 was more important than
+    080.
+
+
+    What changed is that grooming rewrote `updated`, and `updated` is the tie-breaker:
+    the sort key is `(priority_rank(), -updated.timestamp())`. Eleven open tasks are
+    claimable and most are `high`, so the first sort term separates almost nothing
+    and the queue is effectively ordered by *most recently touched*.
+
+
+    The consequence is worth stating plainly, because it is worse than arbitrary:
+    **any edit to a task promotes it toward the front of the queue.** Logging progress,
+    answering a question, fixing a typo in a spec, or a grooming pass that explicitly
+    reasoned about priority and deliberately did not change it -- all of them reorder
+    the work. The ranking rewards recency of *attention*, which is close to the opposite
+    of what a queue should do, since the task nobody has touched in a month is the
+    one most likely to be forgotten.
+
+
+    This bears directly on two acceptance criteria already written here: that tie-breaking
+    be deterministic and not depend on a mutable timestamp (it is a concrete demonstration
+    of why), and that the design decide whether unblocking value belongs in the ranking.
+    On the latter, the same pass produced a data point: ranking the dispatch hierarchy
+    by hand, task-077 is the obvious next action because it gates five downstream
+    tasks and may close two of them outright, while the tool''s answer -- first 080,
+    then 058 -- reflects nothing but file-write order. A human ranked the queue better
+    than the function did, in under a minute, using a signal the function does not
+    have.'
+  data: {}
