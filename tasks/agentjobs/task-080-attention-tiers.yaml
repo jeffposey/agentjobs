@@ -2,19 +2,9 @@ schema: 2
 id: task-080-attention-tiers
 title: 'Two tiers of attention: stop backlog nagging, default the list to open work'
 created: '2026-08-11T06:31:21.682113Z'
-updated: '2026-08-11T06:44:31.644949Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review branch `feat/task-080-attention-tiers` (2 commits, worktree ../aj-080).
-  It splits the human inbox into a blocking tier that still badges and a quiet draft
-  backlog that does not, and makes the task list default to open work. Worth a look
-  in a browser as well as the diff: the dashboard now shows task-066 and task-067
-  in a flat backlog section with no badge, and the task list opens on Open instead
-  of All Status. Two judgement calls to confirm -- the default task list is flat rather
-  than a tree (see the decision entry for why a tree would hide rows), and the alert
-  heading is now ''Blocked on You'' rather than ''Waiting for Your Review''. Approve
-  to merge --no-ff, or say what to change.'
+updated: '2026-08-11T06:55:05.972734Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: ux
@@ -24,7 +14,6 @@ tags:
 - notifications
 effort: half a day
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'Both listing surfaces treat everything as equally worth your attention:
@@ -167,41 +156,41 @@ spec:
 acceptance:
 - id: ac-1
   text: the header badge counts only open, non-draft tasks whose ball a human holds
-  status: pending
+  status: met
 - id: ac-2
   text: draft tasks held by a human appear in a labelled backlog list with a plain
     count, not styled as an alert
-  status: pending
+  status: met
 - id: ac-3
   text: the dashboard's review panel lists no drafts, and its heading is true of every
     task it does list
-  status: pending
+  status: met
 - id: ac-4
   text: with only draft tasks parked on a human, the badge is absent rather than showing
     a non-zero count
-  status: pending
+  status: met
 - id: ac-5
   text: the project switcher counts and umbrella child summaries use the same two
     definitions as the dashboard, imported rather than re-derived
-  status: pending
+  status: met
 - id: ac-6
   text: the task list offers an Open filter meaning lifecycle != closed, which keeps
     draft, ready, active, and anything awaiting a human or blocked externally
-  status: pending
+  status: met
 - id: ac-7
   text: Open is the default view of the task list; seeing closed tasks requires choosing
     All Status or an explicit ?status= URL
-  status: pending
+  status: met
 - id: ac-8
   text: tests assert the rendered count and the tier a task lands in, and that a closed
     task is absent from the default task list, not merely that the markup exists
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
 branches:
 - name: feat/task-080-attention-tiers
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-11T06:32:32.072105Z'
@@ -354,3 +343,25 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 6
+  ts: '2026-08-11T06:54:42.980608Z'
+  actor: jeff
+  type: note
+  body: 'Approved after reviewing the running branch server: "looks good". Both judgement
+    calls raised in the handoff -- the flat default list, and the ''Blocked on You''
+    heading -- were accepted as built.'
+  data: {}
+- id: 7
+  ts: '2026-08-11T06:54:43.025741Z'
+  actor: claude
+  type: transition
+  body: 'Merged to main as a594d65 (--no-ff). All eight acceptance criteria met: the
+    badge counts only non-draft tasks held by a human; drafts appear in a plain backlog
+    list; the alert panel''s heading is true of everything it lists; a parked draft
+    raises no badge; the project switcher and umbrella rollup import the shared predicates
+    rather than re-deriving them; the task list offers an Open filter meaning lifecycle
+    != closed and uses it by default; and the tests assert rendered values. 531 tests
+    pass. Not pushed -- merging is not approval to push.'
+  data:
+    lifecycle: closed
+    outcome: completed
