@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title description">
+  <title id="title">Placeholder for the AgentJobs schema v2 task hierarchy screenshot</title>
+  <description id="description">A labeled stand-in showing the content Jeff should capture from the live task-063 detail page.</description>
+  <rect width="1440" height="900" fill="#0f172a"/>
+  <rect x="90" y="70" width="1260" height="760" rx="18" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+
+  <text x="135" y="125" fill="#60a5fa" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="18">task-063-schema-v2</text>
+  <text x="135" y="170" fill="#e2e8f0" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="30" font-weight="700">Schema v2: models, migrator, application, CLI, GUI</text>
+
+  <rect x="135" y="202" width="72" height="30" rx="6" fill="#164e63"/>
+  <text x="171" y="223" text-anchor="middle" fill="#a5f3fc" font-family="system-ui, sans-serif" font-size="14" font-weight="600">Ready</text>
+
+  <line x1="135" y1="270" x2="1305" y2="270" stroke="#334155" stroke-width="2"/>
+  <text x="135" y="315" fill="#e2e8f0" font-family="system-ui, sans-serif" font-size="21" font-weight="650">Sub-tasks</text>
+  <text x="1305" y="315" text-anchor="end" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="16">3 of 5 complete · 2 open</text>
+
+  <rect x="135" y="342" width="1170" height="8" rx="4" fill="#334155"/>
+  <rect x="135" y="342" width="702" height="8" rx="4" fill="#16a34a"/>
+  <text x="135" y="388" fill="#fdba74" font-family="system-ui, sans-serif" font-size="16">Waiting on a human: task-053-schema-v2-cli, task-054-schema-v2-gui</text>
+
+  <g font-family="system-ui, -apple-system, Segoe UI, sans-serif">
+    <line x1="135" y1="420" x2="1305" y2="420" stroke="#334155"/>
+    <text x="155" y="463" fill="#e2e8f0" font-size="17">Schema v2: models</text>
+    <rect x="1182" y="438" width="123" height="32" rx="6" fill="#14532d"/>
+    <text x="1243" y="460" text-anchor="middle" fill="#bbf7d0" font-size="14" font-weight="600">Completed</text>
+
+    <line x1="135" y1="492" x2="1305" y2="492" stroke="#334155"/>
+    <text x="155" y="535" fill="#e2e8f0" font-size="17">Schema v2: one-shot migrator and corpus migration</text>
+    <rect x="1182" y="510" width="123" height="32" rx="6" fill="#14532d"/>
+    <text x="1243" y="532" text-anchor="middle" fill="#bbf7d0" font-size="14" font-weight="600">Completed</text>
+
+    <line x1="135" y1="564" x2="1305" y2="564" stroke="#334155"/>
+    <text x="155" y="607" fill="#e2e8f0" font-size="17">Schema v2: migrate the corpus and switch the application over</text>
+    <rect x="1182" y="582" width="123" height="32" rx="6" fill="#14532d"/>
+    <text x="1243" y="604" text-anchor="middle" fill="#bbf7d0" font-size="14" font-weight="600">Completed</text>
+
+    <line x1="135" y1="636" x2="1305" y2="636" stroke="#334155"/>
+    <text x="155" y="679" fill="#e2e8f0" font-size="17">Schema v2: CLI mirrors</text>
+    <rect x="1182" y="654" width="123" height="32" rx="6" fill="#7c2d12"/>
+    <text x="1243" y="676" text-anchor="middle" fill="#fed7aa" font-size="14" font-weight="600">Needs spec</text>
+
+    <line x1="135" y1="708" x2="1305" y2="708" stroke="#334155"/>
+    <text x="155" y="751" fill="#e2e8f0" font-size="17">Schema v2: Jinja GUI</text>
+    <rect x="1182" y="726" width="123" height="32" rx="6" fill="#7c2d12"/>
+    <text x="1243" y="748" text-anchor="middle" fill="#fed7aa" font-size="14" font-weight="600">Needs spec</text>
+  </g>
+
+  <rect x="90" y="842" width="1260" height="42" rx="8" fill="#f59e0b"/>
+  <text x="720" y="869" text-anchor="middle" fill="#1e293b" font-family="system-ui, sans-serif" font-size="17" font-weight="750">PLACEHOLDER — replace with Jeff's screenshot of the live task-063 detail page before merge</text>
+</svg>
