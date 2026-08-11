@@ -1,0 +1,108 @@
+schema: 2
+id: task-068-dispatch-config
+title: 'Dispatch: machine-local configuration and runner resolution'
+created: '2026-08-11T00:21:32.473840Z'
+updated: '2026-08-11T00:21:32.474556Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Derived from the task-060 dispatch design pass. Do not start until that
+  design is approved and merged -- the decisions here follow from it and would change
+  with it.
+archived: false
+priority: high
+category: infrastructure
+tags:
+- dispatch
+- architecture
+assignment:
+  eligible: []
+spec:
+  summary: 'The config surface for agent dispatch, with no spawning. Defines ~/.agentjobs/dispatch.yaml
+    -- runners (argv templates), per-project enablement, limits -- plus argv substitution
+    and the master switch. Machine-local by design: if runners lived in the versioned
+    project config, cloning any repository would carry a ''run this command on my
+    machine'' payload. Design section 3 and section 6 gate 2.'
+  description: 'First of seven tasks derived from docs/agent-dispatch-design.md. Builds
+    the configuration layer only, so it is fully testable without starting a process.
+
+
+    ## Scope
+
+
+    - A model and loader for `~/.agentjobs/dispatch.yaml` (schema in design section
+    3), located via the same `AGENTJOBS_HOME` override `projects.py` already uses,
+    so tests never touch a real home directory.
+
+    - Runner resolution: given a project id, produce the runner to use, or a typed
+    error naming why not (no config, master switch off, project not enabled, unknown
+    runner).
+
+    - Argv substitution for `{prompt}`, `{task_id}`, `{project_id}`, `{project_root}`,
+    `{run_id}`, `{agent}`, `{api_base}`. **Per argv element, literal, no shell.**
+    Substitution never produces a shell string; there is no `shell=True` anywhere
+    in this subsystem.
+
+    - The master switch (`enabled:`) and the `~/.agentjobs/DISPATCH_DISABLED` sentinel
+    check, exposed as one `assert_dispatch_permitted(project_id)` call the later tasks
+    use.
+
+    - `agentjobs dispatch enable|disable <project>` and `agentjobs dispatch config`
+    (show resolved configuration).
+
+
+    ## Not in scope
+
+
+    Spawning anything. No subprocess in this task.
+
+
+    ## Why it is first
+
+
+    Every refusal path in the design is a config question. Getting the refusals right
+    and tested before any process can start means the later tasks are adding capability
+    to a system that already knows how to say no.'
+  context: []
+acceptance:
+- id: sc-1
+  text: A dispatch configuration model loads ~/.agentjobs/dispatch.yaml, honours AGENTJOBS_HOME,
+    and treats an absent file as dispatch disabled rather than an error
+  status: pending
+- id: sc-2
+  text: 'Runner resolution returns a typed error distinguishing: no config, master
+    switch off, project not enabled, unknown runner name'
+  status: pending
+- id: sc-3
+  text: Argv substitution is per-element and literal; a test asserts that a prompt
+    containing shell metacharacters, quotes and newlines survives as exactly one argv
+    element
+  status: pending
+- id: sc-4
+  text: The DISPATCH_DISABLED sentinel refuses dispatch even when every other setting
+    permits it, and is checked through the same single entry point later tasks call
+  status: pending
+- id: sc-5
+  text: agentjobs dispatch enable/disable/config work against a temporary AGENTJOBS_HOME
+    in tests, and refuse to enable a project whose named runner does not exist
+  status: pending
+deliverables:
+- path: src/agentjobs/dispatch/config.py
+  note: Model, loader, resolution, substitution
+  status: pending
+- path: src/agentjobs/cli.py
+  note: agentjobs dispatch enable|disable|config
+  status: pending
+- path: tests/test_dispatch_config.py
+  note: Refusal paths and substitution safety
+  status: pending
+dependencies:
+- task: task-060-agent-dispatch
+  type: related
+  note: The design pass this task was derived from.
+links:
+- url: https://github.com/jeffposey/agentjobs/blob/main/docs/agent-dispatch-design.md
+  rel: design
+  title: Agent dispatch design pass (task-060)
+branches: []
+log: []

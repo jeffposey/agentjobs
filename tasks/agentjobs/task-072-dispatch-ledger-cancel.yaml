@@ -1,0 +1,108 @@
+schema: 2
+id: task-072-dispatch-ledger-cancel
+title: 'Dispatch: run ledger, cancellation, and startup reconciliation'
+created: '2026-08-11T00:21:32.495701Z'
+updated: '2026-08-11T00:21:32.496383Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Derived from the task-060 dispatch design pass. Do not start until that
+  design is approved and merged -- the decisions here follow from it and would change
+  with it.
+archived: false
+priority: high
+category: infrastructure
+tags:
+- dispatch
+- architecture
+assignment:
+  eligible: []
+spec:
+  summary: 'Make a run observable and stoppable. The run directory layout, the per-task
+    run lock, cancel/stop/status commands, cancel-on-shutdown, and startup reconciliation
+    that turns a crashed run into a task-visible ''interrupted'' rather than silence.
+    Includes the panic button: dispatch stop writes the sentinel and kills everything.
+    Design sections 6, 8 and 9.'
+  description: 'Derived from docs/agent-dispatch-design.md sections 6, 8 and 9.
+
+
+    ## Scope
+
+
+    - Run directory layout `~/.agentjobs/runs/<run_id>/` with `meta.yaml`. **No shared
+    index file** -- each directory is written only by its own supervisor, so listing
+    is a scan and there is nothing contended to lock. Same reasoning as one YAML file
+    per task.
+
+    - The per-task run lock at `~/.agentjobs/runs/.locks/<task_id>.lock`, held for
+    the process lifetime, using the same `O_CREAT|O_EXCL` primitive task-055 chose
+    (atomic on Windows, no dependency, stale lock produces a timeout naming it rather
+    than a hang).
+
+    - `agentjobs dispatch status`, `dispatch cancel <run-id>`, `dispatch stop`.
+
+    - Cancellation: `CTRL_BREAK_EVENT` / `SIGTERM` to the group, 30s grace so an agent
+    can finish a `git commit`, then `taskkill /T /F` / `SIGKILL`.
+
+    - `dispatch stop` is the panic button: writes `DISPATCH_DISABLED` **and** cancels
+    every live run, one command, no arguments.
+
+    - **Runs do not outlive their supervisor.** Graceful shutdown of `agentjobs serve`
+    cancels live runs. Startup reconciliation declares any non-terminal run `interrupted`,
+    appends its dispatch_result, and hands the ball to a human.
+
+
+    ## The rejected alternative, restated because it will be suggested
+
+
+    Letting a child survive a server restart and re-adopting it by pid. Pid adoption
+    is unreliable, and it produces an orphaned autonomous agent editing a repository
+    with nothing supervising it and no working kill switch -- the precise situation
+    this subsystem exists to prevent. Losing a mid-flight run to a restart is a visible
+    cost; an unsupervised orphan is not.'
+  context: []
+acceptance:
+- id: sc-1
+  text: dispatch status lists live and recent runs with task, agent, pid, elapsed
+    time and outcome
+  status: pending
+- id: sc-2
+  text: Cancelling a run terminates the whole process group after the grace period
+    and writes outcome cancelled to the task
+  status: pending
+- id: sc-3
+  text: dispatch stop both writes the sentinel and kills live runs; a dispatch attempted
+    immediately afterwards is refused
+  status: pending
+- id: sc-4
+  text: A run killed without its supervisor (simulate a hard crash) is found at next
+    startup, marked interrupted on the task, and moves the ball to human -- it does
+    not disappear silently
+  status: pending
+- id: sc-5
+  text: Two dispatches of the same task cannot both hold the run lock, and a stale
+    lock produces a timeout error naming it rather than hanging
+  status: pending
+deliverables:
+- path: src/agentjobs/dispatch/ledger.py
+  note: Run directories, locks, reconciliation
+  status: pending
+- path: src/agentjobs/cli.py
+  note: dispatch status|cancel|stop
+  status: pending
+- path: tests/test_dispatch_lifecycle.py
+  note: Cancel, crash, reconcile, lock contention
+  status: pending
+dependencies:
+- task: task-070-dispatch-runner
+  type: needs
+  note: Derived from the same design pass; this task builds on it.
+- task: task-060-agent-dispatch
+  type: related
+  note: The design pass this task was derived from.
+links:
+- url: https://github.com/jeffposey/agentjobs/blob/main/docs/agent-dispatch-design.md
+  rel: design
+  title: Agent dispatch design pass (task-060)
+branches: []
+log: []
