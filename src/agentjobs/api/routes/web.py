@@ -224,6 +224,35 @@ def _get_backlog_tasks(tasks: List[Task]) -> List[Task]:
     return _inbox_order([task for task in tasks if awaits_human_input(task)])
 
 
+def _next_action(
+    *,
+    blocking: List[Task],
+    backlog: List[Task],
+    next_task: Optional[Task],
+    total: int,
+) -> str:
+    """Which single call to action the dashboard shows. First match wins.
+
+    A dashboard answers one question -- what do I do next -- and it has to answer it
+    once. Rendering the tiers as independent panels showed two calls to action of equal
+    weight and ranked neither, leaving the reader to do the ranking the page exists to
+    do for them.
+
+    Returned as a name rather than as several booleans so the template selects a branch
+    instead of re-deriving the precedence, which is how two panels start rendering
+    together again.
+    """
+    if blocking:
+        return "blocked"
+    if backlog:
+        return "backlog"
+    if next_task is not None:
+        return "next_up"
+    # Nothing claimable. An empty project and a fully-blocked one are different
+    # situations and get different words.
+    return "empty_project" if total == 0 else "nothing_claimable"
+
+
 def get_waiting_count(manager: TaskManager) -> int:
     """The badge number: tasks where a person is actually holding work up."""
     return sum(1 for task in manager.list_tasks(ball=Ball.HUMAN) if blocks_human(task))
@@ -253,6 +282,11 @@ async def dashboard(
     }
     waiting_count = len(waiting_tasks)
 
+    # Tier 3 of the ladder. The manager already knows what "claimable" means -- ready,
+    # no unmet needs, no open children, eligibility honoured -- and asking it here keeps
+    # the dashboard's answer identical to the CLI's answer to the same question.
+    next_task = manager.get_next_task()
+
     context = {
         "request": request,
         "stats": stats,
@@ -260,6 +294,13 @@ async def dashboard(
         "recent_updates": _collect_recent_updates(tasks),
         "waiting_tasks": waiting_tasks,
         "backlog_tasks": backlog_tasks,
+        "next_task": next_task,
+        "next_action": _next_action(
+            blocking=waiting_tasks,
+            backlog=backlog_tasks,
+            next_task=next_task,
+            total=len(tasks),
+        ),
         **_context_base(
             project=project,
             waiting_count=waiting_count,
