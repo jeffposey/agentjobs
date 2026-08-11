@@ -3,11 +3,14 @@ id: task-079-readme-and-screenshot
 title: Rewrite the README front page around what makes AgentJobs different, with a
   screenshot
 created: '2026-08-11T02:36:59.915733Z'
-updated: '2026-08-11T04:52:47.823124Z'
+updated: '2026-08-11T04:56:31.789148Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: Review commit 79c8398 on docs/task-079-readme-and-screenshot. Replace
+  docs/img/task-063-schema-v2-detail-placeholder.svg and its README reference with
+  your screenshot of the live task-063 detail page, then review the README for tone
+  and accuracy; approve or request changes. Do not merge yet.
 archived: false
 priority: high
 category: documentation
@@ -108,7 +111,7 @@ acceptance:
   text: The first screen of README.md states what is unusual about AgentJobs -- the
     ball model and the resumption contract -- rather than listing features common
     to every tracker
-  status: pending
+  status: met
 - id: sc-2
   text: A screenshot showing the parent/child hierarchy with display_status badges
     appears above the fold, committed to the repo and rendering on the GitHub page
@@ -116,11 +119,11 @@ acceptance:
 - id: sc-3
   text: The design documents are linked with a sentence each on what they decide,
     reachable from the front page without browsing docs/
-  status: pending
+  status: met
 - id: sc-4
   text: Nothing unbuilt is described as existing; designed-but-unbuilt work is labelled
     as such
-  status: pending
+  status: met
 - id: sc-5
   text: 'The UI in the screenshot is presentable: font sizes restrained, hierarchy
     legible to a stranger'
@@ -128,7 +131,7 @@ acceptance:
 deliverables:
 - path: README.md
   note: Rewritten front page
-  status: pending
+  status: done
 - path: docs/img/
   note: Screenshot committed to the repo
   status: pending
@@ -187,3 +190,38 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 3
+  ts: '2026-08-11T04:56:31.752056Z'
+  actor: codex
+  type: decision
+  body: Used a clearly labelled SVG placeholder for the task-063 detail-page screenshot.
+    Jeff explicitly volunteered to capture the real browser image; rejected installing
+    headless browser tooling for a one-off documentation task.
+  data: {}
+- id: 4
+  ts: '2026-08-11T04:56:31.770037Z'
+  actor: codex
+  type: progress
+  body: 'Rewrote the README around the ball model and resumption contract
+
+
+    Committed branch 79c8398. The first screen now leads with the shipped ball model
+    and tested resumption contract; shipped capabilities are separated from accepted-but-unbuilt
+    dispatch and queued agent-loop design. Added a GitHub-renderable SVG placeholder
+    modeled on the live task-063 hierarchy. Verified the live page at /p/agentjobs/tasks/task-063-schema-v2,
+    all 17 local README links, SVG XML parsing, git diff --check, and pytest (502
+    passed). Remaining: Jeff replaces the placeholder with his screenshot; sc-2/sc-5
+    and docs/img remain pending until then.'
+  data: {}
+- id: 5
+  ts: '2026-08-11T04:56:31.789079Z'
+  actor: codex
+  type: handoff
+  body: 'README rewrite is committed and verified. It leads with the ball model/resumption
+    contract, links the existing design documents with their decisions, and explicitly
+    labels dispatch, agent loops, and remaining schema-v2 surfaces as unbuilt. A clearly
+    labelled task-063 SVG stand-in is above the fold per Jeff''s instruction. Tests:
+    502 passed. Human review and the real screenshot are the remaining gates.'
+  data:
+    ball: human
+    ball_reason: review
