@@ -1,0 +1,100 @@
+schema: 2
+id: task-092-dashboard-design-pass
+title: 'Rethink the next-action ladder: should the calm rungs coexist?'
+created: '2026-08-11T08:01:24.843122Z'
+updated: '2026-08-11T08:01:24.843844Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Decide whether the calm ladder rungs -- backlog and 'next up' -- should
+  coexist when nothing is active and work is ready, and whether this is a narrow ladder
+  tweak or the start of a wider dashboard design pass. Captured as a note before it
+  was lost; not yet thought through.
+archived: false
+priority: medium
+category: ux
+tags:
+- gui
+- workflow
+- design
+effort: a thinking pass, then small
+assignment:
+  eligible: []
+spec:
+  summary: 'The next-action ladder from task-081 shows exactly one panel by strict
+    precedence. That may be too strict: when nothing is active and work is ready to
+    start, the ''start the next task'' panel is arguably the most useful thing on
+    the page even if drafts are parked. Rethink whether some rungs should coexist.'
+  intent: "Captured 2026-08-11 by the owner immediately after task-081 merged, as\
+    \ a\nthought worth keeping rather than a specified change:\n\n    \"if there is\
+    \ no active task and there are some ready, it should present the panel to\n  \
+    \  start a next task, backlog specs can maybe co exist with start next task panel...\n\
+    \    needs some thought, the dashboard of agentjobs deserves more thought\"\n\n\
+    task-081 deliberately made the ladder strict -- first match wins, everything else\n\
+    suppressed -- because two panels of equal weight made the reader do the ranking\
+    \ the page\nexists to do for them. That reasoning holds for an *alert* competing\
+    \ with anything else.\nIt is weaker between the two calm rungs, where neither\
+    \ is urgent and the question is\nwhich is more useful rather than which is more\
+    \ alarming."
+  description: "## The specific case\n\nNothing active, some tasks ready, some drafts\
+    \ parked on a human. Today the ladder shows\nthe backlog panel and suppresses\
+    \ \"Next up\", because backlog outranks next_up. The\nargument against that ordering:\
+    \ if no work is in flight, starting work is the higher-value\nprompt, and a parked\
+    \ draft is by definition not blocking anything.\n\n## What needs deciding\n\n\
+    - Should \"Next up\" and the backlog coexist when neither is urgent, or does that\n\
+    \  re-create the two-calls-to-action problem task-081 fixed?\n- If they coexist,\
+    \ does one of them shrink -- a one-line strip rather than a panel -- so\n  there\
+    \ is still a visual primary?\n- Does \"nothing active\" belong in the ladder condition\
+    \ at all? It is a fourth signal\n  (`lifecycle: active` count) alongside blocked\
+    \ / backlog / claimable, and adding it\n  makes the ladder a small rules table\
+    \ rather than a chain.\n- Does the strictness survive at all for the alert rung?\
+    \ Probably yes -- an alarm\n  competing with a nudge is the case the strict ladder\
+    \ was built for.\n\n## The wider note\n\nThe owner's framing was that \"the dashboard\
+    \ of AgentJobs deserves more thought\" -- that\nthis is the page the product is\
+    \ judged on, and it has so far been evolved one fix at a\ntime (task-080 tiers,\
+    \ task-081 ladder) rather than designed as a whole. Worth considering\nwhether\
+    \ this task is the narrow ladder tweak or the start of a broader dashboard design\n\
+    pass. That choice is itself part of what needs deciding.\n\nRelevant timing: the\
+    \ React port (task-082) re-implements the dashboard in task-087. Doing\nthis thinking\
+    \ before that port lands avoids porting a layout that is about to change,\nand\
+    \ task-087 already carries an open decision about where the ladder logic is computed."
+  constraints: "- Whatever changes, an alert must not have to compete for attention\
+    \ with\n  a non-urgent panel. That is the failure task-081 fixed and it should\
+    \ not be reopened.\n- The backlog must stay traceable however this lands -- suppressed,\
+    \ shrunk, or\n  coexisting. A draft nobody sees is the failure task-080 fixed.\n\
+    - If the ladder becomes a rules table rather than a chain, the precedence still\
+    \ has to be\n  computed in one place, not re-derived per template."
+  out_of_scope: 'Implementation before the design question is answered. The React
+    port
+
+    of the dashboard (task-087), which should consume whatever this decides rather
+    than
+
+    racing it.'
+  context:
+  - path: src/agentjobs/api/routes/web.py
+    why: _next_action() is the ladder being reconsidered.
+  - path: tasks/agentjobs/task-081-dashboard-next-action-ladder.yaml
+    why: Why the ladder is strict today, including the rejected alternatives.
+  - path: tasks/agentjobs/task-087-react-dashboard.yaml
+    why: Re-implements this dashboard; should consume this decision, not race it.
+acceptance:
+- id: ac-1
+  text: whether the calm rungs coexist is decided and recorded, with the rejected
+    alternative
+  status: pending
+- id: ac-2
+  text: whether 'nothing active' joins the ladder condition is decided
+  status: pending
+- id: ac-3
+  text: the scope question -- narrow tweak versus wider dashboard design pass -- is
+    answered
+  status: pending
+deliverables: []
+dependencies:
+- task: task-081-dashboard-next-action-ladder
+  type: related
+  note: The ladder this reconsiders, with the reasoning behind its strictness.
+links: []
+branches: []
+log: []
