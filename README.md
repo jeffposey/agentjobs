@@ -2,34 +2,37 @@
 
 **A git-backed handoff protocol for work that outlives an agent session.**
 
-Agents are often stateless: a new session starts with no memory of the last one. AgentJobs
-makes the task record the durable working memory. Every open task names who has the ball,
-why they have it, and what they need to do next. A handoff without an ask is invalid.
+AgentJobs is for developers coordinating coding agents across short-lived sessions,
+especially when a human must review, decide, or approve between passes.
+
+Agents are stateless: a new session starts with no memory of the last one. AgentJobs
+makes the task record the durable working memory, including the handoff itself:
+
+```yaml
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: Review the diff; approve or request changes.
+```
+
+Every open task names who has the ball, why they have it, and what they need to do next.
+A handoff without an ask is invalid.
 
 A fresh agent resumes from the record alone: the specification, the current ask, the
 decision and question log, and the acceptance criteria. That
-[resumption contract](docs/schema-design.md#the-resumption-contract) has been exercised
-with a zero-context agent, which reconstructed the work and found defects in the design
-that dispatched it.
+[resumption contract](docs/schema-design.md#the-resumption-contract) was tested on
+2026-08-11: a zero-context headless agent reconstructed the work and found
+[three defects in the dispatch design](tasks/agentjobs/task-060-agent-dispatch.yaml).
 
 ![AgentJobs showing the schema-v2 parent task, its progress roll-up, and five children with derived status badges](docs/img/task-063-schema-v2-detail.png)
 
 ## Why this is not another task tracker
 
-- **The ball is required state.** `ball`, `ball_reason`, and `ball_prompt` make “who acts
-  next, why, and what do they need?” queryable. An open task cannot silently fall into
-  limbo.
-- **The record is a resumption contract.** Specs, handoffs, decisions, open questions,
-  and acceptance live together in one record so another agent can continue without chat
-  history.
 - **Hierarchy has workflow meaning.** Parent tasks roll up their children and are not
   claimable while a child remains open. The UI shows child progress and each child's
   derived status.
 - **Git is the database.** One YAML file per task keeps work diffable, reviewable, and
   portable between tools without adding a service to operate.
-
-AgentJobs is for developers coordinating coding agents across short-lived sessions,
-especially when a human must review, decide, or approve between passes.
 
 ## What works today
 
@@ -65,47 +68,47 @@ wrapper. No agent-loops design document exists yet.
 
 ## Installation
 
-AgentJobs requires Python 3.11 or newer.
+AgentJobs requires Python 3.11 or newer and is not yet published to PyPI. Run it from a
+clone:
 
 ```bash
-pip install agentjobs
-```
-
-For local development from a clone:
-
-```bash
+git clone https://github.com/jeffposey/agentjobs.git
+cd agentjobs
 poetry install
 ```
 
 ## Quick start
 
 ```bash
-# Initialize task storage in a project
+# From the AgentJobs clone, explore the project's own task data
+poetry run agentjobs open
+
+# Or initialize another project while using the cloned package
 cd /path/to/your-project
-agentjobs init
+poetry -P /path/to/agentjobs run agentjobs init
 
 # Start the local UI and open it in a browser
-agentjobs open
+poetry -P /path/to/agentjobs run agentjobs open
 ```
 
-Useful commands:
+From the AgentJobs clone, useful commands include:
 
 ```bash
-agentjobs create --title "Describe the work" --priority high
-agentjobs list --lifecycle ready
-agentjobs show task-001
-agentjobs work --agent my-agent
+poetry run agentjobs create --title "Describe the work" --priority high
+poetry run agentjobs list --lifecycle ready
+poetry run agentjobs show task-001
+poetry run agentjobs work --agent my-agent
 
-agentjobs status
-agentjobs restart --reload
-agentjobs stop
+poetry run agentjobs status
+poetry run agentjobs restart --reload
+poetry run agentjobs stop
 ```
 
 Register more than one project with the same local server:
 
 ```bash
-agentjobs project add /path/to/another/project
-agentjobs project list
+poetry run agentjobs project add /path/to/another/project
+poetry run agentjobs project list
 ```
 
 ## Python client
