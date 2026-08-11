@@ -2,15 +2,20 @@
 
 The `parent` field has existed since schema v2 (task-050) without anything reading it.
 These tests cover what it now *does*: children can be listed, a task with open children
-is not claimable, and a parent that does not exist or closes a loop is refused.
+is not claimable, the API can filter by parent, and a parent that does not exist or
+closes a loop is refused.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Iterator, Tuple
 
 import pytest
+from fastapi.testclient import TestClient
 
+from agentjobs.api.dependencies import get_task_manager, reset_dependency_cache
+from agentjobs.api.main import app
 from agentjobs.manager import TaskManager, TaskNotFoundError
 from agentjobs.models_v2 import Lifecycle, Outcome, Priority
 from agentjobs.storage import TaskStorage
@@ -187,3 +192,122 @@ class TestParentValidation:
 
         assert manager.update_task(CHILD_A, parent=None).parent is None
         assert [task.id for task in manager.get_subtasks(UMBRELLA)] == [CHILD_B]
+
+
+# ----------------------------------------------------------------------------------
+# API
+# ----------------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def api_client(tmp_path: Path) -> Iterator[Tuple[TestClient, TaskManager]]:
+    """A client bound to a temp task directory holding the standard hierarchy."""
+    reset_dependency_cache()
+    manager = _manager(tmp_path)
+    _hierarchy(manager)
+
+    app.dependency_overrides[get_task_manager] = lambda: manager
+    with TestClient(app) as client:
+        yield client, manager
+    app.dependency_overrides.clear()
+    reset_dependency_cache()
+
+
+class TestParentOverTheApi:
+    def test_the_filter_returns_exactly_the_children(self, api_client) -> None:
+        client, _ = api_client
+
+        response = client.get("/api/tasks", params={"parent": UMBRELLA})
+
+        assert response.status_code == 200
+        assert [task["id"] for task in response.json()] == [CHILD_A, CHILD_B]
+
+    def test_an_unfiltered_listing_still_returns_everything(self, api_client) -> None:
+        client, _ = api_client
+
+        assert len(client.get("/api/tasks").json()) == 4
+
+    def test_a_parent_with_no_children_filters_to_nothing(self, api_client) -> None:
+        client, _ = api_client
+
+        assert client.get("/api/tasks", params={"parent": UNRELATED}).json() == []
+
+    def test_a_task_can_be_created_with_a_parent(self, api_client) -> None:
+        client, manager = api_client
+
+        response = client.post(
+            "/api/tasks",
+            json={
+                "title": "Third child",
+                "description": "Created under the umbrella",
+                "category": "ops",
+                "parent": UMBRELLA,
+            },
+        )
+
+        assert response.status_code == 201
+        assert response.json()["parent"] == UMBRELLA
+        assert manager.get_task(response.json()["id"]).parent == UMBRELLA
+
+    def test_a_missing_parent_is_a_400(self, api_client) -> None:
+        client, _ = api_client
+
+        response = client.post(
+            "/api/tasks",
+            json={
+                "title": "Orphan",
+                "description": "Points at nothing",
+                "category": "ops",
+                "parent": "task-does-not-exist",
+            },
+        )
+
+        assert response.status_code == 400
+        assert "does not exist" in response.json()["detail"]
+
+    def test_self_parenting_is_a_400(self, api_client) -> None:
+        client, _ = api_client
+
+        response = client.post(
+            "/api/tasks",
+            json={
+                "id": "task-302-self",
+                "title": "Self",
+                "description": "Points at itself",
+                "category": "ops",
+                "parent": "task-302-self",
+            },
+        )
+
+        assert response.status_code == 400
+        assert "own parent" in response.json()["detail"]
+
+    def test_a_cycle_through_patch_is_a_400(self, api_client) -> None:
+        client, manager = api_client
+
+        response = client.patch(f"/api/tasks/{UMBRELLA}", json={"parent": CHILD_A})
+
+        assert response.status_code == 400
+        assert "cycle" in response.json()["detail"]
+        assert manager.get_task(UMBRELLA).parent is None
+
+    def test_a_bad_parent_on_a_task_that_does_not_exist_is_still_a_404(self, api_client) -> None:
+        """The addressed task is what decides 404; the payload only ever decides 400."""
+        client, _ = api_client
+
+        response = client.patch("/api/tasks/task-999", json={"parent": "task-also-missing"})
+
+        assert response.status_code == 404
+
+    def test_next_skips_the_umbrella(self, api_client) -> None:
+        client, _ = api_client
+
+        assert client.get("/api/tasks/next").json()["id"] != UMBRELLA
+
+    def test_claiming_the_umbrella_is_refused(self, api_client) -> None:
+        client, _ = api_client
+
+        response = client.post(f"/api/tasks/{UMBRELLA}/claim", json={"agent": "claude"})
+
+        assert response.status_code == 409
+        assert CHILD_A in response.json()["detail"]

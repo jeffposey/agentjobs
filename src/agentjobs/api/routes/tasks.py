@@ -35,14 +35,20 @@ async def list_tasks(
     lifecycle: Optional[Lifecycle] = None,
     ball: Optional[Ball] = None,
     priority_filter: Optional[Priority] = Query(default=None, alias="priority"),
+    parent: Optional[str] = Query(
+        default=None, description="Return only the children of this umbrella task."
+    ),
     manager: TaskManager = Depends(get_task_manager),
 ) -> List[Task]:
     """List tasks filtered along the state axes.
 
     ``?ball=human`` is the human inbox: everything waiting on a person, each row
     carrying its ``ball_prompt``. ``?ball=external`` is the blocked list.
+    ``?parent=task-063-schema-v2`` is one umbrella's children.
     """
-    return manager.list_tasks(lifecycle=lifecycle, ball=ball, priority=priority_filter)
+    return manager.list_tasks(
+        lifecycle=lifecycle, ball=ball, priority=priority_filter, parent=parent
+    )
 
 
 @router.get("/broken", response_model=List[Dict[str, Any]])
