@@ -1,9 +1,14 @@
-"""Sub-task behaviour: children, umbrella non-claimability, and what a parent may be.
+"""Sub-task behaviour: children, umbrella non-claimability, ?parent=, and the page.
 
 The `parent` field has existed since schema v2 (task-050) without anything reading it.
 These tests cover what it now *does*: children can be listed, a task with open children
-is not claimable, the API can filter by parent, and a parent that does not exist or
-closes a loop is refused.
+is not claimable, the API can filter by parent and refuses a parent that does not exist
+or that closes a loop, and the detail page shows the hierarchy in both directions.
+
+Rendering assertions check the values a browser acts on, not the presence of markup --
+`data-child-status="Ready"`, not `data-child-status=`. A template that emitted
+`Lifecycle.READY` would satisfy the second and mean nothing (ENGINEERING.md,
+Verification).
 """
 
 from __future__ import annotations
@@ -12,12 +17,14 @@ from pathlib import Path
 from typing import Iterator, Tuple
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
-from agentjobs.api.dependencies import get_task_manager, reset_dependency_cache
+from agentjobs.api.dependencies import TASKS_DIR_ENV, get_task_manager, reset_dependency_cache
 from agentjobs.api.main import app
 from agentjobs.manager import TaskManager, TaskNotFoundError
-from agentjobs.models_v2 import Lifecycle, Outcome, Priority
+from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Outcome, Priority
+from agentjobs.projects import ProjectRegistry
 from agentjobs.storage import TaskStorage
 
 UMBRELLA = "task-100-umbrella"
@@ -311,3 +318,93 @@ class TestParentOverTheApi:
 
         assert response.status_code == 409
         assert CHILD_A in response.json()["detail"]
+
+
+# ----------------------------------------------------------------------------------
+# The page
+# ----------------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def web_client(tmp_path: Path, monkeypatch) -> Iterator[Tuple[TestClient, TaskManager]]:
+    """A registered project holding the hierarchy, served through the real wiring."""
+    monkeypatch.setenv("AGENTJOBS_HOME", str(tmp_path / "home"))
+    monkeypatch.delenv(TASKS_DIR_ENV, raising=False)
+    monkeypatch.delenv("AGENTJOBS_PROJECT_ROOT", raising=False)
+    monkeypatch.chdir(tmp_path)
+    reset_dependency_cache()
+
+    root = tmp_path / "solo"
+    (root / ".agentjobs").mkdir(parents=True)
+    (root / ".agentjobs" / "config.yaml").write_text(
+        yaml.safe_dump({"project_name": "Solo", "tasks_directory": "tasks"}),
+        encoding="utf-8",
+    )
+    manager = TaskManager(TaskStorage(root / "tasks"))
+    _hierarchy(manager)
+    ProjectRegistry(home=tmp_path / "home").add(root, project_id="solo")
+
+    with TestClient(app) as client:
+        yield client, manager
+
+    reset_dependency_cache()
+
+
+class TestHierarchyOnTheDetailPage:
+    def test_the_umbrella_lists_its_children(self, web_client) -> None:
+        client, _ = web_client
+
+        page = client.get(f"/p/solo/tasks/{UMBRELLA}").text
+
+        assert "Sub-tasks" in page
+        assert CHILD_A in page and CHILD_B in page
+        assert "First child" in page and "Second child" in page
+
+    def test_each_child_links_to_its_own_page_within_the_project(self, web_client) -> None:
+        client, _ = web_client
+
+        page = client.get(f"/p/solo/tasks/{UMBRELLA}").text
+
+        assert f'href="/p/solo/tasks/{CHILD_A}"' in page
+
+    def test_children_carry_their_own_rendered_status(self, web_client) -> None:
+        """The badge shows each child's state, not the parent's, and not an enum repr."""
+        client, manager = web_client
+        manager.claim_task(CHILD_A, agent="codex")
+        manager.handoff(
+            CHILD_A,
+            actor="codex",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Look at the diff.",
+        )
+
+        page = client.get(f"/p/solo/tasks/{UMBRELLA}").text
+
+        assert 'data-child-status="Needs review"' in page
+        assert 'data-child-status="Ready"' in page
+        assert "Lifecycle." not in page and "Ball." not in page
+
+    def test_the_umbrella_says_why_it_is_not_claimable(self, web_client) -> None:
+        client, _ = web_client
+
+        page = client.get(f"/p/solo/tasks/{UMBRELLA}").text
+
+        assert "2 open" in page
+
+    def test_a_child_links_back_to_its_parent(self, web_client) -> None:
+        client, _ = web_client
+
+        page = client.get(f"/p/solo/tasks/{CHILD_A}").text
+
+        assert f'href="/p/solo/tasks/{UMBRELLA}"' in page
+        assert "Part of" in page
+        assert "Umbrella" in page
+
+    def test_a_flat_task_shows_neither_section(self, web_client) -> None:
+        client, _ = web_client
+
+        page = client.get(f"/p/solo/tasks/{UNRELATED}").text
+
+        assert "Sub-tasks" not in page
+        assert "Part of" not in page

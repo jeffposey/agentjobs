@@ -6,6 +6,16 @@
 <div class="space-y-6">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
+            {% if task.parent %}
+            {# Upward link. Small and above the title: it is context for what you are
+               reading, not a thing to read. The title comes from the parent record when
+               it loads, so the link says what it leads to rather than only where. #}
+            <div class="text-xs text-dark-muted mb-1">
+                Part of
+                <a href="{{ base }}/tasks/{{ task.parent }}" class="text-blue-400 hover:text-blue-300">{{ parent_task.title if parent_task else task.parent }}</a>
+                <span class="font-mono">{{ task.parent }}</span>
+            </div>
+            {% endif %}
             {# Selectable, because the id is what gets pasted into a CLI command or a
                dependencies[] entry. #}
             <div class="font-mono text-sm text-blue-400 select-all">{{ task.id }}</div>
@@ -140,6 +150,41 @@
         <div class="prose prose-invert max-w-none text-sm prose-p:text-dark-text"
              x-data='{ content: {{ task.ball_prompt | tojson }} }'
              x-markdown="content"></div>
+    </div>
+    {% endif %}
+
+    {% if children %}
+    {#
+        An umbrella's children are the substance of the page, so they sit above the
+        spec rather than below the log. Each row is one line: the id you would paste,
+        the title you would read, and the child's own display_status -- derived from
+        that child's three state axes, never the parent's.
+    #}
+    <div class="bg-dark-surface rounded-lg border border-dark-border">
+        <div class="px-6 py-4 border-b border-dark-border flex flex-wrap items-baseline justify-between gap-2">
+            <h2 class="text-base font-semibold">Sub-tasks</h2>
+            <span class="text-xs text-dark-muted">
+                {{ open_children | length }} open of {{ children | length }}
+            </span>
+        </div>
+        <div class="divide-y divide-dark-border">
+            {% for child in children %}
+            <div class="px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div class="min-w-0">
+                    <a href="{{ base }}/tasks/{{ child.id }}" class="text-sm font-medium hover:text-blue-300">{{ child.title }}</a>
+                    <div class="font-mono text-xs text-dark-muted">{{ child.id }}</div>
+                </div>
+                <span data-child-status="{{ child.display_status }}">
+                    {% with task = child %}{% include "components/status_badge.html" %}{% endwith %}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% if open_children %}
+        <div class="px-6 py-3 border-t border-dark-border text-xs text-dark-muted">
+            Not claimable while a sub-task is open — an umbrella is finished by its children.
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 

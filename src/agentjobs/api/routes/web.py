@@ -187,9 +187,16 @@ async def task_detail(
             "404.html", context, status_code=status.HTTP_404_NOT_FOUND
         )
 
+    children = manager.get_subtasks(task_id)
     context = {
         "request": request,
         "task": task,
+        "children": children,
+        "open_children": [child for child in children if child.is_open],
+        # None when the id points at nothing: a dangling parent is refused on write, but
+        # a file edited by hand can still carry one, and the page should show the task
+        # rather than 500 over it.
+        "parent_task": manager.get_task(task.parent) if task.parent else None,
         **_context_base(project=project, waiting_count=get_waiting_count(manager)),
     }
     return templates.TemplateResponse("task_detail.html", context)
