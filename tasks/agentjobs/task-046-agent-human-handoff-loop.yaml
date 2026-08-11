@@ -2,7 +2,7 @@ schema: 2
 id: task-046-agent-human-handoff-loop
 title: Formalize the agent-to-human handoff loop (status + notification, chat-independent)
 created: '2026-07-20T20:10:26Z'
-updated: '2026-08-11T06:03:23.101809Z'
+updated: '2026-08-11T06:09:29.426618Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -312,4 +312,32 @@ log:
     you must touch anyway, and hand off naming precisely which sections of the guide
     you left on v1. Do not silently leave a crashing example behind a section you
     rewrote.'
+  data: {}
+- id: 7
+  ts: '2026-08-11T06:09:29.404976Z'
+  actor: codex
+  type: answer
+  body: 'Implemented the recommended widened scope: the entire client guide is now
+    schema-v2-correct, not only the resumption section. This is an implementation
+    answer, not attributed to Jeff; final acceptance remains part of human review.
+    Rejected a separate rewrite task because both defects occupy the same guide and
+    leaving known crashing examples would ship a broken front door.'
+  re: 6
+  data: {}
+- id: 8
+  ts: '2026-08-11T06:09:29.426533Z'
+  actor: codex
+  type: progress
+  body: 'Rewrote the agent workflow guide for schema v2 and completed the task-summary
+    spot-check.
+
+
+    Updated ALLAGENTS.md and ENGINEERING.md with the zero-context resumption and notification
+    rules; rewrote docs/agent-workflow.md against the real TaskClient; pointed the
+    dispatch stub at the repaired guide; added regression coverage for the contract
+    link and retired v1 symbols. Spot-checked tasks 042-045: 042, 043, and 045 were
+    self-sufficient; repaired task 044''s truncated spec.summary through TaskManager.
+    Verification so far: 512 pytest tests pass; Black and Ruff pass; MkDocs builds
+    with three pre-existing warnings outside edited files. MyPy reports five pre-existing
+    test_subtasks.py errors.'
   data: {}

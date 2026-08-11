@@ -3,9 +3,10 @@ id: task-044-docs-git-workflow
 title: Fix status/doc drift, Windows emoji crash, and codify git workflow in agent
   docs
 created: '2026-07-06T19:25:45Z'
-updated: '2026-07-29T19:12:32Z'
+updated: '2026-08-11T06:09:29.385615Z'
 lifecycle: closed
 outcome: completed
+archived: false
 priority: medium
 category: documentation
 tags:
@@ -17,8 +18,8 @@ assignment:
   eligible:
   - claude
 spec:
-  summary: 'Three hygiene items found during the React-frontend readiness review:
-    1.'
+  summary: Fix invalid planned-status documentation, prevent Windows console emoji
+    crashes, and codify the branch, commit, and human-review workflow for agents.
   description: "Three hygiene items found during the React-frontend readiness review:\n\
     \n**1. Nonexistent `planned` status.** The `TaskStatus` enum (src/agentjobs/models.py)\
     \ has draft/ready/in_progress/blocked/waiting_for_human/under_review/completed/archived\
@@ -64,6 +65,7 @@ spec:
     \ STOP, set this task to waiting_for_human, and wait for explicit human approval.\
     \ On approval: rebase onto main, merge with --no-ff, mark the branch merged in\
     \ branches[], set task completed."
+  context: []
 acceptance:
 - id: sc-1
   text: grep for 'planned' in docs/, src/agentjobs/cli.py, examples/ shows only intentional
@@ -82,21 +84,22 @@ acceptance:
   status: met
 deliverables:
 - path: src/agentjobs/cli.py
-  status: done
   note: Valid default status + encoding-safe CLI output
+  status: done
 - path: ENGINEERING.md
-  status: done
   note: Codified git workflow with merge gate
+  status: done
 - path: ALLAGENTS.md
-  status: done
   note: Task lifecycle updated with branching and review steps
-- path: docs/api-reference.md
   status: done
+- path: docs/api-reference.md
   note: Correct status enum values
+  status: done
 dependencies:
 - task: task-043-cors-vite-dev-origin
   type: needs
   note: Sequential Phase 0 ordering
+links: []
 branches:
 - name: docs/task-044-docs-git-workflow
   status: merged
@@ -106,8 +109,6 @@ log:
   ts: '2026-07-29T18:47:07Z'
   actor: claude
   type: transition
-  data:
-    v1_status: in_progress
   body: 'Started: planned-status cleanup, console encoding crash, git workflow docs
 
 
@@ -127,12 +128,12 @@ log:
     it breaks CI, background shells, and any log redirection, but looks fine when
     run interactively. Fixing per-line would leave the next added emoji broken, so
     the fix will guard the output streams once at CLI entry instead.'
+  data:
+    v1_status: in_progress
 - id: 2
   ts: '2026-07-29T18:57:08Z'
   actor: claude
   type: transition
-  data:
-    v1_status: waiting_for_human
   body: 'Branch complete, ready for review: all three fixes plus the stretch goal
 
 
@@ -235,12 +236,12 @@ log:
 
     Ready for review; on approval rebase onto main + --no-ff merge, mark branch merged,
     set task completed.'
+  data:
+    v1_status: waiting_for_human
 - id: 3
   ts: '2026-07-29T19:12:32Z'
   actor: claude
   type: transition
-  data:
-    v1_status: completed
   body: 'Approved by Jeff; rebased onto main and merged --no-ff
 
 
@@ -254,13 +255,12 @@ log:
 
     Unblocks task-045 (sub-tasks + assigned_to/supported_agents split) and task-046
     (agent-human handoff loop), both of which depended on this.'
+  data:
+    v1_status: completed
 - id: 4
   ts: '2026-07-29T19:12:32Z'
   actor: system
   type: note
-  data:
-    v1_status: completed
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
@@ -272,3 +272,14 @@ log:
     Needs human review:
 
     - spec.summary: no human_summary; derived from the description'
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+- id: 5
+  ts: '2026-08-11T06:09:29.385533Z'
+  actor: codex
+  type: note
+  body: Task-046 spot-check repaired spec.summary, which the v1-to-v2 migration had
+    truncated to an unusable fragment. The detailed closed-task history and description
+    are unchanged.
+  data: {}
