@@ -2,11 +2,19 @@ schema: 2
 id: task-081-dashboard-next-action-ladder
 title: One contextual next-action panel on the dashboard
 created: '2026-08-11T07:13:28.934302Z'
-updated: '2026-08-11T07:13:48.942492Z'
+updated: '2026-08-11T07:21:21.307994Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: 'Review branch `feat/task-081-next-action-ladder` (1 commit, worktree
+  ../aj-081). The dashboard now shows exactly one call to action, chosen by the ladder:
+  blocked on you, else backlog, else next claimable task, else create one. Worth seeing
+  in a browser -- right now it shows the backlog panel, and it will switch to the
+  alert panel the moment this handoff lands. Two things to confirm: that suppressing
+  the backlog panel behind an alert feels right given the tile still carries the count
+  and links to the drafts, and that tier 4 showing the `agentjobs create` CLI command
+  is an acceptable placeholder until task-082 adds the form and the real button. Approve
+  to merge --no-ff, or say what to change.'
 archived: false
 priority: medium
 category: ux
@@ -143,3 +151,125 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 2
+  ts: '2026-08-11T07:21:21.273537Z'
+  actor: claude
+  type: progress
+  body: 'Implemented on `feat/task-081-next-action-ladder` (worktree ../aj-081), one
+    commit.
+
+
+    `_next_action()` in `src/agentjobs/api/routes/web.py` returns the name of the
+    single
+
+    panel to render -- `blocked`, `backlog`, `next_up`, `nothing_claimable`, or
+
+    `empty_project` -- and `dashboard.html` is now one if/elif chain over that name.
+    It
+
+    returns a name rather than several booleans deliberately: a template that re-derives
+    the
+
+    precedence from the individual lists is how two panels start rendering together
+    again,
+
+    which is the defect being fixed.
+
+
+    Tier 3 calls `manager.get_next_task()`, so the dashboard cannot recommend one
+    task while
+
+    `agentjobs work` hands out another. It links to the task rather than launching
+    it;
+
+    dispatching is the 068-078 epic.
+
+
+    Tier 4 has the two flavours the spec called for. The old standalone `stats.total
+    == 0`
+
+    getting-started block was removed from the bottom of the page and became the
+
+    empty-project flavour -- left where it was it would have stacked under whichever
+    panel
+
+    the ladder chose, which is the same defect in a different place.
+
+
+    The backlog panel is now suppressed whenever anything is blocked on you. The `+N
+    in
+
+    backlog` line on the "Blocked on You" tile is therefore unconditional and is now
+    a link
+
+    to `?status=draft`. That pairing is load-bearing: without it, a suppressed panel
+    is
+
+    indistinguishable from an empty backlog and drafts rot unseen, which is the failure
+
+    task-080 removed.
+
+
+    **Verified against a live server** (port 8791 from the worktree; the owner''s
+    8765 was
+
+    left alone), reading the real task corpus:
+
+    - panels shown: `[''backlog'']` -- exactly one
+
+    - tasks named in that panel: task-066, task-067
+
+    - tile trace: `+2 in backlog -> /p/agentjobs/tasks?status=draft`
+
+    - badge: ABSENT
+
+
+    **Tests.** 542 pass, up from 531; 11 new. `TestTheLadderShowsOnePanel` parametrises
+    all
+
+    five states and asserts the rendered panel set is exactly one marker, so a regression
+
+    that stacks two panels fails rather than passing quietly.
+
+    `TestNextUpAgreesWithTheManager` gives two ready tasks of different priority and
+    asserts
+
+    the panel names the one the manager selects. `TestTheBacklogStaysTraceableWhenSuppressed`
+
+    covers the tile trace and its link. black, ruff, and mypy on `src` are clean.'
+  data: {}
+- id: 3
+  ts: '2026-08-11T07:21:21.289642Z'
+  actor: claude
+  type: note
+  body: 'One existing test changed meaning rather than breaking, which is worth flagging
+
+    to a reviewer because the diff looks like a weakened assertion and is not.
+
+
+    `test_the_backlog_section_lists_the_parked_draft` built a project with both a
+    blocking
+
+    task and a parked draft and asserted the backlog section listed the draft. Under
+    the
+
+    ladder that is now false by design -- the backlog panel is suppressed while an
+    alert
+
+    shows. It was split: the panel assertion moved to a project where nothing blocks,
+    and a
+
+    new test asserts the tile trace for the both-at-once case. Net coverage went up,
+    not
+
+    down.'
+  data: {}
+- id: 4
+  ts: '2026-08-11T07:21:21.307907Z'
+  actor: claude
+  type: handoff
+  body: Ladder implemented and verified against a live server; needs review before
+    merge.
+  data:
+    ball: human
+    ball_reason: review
