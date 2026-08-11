@@ -1,257 +1,166 @@
 # AgentJobs
 
-Lightweight task management system designed for AI agent workflows.
+**A git-backed handoff protocol for work that outlives an agent session.**
 
-## Features
+AgentJobs is for developers coordinating coding agents across short-lived sessions,
+especially when a human must review, decide, or approve between passes.
 
-- **Structured Task Data**: YAML-based task definitions with rich metadata
-- **Browser-Based GUI**: View and manage tasks via web interface
-- **REST API**: Programmatic access for agents
-- **Python Client Library**: Simple API for agent integration
-- **Git-Friendly**: All tasks stored as version-controlled YAML files
-- **Migration Tools**: Convert existing Markdown tasks to structured format
+Agents are stateless: a new session starts with no memory of the last one. AgentJobs
+makes the task record the durable working memory, including the handoff itself:
+
+```yaml
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: Review the diff; approve or request changes.
+```
+
+Every open task names who has the ball, why they have it, and what they need to do next.
+A handoff without an ask is invalid.
+
+A fresh agent resumes from the record alone: the specification, the current ask, the
+decision and question log, and the acceptance criteria. That
+[resumption contract](docs/schema-design.md#the-resumption-contract) was tested on
+2026-08-11: a zero-context headless agent reconstructed the work and found
+[three defects in the dispatch design](tasks/agentjobs/task-060-agent-dispatch.yaml).
+
+![AgentJobs showing the schema-v2 parent task, its progress roll-up, and five children with derived status badges](docs/img/task-063-schema-v2-detail.png)
+
+## Why this is not another task tracker
+
+- **Hierarchy has workflow meaning.** Parent tasks roll up their children and are not
+  claimable while a child remains open. The UI shows child progress and each child's
+  derived status.
+- **Git is the database.** One YAML file per task keeps work diffable, reviewable, and
+  portable between tools without adding a service to operate.
+
+## What works today
+
+- Schema-v2 task records with lifecycle, ball, outcome, typed logs, acceptance criteria,
+  dependencies, parent relationships, and strict validation
+- A FastAPI REST API and Python client for claiming, handing off, releasing, closing,
+  querying, and logging work
+- A server-rendered web UI with multiple registered projects, task detail pages,
+  hierarchy roll-ups, and human review actions
+- Basic CLI workflows for creating, listing, showing, claiming/finishing interactively,
+  serving, and migrating tasks
+- Markdown-to-YAML and schema-v1-to-v2 migration tools
+
+The full schema-v2 command vocabulary and the remaining schema-v2 GUI views are still
+open work. See [task-053](tasks/agentjobs/task-053-schema-v2-cli.yaml) and
+[task-054](tasks/agentjobs/task-054-schema-v2-gui.yaml).
+
+## The design is part of the product
+
+The project records decisions and rejected alternatives before implementation, rather
+than leaving the rationale in a chat transcript:
+
+- [Task schema v2](docs/schema-design.md) decides how a task becomes sufficient working
+  memory for a zero-context agent, including the ball model and canonical handoff loop.
+- [Agent dispatch](docs/agent-dispatch-design.md) is the accepted, **not yet implemented**
+  design for turning authorized task state into a supervised agent process, with bounded
+  autonomy and explicit safety gates.
+
+Agent loops are also **not implemented**. Their design pass is queued in
+[task-078](tasks/agentjobs/task-078-agent-loops.yaml); the proposed contribution is an
+evaluable stopping condition and durable iteration history, not another `while true`
+wrapper. No agent-loops design document exists yet.
 
 ## Installation
 
+AgentJobs requires Python 3.11 or newer and is not yet published to PyPI. Run it from a
+clone:
+
 ```bash
-pip install agentjobs
+git clone https://github.com/jeffposey/agentjobs.git
+cd agentjobs
+poetry install
 ```
 
-## Quick Start
+## Quick start
 
 ```bash
-# Initialize in your project
+# From the AgentJobs clone, explore the project's own task data
+poetry run agentjobs open
+
+# Or initialize another project while using the cloned package
 cd /path/to/your-project
-agentjobs init
+poetry -P /path/to/agentjobs run agentjobs init
 
-# One-command UI access (starts server + opens browser)
-agentjobs open
+# Start the local UI and open it in a browser
+poetry -P /path/to/agentjobs run agentjobs open
 ```
 
-## Server Management
-
-AgentJobs provides convenient commands for managing the web server:
+From the AgentJobs clone, useful commands include:
 
 ```bash
-# Open UI in browser (auto-starts server if needed)
-agentjobs open
+poetry run agentjobs create --title "Describe the work" --priority high
+poetry run agentjobs list --lifecycle ready
+poetry run agentjobs show task-001
+poetry run agentjobs work --agent my-agent
 
-# Start server manually
-agentjobs serve
-
-# Check server status
-agentjobs status
-
-# Stop the server
-agentjobs stop
-
-# Restart with new options
-agentjobs restart --reload
+poetry run agentjobs status
+poetry run agentjobs restart --reload
+poetry run agentjobs stop
 ```
 
-### VS Code Integration
-
-If you're using VS Code/Antigravity, add a keyboard shortcut for quick access:
-
-1. Open Command Palette (`Ctrl+Shift+P`)
-2. Select "Preferences: Open Keyboard Shortcuts (JSON)"
-3. Add:
-   ```json
-   {
-     "key": "ctrl+alt+u",
-     "command": "workbench.action.tasks.runTask",
-     "args": "AgentJobs: Open UI"
-   }
-   ```
-
-Now press `Ctrl+Alt+U` to instantly open the AgentJobs UI!
-
-## CLI Commands
-
-### Task Management
+Register more than one project with the same local server:
 
 ```bash
-# Initialize project
-agentjobs init
-
-# Create a task
-agentjobs create --title "My Task" --priority high
-
-# List all tasks
-agentjobs list
-
-# Filter tasks
-agentjobs list --status ready --priority high
-
-# Show task details
-agentjobs show task-001
-
-# Interactive agent workflow
-agentjobs work --agent my-agent
-
-# Load sample data
-agentjobs load-test-data
+poetry run agentjobs project add /path/to/another/project
+poetry run agentjobs project list
 ```
 
-### Server Commands
+## Python client
 
-```bash
-# Open UI (auto-starts server)
-agentjobs open
-
-# Manual server control
-agentjobs serve [--host HOST] [--port PORT] [--reload]
-agentjobs status
-agentjobs stop
-agentjobs restart
-
-# Example: Start on different port with auto-reload
-agentjobs serve --port 9000 --reload
-```
-
-### Migration
-
-```bash
-# Migrate Markdown tasks to YAML
-agentjobs migrate source_dir target_dir [--dry-run]
-```
-
-
-## Quick Start for AI Agents
-
-AgentJobs provides a Python client for programmatic task management.
-
-### Basic Workflow
+The Python client exposes the schema-v2 state verbs even though dedicated CLI commands
+for each verb are still planned:
 
 ```python
-from agentjobs import TaskClient
+from agentjobs import Ball, BallReason, TaskClient
 
-client = TaskClient()  # connects to http://localhost:8765
+with TaskClient() as client:
+    task = client.get_next_task(agent="my-agent")
+    if task:
+        client.claim_task(task.id, agent="my-agent")
 
-# Get next task
-task = client.get_next_task()
+        # Work, verify, and record decisions here.
 
-# Take ownership
-client.mark_in_progress(task.id, agent="my-agent")
-
-# Get instructions
-prompt = client.get_starter_prompt(task.id)
-
-# Work on task...
-# (your implementation here)
-
-# Complete
-client.mark_completed(task.id, agent="my-agent")
-```
-
-### Interactive CLI
-
-```bash
-# Option 1: Provide agent name
-agentjobs work --agent=my-agent
-
-# Option 2: Will prompt for agent name
-agentjobs work
-```
-
-### Full Documentation
-
-- [Agent Workflow Guide](docs/agent-workflow.md)
-- [Examples](examples/)
-
-## Agent Integration
-
-```python
-from agentjobs import TaskClient
-
-client = TaskClient()
-
-# Get highest priority task
-task = client.get_next_task()
-
-# Mark in progress
-client.mark_in_progress(task.id, agent="my-agent")
-
-# Get starter prompt
-prompt = client.get_starter_prompt(task.id)
-
-# Add progress update
-client.add_progress_update(
-    task.id,
-    summary="Completed Phase 1",
-    details="All tests passing"
-)
+        client.handoff_task(
+            task.id,
+            actor="my-agent",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Review the diff and approve or request changes.",
+        )
 ```
 
 ## Documentation
 
-- [Installation Guide](docs/installation.md)
-- [Quick Start](docs/quickstart.md)
-- [API Reference](docs/api-reference.md)
-- [Agent Workflow Guide](docs/agent-workflow.md)
-- [Task Schema](docs/task-schema.md)
-- [Migration Guide](docs/migration-guide.md)
+- [Task schema reference](docs/task-schema.md)
+- [Agent workflow guide](docs/agent-workflow.md)
+- [API reference](docs/api-reference.md)
+- [Quick start](docs/quickstart.md)
+- [Installation guide](docs/installation.md)
+- [Migration guide](docs/migration-guide.md)
 
 ## Development
 
-AgentJobs uses itself to manage its own development tasks.
-
-The legacy Task 031 umbrella is now archived in favour of phase-specific tasks (task-033 through task-039) that point at the commits which delivered each milestone.
-
-### View Development Tasks
+AgentJobs uses itself to manage its own development. The roadmap lives in
+[`tasks/agentjobs/`](tasks/agentjobs/), and the task YAML is the source of truth.
 
 ```bash
-# Quick access
-agentjobs open
-
-# Or manually start server
-agentjobs serve
-# Then open http://localhost:8765 to browse tasks
-```
-
-### Contributing
-
-1. Check existing tasks: `agentjobs list`
-2. Inspect a candidate task: `agentjobs show task-XXX`
-3. Claim work: `agentjobs work --agent your-name`
-4. Follow linked prompts and update status via CLI or API
-5. Submit a PR referencing the task when ready
-
-### Task Structure
-
-- `tasks/agentjobs/` - Active AgentJobs roadmap (task-031, task-032, task-033…039)
-- `tasks/test-data/` - Sample tasks used for demos and load-test-data command
-- `tasks/privateproject/` - Migrated PrivateProject tasks retained for migration tooling tests
-- `prompts/` - Phase-specific execution instructions
-- `examples/` - Agent integration samples
-- `docs/` - Product and API documentation
-
-### Workflow Statuses
-
-AgentJobs tracks work through these stages:
-- `draft` – idea captured, needs design and architecture
-- `ready` – designed, approved, ready for execution
-- `in_progress` / `waiting_for_human` / `under_review` – active collaboration
-- `completed` / `archived` – finished or stored for reference
-
-### Local Setup
-
-```bash
-# Clone repository
 git clone https://github.com/jeffposey/agentjobs.git
 cd agentjobs
-
-# Install dependencies
 poetry install
-
-# Run tests
 poetry run pytest
-
-# Start development server
 poetry run agentjobs serve
 ```
 
+Read [ENGINEERING.md](ENGINEERING.md) and [ALLAGENTS.md](ALLAGENTS.md) before
+contributing; they define the worktree, task-record, verification, and human-review
+workflow.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE).
