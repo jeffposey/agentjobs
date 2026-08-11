@@ -4,7 +4,12 @@
 
 {% block content %}
 <div class="space-y-6">
-    {% if waiting_tasks %}
+    {# One call to action, chosen by the ladder in _next_action(): blocked on you, else
+       backlog, else the next claimable task, else create one. The precedence is decided
+       in Python and arrives here as a name -- re-deriving it from the individual lists
+       is how two panels start rendering at once again, which is the defect this
+       replaces. #}
+    {% if next_action == 'blocked' %}
     <div class="bg-gradient-to-r from-red-900/20 to-orange-900/20 border-2 border-red-500/50 rounded-lg p-6">
         <div class="flex items-start gap-4">
             <div class="text-4xl" aria-hidden="true">🔔</div>
@@ -43,14 +48,17 @@
             </div>
         </div>
     </div>
-    {% endif %}
 
-    {# The quiet tier. Drafts parked on a person block nothing -- draft already means
-       "not yet work" -- so this is a list you visit, not an alarm you silence. It is
-       styled flat on purpose: no red, no bell, no badge. It still shows a count and
-       every item, because the failure this replaces was a nagging badge, and hiding
-       the backlog instead would only trade it for drafts that rot unseen. #}
-    {% if backlog_tasks %}
+    {# The quiet tier, shown only when nothing is blocked on you. Drafts parked on a
+       person block nothing -- draft already means "not yet work" -- so this is a list
+       you visit, not an alarm you silence: flat on purpose, no red, no bell, no badge.
+
+       It is suppressed while an alert is showing, which is most days, so the count on
+       the "Blocked on You" tile below is unconditional and links here. Without that
+       trace this panel's absence would be indistinguishable from an empty backlog, and
+       drafts would rot unseen -- the failure task-080 removed, returning by a different
+       door. #}
+    {% elif next_action == 'backlog' %}
     <div class="bg-dark-surface border border-dark-border rounded-lg p-6">
         <div class="flex items-baseline justify-between gap-4 mb-1">
             <h2 class="text-sm font-medium text-dark-text">
@@ -74,13 +82,90 @@
             {% endfor %}
         </div>
     </div>
+
+    {# Tier 3. Nothing needs you, so the useful thing to say is what to start. The task
+       is chosen by the manager's get_next_task(), the same answer the CLI gives, so the
+       dashboard cannot recommend one task while `agentjobs work` picks another. It
+       links rather than launches -- dispatching is the 068-078 epic. #}
+    {% elif next_action == 'next_up' %}
+    <div class="bg-dark-surface border border-dark-border rounded-lg p-6">
+        <div class="flex items-baseline justify-between gap-4 mb-3">
+            <h2 class="text-sm font-medium text-dark-text">Next up</h2>
+            <a href="{{ base }}/tasks?status=ready" class="text-xs text-blue-400 hover:text-blue-300">
+                All ready tasks →
+            </a>
+        </div>
+        <a href="{{ base }}/tasks/{{ next_task.id }}" class="block bg-dark-bg hover:bg-dark-border border border-dark-border rounded-lg p-4 transition">
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex-1">
+                    <div class="font-mono text-xs text-blue-400">{{ next_task.id }}</div>
+                    <h3 class="font-medium text-dark-text">{{ next_task.title }}</h3>
+                    <p class="text-sm text-dark-muted mt-1">
+                        {{ next_task.spec.summary | truncate(160, True, '…') }}
+                    </p>
+                </div>
+                <span class="px-2 py-1 bg-dark-surface text-dark-muted text-xs rounded whitespace-nowrap">
+                    {{ next_task.priority }}
+                </span>
+            </div>
+        </a>
+    </div>
+
+    {# Tier 4, first flavour: the project has work but none of it can be started --
+       everything ready is an umbrella or waiting on a dependency. #}
+    {% elif next_action == 'nothing_claimable' %}
+    <div class="bg-dark-surface border border-dark-border rounded-lg p-6">
+        <h2 class="text-sm font-medium text-dark-text mb-1">Nothing claimable right now</h2>
+        <p class="text-xs text-dark-muted mb-4">
+            Every open task is waiting on a dependency, or is an umbrella finished by its children.
+            Adding work is the useful move.
+        </p>
+        <pre class="bg-dark-bg rounded p-2 text-xs overflow-x-auto">agentjobs create --title "..." --priority high</pre>
+    </div>
+
+    {# Tier 4, second flavour: a fresh install. Same rung of the ladder, but a first-run
+       reader needs the agent-side snippet too, not just a create command. #}
+    {% elif next_action == 'empty_project' %}
+    <div class="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border-2 border-blue-500/30 rounded-lg p-6">
+        <div class="flex items-start gap-4">
+            <div class="text-4xl" aria-hidden="true">🚀</div>
+            <div class="flex-1">
+                <h2 class="text-xl font-bold text-blue-300 mb-2">Getting Started with AgentJobs</h2>
+                <p class="text-dark-muted mb-4">No tasks yet. Here's how to get rolling:</p>
+
+                <div class="space-y-3 text-sm">
+                    <div>
+                        <strong class="text-dark-text">For Humans:</strong>
+                        <pre class="bg-dark-bg rounded p-2 mt-1 text-xs overflow-x-auto">agentjobs create --title "My First Task" --priority high</pre>
+                    </div>
+
+                    <div>
+                        <strong class="text-dark-text">For AI Agents:</strong>
+                        <pre class="bg-dark-bg rounded p-2 mt-1 text-xs overflow-x-auto">from agentjobs import TaskClient
+client = TaskClient()
+task = client.get_next_task()
+client.claim_task(task.id, agent="agent-name")</pre>
+                    </div>
+
+                    <div class="mt-4">
+                        <a href="/docs" class="text-blue-400 hover:text-blue-300 underline">View Full Documentation →</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     {% endif %}
 
     <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
         <div class="bg-dark-surface p-6 rounded-lg border border-dark-border">
             <div class="text-sm text-dark-muted">Blocked on You</div>
             <div class="text-3xl font-bold mt-2 text-orange-400">{{ stats.waiting_for_human or 0 }}</div>
-            <div class="text-xs text-dark-muted mt-1">+{{ stats.awaiting_input or 0 }} in backlog</div>
+            {# Unconditional, and a link. This is the only trace of the backlog on days
+               when its panel is suppressed by an alert, so it is load-bearing rather
+               than decorative -- see the comment on the backlog panel above. #}
+            <a href="{{ base }}/tasks?status=draft" class="block text-xs text-dark-muted hover:text-blue-300 mt-1">
+                +{{ stats.awaiting_input or 0 }} in backlog
+            </a>
         </div>
         <div class="bg-dark-surface p-6 rounded-lg border border-dark-border">
             <div class="text-sm text-dark-muted">In Progress</div>
@@ -100,36 +185,9 @@
         </div>
     </div>
 
-    {% if stats.total == 0 %}
-    <div class="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border-2 border-blue-500/30 rounded-lg p-6">
-        <div class="flex items-start gap-4">
-            <div class="text-4xl" aria-hidden="true">🚀</div>
-            <div class="flex-1">
-                <h2 class="text-xl font-bold text-blue-300 mb-2">Getting Started with AgentJobs</h2>
-                <p class="text-dark-muted mb-4">No tasks yet. Here's how to get rolling:</p>
-
-                <div class="space-y-3 text-sm">
-                    <div>
-                        <strong class="text-dark-text">For Humans:</strong>
-                        <pre class="bg-dark-bg rounded p-2 mt-1 text-xs">agentjobs create --title "My First Task" --priority high</pre>
-                    </div>
-
-                    <div>
-                        <strong class="text-dark-text">For AI Agents:</strong>
-                        <pre class="bg-dark-bg rounded p-2 mt-1 text-xs">from agentjobs import TaskClient
-client = TaskClient()
-task = client.get_next_task()
-client.claim_task(task.id, agent="agent-name")</pre>
-                    </div>
-
-                    <div class="mt-4">
-                        <a href="/docs" class="text-blue-400 hover:text-blue-300 underline">View Full Documentation →</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
+    {# The getting-started block that used to sit here is now the empty-project flavour
+       of tier 4, above. Left here it would render alongside whichever panel the ladder
+       chose, which is the stacking this change removes. #}
 
     <div class="bg-dark-surface rounded-lg border border-dark-border">
         <div class="p-6 border-b border-dark-border flex items-center justify-between">
