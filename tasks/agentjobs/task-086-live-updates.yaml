@@ -1,0 +1,126 @@
+schema: 2
+id: task-086-live-updates
+title: 'Live updates: the view reflects a handoff without a manual refresh'
+created: '2026-08-11T07:38:05.001732Z'
+updated: '2026-08-11T07:38:05.002647Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- gui
+- react-frontend
+- workflow
+effort: a day
+assignment:
+  eligible: []
+parent: task-082-react-frontend
+spec:
+  summary: A task record that changes while a page is open is invisible until the
+    browser is manually refreshed. Push changes to the client so the dashboard reflects
+    a handoff as it happens.
+  intent: 'Observed directly: a handoff moved a task to `ball: human` while the dashboard
+    was open, and the page went on showing the previous state until Chrome was refreshed
+    by hand. The moment the tool most needs to tell you something is exactly the moment
+    it says nothing.
+
+
+    This matters more here than in most applications because the writers are agents.
+    A person watching a dashboard while an agent works is the normal case, not an
+    edge case, and the whole merge-gate design assumes the human notices a review
+    request.'
+  description: '## Transport
+
+
+    Server-sent events are the likely fit and should be weighed explicitly against
+    the alternatives before building:
+
+
+    - **SSE.** One-directional, which matches the need exactly; plain HTTP, so no
+    new protocol in the deployment story; reconnects on its own.
+
+    - **WebSockets.** Bidirectional, which nothing here needs, and more moving parts.
+
+    - **Polling.** Simplest, works everywhere, and wastes requests forever. Worth
+    keeping as the fallback when the event stream drops rather than as the primary.
+
+
+    Record the choice with the rejected alternatives.
+
+
+    ## Source of the events
+
+
+    Task files are YAML on disk and are written by agents, by the CLI, and by git
+    operations -- not only through the API. Watching the API for changes would therefore
+    miss most of them. `watchdog` is already a dependency and can watch the tasks
+    directory, which catches every writer including `git checkout`.
+
+
+    Debounce. A bulk edit or a branch switch rewrites many files at once, and an event
+    per file would stampede every connected client.
+
+
+    ## Client behaviour
+
+
+    Invalidate the affected TanStack Query keys rather than re-fetching the world.
+    Reconcile carefully with what the user is doing: silently replacing content under
+    someone mid-read is its own kind of broken. A changed badge or an unobtrusive
+    marker is usually better than a page that rearranges itself.
+
+
+    ## Also worth settling
+
+
+    Whether the existing HMAC-signed webhook system is the right event source instead
+    of a file watcher; whether the stream is per-project or global; and what the client
+    does when the stream cannot be established at all -- degrade to polling, or say
+    so.'
+  constraints: '- Every writer is covered, not just the API. Agents and the CLI write
+    task files directly, and a git checkout rewrites them wholesale.
+
+    - Events are debounced. A branch switch must not produce a stampede.
+
+    - Losing the stream degrades to something that still works rather than to a silently
+    stale page.
+
+    - The page must not rearrange itself under a user mid-read without a deliberate
+    decision about how that is signalled.'
+  out_of_scope: Collaborative editing or conflict resolution. Notifications outside
+    the browser -- email, SMS, push -- which are the webhook system's job. Live updates
+    for the Jinja UI.
+  context:
+  - path: src/agentjobs/webhooks.py
+    why: An existing event mechanism worth weighing as the source.
+  - path: src/agentjobs/storage.py
+    why: All task file I/O; what a watcher would be watching.
+acceptance:
+- id: ac-1
+  text: a handoff performed by the CLI or an agent updates an open dashboard with
+    no manual refresh
+  status: pending
+- id: ac-2
+  text: the transport choice is recorded as a decision with its rejected alternatives
+  status: pending
+- id: ac-3
+  text: changes made outside the API -- CLI, direct file write, git checkout -- are
+    picked up
+  status: pending
+- id: ac-4
+  text: a bulk change such as a branch switch does not stampede connected clients
+  status: pending
+- id: ac-5
+  text: losing the event stream degrades to a working fallback rather than a stale
+    page
+  status: pending
+deliverables: []
+dependencies:
+- task: task-084-typed-api-client
+  type: needs
+  note: Invalidates query keys owned by the client layer.
+links: []
+branches: []
+log: []

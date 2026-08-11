@@ -1,0 +1,90 @@
+schema: 2
+id: task-091-frontend-packaging
+title: Ship the built frontend in the wheel, with no node at install time
+created: '2026-08-11T07:38:07.378882Z'
+updated: '2026-08-11T07:38:07.379649Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: infrastructure
+tags:
+- react-frontend
+- packaging
+effort: half a day
+assignment:
+  eligible: []
+parent: task-082-react-frontend
+spec:
+  summary: Build the React bundle ahead of time and include it in the Python package,
+    so installing AgentJobs still requires nothing but Python.
+  intent: '''A tool that needs nothing but Python'' is a stated property of this project,
+    and it has already been used to reject a dependency: task-067 ruled out git-lfs
+    on exactly these grounds. Adding a React client without addressing packaging would
+    quietly give that property away.
+
+
+    A user running `pip install agentjobs && agentjobs serve` must get a working UI
+    without ever learning that node exists.'
+  description: 'Build the bundle as part of releasing, not as part of installing,
+    and include the output in the wheel as package data. `agentjobs serve` then serves
+    it from wherever the package landed -- not from a path relative to the source
+    tree, which works in development and fails everywhere else.
+
+
+    Decide and record how the build is invoked at release time: a Poetry build hook,
+    a documented release script, or CI. All three work; the one that must not happen
+    is a stale bundle shipping because someone forgot to run the build.
+
+
+    Handle the missing-bundle case honestly. A source checkout with no build output
+    should say what is wrong and how to fix it, rather than serving a blank page or
+    a 404 -- and the Jinja UI still being present makes a graceful answer straightforward.
+
+
+    The wheel will grow. Say by how much, and confirm it is acceptable rather than
+    discovering it later.'
+  constraints: '- `pip install agentjobs` requires no node, no npm, and no network
+    beyond PyPI.
+
+    - The served path resolves from the installed package, not from a source-relative
+    path.
+
+    - A stale bundle must not be able to ship silently.
+
+    - A missing bundle produces a clear message, not a blank page.'
+  out_of_scope: CDN hosting or any external asset host -- a checkout stays complete.
+    Removing the Jinja UI.
+  context:
+  - path: pyproject.toml
+    why: Package data and build configuration.
+  - path: src/agentjobs/cli.py
+    why: serve, which must find the bundle in an installed package.
+acceptance:
+- id: ac-1
+  text: a wheel built from a clean checkout contains the frontend bundle
+  status: pending
+- id: ac-2
+  text: pip install of that wheel followed by agentjobs serve yields a working UI
+    with no node present
+  status: pending
+- id: ac-3
+  text: the asset path resolves from the installed package rather than the source
+    tree
+  status: pending
+- id: ac-4
+  text: a missing bundle produces a clear message rather than a blank page
+  status: pending
+- id: ac-5
+  text: how the build is invoked at release time is recorded, and a stale bundle cannot
+    ship silently
+  status: pending
+deliverables: []
+dependencies:
+- task: task-083-react-scaffold
+  type: needs
+  note: Supplies the foundation this builds on.
+links: []
+branches: []
+log: []

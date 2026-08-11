@@ -1,0 +1,90 @@
+schema: 2
+id: task-085-frontend-test-harness
+title: 'Frontend test harness: Vitest, React Testing Library, Playwright'
+created: '2026-08-11T07:38:04.532733Z'
+updated: '2026-08-11T07:38:04.533520Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: testing
+tags:
+- gui
+- react-frontend
+- testing
+effort: half a day
+assignment:
+  eligible: []
+parent: task-082-react-frontend
+spec:
+  summary: Set up unit and end-to-end testing for the React client, with one real
+    test through each layer, before the screens are built rather than after.
+  intent: 'Test harnesses added after the screens are written are added never, or
+    are added and then fitted around code that was not built to be tested. Doing it
+    as its own task, first, makes it a precondition of every screen task rather than
+    a cleanup item.
+
+
+    There is a specific gap to close. The Jinja task list filters rows client-side
+    in Alpine, so the Python suite cannot assert that a closed task is absent from
+    the default view -- it can only assert the value handed to the component. That
+    behaviour has been verified by hand every time. In React it should be verified
+    by CI.'
+  description: 'Vitest plus React Testing Library for component and hook tests, with
+    the API mocked at the network boundary (MSW) rather than by stubbing the generated
+    client -- mocking the client would test the mock.
+
+
+    Playwright for one end-to-end path against a real server with a real temporary
+    project, proving the whole stack: server, API, client, browser.
+
+
+    Follow the existing suite''s convention on what an assertion is worth: assert
+    the value a user acts on, not the presence of markup. The cautionary example is
+    in ENGINEERING.md -- a check for `data-ball=` passed happily while the app emitted
+    `Ball.HUMAN` and every filter matched nothing.
+
+
+    Wire both into whatever runs on commit, so a failing frontend test is as loud
+    as a failing pytest.'
+  constraints: '- The API is mocked at the network boundary, not by replacing the
+    generated client.
+
+    - At least one Playwright test runs against a real server and a real temporary
+    project.
+
+    - Assertions are on rendered values, not markup presence.
+
+    - Frontend tests run in the same command or pipeline as the Python suite; a test
+    nobody runs is not a test.'
+  out_of_scope: Coverage thresholds. Visual regression testing. Testing the Jinja
+    UI, which the Python suite already covers.
+  context:
+  - path: ENGINEERING.md
+    why: 'The verification section: assert rendered values, not markup.'
+  - path: tests/test_attention_tiers.py
+    why: The convention to match -- named states, asserted values.
+acceptance:
+- id: ac-1
+  text: Vitest and React Testing Library run component tests with the API mocked at
+    the network boundary
+  status: pending
+- id: ac-2
+  text: one Playwright end-to-end test passes against a real server and a real temporary
+    project
+  status: pending
+- id: ac-3
+  text: frontend tests run alongside the Python suite rather than by separate ritual
+  status: pending
+- id: ac-4
+  text: the task-list filtering that Alpine made untestable is covered by a test
+  status: pending
+deliverables: []
+dependencies:
+- task: task-083-react-scaffold
+  type: needs
+  note: Needs the app to test.
+links: []
+branches: []
+log: []

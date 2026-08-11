@@ -1,0 +1,101 @@
+schema: 2
+id: task-090-react-create-task
+title: Create a task from the browser
+created: '2026-08-11T07:38:06.904250Z'
+updated: '2026-08-11T07:38:06.904956Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: ux
+tags:
+- gui
+- react-frontend
+- workflow
+effort: a day
+assignment:
+  eligible: []
+parent: task-082-react-frontend
+spec:
+  summary: AgentJobs has never had a way to create a task from a browser -- only the
+    CLI and the API. Add one, and decide how much of the spec the form captures.
+  intent: 'The dashboard''s fourth ladder rung nudges toward creating a task and has
+    nothing to point at. More broadly, a task manager whose only creation path is
+    a terminal is not a task manager for anyone who is not already in a terminal.
+
+
+    This was briefly planned as a Jinja form and deliberately not built, because it
+    would have been thrown away by this umbrella.'
+  description: '**The real question is how much of the spec the form asks for.** Schema
+    v2 carries `summary`, `intent`, `description`, `constraints`, `out_of_scope`,
+    and `context`, and the resumption contract requires the summary to orient a reader
+    with zero context.
+
+
+    A form with `title` and `description` would be quick to use and would mass-produce
+    exactly the thin tasks the schema exists to prevent -- and the CLI''s `agentjobs
+    create` already demonstrates that failure mode, since it accepts only those two
+    plus priority and category.
+
+
+    Options to weigh and record:
+
+
+    - **Everything, in one long form.** Complete, and nobody fills it in.
+
+    - **Title, summary, and description required; the rest progressively disclosed.**
+    Probably right: the summary is the field the resumption contract actually depends
+    on, and it is one sentence.
+
+    - **Minimal now, enrich on the detail page later.** Fast, but a draft created
+    thin usually stays thin.
+
+
+    Tasks are born `draft` (ball human/spec) or `ready` (ball agent/available) and
+    nothing else -- any other starting state skips the transitions the log exists
+    to record. The form should make that choice explicit rather than picking silently.
+
+
+    Id generation, parent selection for sub-tasks, and dependencies are worth including
+    if cheap; the id in particular is the handle used by every other surface.'
+  constraints: '- Creation goes through the manager''s `create_task`, which enforces
+    the draft/ready rule and validates the parent.
+
+    - The form must not make it easy to produce a task that fails the resumption contract.
+
+    - The chosen field set is recorded as a decision with its rejected alternatives.'
+  out_of_scope: Editing an existing task's spec. Templates or task presets. Bulk import.
+  context:
+  - path: src/agentjobs/manager.py
+    why: create_task and the draft/ready rule it enforces.
+  - path: ALLAGENTS.md
+    why: The resumption contract the form must not undermine.
+acceptance:
+- id: ac-1
+  text: a task can be created from the browser and appears in the list
+  status: pending
+- id: ac-2
+  text: the field set is chosen and recorded as a decision with rejected alternatives
+  status: pending
+- id: ac-3
+  text: the form makes the draft-versus-ready choice explicit
+  status: pending
+- id: ac-4
+  text: creation goes through create_task rather than writing YAML directly
+  status: pending
+- id: ac-5
+  text: the dashboard's fourth ladder rung links here instead of showing a disabled
+    button
+  status: pending
+deliverables: []
+dependencies:
+- task: task-084-typed-api-client
+  type: needs
+  note: Supplies the foundation this builds on.
+- task: task-085-frontend-test-harness
+  type: needs
+  note: Supplies the foundation this builds on.
+links: []
+branches: []
+log: []

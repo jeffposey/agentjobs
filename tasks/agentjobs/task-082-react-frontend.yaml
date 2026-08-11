@@ -1,0 +1,129 @@
+schema: 2
+id: task-082-react-frontend
+title: React + TypeScript frontend, built against the existing API
+created: '2026-08-11T07:38:03.164059Z'
+updated: '2026-08-11T07:38:03.164853Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: architecture
+tags:
+- gui
+- react-frontend
+- architecture
+effort: several sessions; finished by its children
+assignment:
+  eligible: []
+spec:
+  summary: AgentJobs' web UI is server-rendered Jinja with Alpine for interactivity.
+    Build a React + TypeScript client against the REST API that already exists, mounted
+    alongside the Jinja UI rather than replacing it, so the product is never in a
+    broken half-migrated state.
+  intent: 'The API is already the real interface: FastAPI serves it, publishes an
+    OpenAPI schema at /openapi.json, and agents and scripts consume it directly. The
+    Jinja templates are a second, parallel consumer that re-derives presentation logic
+    the API could hand over typed.
+
+
+    Two limits of the current stack are felt in daily use rather than in theory. Pages
+    are static once rendered -- a handoff that arrives while the dashboard is open
+    is invisible until the browser is manually refreshed, which is exactly the moment
+    the tool is supposed to be telling you something. And the client-side filtering
+    that Alpine does is unreachable from the Python test suite, so the task list''s
+    filter behaviour is verified by hand rather than by CI.
+
+
+    A typed client generated from the OpenAPI schema also closes a real gap: today
+    a template can render `data-ball="Ball.HUMAN"` and every filter silently matches
+    nothing, because nothing checks that the rendered value matches what the consumer
+    expects.'
+  description: '## Shape
+
+
+    Vite + React + TypeScript, served at `/app`, talking to the existing REST API.
+    The Jinja UI keeps working throughout and is not removed by this umbrella; retiring
+    it is a separate decision to make once the React client is at parity and has been
+    used in anger.
+
+
+    Groundwork already exists. task-043 added the Vite dev origin (`http://localhost:5173`)
+    to the CORS allowlist, and `watchdog` is already a dependency, which the live-update
+    child can build on.
+
+
+    ## Children
+
+
+    1. **083 scaffold** -- Vite/React/TS/Tailwind, mounted at `/app`, dev proxy, Jinja
+    untouched.
+
+    2. **084 typed client** -- generated from `/openapi.json`; no hand-written request
+    types.
+
+    3. **085 test harness** -- Vitest, React Testing Library, Playwright, and one
+    smoke test through each.
+
+    4. **086 live updates** -- the dashboard reflects a handoff without a manual refresh.
+
+    5. **087 dashboard** -- including the next-action ladder from task-081.
+
+    6. **088 task list** -- with the filtering that is currently untestable in Alpine.
+
+    7. **089 task detail** -- log, spec, and the review actions.
+
+    8. **090 create task** -- the surface the product has never had in a browser.
+
+    9. **091 packaging** -- built assets ship in the wheel; `pip install` still needs
+    no node.
+
+
+    ## Why not migrate in place
+
+
+    Every child leaves the product working. A half-migrated UI where some pages are
+    React and some are Jinja and neither is complete is worse than either end state,
+    and it is the usual way a rewrite stalls permanently.'
+  constraints: '- The Jinja UI keeps working at every commit. This umbrella never
+    leaves the product in a half-migrated state.
+
+    - `pip install agentjobs` must not require node. Built assets ship in the wheel
+    (task-091).
+
+    - No hand-written API types. They are generated from the OpenAPI schema, or the
+    typed contract is decorative.
+
+    - No backend behaviour changes to suit the client. If the API is missing something,
+    that is its own task with its own reasoning.'
+  out_of_scope: Removing the Jinja UI -- a separate decision once React is at parity.
+    Authentication and multi-user identity (task-066). Any change to the task schema.
+  context:
+  - path: src/agentjobs/api/main.py
+    why: CORS allowlist already carries the Vite dev origin; the SPA mounts here.
+  - path: src/agentjobs/api/routes/
+    why: The REST API the client consumes.
+  - path: tasks/agentjobs/task-043-cors-vite-dev-origin.yaml
+    why: Closed groundwork for exactly this frontend.
+acceptance:
+- id: ac-1
+  text: a React + TypeScript client is served at /app and reaches parity with the
+    Jinja UI's dashboard, task list, and task detail
+  status: pending
+- id: ac-2
+  text: the Jinja UI still works, unmodified in behaviour, at every commit
+  status: pending
+- id: ac-3
+  text: API types are generated from the OpenAPI schema, not hand-written
+  status: pending
+- id: ac-4
+  text: pip install agentjobs requires no node toolchain
+  status: pending
+- id: ac-5
+  text: the dashboard reflects a handoff without a manual browser refresh
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log: []

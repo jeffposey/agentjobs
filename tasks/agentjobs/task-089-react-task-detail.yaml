@@ -1,0 +1,96 @@
+schema: 2
+id: task-089-react-task-detail
+title: 'React task detail: spec, log, and the review actions'
+created: '2026-08-11T07:38:06.430653Z'
+updated: '2026-08-11T07:38:06.431529Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: ux
+tags:
+- gui
+- react-frontend
+- workflow
+effort: a day
+assignment:
+  eligible: []
+parent: task-082-react-frontend
+spec:
+  summary: 'Port the task detail page: the full spec, the log newest-first, dependencies
+    and children, and the review actions that move the ball.'
+  intent: 'This is the page where the merge gate actually happens. Everything else
+    in the product exists to get a person to this page with enough context to approve
+    or to ask for changes.
+
+
+    It is also the only page that writes. The rest of the client reads.'
+  description: 'The read side must satisfy the resumption contract: a reader with
+    no access to the chat that created the task, and no memory of the session that
+    last worked it, must be able to reconstruct what happened. That means the whole
+    spec -- summary, intent, description, constraints, out_of_scope, context -- not
+    a truncated preview, plus the log newest-first with decisions and unanswered questions
+    legible as such.
+
+
+    The write side is the review actions: approve, request changes, and whatever else
+    the current review panel offers. These move the ball through the manager verbs,
+    which append their own log entries; the client must not construct state transitions
+    itself.
+
+
+    **Actions belong here rather than on the dashboard.** The dashboard shows a truncated
+    `ball_prompt`, and an approve button next to a 160-character summary invites approving
+    without reading the review request -- which is precisely what the merge gate exists
+    to prevent. The click-through is the safeguard, not friction to be optimised away.
+
+
+    Whoever the action is attributed to comes from the configured identity (task-064).
+    An action attributed to the wrong person is worse than one attributed to nobody,
+    so an unclear actor must block the action rather than fall back to a default.'
+  constraints: '- State transitions go through the manager verbs via the API. The
+    client never writes lifecycle, ball, or ball_reason directly.
+
+    - The full spec is rendered, not a truncated preview.
+
+    - No silent fallback identity for a review action.
+
+    - Review actions are not duplicated onto the dashboard.'
+  out_of_scope: Editing the spec in the browser. Attachments (task-067). Multi-user
+    identity (task-066).
+  context:
+  - path: src/agentjobs/api/templates/task_detail.html
+    why: The page being ported, including the review panel.
+  - path: src/agentjobs/actors.py
+    why: Who an action is attributed to, and when it must refuse.
+  - path: src/agentjobs/manager.py
+    why: claim/handoff/release/close -- the only legal transitions.
+acceptance:
+- id: ac-1
+  text: the full spec and the log render, newest-first, with decisions and open questions
+    distinguishable
+  status: pending
+- id: ac-2
+  text: review actions move the ball through the manager verbs and appear in the log
+  status: pending
+- id: ac-3
+  text: an unclear acting identity blocks the action rather than defaulting
+  status: pending
+- id: ac-4
+  text: dependencies and child tasks are shown and linked
+  status: pending
+- id: ac-5
+  text: review actions exist only here, not on the dashboard
+  status: pending
+deliverables: []
+dependencies:
+- task: task-084-typed-api-client
+  type: needs
+  note: Supplies the foundation this builds on.
+- task: task-085-frontend-test-harness
+  type: needs
+  note: Supplies the foundation this builds on.
+links: []
+branches: []
+log: []

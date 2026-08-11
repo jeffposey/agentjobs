@@ -1,0 +1,92 @@
+schema: 2
+id: task-088-react-task-list
+title: React task list, with the filtering that Alpine made untestable
+created: '2026-08-11T07:38:05.953311Z'
+updated: '2026-08-11T07:38:05.954133Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: ux
+tags:
+- gui
+- react-frontend
+effort: a day
+assignment:
+  eligible: []
+parent: task-082-react-frontend
+spec:
+  summary: 'Port the task list: search, the status filter defaulting to Open, priority
+    and scope filters, and the parent/child tree.'
+  intent: 'This is the page whose behaviour the Python suite cannot reach. Alpine
+    filters rows in the browser, so the server-side tests can only assert the initial
+    filter value handed to the component, and the actual filtering has been verified
+    by hand every time it changed.
+
+
+    It is also where the tree logic lives, which has more edge cases than it looks
+    -- a parent that does not exist, a cycle, a filtered-out parent with matching
+    children -- and all of them fail by making rows disappear.'
+  description: 'Carry over the behaviour and the reasoning behind it:
+
+
+    - **Default to Open**, meaning `lifecycle != closed`, defined that way rather
+    than by enumerating outcomes so a future `Outcome` member cannot leak into the
+    default view. Closed work stays one click away.
+
+    - **Filters flatten the tree.** A reader who has filtered is asking a question,
+    not browsing an outline, and nesting a filtered list hides matching children inside
+    collapsed parents. Specifically: under Open, a closed umbrella is filtered out,
+    and in tree mode its open children would have no parent row left to expand.
+
+    - **Rows never silently disappear.** A `parent` naming a task that does not exist
+    renders as a root; anything in a cycle is appended flat. Both are in `_nest_tasks`
+    today with the reasoning attached.
+
+    - The filter state belongs in the URL, so a filtered view is linkable and survives
+    a refresh. The Jinja version already half does this via `?status=`.
+
+
+    Now that filtering is testable, test it: assert that a closed task is absent from
+    the default view, which is the assertion the Python suite could never make.'
+  constraints: '- Open means `lifecycle != closed`, not a list of outcomes.
+
+    - No row silently disappears: a dangling parent or a cycle must still render.
+
+    - Filter state is reflected in the URL and survives a refresh.
+
+    - The closed-task-absent-from-default-view assertion is covered by a test.'
+  out_of_scope: Bulk editing or multi-select actions. Saved filter presets.
+  context:
+  - path: src/agentjobs/api/templates/task_list.html
+    why: The Alpine filter and tree behaviour being ported.
+  - path: src/agentjobs/api/routes/web.py
+    why: _nest_tasks, and the valid filter vocabulary.
+acceptance:
+- id: ac-1
+  text: the list defaults to Open, meaning lifecycle != closed
+  status: pending
+- id: ac-2
+  text: a test asserts a closed task is absent from the default view
+  status: pending
+- id: ac-3
+  text: filtering flattens the tree, and no row disappears under a filtered-out parent
+  status: pending
+- id: ac-4
+  text: a dangling parent reference and a parent cycle both still render every task
+  status: pending
+- id: ac-5
+  text: filter state lives in the URL and survives a refresh
+  status: pending
+deliverables: []
+dependencies:
+- task: task-084-typed-api-client
+  type: needs
+  note: Supplies the foundation this builds on.
+- task: task-085-frontend-test-harness
+  type: needs
+  note: Supplies the foundation this builds on.
+links: []
+branches: []
+log: []
