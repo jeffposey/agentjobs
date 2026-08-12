@@ -1,0 +1,53 @@
+schema: 2
+id: task-001
+title: Support design approval without merge authorization
+created: '2026-08-12T23:01:40.471419Z'
+updated: '2026-08-12T23:01:40.472089Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: medium
+category: product_design
+tags:
+- human-actions
+- handoff
+- dogfood
+assignment:
+  eligible: []
+spec:
+  summary: Separate pre-implementation design approval from merge-oriented final approval
+    in the human action UI.
+  intent: Make multi-gate tasks truthful in the UI so the human can approve a design
+    without appearing to authorize code that does not exist yet.
+  description: The first external-project pilot exposed a remaining review-surface
+    mismatch. A task handed to a human for pre-implementation design approval showed
+    the same Approve wording used for final code review and implied permission to
+    merge. The durable task record had to override that wording explicitly, and the
+    agent had to repair the post-approval handoff prompt before implementation could
+    begin.`n`nAdd a human action for approving a design or plan that returns the ball
+    to the agent for implementation without implying merge or task completion. Keep
+    final code approval as a separate review action.
+  constraints: Preserve the existing final review/merge approval path. The selected
+    action must write an accurate handoff prompt and log entry without requiring a
+    manual corrective handoff.
+  out_of_scope: Changing the job-hunting project or its React dashboard.
+  context: []
+acceptance:
+- id: ac-1
+  text: A human can approve a design-stage task and return it to agent/work without
+    merge-oriented wording.
+  status: pending
+- id: ac-2
+  text: Final code review retains an explicit, distinct approval path.
+  status: pending
+- id: ac-3
+  text: The resulting ball_prompt and handoff log accurately state the next action
+    without agent repair.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log: []
