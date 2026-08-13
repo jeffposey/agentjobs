@@ -2,13 +2,14 @@ schema: 2
 id: task-102-react-first-documentation
 title: Make AgentJobs documentation React-first everywhere
 created: '2026-08-13T21:07:34.270802Z'
-updated: '2026-08-13T21:45:49.837055Z'
+updated: '2026-08-13T21:49:53.295249Z'
 lifecycle: active
-ball: agent
-ball_reason: revise
-ball_prompt: react is only mentioned once in readme, and its "The React frontend is
-  an independent project under frontend" ... it should be talked about a bit more,
-  that it is designed for browsers, phones, and tablets, etc
+ball: human
+ball_reason: review
+ball_prompt: Review the revised README in commit e4a3127. Confirm it now explains
+  that the responsive React application is designed for desktop and laptop browsers,
+  tablets, and phones, including touch-friendly behavior and optional PWA installation;
+  approve to merge or request further changes.
 archived: false
 priority: medium
 category: documentation
@@ -153,3 +154,28 @@ log:
   data:
     ball: agent
     ball_reason: revise
+- id: 6
+  ts: '2026-08-13T21:49:53.252870Z'
+  actor: codex
+  type: progress
+  body: 'Revised README to describe the React application as a cross-device product
+    in commit e4a3127.
+
+
+    Added a prominent React application section covering desktop and laptop browsers,
+    tablets, phones, responsive layouts, touch-friendly controls, PWA installation,
+    and the Python-only runtime. Replaced the independent frontend project wording
+    with contributor-focused source guidance and added regression coverage. Verification
+    passed: 19 documentation contract tests, strict MkDocs build, and the complete
+    repository gate with 616 Python tests, 41 Vitest tests, generated checks, lint,
+    production build, and 1 Playwright path.'
+  data: {}
+- id: 7
+  ts: '2026-08-13T21:49:53.295142Z'
+  actor: codex
+  type: handoff
+  body: The requested product-level React and cross-device README revision is complete
+    and ready for review.
+  data:
+    ball: human
+    ball_reason: review
