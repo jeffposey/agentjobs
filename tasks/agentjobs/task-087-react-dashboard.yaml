@@ -2,25 +2,13 @@ schema: 2
 id: task-087-react-dashboard
 title: React dashboard, including the next-action ladder
 created: '2026-08-11T07:38:05.463116Z'
-updated: '2026-08-13T08:42:39.471860Z'
+updated: '2026-08-13T08:54:05.902069Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review feat/task-087-react-dashboard at d387663 and c914259. It adds
-  one shared Python dashboard projection and typed project-scoped API, keeps the Jinja
-  dashboard on that same projection, and ports the strict five-rung dashboard, stat
-  tiles, unconditional linked backlog trace, active tasks, recent activity, and broken-file
-  warnings to React. Verification: scripts/check.py passed (569 pytest; generated
-  contract; lint; 8 Vitest tests; TypeScript/Vite build). A real browser against a
-  fresh loopback server confirmed React/Jinja both show Backlog awaiting your input
-  (5), exactly one React next-action region, +5 linked to status=draft, working client
-  navigation, stable hard reload values, recent activity, and zero console errors.
-  The live broken-file case was not created; exact filename/reason rendering is covered
-  by component and backend tests. Review steps: from C:/projects/aj-087 run poetry
-  run agentjobs serve --host 127.0.0.1 --port 18765, open http://127.0.0.1:18765/app/p/agentjobs,
-  and compare with http://127.0.0.1:18765/p/agentjobs/. Port 8765 currently has an
-  orphaned stale listener that agentjobs restart could not address, so use 18765 for
-  this review. Please approve task 087 or request changes.'
+ball: agent
+ball_reason: work
+ball_prompt: Human approved task 087. Preserve the caveat that the broader phase is
+  not yet functional or done; merge and close only this dashboard child, then continue
+  with task 093.
 archived: false
 priority: medium
 category: ux
@@ -216,3 +204,13 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 8
+  ts: '2026-08-13T08:54:05.901946Z'
+  actor: jeff
+  type: handoff
+  body: 'Approved by Jeff Posey with explicit caveat: not functional or done at the
+    broader phase level. This approval releases task 087 for merge; it does not claim
+    phase 2 completion.'
+  data:
+    ball: agent
+    ball_reason: work
