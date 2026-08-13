@@ -153,7 +153,8 @@ AgentJobs uses itself to manage its own development. The roadmap lives in
 git clone https://github.com/jeffposey/agentjobs.git
 cd agentjobs
 poetry install
-poetry run pytest
+npm --prefix frontend install
+poetry run python scripts/check.py
 poetry run agentjobs serve
 ```
 
@@ -165,10 +166,11 @@ npm install
 npm run check
 ```
 
-That single frontend check command also regenerates the checked-in OpenAPI types,
-Fetch client, and TanStack Query options, failing when the generated contract is stale.
-Run `npm run generate:api` when an intentional backend contract change needs to be
-recorded.
+The repository commit gate is `poetry run python scripts/check.py` from the root. It
+runs the Python suite and the frontend's generated-contract check, linter, Vitest
+component suite, and production build. `npm run check` is the focused frontend half of
+that gate. Run `npm run generate:api` when an intentional backend contract change needs
+to be recorded.
 
 During development Vite serves it at `http://localhost:5173/app/` and proxies API
 requests to AgentJobs on port 8765. After `npm run build`, FastAPI serves the same app

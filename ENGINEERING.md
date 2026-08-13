@@ -25,10 +25,13 @@ poetry run agentjobs init  # If starting fresh
 ```
 
 ### Testing
--   Run tests before every commit:
+-   Run the complete repository check before every commit:
     ```bash
-    poetry run pytest
+    poetry run python scripts/check.py
     ```
+-   This single gate runs pytest, verifies the generated frontend API client, lints,
+    runs the Vitest component suite in jsdom, and builds the React app. Use focused
+    pytest or npm commands while iterating, but do not substitute them for the gate.
 -   Ensure high test coverage for core logic (`manager.py`, `storage.py`).
 
 ### Code Style
