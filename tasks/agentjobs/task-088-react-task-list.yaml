@@ -2,10 +2,11 @@ schema: 2
 id: task-088-react-task-list
 title: React task list, with the filtering that Alpine made untestable
 created: '2026-08-11T07:38:05.953311Z'
-updated: '2026-08-13T02:35:24.122213Z'
-lifecycle: ready
+updated: '2026-08-13T09:27:46.410808Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: medium
 category: ux
@@ -14,6 +15,7 @@ tags:
 - react-frontend
 effort: a day
 assignment:
+  owner: codex
   eligible: []
 parent: task-096-react-phase-2-parity
 spec:
@@ -91,5 +93,33 @@ dependencies:
   note: Follows the card layout and cell-labelling convention rather than retrofitting
     them.
 links: []
-branches: []
-log: []
+branches:
+- name: feat/task-088-react-task-list
+  status: active
+log:
+- id: 1
+  ts: '2026-08-13T09:27:46.382370Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 2
+  ts: '2026-08-13T09:27:46.410728Z'
+  actor: codex
+  type: progress
+  body: 'Started the React task-list port after approved task 093 merge.
+
+
+    Worktree: C:/projects/aj-088. Branch: feat/task-088-react-task-list. Plan: expose
+    any missing project-scoped list data through the typed API, port search plus Open/status/priority/scope
+    URL filters, preserve flatten-on-filter and lossless tree behavior for dangling
+    parents/cycles, apply task-093 responsive labelled cards, and verify default closed-task
+    exclusion in component tests plus real-browser refresh behavior. The required
+    merged-main restart was attempted, but the same orphaned inaccessible listener
+    on 127.0.0.1:8765 refused replacement; an alternate loopback port will be used
+    for trustworthy feature verification. Usage-window telemetry is unavailable in
+    this session; no estimate was invented.'
+  data: {}
