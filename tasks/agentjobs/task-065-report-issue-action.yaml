@@ -2,7 +2,7 @@ schema: 2
 id: task-065-report-issue-action
 title: 'Report Issue: capture a problem from any page, as a task'
 created: '2026-08-10T22:57:38.570148Z'
-updated: '2026-08-10T22:57:38.570777Z'
+updated: '2026-08-13T22:10:49.247362Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -38,10 +38,10 @@ spec:
 
 
     **Placement.** Global chrome, present on every page, next to the project switcher
-    in `base.html`. Deliberately *not* in the review panel: that panel means ''the
-    ball is with you on this task'', and an issue usually is not about the task on
-    screen. Keeping them separate is what stops one control behaving differently depending
-    on page state.
+    in the packaged React shell (`frontend/src/App.tsx`). Deliberately *not* in the
+    review panel: that panel means ''the ball is with you on this task'', and an issue
+    usually is not about the task on screen. Keeping them separate is what stops one
+    control behaving differently depending on page state.
 
 
     **Behaviour.** A short form -- title, description -- creating a task in `draft`
@@ -69,10 +69,10 @@ spec:
   out_of_scope: Triage workflow, severity vocabularies, duplicate detection, and any
     notion of an issue distinct from a task.
   context:
-  - path: src/agentjobs/api/templates/base.html
-    why: Global chrome; where the action belongs.
-  - path: src/agentjobs/api/templates/task_detail.html
-    why: The review panel, for contrast -- task-scoped, moves the ball.
+  - path: frontend/src/App.tsx
+    why: Global React chrome and project navigation; where the action belongs.
+  - path: frontend/src/components/TaskDetail.tsx
+    why: The review panel, for contrast -- task-scoped and moves the ball.
   - path: docs/schema-design.md
     why: 'D1 and section 6 issue 3: an issue graduates to a task.'
 acceptance:
@@ -100,4 +100,12 @@ dependencies:
   note: 'Attribution: a report filed by ''human'' has the defect 064 fixes.'
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-13T22:10:49.247227Z'
+  actor: codex
+  type: progress
+  body: 'Corpus audit update: replaced stale Jinja/template implementation pointers
+    with the packaged React component or shared Python logic that owns the current
+    product surface. Historical design context remains unchanged.'
+  data: {}

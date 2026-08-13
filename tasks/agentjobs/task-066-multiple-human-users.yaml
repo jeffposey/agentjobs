@@ -2,7 +2,7 @@ schema: 2
 id: task-066-multiple-human-users
 title: Support more than one human user (account management)
 created: '2026-08-10T23:20:39.069637Z'
-updated: '2026-08-11T06:05:20.518417Z'
+updated: '2026-08-13T22:10:49.272189Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -88,8 +88,9 @@ spec:
     why: human_identity and its MULTIPLE branch are what this replaces.
   - path: tests/test_actors.py
     why: TestExactlyOneHumanIsSupported encodes the limit being lifted.
-  - path: src/agentjobs/api/templates/task_detail.html
-    why: The review panel, which must show and let you change who you are.
+  - path: frontend/src/components/TaskDetail.tsx
+    why: The current React review panel, which must show and let you change who you
+      are.
 acceptance:
 - id: ac-1
   text: the identity model is chosen and recorded as a decision, with the rejected
@@ -145,4 +146,12 @@ log:
 
     To unpark it: answer the design question, record it as a decision entry, then
     promote.'
+  data: {}
+- id: 2
+  ts: '2026-08-13T22:10:49.272113Z'
+  actor: codex
+  type: progress
+  body: 'Corpus audit update: replaced stale Jinja/template implementation pointers
+    with the packaged React component or shared Python logic that owns the current
+    product surface. Historical design context remains unchanged.'
   data: {}

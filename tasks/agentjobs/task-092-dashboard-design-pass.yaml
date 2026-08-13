@@ -2,7 +2,7 @@ schema: 2
 id: task-092-dashboard-design-pass
 title: 'Rethink the next-action ladder: should the calm rungs coexist?'
 created: '2026-08-11T08:01:24.843122Z'
-updated: '2026-08-13T02:22:18.771912Z'
+updated: '2026-08-13T22:10:49.347750Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -74,12 +74,15 @@ spec:
 
     racing it.'
   context:
-  - path: src/agentjobs/api/routes/web.py
-    why: _next_action() is the ladder being reconsidered.
+  - path: src/agentjobs/dashboard.py
+    why: Shared Python next-action computation consumed by the React dashboard.
   - path: tasks/agentjobs/task-081-dashboard-next-action-ladder.yaml
     why: Why the ladder is strict today, including the rejected alternatives.
   - path: tasks/agentjobs/task-087-react-dashboard.yaml
     why: Re-implements this dashboard; should consume this decision, not race it.
+  - path: frontend/src/components/Dashboard.tsx
+    why: Current React dashboard whose layout and calm action panels this design pass
+      would change.
 acceptance:
 - id: ac-1
   text: whether the calm rungs coexist is decided and recorded, with the rejected
@@ -142,4 +145,12 @@ log:
     a
 
     redesign. That is the cost of not blocking the migration on a design decision.'
+  data: {}
+- id: 2
+  ts: '2026-08-13T22:10:49.347661Z'
+  actor: codex
+  type: progress
+  body: 'Corpus audit update: replaced stale Jinja/template implementation pointers
+    with the packaged React component or shared Python logic that owns the current
+    product surface. Historical design context remains unchanged.'
   data: {}

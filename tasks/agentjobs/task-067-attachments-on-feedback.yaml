@@ -2,7 +2,7 @@ schema: 2
 id: task-067-attachments-on-feedback
 title: Attach images to feedback and issue reports, primarily by clipboard paste
 created: '2026-08-10T23:31:30.455098Z'
-updated: '2026-08-11T06:05:20.530234Z'
+updated: '2026-08-13T22:10:49.299445Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -98,8 +98,8 @@ spec:
   - path: docs/schema-design.md
     why: Section 7 argues for files over a database; section 9 is the additive-change
       policy this must satisfy.
-  - path: src/agentjobs/api/templates/task_detail.html
-    why: The Request Changes box, one of the two surfaces.
+  - path: frontend/src/components/TaskDetail.tsx
+    why: The React Request Changes form, one of the two attachment surfaces.
   - path: src/agentjobs/storage.py
     why: All task I/O goes through here; sidecar files would too.
 acceptance:
@@ -160,4 +160,12 @@ log:
 
     To unpark it: answer the design question, record it as a decision entry, then
     promote.'
+  data: {}
+- id: 2
+  ts: '2026-08-13T22:10:49.299341Z'
+  actor: codex
+  type: progress
+  body: 'Corpus audit update: replaced stale Jinja/template implementation pointers
+    with the packaged React component or shared Python logic that owns the current
+    product surface. Historical design context remains unchanged.'
   data: {}

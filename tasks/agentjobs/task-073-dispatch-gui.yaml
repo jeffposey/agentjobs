@@ -2,7 +2,7 @@ schema: 2
 id: task-073-dispatch-gui
 title: 'Dispatch in the web UI: the button, the run, and the toggle'
 created: '2026-08-11T00:21:32.502467Z'
-updated: '2026-08-11T04:37:06.824032Z'
+updated: '2026-08-13T22:10:49.324386Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -16,17 +16,16 @@ assignment:
   eligible: []
 parent: task-060-agent-dispatch
 spec:
-  summary: 'The surface that removes the manual step: a Dispatch action beside Approve
-    on a task whose ball is with an agent, live run status with a cancel button, a
-    link to the run output, and the per-project enable/disable toggle. The toggle
-    may enable and disable only -- it may never define what command runs. Design sections
-    5 and 6, decision D2.'
+  summary: 'The packaged React surface that removes the manual step: a Dispatch action
+    beside Approve on a task whose ball is with an agent, live run status with cancel/output
+    controls, and the per-project enable/disable toggle. The browser may enable or
+    disable only; it never defines runner commands.'
   description: 'Derived from docs/agent-dispatch-design.md sections 5 and 6, and decision
     D2.
 
 
     This is the task that closes the loop the owner asked about on 2026-08-10: click
-    in the browser, agent starts, no chat window.
+    in the packaged React application, agent starts, no chat window.
 
 
     ## Scope
@@ -81,8 +80,9 @@ acceptance:
     dispatch it, watch the agent run, see the result land on the task record'
   status: pending
 deliverables:
-- path: src/agentjobs/api/templates/
-  note: Dispatch action, run status, project toggle
+- path: frontend/src/
+  note: React dispatch action, run status, cancellation, output link, and project
+    toggle
   status: pending
 - path: src/agentjobs/api/routes/
   note: Toggle endpoint, run status endpoint
@@ -130,4 +130,12 @@ log:
     own vocabulary: `ball_reason` says *why a person is holding this*, and ''because
     I said so earlier'' is not one of the reasons. Sequencing belongs in `dependencies[]`,
     not in the ball.'
+  data: {}
+- id: 2
+  ts: '2026-08-13T22:10:49.324230Z'
+  actor: codex
+  type: progress
+  body: 'Corpus audit update: replaced stale Jinja/template implementation pointers
+    with the packaged React component or shared Python logic that owns the current
+    product surface. Historical design context remains unchanged.'
   data: {}
