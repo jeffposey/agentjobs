@@ -2,16 +2,17 @@ schema: 2
 id: task-086-live-updates
 title: 'Live updates: the view reflects a handoff without a manual refresh'
 created: '2026-08-11T07:38:05.001732Z'
-updated: '2026-08-13T19:33:08.578871Z'
+updated: '2026-08-13T19:41:34.359426Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: On jeffs-tab-s7, close the old :8443 Chrome tab and open https://agentjobs.tailfed1df.ts.net/app/p/agentjobs
-  . Use Install app/Add to Home Screen. Confirm Chrome now offers a new AgentJobs
-  installation rather than saying the coruscant-hosted app is already installed. Launch
-  AgentJobs standalone, leave or background it, then report ready for the live handoff/resume
-  check. Explicitly approve only after separate installation and live resume both
-  work; otherwise report the exact dialog or behavior.
+ball_prompt: Separate AgentJobs installation is confirmed. For the final live-update
+  acceptance check, open the installed AgentJobs app standalone on jeffs-tab-s7, leave
+  it showing the dashboard, background it, and tell Codex ready. Codex will move a
+  task while it is backgrounded; then foreground AgentJobs and confirm the changed
+  state appears immediately without manual refresh. Separately, install Job Search
+  only from https://jobsearch.tailfed1df.ts.net/ after removing the old coruscant-linked
+  copy.
 archived: false
 priority: high
 category: ux
@@ -419,6 +420,39 @@ log:
   body: The dedicated AgentJobs Tailscale hostname is online and verified from the
     host. Physical tablet installation and suspension/resume are the remaining review
     gates.
+  data:
+    ball: human
+    ball_reason: review
+- id: 17
+  ts: '2026-08-13T19:41:34.243669Z'
+  actor: Jeff Posey
+  type: progress
+  body: 'Physical tablet verification: the dedicated AgentJobs hostname worked, Chrome
+    allowed a separate app installation, and the installed icon looks correct. The
+    old Job Search installation was intentionally removed because it was tied to the
+    changing coruscant origin; Job Search will be reinstalled from its new permanent
+    hostname.'
+  data: {}
+- id: 18
+  ts: '2026-08-13T19:41:34.313075Z'
+  actor: codex
+  type: progress
+  body: 'Generalized the checked-in tsnet helper so one binary can run isolated named
+    Service hosts. Feature commit 2dcc695. Deployed svc:jobsearch at jobsearch.tailfed1df.ts.net
+    through tagged virtual node jobsearch-service-host (100.89.165.121), forwarding
+    only to loopback 127.0.0.1:8766. Service host is approved and online; HTTPS returned
+    200, manifest is standalone with id /, and Chrome rendered current dashboard data.
+    AgentJobs was migrated to the same generic binary and reverified HTTP 200. Both
+    temporary single-use auth-key files were removed. Full gate passed: 592 Python
+    tests, 30 Vitest tests, API/icon/lint/type/build checks.'
+  data: {}
+- id: 19
+  ts: '2026-08-13T19:41:34.359154Z'
+  actor: codex
+  type: handoff
+  body: Dedicated app identity passed on the physical tablet. Only the background/resume
+    refresh check remains for task 086; Job Search now also has its permanent independent
+    hostname.
   data:
     ball: human
     ball_reason: review
