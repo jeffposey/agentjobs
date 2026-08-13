@@ -2,10 +2,11 @@ schema: 2
 id: task-102-react-first-documentation
 title: Make AgentJobs documentation React-first everywhere
 created: '2026-08-13T21:07:34.270802Z'
-updated: '2026-08-13T21:07:34.271577Z'
-lifecycle: ready
+updated: '2026-08-13T21:30:21.022726Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: medium
 category: documentation
@@ -15,6 +16,7 @@ tags:
 - audit
 effort: half a day
 assignment:
+  owner: codex
   eligible: []
 parent: task-098-react-phase-4-ship
 spec:
@@ -83,5 +85,16 @@ dependencies:
   note: Document the final installed and served product only after wheel packaging
     is settled.
 links: []
-branches: []
-log: []
+branches:
+- name: docs/task-102-react-first-documentation
+  status: active
+log:
+- id: 1
+  ts: '2026-08-13T21:30:21.022608Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
