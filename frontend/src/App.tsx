@@ -5,6 +5,8 @@ import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-rou
 import {
   getDashboardApiProjectsProjectIdDashboardGetOptions,
   getProjectsApiProjectsGetOptions,
+  listBrokenTasksApiProjectsProjectIdTasksBrokenGetOptions,
+  listTasksApiProjectsProjectIdTasksGetOptions,
 } from "./api/generated/@tanstack/react-query.gen";
 import {
   requireSupportedTaskSchemas,
@@ -12,6 +14,7 @@ import {
 } from "./api/schema-version";
 import { Dashboard } from "./components/Dashboard";
 import { ConnectionUnavailable } from "./components/ConnectionUnavailable";
+import { TaskList } from "./components/TaskList";
 
 function useOnlineStatus() {
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -60,13 +63,11 @@ function ProjectRedirect() {
   );
 }
 
-function DashboardPage() {
-  const { projectId } = useParams<{ projectId: string }>();
+function DashboardPage({ projectId }: { projectId: string }) {
   const dashboardQuery = useQuery({
     ...getDashboardApiProjectsProjectIdDashboardGetOptions({
-      path: { project_id: projectId ?? "" },
+      path: { project_id: projectId },
     }),
-    enabled: Boolean(projectId),
     select: (dashboard) => {
       requireSupportedTaskSchemas([
         ...dashboard.active_tasks,
@@ -95,6 +96,31 @@ function DashboardPage() {
     return <ConnectionUnavailable offline={false} />;
   }
 
+  return <Dashboard dashboard={dashboardQuery.data} projectId={projectId} />;
+}
+
+function TaskListPage({ projectId }: { projectId: string }) {
+  const tasksQuery = useQuery({
+    ...listTasksApiProjectsProjectIdTasksGetOptions({ path: { project_id: projectId } }),
+    select: (tasks) => {
+      requireSupportedTaskSchemas(tasks);
+      return tasks;
+    },
+  });
+  const brokenQuery = useQuery(
+    listBrokenTasksApiProjectsProjectIdTasksBrokenGetOptions({ path: { project_id: projectId } }),
+  );
+
+  if (tasksQuery.error instanceof UnsupportedTaskSchemaError) {
+    return <StatusCard title="Unsupported task schema"><p>{tasksQuery.error.message}</p><p className="mt-4">Upgrade the UI before viewing this project.</p></StatusCard>;
+  }
+  if (tasksQuery.isPending || brokenQuery.isPending) return <StatusCard title="Opening tasks...">Loading current task data.</StatusCard>;
+  if (tasksQuery.isError || brokenQuery.isError) return <ConnectionUnavailable offline={false} />;
+  return <TaskList tasks={tasksQuery.data} brokenFiles={brokenQuery.data} projectId={projectId} />;
+}
+
+function ProjectApp() {
+  const { projectId = "" } = useParams<{ projectId: string }>();
   return (
     <div className="flex min-h-screen flex-col bg-dark-bg text-dark-text">
       <header className="border-b border-dark-border bg-dark-surface">
@@ -107,7 +133,12 @@ function DashboardPage() {
         </nav>
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
-        <Dashboard dashboard={dashboardQuery.data} projectId={projectId ?? ""} />
+        <Routes>
+          <Route index element={<DashboardPage projectId={projectId} />} />
+          <Route path="tasks" element={<TaskListPage projectId={projectId} />} />
+          <Route path="tasks/:taskId" element={<StatusCard title="Task detail is next">Task detail arrives in task 089.</StatusCard>} />
+          <Route path="*" element={<Navigate to="/not-found" replace />} />
+        </Routes>
       </main>
       <footer className="border-t border-dark-border bg-dark-surface"><div className="mx-auto max-w-7xl px-4 py-4 text-sm text-dark-muted sm:px-6 lg:px-8">AgentJobs © {new Date().getFullYear()}</div></footer>
     </div>
@@ -135,7 +166,7 @@ export function App() {
   return (
     <Routes>
       <Route index element={<ProjectRedirect />} />
-      <Route path="p/:projectId/*" element={<DashboardPage />} />
+      <Route path="p/:projectId/*" element={<ProjectApp />} />
       <Route path="not-found" element={<StatusCard title="Page not found"><Link to="/">Return to AgentJobs</Link></StatusCard>} />
       <Route path="*" element={<Navigate to="/not-found" replace />} />
     </Routes>
