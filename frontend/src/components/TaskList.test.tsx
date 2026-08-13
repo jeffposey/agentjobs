@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
-import type { Task } from "../api/generated";
+import type { BrokenTaskFile, Task } from "../api/generated";
 import { TaskList } from "./TaskList";
 
 function task(id: string, overrides: Partial<Task> = {}): Task {
@@ -30,10 +30,10 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}{location.search}</output>;
 }
 
-function renderList(tasks: Array<Task>, entry = "/p/inbox/tasks") {
+function renderList(tasks: Array<Task>, entry = "/p/inbox/tasks", brokenFiles: Array<BrokenTaskFile> = []) {
   render(
     <MemoryRouter initialEntries={[entry]}>
-      <TaskList tasks={tasks} brokenFiles={[]} projectId="inbox" />
+      <TaskList tasks={tasks} brokenFiles={brokenFiles} projectId="inbox" />
       <LocationProbe />
     </MemoryRouter>,
   );
@@ -88,5 +88,17 @@ describe("TaskList filtering", () => {
     expect(url).toContain("status=all");
     expect(url).toContain("priority=high");
     expect(url).toContain("scope=test");
+  });
+
+  it("surfaces unreadable task files above the list", () => {
+    renderList([], "/p/inbox/tasks", [{
+      task_id: "task-broken",
+      path: "C:/project/tasks/task-broken.yaml",
+      filename: "task-broken.yaml",
+      reason: "schema: Input should be 2",
+    }]);
+
+    const warning = screen.getByRole("region", { name: "Unreadable task files" });
+    expect(warning).toHaveTextContent("task-broken.yaml — schema: Input should be 2");
   });
 });
