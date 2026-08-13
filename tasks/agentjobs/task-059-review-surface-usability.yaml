@@ -2,9 +2,10 @@ schema: 2
 id: task-059-review-surface-usability
 title: 'GUI: make the task record actually reviewable, and stop Approve from lying'
 created: '2026-08-10T06:49:31Z'
-updated: '2026-08-10T07:35:58Z'
+updated: '2026-08-13T22:08:30.052183Z'
 lifecycle: closed
 outcome: completed
+archived: false
 priority: high
 category: ux
 tags:
@@ -13,6 +14,8 @@ tags:
 - review
 - workflow
 effort: 2-4 hours
+assignment:
+  eligible: []
 spec:
   summary: 'Found by the owner on 2026-08-10, the first time he tried to review a
     completed task through the web UI instead of through git. Two problems, both hit
@@ -173,6 +176,7 @@ spec:
     Small single-logical-change commits, Conventional Commits. Tests green before
     each. When complete: STOP, set waiting_for_human through the status API. Do not
     merge.'
+  context: []
 acceptance:
 - id: sc-1
   text: Status update details and comment content render as markdown, using the existing
@@ -194,7 +198,7 @@ acceptance:
     server''s working directory (coordinate with task-058) [DEFERRED to task-058:
     the web pages have no project in their URL yet, so there is no project context
     for a review action to address. Not doable before 058 introduces scoped web routes.]'
-  status: pending
+  status: met
 - id: sc-6
   text: 'Verified the way the bug was found: open task-057 in the browser and confirm
     its status updates are readable and its review controls are honest'
@@ -204,11 +208,11 @@ acceptance:
   status: met
 deliverables:
 - path: src/agentjobs/api/templates/task_detail.html
-  status: pending
   note: Markdown rendering and collapsing for status updates and comments
+  status: done
 - path: src/agentjobs/api/routes/tasks.py
-  status: pending
   note: Approve/reject semantics made honest, or the endpoints retired
+  status: done
 dependencies:
 - task: task-057-multi-project-registry
   type: needs
@@ -216,6 +220,7 @@ dependencies:
 - task: task-058-multi-project-gui
   type: related
   note: Introduces project-scoped URLs; sc-5 should use them if 058 lands first.
+links: []
 branches:
 - name: fix/task-059-review-surface
   status: merged
@@ -224,8 +229,6 @@ log:
   ts: '2026-08-10T06:57:07Z'
   actor: claude
   type: transition
-  data:
-    v1_status: in_progress
   body: 'Claimed; scope extended by the owner to include visible task ids
 
 
@@ -247,12 +250,12 @@ log:
     something bigger: the v1 Task model has no parent field, so a task hierarchy is
     not representable at all today. phases[] is the nearest thing and v2 deletes it.
     This is being handled outside task-059; noted here so the two tasks do not drift.'
+  data:
+    v1_status: in_progress
 - id: 2
   ts: '2026-08-10T07:06:32Z'
   actor: claude
   type: transition
-  data:
-    v1_status: waiting_for_human
   body: 'Rendering, task ids and Approve semantics fixed; sc-5 deferred to task-058
 
 
@@ -344,12 +347,12 @@ log:
     Pre-existing lint debt in tests/test_human_actions.py (7 ruff findings) and the
     migrate command, both task-047''s. No restyling beyond what these fixes needed.
     No diff view -- code review stays in git.'
+  data:
+    v1_status: waiting_for_human
 - id: 3
   ts: '2026-08-10T07:35:57Z'
   actor: jeff
   type: transition
-  data:
-    v1_status: in_progress
   body: "Approved by Jeff \u2014 cleared to merge\n\nJeff reviewed the rendered page\
     \ and approved: \"task 059 looks ok, better than before, I found where it mentioned\
     \ the task number, approved for now.\"\n\nRecorded with author: jeff rather than\
@@ -361,12 +364,12 @@ log:
     \ the task number\" suggests the id placement is discoverable rather than obvious.\
     \ Left as-is since Jeff approved it, but if a later GUI pass wants a candidate,\
     \ making the id more prominent in the detail header is one."
+  data:
+    v1_status: in_progress
 - id: 4
   ts: '2026-08-10T07:35:58Z'
   actor: claude
   type: transition
-  data:
-    v1_status: completed
   body: 'Merged to main after Jeff''s approval
 
 
@@ -377,16 +380,25 @@ log:
     sc-5 remains genuinely undone, not quietly closed: review action buttons still
     POST to the unscoped /api/tasks/{id}/... because the web pages have no project
     in their URL. Task-058 picks it up when it introduces scoped web routes.'
+  data:
+    v1_status: completed
 - id: 5
   ts: '2026-08-10T07:35:58Z'
   actor: system
   type: note
-  data:
-    v1_status: completed
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
     - v1 `status: completed` became lifecycle: closed / outcome: completed.
 
     - prompts.starter preserved in spec.description.'
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+- id: 6
+  ts: '2026-08-13T22:08:21.204284Z'
+  actor: codex
+  type: progress
+  body: 'Corpus audit reconciliation: marked sc-5 met. Task 061 later delivered project-scoped
+    web routes and review actions, closing the explicitly deferred criterion.'
+  data: {}

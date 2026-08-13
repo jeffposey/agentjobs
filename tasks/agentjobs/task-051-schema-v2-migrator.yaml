@@ -2,7 +2,7 @@ schema: 2
 id: task-051-schema-v2-migrator
 title: 'Schema v2: one-shot migrator and corpus migration'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-11T03:17:09.390268Z'
+updated: '2026-08-13T22:08:21.052899Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -62,7 +62,7 @@ acceptance:
     cannot read v2 files, so writing the corpus without the code switchover leaves
     main broken. The write must be atomic with the switchover, which is task-052''s
     content.]'
-  status: pending
+  status: met
 - id: sc-3
   text: Migrator refuses already-v2 files and unknown shapes with clear errors
   status: met
@@ -265,3 +265,11 @@ log:
   data:
     v1_status: completed
     migrated_to_schema: 2
+- id: 6
+  ts: '2026-08-13T22:08:21.052814Z'
+  actor: codex
+  type: progress
+  body: 'Corpus audit reconciliation: marked sc-2 met. Task 052 performed the deferred
+    atomic corpus write and application switchover; the live corpus is schema v2 and
+    the corpus tests pass.'
+  data: {}

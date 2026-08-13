@@ -3,9 +3,10 @@ id: task-056-schema-modeling-tooling
 title: 'Schema tooling: model the schema in LinkML and generate docs, diagrams, and
   validators'
 created: '2026-07-30T00:20:00Z'
-updated: '2026-08-10T06:11:44Z'
+updated: '2026-08-13T22:08:21.116590Z'
 lifecycle: closed
 outcome: completed
+archived: false
 priority: high
 category: infrastructure
 tags:
@@ -14,6 +15,8 @@ tags:
 - tooling
 - documentation
 effort: 1 working session (built)
+assignment:
+  eligible: []
 spec:
   summary: 'Model both schema versions in LinkML so the schema can be viewed, validated,
     and diffed with real tooling instead of hand-drawn diagrams and prose. Generates
@@ -107,6 +110,7 @@ spec:
     If approved, this should merge before or with task-048, since task-048 depends
     on it. If rejected, task-048''s design stands on its own but loses its machine-checked
     form.'
+  context: []
 acceptance:
 - id: sc-1
   text: Both schema versions exist in LinkML and compile
@@ -130,30 +134,31 @@ acceptance:
 - id: sc-6
   text: New dependencies reviewed and accepted, and the build-step-versus-CI-check
     question answered
-  status: pending
+  status: met
 deliverables:
 - path: schema/agentjobs-v1.yaml
-  status: done
   note: v1 in LinkML, verified against the live corpus
+  status: done
 - path: schema/agentjobs-v2.yaml
-  status: done
   note: v2 in LinkML, including the section 3 consistency rules
+  status: done
 - path: schema/examples/task-048.v2.yaml
-  status: done
   note: task-048 converted to v2; the worked example for the walkthrough
+  status: done
 - path: scripts/regen-schema-docs.sh
-  status: done
   note: Single-command regeneration and validation of all derived artifacts
+  status: done
 - path: docs/schema/understanding.md
-  status: done
   note: Guided walkthrough teaching the schema from a real record
-- path: mkdocs.yml
   status: done
+- path: mkdocs.yml
   note: Browsable docs site covering both schema versions
+  status: done
 dependencies:
 - task: task-048-schema-design
   type: related
   note: Split out of task-048's session; task-048 depends on this for reviewability
+links: []
 branches:
 - name: docs/task-048-schema-design
   status: merged
@@ -162,8 +167,6 @@ log:
   ts: '2026-07-30T00:20:00Z'
   actor: claude
   type: transition
-  data:
-    v1_status: waiting_for_human
   body: 'Split out of task-048; built and verified, awaiting review on its own merits
 
 
@@ -175,12 +178,12 @@ log:
 
     Verified at time of writing: both schemas compile; 32/32 task files validate against
     v1; schema/examples/task-048.v2.yaml validates against v2; full suite 105 passed.'
+  data:
+    v1_status: waiting_for_human
 - id: 2
   ts: '2026-08-10T06:11:20Z'
   actor: claude
   type: transition
-  data:
-    v1_status: completed
   body: 'Schema tooling reviewed and approved alongside task-048; branch merged
 
 
@@ -226,16 +229,26 @@ log:
     Outstanding, not fixed here: no .gitattributes, so regen-schema-docs.sh checks
     out with CRLF on a fresh clone and bash fails on it. One-line fix, left unbundled
     from this merge.'
+  data:
+    v1_status: completed
 - id: 3
   ts: '2026-08-10T06:11:44Z'
   actor: system
   type: note
-  data:
-    v1_status: completed
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
     - v1 `status: completed` became lifecycle: closed / outcome: completed.
 
     - prompts.starter preserved in spec.description.'
+  data:
+    v1_status: completed
+    migrated_to_schema: 2
+- id: 4
+  ts: '2026-08-13T22:08:21.116461Z'
+  actor: codex
+  type: progress
+  body: 'Corpus audit reconciliation: marked sc-6 met. Log entry 2 records Jeff''s
+    separate approval of the dependency set and the decision to check generated artifacts
+    into git; the acceptance question was answered at merge.'
+  data: {}
