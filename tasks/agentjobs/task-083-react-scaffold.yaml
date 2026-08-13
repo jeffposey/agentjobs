@@ -2,13 +2,9 @@ schema: 2
 id: task-083-react-scaffold
 title: Scaffold the React app and serve it at /app
 created: '2026-08-11T07:38:03.613244Z'
-updated: '2026-08-13T03:28:10.863277Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-13T03:31:21.508749Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -17,7 +13,6 @@ tags:
 - react-frontend
 effort: half a day
 assignment:
-  owner: codex
   eligible: []
 parent: task-095-react-phase-1-foundation
 spec:
@@ -160,7 +155,8 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-083-react-scaffold
-  status: active
+  status: merged
+  merged_at: '2026-08-13T03:31:21.440326Z'
 log:
 - id: 1
   ts: '2026-08-13T02:58:34.037029Z'
@@ -333,3 +329,26 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 10
+  ts: '2026-08-13T03:31:21.480095Z'
+  actor: codex
+  type: progress
+  body: Jeff Posey approved through the AgentJobs UI. Rebased the feature branch onto
+    main as fadc501, reran `poetry run pytest` (568/568 passed) and `npm run check`
+    (oxlint, TypeScript, and Vite build passed), then merged with --no-ff as 4cc84f5.
+    Removed C:/projects/aj-083 and deleted the merged local feature branch. Ran `npm
+    ci` and `npm run check` in main/frontend, then restarted AgentJobs from main.
+    The restart wrapper timed out after 60 seconds, but `agentjobs status` confirmed
+    PID 115924 and direct requests returned 200 for the SPA deep link, its hashed
+    JavaScript asset, and the Jinja dashboard. No push was performed.
+  data: {}
+- id: 11
+  ts: '2026-08-13T03:31:21.508654Z'
+  actor: codex
+  type: transition
+  body: 'Completed after explicit human approval: merged task 083 into main as 4cc84f5,
+    verified the merged production SPA and Jinja UI, removed the worktree and local
+    feature branch, and left the server running from main. No push was performed.'
+  data:
+    lifecycle: closed
+    outcome: completed
