@@ -89,6 +89,15 @@ Repeat until the exit condition in section 5:
    trusting a running one: `poetry run agentjobs restart`.
 7. **Log a `progress` entry** saying what was done, what was verified and how, and
    what remains. Write for a reader with no access to this session.
+
+   **Name the method, not the outcome.** "Verified the deep link" and "ran
+   `curl -I http://localhost:8765/app/p/agentjobs/tasks/task-042 | head -1` and got
+   `200`" read the same to you and completely differently to a reviewer. Write the
+   second. And where an acceptance criterion asks for something you could not
+   actually do — driving a real browser, checking a layout by eye — **say that you
+   could not, and say what you did instead.** An unmet criterion honestly reported
+   costs one review round trip. One reported as met costs the trust in every other
+   line of the log, including the true ones.
 8. **Close out** according to `MERGE_AUTHORIZATION`:
    - `per-task-review` → `handoff` to `human` / `review` with a self-contained
      `ball_prompt`, commit that to `main`, **stop the loop entirely**, and report.
