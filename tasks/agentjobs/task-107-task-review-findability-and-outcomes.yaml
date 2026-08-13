@@ -1,0 +1,88 @@
+schema: 2
+id: task-107-task-review-findability-and-outcomes
+title: Make task review searchable and outcome-accurate
+created: '2026-08-13T22:23:56.414109Z'
+updated: '2026-08-13T22:23:56.414853Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- react-frontend
+- review
+- search
+- outcomes
+effort: half a day
+assignment:
+  eligible: []
+spec:
+  summary: 'Fix the review problems exposed by the task-corpus audit: task-number
+    searches return nothing, long detail pages are difficult to find text within,
+    and closed superseded/cancelled/duplicate tasks appear as generic Done on listing
+    surfaces.'
+  intent: A corpus audit is only useful if a human can navigate and verify it. During
+    task 103 review, Jeff could not search for task 058 by number, could not reliably
+    use Ctrl+F to locate content in the long task page, and saw Done on the main surface
+    even though task 058 was Superseded on detail.
+  description: 'Treat these as one task-review usability pass. Make both the React
+    list search and API search match full or partial task IDs, including numeric fragments
+    such as 058. Give long task-detail logs a clear one-action way to expose all entry
+    text for browser find, scanning, and copying without manually opening each disclosure.
+    Preserve the actual closed outcome everywhere a task status is summarized: Completed,
+    Superseded, Cancelled, and Duplicate are different durable facts and must not
+    collapse to Done. Reproduce against task 103 and superseded task 058 in a real
+    browser.'
+  constraints: "- Search must match task id as well as title/content; \058 and \t\
+    ask-058 both find task-058-multi-project-gui.\n- Do not remove collapsing entirely\
+    \ if it makes long tasks unreadable; provide an obvious expand-all/findable mode.\n\
+    - Use the backend display_status/outcome contract rather than deriving a conflicting\
+    \ closed label in React.\n- Outcome-specific labels must be consistent on the\
+    \ dashboard, task list, hierarchy/dependency displays, and detail page.\n- Add\
+    \ focused component/API tests and a real-browser verification path."
+  out_of_scope: Redesigning the complete dashboard, changing outcome semantics, or
+    implementing a general search engine.
+  context:
+  - path: frontend/src/components/TaskList.tsx
+    why: Current client-side search matches title only.
+  - path: src/agentjobs/storage.py
+    why: API full-text search omits task.id.
+  - path: frontend/src/components/TaskDetail.tsx
+    why: Long log bodies are individually collapsed, making page-level review difficult.
+  - path: frontend/src/components/DependencyState.tsx
+    why: Closed tasks are currently collapsed to the literal label Done.
+  - path: src/agentjobs/models_v2.py
+    why: Canonical display_status already preserves the actual closed outcome.
+acceptance:
+- id: ac-1
+  text: React task-list search matches full and partial task IDs, including numeric
+    fragments
+  status: pending
+- id: ac-2
+  text: API task search includes task IDs in its searchable fields
+  status: pending
+- id: ac-3
+  text: one visible action exposes all long task-detail log text so browser find and
+    copying work without opening entries individually
+  status: pending
+- id: ac-4
+  text: completed, superseded, cancelled, and duplicate outcomes remain distinguishable
+    on every summary surface
+  status: pending
+- id: ac-5
+  text: component and API tests cover id search, expand-all behavior, and outcome
+    labels
+  status: pending
+- id: ac-6
+  text: real-browser review of tasks 103 and 058 confirms the audit can be navigated
+    and 058 is visibly Superseded
+  status: pending
+deliverables: []
+dependencies:
+- task: task-103-agentjobs-task-corpus-audit
+  type: related
+  note: Jeff reported all three issues while reviewing the completed corpus audit.
+links: []
+branches: []
+log: []
