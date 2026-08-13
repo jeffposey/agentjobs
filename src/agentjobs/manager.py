@@ -9,7 +9,8 @@ Callers never write the axes directly.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from .models_v2 import (
     Ball,
@@ -28,6 +29,17 @@ from .storage import TaskLoadError, TaskStorage
 
 if TYPE_CHECKING:
     from .webhooks import WebhookManager
+
+
+@dataclass(frozen=True)
+class DependencyFacts:
+    """Read-only dependency state for one task."""
+
+    unmet_needs: Tuple[str, ...]
+    actionable: bool
+    needs_cycles: Tuple[Tuple[str, ...], ...]
+    unblocks_count: int
+    open_children_count: int
 
 
 class TaskNotFoundError(ValueError):
@@ -133,6 +145,97 @@ class TaskManager:
             elif not states[dep.task]:
                 unmet.append(f"{dep.task} (still open)")
         return unmet
+
+    @staticmethod
+    def _needs_cycles(tasks: List[Task]) -> Dict[str, Tuple[Tuple[str, ...], ...]]:
+        """Return every directed ``needs`` cycle, indexed by each member.
+
+        Missing ids are not vertices: ``_unmet_needs`` already names those. DFS
+        records a finite path and never follows an active vertex recursively, so a
+        malformed graph cannot make a read recurse forever.
+        """
+
+        by_id = {task.id: task for task in tasks}
+        edges = {
+            task.id: sorted(
+                dependency.task
+                for dependency in task.dependencies
+                if dependency.type is DependencyType.NEEDS and dependency.task in by_id
+            )
+            for task in tasks
+        }
+        state: Dict[str, int] = {task_id: 0 for task_id in by_id}
+        stack: List[str] = []
+        positions: Dict[str, int] = {}
+        cycles: set[Tuple[str, ...]] = set()
+
+        def canonical(path: List[str]) -> Tuple[str, ...]:
+            members = path[:-1]
+            rotations = [tuple(members[index:] + members[:index]) for index in range(len(members))]
+            chosen = min(rotations)
+            return (*chosen, chosen[0])
+
+        def visit(task_id: str) -> None:
+            state[task_id] = 1
+            positions[task_id] = len(stack)
+            stack.append(task_id)
+            for needed_id in edges[task_id]:
+                if state[needed_id] == 0:
+                    visit(needed_id)
+                elif state[needed_id] == 1:
+                    cycles.add(canonical(stack[positions[needed_id] :] + [needed_id]))
+            stack.pop()
+            positions.pop(task_id)
+            state[task_id] = 2
+
+        for task_id in sorted(by_id):
+            if state[task_id] == 0:
+                visit(task_id)
+
+        indexed: Dict[str, List[Tuple[str, ...]]] = {task_id: [] for task_id in by_id}
+        for cycle in sorted(cycles):
+            for task_id in cycle[:-1]:
+                indexed[task_id].append(cycle)
+        return {task_id: tuple(task_cycles) for task_id, task_cycles in indexed.items()}
+
+    def dependency_facts(self, tasks: Optional[List[Task]] = None) -> Dict[str, DependencyFacts]:
+        """Compute the claim gate, reverse impact, and cycle errors once."""
+
+        project_tasks = tasks if tasks is not None else self.storage.list_tasks()
+        states = self._dependency_states()
+        open_children = self._open_children()
+        open_children_counts: Dict[str, int] = {}
+        for candidate in project_tasks:
+            if candidate.parent and candidate.is_open:
+                open_children_counts[candidate.parent] = (
+                    open_children_counts.get(candidate.parent, 0) + 1
+                )
+        cycles = self._needs_cycles(project_tasks)
+        reverse_open_needs: Dict[str, int] = {}
+        for task in project_tasks:
+            if not task.is_open:
+                continue
+            for dependency in task.dependencies:
+                if dependency.type is DependencyType.NEEDS:
+                    reverse_open_needs[dependency.task] = (
+                        reverse_open_needs.get(dependency.task, 0) + 1
+                    )
+
+        facts: Dict[str, DependencyFacts] = {}
+        for task in project_tasks:
+            unmet_needs = tuple(self._unmet_needs(task, states))
+            facts[task.id] = DependencyFacts(
+                unmet_needs=unmet_needs,
+                actionable=(
+                    task.lifecycle is Lifecycle.READY
+                    and not unmet_needs
+                    and task.id not in open_children
+                ),
+                needs_cycles=cycles.get(task.id, ()),
+                unblocks_count=reverse_open_needs.get(task.id, 0),
+                open_children_count=open_children_counts.get(task.id, 0),
+            )
+        return facts
 
     def get_subtasks(self, task_id: str) -> List[Task]:
         """The tasks whose ``parent`` is this one, ordered by id.

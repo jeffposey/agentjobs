@@ -105,6 +105,32 @@ def test_list_tasks_with_filters(api_client) -> None:
     assert response.json() == []
 
 
+def test_task_list_exposes_plain_dependency_state(api_client) -> None:
+    client, manager = api_client
+    prerequisite = manager.create_task(
+        id="task-prerequisite",
+        title="Prerequisite",
+        description="First.",
+        category="ops",
+        lifecycle=Lifecycle.READY,
+    )
+    manager.create_task(
+        id="task-dependent",
+        title="Dependent",
+        description="Second.",
+        category="ops",
+        lifecycle=Lifecycle.READY,
+        dependencies=[{"task": prerequisite.id, "type": "needs"}],
+    )
+
+    rows = {task["id"]: task for task in client.get("/api/tasks").json()}
+
+    assert rows[prerequisite.id]["actionable"] is True
+    assert rows[prerequisite.id]["unblocks_count"] == 1
+    assert rows["task-dependent"]["actionable"] is False
+    assert rows["task-dependent"]["unmet_needs"] == ["task-prerequisite (still open)"]
+
+
 def test_task_responses_carry_display_status(api_client) -> None:
     """The API serves the computed label so surfaces stop deriving their own."""
     client, manager = api_client

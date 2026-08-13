@@ -2,10 +2,10 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
-import type { BrokenTaskFile, Task } from "../api/generated";
+import type { BrokenTaskFile, TaskRead } from "../api/generated";
 import { TaskList } from "./TaskList";
 
-function task(id: string, overrides: Partial<Task> = {}): Task {
+function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {
   return {
     schema: 2,
     id,
@@ -30,7 +30,7 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}{location.search}</output>;
 }
 
-function renderList(tasks: Array<Task>, entry = "/p/inbox/tasks", brokenFiles: Array<BrokenTaskFile> = []) {
+function renderList(tasks: Array<TaskRead>, entry = "/p/inbox/tasks", brokenFiles: Array<BrokenTaskFile> = []) {
   render(
     <MemoryRouter initialEntries={[entry]}>
       <TaskList tasks={tasks} brokenFiles={brokenFiles} projectId="inbox" />
@@ -100,5 +100,26 @@ describe("TaskList filtering", () => {
 
     const warning = screen.getByRole("region", { name: "Unreadable task files" });
     expect(warning).toHaveTextContent("task-broken.yaml — schema: Input should be 2");
+  });
+
+  it("explains dependency blocks in words on the task row", () => {
+    renderList([task("task-blocked", {
+      actionable: false,
+      unmet_needs: ["task-prerequisite (still open)"],
+    })]);
+
+    const rows = screen.getByRole("region", { name: "Tasks" });
+    expect(within(rows).getByText("Blocked")).toBeVisible();
+    expect(within(rows).getByText("Waiting for task-prerequisite (still open)")).toBeVisible();
+  });
+
+  it("explains why an umbrella is not actionable", () => {
+    renderList([task("task-umbrella", {
+      actionable: false,
+      open_children_count: 2,
+    })]);
+
+    expect(screen.getByText("Waiting on sub-tasks")).toBeVisible();
+    expect(screen.getByText("2 open sub-tasks must finish first.")).toBeVisible();
   });
 });

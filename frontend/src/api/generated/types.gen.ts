@@ -230,11 +230,11 @@ export type DashboardResponse = {
     /**
      * Active Tasks
      */
-    active_tasks: Array<Task>;
+    active_tasks: Array<TaskRead>;
     /**
      * Backlog Tasks
      */
-    backlog_tasks: Array<Task>;
+    backlog_tasks: Array<TaskRead>;
     /**
      * Broken Files
      */
@@ -243,7 +243,7 @@ export type DashboardResponse = {
      * Next Action
      */
     next_action: 'blocked' | 'backlog' | 'next_up' | 'nothing_claimable' | 'empty_project';
-    next_task: Task | null;
+    next_task: TaskRead | null;
     /**
      * Recent Updates
      */
@@ -252,7 +252,7 @@ export type DashboardResponse = {
     /**
      * Waiting Tasks
      */
-    waiting_tasks: Array<Task>;
+    waiting_tasks: Array<TaskRead>;
 };
 
 /**
@@ -334,6 +334,38 @@ export type Dependency = {
      */
     task: string;
     type?: DependencyType;
+};
+
+/**
+ * DependencyRelation
+ *
+ * Resolved dependency relation shown on a task detail page.
+ */
+export type DependencyRelation = {
+    /**
+     * Exists
+     */
+    exists: boolean;
+    /**
+     * Note
+     */
+    note: string | null;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * State
+     */
+    state: 'open' | 'done' | 'missing';
+    /**
+     * Task Id
+     */
+    task_id: string;
+    /**
+     * Title
+     */
+    title: string | null;
 };
 
 /**
@@ -801,6 +833,42 @@ export type ReviewIdentity = {
 };
 
 /**
+ * ScopedDependencyEdge
+ *
+ * A sequence arrow in one umbrella's contained task graph.
+ */
+export type ScopedDependencyEdge = {
+    /**
+     * Note
+     */
+    note: string | null;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Source Contained
+     */
+    source_contained: boolean;
+    /**
+     * Source Exists
+     */
+    source_exists: boolean;
+    /**
+     * Target
+     */
+    target: string;
+    /**
+     * Target Contained
+     */
+    target_contained: boolean;
+    /**
+     * Target Exists
+     */
+    target_exists: boolean;
+};
+
+/**
  * Spec
  *
  * The specification, split along the questions agents actually ask.
@@ -1095,12 +1163,164 @@ export type TaskCreateRequest = {
  */
 export type TaskDetailResponse = {
     /**
+     * Blocks
+     */
+    blocks: Array<DependencyRelation>;
+    /**
+     * Child Dependency Edges
+     */
+    child_dependency_edges: Array<ScopedDependencyEdge>;
+    /**
      * Children
      */
-    children: Array<Task>;
+    children: Array<TaskRead>;
     identity: ReviewIdentity;
-    parent_task: Task | null;
-    task: Task;
+    /**
+     * Needs
+     */
+    needs: Array<DependencyRelation>;
+    parent_task: TaskRead | null;
+    task: TaskRead;
+};
+
+/**
+ * TaskRead
+ *
+ * Task plus server-computed dependency state for read surfaces.
+ */
+export type TaskRead = {
+    /**
+     * Acceptance
+     */
+    acceptance?: Array<AcceptanceCriterion>;
+    /**
+     * Actionable
+     */
+    actionable?: boolean;
+    /**
+     * Archived
+     *
+     * Visibility flag, orthogonal to how the task ended.
+     */
+    archived?: boolean;
+    assignment?: Assignment;
+    /**
+     * Who acts next. Required while open.
+     */
+    ball?: Ball | null;
+    /**
+     * Ball Prompt
+     *
+     * The ask, addressed to whoever holds the ball. Required when ball is set.
+     */
+    ball_prompt?: string | null;
+    /**
+     * Why they hold it, scoped to the holder.
+     */
+    ball_reason?: BallReason | null;
+    /**
+     * Branches
+     */
+    branches?: Array<Branch>;
+    /**
+     * Category
+     *
+     * Project taxonomy; validated against config.
+     */
+    category: string;
+    /**
+     * Created
+     */
+    created: string;
+    /**
+     * Deliverables
+     */
+    deliverables?: Array<Deliverable>;
+    /**
+     * Dependencies
+     */
+    dependencies?: Array<Dependency>;
+    /**
+     * Display Status
+     *
+     * One human-readable label, derived on read and never stored.
+     *
+     * Storing it was rejected in design doc section 3: a denormalized copy of three
+     * fields is a drift bug waiting for its moment, and the derivation is this.
+     * A computed field rather than a plain property so API responses carry it;
+     * storage excludes it on write, and a file that contains it is rejected by
+     * name (extra="forbid") rather than silently round-tripped.
+     */
+    readonly display_status: string;
+    /**
+     * Effort
+     *
+     * Free text. An estimate, not a contract.
+     */
+    effort?: string | null;
+    /**
+     * Id
+     *
+     * Unique task identifier.
+     */
+    id: string;
+    lifecycle?: Lifecycle;
+    /**
+     * Links
+     */
+    links?: Array<Link>;
+    /**
+     * Log
+     */
+    log?: Array<LogEntry>;
+    /**
+     * Needs Cycles
+     */
+    needs_cycles?: Array<Array<string>>;
+    /**
+     * Open Children Count
+     */
+    open_children_count?: number;
+    /**
+     * How it ended. Set only when closed.
+     */
+    outcome?: Outcome | null;
+    /**
+     * Parent
+     *
+     * Task id of the umbrella task, if any.
+     */
+    parent?: string | null;
+    priority?: Priority;
+    /**
+     * Schema
+     *
+     * Schema version stamp. Always 2 for this model (D3).
+     */
+    schema?: number;
+    spec: Spec;
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Title
+     *
+     * Task title.
+     */
+    title: string;
+    /**
+     * Unblocks Count
+     */
+    unblocks_count?: number;
+    /**
+     * Unmet Needs
+     */
+    unmet_needs?: Array<string>;
+    /**
+     * Updated
+     */
+    updated: string;
 };
 
 /**
@@ -1265,11 +1485,11 @@ export type DashboardResponseWritable = {
     /**
      * Active Tasks
      */
-    active_tasks: Array<TaskWritable>;
+    active_tasks: Array<TaskReadWritable>;
     /**
      * Backlog Tasks
      */
-    backlog_tasks: Array<TaskWritable>;
+    backlog_tasks: Array<TaskReadWritable>;
     /**
      * Broken Files
      */
@@ -1278,7 +1498,7 @@ export type DashboardResponseWritable = {
      * Next Action
      */
     next_action: 'blocked' | 'backlog' | 'next_up' | 'nothing_claimable' | 'empty_project';
-    next_task: TaskWritable | null;
+    next_task: TaskReadWritable | null;
     /**
      * Recent Updates
      */
@@ -1287,7 +1507,7 @@ export type DashboardResponseWritable = {
     /**
      * Waiting Tasks
      */
-    waiting_tasks: Array<TaskWritable>;
+    waiting_tasks: Array<TaskReadWritable>;
 };
 
 /**
@@ -1418,12 +1638,152 @@ export type TaskWritable = {
  */
 export type TaskDetailResponseWritable = {
     /**
+     * Blocks
+     */
+    blocks: Array<DependencyRelation>;
+    /**
+     * Child Dependency Edges
+     */
+    child_dependency_edges: Array<ScopedDependencyEdge>;
+    /**
      * Children
      */
-    children: Array<TaskWritable>;
+    children: Array<TaskReadWritable>;
     identity: ReviewIdentity;
-    parent_task: TaskWritable | null;
-    task: TaskWritable;
+    /**
+     * Needs
+     */
+    needs: Array<DependencyRelation>;
+    parent_task: TaskReadWritable | null;
+    task: TaskReadWritable;
+};
+
+/**
+ * TaskRead
+ *
+ * Task plus server-computed dependency state for read surfaces.
+ */
+export type TaskReadWritable = {
+    /**
+     * Acceptance
+     */
+    acceptance?: Array<AcceptanceCriterion>;
+    /**
+     * Actionable
+     */
+    actionable?: boolean;
+    /**
+     * Archived
+     *
+     * Visibility flag, orthogonal to how the task ended.
+     */
+    archived?: boolean;
+    assignment?: Assignment;
+    /**
+     * Who acts next. Required while open.
+     */
+    ball?: Ball | null;
+    /**
+     * Ball Prompt
+     *
+     * The ask, addressed to whoever holds the ball. Required when ball is set.
+     */
+    ball_prompt?: string | null;
+    /**
+     * Why they hold it, scoped to the holder.
+     */
+    ball_reason?: BallReason | null;
+    /**
+     * Branches
+     */
+    branches?: Array<Branch>;
+    /**
+     * Category
+     *
+     * Project taxonomy; validated against config.
+     */
+    category: string;
+    /**
+     * Created
+     */
+    created: string;
+    /**
+     * Deliverables
+     */
+    deliverables?: Array<Deliverable>;
+    /**
+     * Dependencies
+     */
+    dependencies?: Array<Dependency>;
+    /**
+     * Effort
+     *
+     * Free text. An estimate, not a contract.
+     */
+    effort?: string | null;
+    /**
+     * Id
+     *
+     * Unique task identifier.
+     */
+    id: string;
+    lifecycle?: Lifecycle;
+    /**
+     * Links
+     */
+    links?: Array<Link>;
+    /**
+     * Log
+     */
+    log?: Array<LogEntry>;
+    /**
+     * Needs Cycles
+     */
+    needs_cycles?: Array<Array<string>>;
+    /**
+     * Open Children Count
+     */
+    open_children_count?: number;
+    /**
+     * How it ended. Set only when closed.
+     */
+    outcome?: Outcome | null;
+    /**
+     * Parent
+     *
+     * Task id of the umbrella task, if any.
+     */
+    parent?: string | null;
+    priority?: Priority;
+    /**
+     * Schema
+     *
+     * Schema version stamp. Always 2 for this model (D3).
+     */
+    schema?: number;
+    spec: Spec;
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Title
+     *
+     * Task title.
+     */
+    title: string;
+    /**
+     * Unblocks Count
+     */
+    unblocks_count?: number;
+    /**
+     * Unmet Needs
+     */
+    unmet_needs?: Array<string>;
+    /**
+     * Updated
+     */
+    updated: string;
 };
 
 export type GetAllTasksApiAllTasksGetData = {
@@ -1740,7 +2100,7 @@ export type ListTasksApiProjectsProjectIdTasksGetResponses = {
      *
      * Successful Response
      */
-    200: Array<Task>;
+    200: Array<TaskRead>;
 };
 
 export type ListTasksApiProjectsProjectIdTasksGetResponse = ListTasksApiProjectsProjectIdTasksGetResponses[keyof ListTasksApiProjectsProjectIdTasksGetResponses];
@@ -2583,7 +2943,7 @@ export type ListTasksApiTasksGetResponses = {
      *
      * Successful Response
      */
-    200: Array<Task>;
+    200: Array<TaskRead>;
 };
 
 export type ListTasksApiTasksGetResponse = ListTasksApiTasksGetResponses[keyof ListTasksApiTasksGetResponses];

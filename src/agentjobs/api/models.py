@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from agentjobs.manager import DependencyFacts
 from agentjobs.models_v2 import (
     AcceptanceCriterion,
     Ball,
@@ -22,6 +23,53 @@ from agentjobs.models_v2 import (
     Spec,
     Task,
 )
+
+
+class TaskRead(Task):
+    """Task plus server-computed dependency state for read surfaces."""
+
+    unmet_needs: List[str] = Field(default_factory=list)
+    actionable: bool = False
+    needs_cycles: List[List[str]] = Field(default_factory=list)
+    unblocks_count: int = 0
+    open_children_count: int = 0
+
+    @classmethod
+    def from_task(cls, task: Task, facts: DependencyFacts) -> "TaskRead":
+        """Attach dependency facts without changing the persisted task schema."""
+        return cls.model_validate(
+            {
+                **task.model_dump(exclude={"display_status"}),
+                "unmet_needs": list(facts.unmet_needs),
+                "actionable": facts.actionable,
+                "needs_cycles": [list(cycle) for cycle in facts.needs_cycles],
+                "unblocks_count": facts.unblocks_count,
+                "open_children_count": facts.open_children_count,
+            }
+        )
+
+
+class DependencyRelation(BaseModel):
+    """Resolved dependency relation shown on a task detail page."""
+
+    task_id: str
+    title: Optional[str]
+    exists: bool
+    state: Literal["open", "done", "missing"]
+    note: Optional[str]
+    reason: str
+
+
+class ScopedDependencyEdge(BaseModel):
+    """A sequence arrow in one umbrella's contained task graph."""
+
+    source: str
+    target: str
+    note: Optional[str]
+    source_exists: bool
+    target_exists: bool
+    source_contained: bool
+    target_contained: bool
 
 
 class DashboardStats(BaseModel):
@@ -65,11 +113,11 @@ class DashboardResponse(BaseModel):
     """The complete Python-computed dashboard contract."""
 
     stats: DashboardStats
-    active_tasks: List[Task]
+    active_tasks: List[TaskRead]
     recent_updates: List[DashboardRecentUpdate]
-    waiting_tasks: List[Task]
-    backlog_tasks: List[Task]
-    next_task: Optional[Task]
+    waiting_tasks: List[TaskRead]
+    backlog_tasks: List[TaskRead]
+    next_task: Optional[TaskRead]
     next_action: Literal["blocked", "backlog", "next_up", "nothing_claimable", "empty_project"]
     broken_files: List[BrokenTaskFile]
 
@@ -86,9 +134,12 @@ class ReviewIdentity(BaseModel):
 class TaskDetailResponse(BaseModel):
     """Everything the React detail page needs to resume and review one task."""
 
-    task: Task
-    parent_task: Optional[Task]
-    children: List[Task]
+    task: TaskRead
+    parent_task: Optional[TaskRead]
+    children: List[TaskRead]
+    needs: List[DependencyRelation]
+    blocks: List[DependencyRelation]
+    child_dependency_edges: List[ScopedDependencyEdge]
     identity: ReviewIdentity
 
 

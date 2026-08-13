@@ -9,19 +9,53 @@ from pydantic import BaseModel, Field
 
 from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.manager import TaskManager, TaskNotFoundError
-from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Outcome, Priority, Task
+from agentjobs.models_v2 import (
+    Ball,
+    BallReason,
+    DependencyType,
+    Lifecycle,
+    Outcome,
+    Priority,
+    Task,
+)
 
 from ..dependencies import current_identity, get_project, get_task_manager, project_config
 from ..models import (
     BrokenTaskFile,
+    DependencyRelation,
     HumanActionResponse,
     ReviewIdentity,
+    ScopedDependencyEdge,
     TaskCreateRequest,
     TaskDetailResponse,
+    TaskRead,
     TaskUpdateRequest,
 )
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+
+def _read_tasks(manager: TaskManager, tasks: List[Task]) -> List[TaskRead]:
+    facts = manager.dependency_facts()
+    return [TaskRead.from_task(task, facts[task.id]) for task in tasks]
+
+
+def _relation(
+    task_id: str,
+    *,
+    by_id: Dict[str, Task],
+    note: Optional[str],
+    reason: str,
+) -> DependencyRelation:
+    target = by_id.get(task_id)
+    return DependencyRelation(
+        task_id=task_id,
+        title=target.title if target else None,
+        exists=target is not None,
+        state="missing" if target is None else ("open" if target.is_open else "done"),
+        note=note,
+        reason=reason,
+    )
 
 
 def acting_user(project: Any, user: str) -> str:
@@ -49,7 +83,7 @@ def acting_user(project: Any, user: str) -> str:
     return validated
 
 
-@router.get("", response_model=List[Task])
+@router.get("", response_model=List[TaskRead])
 async def list_tasks(
     lifecycle: Optional[Lifecycle] = None,
     ball: Optional[Ball] = None,
@@ -58,16 +92,17 @@ async def list_tasks(
         default=None, description="Return only the children of this umbrella task."
     ),
     manager: TaskManager = Depends(get_task_manager),
-) -> List[Task]:
+) -> List[TaskRead]:
     """List tasks filtered along the state axes.
 
     ``?ball=human`` is the human inbox: everything waiting on a person, each row
     carrying its ``ball_prompt``. ``?ball=external`` is the blocked list.
     ``?parent=task-063-schema-v2`` is one umbrella's children.
     """
-    return manager.list_tasks(
+    tasks = manager.list_tasks(
         lifecycle=lifecycle, ball=ball, priority=priority_filter, parent=parent
     )
+    return _read_tasks(manager, tasks)
 
 
 @router.get("/broken", response_model=List[BrokenTaskFile])
@@ -107,10 +142,81 @@ async def get_task_detail(
             detail=f"Task {task_id} not found",
         )
     identity = current_identity(project)
+    tasks = manager.list_tasks()
+    by_id = {candidate.id: candidate for candidate in tasks}
+    facts = manager.dependency_facts(tasks)
+    children = manager.get_subtasks(task_id)
+    child_ids = {child.id for child in children}
+    needs = [
+        _relation(
+            dependency.task,
+            by_id=by_id,
+            note=dependency.note,
+            reason=(
+                f"Needs {dependency.task}; it is not a task in this project."
+                if dependency.task not in by_id
+                else (
+                    f"Needs {dependency.task}; it is still open."
+                    if by_id[dependency.task].is_open
+                    else f"Needs {dependency.task}; it is done."
+                )
+            ),
+        )
+        for dependency in task.dependencies
+        if dependency.type is DependencyType.NEEDS
+    ]
+    blocks = [
+        _relation(
+            candidate.id,
+            by_id=by_id,
+            note=dependency.note,
+            reason=f"{candidate.id} needs this task.",
+        )
+        for candidate in tasks
+        for dependency in candidate.dependencies
+        if dependency.type is DependencyType.NEEDS and dependency.task == task.id
+    ]
+    blocks.extend(
+        _relation(
+            dependency.task,
+            by_id=by_id,
+            note=dependency.note,
+            reason=f"This task declares that it blocks {dependency.task}.",
+        )
+        for dependency in task.dependencies
+        if dependency.type is DependencyType.BLOCKS
+    )
+    child_dependency_edges = []
+    for child in children:
+        for dependency in child.dependencies:
+            if dependency.type is DependencyType.NEEDS:
+                source, target = dependency.task, child.id
+            elif dependency.type is DependencyType.BLOCKS:
+                source, target = child.id, dependency.task
+            else:
+                continue
+            child_dependency_edges.append(
+                ScopedDependencyEdge(
+                    source=source,
+                    target=target,
+                    note=dependency.note,
+                    source_exists=source in by_id,
+                    target_exists=target in by_id,
+                    source_contained=source in child_ids,
+                    target_contained=target in child_ids,
+                )
+            )
     return TaskDetailResponse(
-        task=task,
-        parent_task=manager.get_task(task.parent) if task.parent else None,
-        children=manager.get_subtasks(task_id),
+        task=TaskRead.from_task(task, facts[task.id]),
+        parent_task=(
+            TaskRead.from_task(by_id[task.parent], facts[task.parent])
+            if task.parent and task.parent in by_id
+            else None
+        ),
+        children=[TaskRead.from_task(child, facts[child.id]) for child in children],
+        needs=needs,
+        blocks=blocks,
+        child_dependency_edges=child_dependency_edges,
         identity=ReviewIdentity(
             ok=identity.ok,
             user=identity.user,

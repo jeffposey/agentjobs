@@ -2,10 +2,10 @@ import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
-import type { DashboardResponse, Task } from "../api/generated";
+import type { DashboardResponse, TaskRead } from "../api/generated";
 import { Dashboard } from "./Dashboard";
 
-function task(id: string, overrides: Partial<Task> = {}): Task {
+function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {
   return {
     schema: 2,
     id,
@@ -143,6 +143,24 @@ describe("Dashboard next-action ladder", () => {
       "/p/inbox/tasks?status=draft",
     );
     expect(within(screen.getByTestId("next-action")).queryByText(/Backlog awaiting your input/)).not.toBeInTheDocument();
+  });
+
+  it("explains a dependency block on an active task card", () => {
+    renderDashboard(dashboard({
+      active_tasks: [task("task-waiting", {
+        actionable: false,
+        unmet_needs: ["task-first (still open)"],
+      })],
+    }));
+
+    expect(screen.getByText("Waiting for task-first (still open)")).toBeVisible();
+  });
+
+  it("keeps a human-held active card in review instead of calling it in flight", () => {
+    renderDashboard(dashboard({ active_tasks: [blocked] }));
+
+    expect(screen.getByText("Waiting for review")).toBeVisible();
+    expect(screen.queryByText("In flight")).not.toBeInTheDocument();
   });
 });
 

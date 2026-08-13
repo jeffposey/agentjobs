@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
 
-import type { DashboardResponse, Task } from "../api/generated";
+import type { DashboardResponse, TaskRead } from "../api/generated";
 import { BrokenFiles } from "./BrokenFiles";
+import { DependencyState } from "./DependencyState";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 
 type DashboardProps = {
@@ -33,7 +34,7 @@ function Badge({ children, className = "" }: { children: React.ReactNode; classN
   );
 }
 
-function TaskCard({ task, projectId }: { task: Task; projectId: string }) {
+function TaskCard({ task, projectId }: { task: TaskRead; projectId: string }) {
   return (
     <Link
       to={projectPath(projectId, `/tasks/${encodeURIComponent(task.id)}`)}
@@ -48,7 +49,7 @@ function TaskCard({ task, projectId }: { task: Task; projectId: string }) {
           <Badge className={priorityClasses[task.priority ?? "medium"] ?? priorityClasses.medium}>
             {task.priority ?? "medium"}
           </Badge>
-          <Badge className="bg-dark-bg text-dark-muted">{task.display_status}</Badge>
+          <DependencyState task={task} compact />
         </div>
       </div>
     </Link>
