@@ -11,8 +11,12 @@ npm run check
 
 `npm run check` is the frontend gate. It first exports FastAPI's OpenAPI document
 directly from the application (no running server required), regenerates the checked-in
-client, and fails when either `openapi.json` or `src/api/generated/` is stale. To
-intentionally refresh both artifacts, run `npm run generate:api` and review the diff.
+client, fails when either `openapi.json` or `src/api/generated/` is stale, runs the
+jsdom component suite, and builds the app. The full repository gate is
+`poetry run python scripts/check.py` from the repository root; that is the command to
+run before commit because it includes both pytest and this frontend check. To
+intentionally refresh generated artifacts, run `npm run generate:api` and review the
+diff.
 
 The development server runs at `http://localhost:5173/app/` and proxies `/api` to the
 AgentJobs server at `http://127.0.0.1:8765`. `npm run build` writes the production
@@ -31,10 +35,20 @@ bundle to `frontend/dist/`; FastAPI serves that bundle at `/app`.
 | oxlint | 1.78.0 |
 | `@hey-api/openapi-ts` | 0.97.3 |
 | TanStack Query | 5.101.4 |
+| Vitest | 4.1.10 |
+| React Testing Library / DOM Testing Library | 16.3.2 / 10.4.1 |
+| `@testing-library/jest-dom` | 7.0.1 |
+| jsdom | 30.0.1 |
 
 oxlint is the linter: it is a single fast binary with no plugin-resolution tree, so
-`npm run check` can run it on every change. Vitest is intentionally not installed by
-this scaffold; task 085 owns the test harness and its dependencies.
+`npm run check` can run it on every change.
+
+Vitest and React Testing Library run in jsdom. Checked-in, human-readable API examples
+live under `src/test/fixtures/`, one JSON file per response shape. Tests should assert
+the rendered value a person reads or acts on; the first example verifies the exact task
+count, including its value, rather than merely checking that a paragraph exists.
+Network-boundary mocking and Playwright are deliberately not part of this harness;
+task 094 owns both so component tests do not replace the generated client with a stub.
 
 Tailwind is bundled through its Vite plugin. The stylesheet uses Tailwind 4's
 CSS-first theme variables and a `.dark` custom variant, preserving the Jinja UI's
