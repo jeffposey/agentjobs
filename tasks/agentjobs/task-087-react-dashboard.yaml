@@ -2,13 +2,9 @@ schema: 2
 id: task-087-react-dashboard
 title: React dashboard, including the next-action ladder
 created: '2026-08-11T07:38:05.463116Z'
-updated: '2026-08-13T08:54:05.902069Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Human approved task 087. Preserve the caveat that the broader phase is
-  not yet functional or done; merge and close only this dashboard child, then continue
-  with task 093.
+updated: '2026-08-13T08:54:47.598779Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: ux
@@ -17,7 +13,6 @@ tags:
 - react-frontend
 effort: a day
 assignment:
-  owner: codex
   eligible: []
 parent: task-096-react-phase-2-parity
 spec:
@@ -98,7 +93,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-087-react-dashboard
-  status: active
+  status: merged
+  merged_at: '2026-08-13T08:54:47.550578Z'
 log:
 - id: 1
   ts: '2026-08-13T08:30:23.321787Z'
@@ -214,3 +210,24 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 9
+  ts: '2026-08-13T08:54:47.579526Z'
+  actor: codex
+  type: progress
+  body: 'Human-approved dashboard branch merged into main.
+
+
+    Jeff approved task 087 while explicitly noting that the broader phase is not yet
+    functional or done. Rebased feature commits are dda06d6 and c42fbf5; merge commit
+    is 54aaa2d. Approval applies only to this child. Task 093 remains next and owns
+    the mobile/PWA and reusable interaction patterns needed before the list and detail
+    ports.'
+  data: {}
+- id: 10
+  ts: '2026-08-13T08:54:47.598673Z'
+  actor: codex
+  type: transition
+  body: Closed completed after explicit human approval and no-fast-forward merge 54aaa2d.
+  data:
+    lifecycle: closed
+    outcome: completed
