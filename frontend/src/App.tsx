@@ -3,14 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
 import {
+  getDashboardApiProjectsProjectIdDashboardGetOptions,
   getProjectsApiProjectsGetOptions,
-  listTasksApiProjectsProjectIdTasksGetOptions,
 } from "./api/generated/@tanstack/react-query.gen";
 import {
   requireSupportedTaskSchemas,
   UnsupportedTaskSchemaError,
 } from "./api/schema-version";
-import { TaskCount } from "./components/TaskCount";
+import { Dashboard } from "./components/Dashboard";
 
 function ProjectRedirect() {
   const navigate = useNavigate();
@@ -45,48 +45,62 @@ function ProjectRedirect() {
   );
 }
 
-function ApiProof() {
+function DashboardPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const tasksQuery = useQuery({
-    ...listTasksApiProjectsProjectIdTasksGetOptions({
+  const dashboardQuery = useQuery({
+    ...getDashboardApiProjectsProjectIdDashboardGetOptions({
       path: { project_id: projectId ?? "" },
     }),
     enabled: Boolean(projectId),
-    select: requireSupportedTaskSchemas,
+    select: (dashboard) => {
+      requireSupportedTaskSchemas([
+        ...dashboard.active_tasks,
+        ...dashboard.waiting_tasks,
+        ...dashboard.backlog_tasks,
+        ...(dashboard.next_task ? [dashboard.next_task] : []),
+      ]);
+      return dashboard;
+    },
   });
 
-  if (tasksQuery.error instanceof UnsupportedTaskSchemaError) {
+  if (dashboardQuery.error instanceof UnsupportedTaskSchemaError) {
     return (
       <StatusCard title="Unsupported task schema">
-        <p>{tasksQuery.error.message}</p>
+        <p>{dashboardQuery.error.message}</p>
         <p className="mt-4">Upgrade the UI before viewing this project.</p>
       </StatusCard>
     );
   }
 
+  if (dashboardQuery.isPending) {
+    return <StatusCard title="Opening dashboard...">Loading current project data.</StatusCard>;
+  }
+
+  if (dashboardQuery.isError) {
+    return <StatusCard title="The dashboard could not be loaded">Confirm the local server is running, then reload this page.</StatusCard>;
+  }
+
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl items-center px-4 py-10 sm:px-6">
-      <section className="w-full rounded-2xl border border-dark-border bg-dark-surface p-6 shadow-xl sm:p-10">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-300">React foundation</p>
-        <h1 className="mt-3 text-3xl font-bold text-dark-text sm:text-4xl">AgentJobs is connected</h1>
-        <p className="mt-4 break-all text-dark-muted">
-          Project <span className="font-mono text-dark-text">{projectId}</span>
-        </p>
-        <div className="mt-8 rounded-xl border border-dark-border bg-dark-bg p-5">
-          {tasksQuery.isError ? (
-            <p className="text-red-300">The scoped task API could not be reached.</p>
-          ) : tasksQuery.isPending ? (
-            <p className="text-dark-muted">Loading real project data...</p>
-          ) : (
-            <TaskCount count={tasksQuery.data.length} />
-          )}
-        </div>
-        <p className="mt-6 text-sm leading-6 text-dark-muted">
-          This connection proof is intentionally the only page in phase 1. Product screens follow in later tasks.
-        </p>
-      </section>
-    </main>
+    <div className="flex min-h-screen flex-col bg-dark-bg text-dark-text">
+      <header className="border-b border-dark-border bg-dark-surface">
+        <nav className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-4 sm:px-6 lg:px-8" aria-label="Primary navigation">
+          <h1 className="text-2xl font-bold">AgentJobs</h1>
+          <span className="rounded-md border border-dark-border bg-dark-bg px-3 py-2 font-mono text-xs text-dark-muted">{projectId}</span>
+          <Link to={projectPath(projectId)} className="rounded-md px-3 py-2 text-sm font-medium hover:bg-dark-border">Dashboard</Link>
+          <Link to={projectPath(projectId, "/tasks")} className="rounded-md px-3 py-2 text-sm font-medium hover:bg-dark-border">Tasks</Link>
+          <a href="/docs" className="rounded-md px-3 py-2 text-sm font-medium hover:bg-dark-border">API Docs</a>
+        </nav>
+      </header>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
+        <Dashboard dashboard={dashboardQuery.data} projectId={projectId ?? ""} />
+      </main>
+      <footer className="border-t border-dark-border bg-dark-surface"><div className="mx-auto max-w-7xl px-4 py-4 text-sm text-dark-muted sm:px-6 lg:px-8">AgentJobs © {new Date().getFullYear()}</div></footer>
+    </div>
   );
+}
+
+function projectPath(projectId: string | undefined, path = "") {
+  return `/p/${encodeURIComponent(projectId ?? "")}${path}`;
 }
 
 function StatusCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -104,7 +118,7 @@ export function App() {
   return (
     <Routes>
       <Route index element={<ProjectRedirect />} />
-      <Route path="p/:projectId/*" element={<ApiProof />} />
+      <Route path="p/:projectId/*" element={<DashboardPage />} />
       <Route path="not-found" element={<StatusCard title="Page not found"><Link to="/">Return to AgentJobs</Link></StatusCard>} />
       <Route path="*" element={<Navigate to="/not-found" replace />} />
     </Routes>
