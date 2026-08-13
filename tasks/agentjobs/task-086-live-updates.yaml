@@ -2,15 +2,13 @@ schema: 2
 id: task-086-live-updates
 title: 'Live updates: the view reflects a handoff without a manual refresh'
 created: '2026-08-11T07:38:05.001732Z'
-updated: '2026-08-13T18:19:04.762876Z'
+updated: '2026-08-13T19:19:30.836212Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: 'Choose the Tailscale hosting approach needed for a genuinely separate
-  Android app identity: provision a dedicated tagged Service host (recommended), or
-  explicitly approve converting coruscant from a user-owned node to a tagged server
-  node after reviewing grants/SSH access. Do not approve task 086 yet; the current
-  :8443 URL remains browser-only and still collides with the installed app.'
+ball: agent
+ball_reason: revise
+ball_prompt: Implement the dedicated virtual Tailscale Service host for AgentJobs
+  on coruscant without converting the coruscant node identity. Verify the distinct
+  agentjobs.tailfed1df.ts.net URL, then return for tablet install and resume review.
 archived: false
 priority: high
 category: ux
@@ -376,3 +374,21 @@ log:
   data:
     ball: human
     ball_reason: decision
+- id: 13
+  ts: '2026-08-13T19:19:30.775569Z'
+  actor: Jeff Posey
+  type: answer
+  body: Approved the recommended dedicated tagged Tailscale Service host approach.
+    Keep coruscant as the existing user-owned machine and continue setup on the same
+    physical PC.
+  re: 11
+  data: {}
+- id: 14
+  ts: '2026-08-13T19:19:30.836075Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved dedicated virtual Service host; continue the installation-identity
+    fix.
+  data:
+    ball: agent
+    ball_reason: revise
