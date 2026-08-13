@@ -1,0 +1,88 @@
+schema: 2
+id: task-104-react-readme-screenshots
+title: Stage and capture polished React screenshots for README
+created: '2026-08-13T22:01:57.804546Z'
+updated: '2026-08-13T22:01:57.805207Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: documentation
+tags:
+- react-frontend
+- documentation
+- screenshots
+effort: half a day
+assignment:
+  eligible: []
+spec:
+  summary: Create at least one polished, current screenshot of the React application
+    and restore a strong visual near the top of README.md; use a second phone or tablet
+    image only when it adds distinct product value.
+  intent: The previous README screenshot showed the retired Jinja interface and was
+    removed during the React-first audit without an explicit replacement. AgentJobs
+    now needs an honest, attractive visual that quickly communicates the current browser,
+    tablet, and phone experience.
+  description: Stage a realistic but non-sensitive AgentJobs project that shows the
+    product at its best. Capture candidate views from the packaged React application,
+    prioritizing a desktop dashboard or task view that communicates the project switcher,
+    workflow state, hierarchy, activity, and review model without clutter or broken/demo-looking
+    data. Add at least one selected image near the top of README.md. Consider a second
+    phone or tablet image only if it demonstrates responsive review or task interaction
+    that the primary image does not. Review the actual image files and rendered README
+    placement with Jeff before merge.
+  constraints: '- Use the real packaged React application, not a mockup or the legacy
+    Jinja UI.`n- Use realistic, coherent, non-sensitive staged data; no private paths,
+    people, tokens, or accidental local details.`n- At least one screenshot is required;
+    prefer one excellent hero over a gallery.`n- A second screenshot must communicate
+    a distinct mobile/tablet capability rather than repeat the desktop view.`n- Crop
+    and size images for legibility on GitHub without excessive README height or browser
+    chrome.`n- Include useful alt text and stable repository-relative image paths.`n-
+    At review handoff, link and open the exact worktree README and every candidate/final
+    image.'
+  out_of_scope: Redesigning the React application solely for the screenshot. Fabricated
+    image-generation mockups. Publishing or pushing changes.
+  context:
+  - path: README.md
+    why: Target placement and surrounding product story.
+  - path: frontend/
+    why: Current React application to stage and capture.
+  - path: docs/img/task-063-schema-v2-detail.png
+    why: Superseded legacy screenshot whose former role and retention should be considered.
+acceptance:
+- id: ac-1
+  text: a realistic, non-sensitive staged project presents the current React product
+    clearly
+  status: pending
+- id: ac-2
+  text: README.md contains at least one polished current React screenshot near the
+    product introduction
+  status: pending
+- id: ac-3
+  text: the primary screenshot remains legible at normal GitHub README width and has
+    accurate alt text
+  status: pending
+- id: ac-4
+  text: a second phone or tablet screenshot is included only if it demonstrates distinct
+    responsive capability
+  status: pending
+- id: ac-5
+  text: Jeff reviews the exact worktree README and image files before merge
+  status: pending
+deliverables:
+- path: README.md
+  note: React screenshot placement and accompanying copy.
+  status: pending
+- path: docs/img/agentjobs-react.png
+  note: Required polished React product screenshot; final descriptive filename may
+    be refined before implementation.
+  status: pending
+dependencies:
+- task: task-102-react-first-documentation
+  type: related
+  note: Follows up the React-first audit that removed the obsolete Jinja screenshot
+    without replacing it.
+links: []
+branches: []
+log: []
