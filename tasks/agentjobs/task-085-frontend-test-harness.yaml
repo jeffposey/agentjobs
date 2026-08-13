@@ -2,19 +2,13 @@ schema: 2
 id: task-085-frontend-test-harness
 title: 'Frontend test harness: Vitest, React Testing Library, Playwright'
 created: '2026-08-11T07:38:04.532733Z'
-updated: '2026-08-13T03:58:13.502903Z'
+updated: '2026-08-13T04:20:28.400145Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Review feat/task-085-frontend-test-harness at d99fbf7, with component
-  harness commit a2718ce. Focus on the Vitest and RTL jsdom configuration, human-readable
-  project and rich three-state task fixtures, the TaskCount test asserting the exact
-  rendered value of 3 tasks, and the single root gate poetry run python scripts/check.py
-  documented in ENGINEERING.md and README.md. That gate runs 569 pytest tests plus
-  generated-client verification, oxlint, one Vitest test, and the Vite production
-  build. npm audit reports zero vulnerabilities; Black, Ruff, and mypy for scripts/check.py
-  pass. Playwright and network mocking are intentionally deferred to task 094. Approve
-  or request changes.
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 category: testing
@@ -176,3 +170,11 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 5
+  ts: '2026-08-13T04:20:28.400059Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
