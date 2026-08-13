@@ -161,6 +161,7 @@ with TaskClient() as client:
 - [Installation guide](docs/installation.md)
 - [Mobile and installed-app access](docs/mobile-access.md)
 - [Migration guide](docs/migration-guide.md)
+- [Task corpus audit](docs/task-corpus-audit.md)
 
 ## Development
 
