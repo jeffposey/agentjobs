@@ -2,11 +2,18 @@ schema: 2
 id: task-084-typed-api-client
 title: Generate the TypeScript API client from the OpenAPI schema
 created: '2026-08-11T07:38:04.071238Z'
-updated: '2026-08-13T03:33:51.508558Z'
+updated: '2026-08-13T03:46:16.685749Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: 'Review feat/task-084-typed-api-client at 06e6d26 (with prerequisite
+  API contract fix 2f7da27). Focus on: checked-in OpenAPI/types/Fetch SDK/TanStack
+  Query generation; npm run check stale-client gate; removal of handwritten fetch
+  response types; closed enum compile checks; and visible refusal of Task.schema !=
+  2. Verification: 569 pytest passed; npm run check passed; npm audit found 0 vulnerabilities;
+  Black/Ruff passed; browser normal path rendered 74 real tasks and schema 3 mock
+  rendered only Unsupported task schema. Repository-wide mypy still has the same 5
+  pre-existing errors in tests/test_subtasks.py on main. Approve or request changes.'
 archived: false
 priority: high
 category: developer_experience
@@ -110,27 +117,27 @@ spec:
 acceptance:
 - id: ac-1
   text: TypeScript types are generated from /openapi.json and checked in
-  status: pending
+  status: met
 - id: ac-2
   text: regenerating the client produces no diff, and that check runs from the project's
     single documented check command -- this repository has no CI, so that command
     is the gate
-  status: pending
+  status: met
 - id: ac-3
   text: the closed enums (lifecycle, ball, ball_reason, outcome) are typed such that
     an invalid comparison fails to compile
-  status: pending
+  status: met
 - id: ac-4
   text: TanStack Query is used for data fetching, with the generated client beneath
     it
-  status: pending
+  status: met
 - id: ac-5
   text: a task record stamped with an unknown schema version produces a visible refusal,
     not a partial render
-  status: pending
+  status: met
 - id: ac-6
   text: no hand-written request or response types remain
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-083-react-scaffold
@@ -162,3 +169,28 @@ log:
     documented frontend check command, then verify enum type failures and runtime
     behavior. Usage-window telemetry is not available in this session.'
   data: {}
+- id: 3
+  ts: '2026-08-13T03:46:16.665586Z'
+  actor: codex
+  type: decision
+  body: 'Selected @hey-api/openapi-ts 0.97.3 because it generates closed TypeScript
+    schema types, a Fetch SDK, and TanStack Query v5 options in one deterministic
+    pass and supports the pinned TypeScript 6 toolchain. openapi-typescript was evaluated
+    but its current peer dependency accepts TypeScript 5 only. Pinned TanStack Query
+    5.101.4 and overrode transitive js-yaml to patched 4.3.1 (npm audit: 0 vulnerabilities).'
+  data: {}
+- id: 4
+  ts: '2026-08-13T03:46:16.685667Z'
+  actor: codex
+  type: handoff
+  body: 'Review feat/task-084-typed-api-client at 06e6d26 (with prerequisite API contract
+    fix 2f7da27). Focus on: checked-in OpenAPI/types/Fetch SDK/TanStack Query generation;
+    npm run check stale-client gate; removal of handwritten fetch response types;
+    closed enum compile checks; and visible refusal of Task.schema != 2. Verification:
+    569 pytest passed; npm run check passed; npm audit found 0 vulnerabilities; Black/Ruff
+    passed; browser normal path rendered 74 real tasks and schema 3 mock rendered
+    only Unsupported task schema. Repository-wide mypy still has the same 5 pre-existing
+    errors in tests/test_subtasks.py on main. Approve or request changes.'
+  data:
+    ball: human
+    ball_reason: review
