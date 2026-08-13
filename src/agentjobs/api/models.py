@@ -13,6 +13,7 @@ from agentjobs.models_v2 import (
     Ball,
     BallReason,
     Branch,
+    ContextPointer,
     Deliverable,
     Dependency,
     Lifecycle,
@@ -169,6 +170,10 @@ class TaskCreateRequest(BaseModel):
     out_of_scope: Optional[str] = Field(
         default=None, description="Explicit non-goals (spec.out_of_scope)."
     )
+    context: List[ContextPointer] = Field(
+        default_factory=list,
+        description="Curated read-this-first paths and why each one matters (spec.context).",
+    )
     priority: Priority = Field(
         default=Priority.MEDIUM,
         description="Relative urgency for the new task.",
@@ -216,7 +221,7 @@ class TaskCreateRequest(BaseModel):
         payload = self.model_dump(exclude_none=True, exclude={"eligible"})
         spec = {
             key: payload.pop(key)
-            for key in ("intent", "constraints", "out_of_scope")
+            for key in ("intent", "constraints", "out_of_scope", "context")
             if key in payload
         }
         if spec:

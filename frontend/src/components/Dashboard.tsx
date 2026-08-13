@@ -56,21 +56,14 @@ function TaskCard({ task, projectId }: { task: TaskRead; projectId: string }) {
   );
 }
 
-function CreateTaskUnavailable({ id }: { id: string }) {
+function CreateTaskLink({ projectId }: { projectId: string }) {
   return (
-    <div className="mobile-action-row flex items-center gap-3">
-      <button
-        type="button"
-        disabled
-        aria-describedby={id}
-        className="touch-target cursor-not-allowed rounded-md border border-dark-border bg-dark-bg px-3 py-2 text-sm font-medium text-dark-muted opacity-60"
-      >
-        Create task
-      </button>
-      <span id={id} className="text-xs text-dark-muted">
-        Not yet implemented — arrives with the browser UI (task-090).
-      </span>
-    </div>
+    <Link
+      to={projectPath(projectId, "/tasks/new")}
+      className="touch-target rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
+    >
+      Create task
+    </Link>
   );
 }
 
@@ -185,7 +178,7 @@ function NextAction({ dashboard, projectId }: DashboardProps) {
           <p className="mb-4 text-xs text-dark-muted">
             Every open task is waiting on a dependency, or is an umbrella finished by its children. Adding work is the useful move.
           </p>
-          <CreateTaskUnavailable id="create-task-unavailable" />
+          <CreateTaskLink projectId={projectId} />
         </section>
       );
     case "empty_project":
@@ -199,7 +192,7 @@ function NextAction({ dashboard, projectId }: DashboardProps) {
               <div className="space-y-3 text-sm">
                 <div>
                   <strong className="text-dark-text">For Humans:</strong>
-                  <div className="mt-1"><CreateTaskUnavailable id="create-task-unavailable-empty" /></div>
+                  <div className="mt-1"><CreateTaskLink projectId={projectId} /></div>
                 </div>
                 <div>
                   <strong className="text-dark-text">For AI Agents:</strong>

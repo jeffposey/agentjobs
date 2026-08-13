@@ -1069,6 +1069,12 @@ export type TaskCreateRequest = {
      */
     constraints?: string | null;
     /**
+     * Context
+     *
+     * Curated read-this-first paths and why each one matters (spec.context).
+     */
+    context?: Array<ContextPointer>;
+    /**
      * Deliverables
      *
      * Deliverables to be produced for task completion.

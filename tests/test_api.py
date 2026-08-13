@@ -64,6 +64,40 @@ def test_create_task_success(api_client) -> None:
     assert manager.get_task(body["id"]) is not None
 
 
+def test_create_task_preserves_complete_resumption_spec(api_client) -> None:
+    client, _ = api_client
+    response = client.post(
+        "/api/tasks",
+        json={
+            "title": "Ship browser creation",
+            "summary": "Give a zero-context reader the purpose in one sentence.",
+            "description": "Build and verify the browser form.",
+            "intent": "Creation should not require a terminal.",
+            "constraints": "Use the manager-backed API.",
+            "out_of_scope": "Editing existing tasks.",
+            "context": [
+                {"path": "src/agentjobs/manager.py", "why": "Owns task creation."}
+            ],
+            "lifecycle": "ready",
+        },
+    )
+
+    assert response.status_code == 201
+    task = response.json()
+    assert task["lifecycle"] == "ready"
+    assert task["ball"] == "agent"
+    assert task["spec"] == {
+        "summary": "Give a zero-context reader the purpose in one sentence.",
+        "intent": "Creation should not require a terminal.",
+        "description": "Build and verify the browser form.",
+        "constraints": "Use the manager-backed API.",
+        "out_of_scope": "Editing existing tasks.",
+        "context": [
+            {"path": "src/agentjobs/manager.py", "why": "Owns task creation."}
+        ],
+    }
+
+
 def test_create_task_validation_error(api_client) -> None:
     client, _ = api_client
     response = client.post(

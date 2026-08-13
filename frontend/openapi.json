@@ -1568,6 +1568,14 @@
             "description": "Hard requirements and prohibitions (spec.constraints).",
             "title": "Constraints"
           },
+          "context": {
+            "description": "Curated read-this-first paths and why each one matters (spec.context).",
+            "items": {
+              "$ref": "#/components/schemas/ContextPointer"
+            },
+            "title": "Context",
+            "type": "array"
+          },
           "deliverables": {
             "description": "Deliverables to be produced for task completion.",
             "items": {
