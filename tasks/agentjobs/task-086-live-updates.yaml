@@ -2,7 +2,7 @@ schema: 2
 id: task-086-live-updates
 title: 'Live updates: the view reflects a handoff without a manual refresh'
 created: '2026-08-11T07:38:05.001732Z'
-updated: '2026-08-11T07:38:05.002647Z'
+updated: '2026-08-13T02:22:18.662990Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -19,8 +19,8 @@ assignment:
 parent: task-082-react-frontend
 spec:
   summary: A task record that changes while a page is open is invisible until the
-    browser is manually refreshed. Push changes to the client so the dashboard reflects
-    a handoff as it happens.
+    browser is manually refreshed. Poll a cheap revision endpoint so an open view
+    reflects a handoff within seconds, on a desktop and on a phone.
   intent: 'Observed directly: a handoff moved a task to `ball: human` while the dashboard
     was open, and the page went on showing the previous state until Chrome was refreshed
     by hand. The moment the tool most needs to tell you something is exactly the moment
@@ -31,66 +31,62 @@ spec:
     A person watching a dashboard while an agent works is the normal case, not an
     edge case, and the whole merge-gate design assumes the human notices a review
     request.'
-  description: '## Transport
-
-
-    Server-sent events are the likely fit and should be weighed explicitly against
-    the alternatives before building:
-
-
-    - **SSE.** One-directional, which matches the need exactly; plain HTTP, so no
-    new protocol in the deployment story; reconnects on its own.
-
-    - **WebSockets.** Bidirectional, which nothing here needs, and more moving parts.
-
-    - **Polling.** Simplest, works everywhere, and wastes requests forever. Worth
-    keeping as the fallback when the event stream drops rather than as the primary.
-
-
-    Record the choice with the rejected alternatives.
-
-
-    ## Source of the events
-
-
-    Task files are YAML on disk and are written by agents, by the CLI, and by git
-    operations -- not only through the API. Watching the API for changes would therefore
-    miss most of them. `watchdog` is already a dependency and can watch the tasks
-    directory, which catches every writer including `git checkout`.
-
-
-    Debounce. A bulk edit or a branch switch rewrites many files at once, and an event
-    per file would stampede every connected client.
-
-
-    ## Client behaviour
-
-
-    Invalidate the affected TanStack Query keys rather than re-fetching the world.
-    Reconcile carefully with what the user is doing: silently replacing content under
-    someone mid-read is its own kind of broken. A changed badge or an unobtrusive
-    marker is usually better than a page that rearranges itself.
-
-
-    ## Also worth settling
-
-
-    Whether the existing HMAC-signed webhook system is the right event source instead
-    of a file watcher; whether the stream is per-project or global; and what the client
-    does when the stream cannot be established at all -- degrade to polling, or say
-    so.'
-  constraints: '- Every writer is covered, not just the API. Agents and the CLI write
-    task files directly, and a git checkout rewrites them wholesale.
-
-    - Events are debounced. A branch switch must not produce a stampede.
-
-    - Losing the stream degrades to something that still works rather than to a silently
-    stale page.
-
-    - The page must not rearrange itself under a user mid-read without a deliberate
-    decision about how that is signalled.'
-  out_of_scope: Collaborative editing or conflict resolution. Notifications outside
-    the browser -- email, SMS, push -- which are the webhook system's job. Live updates
+  description: "## Transport: poll, and do not build a stream yet\n\n**Decided, with\
+    \ the alternatives rejected below.** A short-interval poll against a\ncheap revision\
+    \ endpoint, plus refresh on the events that mean \"someone is looking\nat this\
+    \ now\".\n\n- **Server-sent events -- rejected for now.** One-directional and\
+    \ self-reconnecting,\n  which sounds like an exact fit, and it is a long-lived\
+    \ connection through\n  whatever fronts the server. task-093 puts a proxy in front\
+    \ for cross-device\n  access, and an installed app on a phone is *suspended*,\
+    \ not closed: the stream\n  is dead on resume and the client has to make a request\
+    \ to discover that. So the\n  client needs the poll path regardless, and SSE becomes\
+    \ a second mechanism\n  layered on one that already works. Revisit if and when\
+    \ a measured poll cost\n  justifies it -- for a single-user local tool it will\
+    \ not soon.\n- **WebSockets -- rejected.** Bidirectional, which nothing here needs,\
+    \ and more\n  moving parts in the deployment story.\n- **A file watcher feeding\
+    \ either -- rejected as the primary.** `watchdog` is\n  already a dependency and\
+    \ would catch every writer, but it only matters once\n  there is a stream to feed.\
+    \ The revision endpoint below gets the same coverage\n  without a persistent connection.\n\
+    \n## The revision endpoint\n\nPolling the full task list every few seconds is\
+    \ the version of this that deserves\nthe objection. Instead: one small endpoint\
+    \ answering \"has anything changed\", so\nsteady state is a tiny response and\
+    \ a full refetch happens only when the answer\nmoves.\n\nIt must cover **every\
+    \ writer**, because the API is not the only one. Agents and\nthe CLI write YAML\
+    \ directly, and a `git checkout` rewrites the whole tree. A\nsignal derived from\
+    \ the files themselves -- the newest mtime plus a count, or a\ndigest -- covers\
+    \ all of those; a counter incremented by API handlers would miss\nmost of them.\
+    \ Scope it per project.\n\n## Client behaviour\n\nPoll on an interval of roughly\
+    \ fifteen seconds, and additionally on:\n\n- `focus` -- the window came back.\n\
+    - `visibilitychange` to visible -- **this is the one that matters on a phone**,\n\
+    \  where an installed app is backgrounded rather than blurred, so `focus` alone\n\
+    \  leaves a stale screen in front of someone who just picked the device up.\n\
+    - `online` -- treated purely as a hint to retry sooner. Never as evidence about\n\
+    \  what to display: it reports the device's own interfaces, not whether this\n\
+    \  server is reachable, and it reads stale after a resume.\n\nFailure handling\
+    \ is most of the actual work:\n\n- **Never blank the last good data on a failed\
+    \ refresh.** A dropped request must\n  not clear the screen.\n- Require more than\
+    \ one consecutive miss before telling the user it is\n  unreachable, so a single\
+    \ dropped request during a network handover does not\n  accuse the server of being\
+    \ down.\n- Retry fast, then back off to the interval. The first request after\
+    \ a phone\n  wakes is the one most likely to be dropped, and waiting a full interval\
+    \ puts a\n  failure on screen for fifteen seconds at the exact moment the device\
+    \ is being\n  looked at.\n- Invalidate the affected TanStack Query keys rather\
+    \ than refetching the world.\n\nReconcile with what the user is doing: silently\
+    \ replacing content under someone\nmid-read is its own kind of broken. A changed\
+    \ badge or an unobtrusive marker is\nusually better than a page that rearranges\
+    \ itself."
+  constraints: "- Steady-state cost is one small request, not a full task list.\n\
+    - Every writer is covered, not just the API. Agents and the CLI write task files\n\
+    \  directly, and a git checkout rewrites them wholesale.\n- A failed refresh never\
+    \ blanks the last successfully loaded view.\n- One dropped request does not report\
+    \ the server as unreachable.\n- `navigator.onLine` is never used to decide what\
+    \ to display.\n- Refresh happens on `visibilitychange`, not only on `focus`.\n\
+    - Display refreshes never trigger any write or any expensive server-side work.\n\
+    - The page must not rearrange itself under a user mid-read without a deliberate\n\
+    \  decision about how that is signalled."
+  out_of_scope: Server-sent events and websockets -- rejected above; reopening either
+    needs a measurement, not a preference. Collaborative editing or conflict resolution.
+    Notifications outside the browser, which are the webhook system's job. Live updates
     for the Jinja UI.
   context:
   - path: src/agentjobs/webhooks.py
@@ -103,18 +99,24 @@ acceptance:
     no manual refresh
   status: pending
 - id: ac-2
-  text: the transport choice is recorded as a decision with its rejected alternatives
-  status: pending
-- id: ac-3
   text: changes made outside the API -- CLI, direct file write, git checkout -- are
     picked up
   status: pending
+- id: ac-3
+  text: steady-state polling is one small request against a revision endpoint, not
+    a full task list refetch
+  status: pending
 - id: ac-4
-  text: a bulk change such as a branch switch does not stampede connected clients
+  text: a failed refresh leaves the last good data on screen and does not report unreachable
+    until more than one consecutive miss
   status: pending
 - id: ac-5
-  text: losing the event stream degrades to a working fallback rather than a stale
-    page
+  text: returning to a backgrounded tab or app refreshes without waiting for the next
+    interval
+  status: pending
+- id: ac-6
+  text: a bulk change such as a branch switch produces one refresh, not a per-file
+    stampede
   status: pending
 deliverables: []
 dependencies:
@@ -123,4 +125,48 @@ dependencies:
   note: Invalidates query keys owned by the client layer.
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-13T02:22:18.662922Z'
+  actor: claude
+  type: decision
+  body: 'Transport decided before implementation: poll a cheap revision endpoint.
+    Server-sent
+
+    events and websockets are both rejected for now.
+
+
+    Reasoning. The client needs a working poll path whatever else exists, because
+    an
+
+    installed app on a phone is suspended rather than closed and must make a request
+    to
+
+    discover that its stream died -- and task-093 puts a proxy in front of the server
+    for
+
+    cross-device access, which a long-lived connection has to survive. Building SSE
+    therefore
+
+    means building the poll path plus a second mechanism on top of it. A file watcher
+
+    (`watchdog`, already a dependency) was considered as the event source and is rejected
+    as
+
+    the primary for the same reason: it only earns its keep once a stream exists to
+    feed, and
+
+    a file-derived revision signal gets the same coverage of non-API writers without
+    a
+
+    persistent connection.
+
+
+    Rejected alternatives and what would reopen them: SSE, if a measured poll cost
+    ever
+
+    justifies it -- for a single-user local tool it will not soon. Websockets, never
+    on
+
+    current requirements; nothing here needs a bidirectional channel.'
+  data: {}

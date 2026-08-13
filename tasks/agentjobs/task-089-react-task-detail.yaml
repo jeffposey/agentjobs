@@ -2,7 +2,7 @@ schema: 2
 id: task-089-react-task-detail
 title: 'React task detail: spec, log, and the review actions'
 created: '2026-08-11T07:38:06.430653Z'
-updated: '2026-08-11T07:38:06.431529Z'
+updated: '2026-08-13T02:22:18.727813Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -49,14 +49,12 @@ spec:
     Whoever the action is attributed to comes from the configured identity (task-064).
     An action attributed to the wrong person is worse than one attributed to nobody,
     so an unclear actor must block the action rather than fall back to a default.'
-  constraints: '- State transitions go through the manager verbs via the API. The
-    client never writes lifecycle, ball, or ball_reason directly.
-
-    - The full spec is rendered, not a truncated preview.
-
-    - No silent fallback identity for a review action.
-
-    - Review actions are not duplicated onto the dashboard.'
+  constraints: "- State transitions go through the manager verbs via the API. The\
+    \ client never writes lifecycle, ball, or ball_reason directly.\n- The full spec\
+    \ is rendered, not a truncated preview.\n- No silent fallback identity for a review\
+    \ action.\n- Review actions are not duplicated onto the dashboard.\n\n- Follow\
+    \ the responsive card pattern from task-093. This is the page where a\n  review\
+    \ is answered, so it is the page most likely to be read on a phone."
   out_of_scope: Editing the spec in the browser. Attachments (task-067). Multi-user
     identity (task-066).
   context:
@@ -91,6 +89,10 @@ dependencies:
 - task: task-085-frontend-test-harness
   type: needs
   note: Supplies the foundation this builds on.
+- task: task-093-mobile-and-pwa
+  type: needs
+  note: Follows the card layout and cell-labelling convention rather than retrofitting
+    them.
 links: []
 branches: []
 log: []

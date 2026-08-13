@@ -1,0 +1,89 @@
+schema: 2
+id: task-094-frontend-e2e
+title: 'Harden the frontend harness: network-boundary mocking and one end-to-end path'
+created: '2026-08-13T02:19:48.337101Z'
+updated: '2026-08-13T02:19:48.337816Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: testing
+tags:
+- gui
+- react-frontend
+- testing
+effort: a day
+assignment:
+  eligible: []
+parent: task-082-react-frontend
+spec:
+  summary: Add network-boundary API mocking and a single end-to-end browser test to
+    the frontend harness, once there are screens worth exercising. Split out of task-085
+    so the harness it sets up does not block the first screen.
+  intent: task-085 originally bundled Vitest, React Testing Library, network-boundary
+    mocking, and a browser end-to-end runner into half a day. That estimate was wrong
+    by enough to stall the first screen behind harness work. Splitting it lets component
+    testing exist before any screen is written -- which is the part that must come
+    first -- and sizes the browser runner honestly, since a real-server end-to-end
+    path is where the setup cost actually lands.
+  description: 'Two additions, both deliberately deferred out of task-085:
+
+
+    **Mock at the network boundary, not at the client.** Replacing the generated
+
+    client in a test tests the replacement. Intercepting HTTP (MSW or equivalent)
+
+    exercises the real client, including its parsing and its error paths.
+
+
+    **One end-to-end path** in a real browser against a real server and a real
+
+    temporary project: the full stack, once. Not a second suite -- the value is
+
+    proving server, API, client, and browser agree, and that value is almost entirely
+
+    in the first test.
+
+
+    Both run in whatever runs on commit, alongside the Python suite. A frontend
+
+    failure must be as loud as a pytest failure or nobody will see it.'
+  constraints: '- The API is mocked at the network boundary, never by replacing the
+    generated client.
+
+    - At least one end-to-end test runs against a real server and a real temporary
+    project, not a fixture.
+
+    - Assertions are on rendered values a user acts on, not markup presence.
+
+    - Both run in the same command or pipeline as the Python suite.'
+  out_of_scope: Coverage thresholds. Visual regression testing. Testing the Jinja
+    UI, which the Python suite already covers. A broad end-to-end suite -- one path
+    is the deliverable.
+  context:
+  - path: ENGINEERING.md
+    why: 'The verification section: assert rendered values, not markup.'
+acceptance:
+- id: ac-1
+  text: component tests run against an HTTP-level mock, exercising the generated client
+    rather than a stand-in for it
+  status: pending
+- id: ac-2
+  text: one end-to-end test passes in a real browser against a real server and a real
+    temporary project
+  status: pending
+- id: ac-3
+  text: both run alongside the Python suite rather than by separate ritual
+  status: pending
+deliverables: []
+dependencies:
+- task: task-085-frontend-test-harness
+  type: needs
+  note: Extends the harness that task installs.
+- task: task-089-react-task-detail
+  type: needs
+  note: The end-to-end path is worth writing once a page that writes exists.
+links: []
+branches: []
+log: []

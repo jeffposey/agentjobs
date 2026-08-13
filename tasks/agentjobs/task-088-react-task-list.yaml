@@ -2,7 +2,7 @@ schema: 2
 id: task-088-react-task-list
 title: React task list, with the filtering that Alpine made untestable
 created: '2026-08-11T07:38:05.953311Z'
-updated: '2026-08-11T07:38:05.954133Z'
+updated: '2026-08-13T02:22:18.715111Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -50,13 +50,12 @@ spec:
 
     Now that filtering is testable, test it: assert that a closed task is absent from
     the default view, which is the assertion the Python suite could never make.'
-  constraints: '- Open means `lifecycle != closed`, not a list of outcomes.
-
-    - No row silently disappears: a dangling parent or a cycle must still render.
-
-    - Filter state is reflected in the URL and survives a refresh.
-
-    - The closed-task-absent-from-default-view assertion is covered by a test.'
+  constraints: "- Open means `lifecycle != closed`, not a list of outcomes.\n- No\
+    \ row silently disappears: a dangling parent or a cycle must still render.\n-\
+    \ Filter state is reflected in the URL and survives a refresh.\n- The closed-task-absent-from-default-view\
+    \ assertion is covered by a test.\n\n- Follow the responsive card pattern and\
+    \ the cell-labelling convention from\n  task-093. A table column without a label\
+    \ renders unlabelled on a phone."
   out_of_scope: Bulk editing or multi-select actions. Saved filter presets.
   context:
   - path: src/agentjobs/api/templates/task_list.html
@@ -87,6 +86,10 @@ dependencies:
 - task: task-085-frontend-test-harness
   type: needs
   note: Supplies the foundation this builds on.
+- task: task-093-mobile-and-pwa
+  type: needs
+  note: Follows the card layout and cell-labelling convention rather than retrofitting
+    them.
 links: []
 branches: []
 log: []

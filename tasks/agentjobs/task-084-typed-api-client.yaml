@@ -2,7 +2,7 @@ schema: 2
 id: task-084-typed-api-client
 title: Generate the TypeScript API client from the OpenAPI schema
 created: '2026-08-11T07:38:04.071238Z'
-updated: '2026-08-11T07:38:04.071988Z'
+updated: '2026-08-13T02:22:18.608349Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -32,33 +32,67 @@ spec:
     `human`, and every filter silently matched nothing. Generation makes that class
     of mismatch a build error.'
   description: 'FastAPI publishes a complete OpenAPI document derived from the Pydantic
-    models. Generate from it -- `openapi-typescript` for types, or a generator that
-    also emits fetch wrappers; pick one and record why.
+    models.
+
+    Generate from it -- `openapi-typescript` for types, or a generator that also emits
+
+    fetch wrappers; pick one and record why.
 
 
-    Wire generation into the workflow so a stale client is noticed: a checked-in generated
-    file plus a CI check that regenerating produces no diff is the cheap version,
-    and is enough. Generating at install time would make the build depend on a running
-    server, which is worse.
+    Wire generation into the workflow so a stale client is noticed: a checked-in
+
+    generated file plus a CI check that regenerating produces no diff is the cheap
+
+    version, and is enough. Generating at install time would make the build depend
+    on
+
+    a running server, which is worse.
 
 
-    Use TanStack Query for fetching, caching, and refetch semantics, rather than hand-rolled
-    `useEffect` fetches. It is also the natural place for the live-update work in
-    task-086 to hook in, via query invalidation.
+    Use TanStack Query for fetching, caching, and refetch semantics, rather than
+
+    hand-rolled `useEffect` fetches. It is also the natural place for the live-update
+
+    work in task-086 to hook in, via query invalidation.
 
 
     Enums matter here specifically. `lifecycle`, `ball`, `ball_reason`, and `outcome`
+
     are closed vocabularies, and the generated types should make an invalid comparison
-    a compile error rather than a silent false.'
-  constraints: '- No hand-written request or response types. If a type is written
-    by hand, this task has not been done.
 
-    - Regeneration is checkable in CI: a stale client fails, rather than being discovered
-    in a browser.
+    a compile error rather than a silent false.
 
-    - Generation must not require a running server at install or build time.
 
-    - No backend changes to make generation easier without recording why.'
+    ## Reject an unknown record schema, do not guess at it
+
+
+    Task records carry a `schema` version stamp -- currently 2 -- and the project
+    has
+
+    already migrated it once. Generated types are a compile-time contract against
+    the
+
+    API''s shape; they say nothing about a record written by a *newer* version of
+
+    AgentJobs than the client was built from.
+
+
+    The client must refuse a `schema` value it was not built for, and say so, rather
+
+    than rendering whatever fields it recognises. A partly-rendered task looks
+
+    authoritative and is the worst possible failure for a page whose entire job is
+
+    telling someone the current state of the work. This is a small explicit check,
+    not
+
+    a runtime validation layer.'
+  constraints: "- No hand-written request or response types. If a type is written\
+    \ by hand, this\n  task has not been done.\n- Regeneration is checkable in CI:\
+    \ a stale client fails, rather than being\n  discovered in a browser.\n- Generation\
+    \ must not require a running server at install or build time.\n- An unrecognised\
+    \ record `schema` version is refused visibly, never partly\n  rendered.\n- No\
+    \ backend changes to make generation easier without recording why."
   out_of_scope: Screens. Runtime response validation -- the generated types are a
     compile-time contract, and adding a runtime validator is a separate decision with
     its own cost.
@@ -83,6 +117,10 @@ acceptance:
     it
   status: pending
 - id: ac-5
+  text: a task record stamped with an unknown schema version produces a visible refusal,
+    not a partial render
+  status: pending
+- id: ac-6
   text: no hand-written request or response types remain
   status: pending
 deliverables: []

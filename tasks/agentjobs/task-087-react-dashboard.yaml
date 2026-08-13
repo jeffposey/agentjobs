@@ -2,7 +2,7 @@ schema: 2
 id: task-087-react-dashboard
 title: React dashboard, including the next-action ladder
 created: '2026-08-11T07:38:05.463116Z'
-updated: '2026-08-11T07:38:05.463867Z'
+updated: '2026-08-13T02:22:18.678022Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -23,44 +23,40 @@ spec:
     the most recently-earned design work -- the two attention tiers from task-080
     and the single-panel ladder from task-081. Porting it first proves the client
     can carry real logic rather than a table.
-  description: 'The ladder picks exactly one call to action: blocked on you, else
-    backlog awaiting your input, else the next claimable task, else create one. That
-    precedence currently lives in `_next_action()` in `web.py`.
-
-
-    **Decide where the ladder is computed.** Re-implementing it in TypeScript means
-    two definitions that will drift -- which is the exact failure task-081 fixed inside
-    the template. Options: expose the computed next action from the API so both clients
-    read one answer, or accept the duplication and test both. The first is better
-    and is probably a small API addition; record the choice either way.
-
-
-    Carry over what the tiers mean, since both are load-bearing and neither is obvious
-    from the markup:
-
-
-    - `blocks_human` is `ball: human` and lifecycle is not `draft` -- work is stopped.
-    This tier alarms.
-
-    - `awaits_human_input` is `ball: human` and lifecycle is `draft` -- nothing is
-    stopped. This tier never alarms.
-
-    - The backlog count on the stat tile is unconditional and links to the draft list.
-    It is the only trace of the backlog while its panel is suppressed, so it is not
-    decoration.
-
-
-    The broken-file warnings must survive the port. A task file that cannot be parsed
-    is invisible to someone whose window into the data is a web page, and silently
-    dropping it is the worst failure a listing has.'
-  constraints: '- Exactly one call-to-action panel renders, as in the Jinja version.
-
-    - The ladder is not duplicated in two languages without an explicit, recorded
-    decision to accept the duplication.
-
-    - The backlog stays traceable when its panel is suppressed.
-
-    - Unparseable task files are still surfaced.'
+  description: "The ladder picks exactly one call to action: blocked on you, else\
+    \ backlog\nawaiting your input, else the next claimable task, else create one.\
+    \ That\nprecedence currently lives in `_next_action()` in `web.py`.\n\n## Where\
+    \ the ladder is computed\n\n**Default: expose the computed next action from the\
+    \ API** so both clients read one\nanswer. Re-implementing the precedence in TypeScript\
+    \ means two definitions that\nwill drift, which is the exact failure task-081\
+    \ fixed inside the template -- and\nthis project's standing pattern is that Python\
+    \ owns domain logic while the client\nconsumes a contract. It is a small API addition.\n\
+    \nThe alternative -- duplicate it in TypeScript and test both -- remains available,\n\
+    but taking it requires recording why. Either way, record the choice; that is what\n\
+    ac-2 is for.\n\n## Port the layout as it stands\n\ntask-092 asks whether the calm\
+    \ ladder rungs should coexist, and warns that\nporting first risks porting a layout\
+    \ that is about to change. **Settled by the\nowner on 2026-08-12: port today's\
+    \ strict ladder faithfully, and treat the\nredesign as post-parity work.** Iterating\
+    \ on a layout is cheaper in React than in\nJinja, so the port is not blocked on\
+    \ a design decision. Do not quietly improve the\nladder while porting it -- a\
+    \ port whose behaviour differs from the original cannot\nbe verified against it.\n\
+    \n## What the tiers mean\n\nBoth are load-bearing and neither is obvious from\
+    \ the markup:\n\n- `blocks_human` is `ball: human` and lifecycle is not `draft`\
+    \ -- work is stopped.\n  This tier alarms.\n- `awaits_human_input` is `ball: human`\
+    \ and lifecycle is `draft` -- nothing is\n  stopped. This tier never alarms.\n\
+    - The backlog count on the stat tile is unconditional and links to the draft\n\
+    \  list. It is the only trace of the backlog while its panel is suppressed, so\
+    \ it\n  is not decoration.\n\nThe broken-file warnings must survive the port.\
+    \ A task file that cannot be parsed\nis invisible to someone whose window into\
+    \ the data is a web page, and silently\ndropping it is the worst failure a listing\
+    \ has."
+  constraints: "- Exactly one call-to-action panel renders, as in the Jinja version.\n\
+    - Behaviour matches the current dashboard. Redesign is task-092, deferred to\n\
+    \  post-parity; a port that also changes behaviour cannot be verified against\
+    \ the\n  original.\n- The ladder is not duplicated in two languages without an\
+    \ explicit, recorded\n  decision to accept the duplication.\n- The backlog stays\
+    \ traceable when its panel is suppressed.\n- Unparseable task files are still\
+    \ surfaced."
   out_of_scope: Removing the Jinja dashboard. Live updating (task-086). Dispatching
     or launching agents.
   context:

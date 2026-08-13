@@ -2,7 +2,7 @@ schema: 2
 id: task-091-frontend-packaging
 title: Ship the built frontend in the wheel, with no node at install time
 created: '2026-08-11T07:38:07.378882Z'
-updated: '2026-08-11T07:38:07.379649Z'
+updated: '2026-08-13T02:22:18.752214Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -44,16 +44,30 @@ spec:
 
 
     The wheel will grow. Say by how much, and confirm it is acceptable rather than
-    discovering it later.'
-  constraints: '- `pip install agentjobs` requires no node, no npm, and no network
-    beyond PyPI.
+    discovering it later.
 
-    - The served path resolves from the installed package, not from a source-relative
-    path.
 
-    - A stale bundle must not be able to ship silently.
+    ## The PWA assets are part of the bundle
 
-    - A missing bundle produces a clear message, not a blank page.'
+
+    task-093 adds a manifest, icons, and a service worker. They are package data like
+
+    everything else, and they are easy to miss because nothing fails loudly without
+
+    them -- the app just quietly stops being installable, and a service worker served
+
+    as a 404 is worse than one that is absent. Check them explicitly.
+
+
+    Serve them from paths that work under the `/app` mount in an installed package,
+
+    not from a source-relative path that happens to resolve in development.'
+  constraints: "- `pip install agentjobs` requires no node, no npm, and no network\
+    \ beyond PyPI.\n- The served path resolves from the installed package, not from\
+    \ a source-relative path.\n- A stale bundle must not be able to ship silently.\n\
+    - A missing bundle produces a clear message, not a blank page.\n- The manifest,\
+    \ icons, and service worker ship too, and are verified present\n  in a built wheel\
+    \ rather than assumed."
   out_of_scope: CDN hosting or any external asset host -- a checkout stays complete.
     Removing the Jinja UI.
   context:
@@ -79,6 +93,10 @@ acceptance:
 - id: ac-5
   text: how the build is invoked at release time is recorded, and a stale bundle cannot
     ship silently
+  status: pending
+- id: ac-6
+  text: the manifest, icons, and service worker are present in the built wheel and
+    served correctly from the installed package
   status: pending
 deliverables: []
 dependencies:

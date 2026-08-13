@@ -2,7 +2,7 @@ schema: 2
 id: task-082-react-frontend
 title: React + TypeScript frontend, built against the existing API
 created: '2026-08-11T07:38:03.164059Z'
-updated: '2026-08-11T07:38:03.164853Z'
+updated: '2026-08-13T02:22:18.565902Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -39,63 +39,48 @@ spec:
     a template can render `data-ball="Ball.HUMAN"` and every filter silently matches
     nothing, because nothing checks that the rendered value matches what the consumer
     expects.'
-  description: '## Shape
-
-
-    Vite + React + TypeScript, served at `/app`, talking to the existing REST API.
-    The Jinja UI keeps working throughout and is not removed by this umbrella; retiring
-    it is a separate decision to make once the React client is at parity and has been
-    used in anger.
-
-
-    Groundwork already exists. task-043 added the Vite dev origin (`http://localhost:5173`)
-    to the CORS allowlist, and `watchdog` is already a dependency, which the live-update
-    child can build on.
-
-
-    ## Children
-
-
-    1. **083 scaffold** -- Vite/React/TS/Tailwind, mounted at `/app`, dev proxy, Jinja
-    untouched.
-
-    2. **084 typed client** -- generated from `/openapi.json`; no hand-written request
-    types.
-
-    3. **085 test harness** -- Vitest, React Testing Library, Playwright, and one
-    smoke test through each.
-
-    4. **086 live updates** -- the dashboard reflects a handoff without a manual refresh.
-
-    5. **087 dashboard** -- including the next-action ladder from task-081.
-
-    6. **088 task list** -- with the filtering that is currently untestable in Alpine.
-
-    7. **089 task detail** -- log, spec, and the review actions.
-
-    8. **090 create task** -- the surface the product has never had in a browser.
-
-    9. **091 packaging** -- built assets ship in the wheel; `pip install` still needs
-    no node.
-
-
-    ## Why not migrate in place
-
-
-    Every child leaves the product working. A half-migrated UI where some pages are
-    React and some are Jinja and neither is complete is worse than either end state,
-    and it is the usual way a rewrite stalls permanently.'
-  constraints: '- The Jinja UI keeps working at every commit. This umbrella never
-    leaves the product in a half-migrated state.
-
-    - `pip install agentjobs` must not require node. Built assets ship in the wheel
-    (task-091).
-
-    - No hand-written API types. They are generated from the OpenAPI schema, or the
-    typed contract is decorative.
-
-    - No backend behaviour changes to suit the client. If the API is missing something,
-    that is its own task with its own reasoning.'
+  description: "## Shape\n\nVite + React + TypeScript, served at `/app`, talking to\
+    \ the existing REST API.\nThe Jinja UI keeps working throughout and is not removed\
+    \ by this umbrella;\nretiring it is a separate decision to make once the React\
+    \ client is at parity and\nhas been used in anger.\n\nGroundwork already exists.\
+    \ task-043 added the Vite dev origin\n(`http://localhost:5173`) to the CORS allowlist.\n\
+    \n## Children, in order\n\n1. **083 scaffold** -- Vite/React/TS/Tailwind, mounted\
+    \ at `/app`, dev proxy, Jinja\n   untouched, assets bundled rather than fetched\
+    \ from a CDN.\n2. **084 typed client** -- generated from `/openapi.json`; no hand-written\
+    \ request\n   types.\n3. **085 test harness** -- Vitest and React Testing Library\
+    \ over checked-in\n   fixtures, in place before the first screen.\n4. **086 live\
+    \ updates** -- the view reflects a handoff without a manual refresh.\n5. **087\
+    \ dashboard** -- including the next-action ladder from task-081.\n6. **093 mobile\
+    \ and PWA** -- usable and installable on a phone, reachable from\n   another device\
+    \ without widening the bind. Placed here deliberately: after one\n   real screen\
+    \ exists, and before the remaining screens, so the responsive\n   pattern is established\
+    \ once rather than retrofitted three times.\n7. **088 task list** -- with the\
+    \ filtering that is currently untestable in Alpine.\n8. **089 task detail** --\
+    \ log, spec, and the review actions.\n9. **090 create task** -- the surface the\
+    \ product has never had in a browser.\n10. **094 e2e hardening** -- network-boundary\
+    \ mocking and one browser path,\n    against real screens.\n11. **091 packaging**\
+    \ -- built assets ship in the wheel; `pip install` still needs\n    no node.\n\
+    \n## A property to gain on the way\n\nThe Jinja UI loads Tailwind, Alpine, and\
+    \ marked from public CDNs, so the current\nweb UI does not render without internet\
+    \ access. That contradicts a property this\nproject has otherwise defended --\
+    \ task-067 rejected git-lfs to keep a checkout\nself-sufficient. The React client\
+    \ bundles its own dependencies, so finishing this\numbrella removes the last runtime\
+    \ dependency on an external host. 083 owns that;\nit is called out here because\
+    \ it is a reason to finish, not an incidental detail.\n\n## Why not migrate in\
+    \ place\n\nEvery child leaves the product working. A half-migrated UI where some\
+    \ pages are\nReact and some are Jinja and neither is complete is worse than either\
+    \ end state,\nand it is the usual way a rewrite stalls permanently."
+  constraints: "- The Jinja UI keeps working at every commit. This umbrella never\
+    \ leaves the\n  product in a half-migrated state.\n- `pip install agentjobs` must\
+    \ not require node. Built assets ship in the wheel\n  (task-091).\n- No hand-written\
+    \ API types. They are generated from the OpenAPI schema, or the\n  typed contract\
+    \ is decorative.\n- No runtime dependency on an external asset host. The client's\
+    \ dependencies are\n  bundled.\n- The server binds loopback and refuses a wildcard\
+    \ bind. This application has no\n  authentication, so reachable means unauthenticated\
+    \ (task-093).\n- No backend behaviour changes to suit the client. If the API is\
+    \ missing\n  something, that is its own task with its own reasoning -- task-086's\
+    \ revision\n  endpoint and task-087's computed next action are the two known candidates,\
+    \ and\n  each records its own justification."
   out_of_scope: Removing the Jinja UI -- a separate decision once React is at parity.
     Authentication and multi-user identity (task-066). Any change to the task schema.
   context:
@@ -121,6 +106,14 @@ acceptance:
   status: pending
 - id: ac-5
   text: the dashboard reflects a handoff without a manual browser refresh
+  status: pending
+- id: ac-6
+  text: the client is usable and installable on a phone, reachable from another device
+    without widening the server's bind
+  status: pending
+- id: ac-7
+  text: the client renders with no internet access -- no dependency on an external
+    asset host
   status: pending
 deliverables: []
 dependencies: []

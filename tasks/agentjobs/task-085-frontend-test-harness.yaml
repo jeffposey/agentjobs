@@ -2,7 +2,7 @@ schema: 2
 id: task-085-frontend-test-harness
 title: 'Frontend test harness: Vitest, React Testing Library, Playwright'
 created: '2026-08-11T07:38:04.532733Z'
-updated: '2026-08-11T07:38:04.533520Z'
+updated: '2026-08-13T02:22:18.628560Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -18,8 +18,9 @@ assignment:
   eligible: []
 parent: task-082-react-frontend
 spec:
-  summary: Set up unit and end-to-end testing for the React client, with one real
-    test through each layer, before the screens are built rather than after.
+  summary: Set up component and hook testing for the React client -- Vitest, React
+    Testing Library, and checked-in fixtures -- with one real test through it, before
+    the screens are built rather than after.
   intent: 'Test harnesses added after the screens are written are added never, or
     are added and then fitted around code that was not built to be tested. Doing it
     as its own task, first, makes it a precondition of every screen task rather than
@@ -31,34 +32,65 @@ spec:
     the default view -- it can only assert the value handed to the component. That
     behaviour has been verified by hand every time. In React it should be verified
     by CI.'
-  description: 'Vitest plus React Testing Library for component and hook tests, with
-    the API mocked at the network boundary (MSW) rather than by stubbing the generated
-    client -- mocking the client would test the mock.
+  description: 'Vitest plus React Testing Library in jsdom, running against **checked-in
+    JSON
+
+    fixtures** of API responses.
 
 
-    Playwright for one end-to-end path against a real server with a real temporary
-    project, proving the whole stack: server, API, client, browser.
+    The fixture is worth more than a test input. It is also how a screen can be built
+
+    and reviewed before the API call it needs is wired up, and it is the obvious
+
+    source for a visibly-labelled sample mode later. Keep fixtures in the frontend
+
+    tree, one per API shape, and treat them as something a human reads.
 
 
     Follow the existing suite''s convention on what an assertion is worth: assert
-    the value a user acts on, not the presence of markup. The cautionary example is
-    in ENGINEERING.md -- a check for `data-ball=` passed happily while the app emitted
+    the
+
+    value a user acts on, not the presence of markup. The cautionary example is in
+
+    ENGINEERING.md -- a check for `data-ball=` passed happily while the app emitted
+
     `Ball.HUMAN` and every filter matched nothing.
 
 
-    Wire both into whatever runs on commit, so a failing frontend test is as loud
-    as a failing pytest.'
-  constraints: '- The API is mocked at the network boundary, not by replacing the
-    generated client.
+    Wire it into whatever runs on commit, so a failing frontend test is as loud as
+    a
 
-    - At least one Playwright test runs against a real server and a real temporary
-    project.
+    failing pytest.
 
-    - Assertions are on rendered values, not markup presence.
 
-    - Frontend tests run in the same command or pipeline as the Python suite; a test
-    nobody runs is not a test.'
-  out_of_scope: Coverage thresholds. Visual regression testing. Testing the Jinja
+    ## What this task deliberately does not do
+
+
+    Network-boundary mocking and a browser end-to-end path are **task-094**. They
+    were
+
+    originally bundled here, at an estimate that was wrong by enough to stall the
+
+    first screen behind harness work. Component testing has to exist before any
+
+    screen; the browser runner does not, and it is where the setup cost actually
+
+    lands.
+
+
+    The corollary: fixtures here are a stepping stone, not the end state. Tests that
+
+    need to exercise the generated client''s own parsing and error paths wait for
+    094
+
+    rather than stubbing the client, which would test the stub.'
+  constraints: "- Fixtures are checked in and human-readable, not generated at test\
+    \ time.\n- Assertions are on rendered values a user acts on, not markup presence.\n\
+    - Frontend tests run in the same command or pipeline as the Python suite; a test\n\
+    \  nobody runs is not a test.\n- Do not stub the generated API client to get around\
+    \ the absence of network\n  mocking. If a test needs that, it belongs in task-094."
+  out_of_scope: Network-boundary mocking and browser end-to-end testing, both moved
+    to task-094. Coverage thresholds. Visual regression testing. Testing the Jinja
     UI, which the Python suite already covers.
   context:
   - path: ENGINEERING.md
@@ -67,18 +99,17 @@ spec:
     why: The convention to match -- named states, asserted values.
 acceptance:
 - id: ac-1
-  text: Vitest and React Testing Library run component tests with the API mocked at
-    the network boundary
+  text: Vitest and React Testing Library run component and hook tests in jsdom
   status: pending
 - id: ac-2
-  text: one Playwright end-to-end test passes against a real server and a real temporary
-    project
+  text: checked-in fixtures cover the API shapes the first screens need
   status: pending
 - id: ac-3
   text: frontend tests run alongside the Python suite rather than by separate ritual
   status: pending
 - id: ac-4
-  text: the task-list filtering that Alpine made untestable is covered by a test
+  text: at least one test asserts a rendered value a user acts on, establishing the
+    convention the screen tasks follow
   status: pending
 deliverables: []
 dependencies:

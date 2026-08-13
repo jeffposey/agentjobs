@@ -2,7 +2,7 @@ schema: 2
 id: task-083-react-scaffold
 title: Scaffold the React app and serve it at /app
 created: '2026-08-11T07:38:03.613244Z'
-updated: '2026-08-11T07:38:03.613967Z'
+updated: '2026-08-13T02:22:18.587441Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -24,38 +24,42 @@ spec:
     and separately means the scaffolding decisions -- directory layout, dev proxy,
     routing, how the SPA is served -- are reviewable on their own rather than buried
     inside the first screen someone builds.
-  description: 'A `frontend/` directory at the repository root holding the Vite project.
-    Client-side routing under `/app` (React Router or equivalent), so `/app/tasks/task-042-...`
-    is a real, linkable URL rather than state held in memory.
-
-
-    Two serving modes:
-
-
-    - **Development.** Vite dev server on 5173 with a proxy for `/api` to 8765, so
-    there is no CORS round trip in the common path. The CORS allowlist already carries
-    the 5173 origin from task-043, which covers direct calls too.
-
-    - **Production.** FastAPI serves the built bundle from `/app`, with a catch-all
-    so a deep link like `/app/tasks/xyz` returns the SPA shell rather than a 404.
-    Getting that catch-all wrong is the classic SPA deployment bug: the app works
-    until someone refreshes a sub-page.
-
-
-    Tailwind is chosen for continuity -- the existing templates are already Tailwind,
-    so the visual language and the dark palette carry over instead of being reinvented.
-
-
-    Ship one trivial page that fetches something real from the API and renders it.
-    Not a placeholder: proof the whole path works end to end.'
-  constraints: '- Nothing under `src/agentjobs/api/templates/` changes. The Jinja
-    UI is not touched by this task.
-
-    - A deep link into the SPA must work on refresh, not only via in-app navigation.
-
-    - `frontend/node_modules` and build output are gitignored.
-
-    - No API changes.'
+  description: "A `frontend/` directory at the repository root holding the Vite project.\n\
+    Client-side routing under `/app` with React Router, so `/app/tasks/task-042-...`\n\
+    is a real, linkable URL rather than state held in memory.\n\n## Toolchain\n\n\
+    Do not let `create vite` pick the versions silently; this combination is known\
+    \ to\nwork together as of 2026-08 and is a reasonable starting point:\n\n| Package\
+    \ | Version |\n| --- | --- |\n| react, react-dom | 19.2 |\n| vite | 8.2 |\n| typescript\
+    \ | 6.0 |\n| @vitejs/plugin-react | 6.0 |\n| vitest | 4.1 |\n\nRecord what you\
+    \ actually installed. If a version differs from the table, say why,\nso the next\
+    \ person reads a fact rather than a guess.\n\nLinting: `oxlint` is a defensible\
+    \ choice over ESLint here -- one binary, no\nplugin-resolution tree, fast enough\
+    \ that it runs on every commit without anyone\ndisabling it. Pick one and record\
+    \ the choice.\n\n## Two serving modes\n\n- **Development.** Vite dev server on\
+    \ 5173 with a proxy for `/api` to 8765, so\n  there is no CORS round trip in the\
+    \ common path. The CORS allowlist already\n  carries the 5173 origin from task-043,\
+    \ which covers direct calls too.\n- **Production.** FastAPI serves the built bundle\
+    \ from `/app`, with a catch-all so\n  a deep link like `/app/tasks/xyz` returns\
+    \ the SPA shell rather than a 404.\n  Getting that catch-all wrong is the classic\
+    \ SPA deployment bug: the app works\n  until someone refreshes a sub-page.\n\n\
+    ## Bundle the dependencies\n\nTailwind is chosen for continuity: the existing\
+    \ templates are already Tailwind, so\nthe visual language and the dark palette\
+    \ carry over instead of being reinvented.\n\n**But not the way the templates do\
+    \ it.** `base.html` pulls Tailwind, Alpine, and\nmarked from public CDNs, which\
+    \ means the current web UI does not render without\ninternet access, and a cached\
+    \ offline shell could never style itself. Install\nTailwind as a real build dependency\
+    \ and bundle it. Same for anything else the\nclient needs. No `<script src=\"\
+    https://...\">` in the React app.\n\n## Shell\n\nSet the viewport meta and a mobile-first\
+    \ base stylesheet now. task-093 makes the\nscreens work on a phone; it should\
+    \ not have to go back and fix the document\nshell first.\n\n## Prove the path\n\
+    \nShip one trivial page that fetches something real from the API and renders it.\n\
+    Not a placeholder: proof the whole path works end to end."
+  constraints: "- Nothing under `src/agentjobs/api/templates/` changes. The Jinja\
+    \ UI is not\n  touched by this task.\n- A deep link into the SPA must work on\
+    \ refresh, not only via in-app navigation.\n- No external asset host. Every dependency\
+    \ is bundled, including Tailwind.\n- `frontend/node_modules` and build output\
+    \ are gitignored.\n- The installed toolchain versions and the linter choice are\
+    \ recorded.\n- No API changes."
   out_of_scope: Any real screen -- dashboard, list, detail all have their own tasks.
     Packaging the built assets into the wheel (task-091). Authentication.
   context:
@@ -78,6 +82,14 @@ acceptance:
   text: one page fetches real data from the API and renders it
   status: pending
 - id: ac-5
+  text: the app renders correctly with no network access to anything but the local
+    server -- no CDN references
+  status: pending
+- id: ac-6
+  text: the installed toolchain versions and the linter choice are recorded in the
+    task
+  status: pending
+- id: ac-7
   text: the Jinja UI is byte-for-byte unchanged and still works
   status: pending
 deliverables: []

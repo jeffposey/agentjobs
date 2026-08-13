@@ -1,0 +1,189 @@
+schema: 2
+id: task-093-mobile-and-pwa
+title: Make the client usable on a phone, and installable
+created: '2026-08-13T02:19:47.902546Z'
+updated: '2026-08-13T02:19:47.903284Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- gui
+- react-frontend
+- mobile
+- pwa
+effort: a day
+assignment:
+  eligible: []
+parent: task-082-react-frontend
+spec:
+  summary: 'The web UI is unusable on a phone: wide tables, mouse-sized targets, and
+    no way to keep it open as an app. Make the React client work on a phone and a
+    tablet, installable as a PWA, reachable from another device without exposing the
+    server to the network.'
+  intent: Sequenced deliberately after the dashboard and before the remaining screens.
+    After one real screen exists there is something to actually make usable on a phone
+    rather than a guess at a pattern; before the other screens, so the card layout
+    and the labelling convention are established once instead of retrofitted onto
+    three ported pages.
+  description: '## Why this is not a polish task
+
+
+    The person who needs to see a review request is not always at the machine running
+
+    the server. A merge gate that can only be answered from one desk delays every
+
+    branch by however long it takes to get back to that desk. This is the difference
+
+    between a dashboard you check and a dashboard that reaches you.
+
+
+    ## Layout
+
+
+    Below a breakpoint around 820px, stack each table into cards: one labelled line
+
+    per field, controls full width at a 44px touch target. That covers a phone and
+    a
+
+    tablet in portrait; a landscape tablet is wide enough for the real table and
+
+    should keep it.
+
+
+    Drive the card labels from a `data-label` attribute the cell components set, not
+
+    from a parallel list of column names. A new column then needs one attribute or
+    it
+
+    renders unlabelled on a phone -- which is a visible, cheap failure rather than
+    a
+
+    silent one.
+
+
+    ## Installable
+
+
+    A manifest, icons at 192/512 plus a maskable variant, and a service worker.
+
+    Generate the icons from one committed SVG with a checked-in script, so they are
+
+    reproducible rather than hand-exported binaries nobody can regenerate.
+
+
+    **Cache the shell only.** A dashboard that shows yesterday''s ball assignments
+    as
+
+    though they were current is worse than one that says it is offline, because the
+
+    whole point of the page is telling you what needs attention now. The offline
+
+    state must be an explicit "cannot reach the server" screen, never stale content
+
+    presented as live.
+
+
+    Reload once when a new service worker takes over, or an installed app keeps
+
+    serving the previous bundle indefinitely after an upgrade.
+
+
+    ## Reaching it from another device
+
+
+    **The server binds loopback only.** Cross-device access is a separate concern
+
+    solved by a proxy in front of it -- a private overlay network such as Tailscale
+
+    is the intended shape -- not by widening the bind address. A wildcard bind must
+
+    be refused rather than merely discouraged: this application has no
+
+    authentication (task-066 is unbuilt), so anything reachable is unauthenticated.
+
+
+    **HTTPS is not optional.** Service workers only register in a secure context,
+    so
+
+    over plain HTTP the offline shell will not work and a browser will offer a
+
+    bookmark rather than an installed app. Document that consequence where someone
+
+    setting this up will read it.
+
+
+    Keep a documented direct-bind escape hatch for a network without certificates,
+
+    marked clearly as the fallback rather than the normal path, and still refusing
+    a
+
+    wildcard.
+
+
+    ## Documentation
+
+
+    The setup is not guessable and must be written down: which address is which,
+
+    what the proxy command is, how to undo it, how to add a device, and what happens
+
+    when the machine serving it is asleep.'
+  constraints: '- The server binds loopback by default and refuses a wildcard bind.
+    Cross-device access is a proxy in front of it, not a wider bind.
+
+    - The service worker caches the shell only. Stale task data must never be presented
+    as current.
+
+    - Card labels come from an attribute the cell components set, so a new column
+    cannot silently render unlabelled.
+
+    - Icons are generated from a committed source by a committed script.
+
+    - A new service worker taking over must not leave an installed app on the old
+    bundle.
+
+    - The setup steps and the HTTPS requirement are documented.'
+  out_of_scope: Authentication and multi-user identity (task-066). Push notifications
+    outside the browser, which are the webhook system's job. Any native app wrapper.
+    Offline writes or queued actions -- the offline state is read-only and says so.
+    Making the Jinja UI responsive.
+  context:
+  - path: src/agentjobs/cli.py
+    why: serve --host, where the bind policy is enforced.
+  - path: tasks/agentjobs/task-066-multiple-human-users.yaml
+    why: Unbuilt authentication -- why reachable means unauthenticated.
+acceptance:
+- id: ac-1
+  text: 'the dashboard is usable on a phone: tables stack into labelled cards below
+    the breakpoint, controls meet a 44px touch target'
+  status: pending
+- id: ac-2
+  text: the client installs as an app from a phone and launches standalone
+  status: pending
+- id: ac-3
+  text: with the server unreachable the app says so explicitly and shows no stale
+    task data as current
+  status: pending
+- id: ac-4
+  text: the server still binds loopback by default and refuses a wildcard bind; cross-device
+    access works through a proxy
+  status: pending
+- id: ac-5
+  text: a deployed bundle upgrade reaches an already-installed app without a manual
+    cache clear
+  status: pending
+- id: ac-6
+  text: the setup, including why HTTPS is required, is documented well enough to add
+    a second device from the docs alone
+  status: pending
+deliverables: []
+dependencies:
+- task: task-087-react-dashboard
+  type: needs
+  note: Needs one real screen to make usable, before the pattern is set for the rest.
+links: []
+branches: []
+log: []
