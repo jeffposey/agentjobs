@@ -310,30 +310,42 @@ def open(
     port: int = typer.Option(8765, help="Port number to check/use."),
     host: str = typer.Option("localhost", help="Host to use if starting server."),
 ) -> None:
-    """Open the web UI in browser (starts server if needed)."""
+    """Open the primary React UI in a browser, starting the server if needed."""
     import platform
     import subprocess
+    import sys
     import time
     import webbrowser
 
     host = _validated_bind_host(host)
-    url = f"http://{host}:{port}"
+    server_url = f"http://{host}:{port}"
+    app_url = f"{server_url}/app/"
     pid = _find_process_by_port(port)
 
     if pid is None:
         # Server not running, start it in background
-        typer.echo(f"Starting AgentJobs server at {url}...")
+        typer.echo(f"Starting AgentJobs server at {server_url}...")
+        command = [
+            sys.executable,
+            "-m",
+            "agentjobs.cli",
+            "serve",
+            "--port",
+            str(port),
+            "--host",
+            host,
+        ]
 
         if platform.system() == "Windows":
             # Start server in a new window (minimized)
             subprocess.Popen(
-                ["poetry", "run", "agentjobs", "serve", "--port", str(port), "--host", host],
+                command,
                 creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.CREATE_NO_WINDOW,
             )
         else:
             # Start server in background
             subprocess.Popen(
-                ["poetry", "run", "agentjobs", "serve", "--port", str(port), "--host", host],
+                command,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -351,8 +363,8 @@ def open(
         typer.echo(f"Server already running (PID {pid})")
 
     # Open browser
-    typer.echo(f"Opening {url}...")
-    webbrowser.open(url)
+    typer.echo(f"Opening {app_url}...")
+    webbrowser.open(app_url)
 
 
 @app.command()
