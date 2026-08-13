@@ -133,16 +133,28 @@ def test_serve_command_args(monkeypatch) -> None:
     with patch("uvicorn.run") as mock_run:
         result = runner.invoke(
             app,
-            ["serve", "--host", "0.0.0.0", "--port", "9000", "--reload"],
+            ["serve", "--host", "192.168.1.25", "--port", "9000", "--reload"],
             catch_exceptions=False,
         )
 
         assert result.exit_code == 0
-        assert "Starting AgentJobs server at http://0.0.0.0:9000" in result.stdout
+        assert "Starting AgentJobs server at http://192.168.1.25:9000" in result.stdout
 
         mock_run.assert_called_once_with(
-            "agentjobs.api.main:app", host="0.0.0.0", port=9000, reload=True
+            "agentjobs.api.main:app", host="192.168.1.25", port=9000, reload=True
         )
+
+
+@pytest.mark.parametrize("command", ["serve", "restart", "open"])
+@pytest.mark.parametrize("host", ["0.0.0.0", "::", "[::]", "*", "+"])
+def test_server_commands_refuse_wildcard_binding(command: str, host: str) -> None:
+    """No entry point may expose the unauthenticated API on every interface."""
+    with patch("uvicorn.run") as mock_run:
+        result = runner.invoke(app, [command, "--host", host], catch_exceptions=False)
+
+    assert result.exit_code == 2
+    assert "Wildcard binding is refused" in result.output
+    mock_run.assert_not_called()
 
 
 def test_list_tasks_filtering(tmp_path: Path, monkeypatch) -> None:

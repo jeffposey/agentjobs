@@ -160,6 +160,7 @@ def serve(
     ),
 ) -> None:
     """Start web server."""
+    host = _validated_bind_host(host)
     typer.echo(f"🚀 Starting AgentJobs server at http://{host}:{port}")
     import uvicorn
 
@@ -169,6 +170,29 @@ def serve(
         port=port,
         reload=reload,
     )
+
+
+def _validated_bind_host(host: str) -> str:
+    """Refuse addresses that expose the unauthenticated server on every interface."""
+    from ipaddress import ip_address
+
+    candidate = host.strip()
+    unwrapped = (
+        candidate[1:-1] if candidate.startswith("[") and candidate.endswith("]") else candidate
+    )
+    try:
+        is_unspecified = ip_address(unwrapped).is_unspecified
+    except ValueError:
+        is_unspecified = False
+
+    if not candidate or candidate in {"*", "+"} or is_unspecified:
+        raise typer.BadParameter(
+            "Wildcard binding is refused because AgentJobs has no authentication. "
+            "Use localhost/127.0.0.1 behind an HTTPS private-network proxy, or bind "
+            "a specific interface only as the documented fallback.",
+            param_hint="--host",
+        )
+    return candidate
 
 
 def _find_process_by_port(port: int) -> Optional[int]:
@@ -252,6 +276,7 @@ def restart(
     ),
 ) -> None:
     """Restart the web server."""
+    host = _validated_bind_host(host)
     # Stop existing server if running
     pid = _find_process_by_port(port)
     if pid is not None:
@@ -291,6 +316,7 @@ def open(
     import time
     import webbrowser
 
+    host = _validated_bind_host(host)
     url = f"http://{host}:{port}"
     pid = _find_process_by_port(port)
 
