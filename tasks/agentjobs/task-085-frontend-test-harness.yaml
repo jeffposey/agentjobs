@@ -2,13 +2,9 @@ schema: 2
 id: task-085-frontend-test-harness
 title: 'Frontend test harness: Vitest, React Testing Library, Playwright'
 created: '2026-08-11T07:38:04.532733Z'
-updated: '2026-08-13T04:20:28.400145Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-13T04:20:55.492224Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: testing
@@ -18,7 +14,6 @@ tags:
 - testing
 effort: half a day
 assignment:
-  owner: codex
   eligible: []
 parent: task-095-react-phase-1-foundation
 spec:
@@ -124,7 +119,7 @@ dependencies:
 links: []
 branches:
 - name: feat/task-085-frontend-test-harness
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-13T03:52:17.568694Z'
@@ -178,3 +173,12 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 6
+  ts: '2026-08-13T04:20:55.492147Z'
+  actor: codex
+  type: transition
+  body: Approved by Jeff Posey; rebased and merged with --no-ff as the task 085 frontend
+    test harness.
+  data:
+    lifecycle: closed
+    outcome: completed
