@@ -16,7 +16,9 @@
     "check:api": "npm run check:api-schema && npm run check:api-client",
     "lint": "oxlint --ignore-pattern src/api/generated/** .",
     "test": "vitest run",
-    "check": "npm run check:api && npm run check:icons && npm run lint && npm run test && npm run build"
+    "install:e2e": "playwright install chromium",
+    "test:e2e": "playwright test",
+    "check": "npm run check:api && npm run check:icons && npm run lint && npm run test && npm run build && npm run test:e2e"
   },
   "dependencies": {
     "@tanstack/react-query": "5.101.4",
@@ -26,6 +28,7 @@
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "0.97.3",
+    "@playwright/test": "1.62.1",
     "@tailwindcss/vite": "4.3.3",
     "@testing-library/dom": "10.4.1",
     "@testing-library/jest-dom": "7.0.1",
@@ -34,6 +37,7 @@
     "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "6.0.5",
     "jsdom": "30.0.1",
+    "msw": "2.15.0",
     "oxlint": "1.78.0",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
