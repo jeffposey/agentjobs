@@ -10,6 +10,7 @@ import {
   requireSupportedTaskSchemas,
   UnsupportedTaskSchemaError,
 } from "./api/schema-version";
+import { TaskCount } from "./components/TaskCount";
 
 function ProjectRedirect() {
   const navigate = useNavigate();
@@ -77,10 +78,7 @@ function ApiProof() {
           ) : tasksQuery.isPending ? (
             <p className="text-dark-muted">Loading real project data...</p>
           ) : (
-            <p className="text-dark-text">
-              The scoped API returned <strong>{tasksQuery.data.length}</strong>{" "}
-              {tasksQuery.data.length === 1 ? "task" : "tasks"}.
-            </p>
+            <TaskCount count={tasksQuery.data.length} />
           )}
         </div>
         <p className="mt-6 text-sm leading-6 text-dark-muted">

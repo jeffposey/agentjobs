@@ -1,0 +1,16 @@
+[
+  {
+    "id": "agentjobs",
+    "name": "AgentJobs",
+    "root": "C:/projects/agentjobs",
+    "task_count": 3,
+    "tasks_directory": "C:/projects/agentjobs/tasks/agentjobs"
+  },
+  {
+    "id": "sample-project",
+    "name": "Sample Project",
+    "root": "C:/projects/sample-project",
+    "task_count": 0,
+    "tasks_directory": "C:/projects/sample-project/tasks"
+  }
+]
