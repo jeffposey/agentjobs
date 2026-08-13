@@ -1,8 +1,8 @@
 schema: 2
 id: task-075-agent-worktree-isolation
-title: 'Isolate concurrent agents: a worktree per agent, not one shared checkout'
+title: Give dispatched agents task-specific worktrees
 created: '2026-08-11T01:10:16.518759Z'
-updated: '2026-08-11T04:37:06.866911Z'
+updated: '2026-08-13T22:06:30.031644Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -17,41 +17,46 @@ assignment:
   eligible: []
 parent: task-060-agent-dispatch
 spec:
-  summary: 'Several agents work this repo in one checkout with one HEAD, and on 2026-08-11
-    that caused three failures in one afternoon: one agent''s uncommitted files swept
-    into another''s commit, a branch switched under an in-flight session, and a task
-    under review made invisible in the dashboard because the tree was left on main.
-    The last one is specific to this product -- tasks are files in the repo, so the
-    checked-out branch silently decides what the GUI shows. Fix with a worktree per
-    agent, and consider a branch banner in the GUI.'
-  description: "Two agents working this repository share one checkout, one working\n\
-    tree, and one HEAD. There is no isolation and no coordination protocol beyond\n\
-    ENGINEERING.md's \"commit before switching agents\", which only helps the agent\
-    \ that\nreads it and says nothing about not switching *branches* out from under\
-    \ a peer.\n\n## What actually happened on 2026-08-11\n\nThree distinct failures\
-    \ in a single afternoon, during task-060 and task-062:\n\n1. An agent ran `git\
-    \ add -A` and swept the other agent's uncommitted, in-flight files\n   into its\
-    \ own commit. Recovered with `git reset --soft` plus a selective unstage, but\n\
-    \   only because it was noticed within a minute.\n2. An agent checked out its\
-    \ own branch, replacing the working tree under a peer that was\n   mid-task. The\
-    \ peer's next commit would have gone to the wrong branch.\n3. An agent finished\
-    \ and left the checkout on `main`. The owner opened the dashboard,\n   did not\
-    \ see task-060 waiting for review, and reasonably concluded something was\n  \
-    \ broken. Nothing was broken -- he was looking at a different branch's task files.\n\
-    \nFailure 3 is the interesting one, and it is specific to this product. **Because\
-    \ tasks are\nYAML files in the repository, the checked-out branch silently determines\
-    \ what the\ndashboard shows.** A task under review on a branch is invisible from\
-    \ main. That is not a\nconcurrency bug; it is a consequence of the git-as-database\
-    \ decision, and it will recur\nevery time work is reviewed from the GUI while\
-    \ a branch is open.\n\n## Scope\n\nDecide and implement the isolation model. Recommended\
-    \ shape, two layers:\n\n**Layer 1 -- the convention, which is nearly free and\
-    \ should land first.** Each agent\nworks in its own `git worktree`, created before\
-    \ it claims and removed after its branch\nmerges. Documented in ENGINEERING.md's\
-    \ branch lifecycle alongside \"create the branch\nbefore marking in_progress\"\
-    , because it is the same rule extended: no work outside a\nbranch, and no branch\
-    \ inside someone else's tree. Add the `git add -A` prohibition\nexplicitly --\
-    \ stage the files the task owns, never the tree.\n\n**Layer 2 -- AgentJobs managing\
-    \ it, if layer 1 proves insufficient.** The project\nregistry already maps a project\
+  summary: Interactive agents already use per-task worktrees, and task metadata stays
+    on shared main so review state cannot disappear with an implementation branch.
+    Remaining work is to decide and implement task-specific worktrees for dispatched
+    agents before the runner is built.
+  description: "## Current status after the corpus audit (2026-08-13)\n\nThe agent\
+    \ convention and recovery guidance shipped in ALLAGENTS.md, with supporting repository\
+    \ guidance in ENGINEERING.md and docs/agent-workflow.md. Task records now stay\
+    \ on shared `main`, so the former proposal for a GUI branch banner is obsolete:\
+    \ the GUI no longer reads task state from an implementation worktree. The remaining\
+    \ scope is layer 2 -- decide how AgentJobs or the selected runner creates an isolated\
+    \ task worktree for dispatched work, and update the dispatch cwd decision before\
+    \ implementation.\n\nThe history below records why the convention was introduced.\n\
+    Two agents working this repository share one checkout, one working\ntree, and\
+    \ one HEAD. There is no isolation and no coordination protocol beyond\nENGINEERING.md's\
+    \ \"commit before switching agents\", which only helps the agent that\nreads it\
+    \ and says nothing about not switching *branches* out from under a peer.\n\n##\
+    \ What actually happened on 2026-08-11\n\nThree distinct failures in a single\
+    \ afternoon, during task-060 and task-062:\n\n1. An agent ran `git add -A` and\
+    \ swept the other agent's uncommitted, in-flight files\n   into its own commit.\
+    \ Recovered with `git reset --soft` plus a selective unstage, but\n   only because\
+    \ it was noticed within a minute.\n2. An agent checked out its own branch, replacing\
+    \ the working tree under a peer that was\n   mid-task. The peer's next commit\
+    \ would have gone to the wrong branch.\n3. An agent finished and left the checkout\
+    \ on `main`. The owner opened the dashboard,\n   did not see task-060 waiting\
+    \ for review, and reasonably concluded something was\n   broken. Nothing was broken\
+    \ -- he was looking at a different branch's task files.\n\nFailure 3 is the interesting\
+    \ one, and it is specific to this product. **Because tasks are\nYAML files in\
+    \ the repository, the checked-out branch silently determines what the\ndashboard\
+    \ shows.** A task under review on a branch is invisible from main. That is not\
+    \ a\nconcurrency bug; it is a consequence of the git-as-database decision, and\
+    \ it will recur\nevery time work is reviewed from the GUI while a branch is open.\n\
+    \n## Scope\n\nDecide and implement the isolation model. Recommended shape, two\
+    \ layers:\n\n**Layer 1 -- the convention, which is nearly free and should land\
+    \ first.** Each agent\nworks in its own `git worktree`, created before it claims\
+    \ and removed after its branch\nmerges. Documented in ENGINEERING.md's branch\
+    \ lifecycle alongside \"create the branch\nbefore marking in_progress\", because\
+    \ it is the same rule extended: no work outside a\nbranch, and no branch inside\
+    \ someone else's tree. Add the `git add -A` prohibition\nexplicitly -- stage the\
+    \ files the task owns, never the tree.\n\n**Layer 2 -- AgentJobs managing it,\
+    \ if layer 1 proves insufficient.** The project\nregistry already maps a project\
     \ id to a root and is the only place an id becomes a path\n(`projects.py`), so\
     \ it is the natural owner of a worktree pool: `agentjobs worktree\nclaim <task-id>`\
     \ returns a path, `release` removes it, and stale worktrees for closed\ntasks\
@@ -85,21 +90,21 @@ acceptance:
     2) or the convention is sufficient, with the reasoning and the rejected option
   status: pending
 - id: sc-4
-  text: The GUI states which branch the tasks it is showing came from, so a reviewer
-    cannot mistake 'wrong branch checked out' for 'the task is not waiting for me'
-  status: pending
+  text: GUI-backed task records stay on shared main, so review state cannot disappear
+    when an implementation branch or worktree changes
+  status: met
 - id: sc-5
   text: 'The dispatch design''s cwd choice is revisited in writing: a dispatched run
     gets an isolated worktree rather than the shared project root, or there is a recorded
     reason it does not'
   status: pending
 deliverables:
-- path: ENGINEERING.md
-  note: Worktree-per-agent in the branch lifecycle
-  status: pending
+- path: ALLAGENTS.md
+  note: Agent worktree mandate, cleanup requirement, and recovery guidance
+  status: done
 - path: docs/agent-workflow.md
   note: The end-to-end workflow
-  status: pending
+  status: done
 - path: docs/agent-dispatch-design.md
   note: Amend the cwd decision (section 3/9)
   status: pending
@@ -306,3 +311,14 @@ log:
     lifecycle: ready
     ball: agent
     ball_reason: available
+- id: 8
+  ts: '2026-08-13T22:06:30.031553Z'
+  actor: codex
+  type: decision
+  body: 'Corpus audit reconciliation: narrow this open task to its genuinely unfinished
+    dispatch layer. The interactive-agent convention is shipped, docs/agent-workflow.md
+    now describes it, and task metadata lives on shared main. That main-only task-record
+    rule replaces the proposed GUI branch banner and is now recorded as met. The decision
+    about AgentJobs-managed dispatch worktrees and the dispatch cwd amendment remain
+    pending, so the task correctly stays ready.'
+  data: {}
