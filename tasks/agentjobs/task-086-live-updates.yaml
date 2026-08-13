@@ -2,18 +2,15 @@ schema: 2
 id: task-086-live-updates
 title: 'Live updates: the view reflects a handoff without a manual refresh'
 created: '2026-08-11T07:38:05.001732Z'
-updated: '2026-08-13T18:10:13.746100Z'
+updated: '2026-08-13T18:19:04.762876Z'
 lifecycle: active
 ball: human
-ball_reason: review
-ball_prompt: Retry installation from the private HTTPS AgentJobs link on jeffs-tab-s7.
-  The deployed manifest now has explicit id /app/agentjobs and a new content-derived
-  service-worker cache 9e9705a5021f. Confirm Chrome offers Install app/Add to Home
-  screen and that AgentJobs coexists with the previously installed Tailscale-hosted
-  app. Then launch AgentJobs standalone, background it, and report ready for a safe
-  live-handoff/resume check. Explicitly approve if both separate installation and
-  live resume work, or report the exact remaining behavior. On approval Codex will
-  merge/close task 086 and immediately start task 099.
+ball_reason: decision
+ball_prompt: 'Choose the Tailscale hosting approach needed for a genuinely separate
+  Android app identity: provision a dedicated tagged Service host (recommended), or
+  explicitly approve converting coruscant from a user-owned node to a tagged server
+  node after reviewing grants/SSH access. Do not approve task 086 yet; the current
+  :8443 URL remains browser-only and still collides with the installed app.'
 archived: false
 priority: high
 category: ux
@@ -355,3 +352,27 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 11
+  ts: '2026-08-13T18:19:04.730255Z'
+  actor: codex
+  type: question
+  body: Tablet retest still reports This app is already installed. The explicit manifest
+    id, distinct HTTPS port, and content-derived service-worker cache did not make
+    Android treat AgentJobs as a separate installed app because both sites use the
+    same coruscant MagicDNS hostname. A dedicated Tailscale Service hostname was attempted,
+    but Tailscale refused it with service hosts must be tagged nodes. Should AgentJobs
+    use a dedicated tagged Tailscale service host (recommended), or should coruscant
+    be converted from its current user identity to a tagged server identity after
+    its access policy is reviewed?
+  data: {}
+- id: 12
+  ts: '2026-08-13T18:19:04.762795Z'
+  actor: codex
+  type: handoff
+  body: Tablet evidence disproved the separate-port/manifest-id installation path.
+    A distinct Tailscale Service hostname is now required, but Service hosts must
+    have tag-based identity. Waiting for the infrastructure identity choice because
+    tagging coruscant removes its user-based identity and may change access behavior.
+  data:
+    ball: human
+    ball_reason: decision
