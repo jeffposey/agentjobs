@@ -12,7 +12,7 @@ from agentjobs.manager import TaskManager, TaskNotFoundError
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Outcome, Priority, Task
 
 from ..dependencies import get_project, get_task_manager, project_config
-from ..models import TaskCreateRequest, TaskUpdateRequest
+from ..models import BrokenTaskFile, TaskCreateRequest, TaskUpdateRequest
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -51,7 +51,7 @@ async def list_tasks(
     )
 
 
-@router.get("/broken", response_model=List[Dict[str, Any]])
+@router.get("/broken", response_model=List[BrokenTaskFile])
 async def list_broken_tasks(
     manager: TaskManager = Depends(get_task_manager),
 ) -> List[Dict[str, Any]]:
