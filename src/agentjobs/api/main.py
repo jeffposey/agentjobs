@@ -21,6 +21,7 @@ from .routes import (
     web_legacy_router,
     web_router,
 )
+from .spa import register_spa
 
 DESCRIPTION = (
     "REST API for interacting with AgentJobs tasks, including task "
@@ -120,3 +121,7 @@ app.include_router(web_legacy_router)
 for _router in PROJECT_SCOPED_ROUTERS:
     app.include_router(_router, prefix="/api")
     app.include_router(_router, prefix="/api/projects/{project_id}")
+
+# Registered last so the SPA catch-all cannot shadow the Jinja or API routers. Its
+# asset mount is internally ordered before the shell fallback.
+register_spa(app)
