@@ -2,7 +2,7 @@ schema: 2
 id: task-087-react-dashboard
 title: React dashboard, including the next-action ladder
 created: '2026-08-11T07:38:05.463116Z'
-updated: '2026-08-13T08:36:44.049559Z'
+updated: '2026-08-13T08:37:20.930143Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -149,4 +149,21 @@ log:
     passed); focused Ruff checks (passed); focused MyPy checks (passed); git diff
     --check (passed). Remaining: finish and commit the React screen, run the full
     repository gate, restart the server, and perform real-browser verification.'
+  data: {}
+- id: 5
+  ts: '2026-08-13T08:37:20.930020Z'
+  actor: codex
+  type: progress
+  body: 'React dashboard screen committed; starting full verification.
+
+
+    Feature commit c914259 replaces the phase-1 connection proof with the project-scoped
+    React dashboard. It faithfully renders the Python-selected one-panel ladder, stat
+    tiles, unconditional linked backlog trace, active tasks, recent activity, and
+    broken-file warnings. Component coverage asserts exact headings for all five ladder
+    states and confirms only one call-to-action region is present. Frontend npm run
+    check passed: generated schema/client current, lint passed, 2 Vitest files / 8
+    tests passed, and the production build completed. Next: run the complete scripts/check.py
+    gate, restart AgentJobs from this worktree, and exercise rendered behavior in
+    a real browser.'
   data: {}
