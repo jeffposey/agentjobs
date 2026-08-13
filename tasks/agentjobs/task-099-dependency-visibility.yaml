@@ -2,11 +2,14 @@ schema: 2
 id: task-099-dependency-visibility
 title: 'Make dependencies visible: what is blocked, why, and what unblocks it'
 created: '2026-08-13T02:35:21.246892Z'
-updated: '2026-08-13T19:53:49.244588Z'
+updated: '2026-08-13T20:10:29.240406Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: Review task 099 in the installed AgentJobs app. Check that blocked rows/cards
+  explain why, task detail shows both Needs and Blocks, the phase-3 umbrella graph
+  distinguishes containment from sequence, and cycle/missing-reference errors stay
+  visible. Approve or request changes; no merge has happened.
 archived: false
 priority: medium
 category: ux
@@ -162,3 +165,25 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 2
+  ts: '2026-08-13T20:10:29.192464Z'
+  actor: codex
+  type: progress
+  body: 'Implemented dependency visibility across React read surfaces.
+
+
+    Server-computed actionable, blocked, reverse-blocking, cycle, dangling-reference,
+    and open-child facts now drive task rows, dashboard cards, task detail, and a
+    finite umbrella-scoped sequence graph. Full gate passed: 595 Python tests, 34
+    frontend tests, API/icon consistency, lint, and production build. Feature commit
+    fcc8fe8.'
+  data: {}
+- id: 3
+  ts: '2026-08-13T20:10:29.240278Z'
+  actor: codex
+  type: handoff
+  body: Implementation and full verification are complete. Local feature commit fcc8fe8
+    is ready for human review; not merged and not pushed.
+  data:
+    ball: human
+    ball_reason: review
