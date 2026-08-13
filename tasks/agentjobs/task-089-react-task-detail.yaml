@@ -2,7 +2,7 @@ schema: 2
 id: task-089-react-task-detail
 title: 'React task detail: spec, log, and the review actions'
 created: '2026-08-11T07:38:06.430653Z'
-updated: '2026-08-13T09:45:01.514410Z'
+updated: '2026-08-13T09:50:39.593114Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -125,4 +125,22 @@ log:
     repository gate. The merged-main restart again failed because the inaccessible
     orphaned listener on 127.0.0.1:8765 still owns the port; alternate loopback verification
     will be used. Usage-window telemetry is unavailable; no estimate was invented.'
+  data: {}
+- id: 3
+  ts: '2026-08-13T09:50:39.593003Z'
+  actor: codex
+  type: progress
+  body: 'Typed detail/review contract and React review page committed.
+
+
+    Feature commits 2180741 and 61ad34e add a project-scoped complete detail snapshot
+    (task, parent, children, resolved identity), enforce configured identity at the
+    review mutation boundary, type human-action responses, and port the full React
+    task detail. The page shows all spec fields, acceptance, metadata, parent/children/dependencies/links,
+    newest-first typed log with open questions, and phone-sized approve/request-changes/reject
+    controls that call manager-backed endpoints. Dashboard action absence is tested.
+    Focused verification passed: 12 human-action/API tests and frontend check with
+    7 files / 24 tests, API/icon freshness, lint, TypeScript, and production PWA build.
+    Remaining: real-browser responsive/read review, safe mutation evidence without
+    changing a live task, and full gate.'
   data: {}
