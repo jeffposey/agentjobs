@@ -2,7 +2,7 @@ schema: 2
 id: task-083-react-scaffold
 title: Scaffold the React app and serve it at /app
 created: '2026-08-11T07:38:03.613244Z'
-updated: '2026-08-13T03:20:03.262241Z'
+updated: '2026-08-13T03:23:11.844299Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -128,31 +128,31 @@ spec:
 acceptance:
 - id: ac-1
   text: a Vite + React + TypeScript app builds and is served by FastAPI at /app
-  status: pending
+  status: met
 - id: ac-2
   text: the Vite dev server proxies /api to the backend with no CORS error in the
     common path
-  status: pending
+  status: met
 - id: ac-3
   text: a deep link such as /app/p/<project>/tasks/<id> returns the SPA shell on a
     hard refresh -- verified by loading the URL directly, not by navigating to it
     inside the app
-  status: pending
+  status: met
 - id: ac-4
   text: one page fetches real data from the API and renders it, with the project resolved
     from /api/projects rather than hardcoded
-  status: pending
+  status: met
 - id: ac-5
   text: the app renders correctly with no network access to anything but the local
     server -- no CDN references
-  status: pending
+  status: met
 - id: ac-6
   text: the installed toolchain versions and the linter choice are recorded in the
     task
-  status: pending
+  status: met
 - id: ac-7
   text: the Jinja UI is byte-for-byte unchanged and still works
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -262,5 +262,46 @@ log:
     mypy. Remaining: restart the real server, verify the production hard refresh and
     API render in a real browser, verify local-only asset loading/offline behavior,
     and exercise the Vite development proxy. Usage-window telemetry is not available
+    in this session.'
+  data: {}
+- id: 6
+  ts: '2026-08-13T03:23:11.823472Z'
+  actor: codex
+  type: decision
+  body: Use oxlint 1.78.0 for the frontend scaffold. It is a single fast binary with
+    no plugin-resolution tree and runs as part of `npm run check`. Rejected ESLint
+    for this foundation because its plugin/configuration surface adds dependency and
+    maintenance weight before the application has lint rules that need it.
+  data: {}
+- id: 7
+  ts: '2026-08-13T03:23:11.844213Z'
+  actor: codex
+  type: progress
+  body: 'Final verification for c6cbb6b completed. `poetry run agentjobs restart`
+    was run from C:/projects/aj-083; the wrapper timed out after 30 seconds, but `poetry
+    run agentjobs status` confirmed a fresh server running on localhost:8765. In the
+    in-app browser, loading http://localhost:8765/app/p/agentjobs/tasks/task-083-react-scaffold
+    directly, then calling browser reload, rendered ?AgentJobs is connected? and ?The
+    scoped API returned 74 tasks?; the URL remained the deep link, loaded only the
+    local hashed /app/assets JavaScript and CSS, and produced no browser warnings/errors.
+    A visual full-page inspection showed the mobile-first dark shell rendered correctly.
+    Loading http://localhost:8765/app redirected to /app/p/agentjobs after GET /api/projects
+    and rendered the same scoped API data; no project id is hardcoded in frontend
+    source. A temporary Vite 8.2.1 server at http://127.0.0.1:5173/app/p/agentjobs/tasks/task-083-react-scaffold
+    also rendered 74 tasks with no browser warnings/errors, proving /api was proxied
+    to port 8765; its exact listener process was stopped afterward. PowerShell Invoke-WebRequest
+    returned 200 text/html for the production deep link and 200 for /p/agentjobs/.
+    `npm run check` passed oxlint, TypeScript 6.0.3, and the Vite production build;
+    `poetry run pytest` passed 568/568; focused SPA tests passed 3/3; ruff passed.
+    The installed package set is React/React DOM 19.2.8, React Router DOM 7.18.2,
+    Vite 8.2.1, TypeScript 6.0.3, @vitejs/plugin-react 6.0.5, Tailwind CSS and @tailwindcss/vite
+    4.3.3, and oxlint 1.78.0, recorded in frontend/README.md and the lockfile. `git
+    diff --exit-code main -- src/agentjobs/api/templates` showed the Jinja templates
+    byte-identical. The machine internet connection was not disabled; instead, browser
+    DOM inspection confirmed the rendered production page referenced only local hashed
+    assets, and no CDN appears in the React HTML or source. Existing unrelated baseline
+    debt remains: full Black would reformat tests/test_attention_tiers.py, and full
+    mypy reports five errors in tests/test_subtasks.py; changed Python files pass
+    both. All acceptance criteria are marked met. Usage-window telemetry is not available
     in this session.'
   data: {}
