@@ -1,57 +1,32 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
-type Project = {
-  id: string;
-  name: string;
-};
-
-type TaskSummary = {
-  id: string;
-};
+import {
+  getProjectsApiProjectsGetOptions,
+  listTasksApiProjectsProjectIdTasksGetOptions,
+} from "./api/generated/@tanstack/react-query.gen";
+import {
+  requireSupportedTaskSchemas,
+  UnsupportedTaskSchemaError,
+} from "./api/schema-version";
 
 function ProjectRedirect() {
   const navigate = useNavigate();
-  const [state, setState] = useState<"loading" | "empty" | "error">("loading");
+  const projectsQuery = useQuery(getProjectsApiProjectsGetOptions());
 
   useEffect(() => {
-    const controller = new AbortController();
-
-    async function resolveProject() {
-      try {
-        const response = await fetch("/api/projects", { signal: controller.signal });
-        if (!response.ok) {
-          throw new Error(`Project lookup failed with ${response.status}`);
-        }
-        const projects = (await response.json()) as Project[];
-        if (projects.length === 0) {
-          setState("empty");
-          return;
-        }
-        navigate(`/p/${encodeURIComponent(projects[0].id)}`, { replace: true });
-      } catch {
-        if (!controller.signal.aborted) {
-          setState("error");
-        }
-      }
+    const firstProject = projectsQuery.data?.[0];
+    if (firstProject) {
+      navigate(`/p/${encodeURIComponent(firstProject.id)}`, { replace: true });
     }
+  }, [navigate, projectsQuery.data]);
 
-    void resolveProject();
-    return () => controller.abort();
-  }, [navigate]);
-
-  if (state === "empty") {
-    return (
-      <StatusCard title="No projects are registered">
-        <p>Register or create a project before opening the React app.</p>
-        <a className="mt-4 inline-block font-semibold text-blue-300 hover:text-blue-200" href="/projects/new">
-          Add or create a project
-        </a>
-      </StatusCard>
-    );
+  if (projectsQuery.isPending) {
+    return <StatusCard title="Opening AgentJobs...">Resolving the first registered project.</StatusCard>;
   }
 
-  if (state === "error") {
+  if (projectsQuery.isError) {
     return (
       <StatusCard title="AgentJobs could not load the project registry">
         <p>Confirm the local server is running, then reload this page.</p>
@@ -59,40 +34,34 @@ function ProjectRedirect() {
     );
   }
 
-  return <StatusCard title="Opening AgentJobs…">Resolving the first registered project.</StatusCard>;
+  return (
+    <StatusCard title="No projects are registered">
+      <p>Register or create a project before opening the React app.</p>
+      <a className="mt-4 inline-block font-semibold text-blue-300 hover:text-blue-200" href="/projects/new">
+        Add or create a project
+      </a>
+    </StatusCard>
+  );
 }
 
 function ApiProof() {
   const { projectId } = useParams<{ projectId: string }>();
-  const [taskCount, setTaskCount] = useState<number | null>(null);
-  const [failed, setFailed] = useState(false);
+  const tasksQuery = useQuery({
+    ...listTasksApiProjectsProjectIdTasksGetOptions({
+      path: { project_id: projectId ?? "" },
+    }),
+    enabled: Boolean(projectId),
+    select: requireSupportedTaskSchemas,
+  });
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setTaskCount(null);
-    setFailed(false);
-
-    async function loadTasks() {
-      try {
-        const response = await fetch(
-          `/api/projects/${encodeURIComponent(projectId ?? "")}/tasks`,
-          { signal: controller.signal },
-        );
-        if (!response.ok) {
-          throw new Error(`Task lookup failed with ${response.status}`);
-        }
-        const tasks = (await response.json()) as TaskSummary[];
-        setTaskCount(tasks.length);
-      } catch {
-        if (!controller.signal.aborted) {
-          setFailed(true);
-        }
-      }
-    }
-
-    void loadTasks();
-    return () => controller.abort();
-  }, [projectId]);
+  if (tasksQuery.error instanceof UnsupportedTaskSchemaError) {
+    return (
+      <StatusCard title="Unsupported task schema">
+        <p>{tasksQuery.error.message}</p>
+        <p className="mt-4">Upgrade the UI before viewing this project.</p>
+      </StatusCard>
+    );
+  }
 
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl items-center px-4 py-10 sm:px-6">
@@ -103,13 +72,14 @@ function ApiProof() {
           Project <span className="font-mono text-dark-text">{projectId}</span>
         </p>
         <div className="mt-8 rounded-xl border border-dark-border bg-dark-bg p-5">
-          {failed ? (
+          {tasksQuery.isError ? (
             <p className="text-red-300">The scoped task API could not be reached.</p>
-          ) : taskCount === null ? (
-            <p className="text-dark-muted">Loading real project data…</p>
+          ) : tasksQuery.isPending ? (
+            <p className="text-dark-muted">Loading real project data...</p>
           ) : (
             <p className="text-dark-text">
-              The scoped API returned <strong>{taskCount}</strong> {taskCount === 1 ? "task" : "tasks"}.
+              The scoped API returned <strong>{tasksQuery.data.length}</strong>{" "}
+              {tasksQuery.data.length === 1 ? "task" : "tasks"}.
             </p>
           )}
         </div>

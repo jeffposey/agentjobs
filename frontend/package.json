@@ -6,15 +6,23 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "lint": "oxlint .",
-    "check": "npm run lint && npm run build"
+    "generate:api-schema": "poetry run python ../scripts/export_openapi.py openapi.json",
+    "generate:api-client": "openapi-ts",
+    "generate:api": "npm run generate:api-schema && npm run generate:api-client",
+    "check:api-schema": "poetry run python ../scripts/export_openapi.py openapi.json --check",
+    "check:api-client": "openapi-ts && node scripts/assert-generated-clean.mjs",
+    "check:api": "npm run check:api-schema && npm run check:api-client",
+    "lint": "oxlint --ignore-pattern src/api/generated/** .",
+    "check": "npm run check:api && npm run lint && npm run build"
   },
   "dependencies": {
+    "@tanstack/react-query": "5.101.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-router-dom": "7.18.2"
   },
   "devDependencies": {
+    "@hey-api/openapi-ts": "0.97.3",
     "@tailwindcss/vite": "4.3.3",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
@@ -23,5 +31,8 @@
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
     "vite": "8.2.1"
+  },
+  "overrides": {
+    "js-yaml": "4.3.1"
   }
 }

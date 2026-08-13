@@ -165,6 +165,11 @@ npm install
 npm run check
 ```
 
+That single frontend check command also regenerates the checked-in OpenAPI types,
+Fetch client, and TanStack Query options, failing when the generated contract is stale.
+Run `npm run generate:api` when an intentional backend contract change needs to be
+recorded.
+
 During development Vite serves it at `http://localhost:5173/app/` and proxies API
 requests to AgentJobs on port 8765. After `npm run build`, FastAPI serves the same app
 at `http://localhost:8765/app` with deep-link fallback.

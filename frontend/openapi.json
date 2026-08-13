@@ -1,0 +1,4458 @@
+{
+  "components": {
+    "schemas": {
+      "AcceptanceCriterion": {
+        "additionalProperties": false,
+        "description": "One element of the definition of done.",
+        "properties": {
+          "id": {
+            "description": "Identifier scoped to the task, e.g. ac-1.",
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AcceptanceStatus",
+            "default": "pending"
+          },
+          "text": {
+            "description": "What must be true.",
+            "title": "Text",
+            "type": "string"
+          },
+          "verify": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional machine-checkable hint, e.g. a command to run.",
+            "title": "Verify"
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ],
+        "title": "AcceptanceCriterion",
+        "type": "object"
+      },
+      "AcceptanceStatus": {
+        "description": "State of one acceptance criterion.\n\nDeliberately distinct from DeliverableStatus: a criterion is *verified* (met), a\ndeliverable is *produced* (done). Collapsing them recreates the v1 problem of one\nword straining across meanings (design doc section 3).",
+        "enum": [
+          "pending",
+          "met",
+          "failed",
+          "dropped"
+        ],
+        "title": "AcceptanceStatus",
+        "type": "string"
+      },
+      "Assignment": {
+        "additionalProperties": false,
+        "description": "Live ownership and authoring-time eligibility.\n\nv1's `assigned_to` conflated these: documented as \"currently assigned\" and used as\na static label.",
+        "properties": {
+          "eligible": {
+            "description": "Actor ids that may claim this task. Empty means anyone.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Eligible",
+            "type": "array"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Actor id holding the task. Set on claim, cleared on release/close.",
+            "title": "Owner"
+          }
+        },
+        "title": "Assignment",
+        "type": "object"
+      },
+      "Ball": {
+        "description": "Who acts next. Required while a task is open; null only when closed.",
+        "enum": [
+          "agent",
+          "human",
+          "external"
+        ],
+        "title": "Ball",
+        "type": "string"
+      },
+      "BallReason": {
+        "description": "Why the ball holder holds it. Scoped to the holder -- see BALL_REASONS.",
+        "enum": [
+          "available",
+          "work",
+          "revise",
+          "spec",
+          "review",
+          "decision",
+          "approval",
+          "input",
+          "dependency",
+          "service"
+        ],
+        "title": "BallReason",
+        "type": "string"
+      },
+      "Branch": {
+        "additionalProperties": false,
+        "description": "Git branch lifecycle metadata.",
+        "properties": {
+          "merged_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merged At"
+          },
+          "name": {
+            "description": "Branch name.",
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BranchStatus",
+            "default": "active"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "Branch",
+        "type": "object"
+      },
+      "BranchStatus": {
+        "description": "Git branch lifecycle. Unchanged from v1 -- genuinely distinct.",
+        "enum": [
+          "active",
+          "merged",
+          "abandoned"
+        ],
+        "title": "BranchStatus",
+        "type": "string"
+      },
+      "ClaimRequest": {
+        "description": "An agent takes ownership of a ready task.",
+        "properties": {
+          "agent": {
+            "description": "Actor id claiming the task.",
+            "title": "Agent",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent"
+        ],
+        "title": "ClaimRequest",
+        "type": "object"
+      },
+      "CloseRequest": {
+        "description": "End the task with an outcome.",
+        "properties": {
+          "actor": {
+            "description": "Who is closing the task.",
+            "title": "Actor",
+            "type": "string"
+          },
+          "archive": {
+            "default": false,
+            "description": "Also hide the task from listings.",
+            "title": "Archive",
+            "type": "boolean"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional log entry body.",
+            "title": "Body"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/Outcome",
+            "description": "How it ended."
+          }
+        },
+        "required": [
+          "actor",
+          "outcome"
+        ],
+        "title": "CloseRequest",
+        "type": "object"
+      },
+      "ContextPointer": {
+        "additionalProperties": false,
+        "description": "A curated \"read this first\" pointer, with the reason it matters.",
+        "properties": {
+          "path": {
+            "description": "Repository-relative path.",
+            "title": "Path",
+            "type": "string"
+          },
+          "why": {
+            "description": "Why a reader should open this first.",
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "why"
+        ],
+        "title": "ContextPointer",
+        "type": "object"
+      },
+      "Deliverable": {
+        "additionalProperties": false,
+        "description": "An artifact this task produces.",
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What it is.",
+            "title": "Note"
+          },
+          "path": {
+            "description": "Repository-relative path.",
+            "title": "Path",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DeliverableStatus",
+            "default": "pending"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "Deliverable",
+        "type": "object"
+      },
+      "DeliverableStatus": {
+        "description": "State of one deliverable.",
+        "enum": [
+          "pending",
+          "done",
+          "dropped"
+        ],
+        "title": "DeliverableStatus",
+        "type": "string"
+      },
+      "Dependency": {
+        "additionalProperties": false,
+        "description": "A typed relationship to another task.",
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the relationship exists.",
+            "title": "Note"
+          },
+          "task": {
+            "description": "Referenced task id.",
+            "title": "Task",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/DependencyType",
+            "default": "needs"
+          }
+        },
+        "required": [
+          "task"
+        ],
+        "title": "Dependency",
+        "type": "object"
+      },
+      "DependencyType": {
+        "description": "Relationship to another task. v1's `depends_on` is renamed `needs`.",
+        "enum": [
+          "needs",
+          "blocks",
+          "related"
+        ],
+        "title": "DependencyType",
+        "type": "string"
+      },
+      "FeedbackActionRequest": {
+        "description": "Request changes with feedback.",
+        "properties": {
+          "feedback": {
+            "description": "Feedback text",
+            "examples": [
+              "Please add error handling"
+            ],
+            "minLength": 1,
+            "title": "Feedback",
+            "type": "string"
+          },
+          "user": {
+            "description": "User performing the action",
+            "examples": [
+              "jeff"
+            ],
+            "title": "User",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user",
+          "feedback"
+        ],
+        "title": "FeedbackActionRequest",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HandoffRequest": {
+        "description": "The ball moves; the ask travels with it.",
+        "properties": {
+          "actor": {
+            "description": "Who is handing the work over.",
+            "title": "Actor",
+            "type": "string"
+          },
+          "ball": {
+            "$ref": "#/components/schemas/Ball",
+            "description": "Who acts next."
+          },
+          "ball_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The ask, addressed to the new holder. Required except agent/available.",
+            "title": "Ball Prompt"
+          },
+          "ball_reason": {
+            "$ref": "#/components/schemas/BallReason",
+            "description": "Why they hold it."
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Log entry body; defaults to the ball_prompt.",
+            "title": "Body"
+          }
+        },
+        "required": [
+          "actor",
+          "ball",
+          "ball_reason"
+        ],
+        "title": "HandoffRequest",
+        "type": "object"
+      },
+      "HumanActionRequest": {
+        "description": "Base request for human actions.",
+        "properties": {
+          "user": {
+            "description": "User performing the action",
+            "examples": [
+              "jeff"
+            ],
+            "title": "User",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "title": "HumanActionRequest",
+        "type": "object"
+      },
+      "Lifecycle": {
+        "description": "Where a task is in its life (design doc section 3).",
+        "enum": [
+          "draft",
+          "ready",
+          "active",
+          "closed"
+        ],
+        "title": "Lifecycle",
+        "type": "string"
+      },
+      "Link": {
+        "additionalProperties": false,
+        "description": "An external resource.",
+        "properties": {
+          "rel": {
+            "$ref": "#/components/schemas/LinkRel",
+            "default": "other",
+            "description": "What it points at."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Display title.",
+            "title": "Title"
+          },
+          "url": {
+            "description": "Validated URL.",
+            "format": "uri",
+            "maxLength": 2083,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "Link",
+        "type": "object"
+      },
+      "LinkRel": {
+        "description": "What an external link points at.",
+        "enum": [
+          "pr",
+          "issue",
+          "doc",
+          "design",
+          "build",
+          "other"
+        ],
+        "title": "LinkRel",
+        "type": "string"
+      },
+      "LogAppendRequest": {
+        "description": "Append one entry to the unified log.",
+        "properties": {
+          "actor": {
+            "description": "Actor id writing the entry.",
+            "title": "Actor",
+            "type": "string"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Prose, markdown.",
+            "title": "Body"
+          },
+          "data": {
+            "additionalProperties": true,
+            "description": "Optional structured payload.",
+            "title": "Data",
+            "type": "object"
+          },
+          "re": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional id of the earlier entry this threads to.",
+            "title": "Re"
+          },
+          "type": {
+            "$ref": "#/components/schemas/LogEntryType",
+            "default": "note",
+            "description": "Entry type. Transitions are manager-only and rejected here."
+          }
+        },
+        "required": [
+          "actor"
+        ],
+        "title": "LogAppendRequest",
+        "type": "object"
+      },
+      "LogEntry": {
+        "additionalProperties": false,
+        "description": "One entry in the unified append-only log (design doc section 4).\n\nReplaces v1's `status_updates`, `comments` and `prompts.followups` -- three\nappend-only authored lists with an implied but unenforced role split.",
+        "properties": {
+          "actor": {
+            "description": "Actor id. A bare reference; kind is resolved from config (D4).",
+            "title": "Actor",
+            "type": "string"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Prose, markdown.",
+            "title": "Body"
+          },
+          "data": {
+            "additionalProperties": true,
+            "description": "Optional structured payload, typed per entry type.",
+            "title": "Data",
+            "type": "object"
+          },
+          "id": {
+            "description": "Per-task integer, assigned by the manager.",
+            "minimum": 1.0,
+            "title": "Id",
+            "type": "integer"
+          },
+          "re": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional id of the entry this threads to.",
+            "title": "Re"
+          },
+          "ts": {
+            "description": "When the entry was written.",
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/LogEntryType",
+            "description": "Entry type."
+          }
+        },
+        "required": [
+          "id",
+          "ts",
+          "actor",
+          "type"
+        ],
+        "title": "LogEntry",
+        "type": "object"
+      },
+      "LogEntryType": {
+        "description": "Type of a log entry (design doc section 4).",
+        "enum": [
+          "note",
+          "progress",
+          "transition",
+          "handoff",
+          "decision",
+          "question",
+          "answer",
+          "instruction"
+        ],
+        "title": "LogEntryType",
+        "type": "string"
+      },
+      "Outcome": {
+        "description": "How a task ended. Set if and only if lifecycle is closed.",
+        "enum": [
+          "completed",
+          "cancelled",
+          "superseded",
+          "duplicate"
+        ],
+        "title": "Outcome",
+        "type": "string"
+      },
+      "Priority": {
+        "description": "Relative urgency.",
+        "enum": [
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "title": "Priority",
+        "type": "string"
+      },
+      "ProgressUpdateRequest": {
+        "description": "Progress update payload appended to the task log.",
+        "properties": {
+          "author": {
+            "title": "Author",
+            "type": "string"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "author",
+          "summary"
+        ],
+        "title": "ProgressUpdateRequest",
+        "type": "object"
+      },
+      "ProjectInitializationRequest": {
+        "description": "Create a project in an existing directory, then register it.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "path": {
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          },
+          "port": {
+            "default": 8765,
+            "maximum": 65535.0,
+            "minimum": 1.0,
+            "title": "Port",
+            "type": "integer"
+          },
+          "project_name": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Name"
+          },
+          "prompts_directory": {
+            "default": "prompts",
+            "minLength": 1,
+            "title": "Prompts Directory",
+            "type": "string"
+          },
+          "tasks_directory": {
+            "default": "tasks",
+            "minLength": 1,
+            "title": "Tasks Directory",
+            "type": "string"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "ProjectInitializationRequest",
+        "type": "object"
+      },
+      "ProjectInspection": {
+        "description": "What the onboarding page should do with an inspected path.",
+        "properties": {
+          "action": {
+            "enum": [
+              "register",
+              "initialize"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "suggested_id": {
+            "title": "Suggested Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "action",
+          "project_name",
+          "suggested_id"
+        ],
+        "title": "ProjectInspection",
+        "type": "object"
+      },
+      "ProjectInspectionRequest": {
+        "description": "A path to inspect before the user confirms a write or registration.",
+        "properties": {
+          "path": {
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "ProjectInspectionRequest",
+        "type": "object"
+      },
+      "ProjectRegistrationRequest": {
+        "description": "Register a directory that is already an AgentJobs project.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "path": {
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "ProjectRegistrationRequest",
+        "type": "object"
+      },
+      "ProjectResponse": {
+        "description": "A registered project as exposed to API consumers.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "root": {
+            "title": "Root",
+            "type": "string"
+          },
+          "task_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Count"
+          },
+          "tasks_directory": {
+            "title": "Tasks Directory",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "root",
+          "tasks_directory",
+          "task_count"
+        ],
+        "title": "ProjectResponse",
+        "type": "object"
+      },
+      "RejectActionRequest": {
+        "description": "Reject task with reason.",
+        "properties": {
+          "reason": {
+            "description": "Rejection reason",
+            "examples": [
+              "Out of scope"
+            ],
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "user": {
+            "description": "User performing the action",
+            "examples": [
+              "jeff"
+            ],
+            "title": "User",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user",
+          "reason"
+        ],
+        "title": "RejectActionRequest",
+        "type": "object"
+      },
+      "ReleaseRequest": {
+        "description": "An agent bows out; the task returns to the pool.",
+        "properties": {
+          "actor": {
+            "description": "Who is releasing the task.",
+            "title": "Actor",
+            "type": "string"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional log entry body.",
+            "title": "Body"
+          }
+        },
+        "required": [
+          "actor"
+        ],
+        "title": "ReleaseRequest",
+        "type": "object"
+      },
+      "Spec": {
+        "additionalProperties": false,
+        "description": "The specification, split along the questions agents actually ask.\n\nv1 had one `description` blob plus a `prompts.starter` that largely restated it.",
+        "properties": {
+          "constraints": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hard requirements and prohibitions (markdown).",
+            "title": "Constraints"
+          },
+          "context": {
+            "description": "Read-this-first pointers with reasons.",
+            "items": {
+              "$ref": "#/components/schemas/ContextPointer"
+            },
+            "title": "Context",
+            "type": "array"
+          },
+          "description": {
+            "description": "WHAT to do (markdown) -- the working spec.",
+            "title": "Description",
+            "type": "string"
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "WHY this task exists (markdown).",
+            "title": "Intent"
+          },
+          "out_of_scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Explicit non-goals, so agents do not wander.",
+            "title": "Out Of Scope"
+          },
+          "summary": {
+            "description": "One or two sentences. The only summary, for every audience.",
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "summary",
+          "description"
+        ],
+        "title": "Spec",
+        "type": "object"
+      },
+      "Task": {
+        "additionalProperties": false,
+        "description": "A task, in schema v2.\n\nThe five consistency rules from design doc section 3 are enforced below in\n``_check_consistency``. They are what make limbo unrepresentable: an open task with\nnobody responsible, or a handoff with no stated ask, cannot be written down.",
+        "properties": {
+          "acceptance": {
+            "items": {
+              "$ref": "#/components/schemas/AcceptanceCriterion"
+            },
+            "title": "Acceptance",
+            "type": "array"
+          },
+          "archived": {
+            "default": false,
+            "description": "Visibility flag, orthogonal to how the task ended.",
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "assignment": {
+            "$ref": "#/components/schemas/Assignment"
+          },
+          "ball": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ball"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who acts next. Required while open."
+          },
+          "ball_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The ask, addressed to whoever holds the ball. Required when ball is set.",
+            "title": "Ball Prompt"
+          },
+          "ball_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BallReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why they hold it, scoped to the holder."
+          },
+          "branches": {
+            "items": {
+              "$ref": "#/components/schemas/Branch"
+            },
+            "title": "Branches",
+            "type": "array"
+          },
+          "category": {
+            "description": "Project taxonomy; validated against config.",
+            "title": "Category",
+            "type": "string"
+          },
+          "created": {
+            "format": "date-time",
+            "title": "Created",
+            "type": "string"
+          },
+          "deliverables": {
+            "items": {
+              "$ref": "#/components/schemas/Deliverable"
+            },
+            "title": "Deliverables",
+            "type": "array"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/Dependency"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "display_status": {
+            "description": "One human-readable label, derived on read and never stored.\n\nStoring it was rejected in design doc section 3: a denormalized copy of three\nfields is a drift bug waiting for its moment, and the derivation is this.\nA computed field rather than a plain property so API responses carry it;\nstorage excludes it on write, and a file that contains it is rejected by\nname (extra=\"forbid\") rather than silently round-tripped.",
+            "readOnly": true,
+            "title": "Display Status",
+            "type": "string"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Free text. An estimate, not a contract.",
+            "title": "Effort"
+          },
+          "id": {
+            "description": "Unique task identifier.",
+            "title": "Id",
+            "type": "string"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/Lifecycle",
+            "default": "draft"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "title": "Links",
+            "type": "array"
+          },
+          "log": {
+            "items": {
+              "$ref": "#/components/schemas/LogEntry"
+            },
+            "title": "Log",
+            "type": "array"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Outcome"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How it ended. Set only when closed."
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Task id of the umbrella task, if any.",
+            "title": "Parent"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/Priority",
+            "default": "medium"
+          },
+          "schema": {
+            "default": 2,
+            "description": "Schema version stamp. Always 2 for this model (D3).",
+            "title": "Schema",
+            "type": "integer"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/Spec"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "description": "Task title.",
+            "title": "Title",
+            "type": "string"
+          },
+          "updated": {
+            "format": "date-time",
+            "title": "Updated",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created",
+          "updated",
+          "category",
+          "spec",
+          "display_status"
+        ],
+        "title": "Task",
+        "type": "object"
+      },
+      "TaskCreateRequest": {
+        "description": "Payload for creating a new task.",
+        "properties": {
+          "acceptance": {
+            "description": "Checklist defining done.",
+            "items": {
+              "$ref": "#/components/schemas/AcceptanceCriterion"
+            },
+            "title": "Acceptance",
+            "type": "array"
+          },
+          "branches": {
+            "description": "Git branches associated with the task lifecycle.",
+            "items": {
+              "$ref": "#/components/schemas/Branch"
+            },
+            "title": "Branches",
+            "type": "array"
+          },
+          "category": {
+            "default": "general",
+            "description": "Classification category used for filtering in the UI.",
+            "title": "Category",
+            "type": "string"
+          },
+          "constraints": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hard requirements and prohibitions (spec.constraints).",
+            "title": "Constraints"
+          },
+          "deliverables": {
+            "description": "Deliverables to be produced for task completion.",
+            "items": {
+              "$ref": "#/components/schemas/Deliverable"
+            },
+            "title": "Deliverables",
+            "type": "array"
+          },
+          "dependencies": {
+            "description": "Task dependencies tracked in the system.",
+            "items": {
+              "$ref": "#/components/schemas/Dependency"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "description": {
+            "description": "Markdown working spec (spec.description).",
+            "title": "Description",
+            "type": "string"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Estimated effort (time or complexity). Free text.",
+            "title": "Effort"
+          },
+          "eligible": {
+            "description": "Actor ids that may claim the task. Empty means anyone.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Eligible",
+            "type": "array"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional explicit task identifier (e.g., task-042).",
+            "title": "Id"
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the task exists (spec.intent).",
+            "title": "Intent"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/Lifecycle",
+            "default": "draft",
+            "description": "Initial lifecycle: draft (ball human/spec) or ready (agent/available)."
+          },
+          "links": {
+            "description": "External references relevant to the task.",
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "title": "Links",
+            "type": "array"
+          },
+          "out_of_scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Explicit non-goals (spec.out_of_scope).",
+            "title": "Out Of Scope"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Umbrella task id, if any.",
+            "title": "Parent"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/Priority",
+            "default": "medium",
+            "description": "Relative urgency for the new task."
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One-or-two sentence spec.summary. Defaults to the title.",
+            "title": "Summary"
+          },
+          "tags": {
+            "description": "Arbitrary tag labels.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "description": "Task title summarising the work to be done.",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "description"
+        ],
+        "title": "TaskCreateRequest",
+        "type": "object"
+      },
+      "TaskUpdateRequest": {
+        "description": "Payload for partially updating a task.\n\nThe state axes are deliberately absent: lifecycle, ball and outcome move only\nthrough the claim/handoff/release/close verbs, which log their transitions.",
+        "properties": {
+          "acceptance": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AcceptanceCriterion"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acceptance"
+          },
+          "branches": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Branch"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branches"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "deliverables": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Deliverable"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverables"
+          },
+          "dependencies": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Dependency"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependencies"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
+          },
+          "links": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Link"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Links"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "spec": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Spec"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "TaskUpdateRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "Webhook": {
+        "description": "Webhook configuration for task event notifications.",
+        "properties": {
+          "active": {
+            "default": true,
+            "description": "Whether this webhook is active.",
+            "title": "Active",
+            "type": "boolean"
+          },
+          "created": {
+            "description": "When the webhook was created.",
+            "format": "date-time",
+            "title": "Created",
+            "type": "string"
+          },
+          "events": {
+            "description": "List of events to trigger this webhook.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "id": {
+            "description": "Unique webhook identifier.",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_triggered": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last time this webhook was successfully triggered.",
+            "title": "Last Triggered"
+          },
+          "secret": {
+            "description": "Secret for HMAC signature verification.",
+            "title": "Secret",
+            "type": "string"
+          },
+          "url": {
+            "description": "Target URL for webhook delivery.",
+            "format": "uri",
+            "maxLength": 2083,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "events",
+          "secret",
+          "created"
+        ],
+        "title": "Webhook",
+        "type": "object"
+      },
+      "WebhookCreateRequest": {
+        "description": "Request to create a webhook.",
+        "properties": {
+          "active": {
+            "default": true,
+            "description": "Whether webhook is active",
+            "title": "Active",
+            "type": "boolean"
+          },
+          "events": {
+            "description": "Events to subscribe to",
+            "items": {
+              "type": "string"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "secret": {
+            "description": "Secret for HMAC verification",
+            "title": "Secret",
+            "type": "string"
+          },
+          "url": {
+            "description": "Webhook target URL",
+            "format": "uri",
+            "maxLength": 2083,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "events",
+          "secret"
+        ],
+        "title": "WebhookCreateRequest",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "REST API for interacting with AgentJobs tasks, including task management, status tracking, prompt coordination, and search.",
+    "title": "AgentJobs API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/all/tasks": {
+      "get": {
+        "description": "Every task across every project, each tagged with the project it belongs to.\n\nMounted at ``/api/all/tasks`` rather than as a magic id under ``/api/tasks/``,\nbecause ``/api/tasks/all`` would be indistinguishable from a task whose id is\nliterally \"all\" and would shadow it.\n\nRead-only by design. Writes always address one project explicitly, so there stays\nexactly one code path that mutates a file.",
+        "operationId": "get_all_tasks_api_all_tasks_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lifecycle",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Lifecycle"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lifecycle"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ball",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Ball"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ball"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get All Tasks Api All Tasks Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get All Tasks",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/health": {
+      "get": {
+        "description": "Simple health check endpoint for API consumers.",
+        "operationId": "api_health_check_api_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Api Health Check Api Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Health Check",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/projects": {
+      "get": {
+        "description": "List every project this server can serve, with task counts.\n\nA project whose directory has gone missing is reported with a null task_count\nrather than failing the whole listing -- the registry is machine-local and a\ncheckout can legitimately disappear.",
+        "operationId": "get_projects_api_projects_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectResponse"
+                  },
+                  "title": "Response Get Projects Api Projects Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Projects",
+        "tags": [
+          "projects"
+        ]
+      },
+      "post": {
+        "description": "Register an existing AgentJobs project without changing its files.",
+        "operationId": "register_project_api_projects_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectRegistrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Project",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/projects/init": {
+      "post": {
+        "description": "Initialize an existing untracked directory and register the new project.",
+        "operationId": "initialize_and_register_project_api_projects_init_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectInitializationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Initialize And Register Project",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/projects/inspect": {
+      "post": {
+        "description": "Tell the UI whether confirmation should register or initialize a path.",
+        "operationId": "inspect_project_path_api_projects_inspect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectInspectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectInspection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Inspect Project Path",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/search": {
+      "get": {
+        "description": "Search tasks using a case-insensitive substring query.",
+        "operationId": "search_tasks_api_projects__project_id__search_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Task"
+                  },
+                  "title": "Response Search Tasks Api Projects  Project Id  Search Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Tasks",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks": {
+      "get": {
+        "description": "List tasks filtered along the state axes.\n\n``?ball=human`` is the human inbox: everything waiting on a person, each row\ncarrying its ``ball_prompt``. ``?ball=external`` is the blocked list.\n``?parent=task-063-schema-v2`` is one umbrella's children.",
+        "operationId": "list_tasks_api_projects__project_id__tasks_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lifecycle",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Lifecycle"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lifecycle"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ball",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Ball"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ball"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Priority"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          },
+          {
+            "description": "Return only the children of this umbrella task.",
+            "in": "query",
+            "name": "parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return only the children of this umbrella task.",
+              "title": "Parent"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Task"
+                  },
+                  "title": "Response List Tasks Api Projects  Project Id  Tasks Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Tasks",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "post": {
+        "description": "Create a new task record.",
+        "operationId": "create_task_api_projects__project_id__tasks_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/broken": {
+      "get": {
+        "description": "Files in the task directory that exist but cannot be loaded.\n\nDeclared before /{task_id} so \"broken\" is not captured as a task id. These used to\nbe invisible: storage returned None for them and every listing simply omitted the\ntask. An unmigrated v1 file shows up here by filename.",
+        "operationId": "list_broken_tasks_api_projects__project_id__tasks_broken_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Broken Tasks Api Projects  Project Id  Tasks Broken Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Broken Tasks",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/next": {
+      "get": {
+        "description": "The next claimable task: ready, eligible for the agent, no unmet needs.",
+        "operationId": "get_next_task_api_projects__project_id__tasks_next_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Priority"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Task"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Next Task Api Projects  Project Id  Tasks Next Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Next Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}": {
+      "delete": {
+        "description": "Archive a task. An open task is closed as cancelled first.",
+        "operationId": "archive_task_api_projects__project_id__tasks__task_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Task",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "get": {
+        "description": "Retrieve a specific task by identifier.",
+        "operationId": "get_task_api_projects__project_id__tasks__task_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Task",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "patch": {
+        "description": "Apply a partial update to a task. State axes move through the verbs, not here.",
+        "operationId": "update_task_api_projects__project_id__tasks__task_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}/approve": {
+      "post": {
+        "description": "Record human approval and hand the ball back to the agent (agent/work).\n\nNothing here merges anything. The GUI cannot run git, and a button that implied\notherwise would lie. It records the approval in the task record -- which is the\npoint, since approvals used to live only in chat -- and moves the ball: the agent\nmust now rebase, merge --no-ff, mark the branch merged, and close the task\n(ENGINEERING.md, \"The Merge Gate\").",
+        "operationId": "approve_task_api_projects__project_id__tasks__task_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HumanActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Approve Task Api Projects  Project Id  Tasks  Task Id  Approve Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}/claim": {
+      "post": {
+        "description": "Claim a ready task: one winner, everyone else gets a 409.",
+        "operationId": "claim_task_api_projects__project_id__tasks__task_id__claim_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim Task",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}/close": {
+      "post": {
+        "description": "End the task with an outcome.",
+        "operationId": "close_task_api_projects__project_id__tasks__task_id__close_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Close Task",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}/deliverables/{deliverable_path}": {
+      "patch": {
+        "description": "Mark a deliverable as done for the task.",
+        "operationId": "mark_deliverable_api_projects__project_id__tasks__task_id__deliverables__deliverable_path__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "deliverable_path",
+            "required": true,
+            "schema": {
+              "title": "Deliverable Path",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Deliverable",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}/handoff": {
+      "post": {
+        "description": "Move the ball, with its ask.",
+        "operationId": "handoff_task_api_projects__project_id__tasks__task_id__handoff_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandoffRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Handoff Task",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}/log": {
+      "post": {
+        "description": "Append a note/progress/decision/question/answer/instruction entry.",
+        "operationId": "append_log_entry_api_projects__project_id__tasks__task_id__log_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogAppendRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Append Log Entry",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}/progress": {
+      "post": {
+        "description": "Append a progress update entry for the task.",
+        "operationId": "post_progress_update_api_projects__project_id__tasks__task_id__progress_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgressUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Progress Update",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}/reject": {
+      "post": {
+        "description": "Reject a task: closed as cancelled, archived, reason on the record.",
+        "operationId": "reject_task_api_projects__project_id__tasks__task_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Reject Task Api Projects  Project Id  Tasks  Task Id  Reject Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reject Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}/release": {
+      "post": {
+        "description": "Return a claimed task to the pool.",
+        "operationId": "release_task_api_projects__project_id__tasks__task_id__release_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Release Task",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}/request-changes": {
+      "post": {
+        "description": "Record requested changes and hand the ball back to the agent (agent/revise).\n\nThe feedback is the payload of the handoff, so it rides in the ball_prompt and the\nlog entry verbatim.",
+        "operationId": "request_changes_api_projects__project_id__tasks__task_id__request_changes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Request Changes Api Projects  Project Id  Tasks  Task Id  Request Changes Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Changes",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/webhooks": {
+      "get": {
+        "description": "List all registered webhooks.",
+        "operationId": "list_webhooks_api_projects__project_id__webhooks_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Webhook"
+                  },
+                  "title": "Response List Webhooks Api Projects  Project Id  Webhooks Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Webhooks",
+        "tags": [
+          "webhooks"
+        ]
+      },
+      "post": {
+        "description": "Create a new webhook.",
+        "operationId": "create_webhook_api_projects__project_id__webhooks_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Webhook"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Webhook",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/webhooks/{webhook_id}": {
+      "delete": {
+        "description": "Delete a webhook.",
+        "operationId": "delete_webhook_api_projects__project_id__webhooks__webhook_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "webhook_id",
+            "required": true,
+            "schema": {
+              "title": "Webhook Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Webhook",
+        "tags": [
+          "webhooks"
+        ]
+      },
+      "get": {
+        "description": "Get a specific webhook by ID.",
+        "operationId": "get_webhook_api_projects__project_id__webhooks__webhook_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "webhook_id",
+            "required": true,
+            "schema": {
+              "title": "Webhook Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Webhook"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Webhook",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/webhooks/{webhook_id}/test": {
+      "post": {
+        "description": "Send a test event to a webhook.",
+        "operationId": "test_webhook_api_projects__project_id__webhooks__webhook_id__test_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "webhook_id",
+            "required": true,
+            "schema": {
+              "title": "Webhook Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Test Webhook Api Projects  Project Id  Webhooks  Webhook Id  Test Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Webhook",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/api/search": {
+      "get": {
+        "description": "Search tasks using a case-insensitive substring query.",
+        "operationId": "search_tasks_api_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Task"
+                  },
+                  "title": "Response Search Tasks Api Search Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Tasks",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/api/tasks": {
+      "get": {
+        "description": "List tasks filtered along the state axes.\n\n``?ball=human`` is the human inbox: everything waiting on a person, each row\ncarrying its ``ball_prompt``. ``?ball=external`` is the blocked list.\n``?parent=task-063-schema-v2`` is one umbrella's children.",
+        "operationId": "list_tasks_api_tasks_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lifecycle",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Lifecycle"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lifecycle"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ball",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Ball"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ball"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Priority"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          },
+          {
+            "description": "Return only the children of this umbrella task.",
+            "in": "query",
+            "name": "parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return only the children of this umbrella task.",
+              "title": "Parent"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Task"
+                  },
+                  "title": "Response List Tasks Api Tasks Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Tasks",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "post": {
+        "description": "Create a new task record.",
+        "operationId": "create_task_api_tasks_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/tasks/broken": {
+      "get": {
+        "description": "Files in the task directory that exist but cannot be loaded.\n\nDeclared before /{task_id} so \"broken\" is not captured as a task id. These used to\nbe invisible: storage returned None for them and every listing simply omitted the\ntask. An unmigrated v1 file shows up here by filename.",
+        "operationId": "list_broken_tasks_api_tasks_broken_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Broken Tasks Api Tasks Broken Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Broken Tasks",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/tasks/next": {
+      "get": {
+        "description": "The next claimable task: ready, eligible for the agent, no unmet needs.",
+        "operationId": "get_next_task_api_tasks_next_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Priority"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Task"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Next Task Api Tasks Next Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Next Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}": {
+      "delete": {
+        "description": "Archive a task. An open task is closed as cancelled first.",
+        "operationId": "archive_task_api_tasks__task_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Task",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "get": {
+        "description": "Retrieve a specific task by identifier.",
+        "operationId": "get_task_api_tasks__task_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Task",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "patch": {
+        "description": "Apply a partial update to a task. State axes move through the verbs, not here.",
+        "operationId": "update_task_api_tasks__task_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/approve": {
+      "post": {
+        "description": "Record human approval and hand the ball back to the agent (agent/work).\n\nNothing here merges anything. The GUI cannot run git, and a button that implied\notherwise would lie. It records the approval in the task record -- which is the\npoint, since approvals used to live only in chat -- and moves the ball: the agent\nmust now rebase, merge --no-ff, mark the branch merged, and close the task\n(ENGINEERING.md, \"The Merge Gate\").",
+        "operationId": "approve_task_api_tasks__task_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HumanActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Approve Task Api Tasks  Task Id  Approve Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/claim": {
+      "post": {
+        "description": "Claim a ready task: one winner, everyone else gets a 409.",
+        "operationId": "claim_task_api_tasks__task_id__claim_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim Task",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/close": {
+      "post": {
+        "description": "End the task with an outcome.",
+        "operationId": "close_task_api_tasks__task_id__close_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Close Task",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/deliverables/{deliverable_path}": {
+      "patch": {
+        "description": "Mark a deliverable as done for the task.",
+        "operationId": "mark_deliverable_api_tasks__task_id__deliverables__deliverable_path__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "deliverable_path",
+            "required": true,
+            "schema": {
+              "title": "Deliverable Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Deliverable",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/handoff": {
+      "post": {
+        "description": "Move the ball, with its ask.",
+        "operationId": "handoff_task_api_tasks__task_id__handoff_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandoffRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Handoff Task",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/log": {
+      "post": {
+        "description": "Append a note/progress/decision/question/answer/instruction entry.",
+        "operationId": "append_log_entry_api_tasks__task_id__log_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogAppendRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Append Log Entry",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/progress": {
+      "post": {
+        "description": "Append a progress update entry for the task.",
+        "operationId": "post_progress_update_api_tasks__task_id__progress_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgressUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Progress Update",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/reject": {
+      "post": {
+        "description": "Reject a task: closed as cancelled, archived, reason on the record.",
+        "operationId": "reject_task_api_tasks__task_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Reject Task Api Tasks  Task Id  Reject Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reject Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/release": {
+      "post": {
+        "description": "Return a claimed task to the pool.",
+        "operationId": "release_task_api_tasks__task_id__release_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Release Task",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/request-changes": {
+      "post": {
+        "description": "Record requested changes and hand the ball back to the agent (agent/revise).\n\nThe feedback is the payload of the handoff, so it rides in the ball_prompt and the\nlog entry verbatim.",
+        "operationId": "request_changes_api_tasks__task_id__request_changes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Request Changes Api Tasks  Task Id  Request Changes Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Changes",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/webhooks": {
+      "get": {
+        "description": "List all registered webhooks.",
+        "operationId": "list_webhooks_api_webhooks_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Webhook"
+                  },
+                  "title": "Response List Webhooks Api Webhooks Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Webhooks",
+        "tags": [
+          "webhooks"
+        ]
+      },
+      "post": {
+        "description": "Create a new webhook.",
+        "operationId": "create_webhook_api_webhooks_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Webhook"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Webhook",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/api/webhooks/{webhook_id}": {
+      "delete": {
+        "description": "Delete a webhook.",
+        "operationId": "delete_webhook_api_webhooks__webhook_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "webhook_id",
+            "required": true,
+            "schema": {
+              "title": "Webhook Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Webhook",
+        "tags": [
+          "webhooks"
+        ]
+      },
+      "get": {
+        "description": "Get a specific webhook by ID.",
+        "operationId": "get_webhook_api_webhooks__webhook_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "webhook_id",
+            "required": true,
+            "schema": {
+              "title": "Webhook Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Webhook"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Webhook",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/api/webhooks/{webhook_id}/test": {
+      "post": {
+        "description": "Send a test event to a webhook.",
+        "operationId": "test_webhook_api_webhooks__webhook_id__test_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "webhook_id",
+            "required": true,
+            "schema": {
+              "title": "Webhook Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Test Webhook Api Webhooks  Webhook Id  Test Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Webhook",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    }
+  }
+}
