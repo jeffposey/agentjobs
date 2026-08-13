@@ -2,13 +2,12 @@ schema: 2
 id: task-093-mobile-and-pwa
 title: Make the client usable on a phone, and installable
 created: '2026-08-13T02:19:47.902546Z'
-updated: '2026-08-13T09:16:48.090383Z'
+updated: '2026-08-13T09:21:37.390185Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Review the phone/PWA checkpoint. If you approve the implementation and
-  accept the listed physical-device checks as follow-up verification, reply approve.
-  Otherwise name the issue to fix.
+ball: agent
+ball_reason: revise
+ball_prompt: Replace the oversized task-count panels with a compact summary that does
+  not consume the top of the phone dashboard, then return for review.
 archived: false
 priority: high
 category: ux
@@ -314,3 +313,13 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 9
+  ts: '2026-08-13T09:21:37.390057Z'
+  actor: human
+  type: handoff
+  body: 'Review feedback: the layout wastes the top of the page with giant task-count
+    panels. Revision requested: make the task statistics materially more compact,
+    especially on a phone.'
+  data:
+    ball: agent
+    ball_reason: revise
