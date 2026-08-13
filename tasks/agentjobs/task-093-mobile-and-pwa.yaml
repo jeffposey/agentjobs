@@ -2,12 +2,12 @@ schema: 2
 id: task-093-mobile-and-pwa
 title: Make the client usable on a phone, and installable
 created: '2026-08-13T02:19:47.902546Z'
-updated: '2026-08-13T09:24:02.666846Z'
+updated: '2026-08-13T09:26:08.887139Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Review the compact count strip. Reply approve if this fixes the wasted-space
-  issue, or name what still feels wrong.
+ball: agent
+ball_reason: work
+ball_prompt: Merge the approved task locally, close it, clean up its worktree, and
+  continue with task 088. Do not push.
 archived: false
 priority: high
 category: ux
@@ -345,3 +345,14 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 12
+  ts: '2026-08-13T09:26:08.886996Z'
+  actor: jeff
+  type: handoff
+  body: Approved by Jeff Posey after the compact task-count revision. Physical phone
+    install, private proxy access, installed-app upgrade, and second-device documentation
+    walkthrough remain recorded verification follow-ups; this approval releases the
+    implementation for merge.
+  data:
+    ball: agent
+    ball_reason: work
