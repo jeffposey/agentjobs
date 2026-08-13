@@ -2,11 +2,21 @@ schema: 2
 id: task-083-react-scaffold
 title: Scaffold the React app and serve it at /app
 created: '2026-08-11T07:38:03.613244Z'
-updated: '2026-08-13T03:23:11.844299Z'
+updated: '2026-08-13T03:23:33.412507Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: 'Review commit c6cbb6b on feat/task-083-react-scaffold in C:/projects/aj-083.
+  Confirm the isolated Vite/React/TypeScript/Tailwind project, project-scoped routes,
+  FastAPI asset ordering and deep-link shell fallback, local-only bundled assets,
+  and unchanged Jinja behavior. Evidence is in log entry 7: 568/568 Python tests,
+  `npm run check`, focused SPA tests, direct production hard refresh in a real browser,
+  Vite /api proxy browser check, and 200 responses for both the SPA deep link and
+  Jinja dashboard. The only quality-check findings are pre-existing in untouched tests/test_attention_tiers.py
+  (Black) and tests/test_subtasks.py (mypy); changed files pass those checks. If acceptable,
+  explicitly approve task 083 so an agent can rebase onto main, merge with --no-ff,
+  mark the branch merged, and close the task. Do not authorize or perform a push unless
+  separately requested.'
 archived: false
 priority: high
 category: developer_experience
@@ -305,3 +315,21 @@ log:
     both. All acceptance criteria are marked met. Usage-window telemetry is not available
     in this session.'
   data: {}
+- id: 8
+  ts: '2026-08-13T03:23:33.412379Z'
+  actor: codex
+  type: handoff
+  body: 'Task 083 implementation and verification are complete. Review commit c6cbb6b
+    on feat/task-083-react-scaffold in C:/projects/aj-083. Confirm the isolated Vite/React/TypeScript/Tailwind
+    project, project-scoped routes, FastAPI asset ordering and deep-link shell fallback,
+    local-only bundled assets, and unchanged Jinja behavior. Evidence is in log entry
+    7: 568/568 Python tests, `npm run check`, focused SPA tests, direct production
+    hard refresh in a real browser, Vite /api proxy browser check, and 200 responses
+    for both the SPA deep link and Jinja dashboard. The only quality-check findings
+    are pre-existing in untouched tests/test_attention_tiers.py (Black) and tests/test_subtasks.py
+    (mypy); changed files pass those checks. If acceptable, explicitly approve task
+    083 so an agent can rebase onto main, merge with --no-ff, mark the branch merged,
+    and close the task. Do not authorize or perform a push unless separately requested.'
+  data:
+    ball: human
+    ball_reason: review
