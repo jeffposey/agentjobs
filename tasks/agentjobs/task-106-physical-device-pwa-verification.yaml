@@ -1,0 +1,94 @@
+schema: 2
+id: task-106-physical-device-pwa-verification
+title: Verify the React PWA on a physical phone and tablet
+created: '2026-08-13T22:09:14.672822Z'
+updated: '2026-08-13T22:09:14.673530Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: testing
+tags:
+- react-frontend
+- pwa
+- mobile
+- verification
+effort: half a day with devices
+assignment:
+  eligible: []
+spec:
+  summary: 'Complete the physical-device checks intentionally left pending in the
+    mobile/PWA implementation and React parity epic: install, private HTTPS access,
+    standalone launch, upgrade, reconnect, and second-device setup.'
+  intent: Automated contracts and emulated phone viewports prove the implementation
+    shape but cannot prove real browser installation, OS suspension/resume, private-device
+    routing, or deployed service-worker upgrades. Those limitations are currently
+    distributed across closed tasks 086, 093, 096, and open epic 082.
+  description: Use a real phone and, when available, a tablet on the private network
+    described in docs/mobile-access.md. Install the packaged React application from
+    private HTTPS, launch it standalone, exercise dashboard/list/detail/review behavior,
+    suspend and resume it, stop and restart the host, deploy a changed application
+    shell, and confirm the installed app upgrades without manual cache clearing. Follow
+    the documentation from a second device and record any ambiguity or correction.
+    Preserve network-only task data behavior throughout.
+  constraints: '- Do not expose the unauthenticated AgentJobs server to the public
+    internet or a wildcard bind.
+
+    - Use the packaged React application and an HTTPS private proxy; plain HTTP may
+    be tested only as the documented non-installable fallback.
+
+    - Record device OS/browser versions and what was actually exercised.
+
+    - Do not mark a criterion met from desktop emulation alone.
+
+    - Any documentation correction must remain platform-neutral and must not make
+    Windows a requirement.'
+  out_of_scope: Adding authentication, redesigning the PWA, or supporting public hosting.
+  context:
+  - path: docs/mobile-access.md
+    why: Procedure and security model to validate from a fresh device.
+  - path: tasks/agentjobs/task-093-mobile-and-pwa.yaml
+    why: Primary implementation record and pending physical checks.
+  - path: tasks/agentjobs/task-096-react-phase-2-parity.yaml
+    why: Phase-level acceptance left pending for physical installation.
+  - path: tasks/agentjobs/task-086-live-updates.yaml
+    why: Resume/reconnect behavior whose OS-level timing needs a real installed app.
+acceptance:
+- id: ac-1
+  text: the packaged React app installs from private HTTPS on a physical phone and
+    launches standalone
+  status: pending
+- id: ac-2
+  text: dashboard, task list, task detail, and review actions are usable on the phone
+    without horizontal overflow or undersized controls
+  status: pending
+- id: ac-3
+  text: private cross-device access works without widening the AgentJobs server bind
+  status: pending
+- id: ac-4
+  text: an already-installed app receives a deployed shell upgrade without manual
+    cache clearing
+  status: pending
+- id: ac-5
+  text: suspend, resume, host-unreachable, and reconnect behavior never presents stale
+    task data as current
+  status: pending
+- id: ac-6
+  text: a second phone or tablet can be added from docs/mobile-access.md alone, with
+    any required corrections merged
+  status: pending
+deliverables: []
+dependencies:
+- task: task-093-mobile-and-pwa
+  type: related
+  note: Owns the implementation whose physical checks remained pending.
+- task: task-096-react-phase-2-parity
+  type: related
+  note: Closes the phase-level physical install evidence gap.
+- task: task-082-react-frontend
+  type: related
+  note: Supplies final physical evidence for epic acceptance ac-4.
+links: []
+branches: []
+log: []
