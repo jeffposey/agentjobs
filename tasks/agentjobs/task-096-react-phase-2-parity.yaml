@@ -2,13 +2,9 @@ schema: 2
 id: task-096-react-phase-2-parity
 title: React phase 2 -- parity, on every device
 created: '2026-08-13T02:35:19.871523Z'
-updated: '2026-08-13T17:30:57.545103Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-13T17:32:30.882779Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: ux
@@ -19,7 +15,6 @@ tags:
 - mobile
 effort: three to four days
 assignment:
-  owner: codex
   eligible: []
 parent: task-082-react-frontend
 spec:
@@ -139,3 +134,27 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 5
+  ts: '2026-08-13T17:32:30.869803Z'
+  actor: codex
+  type: progress
+  body: 'Phase 2 approved by Jeff Posey and finished after all four child merges.
+
+
+    Approval was recorded through the web UI. Child tasks 087, 093, 088, and 089 are
+    closed completed and their local worktrees and feature branches were removed.
+    Parent acceptance ac-1, ac-3, and ac-4 are met. Ac-2 remains accurately pending
+    because physical-phone installation and standalone launch were not exercised;
+    Jeff explicitly approved phase completion with that verification limitation already
+    visible in the task record. This closes the approved phase without inventing evidence.
+    No phase branch existed or needed merging. No push performed.'
+  data: {}
+- id: 6
+  ts: '2026-08-13T17:32:30.882702Z'
+  actor: codex
+  type: transition
+  body: Closed completed after explicit Jeff Posey approval; physical-phone install
+    evidence remains recorded as pending rather than falsely marked met.
+  data:
+    lifecycle: closed
+    outcome: completed
