@@ -32,14 +32,33 @@ decision and question log, and the acceptance criteria. That
 - **Git is the database.** One YAML file per task keeps work diffable, reviewable, and
   portable between tools without adding a service to operate.
 
+## The React application
+
+The primary human interface is a responsive React application at `/app/`. It is
+designed for desktop and laptop browsers, tablets, and phones, so a reviewer can
+inspect task details, create tasks, approve work, or request changes from the device
+that is convenient at the time.
+
+The React UI adapts rather than merely shrinking: navigation and action groups stack
+on smaller screens, wide task tables become labelled cards, and interactive controls
+retain touch-friendly sizing. Over private HTTPS, the same application can be
+installed from a phone or tablet browser as a Progressive Web App (PWA). See
+[Mobile and installed-app access](docs/mobile-access.md) for the secure setup and its
+network-only task-data behavior.
+
+The production React bundle is included in the Python package. Running an installed
+release therefore requires Python, but not Node, npm, a separate frontend server, or
+a particular desktop operating system.
+
 ## What works today
 
 - Schema-v2 task records with lifecycle, ball, outcome, typed logs, acceptance criteria,
   dependencies, parent relationships, and strict validation
 - A FastAPI REST API and Python client for claiming, handing off, releasing, closing,
   querying, and logging work
-- A packaged React web application at `/app/` with multiple registered projects,
-  task creation and detail pages, hierarchy roll-ups, and human review actions
+- A packaged React web application for desktop browsers, tablets, and phones, with
+  multiple registered projects, task creation and detail pages, hierarchy roll-ups,
+  and human review actions
 - Basic CLI workflows for creating, listing, showing, claiming/finishing interactively,
   serving, and migrating tasks
 - Markdown-to-YAML and schema-v1-to-v2 migration tools
@@ -85,7 +104,7 @@ poetry run agentjobs open
 cd /path/to/your-project
 poetry -P /path/to/agentjobs run agentjobs init
 
-# Start the local UI and open it in a browser
+# Start the server and open the packaged React application in a browser
 poetry -P /path/to/agentjobs run agentjobs open
 ```
 
@@ -157,7 +176,8 @@ poetry run python scripts/check.py
 poetry run agentjobs open
 ```
 
-The React frontend is an independent project under `frontend/`:
+The React application's source and focused development commands live under
+`frontend/`:
 
 ```bash
 cd frontend

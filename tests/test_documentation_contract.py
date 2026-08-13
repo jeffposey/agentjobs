@@ -26,6 +26,14 @@ def test_current_documentation_is_react_first(path: str, required: str) -> None:
     assert required in text
 
 
+def test_readme_describes_the_responsive_react_product() -> None:
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "## The React application" in text
+    assert "desktop and laptop browsers, tablets, and phones" in text
+    assert "touch-friendly sizing" in text
+    assert "Progressive Web App (PWA)" in text
+
+
 @pytest.mark.parametrize("path", ["README.md", "ENGINEERING.md", "docs/index.md"])
 def test_primary_entry_points_do_not_present_server_rendering_as_the_ui(path: str) -> None:
     text = (ROOT / path).read_text(encoding="utf-8").lower()
