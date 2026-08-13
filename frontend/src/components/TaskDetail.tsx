@@ -87,7 +87,7 @@ function Relationships({ detail, projectId }: { detail: TaskDetailResponse; proj
         <div className="rounded-lg border border-dark-border bg-dark-surface">
           <h2 className="border-b border-dark-border p-4 font-semibold">Task hierarchy</h2>
           <div className="divide-y divide-dark-border">
-            {detail.task.parent && <div className="p-4 text-sm">Parent: <Link className="text-blue-300 hover:underline" to={taskPath(projectId, detail.task.parent)}>{detail.parent_task?.title ?? detail.task.parent} <span className="font-mono text-xs">({detail.task.parent})</span></Link></div>}
+            {detail.task.parent && <div className="p-4 text-sm">Parent: <Link className="touch-target inline-flex text-blue-300 hover:underline" to={taskPath(projectId, detail.task.parent)}>{detail.parent_task?.title ?? detail.task.parent} <span className="font-mono text-xs">({detail.task.parent})</span></Link></div>}
             {detail.children.map((child) => <div className="flex flex-col gap-1 p-4 min-[820px]:flex-row min-[820px]:items-center min-[820px]:justify-between" key={child.id}><Link className="touch-target block text-blue-300 hover:underline" to={taskPath(projectId, child.id)}><span className="block font-medium">{child.title}</span><span className="font-mono text-xs text-dark-muted">{child.id}</span></Link><span className="text-xs text-dark-muted">{child.display_status}</span></div>)}
           </div>
         </div>
