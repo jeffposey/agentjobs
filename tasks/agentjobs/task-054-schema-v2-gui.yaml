@@ -2,10 +2,9 @@ schema: 2
 id: task-054-schema-v2-gui
 title: 'Schema v2: Jinja GUI -- inbox view, agent activity, v2 task detail'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-11T05:56:28.260318Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-13T22:04:24.507080Z'
+lifecycle: closed
+outcome: superseded
 archived: false
 priority: medium
 category: ux
@@ -152,3 +151,24 @@ log:
     strand the recorded scope boundary against task-058 and the inherited note from
     task-059 about the review buttons.'
   data: {}
+- id: 3
+  ts: '2026-08-13T22:04:24.464714Z'
+  actor: codex
+  type: decision
+  body: 'Corpus audit decision: retire this remaining Jinja-specific GUI task as superseded.
+    The current React dashboard and task detail delivered the durable schema-v2 inbox/detail
+    behavior through tasks 087 and 089, with React documented as the primary human
+    interface in task 102. Implementing the pending Jinja inbox and new Jinja smoke
+    coverage now would recreate a legacy surface rather than advance the product.'
+  data: {}
+- id: 4
+  ts: '2026-08-13T22:04:24.506992Z'
+  actor: codex
+  type: transition
+  body: Closed superseded by the packaged React dashboard/detail work (tasks 087 and
+    089) and React-first product decision (task 102). Historical Jinja implementation
+    evidence remains in this record; its unbuilt Jinja-only criteria remain honestly
+    pending.
+  data:
+    lifecycle: closed
+    outcome: superseded

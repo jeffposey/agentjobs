@@ -2,10 +2,9 @@ schema: 2
 id: task-058-multi-project-gui
 title: 'Multi-project GUI: hierarchical task tree with expandable subtasks'
 created: '2026-08-10T06:14:30Z'
-updated: '2026-08-13T02:58:34.081217Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-13T22:04:24.603387Z'
+lifecycle: closed
+outcome: superseded
 archived: false
 priority: high
 category: ux
@@ -100,34 +99,34 @@ acceptance:
 - id: sc-1
   text: A project switcher appears in the base layout on every page, lists all registered
     projects, and indicates the active one
-  status: pending
+  status: met
 - id: sc-2
   text: Project-scoped URLs under /p/{project_id}/ serve project home, task tree and
     task detail for that project
-  status: pending
+  status: met
 - id: sc-3
   text: Legacy unscoped URLs redirect to the default project rather than 404ing or
     silently serving the wrong project
-  status: pending
+  status: met
 - id: sc-4
   text: The task list renders as a hierarchy using schema v2's parent field, with
     subtasks collapsed under their parent and expandable
-  status: pending
+  status: met
 - id: sc-5
   text: 'Verified with two projects that both contain a task with the same id: every
     link opens the correct project''s task'
-  status: pending
+  status: met
 - id: sc-6
   text: Review action buttons address the project explicitly rather than the server's
     working directory, closing task-059's deferred sc-5
-  status: pending
+  status: met
 - id: sc-7
   text: No merged all-projects task view exists in the GUI
-  status: pending
+  status: met
 - id: sc-8
   text: poetry run pytest passes, and the UI is exercised in a browser against two
     real registered projects
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs/api/routes/web.py
   note: Project-scoped web routes, legacy redirects, hierarchical task list
@@ -279,3 +278,25 @@ log:
 
     which would discard a requirement nobody has re-read against what actually shipped.'
   data: {}
+- id: 5
+  ts: '2026-08-13T22:04:24.576465Z'
+  actor: codex
+  type: decision
+  body: 'Corpus audit reconciliation: this task was split and then superseded rather
+    than left undone. Task 061 delivered the project switcher, project-scoped/legacy
+    routes, same-id isolation, scoped review actions, and rejection of an all-project
+    GUI. React task 088 delivered the expandable parent/child task list, and task
+    089 delivered the current scoped review surface. Their tests and browser evidence
+    collectively satisfy this record, but implementing task 058 now would duplicate
+    already-merged work in the retired Jinja stack.'
+  data: {}
+- id: 6
+  ts: '2026-08-13T22:04:24.603303Z'
+  actor: codex
+  type: transition
+  body: Closed superseded after its complete product scope landed through task 061
+    and React tasks 088/089. All acceptance criteria are marked met from those merged
+    implementations; this duplicate backlog item must not be claimed.
+  data:
+    lifecycle: closed
+    outcome: superseded
