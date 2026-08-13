@@ -2,18 +2,13 @@ schema: 2
 id: task-084-typed-api-client
 title: Generate the TypeScript API client from the OpenAPI schema
 created: '2026-08-11T07:38:04.071238Z'
-updated: '2026-08-13T03:46:16.685749Z'
+updated: '2026-08-13T03:51:38.089388Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review feat/task-084-typed-api-client at 06e6d26 (with prerequisite
-  API contract fix 2f7da27). Focus on: checked-in OpenAPI/types/Fetch SDK/TanStack
-  Query generation; npm run check stale-client gate; removal of handwritten fetch
-  response types; closed enum compile checks; and visible refusal of Task.schema !=
-  2. Verification: 569 pytest passed; npm run check passed; npm audit found 0 vulnerabilities;
-  Black/Ruff passed; browser normal path rendered 74 real tasks and schema 3 mock
-  rendered only Unsupported task schema. Repository-wide mypy still has the same 5
-  pre-existing errors in tests/test_subtasks.py on main. Approve or request changes.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 category: developer_experience
@@ -194,3 +189,11 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 5
+  ts: '2026-08-13T03:51:38.089278Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
