@@ -2,10 +2,11 @@ schema: 2
 id: task-103-agentjobs-task-corpus-audit
 title: Audit every AgentJobs task for stale or obsolete records
 created: '2026-08-13T21:07:34.827860Z'
-updated: '2026-08-13T21:07:34.828603Z'
-lifecycle: ready
+updated: '2026-08-13T21:55:49.898649Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: medium
 category: maintenance
@@ -15,6 +16,7 @@ tags:
 - maintenance
 effort: a day
 assignment:
+  owner: codex
   eligible: []
 parent: task-098-react-phase-4-ship
 spec:
@@ -86,5 +88,16 @@ dependencies:
   note: Audit task records after current-facing repository documentation establishes
     the final React terminology.
 links: []
-branches: []
-log: []
+branches:
+- name: maintenance/task-103-agentjobs-task-corpus-audit
+  status: active
+log:
+- id: 1
+  ts: '2026-08-13T21:55:49.860667Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
