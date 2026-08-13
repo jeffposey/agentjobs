@@ -2,10 +2,11 @@ schema: 2
 id: task-090-react-create-task
 title: Create a task from the browser
 created: '2026-08-11T07:38:06.904250Z'
-updated: '2026-08-13T02:35:26.508826Z'
-lifecycle: ready
+updated: '2026-08-13T20:32:21.400942Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: medium
 category: ux
@@ -15,6 +16,7 @@ tags:
 - workflow
 effort: a day
 assignment:
+  owner: codex
   eligible: []
 parent: task-098-react-phase-4-ship
 spec:
@@ -100,5 +102,16 @@ dependencies:
   type: needs
   note: ac-5 replaces the dashboard's disabled create button, which 087 ports.
 links: []
-branches: []
-log: []
+branches:
+- name: feat/task-090-react-create-task
+  status: active
+log:
+- id: 1
+  ts: '2026-08-13T20:32:21.390949Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
