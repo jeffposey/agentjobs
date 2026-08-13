@@ -2,10 +2,11 @@ schema: 2
 id: task-093-mobile-and-pwa
 title: Make the client usable on a phone, and installable
 created: '2026-08-13T02:19:47.902546Z'
-updated: '2026-08-13T02:35:23.647806Z'
-lifecycle: ready
+updated: '2026-08-13T08:55:40.094544Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: ux
@@ -16,6 +17,7 @@ tags:
 - pwa
 effort: a day
 assignment:
+  owner: codex
   eligible: []
 parent: task-096-react-phase-2-parity
 spec:
@@ -185,5 +187,38 @@ dependencies:
   type: needs
   note: Needs one real screen to make usable, before the pattern is set for the rest.
 links: []
-branches: []
-log: []
+branches:
+- name: feat/task-093-mobile-and-pwa
+  status: active
+log:
+- id: 1
+  ts: '2026-08-13T08:55:40.062619Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 2
+  ts: '2026-08-13T08:55:40.094468Z'
+  actor: codex
+  type: progress
+  body: 'Started mobile and PWA foundation after approved task 087 merge.
+
+
+    Worktree: C:/projects/aj-093. Branch: feat/task-093-mobile-and-pwa. Plan: establish
+    reusable responsive card/cell-label and 44px control patterns, add manifest plus
+    reproducible 192/512/maskable icons, add shell-only service worker with explicit
+    offline refusal and controller-change reload, enforce loopback/non-wildcard bind
+    policy, and document HTTPS proxy setup/teardown/device onboarding/direct-bind
+    fallback. Verification plan: focused component/API/CLI tests, generated icon checks,
+    service-worker static/behavior checks, responsive browser emulation, full scripts/check.py
+    gate, and a fresh loopback server. Human-only checks: real-phone installation/standalone
+    launch, actual cross-device private-overlay HTTPS proxy, and deployed service-worker
+    upgrade if those cannot be exercised here. The broader phase is not yet functional
+    or done; task 093 establishes patterns for tasks 088/089. The required merged-main
+    restart was attempted, but an orphaned inaccessible listener on 127.0.0.1:8765
+    refused replacement; alternate loopback ports will be used for trustworthy verification.
+    Usage-window telemetry is unavailable in this session; no estimate was invented.'
+  data: {}
