@@ -11,8 +11,8 @@ from fastapi.staticfiles import StaticFiles
 
 
 def default_frontend_dist() -> Path:
-    """Return the source-checkout build directory used until wheel packaging lands."""
-    return Path(__file__).resolve().parents[3] / "frontend" / "dist"
+    """Return the bundle stored inside the importable AgentJobs package."""
+    return Path(__file__).resolve().parents[1] / "frontend_dist"
 
 
 def register_spa(app: FastAPI, dist_dir: Optional[Path] = None) -> None:
@@ -39,7 +39,10 @@ def register_spa(app: FastAPI, dist_dir: Optional[Path] = None) -> None:
         if not path.is_file():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="React PWA manifest is not built; run `npm run build` in frontend/.",
+                detail=(
+                    "React PWA manifest is missing from the package; run `npm run build` "
+                    "in frontend/ for local development or build a release wheel."
+                ),
             )
         return FileResponse(
             path,
@@ -52,7 +55,10 @@ def register_spa(app: FastAPI, dist_dir: Optional[Path] = None) -> None:
         if not path.is_file():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="React service worker is not built; run `npm run build` in frontend/.",
+                detail=(
+                    "React service worker is missing from the package; run `npm run build` "
+                    "in frontend/ for local development or build a release wheel."
+                ),
             )
         return FileResponse(
             path,
@@ -73,7 +79,10 @@ def register_spa(app: FastAPI, dist_dir: Optional[Path] = None) -> None:
         if not index.is_file():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="React frontend is not built; run `npm run build` in frontend/.",
+                detail=(
+                    "React frontend bundle is missing from the package; run `npm run build` "
+                    "in frontend/ for local development or build a release wheel."
+                ),
             )
         return FileResponse(index)
 

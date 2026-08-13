@@ -4,6 +4,10 @@ import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   base: "/app/",
+  build: {
+    emptyOutDir: true,
+    outDir: "../src/agentjobs/frontend_dist",
+  },
   plugins: [react(), tailwindcss()],
   test: {
     environment: "jsdom",

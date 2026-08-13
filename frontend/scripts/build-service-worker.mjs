@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const dist = resolve(frontendRoot, "dist");
+const dist = resolve(frontendRoot, "..", "src", "agentjobs", "frontend_dist");
 const indexHtml = await readFile(resolve(dist, "index.html"), "utf8");
 const template = await readFile(resolve(frontendRoot, "src", "service-worker.js"), "utf8");
 const builtAssets = [...indexHtml.matchAll(/(?:src|href)="(\/app\/assets\/[^"]+)"/g)]
@@ -28,4 +28,4 @@ const serviceWorker = template
   .replace("__SHELL_URLS__", JSON.stringify(shellUrls, null, 2));
 
 await writeFile(resolve(dist, "sw.js"), serviceWorker, "utf8");
-console.log(`Wrote dist/sw.js with ${shellUrls.length} shell resources (${revision}).`);
+console.log(`Wrote packaged sw.js with ${shellUrls.length} shell resources (${revision}).`);
