@@ -84,7 +84,7 @@ function DashboardPage({ projectId }: { projectId: string }) {
     return <StatusCard title="Opening dashboard...">Loading current project data.</StatusCard>;
   }
 
-  if (dashboardQuery.isError) {
+  if (dashboardQuery.isError && !dashboardQuery.data) {
     return <ConnectionUnavailable offline={false} />;
   }
 
@@ -107,7 +107,7 @@ function TaskListPage({ projectId }: { projectId: string }) {
     return <StatusCard title="Unsupported task schema"><p>{tasksQuery.error.message}</p><p className="mt-4">Upgrade the UI before viewing this project.</p></StatusCard>;
   }
   if (tasksQuery.isPending || brokenQuery.isPending) return <StatusCard title="Opening tasks...">Loading current task data.</StatusCard>;
-  if (tasksQuery.isError || brokenQuery.isError) return <ConnectionUnavailable offline={false} />;
+  if (!tasksQuery.data || !brokenQuery.data) return <ConnectionUnavailable offline={false} />;
   return <TaskList tasks={tasksQuery.data} brokenFiles={brokenQuery.data} projectId={projectId} />;
 }
 
@@ -128,7 +128,7 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
 
   if (detailQuery.error instanceof UnsupportedTaskSchemaError) return <StatusCard title="Unsupported task schema">{detailQuery.error.message}</StatusCard>;
   if (detailQuery.isPending) return <StatusCard title="Opening task...">Loading the complete task record.</StatusCard>;
-  if (detailQuery.isError) return <StatusCard title="Task could not be loaded">Confirm the task still exists, then return to the list.</StatusCard>;
+  if (detailQuery.isError && !detailQuery.data) return <StatusCard title="Task could not be loaded">Confirm the task still exists, then return to the list.</StatusCard>;
   const user = detailQuery.data.identity.user;
   const refresh = async () => { await queryClient.invalidateQueries(); };
   const actionError = approve.error || changes.error || reject.error;

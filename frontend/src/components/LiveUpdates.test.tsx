@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { act, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -25,10 +26,12 @@ function setup() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const invalidate = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
   const view = render(
-    <QueryClientProvider client={queryClient}>
-      <LiveUpdateStatus projectId="alpha" />
-      <p>Last good task content</p>
-    </QueryClientProvider>,
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <LiveUpdateStatus projectId="alpha" />
+        <p>Last good task content</p>
+      </QueryClientProvider>
+    </StrictMode>,
   );
   return { ...view, invalidate };
 }
