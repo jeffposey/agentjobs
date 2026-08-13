@@ -1,6 +1,7 @@
 {
   "name": "AgentJobs",
   "short_name": "AgentJobs",
+  "id": "/app/agentjobs",
   "description": "Git-backed task handoffs for human and AI collaboration.",
   "start_url": "/app/",
   "scope": "/app/",
