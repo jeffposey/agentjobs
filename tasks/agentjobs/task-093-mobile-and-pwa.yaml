@@ -2,7 +2,7 @@ schema: 2
 id: task-093-mobile-and-pwa
 title: Make the client usable on a phone, and installable
 created: '2026-08-13T02:19:47.902546Z'
-updated: '2026-08-13T08:58:44.233770Z'
+updated: '2026-08-13T09:06:01.195182Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -246,4 +246,36 @@ log:
     diff --check (passed). Remaining: responsive component pattern, PWA shell/offline/update
     behavior, reproducible icons, proxy documentation, full checks, and browser/device
     evidence.'
+  data: {}
+- id: 5
+  ts: '2026-08-13T09:06:01.178113Z'
+  actor: codex
+  type: decision
+  body: 'Precache only the built application shell (HTML, hashed JS/CSS, manifest,
+    icons) and keep every /api/ request network-only. On navigation failure, serve
+    the shell, which immediately hides task data behind an explicit offline/unreachable
+    screen. A new worker skips waiting, claims clients, deletes older shell caches,
+    and triggers one client reload when it replaces an existing controller. Rejected
+    alternative: cache dashboard/task API responses for richer offline reading; stale
+    ball assignments would be presented as current and could cause the wrong human
+    action.'
+  data: {}
+- id: 6
+  ts: '2026-08-13T09:06:01.195086Z'
+  actor: codex
+  type: progress
+  body: 'Responsive and PWA runtime foundation committed.
+
+
+    Feature commit 605a43e adds the reusable ResponsiveTable/ResponsiveCell pattern
+    with cell-owned data-label attributes, card layout below 820px, 44px touch targets,
+    mobile dashboard adjustments, standalone manifest, source SVG plus standard-library
+    icon generator and 192/512/maskable PNGs, shell-only revisioned service worker,
+    explicit offline/server-unavailable screen, controller-change reload, and FastAPI
+    routes for manifest/service worker/icons. Focused verification passed: npm run
+    check (5 Vitest files / 13 tests, icons current, generated API current, lint,
+    TypeScript, production build with 7 shell resources); 32 focused CLI/SPA/PWA pytest
+    tests; Ruff; MyPy; diff check. Remaining: commit documentation, real-browser responsive/offline/PWA
+    inspection, full repository gate, and human-only physical device/proxy/installed-upgrade
+    checks.'
   data: {}
