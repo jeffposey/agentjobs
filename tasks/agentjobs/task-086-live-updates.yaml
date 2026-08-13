@@ -2,10 +2,11 @@ schema: 2
 id: task-086-live-updates
 title: 'Live updates: the view reflects a handoff without a manual refresh'
 created: '2026-08-11T07:38:05.001732Z'
-updated: '2026-08-13T02:35:26.494609Z'
-lifecycle: ready
+updated: '2026-08-13T17:37:44.355995Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: ux
@@ -15,6 +16,7 @@ tags:
 - workflow
 effort: a day
 assignment:
+  owner: codex
   eligible: []
 parent: task-097-react-phase-3-reach
 spec:
@@ -128,7 +130,9 @@ dependencies:
   note: ac-1 is 'updates an open dashboard'; there is no React dashboard to verify
     against before this.
 links: []
-branches: []
+branches:
+- name: feat/task-086-live-updates
+  status: active
 log:
 - id: 1
   ts: '2026-08-13T02:22:18.662922Z'
@@ -173,4 +177,42 @@ log:
     on
 
     current requirements; nothing here needs a bidirectional channel.'
+  data: {}
+- id: 2
+  ts: '2026-08-13T17:37:44.340796Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 3
+  ts: '2026-08-13T17:37:44.355908Z'
+  actor: codex
+  type: progress
+  body: 'Started implementation in an isolated worktree.
+
+
+    Worktree: C:/projects/aj-086
+
+    Branch: feat/task-086-live-updates
+
+
+    Plan: add a cheap project-scoped file-derived revision endpoint; add one React
+    live-update controller that polls about every 15 seconds, retries promptly after
+    misses, checks immediately on focus/visible/online, preserves last-good query
+    data, invalidates only project task query keys after a revision change, and exposes
+    a non-disruptive update/unreachable signal. Jinja behavior remains unchanged.
+
+
+    Verification plan: focused Python/API and Vitest tests with deterministic timers
+    and failure controls; exact invalidation/request-count assertions; repository-wide
+    scripts/check.py; fresh-server real-browser exercise using an isolated temporary
+    project for direct writes and bulk changes. Human-only/timing-sensitive checks:
+    installed-app/background suspension behavior cannot be fully proven by desktop
+    browser emulation and will be called out for review.
+
+
+    Usage-window telemetry is unavailable in this environment.'
   data: {}
