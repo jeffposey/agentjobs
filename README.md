@@ -157,6 +157,18 @@ poetry run pytest
 poetry run agentjobs serve
 ```
 
+The React frontend is an independent project under `frontend/`:
+
+```bash
+cd frontend
+npm install
+npm run check
+```
+
+During development Vite serves it at `http://localhost:5173/app/` and proxies API
+requests to AgentJobs on port 8765. After `npm run build`, FastAPI serves the same app
+at `http://localhost:8765/app` with deep-link fallback.
+
 Read [ENGINEERING.md](ENGINEERING.md) and [ALLAGENTS.md](ALLAGENTS.md) before
 contributing; they define the worktree, task-record, verification, and human-review
 workflow.
