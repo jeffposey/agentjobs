@@ -70,6 +70,7 @@ nav:
       - Installation: installation.md
       - Mobile and installed-app access: mobile-access.md
       - Migration guide: migration-guide.md
+      - Task corpus audit: task-corpus-audit.md
 
 # The 160+ per-class/slot/enum/type pages under schema/v1 and schema/v2 are reached
 # from each schema's Reference index rather than enumerated in the sidebar.
