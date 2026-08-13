@@ -2,10 +2,16 @@ schema: 2
 id: task-096-react-phase-2-parity
 title: React phase 2 -- parity, on every device
 created: '2026-08-13T02:35:19.871523Z'
-updated: '2026-08-13T02:35:19.872226Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-13T17:22:21.188013Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: 'Physical finish check for phase 2: from a phone over the documented
+  private HTTPS proxy, install AgentJobs, confirm it opens standalone, open dashboard/list/detail,
+  then leave the server unreachable once and confirm the stale-data warning. Also
+  confirm an already-installed app receives a deployed bundle update without clearing
+  its cache. Reply with the results; the phase cannot be closed until this evidence
+  exists.'
 archived: false
 priority: high
 category: ux
@@ -16,6 +22,7 @@ tags:
 - mobile
 effort: three to four days
 assignment:
+  owner: codex
   eligible: []
 parent: task-082-react-frontend
 spec:
@@ -70,17 +77,17 @@ acceptance:
 - id: ac-1
   text: dashboard, task list, and task detail render in React with behaviour matching
     the Jinja UI
-  status: pending
+  status: met
 - id: ac-2
   text: all three are usable on a phone and the client installs as an app
   status: pending
 - id: ac-3
   text: review actions work from the detail page and appear in the task log
-  status: pending
+  status: met
 - id: ac-4
   text: unparseable task files are surfaced on every listing rather than silently
     dropped
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-095-react-phase-1-foundation
@@ -88,4 +95,42 @@ dependencies:
   note: Needs the app, the client, and the harness.
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-13T17:22:21.157020Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 2
+  ts: '2026-08-13T17:22:21.178021Z'
+  actor: codex
+  type: progress
+  body: 'All four phase children are approved, merged, and closed; phase audit complete.
+
+
+    Child merge commits: task 087 at 54aaa2d, task 093 at 3e091ef, task 088 at 4182cb7,
+    and task 089 at daa9351. Phase ac-1 is met: dashboard, task list, and task detail
+    render in React with automated parity coverage and human approval. Phase ac-3
+    is met: detail review actions use manager-backed API verbs and API tests verify
+    resulting ball/log entries. Phase ac-4 is met: broken files are surfaced on the
+    dashboard and task list with exact filename/reason tests. Phase ac-2 remains pending:
+    all three views were browser-verified at 390px with no overflow and 44px controls,
+    and the PWA manifest/service-worker/offline contract is automated, but installation/standalone
+    launch on a physical phone was not exercised. Task 093 also preserves pending
+    physical checks for private HTTPS proxy access, installed-app upgrade, and second-device
+    docs. The required merged-main restart was attempted again, but the pre-existing
+    inaccessible listener on 127.0.0.1:8765 still prevents replacement. No push performed.'
+  data: {}
+- id: 3
+  ts: '2026-08-13T17:22:21.187956Z'
+  actor: codex
+  type: handoff
+  body: Automated and browser parity work is complete. Physical phone install/private-proxy/installed-update
+    evidence is the remaining phase gate.
+  data:
+    ball: human
+    ball_reason: review
