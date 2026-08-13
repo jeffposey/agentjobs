@@ -2,10 +2,11 @@ schema: 2
 id: task-108-react-project-switcher
 title: Add the project switcher to React
 created: '2026-08-13T22:42:14.777527Z'
-updated: '2026-08-13T22:42:14.778271Z'
-lifecycle: ready
+updated: '2026-08-13T22:42:35.343472Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: ux
@@ -16,6 +17,7 @@ tags:
 - ux
 effort: half a working session
 assignment:
+  owner: codex
   eligible: []
 spec:
   summary: Add an accessible project switcher to the shared React header so desktop,
@@ -74,5 +76,16 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
-log: []
+branches:
+- name: feat/task-108-react-project-switcher
+  status: active
+log:
+- id: 1
+  ts: '2026-08-13T22:42:35.343367Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
