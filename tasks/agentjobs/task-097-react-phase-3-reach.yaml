@@ -2,10 +2,9 @@ schema: 2
 id: task-097-react-phase-3-reach
 title: 'React phase 3 -- reach: it tells you things'
 created: '2026-08-13T02:35:20.328181Z'
-updated: '2026-08-13T02:35:20.328907Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-13T20:24:51.860050Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: ux
@@ -54,14 +53,14 @@ acceptance:
 - id: ac-1
   text: a handoff made by an agent or the CLI reaches an open page with no manual
     refresh
-  status: pending
+  status: met
 - id: ac-2
   text: a blocked task states what blocks it, and a task shows what finishing it would
     unblock
-  status: pending
+  status: met
 - id: ac-3
   text: a dependency cycle is visible as a data error rather than an invisible deadlock
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-096-react-phase-2-parity
@@ -69,4 +68,37 @@ dependencies:
   note: Needs the screens these surfaces attach to.
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-13T20:23:53.091214Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 2
+  ts: '2026-08-13T20:24:51.841006Z'
+  actor: codex
+  type: progress
+  body: 'Phase 3 completed through both approved children.
+
+
+    task-086 merged as 7cd1bfa and passed automated, browser, installed-tablet background/resume,
+    focus/visibility, revision, retry, and stale-content checks. task-099 merged as
+    fabd9f0 and passed server fact, reverse-edge, frontier, dangling-target, finite-cycle,
+    row/card, detail, and scoped umbrella graph checks; Jeff approved it as functional.
+    Merged main passed 595 Python tests and 35 frontend tests plus API, icon, lint,
+    and production-build gates. Tailscale endpoint returned HTTP 200 and the installed-app
+    route showed both children completed.'
+  data: {}
+- id: 3
+  ts: '2026-08-13T20:24:51.859965Z'
+  actor: codex
+  type: transition
+  body: Both phase-3 children are approved, merged, closed, and verified on merged
+    main. Parent acceptance is fully supported.
+  data:
+    lifecycle: closed
+    outcome: completed
