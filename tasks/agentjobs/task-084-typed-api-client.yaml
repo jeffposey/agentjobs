@@ -2,10 +2,11 @@ schema: 2
 id: task-084-typed-api-client
 title: Generate the TypeScript API client from the OpenAPI schema
 created: '2026-08-11T07:38:04.071238Z'
-updated: '2026-08-13T02:58:34.136938Z'
-lifecycle: ready
+updated: '2026-08-13T03:33:51.508558Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: developer_experience
@@ -15,6 +16,7 @@ tags:
 - api
 effort: half a day
 assignment:
+  owner: codex
   eligible: []
 parent: task-095-react-phase-1-foundation
 spec:
@@ -135,5 +137,28 @@ dependencies:
   type: needs
   note: Needs the app to live in.
 links: []
-branches: []
-log: []
+branches:
+- name: feat/task-084-typed-api-client
+  status: active
+log:
+- id: 1
+  ts: '2026-08-13T03:33:51.486574Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 2
+  ts: '2026-08-13T03:33:51.508491Z'
+  actor: codex
+  type: progress
+  body: 'Started task 084 in C:/projects/aj-084 on feat/task-084-typed-api-client
+    after task 083 closed completed. Next: choose and pin an OpenAPI generator, generate
+    checked-in API types/client without requiring a running server at install/build
+    time, add TanStack Query beneath the connection proof, enforce schema version
+    2 with visible refusal, add deterministic stale-generation checking to the single
+    documented frontend check command, then verify enum type failures and runtime
+    behavior. Usage-window telemetry is not available in this session.'
+  data: {}
