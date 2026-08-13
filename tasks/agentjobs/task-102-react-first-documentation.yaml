@@ -2,14 +2,13 @@ schema: 2
 id: task-102-react-first-documentation
 title: Make AgentJobs documentation React-first everywhere
 created: '2026-08-13T21:07:34.270802Z'
-updated: '2026-08-13T21:49:53.295249Z'
+updated: '2026-08-13T21:54:23.595607Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Review the revised README in commit e4a3127. Confirm it now explains
-  that the responsive React application is designed for desktop and laptop browsers,
-  tablets, and phones, including touch-friendly behavior and optional PWA installation;
-  approve to merge or request further changes.
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: medium
 category: documentation
@@ -179,3 +178,11 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 8
+  ts: '2026-08-13T21:54:23.595511Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
