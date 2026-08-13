@@ -5,14 +5,17 @@ to schema-documentation tooling.
 
 ```powershell
 npm install
+npm run install:e2e
 npm run dev
 npm run check
 ```
 
-`npm run check` is the frontend gate. It first exports FastAPI's OpenAPI document
+`npm run install:e2e` provisions Playwright's pinned Chromium build once per machine
+or whenever Playwright is upgraded. `npm run check` is the frontend gate. It first exports FastAPI's OpenAPI document
 directly from the application (no running server required), regenerates the checked-in
 client, fails when either `openapi.json` or `src/api/generated/` is stale, runs the
-jsdom component suite, and builds the app. The full repository gate is
+jsdom component suite, builds the app, and runs one Playwright path against a real
+server and a fresh temporary project. The full repository gate is
 `poetry run python scripts/check.py` from the repository root; that is the command to
 run before commit because it includes both pytest and this frontend check. To
 intentionally refresh generated artifacts, run `npm run generate:api` and review the
@@ -42,6 +45,8 @@ bundle to `frontend/dist/`; FastAPI serves that bundle at `/app`.
 | oxlint | 1.78.0 |
 | `@hey-api/openapi-ts` | 0.97.3 |
 | TanStack Query | 5.101.4 |
+| MSW | 2.15.0 |
+| Playwright | 1.62.1 |
 | Vitest | 4.1.10 |
 | React Testing Library / DOM Testing Library | 16.3.2 / 10.4.1 |
 | `@testing-library/jest-dom` | 7.0.1 |
@@ -54,8 +59,11 @@ Vitest and React Testing Library run in jsdom. Checked-in, human-readable API ex
 live under `src/test/fixtures/`, one JSON file per response shape. Tests should assert
 the rendered value a person reads or acts on; the first example verifies the exact task
 count, including its value, rather than merely checking that a paragraph exists.
-Network-boundary mocking and Playwright are deliberately not part of this harness;
-task 094 owns both so component tests do not replace the generated client with a stub.
+Tests that exercise API-backed pages add handlers to the shared MSW server in
+`src/test/api-mock.ts`. Unexpected requests fail, and the generated client remains in
+place so request serialization and response parsing are part of the test. Playwright is
+deliberately limited to one high-value path: browser task creation through a real
+server and temporary project.
 
 Tailwind is bundled through its Vite plugin. The stylesheet uses Tailwind 4's
 CSS-first theme variables and a `.dark` custom variant, preserving the Jinja UI's
