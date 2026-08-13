@@ -2,12 +2,9 @@ schema: 2
 id: task-093-mobile-and-pwa
 title: Make the client usable on a phone, and installable
 created: '2026-08-13T02:19:47.902546Z'
-updated: '2026-08-13T09:26:08.887139Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Merge the approved task locally, close it, clean up its worktree, and
-  continue with task 088. Do not push.
+updated: '2026-08-13T09:26:39.065474Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: ux
@@ -18,7 +15,6 @@ tags:
 - pwa
 effort: a day
 assignment:
-  owner: codex
   eligible: []
 parent: task-096-react-phase-2-parity
 spec:
@@ -190,7 +186,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-093-mobile-and-pwa
-  status: active
+  status: merged
+  merged_at: '2026-08-13T09:26:39.007990Z'
 log:
 - id: 1
   ts: '2026-08-13T08:55:40.062619Z'
@@ -356,3 +353,26 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 13
+  ts: '2026-08-13T09:26:39.042758Z'
+  actor: codex
+  type: progress
+  body: 'Human-approved mobile/PWA branch merged into main.
+
+
+    Jeff approved the compact statistics revision. Local no-fast-forward merge commit:
+    3e091ef. Acceptance ac-1 and ac-3 have automated and real-browser evidence. The
+    explicitly recorded physical-device checks for ac-2, the proxy portion of ac-4,
+    ac-5, and ac-6 remain pending verification; approval accepted those as follow-ups
+    rather than claiming they were exercised here. No push performed. Task 088 is
+    next in the required phase order.'
+  data: {}
+- id: 14
+  ts: '2026-08-13T09:26:39.065375Z'
+  actor: codex
+  type: transition
+  body: Closed completed after explicit human approval and no-fast-forward merge 3e091ef;
+    physical-device verification follow-ups remain recorded on the task.
+  data:
+    lifecycle: closed
+    outcome: completed
