@@ -2,12 +2,12 @@ schema: 2
 id: task-088-react-task-list
 title: React task list, with the filtering that Alpine made untestable
 created: '2026-08-11T07:38:05.953311Z'
-updated: '2026-08-13T09:36:12.616169Z'
+updated: '2026-08-13T09:43:47.205494Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Review the React task list on phone. Try search and the three filters;
-  refresh once if useful. Reply approve or name the issue to fix.
+ball: agent
+ball_reason: work
+ball_prompt: Merge the approved task locally, close it, clean up its worktree, and
+  continue with task 089. Do not push.
 archived: false
 priority: medium
 category: ux
@@ -168,3 +168,11 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 6
+  ts: '2026-08-13T09:43:47.205378Z'
+  actor: jeff
+  type: handoff
+  body: Approved by Jeff Posey after review of the React task list and its filters.
+  data:
+    ball: agent
+    ball_reason: work
