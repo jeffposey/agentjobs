@@ -82,7 +82,10 @@ $env:TS_AUTHKEY = '<single-use tagged key>'
 ./tailscale-service-host.exe -backend http://127.0.0.1:8765
 ```
 
-The virtual node stores its identity in the current user's configuration directory.
+The virtual node stores its identity in a hostname-specific directory under the
+current user's configuration directory. Run one proxy process per named Service; the
+same compiled helper can therefore give several apps on one computer independent
+origins and identities.
 After the first successful connection, clear `TS_AUTHKEY` and revoke or discard the
 single-use key. Later starts need only the executable and the backend argument. The
 private install URL is `https://agentjobs.<tailnet>.ts.net/app/`; it has a different
