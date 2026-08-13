@@ -2,13 +2,9 @@ schema: 2
 id: task-099-dependency-visibility
 title: 'Make dependencies visible: what is blocked, why, and what unblocks it'
 created: '2026-08-13T02:35:21.246892Z'
-updated: '2026-08-13T20:20:55.893776Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Approved by Jeff in conversation. Merge task 099, close it completed,
-  then complete parent task 097. Functional approval granted; future UI/UX improvements
-  are explicitly outside the React conversion epic.
+updated: '2026-08-13T20:22:42.966471Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: ux
@@ -19,7 +15,6 @@ tags:
 - dependencies
 effort: a day, plus a day if the DAG view is built
 assignment:
-  owner: codex
   eligible: []
 parent: task-097-react-phase-3-reach
 spec:
@@ -113,31 +108,31 @@ spec:
 acceptance:
 - id: ac-1
   text: a blocked task states what blocks it, in words, wherever it is listed
-  status: pending
+  status: met
 - id: ac-2
   text: 'a task detail shows both directions: what it needs, and what it blocks'
-  status: pending
+  status: met
 - id: ac-3
   text: what a task blocks is computed server-side rather than by inverting the graph
     in the browser
-  status: pending
+  status: met
 - id: ac-4
   text: an umbrella renders its children as a DAG in which containment and sequence
     are visually distinct
-  status: pending
+  status: met
 - id: ac-5
   text: the actionable frontier is distinguishable from blocked, in flight, and done
-  status: pending
+  status: met
 - id: ac-6
   text: a needs cycle is surfaced as a data error, and rendering terminates rather
     than recursing
-  status: pending
+  status: met
 - id: ac-7
   text: a dependency naming a task not in the project is shown, not dropped
-  status: pending
+  status: met
 - id: ac-8
   text: no global all-tasks graph exists
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-088-react-task-list
@@ -153,7 +148,7 @@ dependencies:
 links: []
 branches:
 - name: feat/task-099-dependency-visibility
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-13T19:53:49.213864Z'
@@ -195,3 +190,12 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 5
+  ts: '2026-08-13T20:22:42.966379Z'
+  actor: codex
+  type: transition
+  body: Approved by Jeff, rebased, full gate passed, and merged into main as fabd9f0.
+    Future UI/UX refinements are explicitly outside the React conversion epic.
+  data:
+    lifecycle: closed
+    outcome: completed
