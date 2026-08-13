@@ -106,6 +106,30 @@ export type Branch = {
 export type BranchStatus = 'active' | 'merged' | 'abandoned';
 
 /**
+ * BrokenTaskFile
+ *
+ * An on-disk task record that could not be loaded.
+ */
+export type BrokenTaskFile = {
+    /**
+     * Filename
+     */
+    filename: string;
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Task Id
+     */
+    task_id: string;
+};
+
+/**
  * ClaimRequest
  *
  * An agent takes ownership of a ready task.
@@ -167,6 +191,100 @@ export type ContextPointer = {
      * Why a reader should open this first.
      */
     why: string;
+};
+
+/**
+ * DashboardRecentUpdate
+ *
+ * A compact task-log record for the recent activity list.
+ */
+export type DashboardRecentUpdate = {
+    /**
+     * Author
+     */
+    author: string;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Task Id
+     */
+    task_id: string;
+    /**
+     * Task Title
+     */
+    task_title: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+};
+
+/**
+ * DashboardResponse
+ *
+ * The complete Python-computed dashboard contract.
+ */
+export type DashboardResponse = {
+    /**
+     * Active Tasks
+     */
+    active_tasks: Array<Task>;
+    /**
+     * Backlog Tasks
+     */
+    backlog_tasks: Array<Task>;
+    /**
+     * Broken Files
+     */
+    broken_files: Array<BrokenTaskFile>;
+    /**
+     * Next Action
+     */
+    next_action: 'blocked' | 'backlog' | 'next_up' | 'nothing_claimable' | 'empty_project';
+    next_task: Task | null;
+    /**
+     * Recent Updates
+     */
+    recent_updates: Array<DashboardRecentUpdate>;
+    stats: DashboardStats;
+    /**
+     * Waiting Tasks
+     */
+    waiting_tasks: Array<Task>;
+};
+
+/**
+ * DashboardStats
+ *
+ * Counts rendered by the dashboard stat tiles.
+ */
+export type DashboardStats = {
+    /**
+     * Awaiting Input
+     */
+    awaiting_input: number;
+    /**
+     * Blocked
+     */
+    blocked: number;
+    /**
+     * Completed
+     */
+    completed: number;
+    /**
+     * In Progress
+     */
+    in_progress: number;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Waiting For Human
+     */
+    waiting_for_human: number;
 };
 
 /**
@@ -1075,6 +1193,40 @@ export type WebhookCreateRequest = {
 };
 
 /**
+ * DashboardResponse
+ *
+ * The complete Python-computed dashboard contract.
+ */
+export type DashboardResponseWritable = {
+    /**
+     * Active Tasks
+     */
+    active_tasks: Array<TaskWritable>;
+    /**
+     * Backlog Tasks
+     */
+    backlog_tasks: Array<TaskWritable>;
+    /**
+     * Broken Files
+     */
+    broken_files: Array<BrokenTaskFile>;
+    /**
+     * Next Action
+     */
+    next_action: 'blocked' | 'backlog' | 'next_up' | 'nothing_claimable' | 'empty_project';
+    next_task: TaskWritable | null;
+    /**
+     * Recent Updates
+     */
+    recent_updates: Array<DashboardRecentUpdate>;
+    stats: DashboardStats;
+    /**
+     * Waiting Tasks
+     */
+    waiting_tasks: Array<TaskWritable>;
+};
+
+/**
  * Task
  *
  * A task, in schema v2.
@@ -1228,6 +1380,22 @@ export type GetAllTasksApiAllTasksGetResponses = {
 
 export type GetAllTasksApiAllTasksGetResponse = GetAllTasksApiAllTasksGetResponses[keyof GetAllTasksApiAllTasksGetResponses];
 
+export type GetDashboardApiDashboardGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/dashboard';
+};
+
+export type GetDashboardApiDashboardGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DashboardResponse;
+};
+
+export type GetDashboardApiDashboardGetResponse = GetDashboardApiDashboardGetResponses[keyof GetDashboardApiDashboardGetResponses];
+
 export type ApiHealthCheckApiHealthGetData = {
     body?: never;
     path?: never;
@@ -1340,6 +1508,36 @@ export type InspectProjectPathApiProjectsInspectPostResponses = {
 };
 
 export type InspectProjectPathApiProjectsInspectPostResponse = InspectProjectPathApiProjectsInspectPostResponses[keyof InspectProjectPathApiProjectsInspectPostResponses];
+
+export type GetDashboardApiProjectsProjectIdDashboardGetData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/dashboard';
+};
+
+export type GetDashboardApiProjectsProjectIdDashboardGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDashboardApiProjectsProjectIdDashboardGetError = GetDashboardApiProjectsProjectIdDashboardGetErrors[keyof GetDashboardApiProjectsProjectIdDashboardGetErrors];
+
+export type GetDashboardApiProjectsProjectIdDashboardGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DashboardResponse;
+};
+
+export type GetDashboardApiProjectsProjectIdDashboardGetResponse = GetDashboardApiProjectsProjectIdDashboardGetResponses[keyof GetDashboardApiProjectsProjectIdDashboardGetResponses];
 
 export type SearchTasksApiProjectsProjectIdSearchGetData = {
     body?: never;

@@ -147,6 +147,35 @@
         "title": "BranchStatus",
         "type": "string"
       },
+      "BrokenTaskFile": {
+        "description": "An on-disk task record that could not be loaded.",
+        "properties": {
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "path",
+          "filename",
+          "reason"
+        ],
+        "title": "BrokenTaskFile",
+        "type": "object"
+      },
       "ClaimRequest": {
         "description": "An agent takes ownership of a ready task.",
         "properties": {
@@ -220,6 +249,156 @@
           "why"
         ],
         "title": "ContextPointer",
+        "type": "object"
+      },
+      "DashboardRecentUpdate": {
+        "description": "A compact task-log record for the recent activity list.",
+        "properties": {
+          "author": {
+            "title": "Author",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "task_title": {
+            "title": "Task Title",
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "task_title",
+          "timestamp",
+          "summary",
+          "author"
+        ],
+        "title": "DashboardRecentUpdate",
+        "type": "object"
+      },
+      "DashboardResponse": {
+        "description": "The complete Python-computed dashboard contract.",
+        "properties": {
+          "active_tasks": {
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            },
+            "title": "Active Tasks",
+            "type": "array"
+          },
+          "backlog_tasks": {
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            },
+            "title": "Backlog Tasks",
+            "type": "array"
+          },
+          "broken_files": {
+            "items": {
+              "$ref": "#/components/schemas/BrokenTaskFile"
+            },
+            "title": "Broken Files",
+            "type": "array"
+          },
+          "next_action": {
+            "enum": [
+              "blocked",
+              "backlog",
+              "next_up",
+              "nothing_claimable",
+              "empty_project"
+            ],
+            "title": "Next Action",
+            "type": "string"
+          },
+          "next_task": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Task"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recent_updates": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardRecentUpdate"
+            },
+            "title": "Recent Updates",
+            "type": "array"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/DashboardStats"
+          },
+          "waiting_tasks": {
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            },
+            "title": "Waiting Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stats",
+          "active_tasks",
+          "recent_updates",
+          "waiting_tasks",
+          "backlog_tasks",
+          "next_task",
+          "next_action",
+          "broken_files"
+        ],
+        "title": "DashboardResponse",
+        "type": "object"
+      },
+      "DashboardStats": {
+        "description": "Counts rendered by the dashboard stat tiles.",
+        "properties": {
+          "awaiting_input": {
+            "title": "Awaiting Input",
+            "type": "integer"
+          },
+          "blocked": {
+            "title": "Blocked",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "in_progress": {
+            "title": "In Progress",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "waiting_for_human": {
+            "title": "Waiting For Human",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "in_progress",
+          "blocked",
+          "waiting_for_human",
+          "awaiting_input",
+          "completed"
+        ],
+        "title": "DashboardStats",
         "type": "object"
       },
       "Deliverable": {
@@ -1733,6 +1912,28 @@
         ]
       }
     },
+    "/api/dashboard": {
+      "get": {
+        "description": "Return the dashboard projection, including its single next action.",
+        "operationId": "get_dashboard_api_dashboard_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Dashboard",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
     "/api/health": {
       "get": {
         "description": "Simple health check endpoint for API consumers.",
@@ -1906,6 +2107,49 @@
         "summary": "Inspect Project Path",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/dashboard": {
+      "get": {
+        "description": "Return the dashboard projection, including its single next action.",
+        "operationId": "get_dashboard_api_projects__project_id__dashboard_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Dashboard",
+        "tags": [
+          "dashboard"
         ]
       }
     },

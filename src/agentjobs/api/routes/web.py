@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from agentjobs.dashboard import awaits_human_input, blocks_human, build_dashboard_snapshot
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, Lifecycle, Outcome, Task
 from agentjobs.projects import Project
@@ -56,14 +57,6 @@ def _context_base(
         "identity": current_identity(project),
         "current_user": current_identity(project).user,
     }
-
-
-def _sort_tasks_for_dashboard(tasks: List[Task]) -> List[Task]:
-    """Sort in-flight tasks to prioritise critical and recently updated work."""
-    return sorted(
-        (task for task in tasks if task.lifecycle in (Lifecycle.READY, Lifecycle.ACTIVE)),
-        key=lambda task: (task.priority_rank(), -task.updated.timestamp()),
-    )
 
 
 def _nest_tasks(tasks: List[Task]) -> List[Dict[str, Any]]:
@@ -166,91 +159,20 @@ def _child_rollup(children: List[Task]) -> Optional[Dict[str, Any]]:
     }
 
 
-def _collect_recent_updates(tasks: List[Task]) -> List[Dict[str, Any]]:
-    """Flatten log entries into a sorted list for the dashboard."""
-    updates: List[Dict[str, Any]] = []
-    for task in tasks:
-        for entry in task.log:
-            body = (entry.body or "").strip()
-            updates.append(
-                {
-                    "task_id": task.id,
-                    "task_title": task.title,
-                    "timestamp": entry.ts,
-                    "summary": body.splitlines()[0] if body else entry.type.value,
-                    "author": entry.actor,
-                }
-            )
-    updates.sort(key=lambda record: record["timestamp"], reverse=True)
-    return updates[:10]
-
-
-def blocks_human(task: Task) -> bool:
-    """Work is stopped and a person is the reason.
-
-    An agent handed the ball back mid-branch and is now idle, a finished branch is
-    sitting at the merge gate, or a question is blocking work already under way. This
-    is the tier that earns an alert, and it should reach zero routinely.
-
-    ``ball`` is null once a task is closed, so holding it already implies open; the
-    only distinction left to draw is ``draft``.
-    """
-    return task.ball is Ball.HUMAN and task.lifecycle is not Lifecycle.DRAFT
-
-
-def awaits_human_input(task: Task) -> bool:
-    """A draft parked on a person: nothing is stopped, because it is not yet work.
-
-    ``draft`` already means "not yet work", so nobody is blocked -- the human is simply
-    whoever would eventually make the call. Counting these alongside the tier above is
-    what makes a badge that never reaches zero, and a badge that never reaches zero can
-    only be read by opening it, which is the work it existed to save.
-    """
-    return task.ball is Ball.HUMAN and task.lifecycle is Lifecycle.DRAFT
-
-
-def _inbox_order(tasks: List[Task]) -> List[Task]:
-    """Most urgent first, then most recently touched."""
-    return sorted(tasks, key=lambda task: (task.priority_rank(), -task.updated.timestamp()))
-
-
 def _get_blocking_tasks(tasks: List[Task]) -> List[Task]:
     """The alerting tier of the human inbox."""
-    return _inbox_order([task for task in tasks if blocks_human(task)])
+    return sorted(
+        (task for task in tasks if blocks_human(task)),
+        key=lambda task: (task.priority_rank(), -task.updated.timestamp()),
+    )
 
 
 def _get_backlog_tasks(tasks: List[Task]) -> List[Task]:
     """The quiet tier: visible and counted, never styled as an alarm."""
-    return _inbox_order([task for task in tasks if awaits_human_input(task)])
-
-
-def _next_action(
-    *,
-    blocking: List[Task],
-    backlog: List[Task],
-    next_task: Optional[Task],
-    total: int,
-) -> str:
-    """Which single call to action the dashboard shows. First match wins.
-
-    A dashboard answers one question -- what do I do next -- and it has to answer it
-    once. Rendering the tiers as independent panels showed two calls to action of equal
-    weight and ranked neither, leaving the reader to do the ranking the page exists to
-    do for them.
-
-    Returned as a name rather than as several booleans so the template selects a branch
-    instead of re-deriving the precedence, which is how two panels start rendering
-    together again.
-    """
-    if blocking:
-        return "blocked"
-    if backlog:
-        return "backlog"
-    if next_task is not None:
-        return "next_up"
-    # Nothing claimable. An empty project and a fully-blocked one are different
-    # situations and get different words.
-    return "empty_project" if total == 0 else "nothing_claimable"
+    return sorted(
+        (task for task in tasks if awaits_human_input(task)),
+        key=lambda task: (task.priority_rank(), -task.updated.timestamp()),
+    )
 
 
 def get_waiting_count(manager: TaskManager) -> int:
@@ -267,44 +189,15 @@ async def dashboard(
     templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the dashboard showing task statistics and recent updates."""
-    tasks = manager.list_tasks()
-    waiting_tasks = _get_blocking_tasks(tasks)
-    backlog_tasks = _get_backlog_tasks(tasks)
-    stats = {
-        "total": len(tasks),
-        "in_progress": sum(
-            1 for task in tasks if task.lifecycle is Lifecycle.ACTIVE and task.ball is Ball.AGENT
-        ),
-        "blocked": sum(1 for task in tasks if task.ball is Ball.EXTERNAL),
-        "waiting_for_human": len(waiting_tasks),
-        "awaiting_input": len(backlog_tasks),
-        "completed": sum(1 for task in tasks if task.outcome is Outcome.COMPLETED),
-    }
-    waiting_count = len(waiting_tasks)
-
-    # Tier 3 of the ladder. The manager already knows what "claimable" means -- ready,
-    # no unmet needs, no open children, eligibility honoured -- and asking it here keeps
-    # the dashboard's answer identical to the CLI's answer to the same question.
-    next_task = manager.get_next_task()
+    snapshot = build_dashboard_snapshot(manager)
 
     context = {
         "request": request,
-        "stats": stats,
-        "active_tasks": _sort_tasks_for_dashboard(tasks),
-        "recent_updates": _collect_recent_updates(tasks),
-        "waiting_tasks": waiting_tasks,
-        "backlog_tasks": backlog_tasks,
-        "next_task": next_task,
-        "next_action": _next_action(
-            blocking=waiting_tasks,
-            backlog=backlog_tasks,
-            next_task=next_task,
-            total=len(tasks),
-        ),
+        **snapshot,
         **_context_base(
             project=project,
-            waiting_count=waiting_count,
-            broken_files=[e.as_dict() for e in manager.load_errors()],
+            waiting_count=snapshot["stats"]["waiting_for_human"],
+            broken_files=snapshot["broken_files"],
         ),
     }
     return templates.TemplateResponse("dashboard.html", context)
