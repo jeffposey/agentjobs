@@ -2,7 +2,7 @@ schema: 2
 id: task-094-frontend-e2e
 title: 'Harden the frontend harness: network-boundary mocking and one end-to-end path'
 created: '2026-08-13T02:19:48.337101Z'
-updated: '2026-08-13T02:35:26.008146Z'
+updated: '2026-08-13T02:58:34.123754Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -74,7 +74,8 @@ acceptance:
     temporary project
   status: pending
 - id: ac-3
-  text: both run alongside the Python suite rather than by separate ritual
+  text: both run from the project's single documented check command, alongside the
+    Python suite
   status: pending
 deliverables: []
 dependencies:

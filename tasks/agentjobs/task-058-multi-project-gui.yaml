@@ -2,7 +2,7 @@ schema: 2
 id: task-058-multi-project-gui
 title: 'Multi-project GUI: hierarchical task tree with expandable subtasks'
 created: '2026-08-10T06:14:30Z'
-updated: '2026-08-11T05:55:51.964749Z'
+updated: '2026-08-13T02:58:34.081217Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -151,6 +151,9 @@ dependencies:
 - task: task-059-review-surface-usability
   type: related
   note: Deferred its sc-5 (project-scoped review actions) to this task.
+- task: task-088-react-task-list
+  type: needs
+  note: Same hierarchy. Gated so it is not built twice, once per stack.
 links: []
 branches: []
 log:
@@ -236,4 +239,43 @@ log:
     and task-059 deferred its sc-5 here, so the review buttons still POST to unscoped
     `/api/tasks/{id}/...` routes and should be pointed at the scoped ones once these
     URLs exist.'
+  data: {}
+- id: 4
+  ts: '2026-08-13T02:58:34.081126Z'
+  actor: claude
+  type: decision
+  body: 'Gated behind task-088 (the React task list) on 2026-08-12, by the owner''s
+    direction.
+
+
+    This task was `ready`, `high`, and estimated at one working session, which put
+    it third in
+
+    `get_next_task()`''s ranking. Its remaining deliverable is "a hierarchical task
+    list for the
+
+    selected project, expandable to reveal subtasks" -- which is exactly task-088''s
+    job in
+
+    React. An agent asked for the next available task would have built the hierarchy
+    in Jinja
+
+    while the React port was underway: the half-migrated state task-082 exists to
+    prevent.
+
+
+    Note for whoever picks this up: the Jinja hierarchy may already be finished. `_nest_tasks`
+
+    in `api/routes/web.py` returns depth, ancestors, and child counts, and `task_list.html`
+
+    renders an expandable tree over them. The likely resolution is that this task
+    is closed as
+
+    superseded once task-088 lands, but that is a judgement to make then, against
+    the spec,
+
+    rather than assumed now. The rejected alternative was closing it as superseded
+    immediately,
+
+    which would discard a requirement nobody has re-read against what actually shipped.'
   data: {}

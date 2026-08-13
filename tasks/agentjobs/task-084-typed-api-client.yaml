@@ -2,7 +2,7 @@ schema: 2
 id: task-084-typed-api-client
 title: Generate the TypeScript API client from the OpenAPI schema
 created: '2026-08-11T07:38:04.071238Z'
-updated: '2026-08-13T02:35:22.215864Z'
+updated: '2026-08-13T02:58:34.136938Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -88,11 +88,15 @@ spec:
 
     a runtime validation layer.'
   constraints: "- No hand-written request or response types. If a type is written\
-    \ by hand, this\n  task has not been done.\n- Regeneration is checkable in CI:\
-    \ a stale client fails, rather than being\n  discovered in a browser.\n- Generation\
-    \ must not require a running server at install or build time.\n- An unrecognised\
-    \ record `schema` version is refused visibly, never partly\n  rendered.\n- No\
-    \ backend changes to make generation easier without recording why."
+    \ by hand, this\n  task has not been done.\n- A stale generated client fails a\
+    \ check somebody actually runs, rather than being\n  discovered in a browser.\
+    \ **There is no CI in this repository** -- no\n  `.github/workflows`, no pre-commit\
+    \ config -- so do not write an acceptance\n  criterion against a pipeline that\
+    \ does not exist. Add the check to the project's\n  documented check command.\
+    \ Standing up CI is worth doing and is not this task.\n- Generation must not require\
+    \ a running server at install or build time.\n- An unrecognised record `schema`\
+    \ version is refused visibly, never partly\n  rendered.\n- No backend changes\
+    \ to make generation easier without recording why."
   out_of_scope: Screens. Runtime response validation -- the generated types are a
     compile-time contract, and adding a runtime validator is a separate decision with
     its own cost.
@@ -106,7 +110,9 @@ acceptance:
   text: TypeScript types are generated from /openapi.json and checked in
   status: pending
 - id: ac-2
-  text: a stale generated client is detectable in CI rather than at runtime
+  text: regenerating the client produces no diff, and that check runs from the project's
+    single documented check command -- this repository has no CI, so that command
+    is the gate
   status: pending
 - id: ac-3
   text: the closed enums (lifecycle, ball, ball_reason, outcome) are typed such that

@@ -2,7 +2,7 @@ schema: 2
 id: task-083-react-scaffold
 title: Scaffold the React app and serve it at /app
 created: '2026-08-11T07:38:03.613244Z'
-updated: '2026-08-13T02:35:21.748330Z'
+updated: '2026-08-13T02:58:34.037109Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -25,8 +25,22 @@ spec:
     routing, how the SPA is served -- are reviewable on their own rather than buried
     inside the first screen someone builds.
   description: "A `frontend/` directory at the repository root holding the Vite project.\n\
-    Client-side routing under `/app` with React Router, so `/app/tasks/task-042-...`\n\
-    is a real, linkable URL rather than state held in memory.\n\n## Toolchain\n\n\
+    \n**The project id goes in the path: `/app/p/{project_id}/tasks/{task_id}`.**\n\
+    Decided before this task starts, because it is the first thing you would\notherwise\
+    \ have to guess and it constrains every later screen and query key. The\nAPI is\
+    \ already mounted twice -- `/api` and `/api/projects/{project_id}` -- and the\n\
+    Jinja UI already routes under `/p/{project_id}` with an unprefixed legacy router\n\
+    beside it. The registry (task-057) and the project switcher (task-061) are both\n\
+    closed, so more than one project is a live case, not a hypothetical. A URL without\n\
+    the project cannot survive the hard refresh ac-3 requires once a second project\n\
+    exists, because it resolves against whatever happens to be selected.\n\nClient-side\
+    \ routing with React Router, so a deep link is a real, linkable URL\nrather than\
+    \ state held in memory.\n\n**A note on the repository root:** there is already\
+    \ a `package.json` and\n`node_modules/` there. It is `agentjobs-schema-tools`\
+    \ -- mermaid rendering for the\nLinkML schemas, dev tooling only, and explicitly\
+    \ not a runtime dependency of\nanything. Do not extend it or install into it.\
+    \ `frontend/` is a separate project.\n`.gitignore` already covers `node_modules/`\
+    \ and `dist/` at any depth, so nothing\nneeds adding there.\n\n## Toolchain\n\n\
     Do not let `create vite` pick the versions silently; this combination is known\
     \ to\nwork together as of 2026-08 and is a reasonable starting point:\n\n| Package\
     \ | Version |\n| --- | --- |\n| react, react-dom | 19.2 |\n| vite | 8.2 |\n| typescript\
@@ -96,4 +110,44 @@ deliverables: []
 dependencies: []
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-13T02:58:34.037029Z'
+  actor: claude
+  type: decision
+  body: 'The project id goes in the URL path: `/app/p/{project_id}/tasks/{task_id}`.
+    Decided by the
+
+    owner on 2026-08-12, before the task is claimed, so its agent does not have to
+    guess.
+
+
+    Reasoning: ac-3 requires a deep link to survive a hard refresh. A URL with no
+    project
+
+    segment resolves against whatever project is currently selected, so the same link
+    means
+
+    different things at different times -- which is not a linkable URL. The API is
+    already
+
+    mounted at both `/api` and `/api/projects/{project_id}`, the Jinja UI already
+    routes under
+
+    `/p/{project_id}`, and both the registry (task-057) and the switcher (task-061)
+    are closed,
+
+    so multiple projects are already reachable from one server.
+
+
+    Rejected: holding the selected project in client state, which is a simpler scaffold
+    and
+
+    matches the legacy unprefixed router but breaks linkability. Also rejected: deferring
+    the
+
+    question and retrofitting scoping later, which would touch every route, every
+    query key,
+
+    and the typed client -- the most likely thing to be re-litigated in phase 2.'
+  data: {}

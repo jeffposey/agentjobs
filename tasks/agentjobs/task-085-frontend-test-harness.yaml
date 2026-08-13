@@ -2,7 +2,7 @@ schema: 2
 id: task-085-frontend-test-harness
 title: 'Frontend test harness: Vitest, React Testing Library, Playwright'
 created: '2026-08-11T07:38:04.532733Z'
-updated: '2026-08-13T02:35:22.692054Z'
+updated: '2026-08-13T02:58:34.112569Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -105,7 +105,8 @@ acceptance:
   text: checked-in fixtures cover the API shapes the first screens need
   status: pending
 - id: ac-3
-  text: frontend tests run alongside the Python suite rather than by separate ritual
+  text: frontend tests run from the same single documented command as the Python suite,
+    not by a separate ritual
   status: pending
 - id: ac-4
   text: at least one test asserts a rendered value a user acts on, establishing the

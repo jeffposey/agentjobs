@@ -2,7 +2,7 @@ schema: 2
 id: task-095-react-phase-1-foundation
 title: React phase 1 -- foundation
 created: '2026-08-13T02:35:19.416134Z'
-updated: '2026-08-13T02:35:19.416833Z'
+updated: '2026-08-13T02:58:34.147832Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -46,12 +46,12 @@ spec:
     a
 
     harness fitted around it, or gets none.'
-  constraints: '- The Jinja UI is untouched by every child in this phase.
-
-    - No API changes.
-
-    - No screen work. If a child starts rendering product surface, it has escaped
-    its scope.'
+  constraints: "- The Jinja UI is untouched by every child in this phase.\n- No API\
+    \ changes.\n- No screen work. If a child starts rendering product surface, it\
+    \ has escaped its scope.\n- **There is no CI in this repository.** No `.github/workflows`,\
+    \ no pre-commit\n  config, though a GitHub remote exists. 'Runs in CI' is not\
+    \ available as an\n  acceptance mechanism; a single documented check command is.\
+    \ Do not stand up CI\n  as a side effect of a child task -- it is its own decision."
   out_of_scope: Any real screen. Live updates. Packaging. Mobile.
   context:
   - path: src/agentjobs/api/main.py
