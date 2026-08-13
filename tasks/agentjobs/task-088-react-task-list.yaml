@@ -2,7 +2,7 @@ schema: 2
 id: task-088-react-task-list
 title: React task list, with the filtering that Alpine made untestable
 created: '2026-08-11T07:38:05.953311Z'
-updated: '2026-08-13T09:27:46.410808Z'
+updated: '2026-08-13T09:33:15.535730Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -122,4 +122,20 @@ log:
     on 127.0.0.1:8765 refused replacement; an alternate loopback port will be used
     for trustworthy feature verification. Usage-window telemetry is unavailable in
     this session; no estimate was invented.'
+  data: {}
+- id: 3
+  ts: '2026-08-13T09:33:15.535614Z'
+  actor: codex
+  type: progress
+  body: 'Typed list contract and React task-list screen committed.
+
+
+    Feature commits 8a28f40 and 34d7978 type the broken-file endpoint and add the
+    project-scoped React task list: URL-backed search/status/priority/scope filters,
+    Open-by-not-closed default, flatten-on-filter behavior, lossless dangling/cycle
+    projection, expandable all-status tree, responsive cell-owned card labels, and
+    broken-file warnings. Frontend check passed with 6 test files / 18 tests, including
+    closed-task default exclusion, filtered-out parent survival, dangling/cycle visibility,
+    and URL state. Next: real-browser phone/desktop/filter/refresh verification and
+    full repository gate.'
   data: {}
