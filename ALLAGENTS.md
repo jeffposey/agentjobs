@@ -4,6 +4,33 @@ Shared guidance for all AI agents working in this repository. Universal engineer
 
 ## Task Management
 
+### Parent Task Loop
+
+When asked to work or drive a parent task, treat the parent and its descendants as the
+durable execution plan. The kickoff prompt should normally be no more than "work
+task-NNN"; do not require it to repeat specifications, child order, verification, or
+handoff rules already stored in task records and these process files.
+
+1.  Read the parent completely, then inspect its open descendants and their
+    `dependencies[]`, logs, decisions, acceptance criteria, and current ball state.
+2.  Work exactly one eligible child at a time. Dependencies determine eligibility and
+    ordering. If a required order is not represented durably, record it as task
+    dependencies or a task decision instead of relying on chat or a long launcher.
+3.  Follow the normal task lifecycle below. When a child reaches human review, hand it
+    off and stop. Never merge without explicit approval for that child.
+4.  Approval releases that checkpoint; it does not end the parent loop. Preserve the
+    recorded approval, merge and close the child, clean up its worktree, then continue
+    automatically with the next eligible child.
+5.  When no unfinished child remains, evaluate the parent's acceptance criteria against
+    durable child evidence, perform any parent-level verification, and close the parent
+    when supported.
+6.  Stop only for a required review/approval gate, a genuine human decision or external
+    blocker, a clean usage boundary, or completion of the parent.
+
+The task graph defines scope. Do not absorb unrelated follow-ups merely because they
+were mentioned during the loop; create or update a separate durable task only when the
+user authorizes it.
+
 ### Task Lifecycle
 1.  **Read**: Read the task YAML (e.g., `tasks/agentjobs/task-042-*.yaml`) — its `spec`
     (`summary` → `intent` → `description` → `constraints` → `out_of_scope` → `context`)
