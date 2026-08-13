@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
@@ -20,20 +20,7 @@ import { Dashboard } from "./components/Dashboard";
 import { ConnectionUnavailable } from "./components/ConnectionUnavailable";
 import { TaskList } from "./components/TaskList";
 import { TaskDetail } from "./components/TaskDetail";
-
-function useOnlineStatus() {
-  const [online, setOnline] = useState(() => navigator.onLine);
-  useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
-  }, []);
-  return online;
-}
+import { LiveUpdateStatus } from "./components/LiveUpdates";
 
 function ProjectRedirect() {
   const navigate = useNavigate();
@@ -172,6 +159,7 @@ function ProjectApp() {
         </nav>
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
+        <LiveUpdateStatus projectId={projectId} />
         <Routes>
           <Route index element={<DashboardPage projectId={projectId} />} />
           <Route path="tasks" element={<TaskListPage projectId={projectId} />} />
@@ -200,8 +188,6 @@ function StatusCard({ title, children }: { title: string; children: React.ReactN
 }
 
 export function App() {
-  const online = useOnlineStatus();
-  if (!online) return <ConnectionUnavailable offline />;
   return (
     <Routes>
       <Route index element={<ProjectRedirect />} />
