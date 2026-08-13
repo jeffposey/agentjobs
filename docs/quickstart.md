@@ -25,10 +25,11 @@ project registration for the local server.
 poetry -P /path/to/agentjobs run agentjobs open
 ```
 
-The primary UI opens at `http://localhost:8765/app/`. From there you can switch among
-registered projects, create a draft or ready task, inspect hierarchy and dependencies,
-and record review approval or requested changes. FastAPI's interactive API reference
-is available separately at `http://localhost:8765/docs`.
+The primary UI opens at `http://localhost:8765/app/`. The **Project** selector in the
+shared header switches among registered projects. From there you can create a draft or
+ready task, inspect hierarchy and dependencies, and record review approval or requested
+changes. FastAPI's interactive API reference is available separately at
+`http://localhost:8765/docs`.
 
 ## 3. Create and find work
 

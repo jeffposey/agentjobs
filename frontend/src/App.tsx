@@ -23,6 +23,7 @@ import { TaskList } from "./components/TaskList";
 import { TaskDetail } from "./components/TaskDetail";
 import { TaskCreate } from "./components/TaskCreate";
 import { LiveUpdateStatus } from "./components/LiveUpdates";
+import { ProjectSwitcher } from "./components/ProjectSwitcher";
 
 function ProjectRedirect() {
   const navigate = useNavigate();
@@ -179,7 +180,7 @@ function ProjectApp() {
       <header className="border-b border-dark-border bg-dark-surface">
         <nav className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center gap-2 px-4 py-2 min-[820px]:gap-6 sm:px-6 lg:px-8" aria-label="Primary navigation">
           <h1 className="text-2xl font-bold">AgentJobs</h1>
-          <span className="hidden rounded-md border border-dark-border bg-dark-bg px-3 py-2 font-mono text-xs text-dark-muted sm:block">{projectId}</span>
+          <ProjectSwitcher projectId={projectId} />
           <Link to={projectPath(projectId)} className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">Dashboard</Link>
           <Link to={projectPath(projectId, "/tasks")} className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">Tasks</Link>
           <Link to={projectPath(projectId, "/tasks/new")} className="touch-target rounded-md px-3 text-sm font-medium text-blue-300 hover:bg-dark-border">Create</Link>

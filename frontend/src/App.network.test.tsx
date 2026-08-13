@@ -28,6 +28,10 @@ describe("generated client at the HTTP boundary", () => {
     let created: TaskRead | null = null;
     let received: TaskCreateRequest | null = null;
     apiMockServer.use(
+      http.get("*/api/projects", () => HttpResponse.json([
+        { id: "inbox", name: "Inbox", root: "C:/projects/inbox", task_count: created ? 1 : 0, tasks_directory: "C:/projects/inbox/tasks" },
+        { id: "sample", name: "Sample", root: "C:/projects/sample", task_count: 0, tasks_directory: "C:/projects/sample/tasks" },
+      ])),
       http.get("*/api/projects/inbox/tasks", () => HttpResponse.json(created ? [created] : [])),
       http.get("*/api/projects/inbox/tasks/broken", () => HttpResponse.json([])),
       http.get("*/api/projects/inbox/revision", () => HttpResponse.json({ revision: "test-revision", task_count: created ? 1 : 0 })),

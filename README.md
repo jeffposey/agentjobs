@@ -57,8 +57,8 @@ a particular desktop operating system.
 - A FastAPI REST API and Python client for claiming, handing off, releasing, closing,
   querying, and logging work
 - A packaged React web application for desktop browsers, tablets, and phones, with
-  multiple registered projects, task creation and detail pages, hierarchy roll-ups,
-  and human review actions
+  a project switcher for multiple registered projects, task creation and detail pages,
+  hierarchy roll-ups, and human review actions
 - Basic CLI workflows for creating, listing, showing, claiming/finishing interactively,
   serving, and migrating tasks
 - Markdown-to-YAML and schema-v1-to-v2 migration tools
