@@ -2,11 +2,15 @@ schema: 2
 id: task-108-react-project-switcher
 title: Add the project switcher to React
 created: '2026-08-13T22:42:14.777527Z'
-updated: '2026-08-13T22:42:35.343472Z'
+updated: '2026-08-13T22:50:33.699358Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: Review the React project selector in the shared header. Confirm that
+  it lists AgentJobs, Job Hunting, and Mastercalls; switches to the chosen project
+  dashboard; and feels appropriate on tablet or phone. Approve or request changes
+  through this task. Branch feat/task-108-react-project-switcher is unmerged at commit
+  4f9debf.
 archived: false
 priority: high
 category: ux
@@ -56,23 +60,23 @@ acceptance:
 - id: ac-1
   text: Every project-scoped React page has a project switcher listing every registered
     project and marking the active project.
-  status: pending
+  status: met
 - id: ac-2
   text: Choosing another project navigates to that project dashboard under /app/p/<project>/
     and loads its scoped data.
-  status: pending
+  status: met
 - id: ac-3
   text: The switcher is keyboard accessible, touch-sized, and fits the shared header
     at phone and tablet widths without horizontal overflow.
-  status: pending
+  status: met
 - id: ac-4
   text: Automated tests cover registry loading, active selection, and project navigation,
     and the packaged app is browser-verified with at least two real registered projects.
-  status: pending
+  status: met
 - id: ac-5
   text: Quickstart and other current-facing references to React project switching
     match the shipped behavior.
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -89,3 +93,27 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 2
+  ts: '2026-08-13T22:50:33.678943Z'
+  actor: codex
+  type: progress
+  body: 'Implemented and verified the React project switcher.
+
+
+    Commit 4f9debf adds an accessible registry-backed selector to the shared React
+    header, routes selection to the chosen project dashboard, adds HTTP-boundary and
+    component coverage, and updates the README and quickstart. Browser verification
+    against the packaged branch listed AgentJobs, Job Hunting, and Mastercalls, switched
+    from Job Hunting to AgentJobs, and measured the 375px phone layout with no horizontal
+    overflow and a 44px-high selector. The complete repository gate passed: 624 Python
+    tests, 42 React tests, lint, generated API/client checks, production build, PWA
+    checks, and the real-server Playwright creation path.'
+  data: {}
+- id: 3
+  ts: '2026-08-13T22:50:33.699270Z'
+  actor: codex
+  type: handoff
+  body: The React project switcher is implemented, fully verified, and ready for review.
+  data:
+    ball: human
+    ball_reason: review
