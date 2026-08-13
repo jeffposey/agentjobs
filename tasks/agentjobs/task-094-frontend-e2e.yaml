@@ -2,7 +2,7 @@ schema: 2
 id: task-094-frontend-e2e
 title: 'Harden the frontend harness: network-boundary mocking and one end-to-end path'
 created: '2026-08-13T02:19:48.337101Z'
-updated: '2026-08-13T02:58:34.123754Z'
+updated: '2026-08-13T20:32:21.413190Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -85,6 +85,9 @@ dependencies:
 - task: task-089-react-task-detail
   type: needs
   note: The end-to-end path is worth writing once a page that writes exists.
+- task: task-090-react-create-task
+  type: needs
+  note: The real-browser path follows the new write surface it must prove.
 links: []
 branches: []
 log: []
