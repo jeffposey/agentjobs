@@ -1,8 +1,8 @@
 schema: 2
 id: task-063-schema-v2
-title: 'Schema v2: models, migrator, application, CLI, GUI'
+title: 'Schema v2: finish the dedicated CLI state verbs'
 created: '2026-08-11T03:17:08.422110Z'
-updated: '2026-08-11T06:05:20.507792Z'
+updated: '2026-08-13T22:05:40.136134Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -15,8 +15,9 @@ tags:
 assignment:
   eligible: []
 spec:
-  summary: Replacing AgentJobs' single `status` field with four orthogonal state axes,
-    across the models, the corpus, the application, the CLI and the GUI.
+  summary: 'Schema v2 is live across the models, corpus, application, API, Python
+    client, and React UI. The remaining umbrella work is task 053: dedicated CLI commands
+    for the canonical state verbs.'
   intent: 'Schema v1 had one `status` field carrying three unrelated facts: how far
     along the work
 
@@ -63,8 +64,9 @@ spec:
     `log`, `close` -- rendering `display_status` and `ball_prompt` so the loop is
     drivable from a terminal. |
 
-    | **054** | GUI | The Jinja UI on the axes: an inbox view, an agent-activity view,
-    a detail page rendering spec, log and acceptance. |
+    | **054** | Legacy GUI (superseded) | The planned Jinja-specific inbox/activity
+    work was retired after the React dashboard and task detail shipped the durable
+    v2 surface. |
 
 
     The split is not arbitrary. There is no intermediate state in which a half-migrated
@@ -84,9 +86,9 @@ spec:
     at the corpus for keeps.
 
 
-    053 and 054 are still open. The application has been on v2 since 052 merged (2026-08-10);
-
-    the CLI and the Jinja GUI have not caught up.
+    053 remains open for dedicated CLI mirrors. Task 054 is closed superseded: the
+    packaged React application now renders the v2 inbox, activity, task detail, log,
+    and acceptance state, while Jinja remains legacy compatibility.
 
 
     **Done** when a task''s state is readable from the four axes alone in every interface.
@@ -164,4 +166,14 @@ log:
     The second option looks better to me and is the one I would take, but it touches
     the manager''s mutation path rather than adding a method, so it wants a decision
     before anyone writes it.'
+  data: {}
+- id: 3
+  ts: '2026-08-13T22:05:24.187051Z'
+  actor: codex
+  type: decision
+  body: 'Corpus audit update: make the open umbrella describe current state. Schema
+    v2 is already live in storage, the API, Python client, and packaged React UI.
+    The Jinja-specific child task 054 is now closed superseded; task 053 is the only
+    remaining schema-v2 child and owns dedicated CLI mirrors. Historical implementation-plan
+    text remains, but its 054 row and completion status now identify the React replacement.'
   data: {}
