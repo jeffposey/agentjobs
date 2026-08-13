@@ -2,14 +2,13 @@ schema: 2
 id: task-103-agentjobs-task-corpus-audit
 title: Audit every AgentJobs task for stale or obsolete records
 created: '2026-08-13T21:07:34.827860Z'
-updated: '2026-08-13T22:16:57.150058Z'
+updated: '2026-08-13T22:22:01.912690Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Review the exact audit report at C:/projects/aj-103/docs/task-corpus-audit.md
-  and branch commit 39c11ea. Also review the task-record reconciliations summarized
-  there, including retirement of 054/058 and new tasks 104-106. Approve to merge or
-  request changes.
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: medium
 category: maintenance
@@ -148,3 +147,11 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 5
+  ts: '2026-08-13T22:22:01.912599Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
