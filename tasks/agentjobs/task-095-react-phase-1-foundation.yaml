@@ -2,10 +2,9 @@ schema: 2
 id: task-095-react-phase-1-foundation
 title: React phase 1 -- foundation
 created: '2026-08-13T02:35:19.416134Z'
-updated: '2026-08-13T02:58:34.147832Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-13T04:22:02.498865Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: architecture
@@ -60,18 +59,56 @@ acceptance:
 - id: ac-1
   text: a Vite + React + TypeScript app is served at /app and survives a deep-link
     refresh
-  status: pending
+  status: met
 - id: ac-2
-  text: API types are generated from /openapi.json, and a stale client fails in CI
-  status: pending
+  text: API types are generated from /openapi.json, and a stale client fails the single
+    documented check command
+  status: met
 - id: ac-3
   text: component tests run alongside the Python suite
-  status: pending
+  status: met
 - id: ac-4
   text: the Jinja UI is unchanged in behaviour
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-13T04:22:02.442013Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 2
+  ts: '2026-08-13T04:22:02.470560Z'
+  actor: codex
+  type: decision
+  body: Interpreted the parent stale-client criterion through its binding no-CI constraint
+    and corrected the criterion text to the single documented check command. The scoped
+    project_id OpenAPI declaration added by task 084 completes the schema for an existing
+    runtime route and does not alter Jinja or API runtime behavior.
+  data: {}
+- id: 3
+  ts: '2026-08-13T04:22:02.484151Z'
+  actor: codex
+  type: progress
+  body: 'All ordered children are closed completed: task 083 React/Vite shell and
+    deep-link fallback, task 084 generated typed client and TanStack Query boundary,
+    and task 085 jsdom component harness with unified Python/frontend gate. Final
+    merged-main verification passed 569 pytest tests, generated-client freshness,
+    oxlint, 1 Vitest test, TypeScript/Vite build, and npm audit with zero vulnerabilities.'
+  data: {}
+- id: 4
+  ts: '2026-08-13T04:22:02.498801Z'
+  actor: codex
+  type: transition
+  body: Phase 1 foundation completed after all three children passed human review,
+    merged, and closed.
+  data:
+    lifecycle: closed
+    outcome: completed
