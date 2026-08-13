@@ -2,13 +2,9 @@ schema: 2
 id: task-102-react-first-documentation
 title: Make AgentJobs documentation React-first everywhere
 created: '2026-08-13T21:07:34.270802Z'
-updated: '2026-08-13T21:54:23.595607Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-13T21:55:29.819492Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: documentation
@@ -18,7 +14,6 @@ tags:
 - audit
 effort: half a day
 assignment:
-  owner: codex
   eligible: []
 parent: task-098-react-phase-4-ship
 spec:
@@ -89,7 +84,7 @@ dependencies:
 links: []
 branches:
 - name: docs/task-102-react-first-documentation
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-13T21:30:21.022608Z'
@@ -186,3 +181,12 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 9
+  ts: '2026-08-13T21:55:29.819386Z'
+  actor: codex
+  type: transition
+  body: Approved documentation merged into main as a744127. Branch marked merged;
+    task completed. No push performed.
+  data:
+    lifecycle: closed
+    outcome: completed
