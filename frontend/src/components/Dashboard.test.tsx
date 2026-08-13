@@ -147,6 +147,26 @@ describe("Dashboard next-action ladder", () => {
 });
 
 describe("Dashboard supporting sections", () => {
+  it("keeps task statistics in one compact semantic summary", () => {
+    renderDashboard(dashboard({
+      stats: {
+        total: 12,
+        in_progress: 2,
+        blocked: 1,
+        waiting_for_human: 3,
+        awaiting_input: 4,
+        completed: 6,
+      },
+    }));
+
+    const statistics = screen.getByRole("region", { name: "Task statistics" });
+    expect(within(statistics).getAllByRole("definition")).toHaveLength(5);
+    expect(within(statistics).getByRole("link", { name: "+4 in backlog" })).toHaveAttribute(
+      "href",
+      "/p/inbox/tasks?status=draft",
+    );
+  });
+
   it("surfaces unreadable task files with their exact filename and reason", () => {
     renderDashboard(dashboard({
       broken_files: [{

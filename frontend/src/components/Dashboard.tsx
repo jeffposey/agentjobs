@@ -232,10 +232,10 @@ function BrokenFiles({ files }: { files: DashboardResponse["broken_files"] }) {
 
 export function Dashboard({ dashboard, projectId }: DashboardProps) {
   const statTiles = [
-    ["Blocked on You", dashboard.stats.waiting_for_human, "text-orange-400"],
+    ["Needs you", dashboard.stats.waiting_for_human, "text-orange-400"],
     ["In Progress", dashboard.stats.in_progress, ""],
     ["Blocked", dashboard.stats.blocked, "text-red-400"],
-    ["Completed", dashboard.stats.completed, "text-green-400"],
+    ["Done", dashboard.stats.completed, "text-green-400"],
     ["Total", dashboard.stats.total, ""],
   ] as const;
 
@@ -243,18 +243,23 @@ export function Dashboard({ dashboard, projectId }: DashboardProps) {
     <div className="space-y-6">
       <BrokenFiles files={dashboard.broken_files} />
       <NextAction dashboard={dashboard} projectId={projectId} />
-      <section className="grid grid-cols-1 gap-6 min-[820px]:grid-cols-5" aria-label="Task statistics">
-        {statTiles.map(([label, count, className]) => (
-          <div key={label} className="rounded-lg border border-dark-border bg-dark-surface p-6">
-            <div className="text-sm text-dark-muted">{label}</div>
-            <div className={`mt-2 text-3xl font-bold ${className}`}>{count}</div>
-            {label === "Blocked on You" && (
-              <Link to={projectPath(projectId, "/tasks?status=draft")} className="touch-target mt-1 text-xs text-dark-muted hover:text-blue-300">
-                +{dashboard.stats.awaiting_input} in backlog
-              </Link>
-            )}
-          </div>
-        ))}
+      <section className="overflow-hidden rounded-lg border border-dark-border bg-dark-surface" aria-label="Task statistics">
+        <dl className="grid grid-cols-5 divide-x divide-dark-border">
+          {statTiles.map(([label, count, className]) => (
+            <div key={label} className="min-w-0 px-1 py-2 text-center min-[820px]:px-4 min-[820px]:py-3">
+              <dt className="truncate text-[10px] font-medium uppercase tracking-wide text-dark-muted min-[820px]:text-xs">{label}</dt>
+              <dd className={`mt-0.5 text-xl font-bold leading-none min-[820px]:text-2xl ${className}`}>{count}</dd>
+            </div>
+          ))}
+        </dl>
+        {dashboard.stats.awaiting_input > 0 && (
+          <Link
+            to={projectPath(projectId, "/tasks?status=draft")}
+            className="touch-target flex w-full justify-center border-t border-dark-border px-3 text-xs text-dark-muted hover:bg-dark-border hover:text-blue-300"
+          >
+            +{dashboard.stats.awaiting_input} in backlog
+          </Link>
+        )}
       </section>
       <section className="rounded-lg border border-dark-border bg-dark-surface">
         <div className="flex items-center justify-between border-b border-dark-border p-6">
