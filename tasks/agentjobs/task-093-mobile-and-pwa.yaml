@@ -2,11 +2,13 @@ schema: 2
 id: task-093-mobile-and-pwa
 title: Make the client usable on a phone, and installable
 created: '2026-08-13T02:19:47.902546Z'
-updated: '2026-08-13T09:06:01.195182Z'
+updated: '2026-08-13T09:16:48.090383Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: Review the phone/PWA checkpoint. If you approve the implementation and
+  accept the listed physical-device checks as follow-up verification, reply approve.
+  Otherwise name the issue to fix.
 archived: false
 priority: high
 category: ux
@@ -161,14 +163,14 @@ acceptance:
 - id: ac-1
   text: 'the dashboard is usable on a phone: tables stack into labelled cards below
     the breakpoint, controls meet a 44px touch target'
-  status: pending
+  status: met
 - id: ac-2
   text: the client installs as an app from a phone and launches standalone
   status: pending
 - id: ac-3
   text: with the server unreachable the app says so explicitly and shows no stale
     task data as current
-  status: pending
+  status: met
 - id: ac-4
   text: the server still binds loopback by default and refuses a wildcard bind; cross-device
     access works through a proxy
@@ -279,3 +281,36 @@ log:
     inspection, full repository gate, and human-only physical device/proxy/installed-upgrade
     checks.'
   data: {}
+- id: 7
+  ts: '2026-08-13T09:16:48.070303Z'
+  actor: codex
+  type: progress
+  body: 'Implementation and automated verification complete; physical-device checks
+    handed to human review.
+
+
+    Feature commits: 87ce0da (wildcard refusal), 605a43e (responsive/PWA foundation),
+    31f342e (private mobile access docs), and 8642319 (mobile overflow fix). Real-browser
+    evidence: 390px phone viewport had no horizontal overflow, labelled table cards,
+    and every measured control was 44px; 1024px landscape tablet kept the table and
+    five-column stats; with the server stopped, a service-worker reload showed the
+    shell plus the explicit stale-data warning and no task records. Full gate passed:
+    588 pytest tests and 13 frontend tests, plus API/icon currency, lint, TypeScript,
+    and production build. Acceptance ac-1 and ac-3 are met. Still requires physical
+    review: install/standalone on a phone (ac-2), a second-device HTTPS proxy connection
+    (remaining part of ac-4), an installed-app deployed bundle upgrade (ac-5), and
+    following the setup guide from another device (ac-6). The broader phase remains
+    incomplete; tasks 088 and 089 follow only after this task is approved. No push
+    performed.'
+  data: {}
+- id: 8
+  ts: '2026-08-13T09:16:48.090278Z'
+  actor: codex
+  type: handoff
+  body: Ready for human review. Automated layout, offline-safety, security-policy,
+    documentation-contract, and full-suite checks pass. Real phone install, private
+    HTTPS proxy access, installed-app upgrade, and second-device doc walkthrough remain
+    human/environment checks.
+  data:
+    ball: human
+    ball_reason: review
