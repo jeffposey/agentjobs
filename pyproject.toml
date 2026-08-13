@@ -9,6 +9,9 @@ homepage = "https://github.com/jeffposey/agentjobs"
 repository = "https://github.com/jeffposey/agentjobs"
 keywords = ["ai", "agents", "task-management", "workflow", "automation"]
 packages = [{ include = "agentjobs", from = "src" }]
+include = [
+    { path = "src/agentjobs/frontend_dist", format = ["sdist", "wheel"] },
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",

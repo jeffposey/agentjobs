@@ -5,7 +5,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from agentjobs.api.spa import register_spa
+from agentjobs.api import spa
+from agentjobs.api.spa import default_frontend_dist, register_spa
 
 
 SHELL = "<!doctype html><html><body><div id='root'></div></body></html>"
@@ -15,6 +16,10 @@ def spa_client(dist: Path) -> TestClient:
     app = FastAPI()
     register_spa(app, dist)
     return TestClient(app)
+
+
+def test_default_bundle_path_is_inside_the_installed_package() -> None:
+    assert default_frontend_dist() == Path(spa.__file__).resolve().parents[1] / "frontend_dist"
 
 
 def test_spa_shell_is_served_at_root_and_direct_deep_link(tmp_path: Path) -> None:
@@ -74,5 +79,6 @@ def test_spa_reports_missing_build_without_breaking_app_import(tmp_path: Path) -
 
     assert response.status_code == 404
     assert response.json()["detail"] == (
-        "React frontend is not built; run `npm run build` in frontend/."
+        "React frontend bundle is missing from the package; run `npm run build` in "
+        "frontend/ for local development or build a release wheel."
     )

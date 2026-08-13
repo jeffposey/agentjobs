@@ -30,7 +30,27 @@ installation, teardown, and offline behavior are documented in
 
 The development server runs at `http://localhost:5173/app/` and proxies `/api` to the
 AgentJobs server at `http://127.0.0.1:8765`. `npm run build` writes the production
-bundle to `frontend/dist/`; FastAPI serves that bundle at `/app`.
+bundle directly to `src/agentjobs/frontend_dist/`, the package-data location FastAPI
+serves at `/app` both in a checkout and from an installed wheel. The directory is
+generated and gitignored.
+
+## Release packaging
+
+From the repository root, build release artifacts with:
+
+```powershell
+poetry run python scripts/build_release.py
+```
+
+The release script runs `npm ci` and `npm run build` before invoking Poetry, so the
+documented release path cannot silently package an old bundle. It then opens the wheel
+and verifies the HTML shell, hashed JavaScript and CSS, manifest, service worker, and
+all required icons. Building a release therefore needs Node; installing and running
+the resulting universal wheel does not. The sdist carries the same already-built
+bundle, so building a wheel from it also needs only Python. Do not publish artifacts
+made with raw `poetry build`; the release script is the freshness and content gate. As
+its final check, the script installs the wheel into an isolated target, removes Node
+from `PATH`, starts `agentjobs serve`, and requests the shell and PWA assets.
 
 ## Pinned toolchain
 

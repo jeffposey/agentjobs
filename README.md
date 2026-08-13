@@ -175,7 +175,18 @@ to be recorded.
 
 During development Vite serves it at `http://localhost:5173/app/` and proxies API
 requests to AgentJobs on port 8765. After `npm run build`, FastAPI serves the same app
-at `http://localhost:8765/app` with deep-link fallback.
+at `http://localhost:8765/app` with deep-link fallback. The production output lives
+inside the Python package at `src/agentjobs/frontend_dist/`, which is also where an
+installed wheel resolves it.
+
+Build release artifacts with `poetry run python scripts/build_release.py`. That command
+reinstalls the locked frontend toolchain, creates a fresh bundle, invokes Poetry, and
+verifies the finished wheel contains the React shell, hashed assets, manifest, icons,
+and service worker. Node is required to create a release, but never to install or run
+the universal wheel; `pip install agentjobs` followed by `agentjobs serve` is a
+Python-only runtime path. Do not publish artifacts made through an alternate command—
+the release script is the freshness and package-content gate. It enforces a
+`py3-none-any` wheel and boots the installed server with Node removed from `PATH`.
 
 Read [ENGINEERING.md](ENGINEERING.md) and [ALLAGENTS.md](ALLAGENTS.md) before
 contributing; they define the worktree, task-record, verification, and human-review
