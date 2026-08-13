@@ -2,15 +2,13 @@ schema: 2
 id: task-086-live-updates
 title: 'Live updates: the view reflects a handoff without a manual refresh'
 created: '2026-08-11T07:38:05.001732Z'
-updated: '2026-08-13T19:50:21.551616Z'
+updated: '2026-08-13T19:51:43.116185Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: All six acceptance criteria are met, including physical tablet proof
-  of separate PWA installation and immediate refresh after background/resume. Review
-  and explicitly approve task 086 for merge, or request changes. On explicit approval
-  Codex will rebase, merge --no-ff, mark the branch merged, close task 086 completed,
-  and immediately start task 099.
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 category: ux
@@ -482,3 +480,11 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 23
+  ts: '2026-08-13T19:51:43.116047Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
