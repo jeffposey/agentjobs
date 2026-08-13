@@ -2,10 +2,11 @@ schema: 2
 id: task-089-react-task-detail
 title: 'React task detail: spec, log, and the review actions'
 created: '2026-08-11T07:38:06.430653Z'
-updated: '2026-08-13T02:35:24.594468Z'
-lifecycle: ready
+updated: '2026-08-13T09:45:01.514410Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: medium
 category: ux
@@ -15,6 +16,7 @@ tags:
 - workflow
 effort: a day
 assignment:
+  owner: codex
   eligible: []
 parent: task-096-react-phase-2-parity
 spec:
@@ -94,5 +96,33 @@ dependencies:
   note: Follows the card layout and cell-labelling convention rather than retrofitting
     them.
 links: []
-branches: []
-log: []
+branches:
+- name: feat/task-089-react-task-detail
+  status: active
+log:
+- id: 1
+  ts: '2026-08-13T09:45:01.486334Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 2
+  ts: '2026-08-13T09:45:01.514334Z'
+  actor: codex
+  type: progress
+  body: 'Started the final React parity child after approved task 088 merge.
+
+
+    Worktree: C:/projects/aj-089. Branch: feat/task-089-react-task-detail. Plan: port
+    the complete spec, newest-first typed log, dependency/child links, configured-identity
+    review panel, and manager-backed approve/request-changes/reject actions; keep
+    all writes exclusive to detail and apply the task-093 phone pattern. Verification
+    plan: API identity/action contracts, component tests for full reads and newest-first
+    log, mutation/log behavior through real API, responsive browser review, and full
+    repository gate. The merged-main restart again failed because the inaccessible
+    orphaned listener on 127.0.0.1:8765 still owns the port; alternate loopback verification
+    will be used. Usage-window telemetry is unavailable; no estimate was invented.'
+  data: {}
