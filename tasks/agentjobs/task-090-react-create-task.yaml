@@ -2,15 +2,16 @@ schema: 2
 id: task-090-react-create-task
 title: Create a task from the browser
 created: '2026-08-11T07:38:06.904250Z'
-updated: '2026-08-13T20:43:11.919986Z'
+updated: '2026-08-13T20:51:03.084413Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: Review commit 6efa1f3 on feat/task-090-react-create-task. Check that
-  the required core is appropriately small, advanced fields are discoverable, Draft
-  versus Ready is clear, both dashboard create rungs link to the form, and a created
-  task returns visibly in the list. Approve or request changes; approval authorizes
-  the required rebase and --no-ff merge, but not a push.
+ball_prompt: Review the task-090 branch UI at http://127.0.0.1:18890/app/p/agentjobs/tasks/new
+  (opened in the in-app browser). This separate review server is necessary because
+  the normal AgentJobs server runs main and cannot show an unmerged branch. Check
+  the required core fields, progressive sections, Draft versus Ready choice, and the
+  top-nav Create link. Then approve or request changes. Approval authorizes rebase
+  and --no-ff merge, not push.
 archived: false
 priority: medium
 category: ux
@@ -158,6 +159,17 @@ log:
   type: handoff
   body: Browser task creation is complete and verified; review commit 6efa1f3 and
     the form workflow.
+  data:
+    ball: human
+    ball_reason: review
+- id: 5
+  ts: '2026-08-13T20:51:03.084266Z'
+  actor: codex
+  type: handoff
+  body: Reviewer correctly reported that the normal main-branch UI could not expose
+    the unmerged feature. Started the clean review worktree on port 18890, opened
+    the actual creation form for review, and replaced the handoff prompt with the
+    usable URL.
   data:
     ball: human
     ball_reason: review
