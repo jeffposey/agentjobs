@@ -2,7 +2,7 @@ schema: 2
 id: task-104-react-readme-screenshots
 title: Stage and capture polished React screenshots for README
 created: '2026-08-13T22:01:57.804546Z'
-updated: '2026-08-13T22:01:57.805207Z'
+updated: '2026-08-13T22:02:15.442127Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -33,13 +33,22 @@ spec:
     that the primary image does not. Review the actual image files and rendered README
     placement with Jeff before merge.
   constraints: '- Use the real packaged React application, not a mockup or the legacy
-    Jinja UI.`n- Use realistic, coherent, non-sensitive staged data; no private paths,
-    people, tokens, or accidental local details.`n- At least one screenshot is required;
-    prefer one excellent hero over a gallery.`n- A second screenshot must communicate
-    a distinct mobile/tablet capability rather than repeat the desktop view.`n- Crop
-    and size images for legibility on GitHub without excessive README height or browser
-    chrome.`n- Include useful alt text and stable repository-relative image paths.`n-
-    At review handoff, link and open the exact worktree README and every candidate/final
+    Jinja UI.
+
+    - Use realistic, coherent, non-sensitive staged data; no private paths, people,
+    tokens, or accidental local details.
+
+    - At least one screenshot is required; prefer one excellent hero over a gallery.
+
+    - A second screenshot must communicate a distinct mobile/tablet capability rather
+    than repeat the desktop view.
+
+    - Crop and size images for legibility on GitHub without excessive README height
+    or browser chrome.
+
+    - Include useful alt text and stable repository-relative image paths.
+
+    - At review handoff, link and open the exact worktree README and every candidate/final
     image.'
   out_of_scope: Redesigning the React application solely for the screenshot. Fabricated
     image-generation mockups. Publishing or pushing changes.
