@@ -147,6 +147,14 @@ describe("Dashboard next-action ladder", () => {
 });
 
 describe("Dashboard supporting sections", () => {
+  it("keeps review actions off the dashboard", () => {
+    renderDashboard(dashboard({ waiting_tasks: [blocked], next_action: "blocked" }));
+
+    expect(screen.queryByRole("button", { name: /Approve/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Request Changes/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Reject/ })).not.toBeInTheDocument();
+  });
+
   it("keeps task statistics in one compact semantic summary", () => {
     renderDashboard(dashboard({
       stats: {

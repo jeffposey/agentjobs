@@ -67,6 +67,30 @@ class DashboardResponse(BaseModel):
     broken_files: List[BrokenTaskFile]
 
 
+class ReviewIdentity(BaseModel):
+    """Configured human identity used by review mutations, or why none is safe."""
+
+    ok: bool
+    user: Optional[str]
+    problem: Optional[str]
+    detail: str
+
+
+class TaskDetailResponse(BaseModel):
+    """Everything the React detail page needs to resume and review one task."""
+
+    task: Task
+    parent_task: Optional[Task]
+    children: List[Task]
+    identity: ReviewIdentity
+
+
+class HumanActionResponse(BaseModel):
+    """A manager-backed human action returns the newly persisted task state."""
+
+    task: Task
+
+
 class TaskCreateRequest(BaseModel):
     """Payload for creating a new task."""
 

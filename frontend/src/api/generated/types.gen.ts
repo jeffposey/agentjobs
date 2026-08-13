@@ -422,6 +422,15 @@ export type HumanActionRequest = {
 };
 
 /**
+ * HumanActionResponse
+ *
+ * A manager-backed human action returns the newly persisted task state.
+ */
+export type HumanActionResponse = {
+    task: Task;
+};
+
+/**
  * Lifecycle
  *
  * Where a task is in its life (design doc section 3).
@@ -752,6 +761,30 @@ export type ReleaseRequest = {
 };
 
 /**
+ * ReviewIdentity
+ *
+ * Configured human identity used by review mutations, or why none is safe.
+ */
+export type ReviewIdentity = {
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Ok
+     */
+    ok: boolean;
+    /**
+     * Problem
+     */
+    problem: string | null;
+    /**
+     * User
+     */
+    user: string | null;
+};
+
+/**
  * Spec
  *
  * The specification, split along the questions agents actually ask.
@@ -1040,6 +1073,21 @@ export type TaskCreateRequest = {
 };
 
 /**
+ * TaskDetailResponse
+ *
+ * Everything the React detail page needs to resume and review one task.
+ */
+export type TaskDetailResponse = {
+    /**
+     * Children
+     */
+    children: Array<Task>;
+    identity: ReviewIdentity;
+    parent_task: Task | null;
+    task: Task;
+};
+
+/**
  * TaskUpdateRequest
  *
  * Payload for partially updating a task.
@@ -1227,6 +1275,15 @@ export type DashboardResponseWritable = {
 };
 
 /**
+ * HumanActionResponse
+ *
+ * A manager-backed human action returns the newly persisted task state.
+ */
+export type HumanActionResponseWritable = {
+    task: TaskWritable;
+};
+
+/**
  * Task
  *
  * A task, in schema v2.
@@ -1336,6 +1393,21 @@ export type TaskWritable = {
      * Updated
      */
     updated: string;
+};
+
+/**
+ * TaskDetailResponse
+ *
+ * Everything the React detail page needs to resume and review one task.
+ */
+export type TaskDetailResponseWritable = {
+    /**
+     * Children
+     */
+    children: Array<TaskWritable>;
+    identity: ReviewIdentity;
+    parent_task: TaskWritable | null;
+    task: TaskWritable;
 };
 
 export type GetAllTasksApiAllTasksGetData = {
@@ -1859,13 +1931,9 @@ export type ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostError = Approve
 
 export type ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponses = {
     /**
-     * Response Approve Task Api Projects  Project Id  Tasks  Task Id  Approve Post
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: unknown;
-    };
+    200: HumanActionResponse;
 };
 
 export type ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponse = ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponses[keyof ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponses];
@@ -1975,6 +2043,40 @@ export type MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverabl
 };
 
 export type MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchResponse = MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchResponses[keyof MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchResponses];
+
+export type GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/tasks/{task_id}/detail';
+};
+
+export type GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetError = GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetErrors[keyof GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetErrors];
+
+export type GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskDetailResponse;
+};
+
+export type GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetResponse = GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetResponses[keyof GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetResponses];
 
 export type HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostData = {
     body: HandoffRequest;
@@ -2105,13 +2207,9 @@ export type RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostError = RejectTas
 
 export type RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostResponses = {
     /**
-     * Response Reject Task Api Projects  Project Id  Tasks  Task Id  Reject Post
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: unknown;
-    };
+    200: HumanActionResponse;
 };
 
 export type RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostResponse = RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostResponses[keyof RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostResponses];
@@ -2177,13 +2275,9 @@ export type RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostError
 
 export type RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostResponses = {
     /**
-     * Response Request Changes Api Projects  Project Id  Tasks  Task Id  Request Changes Post
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: unknown;
-    };
+    200: HumanActionResponse;
 };
 
 export type RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostResponse = RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostResponses[keyof RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostResponses];
@@ -2624,13 +2718,9 @@ export type ApproveTaskApiTasksTaskIdApprovePostError = ApproveTaskApiTasksTaskI
 
 export type ApproveTaskApiTasksTaskIdApprovePostResponses = {
     /**
-     * Response Approve Task Api Tasks  Task Id  Approve Post
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: unknown;
-    };
+    200: HumanActionResponse;
 };
 
 export type ApproveTaskApiTasksTaskIdApprovePostResponse = ApproveTaskApiTasksTaskIdApprovePostResponses[keyof ApproveTaskApiTasksTaskIdApprovePostResponses];
@@ -2728,6 +2818,36 @@ export type MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchRespons
 };
 
 export type MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchResponse = MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchResponses[keyof MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchResponses];
+
+export type GetTaskDetailApiTasksTaskIdDetailGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/tasks/{task_id}/detail';
+};
+
+export type GetTaskDetailApiTasksTaskIdDetailGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTaskDetailApiTasksTaskIdDetailGetError = GetTaskDetailApiTasksTaskIdDetailGetErrors[keyof GetTaskDetailApiTasksTaskIdDetailGetErrors];
+
+export type GetTaskDetailApiTasksTaskIdDetailGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskDetailResponse;
+};
+
+export type GetTaskDetailApiTasksTaskIdDetailGetResponse = GetTaskDetailApiTasksTaskIdDetailGetResponses[keyof GetTaskDetailApiTasksTaskIdDetailGetResponses];
 
 export type HandoffTaskApiTasksTaskIdHandoffPostData = {
     body: HandoffRequest;
@@ -2842,13 +2962,9 @@ export type RejectTaskApiTasksTaskIdRejectPostError = RejectTaskApiTasksTaskIdRe
 
 export type RejectTaskApiTasksTaskIdRejectPostResponses = {
     /**
-     * Response Reject Task Api Tasks  Task Id  Reject Post
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: unknown;
-    };
+    200: HumanActionResponse;
 };
 
 export type RejectTaskApiTasksTaskIdRejectPostResponse = RejectTaskApiTasksTaskIdRejectPostResponses[keyof RejectTaskApiTasksTaskIdRejectPostResponses];
@@ -2906,13 +3022,9 @@ export type RequestChangesApiTasksTaskIdRequestChangesPostError = RequestChanges
 
 export type RequestChangesApiTasksTaskIdRequestChangesPostResponses = {
     /**
-     * Response Request Changes Api Tasks  Task Id  Request Changes Post
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: unknown;
-    };
+    200: HumanActionResponse;
 };
 
 export type RequestChangesApiTasksTaskIdRequestChangesPostResponse = RequestChangesApiTasksTaskIdRequestChangesPostResponses[keyof RequestChangesApiTasksTaskIdRequestChangesPostResponses];

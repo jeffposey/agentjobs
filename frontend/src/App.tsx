@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
 import {
   getDashboardApiProjectsProjectIdDashboardGetOptions,
   getProjectsApiProjectsGetOptions,
+  getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetOptions,
+  approveTaskApiProjectsProjectIdTasksTaskIdApprovePostMutation,
   listBrokenTasksApiProjectsProjectIdTasksBrokenGetOptions,
   listTasksApiProjectsProjectIdTasksGetOptions,
+  rejectTaskApiProjectsProjectIdTasksTaskIdRejectPostMutation,
+  requestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostMutation,
 } from "./api/generated/@tanstack/react-query.gen";
 import {
   requireSupportedTaskSchemas,
@@ -15,6 +19,7 @@ import {
 import { Dashboard } from "./components/Dashboard";
 import { ConnectionUnavailable } from "./components/ConnectionUnavailable";
 import { TaskList } from "./components/TaskList";
+import { TaskDetail } from "./components/TaskDetail";
 
 function useOnlineStatus() {
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -119,6 +124,40 @@ function TaskListPage({ projectId }: { projectId: string }) {
   return <TaskList tasks={tasksQuery.data} brokenFiles={brokenQuery.data} projectId={projectId} />;
 }
 
+function TaskDetailPage({ projectId }: { projectId: string }) {
+  const { taskId = "" } = useParams<{ taskId: string }>();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const detailQuery = useQuery({
+    ...getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetOptions({ path: { project_id: projectId, task_id: taskId } }),
+    select: (detail) => {
+      requireSupportedTaskSchemas([detail.task, ...detail.children, ...(detail.parent_task ? [detail.parent_task] : [])]);
+      return detail;
+    },
+  });
+  const approve = useMutation(approveTaskApiProjectsProjectIdTasksTaskIdApprovePostMutation());
+  const changes = useMutation(requestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostMutation());
+  const reject = useMutation(rejectTaskApiProjectsProjectIdTasksTaskIdRejectPostMutation());
+
+  if (detailQuery.error instanceof UnsupportedTaskSchemaError) return <StatusCard title="Unsupported task schema">{detailQuery.error.message}</StatusCard>;
+  if (detailQuery.isPending) return <StatusCard title="Opening task...">Loading the complete task record.</StatusCard>;
+  if (detailQuery.isError) return <StatusCard title="Task could not be loaded">Confirm the task still exists, then return to the list.</StatusCard>;
+  const user = detailQuery.data.identity.user;
+  const refresh = async () => { await queryClient.invalidateQueries(); };
+  const actionError = approve.error || changes.error || reject.error;
+  return (
+    <TaskDetail
+      detail={detailQuery.data}
+      projectId={projectId}
+      busy={approve.isPending || changes.isPending || reject.isPending}
+      error={actionError ? "The action could not be recorded. Reload and try again." : null}
+      onApprove={async () => { if (!user) return; await approve.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user } }); await refresh(); }}
+      onRequestChanges={async (feedback) => { if (!user) return; await changes.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, feedback } }); await refresh(); }}
+      onReject={async (reason) => { if (!user) return; await reject.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, reason } }); await navigate(`/p/${encodeURIComponent(projectId)}/tasks`, { replace: true }); }}
+    />
+  );
+}
+
 function ProjectApp() {
   const { projectId = "" } = useParams<{ projectId: string }>();
   return (
@@ -136,7 +175,7 @@ function ProjectApp() {
         <Routes>
           <Route index element={<DashboardPage projectId={projectId} />} />
           <Route path="tasks" element={<TaskListPage projectId={projectId} />} />
-          <Route path="tasks/:taskId" element={<StatusCard title="Task detail is next">Task detail arrives in task 089.</StatusCard>} />
+          <Route path="tasks/:taskId" element={<TaskDetailPage projectId={projectId} />} />
           <Route path="*" element={<Navigate to="/not-found" replace />} />
         </Routes>
       </main>
