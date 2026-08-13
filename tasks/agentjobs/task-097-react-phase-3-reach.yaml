@@ -1,0 +1,72 @@
+schema: 2
+id: task-097-react-phase-3-reach
+title: 'React phase 3 -- reach: it tells you things'
+created: '2026-08-13T02:35:20.328181Z'
+updated: '2026-08-13T02:35:20.328907Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- gui
+- react-frontend
+- phase
+- workflow
+effort: two to three days
+assignment:
+  eligible: []
+parent: task-082-react-frontend
+spec:
+  summary: 'Make the client surface what a static page cannot: a handoff that arrives
+    while you are looking, and a dependency graph that shows what is blocked and why.
+    Done means the dashboard reaches you instead of waiting to be asked.'
+  intent: Kept as its own phase rather than folded into parity because 'the client
+    is complete' and 'the client reaches you' are different claims and deserve separate
+    gates. Parity is the bar for retiring Jinja; this phase is the reason to have
+    wanted React in the first place.
+  description: "Done means: **the client tells you something you did not go looking\
+    \ for.**\n\nChildren: task-086 live updates, task-099 dependency visibility.\n\
+    \nThese are grouped because they are the same claim from two directions. Phase\
+    \ 2\ngets React to where Jinja already is. This phase is the first where the React\n\
+    client does something the Jinja UI cannot, and both children are about\ninformation\
+    \ that exists in the data but never reaches a person:\n\n- A task record changes\
+    \ while a page is open and the page says nothing.\n- A task is blocked, or blocks\
+    \ others, or sits in a dependency cycle that makes it\n  permanently unstartable,\
+    \ and no surface shows any of it.\n\nNeither is cosmetic. The merge gate assumes\
+    \ a human notices a review request, and\n`get_next_task()` already refuses tasks\
+    \ with unmet needs -- so both of these are\nload-bearing mechanisms currently\
+    \ running invisibly."
+  constraints: '- No new state written by either child. Both are read surfaces.
+
+    - Display refreshes never trigger a write or expensive server work.
+
+    - Where a computation already exists in Python, the client renders it rather than
+    re-deriving it in TypeScript.'
+  out_of_scope: Notifications outside the browser, which are the webhook system's
+    job. Editing dependencies from the browser. Refusing dependency cycles at write
+    time, which is task-100.
+  context:
+  - path: src/agentjobs/manager.py
+    why: _unmet_needs and get_next_task -- the invisible gate both children expose.
+acceptance:
+- id: ac-1
+  text: a handoff made by an agent or the CLI reaches an open page with no manual
+    refresh
+  status: pending
+- id: ac-2
+  text: a blocked task states what blocks it, and a task shows what finishing it would
+    unblock
+  status: pending
+- id: ac-3
+  text: a dependency cycle is visible as a data error rather than an invisible deadlock
+  status: pending
+deliverables: []
+dependencies:
+- task: task-096-react-phase-2-parity
+  type: needs
+  note: Needs the screens these surfaces attach to.
+links: []
+branches: []
+log: []

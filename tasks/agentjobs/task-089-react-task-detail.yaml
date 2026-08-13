@@ -2,7 +2,7 @@ schema: 2
 id: task-089-react-task-detail
 title: 'React task detail: spec, log, and the review actions'
 created: '2026-08-11T07:38:06.430653Z'
-updated: '2026-08-13T02:22:18.727813Z'
+updated: '2026-08-13T02:35:24.594468Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -16,7 +16,7 @@ tags:
 effort: a day
 assignment:
   eligible: []
-parent: task-082-react-frontend
+parent: task-096-react-phase-2-parity
 spec:
   summary: 'Port the task detail page: the full spec, the log newest-first, dependencies
     and children, and the review actions that move the ball.'

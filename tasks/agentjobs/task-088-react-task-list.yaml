@@ -2,7 +2,7 @@ schema: 2
 id: task-088-react-task-list
 title: React task list, with the filtering that Alpine made untestable
 created: '2026-08-11T07:38:05.953311Z'
-updated: '2026-08-13T02:22:18.715111Z'
+updated: '2026-08-13T02:35:24.122213Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -15,7 +15,7 @@ tags:
 effort: a day
 assignment:
   eligible: []
-parent: task-082-react-frontend
+parent: task-096-react-phase-2-parity
 spec:
   summary: 'Port the task list: search, the status filter defaulting to Open, priority
     and scope filters, and the parent/child tree.'

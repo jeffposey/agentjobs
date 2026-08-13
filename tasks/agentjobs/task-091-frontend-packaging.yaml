@@ -2,7 +2,7 @@ schema: 2
 id: task-091-frontend-packaging
 title: Ship the built frontend in the wheel, with no node at install time
 created: '2026-08-11T07:38:07.378882Z'
-updated: '2026-08-13T02:22:18.752214Z'
+updated: '2026-08-13T02:35:26.477901Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -15,7 +15,7 @@ tags:
 effort: half a day
 assignment:
   eligible: []
-parent: task-082-react-frontend
+parent: task-098-react-phase-4-ship
 spec:
   summary: Build the React bundle ahead of time and include it in the Python package,
     so installing AgentJobs still requires nothing but Python.

@@ -2,7 +2,7 @@ schema: 2
 id: task-085-frontend-test-harness
 title: 'Frontend test harness: Vitest, React Testing Library, Playwright'
 created: '2026-08-11T07:38:04.532733Z'
-updated: '2026-08-13T02:22:18.628560Z'
+updated: '2026-08-13T02:35:22.692054Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -16,7 +16,7 @@ tags:
 effort: half a day
 assignment:
   eligible: []
-parent: task-082-react-frontend
+parent: task-095-react-phase-1-foundation
 spec:
   summary: Set up component and hook testing for the React client -- Vitest, React
     Testing Library, and checked-in fixtures -- with one real test through it, before

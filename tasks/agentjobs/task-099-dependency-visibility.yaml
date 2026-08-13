@@ -1,0 +1,151 @@
+schema: 2
+id: task-099-dependency-visibility
+title: 'Make dependencies visible: what is blocked, why, and what unblocks it'
+created: '2026-08-13T02:35:21.246892Z'
+updated: '2026-08-13T02:35:21.271186Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: ux
+tags:
+- gui
+- react-frontend
+- workflow
+- dependencies
+effort: a day, plus a day if the DAG view is built
+assignment:
+  eligible: []
+parent: task-097-react-phase-3-reach
+spec:
+  summary: 'Dependencies are typed edges that already gate what an agent may pick
+    up, and no surface shows them. Render the graph where decisions get made: what
+    blocks a task, what finishing it would unblock, and which work is actionable now.'
+  intent: '`dependencies[]` is load-bearing, not documentation: `get_next_task()`
+    refuses a task with unmet needs, so the graph already decides what work is available.
+    A person cannot see that gate anywhere today.
+
+
+    Two consequences follow. Nothing computes the reverse edge, so ''what would finishing
+    this unblock'' -- the actual prioritisation question -- cannot be answered from
+    the data at all. And a `needs` cycle is accepted silently and removes both tasks
+    from the workable set forever, with no error on any surface. `_validate_parent`
+    guards parent cycles precisely because a looping id ''looks meaningful, points
+    at nothing, and quietly disables every behaviour keyed on it''; dependencies have
+    no equivalent guard, and the absence is invisible.'
+  description: "## Prior art, and what to take from each\n\n- **Jira.** Relationship-typed\
+    \ issue links, plus a dependency report on the\n  roadmap. Take the typed vocabulary.\
+    \ **Do not take the separate report** -- a\n  diagram on its own page is a feature\
+    \ nobody opens, and it is the standing\n  example of dependency visualisation\
+    \ that shipped and went unused. Jira also\n  renders epic containment and issue\
+    \ links in a similar visual language, which is\n  the specific mistake to avoid\
+    \ here, because this schema has both axes.\n- **ClickUp.** A badge on the card,\
+    \ and a warning when closing something others\n  depend on. Take both: they put\
+    \ the information where the decision happens\n  instead of somewhere it can be\
+    \ looked up.\n- **Linear.** States \"blocked by\" inline, as a sentence. Take\
+    \ that -- and note\n  that `_unmet_needs()` already returns exactly those sentences,\
+    \ including\n  \"still open\" and \"not a task in this project\". Render them;\
+    \ do not re-derive\n  them in TypeScript.\n\n## Two axes, never one arrow vocabulary\n\
+    \n`parent` is **containment**. `dependencies[]` is **sequence**. They are\nindependent:\
+    \ a phase contains its children, and those children also need each\nother. Render\
+    \ containment as nesting or a bounding group, and sequence as arrows\nbetween\
+    \ nodes. A parent edge must never be drawn as an arrow in the same diagram\nas\
+    \ a `needs` edge, or the reader cannot tell \"is part of\" from \"must wait for\"\
+    .\n\n## Where it appears\n\n1. **On any row or card** -- a badge stating the blocking\
+    \ fact in words. \"Blocked\n   by task-084\" beats a chain icon, and it is one\
+    \ field from the API.\n2. **On the detail page** -- both directions. What this\
+    \ task needs, each with its\n   live state; and what this task blocks, which is\
+    \ the reverse edge and has to be\n   computed server-side because `dependencies[]`\
+    \ only stores the forward direction.\n3. **On an umbrella** -- its children as\
+    \ a real DAG. A phase is three to five\n   nodes, which is exactly the size where\
+    \ a node-link diagram is legible.\n4. **Nowhere else.** No global all-tasks graph:\
+    \ past roughly twenty-five nodes any\n   node-link view is a hairball, and this\
+    \ project already has ninety tasks.\n\n## The frontier is the view worth building\n\
+    \nThe thing neither Jira nor ClickUp does well, and the one that matters most\
+    \ here:\nshow which tasks are **actionable right now** -- `ready`, with no unmet\
+    \ needs --\nbecause that is precisely what `get_next_task()` answers and what\
+    \ an agent will\npick up next. Distinguish actionable, blocked (and by what),\
+    \ in flight, and done,\nso a reader sees the frontier at a glance and where it\
+    \ moves when something\ncloses.\n\n## Surface the defects rather than drawing\
+    \ them prettily\n\n- A `needs` cycle makes everything in it permanently unstartable.\
+    \ Verified\n  2026-08-12: two ready tasks needing each other are accepted, stay\
+    \ `ready`,\n  produce no load error, and `get_next_task()` returns None with no\
+    \ explanation.\n  Name it as a data error. Refusing it at write time is task-100;\
+    \ this task makes\n  it visible.\n- A dependency naming a task not in the project\
+    \ already blocks and says so. Show\n  that, rather than dropping the edge and\
+    \ rendering a graph that looks fine.\n- Rendering must terminate on a cycle.\n\
+    \n## Creative latitude, if cheap\n\nAn \"unblocks N tasks\" figure on a row turns\
+    \ dependency data from a constraint\ninto a prioritisation signal -- it answers\
+    \ \"what should I do first\" directly. A\nlongest-`needs`-chain hint on a phase\
+    \ is the same idea at the phase level. Both\nfall out of the reverse edges almost\
+    \ for free. Neither is required."
+  constraints: '- Reverse edges are computed server-side, not by fetching every task
+    and inverting the graph in the browser.
+
+    - Containment and sequence use distinct visual vocabularies and are never mixed
+    in one arrow set.
+
+    - No global all-tasks graph. Graphs are scoped to a subtree.
+
+    - The blocked reason is the sentence `_unmet_needs` already produces, not a second
+    derivation in TypeScript.
+
+    - A cycle is surfaced as an error, and rendering terminates.
+
+    - No new dependency types. `needs`/`blocks`/`related` is the vocabulary.'
+  out_of_scope: 'Editing or creating dependencies from the browser -- this task is
+    read-only, and the write surface is its own decision. Gantt or timeline views:
+    there are no dates in the schema to hang them on. Refusing cycles at write time
+    (task-100). Auto-scheduling or enforcing a critical path.'
+  context:
+  - path: src/agentjobs/manager.py
+    why: _unmet_needs supplies the blocked sentence; get_next_task is the gate being
+      made visible.
+  - path: src/agentjobs/models_v2.py
+    why: Dependency and DependencyType -- the edge vocabulary, which does not grow.
+  - path: src/agentjobs/api/routes/web.py
+    why: _nest_tasks, which already handles the containment axis and its cycle case.
+acceptance:
+- id: ac-1
+  text: a blocked task states what blocks it, in words, wherever it is listed
+  status: pending
+- id: ac-2
+  text: 'a task detail shows both directions: what it needs, and what it blocks'
+  status: pending
+- id: ac-3
+  text: what a task blocks is computed server-side rather than by inverting the graph
+    in the browser
+  status: pending
+- id: ac-4
+  text: an umbrella renders its children as a DAG in which containment and sequence
+    are visually distinct
+  status: pending
+- id: ac-5
+  text: the actionable frontier is distinguishable from blocked, in flight, and done
+  status: pending
+- id: ac-6
+  text: a needs cycle is surfaced as a data error, and rendering terminates rather
+    than recursing
+  status: pending
+- id: ac-7
+  text: a dependency naming a task not in the project is shown, not dropped
+  status: pending
+- id: ac-8
+  text: no global all-tasks graph exists
+  status: pending
+deliverables: []
+dependencies:
+- task: task-088-react-task-list
+  type: needs
+  note: The rows the blocked badge attaches to.
+- task: task-089-react-task-detail
+  type: needs
+  note: The page that shows both directions.
+- task: task-100-dependency-cycle-deadlock
+  type: related
+  note: Reports the same condition this task refuses or flags; neither blocks the
+    other.
+links: []
+branches: []
+log: []

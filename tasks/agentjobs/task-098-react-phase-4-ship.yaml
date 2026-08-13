@@ -1,0 +1,86 @@
+schema: 2
+id: task-098-react-phase-4-ship
+title: React phase 4 -- write, prove, and ship
+created: '2026-08-13T02:35:20.787231Z'
+updated: '2026-08-13T02:35:20.787930Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: infrastructure
+tags:
+- gui
+- react-frontend
+- phase
+- packaging
+effort: two to three days
+assignment:
+  eligible: []
+parent: task-082-react-frontend
+spec:
+  summary: Add the one surface that writes new records, prove the stack end to end
+    in a browser, and get the built bundle into the wheel. Done means pip install
+    yields the whole UI with no node.
+  intent: 'The properties this phase defends are the ones that quietly disappear if
+    nobody owns them: that a checkout is self-sufficient, that installing needs nothing
+    but Python, and that the stack has been exercised the way a user exercises it
+    rather than only in units.'
+  description: 'Done means: **`pip install agentjobs && agentjobs serve` gives a stranger
+    the whole
+
+    React UI, and a browser test proves the stack agrees with itself.**
+
+
+    Children: task-090 create task, task-094 e2e hardening, task-091 packaging.
+
+
+    Grouped as the phase that makes the client a shipped product rather than a
+
+    development-time artifact. 090 is here rather than in parity because the Jinja
+    UI
+
+    has no create form either -- it is new capability, not a port -- and because its
+
+    ladder-rung acceptance criterion needs the React dashboard from phase 2 to exist.
+
+
+    091 is last on purpose. Packaging a bundle that is still changing shape means
+
+    doing it twice.'
+  constraints: '- `pip install agentjobs` requires no node, no npm, and no network
+    beyond PyPI.
+
+    - No runtime dependency on an external asset host.
+
+    - A stale bundle must not be able to ship silently.
+
+    - Creation goes through the manager''s create_task, never by writing YAML.'
+  out_of_scope: Removing the Jinja UI -- a separate decision once this phase lands.
+    Editing an existing task's spec in the browser. CDN hosting.
+  context:
+  - path: pyproject.toml
+    why: Package data and build configuration.
+acceptance:
+- id: ac-1
+  text: a task can be created from the browser and appears in the list
+  status: pending
+- id: ac-2
+  text: one end-to-end browser test passes against a real server and a real temporary
+    project
+  status: pending
+- id: ac-3
+  text: a wheel built from a clean checkout serves the whole UI, including PWA assets,
+    with no node present
+  status: pending
+- id: ac-4
+  text: the client renders with no internet access beyond the local server
+  status: pending
+deliverables: []
+dependencies:
+- task: task-096-react-phase-2-parity
+  type: needs
+  note: Needs the screens to package and to hang creation off.
+links: []
+branches: []
+log: []

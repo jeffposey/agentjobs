@@ -2,7 +2,7 @@ schema: 2
 id: task-093-mobile-and-pwa
 title: Make the client usable on a phone, and installable
 created: '2026-08-13T02:19:47.902546Z'
-updated: '2026-08-13T02:19:47.903284Z'
+updated: '2026-08-13T02:35:23.647806Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -17,7 +17,7 @@ tags:
 effort: a day
 assignment:
   eligible: []
-parent: task-082-react-frontend
+parent: task-096-react-phase-2-parity
 spec:
   summary: 'The web UI is unusable on a phone: wide tables, mouse-sized targets, and
     no way to keep it open as an app. Make the React client work on a phone and a

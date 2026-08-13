@@ -1,0 +1,77 @@
+schema: 2
+id: task-095-react-phase-1-foundation
+title: React phase 1 -- foundation
+created: '2026-08-13T02:35:19.416134Z'
+updated: '2026-08-13T02:35:19.416833Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: architecture
+tags:
+- gui
+- react-frontend
+- phase
+effort: one to two days
+assignment:
+  eligible: []
+parent: task-082-react-frontend
+spec:
+  summary: Stand up the React application, its typed API client, and its component
+    test harness. Nothing user-facing ships in this phase; everything after it depends
+    on all three.
+  intent: Grouped as a phase because these three are the only children with no user-visible
+    output, and because a partly-done foundation is the state every stalled rewrite
+    is in. Treating it as one gate means the next phase starts from something whole.
+  description: 'Done means: **a typed, tested React app is served at `/app`** and
+    fetches real data.
+
+
+    Children: task-083 scaffold, task-084 typed client, task-085 test harness.
+
+
+    Strictly ordered: 084 and 085 both need somewhere to live, so 083 is first. After
+
+    that the two are independent and either order works.
+
+
+    This phase deliberately ships no screen. The point is that the scaffolding
+
+    decisions -- directory layout, dev proxy, deep-link handling, how types are
+
+    generated, what a test asserts -- are reviewable on their own rather than buried
+
+    inside the first screen someone builds. A screen built before the harness gets
+    a
+
+    harness fitted around it, or gets none.'
+  constraints: '- The Jinja UI is untouched by every child in this phase.
+
+    - No API changes.
+
+    - No screen work. If a child starts rendering product surface, it has escaped
+    its scope.'
+  out_of_scope: Any real screen. Live updates. Packaging. Mobile.
+  context:
+  - path: src/agentjobs/api/main.py
+    why: Where the SPA mount and the existing CORS allowlist live.
+acceptance:
+- id: ac-1
+  text: a Vite + React + TypeScript app is served at /app and survives a deep-link
+    refresh
+  status: pending
+- id: ac-2
+  text: API types are generated from /openapi.json, and a stale client fails in CI
+  status: pending
+- id: ac-3
+  text: component tests run alongside the Python suite
+  status: pending
+- id: ac-4
+  text: the Jinja UI is unchanged in behaviour
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log: []

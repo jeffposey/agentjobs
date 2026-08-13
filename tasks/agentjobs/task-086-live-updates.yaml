@@ -2,7 +2,7 @@ schema: 2
 id: task-086-live-updates
 title: 'Live updates: the view reflects a handoff without a manual refresh'
 created: '2026-08-11T07:38:05.001732Z'
-updated: '2026-08-13T02:22:18.662990Z'
+updated: '2026-08-13T02:35:26.494609Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -16,7 +16,7 @@ tags:
 effort: a day
 assignment:
   eligible: []
-parent: task-082-react-frontend
+parent: task-097-react-phase-3-reach
 spec:
   summary: A task record that changes while a page is open is invisible until the
     browser is manually refreshed. Poll a cheap revision endpoint so an open view
@@ -123,6 +123,10 @@ dependencies:
 - task: task-084-typed-api-client
   type: needs
   note: Invalidates query keys owned by the client layer.
+- task: task-087-react-dashboard
+  type: needs
+  note: ac-1 is 'updates an open dashboard'; there is no React dashboard to verify
+    against before this.
 links: []
 branches: []
 log:

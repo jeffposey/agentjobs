@@ -1,0 +1,88 @@
+schema: 2
+id: task-100-dependency-cycle-deadlock
+title: A `needs` cycle deadlocks silently
+created: '2026-08-13T02:35:21.254172Z'
+updated: '2026-08-13T02:35:21.254751Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: correctness
+tags:
+- schema
+- correctness
+- dependencies
+effort: half a day
+assignment:
+  eligible: []
+spec:
+  summary: Two tasks that need each other are accepted, both stay `ready`, both become
+    permanently unclaimable, and no surface reports anything. Decide whether to refuse
+    the cycle at write time or to report it, and do it.
+  intent: 'A silent deadlock is the worst failure this data model can produce, because
+    the task looks available on every surface and simply never gets picked up. It
+    was found while specifying task-099 rather than by anything in the suite noticing,
+    which is itself the argument for fixing it: nothing today would ever tell you.'
+  description: "## Observed\n\nProbed 2026-08-12 in a throwaway project:\n\n```\n\
+    a needs b: accepted\nb needs a: ACCEPTED -- no cycle validation on dependencies\n\
+    \  task-a: lifecycle=ready unmet=['task-b (still open)']\n  task-b: lifecycle=ready\
+    \ unmet=['task-a (still open)']\nget_next_task() -> None\nboth still listed as\
+    \ ready: ['task-a', 'task-b']\nload_errors(): none\n```\n\nBoth tasks remain `ready`\
+    \ and are reported as such by every listing. Neither can\never be claimed. `get_next_task()`\
+    \ returns nothing and cannot say why. Nothing is\nlogged, nothing is flagged,\
+    \ and no file is invalid.\n\n## Why this is the same bug the codebase already\
+    \ fixed twice\n\n`_validate_parent` refuses a parent cycle, with the reasoning\
+    \ attached: a looping\nid \"looks meaningful, points at nothing, and quietly disables\
+    \ every behaviour\nkeyed on it\". `_unmet_needs` was hardened for the neighbouring\
+    \ case, because\n`states.get(id)` returned None for a dangling id and so a typo\
+    \ silently *opened*\nthe gate. A cycle is the remaining hole in the same wall:\
+    \ it silently *closes* the\ngate, forever, without explanation.\n\n## Two ways\
+    \ to fix it, pick and record\n\n- **Refuse at write time**, mirroring `_validate_parent`.\
+    \ Cheapest to reason\n  about, and consistent with how containment already behaves.\
+    \ Cost: a hand-edited\n  file can still carry a cycle, so it cannot be the only\
+    \ answer.\n- **Detect and report**, alongside the broken-file warnings that already\
+    \ surface\n  on every page. Catches hand-edited files too, and turns the condition\
+    \ into\n  something a reader sees rather than something that prevents an error.\n\
+    \nThey are not exclusive, and doing both is defensible. `docs/schema-design.md`\n\
+    issue 2 and the deferral recorded on task-052 are the precedent for choosing\n\
+    \"report\" over \"validate at save\" -- read that before deciding, so this lands\n\
+    consistently with it."
+  constraints: '- Whichever fix is chosen, the condition must be *visible*, not merely
+    prevented. A hand-edited file can carry a cycle regardless.
+
+    - Existing task files must keep loading. This is not a migration.
+
+    - The choice between refusing at write time and reporting is recorded as a decision
+    with its rejected alternative, consistent with the task-052 deferral precedent.'
+  out_of_scope: Visualising dependencies, which is task-099. Changing the dependency
+    type vocabulary. Auto-repairing a cycle -- which edge to drop is not a machine's
+    call.
+  context:
+  - path: src/agentjobs/manager.py
+    why: _validate_parent is the model to mirror; _unmet_needs is where the cycle
+      goes unnoticed.
+  - path: docs/schema-design.md
+    why: Issue 2 -- validate-at-save versus report, and the precedent for choosing.
+  - path: tasks/agentjobs/task-052-schema-v2-manager-api.yaml
+    why: Where that choice was deferred, and on what reasoning.
+acceptance:
+- id: ac-1
+  text: a needs cycle between two or more tasks is either refused at write time or
+    reported on a surface a human reads -- and the choice is recorded as a decision
+  status: pending
+- id: ac-2
+  text: a cycle present in hand-edited files is still surfaced, not merely prevented
+    at the API
+  status: pending
+- id: ac-3
+  text: a test covers the two-task cycle and a longer three-task cycle
+  status: pending
+- id: ac-4
+  text: existing task files keep loading unchanged
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log: []

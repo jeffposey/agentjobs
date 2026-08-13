@@ -2,7 +2,7 @@ schema: 2
 id: task-090-react-create-task
 title: Create a task from the browser
 created: '2026-08-11T07:38:06.904250Z'
-updated: '2026-08-11T07:38:06.904956Z'
+updated: '2026-08-13T02:35:26.508826Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -16,7 +16,7 @@ tags:
 effort: a day
 assignment:
   eligible: []
-parent: task-082-react-frontend
+parent: task-098-react-phase-4-ship
 spec:
   summary: AgentJobs has never had a way to create a task from a browser -- only the
     CLI and the API. Add one, and decide how much of the spec the form captures.
@@ -96,6 +96,9 @@ dependencies:
 - task: task-085-frontend-test-harness
   type: needs
   note: Supplies the foundation this builds on.
+- task: task-087-react-dashboard
+  type: needs
+  note: ac-5 replaces the dashboard's disabled create button, which 087 ports.
 links: []
 branches: []
 log: []

@@ -2,7 +2,7 @@ schema: 2
 id: task-082-react-frontend
 title: React + TypeScript frontend, built against the existing API
 created: '2026-08-11T07:38:03.164059Z'
-updated: '2026-08-13T02:22:18.565902Z'
+updated: '2026-08-13T02:36:12.712881Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -19,8 +19,8 @@ assignment:
 spec:
   summary: AgentJobs' web UI is server-rendered Jinja with Alpine for interactivity.
     Build a React + TypeScript client against the REST API that already exists, mounted
-    alongside the Jinja UI rather than replacing it, so the product is never in a
-    broken half-migrated state.
+    alongside the Jinja UI rather than replacing it, delivered in four phases so the
+    product is never in a broken half-migrated state.
   intent: 'The API is already the real interface: FastAPI serves it, publishes an
     OpenAPI schema at /openapi.json, and agents and scripts consume it directly. The
     Jinja templates are a second, parallel consumer that re-derives presentation logic
@@ -39,50 +39,115 @@ spec:
     a template can render `data-ball="Ball.HUMAN"` and every filter silently matches
     nothing, because nothing checks that the rendered value matches what the consumer
     expects.'
-  description: "## Shape\n\nVite + React + TypeScript, served at `/app`, talking to\
-    \ the existing REST API.\nThe Jinja UI keeps working throughout and is not removed\
-    \ by this umbrella;\nretiring it is a separate decision to make once the React\
-    \ client is at parity and\nhas been used in anger.\n\nGroundwork already exists.\
-    \ task-043 added the Vite dev origin\n(`http://localhost:5173`) to the CORS allowlist.\n\
-    \n## Children, in order\n\n1. **083 scaffold** -- Vite/React/TS/Tailwind, mounted\
-    \ at `/app`, dev proxy, Jinja\n   untouched, assets bundled rather than fetched\
-    \ from a CDN.\n2. **084 typed client** -- generated from `/openapi.json`; no hand-written\
-    \ request\n   types.\n3. **085 test harness** -- Vitest and React Testing Library\
-    \ over checked-in\n   fixtures, in place before the first screen.\n4. **086 live\
-    \ updates** -- the view reflects a handoff without a manual refresh.\n5. **087\
-    \ dashboard** -- including the next-action ladder from task-081.\n6. **093 mobile\
-    \ and PWA** -- usable and installable on a phone, reachable from\n   another device\
-    \ without widening the bind. Placed here deliberately: after one\n   real screen\
-    \ exists, and before the remaining screens, so the responsive\n   pattern is established\
-    \ once rather than retrofitted three times.\n7. **088 task list** -- with the\
-    \ filtering that is currently untestable in Alpine.\n8. **089 task detail** --\
-    \ log, spec, and the review actions.\n9. **090 create task** -- the surface the\
-    \ product has never had in a browser.\n10. **094 e2e hardening** -- network-boundary\
-    \ mocking and one browser path,\n    against real screens.\n11. **091 packaging**\
-    \ -- built assets ship in the wheel; `pip install` still needs\n    no node.\n\
-    \n## A property to gain on the way\n\nThe Jinja UI loads Tailwind, Alpine, and\
-    \ marked from public CDNs, so the current\nweb UI does not render without internet\
-    \ access. That contradicts a property this\nproject has otherwise defended --\
-    \ task-067 rejected git-lfs to keep a checkout\nself-sufficient. The React client\
-    \ bundles its own dependencies, so finishing this\numbrella removes the last runtime\
-    \ dependency on an external host. 083 owns that;\nit is called out here because\
-    \ it is a reason to finish, not an incidental detail.\n\n## Why not migrate in\
-    \ place\n\nEvery child leaves the product working. A half-migrated UI where some\
-    \ pages are\nReact and some are Jinja and neither is complete is worse than either\
-    \ end state,\nand it is the usual way a rewrite stalls permanently."
-  constraints: "- The Jinja UI keeps working at every commit. This umbrella never\
-    \ leaves the\n  product in a half-migrated state.\n- `pip install agentjobs` must\
-    \ not require node. Built assets ship in the wheel\n  (task-091).\n- No hand-written\
-    \ API types. They are generated from the OpenAPI schema, or the\n  typed contract\
-    \ is decorative.\n- No runtime dependency on an external asset host. The client's\
-    \ dependencies are\n  bundled.\n- The server binds loopback and refuses a wildcard\
-    \ bind. This application has no\n  authentication, so reachable means unauthenticated\
-    \ (task-093).\n- No backend behaviour changes to suit the client. If the API is\
-    \ missing\n  something, that is its own task with its own reasoning -- task-086's\
-    \ revision\n  endpoint and task-087's computed next action are the two known candidates,\
-    \ and\n  each records its own justification."
+  description: '## Shape
+
+
+    Vite + React + TypeScript, served at `/app`, talking to the existing REST API.
+    The
+
+    Jinja UI keeps working throughout and is not removed by this epic; retiring it
+    is a
+
+    separate decision to make once the React client is at parity and has been used
+    in
+
+    anger.
+
+
+    Groundwork already exists. task-043 added the Vite dev origin
+
+    (`http://localhost:5173`) to the CORS allowlist.
+
+
+    ## Four phases
+
+
+    This task holds only what is true across all of them. Each phase is its own task
+
+    with its own gate, and each phase''s own record owns the ordering of its children.
+
+
+    | Phase | Done means |
+
+    | --- | --- |
+
+    | **095 foundation** | a typed, tested React app is served at `/app` |
+
+    | **096 parity** | every read the Jinja UI offers, React offers -- including from
+    a phone |
+
+    | **097 reach** | the client tells you something you did not go looking for |
+
+    | **098 ship** | `pip install` yields the whole UI, and a browser test proves
+    the stack agrees |
+
+
+    **Why phases rather than eleven flat children.** The first version of this epic
+    was
+
+    one umbrella over eleven tasks, with the intended order living in a prose list
+    in
+
+    this description. Prose cannot be queried and cannot gate anything, and two
+
+    ordering defects duly hid in it: live updates could not be verified before a
+
+    dashboard existed, and the create-task form''s acceptance depended on a dashboard
+
+    rung that did not exist yet. Neither showed up in `dependencies[]`, so nothing
+
+    would have caught either until an agent tried to verify an acceptance criterion
+
+    against a page that was not there. Phases make the sequence structural, and gate
+
+    it.
+
+
+    ## A property to gain on the way
+
+
+    The Jinja UI loads Tailwind, Alpine, and marked from public CDNs, so the current
+
+    web UI does not render without internet access. That sits badly with a property
+
+    this project otherwise defends: task-067 weighs git-lfs for attachments and leans
+
+    against it as "probably wrong for a `pip install` product", on the grounds that
+
+    the tool needs nothing but Python. The React client bundles its own dependencies,
+
+    so finishing this epic removes the last runtime dependency on an external host.
+
+    Phase 1 owns that; it is recorded here because it is a reason to finish, not an
+
+    incidental detail.
+
+
+    ## Why not migrate in place
+
+
+    Every phase leaves the product working. A half-migrated UI where some pages are
+
+    React and some are Jinja and neither is complete is worse than either end state,
+
+    and it is the usual way a rewrite stalls permanently.'
+  constraints: "These apply to every phase and every child. A phase record repeats\
+    \ one only when\nit needs to say something more specific.\n\n- The Jinja UI keeps\
+    \ working at every commit. This epic never leaves the product in\n  a half-migrated\
+    \ state.\n- `pip install agentjobs` must not require node. Built assets ship in\
+    \ the wheel.\n- No hand-written API types. They are generated from the OpenAPI\
+    \ schema, or the\n  typed contract is decorative.\n- No runtime dependency on\
+    \ an external asset host. The client's dependencies are\n  bundled.\n- The server\
+    \ binds loopback and refuses a wildcard bind. This application has no\n  authentication,\
+    \ so reachable means unauthenticated.\n- Where a computation already exists in\
+    \ Python, the client renders it rather than\n  re-deriving it in TypeScript. Two\
+    \ definitions of one rule will drift.\n- No backend behaviour changes to suit\
+    \ the client without recorded reasoning. Three\n  additions are already justified\
+    \ in their own tasks: a revision endpoint\n  (task-086), a computed next action\
+    \ (task-087), and reverse dependency edges\n  (task-099)."
   out_of_scope: Removing the Jinja UI -- a separate decision once React is at parity.
     Authentication and multi-user identity (task-066). Any change to the task schema.
+    Redesigning the dashboard (task-092, deferred to post-parity).
   context:
   - path: src/agentjobs/api/main.py
     why: CORS allowlist already carries the Vite dev origin; the SPA mounts here.
@@ -92,31 +157,85 @@ spec:
     why: Closed groundwork for exactly this frontend.
 acceptance:
 - id: ac-1
-  text: a React + TypeScript client is served at /app and reaches parity with the
-    Jinja UI's dashboard, task list, and task detail
+  text: all four phases are closed completed
   status: pending
 - id: ac-2
-  text: the Jinja UI still works, unmodified in behaviour, at every commit
+  text: the Jinja UI still works, unmodified in behaviour, at every commit along the
+    way
   status: pending
 - id: ac-3
-  text: API types are generated from the OpenAPI schema, not hand-written
+  text: pip install agentjobs yields the full React UI with no node toolchain and
+    no internet beyond PyPI
   status: pending
 - id: ac-4
-  text: pip install agentjobs requires no node toolchain
-  status: pending
-- id: ac-5
-  text: the dashboard reflects a handoff without a manual browser refresh
-  status: pending
-- id: ac-6
   text: the client is usable and installable on a phone, reachable from another device
     without widening the server's bind
   status: pending
-- id: ac-7
-  text: the client renders with no internet access -- no dependency on an external
-    asset host
+- id: ac-5
+  text: 'the client surfaces what Jinja cannot: a handoff with no refresh, and the
+    dependency graph'
   status: pending
 deliverables: []
 dependencies: []
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-13T02:36:12.712808Z'
+  actor: claude
+  type: decision
+  body: 'Restructured from one umbrella over eleven flat children into four phase
+    tasks, at the
+
+    owner''s direction on 2026-08-12. This task stays as the root and holds only the
+
+    cross-cutting constraints; the phases hold the sequence.
+
+
+    Reasoning. Eleven children under one parent put the intended order in a prose
+    list in this
+
+    description, where nothing could query or enforce it -- and two ordering defects
+    were
+
+    found sitting in exactly that gap: task-086''s acceptance names "an open dashboard"
+    while
+
+    depending only on the typed client, and task-090''s names a dashboard ladder rung
+    that
+
+    task-087 had not yet built. Both are now explicit `needs` edges. A phase also
+    gives a
+
+    reviewable gate roughly every two to four days instead of one gate at the end
+    of a
+
+    fortnight.
+
+
+    Rejected alternative: closing this task as superseded and making the four phases
+    top
+
+    level. That is closer to what was asked for literally, and was rejected because
+    the
+
+    cross-cutting constraints -- Jinja keeps working, no node at install, no external
+    asset
+
+    host, loopback bind, no second definition of a Python rule -- would then have
+    to be
+
+    restated in four records and would drift. Keeping a root costs one extra level
+    of nesting,
+
+    which `_nest_tasks` already renders.
+
+
+    Also considered and rejected: moving those constraints into ENGINEERING.md instead.
+    They
+
+    are real project invariants, but editing the document every agent reads, on the
+    strength
+
+    of a migration that has not started, is premature. Revisit when the epic closes.'
+  data: {}

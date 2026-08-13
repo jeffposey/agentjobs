@@ -2,7 +2,7 @@ schema: 2
 id: task-094-frontend-e2e
 title: 'Harden the frontend harness: network-boundary mocking and one end-to-end path'
 created: '2026-08-13T02:19:48.337101Z'
-updated: '2026-08-13T02:19:48.337816Z'
+updated: '2026-08-13T02:35:26.008146Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -16,7 +16,7 @@ tags:
 effort: a day
 assignment:
   eligible: []
-parent: task-082-react-frontend
+parent: task-098-react-phase-4-ship
 spec:
   summary: Add network-boundary API mocking and a single end-to-end browser test to
     the frontend harness, once there are screens worth exercising. Split out of task-085

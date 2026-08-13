@@ -2,7 +2,7 @@ schema: 2
 id: task-083-react-scaffold
 title: Scaffold the React app and serve it at /app
 created: '2026-08-11T07:38:03.613244Z'
-updated: '2026-08-13T02:22:18.587441Z'
+updated: '2026-08-13T02:35:21.748330Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -15,7 +15,7 @@ tags:
 effort: half a day
 assignment:
   eligible: []
-parent: task-082-react-frontend
+parent: task-095-react-phase-1-foundation
 spec:
   summary: Stand up a Vite + React + TypeScript + Tailwind application, served by
     FastAPI at /app in production and by the Vite dev server during development, with

@@ -1,0 +1,91 @@
+schema: 2
+id: task-096-react-phase-2-parity
+title: React phase 2 -- parity, on every device
+created: '2026-08-13T02:35:19.871523Z'
+updated: '2026-08-13T02:35:19.872226Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- gui
+- react-frontend
+- phase
+- mobile
+effort: three to four days
+assignment:
+  eligible: []
+parent: task-082-react-frontend
+spec:
+  summary: Port the dashboard, task list, and task detail to React, and make them
+    usable and installable on a phone. Done means every read the Jinja UI offers,
+    React offers, from any device on the tailnet.
+  intent: This is the phase that makes the React client worth having instead of a
+    parallel experiment. It is grouped with the mobile work rather than treating that
+    as a later polish pass, because the responsive pattern is cheap to set once and
+    expensive to retrofit across three pages -- and because a review request that
+    can only be answered from one desk delays every branch by however long it takes
+    to get back to that desk.
+  description: 'Done means: **every read the Jinja UI offers, React offers -- including
+    from a phone.**
+
+
+    Children, in order: task-087 dashboard, task-093 mobile and PWA, task-088 task
+
+    list, task-089 task detail.
+
+
+    **The order inside this phase is load-bearing.** 093 sits second, not last: after
+
+    one real screen exists there is something to actually make usable on a phone
+
+    rather than a guess at a pattern, and before the other two screens so the card
+
+    layout and the cell-labelling convention are established once instead of
+
+    retrofitted onto three ported pages.
+
+
+    Port faithfully. task-092 asks whether the dashboard''s ladder should be
+
+    redesigned and is deferred to post-parity by decision of 2026-08-12; a port that
+
+    also changes behaviour cannot be verified against the original.'
+  constraints: '- Behaviour matches the Jinja UI. Redesign is task-092, deferred.
+
+    - The Jinja UI keeps working at every commit.
+
+    - The responsive pattern from task-093 is followed by the screens after it, not
+    retrofitted.
+
+    - The server still binds loopback and refuses a wildcard bind.'
+  out_of_scope: Removing the Jinja UI. Redesigning the dashboard (task-092). Creating
+    tasks from the browser, which is phase 4. Live updates, which are phase 3.
+  context:
+  - path: src/agentjobs/api/templates/
+    why: The pages being ported, and the behaviour parity is measured against.
+acceptance:
+- id: ac-1
+  text: dashboard, task list, and task detail render in React with behaviour matching
+    the Jinja UI
+  status: pending
+- id: ac-2
+  text: all three are usable on a phone and the client installs as an app
+  status: pending
+- id: ac-3
+  text: review actions work from the detail page and appear in the task log
+  status: pending
+- id: ac-4
+  text: unparseable task files are surfaced on every listing rather than silently
+    dropped
+  status: pending
+deliverables: []
+dependencies:
+- task: task-095-react-phase-1-foundation
+  type: needs
+  note: Needs the app, the client, and the harness.
+links: []
+branches: []
+log: []
