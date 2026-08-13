@@ -44,6 +44,30 @@ def test_spa_assets_are_served_as_files_not_as_the_shell(tmp_path: Path) -> None
     assert response.text != SHELL
 
 
+def test_pwa_files_and_icons_are_served_before_the_shell_fallback(tmp_path: Path) -> None:
+    (tmp_path / "index.html").write_text(SHELL, encoding="utf-8")
+    (tmp_path / "manifest.webmanifest").write_text('{"display":"standalone"}', encoding="utf-8")
+    (tmp_path / "sw.js").write_text("self.skipWaiting();", encoding="utf-8")
+    icons = tmp_path / "icons"
+    icons.mkdir()
+    (icons / "icon-192.png").write_bytes(b"png-icon")
+
+    with spa_client(tmp_path) as client:
+        manifest = client.get("/app/manifest.webmanifest")
+        service_worker = client.get("/app/sw.js")
+        icon = client.get("/app/icons/icon-192.png")
+
+    assert manifest.status_code == 200
+    assert manifest.headers["content-type"].startswith("application/manifest+json")
+    assert manifest.text == '{"display":"standalone"}'
+    assert service_worker.status_code == 200
+    assert service_worker.headers["service-worker-allowed"] == "/app/"
+    assert service_worker.headers["cache-control"] == "no-cache"
+    assert service_worker.text == "self.skipWaiting();"
+    assert icon.status_code == 200
+    assert icon.content == b"png-icon"
+
+
 def test_spa_reports_missing_build_without_breaking_app_import(tmp_path: Path) -> None:
     with spa_client(tmp_path) as client:
         response = client.get("/app")

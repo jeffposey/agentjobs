@@ -28,6 +28,45 @@ def register_spa(app: FastAPI, dist_dir: Optional[Path] = None) -> None:
         StaticFiles(directory=dist / "assets", check_dir=False),
         name="react-assets",
     )
+    app.mount(
+        "/app/icons",
+        StaticFiles(directory=dist / "icons", check_dir=False),
+        name="react-icons",
+    )
+
+    async def manifest() -> FileResponse:
+        path = dist / "manifest.webmanifest"
+        if not path.is_file():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="React PWA manifest is not built; run `npm run build` in frontend/.",
+            )
+        return FileResponse(
+            path,
+            media_type="application/manifest+json",
+            headers={"Cache-Control": "no-cache"},
+        )
+
+    async def service_worker() -> FileResponse:
+        path = dist / "sw.js"
+        if not path.is_file():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="React service worker is not built; run `npm run build` in frontend/.",
+            )
+        return FileResponse(
+            path,
+            media_type="application/javascript",
+            headers={
+                "Cache-Control": "no-cache",
+                "Service-Worker-Allowed": "/app/",
+            },
+        )
+
+    app.add_api_route(
+        "/app/manifest.webmanifest", manifest, methods=["GET"], include_in_schema=False
+    )
+    app.add_api_route("/app/sw.js", service_worker, methods=["GET"], include_in_schema=False)
 
     async def shell() -> FileResponse:
         index = dist / "index.html"

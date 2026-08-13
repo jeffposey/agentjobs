@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/build-service-worker.mjs",
+    "generate:icons": "poetry run python scripts/generate_icons.py",
+    "check:icons": "poetry run python scripts/generate_icons.py --check",
     "generate:api-schema": "poetry run python ../scripts/export_openapi.py openapi.json",
     "generate:api-client": "openapi-ts",
     "generate:api": "npm run generate:api-schema && npm run generate:api-client",
@@ -14,7 +16,7 @@
     "check:api": "npm run check:api-schema && npm run check:api-client",
     "lint": "oxlint --ignore-pattern src/api/generated/** .",
     "test": "vitest run",
-    "check": "npm run check:api && npm run lint && npm run test && npm run build"
+    "check": "npm run check:api && npm run check:icons && npm run lint && npm run test && npm run build"
   },
   "dependencies": {
     "@tanstack/react-query": "5.101.4",

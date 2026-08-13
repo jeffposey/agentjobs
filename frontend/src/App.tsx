@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
@@ -11,6 +11,21 @@ import {
   UnsupportedTaskSchemaError,
 } from "./api/schema-version";
 import { Dashboard } from "./components/Dashboard";
+import { ConnectionUnavailable } from "./components/ConnectionUnavailable";
+
+function useOnlineStatus() {
+  const [online, setOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+  return online;
+}
 
 function ProjectRedirect() {
   const navigate = useNavigate();
@@ -77,18 +92,18 @@ function DashboardPage() {
   }
 
   if (dashboardQuery.isError) {
-    return <StatusCard title="The dashboard could not be loaded">Confirm the local server is running, then reload this page.</StatusCard>;
+    return <ConnectionUnavailable offline={false} />;
   }
 
   return (
     <div className="flex min-h-screen flex-col bg-dark-bg text-dark-text">
       <header className="border-b border-dark-border bg-dark-surface">
-        <nav className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-4 sm:px-6 lg:px-8" aria-label="Primary navigation">
+        <nav className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center gap-2 px-4 py-2 min-[820px]:gap-6 sm:px-6 lg:px-8" aria-label="Primary navigation">
           <h1 className="text-2xl font-bold">AgentJobs</h1>
-          <span className="rounded-md border border-dark-border bg-dark-bg px-3 py-2 font-mono text-xs text-dark-muted">{projectId}</span>
-          <Link to={projectPath(projectId)} className="rounded-md px-3 py-2 text-sm font-medium hover:bg-dark-border">Dashboard</Link>
-          <Link to={projectPath(projectId, "/tasks")} className="rounded-md px-3 py-2 text-sm font-medium hover:bg-dark-border">Tasks</Link>
-          <a href="/docs" className="rounded-md px-3 py-2 text-sm font-medium hover:bg-dark-border">API Docs</a>
+          <span className="hidden rounded-md border border-dark-border bg-dark-bg px-3 py-2 font-mono text-xs text-dark-muted sm:block">{projectId}</span>
+          <Link to={projectPath(projectId)} className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">Dashboard</Link>
+          <Link to={projectPath(projectId, "/tasks")} className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">Tasks</Link>
+          <a href="/docs" className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">API Docs</a>
         </nav>
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
@@ -115,6 +130,8 @@ function StatusCard({ title, children }: { title: string; children: React.ReactN
 }
 
 export function App() {
+  const online = useOnlineStatus();
+  if (!online) return <ConnectionUnavailable offline />;
   return (
     <Routes>
       <Route index element={<ProjectRedirect />} />
