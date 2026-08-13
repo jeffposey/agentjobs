@@ -2,13 +2,9 @@ schema: 2
 id: task-108-react-project-switcher
 title: Add the project switcher to React
 created: '2026-08-13T22:42:14.777527Z'
-updated: '2026-08-13T22:54:16.390047Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-13T22:55:30.404171Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: ux
@@ -19,7 +15,6 @@ tags:
 - ux
 effort: half a working session
 assignment:
-  owner: codex
   eligible: []
 spec:
   summary: Add an accessible project switcher to the shared React header so desktop,
@@ -80,7 +75,8 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-108-react-project-switcher
-  status: active
+  status: merged
+  merged_at: '2026-08-13T22:55:30.331001Z'
 log:
 - id: 1
   ts: '2026-08-13T22:42:35.343367Z'
@@ -131,3 +127,24 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 6
+  ts: '2026-08-13T22:55:30.383258Z'
+  actor: codex
+  type: progress
+  body: 'Approved feature merged and verified on main.
+
+
+    Jeff Posey approved task 108. The feature branch was rebased onto main and merged
+    with --no-ff. The complete merged-main gate passed again: 624 Python tests, 42
+    React tests, lint, generated API/client checks, production build, PWA checks,
+    and the real-server Playwright creation path.'
+  data: {}
+- id: 7
+  ts: '2026-08-13T22:55:30.404057Z'
+  actor: codex
+  type: transition
+  body: Closed completed after explicit Jeff Posey approval, no-ff merge, and successful
+    merged-main verification.
+  data:
+    lifecycle: closed
+    outcome: completed
