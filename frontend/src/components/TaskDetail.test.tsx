@@ -2,10 +2,10 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
-import type { Task, TaskDetailResponse } from "../api/generated";
+import type { TaskDetailResponse, TaskRead } from "../api/generated";
 import { TaskDetail } from "./TaskDetail";
 
-function task(id: string, overrides: Partial<Task> = {}): Task {
+function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {
   return {
     schema: 2,
     id,
@@ -44,6 +44,9 @@ const detail: TaskDetailResponse = {
   task: task("task-detail", { parent: "task-parent" }),
   parent_task: task("task-parent", { ball: "agent", ball_reason: "work", ball_prompt: "Continue.", title: "Parent title" }),
   children: [task("task-child", { ball: "agent", ball_reason: "available", ball_prompt: null, lifecycle: "ready", title: "Child title", display_status: "Ready" })],
+  needs: [{ task_id: "task-needed", title: "Required task", exists: true, state: "open", note: "Required first.", reason: "Needs task-needed; it is still open." }],
+  blocks: [{ task_id: "task-child", title: "Child title", exists: true, state: "open", note: null, reason: "task-child needs this task." }],
+  child_dependency_edges: [{ source: "task-missing", target: "task-child", note: "External gate.", source_exists: false, target_exists: true, source_contained: false, target_contained: true }],
   identity: { ok: true, user: "Jeff Posey", problem: null, detail: "" },
 };
 
@@ -68,6 +71,29 @@ describe("TaskDetail resumption contract", () => {
     expect(screen.getByRole("link", { name: /Parent title/ })).toHaveAttribute("href", "/p/inbox/tasks/task-parent");
     expect(screen.getByRole("link", { name: /Child title/ })).toHaveAttribute("href", "/p/inbox/tasks/task-child");
     expect(screen.getByRole("link", { name: "task-needed" })).toHaveAttribute("href", "/p/inbox/tasks/task-needed");
+    expect(screen.getByText("Needs task-needed; it is still open.")).toBeVisible();
+    expect(screen.getByText("task-child needs this task.")).toBeVisible();
+    expect(screen.getByRole("region", { name: "Umbrella dependency graph" })).toHaveTextContent("task-missing (missing)");
+  });
+
+  it("surfaces dependency cycles as data errors without hiding graph nodes", () => {
+    const cycle = ["task-child", "task-other", "task-child"];
+    renderDetail({
+      ...detail,
+      children: [
+        task("task-child", { title: "Child title", needs_cycles: [cycle] }),
+        task("task-other", { title: "Other child", needs_cycles: [cycle] }),
+      ],
+      child_dependency_edges: [
+        { source: "task-child", target: "task-other", note: null, source_exists: true, target_exists: true, source_contained: true, target_contained: true },
+        { source: "task-other", target: "task-child", note: null, source_exists: true, target_exists: true, source_contained: true, target_contained: true },
+      ],
+    });
+
+    const graph = screen.getByRole("region", { name: "Umbrella dependency graph" });
+    expect(within(graph).getByRole("alert")).toHaveTextContent("Dependency data error");
+    expect(within(graph).getByText("Child title")).toBeVisible();
+    expect(within(graph).getByText("Other child")).toBeVisible();
   });
 
   it("renders the log newest-first and distinguishes decisions and open questions", () => {

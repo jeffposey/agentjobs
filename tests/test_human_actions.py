@@ -222,6 +222,27 @@ def test_detail_contract_includes_identity_parent_and_children(
     client: TestClient, sample_task_in_review: str
 ) -> None:
     """React receives relationships and the safe acting identity in one snapshot."""
+    prerequisite = client.post(
+        "/api/tasks",
+        json={
+            "id": "task-prerequisite",
+            "title": "Prerequisite",
+            "description": "Must finish first",
+            "category": "test",
+            "lifecycle": "ready",
+        },
+    )
+    assert prerequisite.status_code == 201
+    updated = client.patch(
+        f"/api/tasks/{sample_task_in_review}",
+        json={
+            "dependencies": [
+                {"task": "task-prerequisite", "type": "needs", "note": "Required first."},
+                {"task": "task-missing", "type": "blocks", "note": "Bad reference."},
+            ]
+        },
+    )
+    assert updated.status_code == 200
     child = client.post(
         "/api/tasks",
         json={
@@ -230,6 +251,7 @@ def test_detail_contract_includes_identity_parent_and_children(
             "category": "test",
             "lifecycle": "ready",
             "parent": sample_task_in_review,
+            "dependencies": [{"task": sample_task_in_review, "type": "needs"}],
         },
     )
     assert child.status_code == 201
@@ -241,6 +263,32 @@ def test_detail_contract_includes_identity_parent_and_children(
     assert payload["task"]["id"] == sample_task_in_review
     assert payload["parent_task"] is None
     assert [task["id"] for task in payload["children"]] == [child.json()["id"]]
+    assert payload["needs"] == [
+        {
+            "task_id": "task-prerequisite",
+            "title": "Prerequisite",
+            "exists": True,
+            "state": "open",
+            "note": "Required first.",
+            "reason": "Needs task-prerequisite; it is still open.",
+        }
+    ]
+    assert [relation["task_id"] for relation in payload["blocks"]] == [
+        child.json()["id"],
+        "task-missing",
+    ]
+    assert payload["blocks"][1]["state"] == "missing"
+    assert payload["child_dependency_edges"] == [
+        {
+            "source": sample_task_in_review,
+            "target": child.json()["id"],
+            "note": None,
+            "source_exists": True,
+            "target_exists": True,
+            "source_contained": False,
+            "target_contained": True,
+        }
+    ]
     assert payload["identity"] == {
         "ok": True,
         "user": "jeff",

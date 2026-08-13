@@ -213,6 +213,87 @@ def test_a_non_needs_dependency_never_blocks(tmp_path: Path) -> None:
     assert manager.claim_task("task-025-related", agent="codex").assignment.owner == "codex"
 
 
+def test_dependency_facts_share_the_claim_gate_and_reverse_impact(tmp_path: Path) -> None:
+    manager = _manager(tmp_path)
+    prerequisite = manager.create_task(
+        id="task-026-prerequisite",
+        title="Prerequisite",
+        description="First.",
+        category="test",
+        lifecycle=Lifecycle.READY,
+    )
+    manager.create_task(
+        id="task-027-dependent",
+        title="Dependent",
+        description="Second.",
+        category="test",
+        lifecycle=Lifecycle.READY,
+        dependencies=[{"task": prerequisite.id, "type": "needs"}],
+    )
+    manager.create_task(
+        id="task-028-dangling",
+        title="Dangling",
+        description="Broken reference.",
+        category="test",
+        lifecycle=Lifecycle.READY,
+        dependencies=[{"task": "task-999-missing", "type": "needs"}],
+    )
+    manager.create_task(
+        id="task-028-umbrella",
+        title="Umbrella",
+        description="Parent.",
+        category="test",
+        lifecycle=Lifecycle.READY,
+    )
+    manager.create_task(
+        id="task-028-child",
+        title="Child",
+        description="Contained work.",
+        category="test",
+        lifecycle=Lifecycle.READY,
+        parent="task-028-umbrella",
+    )
+
+    facts = manager.dependency_facts()
+
+    assert facts[prerequisite.id].actionable is True
+    assert facts[prerequisite.id].unblocks_count == 1
+    assert facts["task-027-dependent"].unmet_needs == ("task-026-prerequisite (still open)",)
+    assert facts["task-027-dependent"].actionable is False
+    assert facts["task-028-dangling"].unmet_needs == (
+        "task-999-missing (not a task in this project)",
+    )
+    assert facts["task-028-umbrella"].actionable is False
+    assert facts["task-028-umbrella"].open_children_count == 1
+
+
+def test_dependency_facts_surface_cycles_without_recursing(tmp_path: Path) -> None:
+    manager = _manager(tmp_path)
+    manager.create_task(
+        id="task-029-cycle-a",
+        title="A",
+        description="A.",
+        category="test",
+        lifecycle=Lifecycle.READY,
+        dependencies=[{"task": "task-030-cycle-b", "type": "needs"}],
+    )
+    manager.create_task(
+        id="task-030-cycle-b",
+        title="B",
+        description="B.",
+        category="test",
+        lifecycle=Lifecycle.READY,
+        dependencies=[{"task": "task-029-cycle-a", "type": "needs"}],
+    )
+
+    facts = manager.dependency_facts()
+
+    expected = (("task-029-cycle-a", "task-030-cycle-b", "task-029-cycle-a"),)
+    assert facts["task-029-cycle-a"].needs_cycles == expected
+    assert facts["task-030-cycle-b"].needs_cycles == expected
+    assert facts["task-029-cycle-a"].actionable is False
+
+
 def test_handoff_moves_ball_and_logs(tmp_path: Path) -> None:
     manager = _manager(tmp_path)
     manager.create_task(

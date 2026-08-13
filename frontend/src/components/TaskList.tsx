@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
-import type { BrokenTaskFile, Task } from "../api/generated";
+import type { BrokenTaskFile, TaskRead } from "../api/generated";
 import { BrokenFiles } from "./BrokenFiles";
+import { DependencyState } from "./DependencyState";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 
 type TaskRow = {
-  task: Task;
+  task: TaskRead;
   depth: number;
   ancestors: Array<string>;
   childCount: number;
@@ -24,13 +25,13 @@ const PRIORITY_CLASSES: Record<string, string> = {
   low: "bg-slate-700 text-slate-200",
 };
 
-export function buildTaskRows(tasks: Array<Task>): Array<TaskRow> {
+export function buildTaskRows(tasks: Array<TaskRead>): Array<TaskRow> {
   const ordered = [...tasks].sort((left, right) => {
     const timeDifference = new Date(right.updated).getTime() - new Date(left.updated).getTime();
     return timeDifference || (PRIORITY_RANK[left.priority ?? "medium"] ?? 2) - (PRIORITY_RANK[right.priority ?? "medium"] ?? 2);
   });
   const byId = new Map(ordered.map((task) => [task.id, task]));
-  const children = new Map<string | null, Array<Task>>();
+  const children = new Map<string | null, Array<TaskRead>>();
 
   for (const task of ordered) {
     const parent = task.parent && byId.has(task.parent) ? task.parent : null;
@@ -39,7 +40,7 @@ export function buildTaskRows(tasks: Array<Task>): Array<TaskRow> {
 
   const rows: Array<TaskRow> = [];
   const drawn = new Set<string>();
-  const walk = (task: Task, ancestors: Array<string>) => {
+  const walk = (task: TaskRead, ancestors: Array<string>) => {
     if (drawn.has(task.id)) return;
     const kids = children.get(task.id) ?? [];
     rows.push({
@@ -68,7 +69,7 @@ export function buildTaskRows(tasks: Array<Task>): Array<TaskRow> {
   return rows;
 }
 
-function matchesTask(task: Task, search: string, status: string, priority: string, scope: string) {
+function matchesTask(task: TaskRead, search: string, status: string, priority: string, scope: string) {
   const term = search.trim().toLowerCase();
   const titleMatches = term === "" || task.title.toLowerCase().includes(term);
   const statusMatches = status === "all"
@@ -96,7 +97,7 @@ export function TaskList({
   brokenFiles,
   projectId,
 }: {
-  tasks: Array<Task>;
+  tasks: Array<TaskRead>;
   brokenFiles: Array<BrokenTaskFile>;
   projectId: string;
 }) {
@@ -179,7 +180,7 @@ export function TaskList({
                     </button>
                   )}
                 </ResponsiveCell>
-                <ResponsiveCell label="Status"><span className="rounded bg-dark-bg px-2 py-1 text-xs text-dark-muted">{row.task.display_status}</span></ResponsiveCell>
+                <ResponsiveCell label="Status"><DependencyState task={row.task} compact /></ResponsiveCell>
                 <ResponsiveCell label="Priority"><span className={`rounded px-2 py-1 text-xs ${PRIORITY_CLASSES[row.task.priority ?? "medium"]}`}>{row.task.priority ?? "medium"}</span></ResponsiveCell>
                 <ResponsiveCell label="Assigned" className="text-sm">{row.task.assignment?.owner ?? "—"}</ResponsiveCell>
                 <ResponsiveCell label="Updated" className="text-sm text-dark-muted"><time dateTime={row.task.updated}>{new Date(row.task.updated).toLocaleString([], { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</time></ResponsiveCell>

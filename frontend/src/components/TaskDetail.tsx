@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import type { LogEntry, TaskDetailResponse } from "../api/generated";
+import { DependencyGraph } from "./DependencyGraph";
+import { DependencyState } from "./DependencyState";
 
 const PRIORITY_CLASSES: Record<string, string> = {
   critical: "bg-red-900 text-red-200",
@@ -80,7 +82,7 @@ function ReviewPanel({
 }
 
 function Relationships({ detail, projectId }: { detail: TaskDetailResponse; projectId: string }) {
-  if (detail.children.length === 0 && (detail.task.dependencies?.length ?? 0) === 0 && !detail.task.parent) return null;
+  if (detail.children.length === 0 && detail.needs.length === 0 && detail.blocks.length === 0 && !detail.task.parent) return null;
   return (
     <section className="grid gap-4 min-[820px]:grid-cols-2" aria-label="Task relationships">
       {(detail.task.parent || detail.children.length > 0) && (
@@ -92,10 +94,13 @@ function Relationships({ detail, projectId }: { detail: TaskDetailResponse; proj
           </div>
         </div>
       )}
-      {(detail.task.dependencies?.length ?? 0) > 0 && (
+      {(detail.needs.length > 0 || detail.blocks.length > 0) && (
         <div className="rounded-lg border border-dark-border bg-dark-surface">
-          <h2 className="border-b border-dark-border p-4 font-semibold">Dependencies</h2>
-          <div className="divide-y divide-dark-border">{detail.task.dependencies?.map((dependency) => <div className="p-4 text-sm" key={`${dependency.type}-${dependency.task}`}><Link className="touch-target font-mono text-blue-300 hover:underline" to={taskPath(projectId, dependency.task)}>{dependency.task}</Link><div className="capitalize text-dark-muted">{dependency.type ?? "needs"}</div>{dependency.note && <p className="mt-1 text-dark-muted">{dependency.note}</p>}</div>)}</div>
+          <h2 className="border-b border-dark-border p-4 font-semibold">Needs and blocks</h2>
+          <div className="grid gap-px bg-dark-border min-[820px]:grid-cols-2">
+            <div className="bg-dark-surface p-4"><h3 className="font-semibold">This task needs</h3>{detail.needs.length === 0 ? <p className="mt-2 text-sm text-dark-muted">Nothing.</p> : <ul className="mt-2 space-y-3">{detail.needs.map((relation) => <li className="text-sm" key={relation.task_id}>{relation.exists ? <Link className="touch-target font-mono text-blue-300 hover:underline" to={taskPath(projectId, relation.task_id)}>{relation.task_id}</Link> : <span className="font-mono text-red-300">{relation.task_id} (missing)</span>}<p className={relation.state === "open" || relation.state === "missing" ? "text-red-300" : "text-emerald-300"}>{relation.reason}</p>{relation.note && <p className="text-dark-muted">{relation.note}</p>}</li>)}</ul>}</div>
+            <div className="bg-dark-surface p-4"><h3 className="font-semibold">This task blocks</h3>{detail.blocks.length === 0 ? <p className="mt-2 text-sm text-dark-muted">Nothing.</p> : <ul className="mt-2 space-y-3">{detail.blocks.map((relation, index) => <li className="text-sm" key={`${relation.task_id}-${index}`}>{relation.exists ? <Link className="touch-target font-mono text-blue-300 hover:underline" to={taskPath(projectId, relation.task_id)}>{relation.task_id}</Link> : <span className="font-mono text-red-300">{relation.task_id} (missing)</span>}<p className="text-dark-muted">{relation.reason}</p>{relation.note && <p className="text-dark-muted">{relation.note}</p>}</li>)}</ul>}</div>
+          </div>
         </div>
       )}
     </section>
@@ -156,7 +161,9 @@ export function TaskDetail(props: TaskDetailProps) {
 
       <ReviewPanel {...props} />
       {task.ball !== "human" && task.ball_prompt && <section className="rounded-xl border border-dark-border bg-dark-surface p-4"><h2 className="mb-2 text-xs font-semibold uppercase text-dark-muted">Current ask ({task.ball}/{task.ball_reason})</h2><SpecText>{task.ball_prompt}</SpecText></section>}
+      <section className="rounded-lg border border-dark-border bg-dark-surface p-4" aria-label="Dependency state"><h2 className="mb-2 text-sm font-semibold">Work state</h2><DependencyState task={task} /></section>
       <Relationships detail={detail} projectId={projectId} />
+      <DependencyGraph children={detail.children} edges={detail.child_dependency_edges} projectId={projectId} umbrellaTitle={task.title} />
 
       <section className="space-y-6 rounded-lg border border-dark-border bg-dark-surface p-4 min-[820px]:p-6" aria-label="Full specification">
         <div><h2 className="mb-2 text-lg font-semibold">Summary</h2><SpecText>{task.spec.summary}</SpecText></div>
