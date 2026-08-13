@@ -2,17 +2,13 @@ schema: 2
 id: task-086-live-updates
 title: 'Live updates: the view reflects a handoff without a manual refresh'
 created: '2026-08-11T07:38:05.001732Z'
-updated: '2026-08-13T19:41:34.359426Z'
+updated: '2026-08-13T19:48:47.447552Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Separate AgentJobs installation is confirmed. For the final live-update
-  acceptance check, open the installed AgentJobs app standalone on jeffs-tab-s7, leave
-  it showing the dashboard, background it, and tell Codex ready. Codex will move a
-  task while it is backgrounded; then foreground AgentJobs and confirm the changed
-  state appears immediately without manual refresh. Separately, install Job Search
-  only from https://jobsearch.tailfed1df.ts.net/ after removing the old coruscant-linked
-  copy.
+ball: agent
+ball_reason: work
+ball_prompt: 'Physical resume probe in progress: Jeff backgrounded the installed AgentJobs
+  app before this handoff. Wait for Jeff to foreground it and report whether the dashboard
+  reflected this agent/work state immediately without manual refresh.'
 archived: false
 priority: high
 category: ux
@@ -456,3 +452,13 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 20
+  ts: '2026-08-13T19:48:47.447393Z'
+  actor: codex
+  type: handoff
+  body: 'Live physical-device probe: moved task 086 from human/review to agent/work
+    while the installed tablet app was backgrounded. Expected on foreground: Needs
+    you decreases and task 086 appears active with Codex, without manual refresh.'
+  data:
+    ball: agent
+    ball_reason: work
