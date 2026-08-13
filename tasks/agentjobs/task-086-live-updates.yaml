@@ -2,13 +2,16 @@ schema: 2
 id: task-086-live-updates
 title: 'Live updates: the view reflects a handoff without a manual refresh'
 created: '2026-08-11T07:38:05.001732Z'
-updated: '2026-08-13T19:19:30.836212Z'
+updated: '2026-08-13T19:33:08.578871Z'
 lifecycle: active
-ball: agent
-ball_reason: revise
-ball_prompt: Implement the dedicated virtual Tailscale Service host for AgentJobs
-  on coruscant without converting the coruscant node identity. Verify the distinct
-  agentjobs.tailfed1df.ts.net URL, then return for tablet install and resume review.
+ball: human
+ball_reason: review
+ball_prompt: On jeffs-tab-s7, close the old :8443 Chrome tab and open https://agentjobs.tailfed1df.ts.net/app/p/agentjobs
+  . Use Install app/Add to Home Screen. Confirm Chrome now offers a new AgentJobs
+  installation rather than saying the coruscant-hosted app is already installed. Launch
+  AgentJobs standalone, leave or background it, then report ready for the live handoff/resume
+  check. Explicitly approve only after separate installation and live resume both
+  work; otherwise report the exact dialog or behavior.
 archived: false
 priority: high
 category: ux
@@ -392,3 +395,30 @@ log:
   data:
     ball: agent
     ball_reason: revise
+- id: 15
+  ts: '2026-08-13T19:33:08.504921Z'
+  actor: codex
+  type: progress
+  body: 'Dedicated Tailscale app identity is implemented and deployed. Tailnet resources:
+    tag:agentjobs-host, svc:agentjobs on tcp:443, TailVIP 100.126.67.115, hostname
+    agentjobs.tailfed1df.ts.net, and approved online virtual node agentjobs-service-host
+    (100.90.111.6). The virtual host is a tsnet reverse proxy on the same physical
+    Windows PC, so coruscant remains user-owned. Feature commit 57400a6 adds the proxy
+    and documents multi-app hosting. The single-use tagged auth key is invalidated
+    and its temporary local file was removed. Go test ./... passed; poetry run python
+    scripts/check.py passed with 592 Python tests, 30 Vitest tests, API/icon/lint/type/build
+    checks. HTTPS curl returned 200; Chrome loaded current task data from https://agentjobs.tailfed1df.ts.net/app/p/agentjobs;
+    manifest reports id /app/agentjobs and standalone display. Review processes: feature
+    AgentJobs origin remains loopback port 8876 and the virtual service proxy PID
+    is 261308.'
+  data: {}
+- id: 16
+  ts: '2026-08-13T19:33:08.578710Z'
+  actor: codex
+  type: handoff
+  body: The dedicated AgentJobs Tailscale hostname is online and verified from the
+    host. Physical tablet installation and suspension/resume are the remaining review
+    gates.
+  data:
+    ball: human
+    ball_reason: review
