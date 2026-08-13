@@ -2,15 +2,13 @@ schema: 2
 id: task-108-react-project-switcher
 title: Add the project switcher to React
 created: '2026-08-13T22:42:14.777527Z'
-updated: '2026-08-13T22:50:33.699358Z'
+updated: '2026-08-13T22:54:16.390047Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Review the React project selector in the shared header. Confirm that
-  it lists AgentJobs, Job Hunting, and Mastercalls; switches to the chosen project
-  dashboard; and feels appropriate on tablet or phone. Approve or request changes
-  through this task. Branch feat/task-108-react-project-switcher is unmerged at commit
-  4f9debf.
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 category: ux
@@ -117,3 +115,19 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 4
+  ts: '2026-08-13T22:53:48.209064Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 5
+  ts: '2026-08-13T22:54:16.389962Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
