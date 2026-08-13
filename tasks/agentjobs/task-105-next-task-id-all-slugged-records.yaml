@@ -1,0 +1,81 @@
+schema: 2
+id: task-105-next-task-id-all-slugged-records
+title: Generate the next task number from all slugged task IDs
+created: '2026-08-13T22:03:07.061022Z'
+updated: '2026-08-13T22:03:07.061840Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: bug
+tags:
+- task-ids
+- storage
+- react-create
+effort: one hour
+assignment:
+  eligible: []
+spec:
+  summary: Fix automatic task creation so repositories using IDs such as task-104-react-readme-screenshots
+    generate the next corpus number instead of restarting from task-001 or task-002.
+  intent: The React create flow exposed that TaskStorage.generate_task_id ignores
+    every normal slugged AgentJobs filename. That makes browser-created tasks look
+    unrelated to the real sequence and can collide with low-numbered records.
+  description: Update task ID generation to read the leading numeric segment from
+    every valid task-NNN and task-NNN-slug YAML filename, choose one greater than
+    the highest number present, and preserve the existing zero-padded task-NNN form
+    for automatically generated IDs. Cover mixed exact and slugged records, malformed
+    filenames, existing duplicate numeric prefixes, and creation through the manager/API
+    path. Do not rename historical tasks.
+  constraints: '- Treat the complete leading numeric segment after task- as the sequence
+    number whether or not a slug follows.
+
+    - Ignore filenames that do not contain a valid leading task number.
+
+    - Existing duplicate numeric prefixes such as the two historical task-080 and
+    task-081 records must not make generation ambiguous; only the maximum number matters.
+
+    - Do not renumber or rewrite existing task IDs or references.
+
+    - Add regression coverage proving a corpus whose highest file is task-105-something
+    produces task-106.'
+  out_of_scope: Renaming existing records, enforcing globally unique numeric prefixes,
+    or changing explicit IDs supplied by callers.
+  context:
+  - path: src/agentjobs/storage.py
+    why: TaskStorage.generate_task_id contains the parsing defect.
+  - path: tests/test_storage.py
+    why: Focused storage regression coverage.
+  - path: tasks/agentjobs/task-090-react-create-task.yaml
+    why: Log entry 7 records the task-002 reproduction and root cause.
+acceptance:
+- id: ac-1
+  text: automatic ID generation considers both task-NNN.yaml and task-NNN-slug.yaml
+    records
+  status: pending
+- id: ac-2
+  text: the next generated ID is one greater than the highest leading numeric segment
+    in the corpus
+  status: pending
+- id: ac-3
+  text: malformed filenames and duplicate historical numeric prefixes do not break
+    generation
+  status: pending
+- id: ac-4
+  text: existing IDs and references are not renamed
+  status: pending
+- id: ac-5
+  text: storage, manager, API, and complete repository checks pass
+  status: pending
+deliverables: []
+dependencies:
+- task: task-090-react-create-task
+  type: related
+  note: The real browser creation review exposed and diagnosed this defect.
+- task: task-103-agentjobs-task-corpus-audit
+  type: related
+  note: The corpus audit converts the recorded defect into durable follow-up work.
+links: []
+branches: []
+log: []
