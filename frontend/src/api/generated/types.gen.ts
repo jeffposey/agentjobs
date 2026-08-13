@@ -1684,9 +1684,7 @@ export type ListBrokenTasksApiProjectsProjectIdTasksBrokenGetResponses = {
      *
      * Successful Response
      */
-    200: Array<{
-        [key: string]: unknown;
-    }>;
+    200: Array<BrokenTaskFile>;
 };
 
 export type ListBrokenTasksApiProjectsProjectIdTasksBrokenGetResponse = ListBrokenTasksApiProjectsProjectIdTasksBrokenGetResponses[keyof ListBrokenTasksApiProjectsProjectIdTasksBrokenGetResponses];
@@ -2472,9 +2470,7 @@ export type ListBrokenTasksApiTasksBrokenGetResponses = {
      *
      * Successful Response
      */
-    200: Array<{
-        [key: string]: unknown;
-    }>;
+    200: Array<BrokenTaskFile>;
 };
 
 export type ListBrokenTasksApiTasksBrokenGetResponse = ListBrokenTasksApiTasksBrokenGetResponses[keyof ListBrokenTasksApiTasksBrokenGetResponses];

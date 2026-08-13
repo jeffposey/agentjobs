@@ -2394,8 +2394,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/BrokenTaskFile"
                   },
                   "title": "Response List Broken Tasks Api Projects  Project Id  Tasks Broken Get",
                   "type": "array"
@@ -3744,8 +3743,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/BrokenTaskFile"
                   },
                   "title": "Response List Broken Tasks Api Tasks Broken Get",
                   "type": "array"
