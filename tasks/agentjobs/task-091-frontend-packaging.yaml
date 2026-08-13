@@ -2,11 +2,13 @@ schema: 2
 id: task-091-frontend-packaging
 title: Ship the built frontend in the wheel, with no node at install time
 created: '2026-08-11T07:38:07.378882Z'
-updated: '2026-08-13T21:13:28.687799Z'
+updated: '2026-08-13T21:27:24.193885Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: Review commit aceab8c. Confirm the release path produces a platform-independent
+  py3-none-any wheel and that the installed React UI works through agentjobs serve
+  with Node unavailable; approve to merge or request changes.
 archived: false
 priority: medium
 category: infrastructure
@@ -80,26 +82,26 @@ spec:
 acceptance:
 - id: ac-1
   text: a wheel built from a clean checkout contains the frontend bundle
-  status: pending
+  status: met
 - id: ac-2
   text: pip install of that wheel followed by agentjobs serve yields a working UI
     with no node present
-  status: pending
+  status: met
 - id: ac-3
   text: the asset path resolves from the installed package rather than the source
     tree
-  status: pending
+  status: met
 - id: ac-4
   text: a missing bundle produces a clear message rather than a blank page
-  status: pending
+  status: met
 - id: ac-5
   text: how the build is invoked at release time is recorded, and a stale bundle cannot
     ship silently
-  status: pending
+  status: met
 - id: ac-6
   text: the manifest, icons, and service worker are present in the built wheel and
     served correctly from the installed package
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-083-react-scaffold
@@ -123,3 +125,41 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 2
+  ts: '2026-08-13T21:27:24.169966Z'
+  actor: codex
+  type: decision
+  body: Use the documented scripts/build_release.py flow instead of a Poetry build
+    hook. A hook made Poetry emit a CPython/Windows-specific wheel even though AgentJobs
+    is pure Python. The release script still prevents stale assets by running npm
+    ci and a clean Vite build before Poetry, then rejects any wheel that is not py3-none-any
+    or lacks required React/PWA content. This records Jeff's instruction that nothing
+    about AgentJobs should require Windows.
+  data: {}
+- id: 3
+  ts: '2026-08-13T21:27:24.181356Z'
+  actor: codex
+  type: progress
+  body: 'Universal React-in-wheel packaging is complete in commit aceab8c.
+
+
+    The React build now writes into agentjobs/frontend_dist package data; FastAPI
+    resolves that installed-package path and gives clear missing-bundle errors. The
+    release script rebuilds from the lockfile, verifies shell, hashed JS/CSS, manifest,
+    service worker, and icons in the wheel, enforces py3-none-any metadata, pip-installs
+    the wheel into an isolated target, removes Node from PATH, starts agentjobs serve,
+    and fetches all UI/PWA assets. A genuinely clean detached checkout passed this
+    flow. The resulting wheel was 234,941 bytes versus the 121,600-byte pre-frontend
+    baseline: +113,341 bytes, acceptable for a complete self-contained UI. The full
+    repository gate passed with 604 Python tests, 41 Vitest tests, and 1 real-browser
+    Playwright path. No push performed.'
+  data: {}
+- id: 4
+  ts: '2026-08-13T21:27:24.193803Z'
+  actor: codex
+  type: handoff
+  body: Frontend wheel packaging is complete, platform-independent, and ready for
+    review.
+  data:
+    ball: human
+    ball_reason: review
