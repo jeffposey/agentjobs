@@ -2,11 +2,26 @@ schema: 2
 id: task-086-live-updates
 title: 'Live updates: the view reflects a handoff without a manual refresh'
 created: '2026-08-11T07:38:05.001732Z'
-updated: '2026-08-13T17:37:44.355995Z'
+updated: '2026-08-13T17:50:53.989573Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: 'Review feat/task-086-live-updates at commits 28cf6ff, 898223c, and 90e8076.
+  Confirm the cheap project-scoped revision endpoint, scoped React query invalidation,
+  two-miss/fast-retry behavior, last-good-data preservation, and the small updated/paused
+  affordances. Automated gate: poetry run python scripts/check.py (592 Python tests;
+  30 Vitest tests; generated client, lint, build all pass). Real-browser fixture evidence:
+  direct external write and agent handoff both reached the open dashboard without
+  reload; focus return reflected the handoff within 2.5 seconds on desktop and 390x844
+  phone viewport; steady server traffic was the 54-byte revision response, with one
+  dashboard refetch per revision. Please perform the remaining timing-sensitive check
+  on an installed/backgroundable phone app: open a project dashboard, background the
+  app, change or hand off a safe fixture task, restore the app, and confirm it checks
+  immediately (allowing one prompt 2-second retry), retains last-good content after
+  one miss, and does not wait 15 seconds. Then explicitly approve or request changes.
+  On approval, Codex will record approval, rebase/merge --no-ff, close task 086, clean
+  its worktree/branch, restart merged main, and immediately begin task 099 in the
+  same turn.'
 archived: false
 priority: high
 category: ux
@@ -99,19 +114,19 @@ acceptance:
 - id: ac-1
   text: a handoff performed by the CLI or an agent updates an open dashboard with
     no manual refresh
-  status: pending
+  status: met
 - id: ac-2
   text: changes made outside the API -- CLI, direct file write, git checkout -- are
     picked up
-  status: pending
+  status: met
 - id: ac-3
   text: steady-state polling is one small request against a revision endpoint, not
     a full task list refetch
-  status: pending
+  status: met
 - id: ac-4
   text: a failed refresh leaves the last good data on screen and does not report unreachable
     until more than one consecutive miss
-  status: pending
+  status: met
 - id: ac-5
   text: returning to a backgrounded tab or app refreshes without waiting for the next
     interval
@@ -119,7 +134,7 @@ acceptance:
 - id: ac-6
   text: a bulk change such as a branch switch produces one refresh, not a per-file
     stampede
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-084-typed-api-client
@@ -216,3 +231,80 @@ log:
 
     Usage-window telemetry is unavailable in this environment.'
   data: {}
+- id: 4
+  ts: '2026-08-13T17:50:53.952800Z'
+  actor: codex
+  type: decision
+  body: The revision hashes sorted YAML filenames and bytes with a 96-bit BLAKE2s
+    digest. Metadata-only signals (newest mtime/count or name/size/mtime/ctime) were
+    rejected after a focused same-count, same-size rewrite test reproduced a collision
+    on Windows even with nanosecond fields restored. Content hashing covers API, CLI,
+    agent, direct-write, and git writers without parsing YAML, so broken files also
+    change the signal. Measured cost on the real 74-file AgentJobs task corpus was
+    768.62 ms for 100 revisions (~7.69 ms per poll); the fixture response was 54 bytes.
+    This is acceptable at a 15-second single-user poll interval.
+  data:
+    rejected:
+    - mtime plus count
+    - metadata-only digest
+    - API-handler counter
+- id: 5
+  ts: '2026-08-13T17:50:53.969543Z'
+  actor: codex
+  type: progress
+  body: 'Implemented and verified React live updates; feature branch is ready for
+    review.
+
+
+    Branch: feat/task-086-live-updates
+
+    Commits: 28cf6ff (file-derived revision endpoint and generated client), 898223c
+    (React polling/controller and status UI), 90e8076 (preserve last-good data during
+    background refresh failures).
+
+
+    Implementation: GET /api/projects/{project_id}/revision returns only revision
+    and task_count; React polls it every 15 seconds, retries the first miss after
+    2 seconds, warns only after two consecutive misses, triggers immediately on focus/visible/online,
+    coalesces overlapping checks, invalidates only task-read queries for the addressed
+    project, retains last-good query data, and shows an unobtrusive updated/paused
+    signal. navigator.onLine no longer controls rendered task data. Jinja is untouched.
+
+
+    Automated verification: poetry run python scripts/check.py passed on the final
+    branch: 592 Python tests passed; generated OpenAPI/client current; icon check
+    and lint passed; 8 Vitest files / 30 tests passed; TypeScript/Vite/PWA build passed.
+    Deterministic fake-timer/network tests assert two 15-second steady polls, 2-second
+    fast retry, no warning after one miss, warning after two, last-good content retained,
+    immediate focus/visibility/online checks, Strict Mode cleanup with one active
+    poller, one invalidation for one bulk revision jump, and exact project/query-key
+    scoping. Storage/API tests assert direct same-count rewrites, add/change/delete
+    bulk changes, project isolation, and the two-field response.
+
+
+    Real-browser verification: freshly started feature server on isolated port 8876
+    against C:/ai/scratch/aj-086-fixture. An open dashboard changed from Before external
+    write to After external write after the poll with no reload. A real isolated TaskManager
+    agent claim+human/review handoff, made while the dashboard was backgrounded, appeared
+    within 2.5 seconds of focus return as 1 Task Blocked on You / Needs review plus
+    Task data updated just now; repeated at a 390x844 viewport. Server logs showed
+    revision-only steady requests and exactly one dashboard refetch for each observed
+    revision change. A temporary git branch switch changed the one-file revision from
+    6eb338f67fea7be2cfd441ed to d80040f9b007774c14de1f53 with count remaining 1. Response
+    size was 54 bytes; 100 HTTP polls took 858.69 ms.
+
+
+    Acceptance status: ac-1, ac-2, ac-3, ac-4, and ac-6 are met by the evidence above.
+    ac-5 remains pending because deterministic tests and a real focus return verify
+    the event paths, but this desktop environment cannot prove OS-level installed-phone-app
+    suspension/resume timing. Usage-window telemetry remains unavailable.'
+  data: {}
+- id: 6
+  ts: '2026-08-13T17:50:53.989483Z'
+  actor: codex
+  type: handoff
+  body: Implementation and all locally verifiable evidence are ready; installed-app
+    suspension/resume remains for human review.
+  data:
+    ball: human
+    ball_reason: review
