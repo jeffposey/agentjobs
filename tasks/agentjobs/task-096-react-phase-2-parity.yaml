@@ -2,7 +2,7 @@ schema: 2
 id: task-096-react-phase-2-parity
 title: React phase 2 -- parity, on every device
 created: '2026-08-13T02:35:19.871523Z'
-updated: '2026-08-13T17:32:30.882779Z'
+updated: '2026-08-13T17:36:18.597972Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -158,3 +158,14 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 7
+  ts: '2026-08-13T17:36:18.597851Z'
+  actor: Codex
+  type: progress
+  body: 'Merged-main verification passed after approval and closure.
+
+
+    poetry run python scripts/check.py passed on main: 589 backend tests passed, 24
+    frontend tests passed, frontend lint passed, OpenAPI/schema and generated client
+    checks passed, PWA icon checks passed, and the production build succeeded.'
+  data: {}
