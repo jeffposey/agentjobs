@@ -261,20 +261,23 @@ class TestTheLadderShowsOnePanel:
     """A dashboard answers "what do I do next" once, or it has not answered it."""
 
     @pytest.mark.parametrize(
-        "tasks, expected",
+        "tasks, expected, expected_action",
         [
-            ([BLOCKED_ON_HUMAN, PARKED_DRAFT, CLAIMABLE], ALERT_PANEL),
-            ([PARKED_DRAFT, CLAIMABLE], BACKLOG_PANEL),
-            ([CLAIMABLE], NEXT_UP_PANEL),
-            ([FINISHED], NOTHING_CLAIMABLE_PANEL),
-            ([], GETTING_STARTED_PANEL),
+            ([BLOCKED_ON_HUMAN, PARKED_DRAFT, CLAIMABLE], ALERT_PANEL, "blocked"),
+            ([PARKED_DRAFT, CLAIMABLE], BACKLOG_PANEL, "backlog"),
+            ([CLAIMABLE], NEXT_UP_PANEL, "next_up"),
+            ([FINISHED], NOTHING_CLAIMABLE_PANEL, "nothing_claimable"),
+            ([], GETTING_STARTED_PANEL, "empty_project"),
         ],
         ids=["blocked", "backlog", "next_up", "nothing_claimable", "empty_project"],
     )
-    def test_exactly_one_panel_renders(self, client_for, tasks, expected: str) -> None:
+    def test_exactly_one_panel_renders(
+        self, client_for, tasks, expected: str, expected_action: str
+    ) -> None:
         client, base = client_for(tasks)
 
         assert panels_shown(client.get(f"{base}/").text) == {expected}
+        assert client.get("/api/projects/inbox/dashboard").json()["next_action"] == expected_action
 
     def test_blocked_outranks_every_other_tier(self, client_for) -> None:
         """The full stack at once: only the alarm survives."""
@@ -333,9 +336,7 @@ class TestTheBacklogStaysTraceableWhenSuppressed:
         assert "Not yet implemented" in panel
         assert "agentjobs create" not in panel
 
-    def test_the_empty_project_rung_also_offers_the_button_not_a_command(
-        self, client_for
-    ) -> None:
+    def test_the_empty_project_rung_also_offers_the_button_not_a_command(self, client_for) -> None:
         """A human is never sent to a terminal to do the thing this page is for."""
         client, base = client_for([])
 

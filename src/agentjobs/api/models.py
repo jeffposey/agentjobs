@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -19,7 +20,51 @@ from agentjobs.models_v2 import (
     Outcome,
     Priority,
     Spec,
+    Task,
 )
+
+
+class DashboardStats(BaseModel):
+    """Counts rendered by the dashboard stat tiles."""
+
+    total: int
+    in_progress: int
+    blocked: int
+    waiting_for_human: int
+    awaiting_input: int
+    completed: int
+
+
+class DashboardRecentUpdate(BaseModel):
+    """A compact task-log record for the recent activity list."""
+
+    task_id: str
+    task_title: str
+    timestamp: datetime
+    summary: str
+    author: str
+
+
+class BrokenTaskFile(BaseModel):
+    """An on-disk task record that could not be loaded."""
+
+    task_id: str
+    path: str
+    filename: str
+    reason: str
+
+
+class DashboardResponse(BaseModel):
+    """The complete Python-computed dashboard contract."""
+
+    stats: DashboardStats
+    active_tasks: List[Task]
+    recent_updates: List[DashboardRecentUpdate]
+    waiting_tasks: List[Task]
+    backlog_tasks: List[Task]
+    next_task: Optional[Task]
+    next_action: Literal["blocked", "backlog", "next_up", "nothing_claimable", "empty_project"]
+    broken_files: List[BrokenTaskFile]
 
 
 class TaskCreateRequest(BaseModel):
