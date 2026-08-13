@@ -2,11 +2,15 @@ schema: 2
 id: task-094-frontend-e2e
 title: 'Harden the frontend harness: network-boundary mocking and one end-to-end path'
 created: '2026-08-13T02:19:48.337101Z'
-updated: '2026-08-13T20:58:46.721846Z'
+updated: '2026-08-13T21:04:29.589457Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: Review commit 83ee6dc on test/task-094-frontend-e2e. Confirm the MSW
+  test intercepts HTTP while retaining the generated client; the Playwright path uses
+  a real uvicorn server and fresh TemporaryDirectory; and npm run check includes both
+  layers. This child has no new product UI to click. Approve or request changes; approval
+  authorizes rebase and --no-ff merge, not push.
 archived: false
 priority: medium
 category: testing
@@ -70,15 +74,15 @@ acceptance:
 - id: ac-1
   text: component tests run against an HTTP-level mock, exercising the generated client
     rather than a stand-in for it
-  status: pending
+  status: met
 - id: ac-2
   text: one end-to-end test passes in a real browser against a real server and a real
     temporary project
-  status: pending
+  status: met
 - id: ac-3
   text: both run from the project's single documented check command, alongside the
     Python suite
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-085-frontend-test-harness
@@ -104,3 +108,39 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 2
+  ts: '2026-08-13T21:04:29.579105Z'
+  actor: codex
+  type: progress
+  body: 'HTTP-boundary mocking and the single real-server browser path are complete
+    in commit 83ee6dc.
+
+
+    A shared MSW Node server now fails unexpected requests. App.network.test.tsx renders
+    the real App with the real generated client, intercepts GET/POST at HTTP, creates
+    a Ready task, and asserts the rendered title and Actionable now state. No client
+    module is replaced.
+
+
+    Playwright now runs one path against a freshly started uvicorn server pinned to
+    a TemporaryDirectory: open the empty React app, create a Ready task, and assert
+    task-001, its title, and Actionable now in the rendered list. The documented npm
+    run install:e2e provisions pinned Chromium. npm run check now builds before running
+    Playwright, and scripts/check.py therefore runs pytest, MSW/Vitest, build, and
+    Playwright through one gate.
+
+
+    Verification: poetry run python scripts/check.py passed (596 backend tests; 41
+    Vitest tests; generated schema/client checks; icon check; lint; production build;
+    1 Playwright test against a real server and temporary project). Python launcher
+    also passed Black and Ruff. Worktree is clean. No push performed.'
+  data: {}
+- id: 3
+  ts: '2026-08-13T21:04:29.589388Z'
+  actor: codex
+  type: handoff
+  body: Frontend integration hardening is complete and the one-command gate passes;
+    review commit 83ee6dc.
+  data:
+    ball: human
+    ball_reason: review
