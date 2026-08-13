@@ -2,7 +2,7 @@ schema: 2
 id: task-083-react-scaffold
 title: Scaffold the React app and serve it at /app
 created: '2026-08-11T07:38:03.613244Z'
-updated: '2026-08-13T03:15:35.852859Z'
+updated: '2026-08-13T03:20:03.262241Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -242,4 +242,25 @@ log:
     toolchain, implement SPA serving and project resolution, then verify backend,
     frontend, deep-link refresh, API data, offline-local assets, and unchanged Jinja
     templates. Usage-window telemetry is not available in this session.'
+  data: {}
+- id: 5
+  ts: '2026-08-13T03:20:03.262123Z'
+  actor: codex
+  type: progress
+  body: 'Implementation committed as c6cbb6b on feat/task-083-react-scaffold. Added
+    the isolated frontend project, pinned React 19.2.8 / Vite 8.2.1 / TypeScript 6.0.3
+    / Tailwind 4.3.3, chose oxlint 1.78.0, added project-scoped React routing and
+    real API connection proof, and registered explicit FastAPI asset plus SPA-shell
+    routes. Verification so far: `npm run check` completed oxlint, TypeScript, and
+    a Vite production build; `poetry run pytest` passed all 568 tests; `poetry run
+    ruff check .` passed; direct TestClient requests returned 200 for /app, a deep
+    task URL, its hashed JavaScript asset, and /p/agentjobs/, with identical shell
+    bodies for root/deep URL; `git diff --exit-code main -- src/agentjobs/api/templates`
+    confirmed the Jinja templates are byte-identical. Existing unrelated baseline
+    debt: full Black would reformat tests/test_attention_tiers.py, and full mypy reports
+    five errors in tests/test_subtasks.py; all changed Python files pass Black and
+    mypy. Remaining: restart the real server, verify the production hard refresh and
+    API render in a real browser, verify local-only asset loading/offline behavior,
+    and exercise the Vite development proxy. Usage-window telemetry is not available
+    in this session.'
   data: {}
