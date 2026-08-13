@@ -2,11 +2,25 @@ schema: 2
 id: task-087-react-dashboard
 title: React dashboard, including the next-action ladder
 created: '2026-08-11T07:38:05.463116Z'
-updated: '2026-08-13T08:37:20.930143Z'
+updated: '2026-08-13T08:42:39.471860Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: 'Review feat/task-087-react-dashboard at d387663 and c914259. It adds
+  one shared Python dashboard projection and typed project-scoped API, keeps the Jinja
+  dashboard on that same projection, and ports the strict five-rung dashboard, stat
+  tiles, unconditional linked backlog trace, active tasks, recent activity, and broken-file
+  warnings to React. Verification: scripts/check.py passed (569 pytest; generated
+  contract; lint; 8 Vitest tests; TypeScript/Vite build). A real browser against a
+  fresh loopback server confirmed React/Jinja both show Backlog awaiting your input
+  (5), exactly one React next-action region, +5 linked to status=draft, working client
+  navigation, stable hard reload values, recent activity, and zero console errors.
+  The live broken-file case was not created; exact filename/reason rendering is covered
+  by component and backend tests. Review steps: from C:/projects/aj-087 run poetry
+  run agentjobs serve --host 127.0.0.1 --port 18765, open http://127.0.0.1:18765/app/p/agentjobs,
+  and compare with http://127.0.0.1:18765/p/agentjobs/. Port 8765 currently has an
+  orphaned stale listener that agentjobs restart could not address, so use 18765 for
+  this review. Please approve task 087 or request changes.'
 archived: false
 priority: medium
 category: ux
@@ -72,19 +86,19 @@ acceptance:
 - id: ac-1
   text: the React dashboard renders exactly one call-to-action panel in each of the
     five ladder states
-  status: pending
+  status: met
 - id: ac-2
   text: where the ladder is computed is recorded as a decision with its rejected alternative
-  status: pending
+  status: met
 - id: ac-3
   text: the backlog count is visible and linked even when its panel is suppressed
-  status: pending
+  status: met
 - id: ac-4
   text: unparseable task files are surfaced rather than silently dropped
-  status: pending
+  status: met
 - id: ac-5
   text: tests cover all five states
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-084-typed-api-client
@@ -167,3 +181,38 @@ log:
     gate, restart AgentJobs from this worktree, and exercise rendered behavior in
     a real browser.'
   data: {}
+- id: 6
+  ts: '2026-08-13T08:42:39.455955Z'
+  actor: codex
+  type: progress
+  body: 'Task 087 verification completed; all acceptance criteria have supporting
+    evidence.
+
+
+    Feature branch feat/task-087-react-dashboard is clean at commits d387663 (shared
+    Python dashboard projection, typed project-scoped endpoint, generated client,
+    Jinja reuse) and c914259 (React dashboard and component tests). Repository gate:
+    poetry run python scripts/check.py passed with 569 pytest tests, generated schema/client
+    freshness, Oxlint, 2 Vitest files / 8 tests, TypeScript checking, and the Vite
+    production build. Real-browser verification used a fresh loopback-only feature
+    server on 127.0.0.1:18765 because an orphaned listener on 8765 could not be replaced
+    by agentjobs restart. React and Jinja both rendered the exact current ladder choice
+    Backlog awaiting your input (5); React exposed exactly one next-action region;
+    the +5 in backlog link targeted status=draft; clicking All drafts preserved the
+    URL filter and Dashboard navigation returned correctly; a hard reload preserved
+    stats (Blocked on You 0, In Progress 1, Blocked 0, Completed 33, Total 74) and
+    recent activity; browser console errors were empty. Broken-file surfacing is verified
+    automatically by the React component test with exact filename/reason and by the
+    shared API/load-error coverage; a deliberately broken real task file was not introduced
+    into the live project. Physical-device/PWA checks are not applicable to task 087.
+    Remaining work is human visual/parity review only.'
+  data: {}
+- id: 7
+  ts: '2026-08-13T08:42:39.471770Z'
+  actor: codex
+  type: handoff
+  body: Implementation and verification complete. Human visual/parity review requested;
+    approve or request changes using the self-contained ball prompt.
+  data:
+    ball: human
+    ball_reason: review
