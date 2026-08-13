@@ -2,10 +2,11 @@ schema: 2
 id: task-099-dependency-visibility
 title: 'Make dependencies visible: what is blocked, why, and what unblocks it'
 created: '2026-08-13T02:35:21.246892Z'
-updated: '2026-08-13T02:35:21.271186Z'
-lifecycle: ready
+updated: '2026-08-13T19:53:49.244588Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: medium
 category: ux
@@ -16,6 +17,7 @@ tags:
 - dependencies
 effort: a day, plus a day if the DAG view is built
 assignment:
+  owner: codex
   eligible: []
 parent: task-097-react-phase-3-reach
 spec:
@@ -147,5 +149,16 @@ dependencies:
   note: Reports the same condition this task refuses or flags; neither blocks the
     other.
 links: []
-branches: []
-log: []
+branches:
+- name: feat/task-099-dependency-visibility
+  status: active
+log:
+- id: 1
+  ts: '2026-08-13T19:53:49.213864Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
