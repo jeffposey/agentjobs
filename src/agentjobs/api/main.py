@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -115,12 +115,22 @@ app.include_router(projects_router)
 app.include_router(web_router, prefix="/p/{project_id}")
 app.include_router(web_legacy_router)
 
+
+def project_id_contract(project_id: str) -> str:
+    """Expose the shared scoped-router path parameter to FastAPI and OpenAPI."""
+    return project_id
+
+
 # Every task-facing router is mounted twice. The unscoped mount is registered first so
 # existing callers, the CLI and the current GUI keep working against the default
 # project; the scoped mount is the addressable form used across projects.
 for _router in PROJECT_SCOPED_ROUTERS:
     app.include_router(_router, prefix="/api")
-    app.include_router(_router, prefix="/api/projects/{project_id}")
+    app.include_router(
+        _router,
+        prefix="/api/projects/{project_id}",
+        dependencies=[Depends(project_id_contract)],
+    )
 
 # Registered last so the SPA catch-all cannot shadow the Jinja or API routers. Its
 # asset mount is internally ordered before the shell fallback.
