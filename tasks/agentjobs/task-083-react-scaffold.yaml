@@ -2,7 +2,7 @@ schema: 2
 id: task-083-react-scaffold
 title: Scaffold the React app and serve it at /app
 created: '2026-08-11T07:38:03.613244Z'
-updated: '2026-08-13T02:58:34.037109Z'
+updated: '2026-08-13T03:11:35.293853Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -44,30 +44,72 @@ spec:
     Do not let `create vite` pick the versions silently; this combination is known\
     \ to\nwork together as of 2026-08 and is a reasonable starting point:\n\n| Package\
     \ | Version |\n| --- | --- |\n| react, react-dom | 19.2 |\n| vite | 8.2 |\n| typescript\
-    \ | 6.0 |\n| @vitejs/plugin-react | 6.0 |\n| vitest | 4.1 |\n\nRecord what you\
-    \ actually installed. If a version differs from the table, say why,\nso the next\
-    \ person reads a fact rather than a guess.\n\nLinting: `oxlint` is a defensible\
-    \ choice over ESLint here -- one binary, no\nplugin-resolution tree, fast enough\
-    \ that it runs on every commit without anyone\ndisabling it. Pick one and record\
-    \ the choice.\n\n## Two serving modes\n\n- **Development.** Vite dev server on\
-    \ 5173 with a proxy for `/api` to 8765, so\n  there is no CORS round trip in the\
-    \ common path. The CORS allowlist already\n  carries the 5173 origin from task-043,\
-    \ which covers direct calls too.\n- **Production.** FastAPI serves the built bundle\
-    \ from `/app`, with a catch-all so\n  a deep link like `/app/tasks/xyz` returns\
-    \ the SPA shell rather than a 404.\n  Getting that catch-all wrong is the classic\
-    \ SPA deployment bug: the app works\n  until someone refreshes a sub-page.\n\n\
-    ## Bundle the dependencies\n\nTailwind is chosen for continuity: the existing\
-    \ templates are already Tailwind, so\nthe visual language and the dark palette\
-    \ carry over instead of being reinvented.\n\n**But not the way the templates do\
-    \ it.** `base.html` pulls Tailwind, Alpine, and\nmarked from public CDNs, which\
-    \ means the current web UI does not render without\ninternet access, and a cached\
-    \ offline shell could never style itself. Install\nTailwind as a real build dependency\
-    \ and bundle it. Same for anything else the\nclient needs. No `<script src=\"\
-    https://...\">` in the React app.\n\n## Shell\n\nSet the viewport meta and a mobile-first\
-    \ base stylesheet now. task-093 makes the\nscreens work on a phone; it should\
-    \ not have to go back and fix the document\nshell first.\n\n## Prove the path\n\
-    \nShip one trivial page that fetches something real from the API and renders it.\n\
-    Not a placeholder: proof the whole path works end to end."
+    \ | 6.0 |\n| @vitejs/plugin-react | 6.0 |\n| vitest | 4.1 |\n| tailwindcss | 4.3\
+    \ |\n| @tailwindcss/vite | 4.3 |\n\nRecord what you actually installed. If a version\
+    \ differs from the table, say why,\nso the next person reads a fact rather than\
+    \ a guess.\n\nLinting: `oxlint` is a defensible choice over ESLint here -- one\
+    \ binary, no\nplugin-resolution tree, fast enough that it runs on every commit\
+    \ without anyone\ndisabling it. Pick one and record the choice.\n\n## Two serving\
+    \ modes\n\n- **Development.** Vite dev server on 5173 with a proxy for `/api`\
+    \ to 8765, so\n  there is no CORS round trip in the common path. The CORS allowlist\
+    \ already\n  carries the 5173 origin from task-043, which covers direct calls\
+    \ too.\n- **Production.** FastAPI serves the built bundle from `/app`, with a\
+    \ catch-all so\n  a deep link like `/app/tasks/xyz` returns the SPA shell rather\
+    \ than a 404.\n  Getting that catch-all wrong is the classic SPA deployment bug:\
+    \ the app works\n  until someone refreshes a sub-page.\n\n## Bundle the dependencies\n\
+    \nTailwind is chosen for continuity: the existing templates are already Tailwind,\
+    \ so\nthe visual language and the dark palette carry over instead of being reinvented.\n\
+    \n**Tailwind 4, via `@tailwindcss/vite`.** This matters because 4 is a different\n\
+    setup from 3, and picking silently would leave the next person guessing: 4 is\n\
+    CSS-first, so there is no `tailwind.config.js` -- theme values live in the\nstylesheet.\
+    \ Do not port `base.html`'s `tailwind.config` object as a config file;\ntranslate\
+    \ it.\n\nWhat has to survive the translation is small and entirely enumerable.\
+    \ From\n`base.html`:\n\n    darkMode: 'class'\n    colors.dark.bg      #0f172a\n\
+    \    colors.dark.surface #1e293b\n    colors.dark.border  #334155\n    colors.dark.text\
+    \    #e2e8f0\n    colors.dark.muted   #94a3b8\n\n`darkMode: 'class'` has no config-key\
+    \ equivalent in 4; it is expressed as a custom\nvariant in CSS. Look up the current\
+    \ form rather than guessing at it, and keep the\nbehaviour identical -- dark mode\
+    \ is driven by a class, not by\n`prefers-color-scheme`, because that is what the\
+    \ templates do and the two UIs will\nbe open side by side during the migration.\n\
+    \n**And do not load it the way the templates do.** `base.html` pulls Tailwind,\
+    \ Alpine, and\nmarked from public CDNs, which means the current web UI does not\
+    \ render without\ninternet access, and a cached offline shell could never style\
+    \ itself. Install\nTailwind as a real build dependency and bundle it. Same for\
+    \ anything else the\nclient needs. No `<script src=\"https://...\">` in the React\
+    \ app.\n\n## Shell\n\nSet the viewport meta and a mobile-first base stylesheet\
+    \ now. task-093 makes the\nscreens work on a phone; it should not have to go back\
+    \ and fix the document\nshell first.\n\n## Which project, when the URL does not\
+    \ say\n\nThe routes are project-scoped, so the app needs a project id before it\
+    \ can fetch\nanything -- and `GET /api/projects` returns a plain list with **no\
+    \ default or\ncurrent flag** on it. There is nothing to read the answer from,\
+    \ so the behaviour\nhas to be chosen:\n\n- `/app` with no project segment fetches\
+    \ `/api/projects` and redirects to the\n  first one.\n- An empty registry says\
+    \ so, and links to the existing project onboarding. It does\n  not render an empty\
+    \ shell, and it does not error.\n- **Do not hardcode `agentjobs`.** It is the\
+    \ right answer on this machine and wrong\n  everywhere else, and it would pass\
+    \ every check in this task.\n\nPersisting a *last selected* project, and a switcher\
+    \ UI, are out of scope here --\nthe Jinja switcher is task-061 and its React counterpart\
+    \ is not yet specified. A\nredirect to the first project is enough for this task,\
+    \ and saying so is what stops\nit growing.\n\n## Prove the path\n\nShip one trivial\
+    \ page that fetches something real from the API and renders it.\nNot a placeholder:\
+    \ proof the whole path works end to end.\n\n## The catch-all, and how to actually\
+    \ test it\n\nThis is the one thing in this task most likely to ship broken, because\
+    \ it works\nunder every check except the real one.\n\n`StaticFiles(html=True)`\
+    \ mounted at `/app` serves `index.html` for `/app` and\nreturns **404** for `/app/p/agentjobs/tasks/task-042-...`.\
+    \ It does not fall back to\nthe shell for arbitrary depth. A deep link therefore\
+    \ needs an explicit catch-all\nroute -- `@app.get(\"/app/{path:path}\")` returning\
+    \ the shell -- registered so it\ndoes not shadow the hashed asset files, which\
+    \ must still be served as themselves.\n\nTwo collisions worth knowing before you\
+    \ mount anything:\n\n- The unprefixed legacy router already owns `/`, `/tasks`,\
+    \ `/tasks/{task_id}`,\n  `/projects`, and `/projects/new`. Mounting the SPA at\
+    \ `/` -- a common default --\n  shadows the entire Jinja UI and breaks ac-5.\n\
+    - The project-scoped web router is mounted at `/p/{project_id}`. `/app` collides\n\
+    \  with neither, which is why it is `/app`.\n\n**Verify by hard-refreshing the\
+    \ deep link in a browser** -- typing\n`/app/p/<project>/tasks/<id>` into the address\
+    \ bar, or pressing F5 while on it.\nClicking through from inside the app exercises\
+    \ the client router only and passes\nwhether or not the server is right. If you\
+    \ verify ac-3 by in-app navigation, you\nhave not verified ac-3, and the bug surfaces\
+    \ the first time someone reloads a page\nthey were reading."
   constraints: "- Nothing under `src/agentjobs/api/templates/` changes. The Jinja\
     \ UI is not\n  touched by this task.\n- A deep link into the SPA must work on\
     \ refresh, not only via in-app navigation.\n- No external asset host. Every dependency\
@@ -90,10 +132,13 @@ acceptance:
     common path
   status: pending
 - id: ac-3
-  text: a deep link such as /app/tasks/<id> returns the SPA shell on a hard refresh
+  text: a deep link such as /app/p/<project>/tasks/<id> returns the SPA shell on a
+    hard refresh -- verified by loading the URL directly, not by navigating to it
+    inside the app
   status: pending
 - id: ac-4
-  text: one page fetches real data from the API and renders it
+  text: one page fetches real data from the API and renders it, with the project resolved
+    from /api/projects rather than hardcoded
   status: pending
 - id: ac-5
   text: the app renders correctly with no network access to anything but the local
@@ -150,4 +195,28 @@ log:
     query key,
 
     and the typed client -- the most likely thing to be re-litigated in phase 2.'
+  data: {}
+- id: 2
+  ts: '2026-08-13T03:11:35.293777Z'
+  actor: claude
+  type: note
+  body: "Three pre-flight gaps closed before this task is handed out, all of them\
+    \ omissions in\nthe spec rather than open questions:\n\n1. **Tailwind was unpinned.**\
+    \ The matrix named React, Vite, TypeScript and Vitest but not\n   Tailwind, and\
+    \ 4 versus 3 is a materially different setup -- CSS-first with\n   `@tailwindcss/vite`\
+    \ against `tailwind.config.js`. Pinned to 4.3 (current on npm as of\n   2026-08-12),\
+    \ with the five palette values and the class-driven dark mode enumerated so\n\
+    \   the translation is a checklist rather than an archaeology exercise.\n\n2.\
+    \ **Nothing said how the app picks a project.** The routes became project-scoped\
+    \ by\n   decision, and `GET /api/projects` has no default or current flag, so\
+    \ there was no\n   answer to read anywhere. Specified: redirect to the first project,\
+    \ handle an empty\n   registry, and explicitly do not hardcode `agentjobs` --\
+    \ which is correct on this\n   machine and would have passed every check in the\
+    \ task.\n\n3. **The catch-all is the likely silent failure.** `StaticFiles(html=True)`\
+    \ at `/app`\n   404s on a deep path rather than falling back to the shell, so\
+    \ an explicit\n   `/app/{path:path}` route is required. Recorded which existing\
+    \ routers a careless mount\n   would shadow -- the legacy unprefixed router owns\
+    \ `/`, `/tasks`, `/tasks/{task_id}`,\n   `/projects` -- and rewrote ac-3 to require\
+    \ verification by hard refresh, because\n   clicking through in-app exercises\
+    \ the client router only and passes whether the server\n   is right or not."
   data: {}
