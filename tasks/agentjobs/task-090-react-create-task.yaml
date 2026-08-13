@@ -2,16 +2,13 @@ schema: 2
 id: task-090-react-create-task
 title: Create a task from the browser
 created: '2026-08-11T07:38:06.904250Z'
-updated: '2026-08-13T20:51:03.084413Z'
+updated: '2026-08-13T20:56:57.658821Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Review the task-090 branch UI at http://127.0.0.1:18890/app/p/agentjobs/tasks/new
-  (opened in the in-app browser). This separate review server is necessary because
-  the normal AgentJobs server runs main and cannot show an unmerged branch. Check
-  the required core fields, progressive sections, Draft versus Ready choice, and the
-  top-nav Create link. Then approve or request changes. Approval authorizes rebase
-  and --no-ff merge, not push.
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: medium
 category: ux
@@ -173,3 +170,27 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 6
+  ts: '2026-08-13T20:55:19.986986Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 7
+  ts: '2026-08-13T20:56:57.658706Z'
+  actor: codex
+  type: progress
+  body: 'Jeff approved task 090 after using the browser creation flow; temporary task-002
+    was reviewed and deleted as requested.
+
+
+    The temporary record said it existed only to test GUI creation and should be deleted
+    once Jeff approved this feature. It was removed through TaskManager. The unexpected
+    task-002 id is explained by TaskStorage.generate_task_id: it attempts int(stem.split("-",
+    1)[1]), so normal slugged names such as task-101-merge-review-policy are ignored
+    and only exact task-NNN filenames contribute. The directory contained task-001.yaml,
+    so it generated task-002. That numbering defect is separate from task 090 and
+    is not silently added to this parent task scope.'
+  data: {}
