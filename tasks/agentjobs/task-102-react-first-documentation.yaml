@@ -2,14 +2,13 @@ schema: 2
 id: task-102-react-first-documentation
 title: Make AgentJobs documentation React-first everywhere
 created: '2026-08-13T21:07:34.270802Z'
-updated: '2026-08-13T21:40:11.909096Z'
+updated: '2026-08-13T21:45:49.837055Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Review commits 674f860 and 9847b34. Confirm current-facing AgentJobs
-  documentation is React-first, remaining Jinja mentions are clearly legacy/compatibility
-  or historical, and agentjobs open now goes directly to /app/ without requiring Poetry
-  at runtime; approve to merge or request changes.
+ball: agent
+ball_reason: revise
+ball_prompt: react is only mentioned once in readme, and its "The React frontend is
+  an independent project under frontend" ... it should be talked about a bit more,
+  that it is designed for browsers, phones, and tablets, etc
 archived: false
 priority: medium
 category: documentation
@@ -141,3 +140,16 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 5
+  ts: '2026-08-13T21:45:49.836968Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by Jeff Posey:
+
+
+    react is only mentioned once in readme, and its "The React frontend is an independent
+    project under frontend" ... it should be talked about a bit more, that it is designed
+    for browsers, phones, and tablets, etc'
+  data:
+    ball: agent
+    ball_reason: revise
