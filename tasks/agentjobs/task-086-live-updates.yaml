@@ -2,26 +2,15 @@ schema: 2
 id: task-086-live-updates
 title: 'Live updates: the view reflects a handoff without a manual refresh'
 created: '2026-08-11T07:38:05.001732Z'
-updated: '2026-08-13T17:50:53.989573Z'
+updated: '2026-08-13T18:06:58.298185Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review feat/task-086-live-updates at commits 28cf6ff, 898223c, and 90e8076.
-  Confirm the cheap project-scoped revision endpoint, scoped React query invalidation,
-  two-miss/fast-retry behavior, last-good-data preservation, and the small updated/paused
-  affordances. Automated gate: poetry run python scripts/check.py (592 Python tests;
-  30 Vitest tests; generated client, lint, build all pass). Real-browser fixture evidence:
-  direct external write and agent handoff both reached the open dashboard without
-  reload; focus return reflected the handoff within 2.5 seconds on desktop and 390x844
-  phone viewport; steady server traffic was the 54-byte revision response, with one
-  dashboard refetch per revision. Please perform the remaining timing-sensitive check
-  on an installed/backgroundable phone app: open a project dashboard, background the
-  app, change or hand off a safe fixture task, restore the app, and confirm it checks
-  immediately (allowing one prompt 2-second retry), retains last-good content after
-  one miss, and does not wait 15 seconds. Then explicitly approve or request changes.
-  On approval, Codex will record approval, rebase/merge --no-ff, close task 086, clean
-  its worktree/branch, restart merged main, and immediately begin task 099 in the
-  same turn.'
+ball: agent
+ball_reason: revise
+ball_prompt: Review found that Android treats the Tailscale-hosted AgentJobs endpoint
+  as an already-installed app, colliding with another app served from the same Tailscale
+  host. Add and verify an explicit, stable AgentJobs PWA manifest id so it can be
+  installed separately, rebuild the review server, and return for physical tablet
+  installation verification.
 archived: false
 priority: high
 category: ux
@@ -308,3 +297,13 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 7
+  ts: '2026-08-13T18:06:58.298064Z'
+  actor: jeff
+  type: handoff
+  body: 'Tablet review feedback: each Tailscale-served endpoint is being treated as
+    the same installed app; Chrome reports AgentJobs is already installed, preventing
+    both apps from coexisting.'
+  data:
+    ball: agent
+    ball_reason: revise
