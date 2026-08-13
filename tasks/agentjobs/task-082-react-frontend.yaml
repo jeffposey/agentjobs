@@ -2,7 +2,7 @@ schema: 2
 id: task-082-react-frontend
 title: React + TypeScript frontend, built against the existing API
 created: '2026-08-11T07:38:03.164059Z'
-updated: '2026-08-13T02:36:12.712881Z'
+updated: '2026-08-13T22:06:59.087154Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -17,10 +17,10 @@ effort: several sessions; finished by its children
 assignment:
   eligible: []
 spec:
-  summary: AgentJobs' web UI is server-rendered Jinja with Alpine for interactivity.
-    Build a React + TypeScript client against the REST API that already exists, mounted
-    alongside the Jinja UI rather than replacing it, delivered in four phases so the
-    product is never in a broken half-migrated state.
+  summary: The packaged React application is now AgentJobs' primary human interface,
+    delivered through four phases against the existing typed REST API. Phase 4 has
+    shipped creation, end-to-end coverage, wheel packaging, and React-first docs;
+    its final task-corpus audit is in progress.
   intent: 'The API is already the real interface: FastAPI serves it, publishes an
     OpenAPI schema at /openapi.json, and agents and scripts consume it directly. The
     Jinja templates are a second, parallel consumer that re-derives presentation logic
@@ -39,7 +39,17 @@ spec:
     a template can render `data-ball="Ball.HUMAN"` and every filter silently matches
     nothing, because nothing checks that the rendered value matches what the consumer
     expects.'
-  description: '## Shape
+  description: '## Current status after the React documentation audit (2026-08-13)
+
+
+    The React application now ships at `/app/` in the universal Python wheel and is
+    the primary browser, tablet, and phone interface. Phases 095 through 097 are closed
+    completed. Phase 098 has delivered browser task creation, end-to-end testing,
+    packaging, and React-first documentation; task 103 is its final active corpus
+    audit. The remainder of this description is the original migration plan and is
+    retained as design history, not a description of the current UI.
+
+    ## Shape
 
 
     Vite + React + TypeScript, served at `/app`, talking to the existing REST API.
@@ -162,11 +172,11 @@ acceptance:
 - id: ac-2
   text: the Jinja UI still works, unmodified in behaviour, at every commit along the
     way
-  status: pending
+  status: met
 - id: ac-3
   text: pip install agentjobs yields the full React UI with no node toolchain and
     no internet beyond PyPI
-  status: pending
+  status: met
 - id: ac-4
   text: the client is usable and installable on a phone, reachable from another device
     without widening the server's bind
@@ -174,7 +184,7 @@ acceptance:
 - id: ac-5
   text: 'the client surfaces what Jinja cannot: a handoff with no refresh, and the
     dependency graph'
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -238,4 +248,16 @@ log:
     strength
 
     of a migration that has not started, is premature. Revisit when the epic closes.'
+  data: {}
+- id: 2
+  ts: '2026-08-13T22:06:59.087088Z'
+  actor: codex
+  type: progress
+  body: 'Corpus audit current-state reconciliation: the React epic now identifies
+    the packaged React app as the primary interface and labels the migration plan
+    as history. Acceptance ac-2 is met by the preserved compatibility path throughout
+    the child merges; ac-3 is met by task 091''s universal no-Node wheel; ac-5 is
+    met by task 086 live updates and task 099 dependency visibility. Ac-1 awaits phase
+    098 closure after task 103, and ac-4 remains pending because physical-device install/private-proxy
+    evidence was explicitly not completed.'
   data: {}

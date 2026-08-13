@@ -2,7 +2,7 @@ schema: 2
 id: task-098-react-phase-4-ship
 title: React phase 4 -- write, prove, and ship
 created: '2026-08-13T02:35:20.787231Z'
-updated: '2026-08-13T21:08:07.769331Z'
+updated: '2026-08-13T22:06:59.135962Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -69,22 +69,22 @@ spec:
 acceptance:
 - id: ac-1
   text: a task can be created from the browser and appears in the list
-  status: pending
+  status: met
 - id: ac-2
   text: one end-to-end browser test passes against a real server and a real temporary
     project
-  status: pending
+  status: met
 - id: ac-3
   text: a wheel built from a clean checkout serves the whole UI, including PWA assets,
     with no node present
-  status: pending
+  status: met
 - id: ac-4
   text: the client renders with no internet access beyond the local server
-  status: pending
+  status: met
 - id: ac-5
   text: repository-facing documentation presents React as the current AgentJobs web
     UI
-  status: pending
+  status: met
 - id: ac-6
   text: the complete AgentJobs task corpus is audited and stale or obsolete records
     are reconciled
@@ -117,4 +117,14 @@ log:
 
     Task 102 needs packaging task 091; task 103 needs task 102. Packaging remains
     the final product build step, not the final phase child.'
+  data: {}
+- id: 3
+  ts: '2026-08-13T22:06:59.135889Z'
+  actor: codex
+  type: progress
+  body: Corpus audit reconciled phase acceptance with merged evidence. Task 090 satisfies
+    browser creation; 094 supplies the real-stack Playwright path; 091 supplies the
+    universal wheel, packaged PWA assets, Python-only runtime, and offline-local bundle;
+    102 supplies React-first repository documentation. Ac-1 through ac-5 are now met.
+    Ac-6 remains pending until child task 103 completes this corpus audit.
   data: {}
