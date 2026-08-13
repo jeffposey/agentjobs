@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 import type { DashboardResponse, Task } from "../api/generated";
+import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 
 type DashboardProps = {
   dashboard: DashboardResponse;
@@ -35,14 +36,14 @@ function TaskCard({ task, projectId }: { task: Task; projectId: string }) {
   return (
     <Link
       to={projectPath(projectId, `/tasks/${encodeURIComponent(task.id)}`)}
-      className="block rounded-lg border border-dark-border bg-dark-surface p-4 transition hover:border-blue-500"
+      className="touch-target block overflow-hidden rounded-lg border border-dark-border bg-dark-surface p-4 transition hover:border-blue-500"
     >
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col items-start justify-between gap-4 min-[820px]:flex-row min-[820px]:items-center">
         <div className="min-w-0">
           <h3 className="truncate text-lg font-medium">{task.title}</h3>
           <p className="mt-1 truncate text-sm text-dark-muted">{truncate(task.spec.summary, 120)}</p>
         </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
           <Badge className={priorityClasses[task.priority ?? "medium"] ?? priorityClasses.medium}>
             {task.priority ?? "medium"}
           </Badge>
@@ -55,12 +56,12 @@ function TaskCard({ task, projectId }: { task: Task; projectId: string }) {
 
 function CreateTaskUnavailable({ id }: { id: string }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="mobile-action-row flex items-center gap-3">
       <button
         type="button"
         disabled
         aria-describedby={id}
-        className="cursor-not-allowed rounded-md border border-dark-border bg-dark-bg px-3 py-2 text-sm font-medium text-dark-muted opacity-60"
+        className="touch-target cursor-not-allowed rounded-md border border-dark-border bg-dark-bg px-3 py-2 text-sm font-medium text-dark-muted opacity-60"
       >
         Create task
       </button>
@@ -124,20 +125,33 @@ function NextAction({ dashboard, projectId }: DashboardProps) {
             <h2 className="text-sm font-medium text-dark-text">
               Backlog awaiting your input <span className="font-normal text-dark-muted">({dashboard.backlog_tasks.length})</span>
             </h2>
-            <Link to={`${base}/tasks?status=draft`} className="text-xs text-blue-400 hover:text-blue-300">All drafts →</Link>
+            <Link to={`${base}/tasks?status=draft`} className="touch-target text-xs text-blue-400 hover:text-blue-300">All drafts →</Link>
           </div>
           <p className="mb-4 text-xs text-dark-muted">
             Nothing is blocked by these. They are drafts that need a decision before they become work.
           </p>
-          <div className="divide-y divide-dark-border">
-            {dashboard.backlog_tasks.map((task) => (
-              <Link key={task.id} to={`${base}/tasks/${encodeURIComponent(task.id)}`} className="-mx-2 flex items-baseline gap-3 rounded px-2 py-2 transition hover:bg-dark-border/40">
-                <span className="whitespace-nowrap font-mono text-xs text-blue-400">{task.id}</span>
-                <span className="flex-1 text-sm text-dark-text">{task.title}</span>
-                <span className="whitespace-nowrap text-xs text-dark-muted">{task.ball_reason}</span>
-              </Link>
-            ))}
-          </div>
+          <ResponsiveTable aria-label="Backlog awaiting your input">
+            <thead>
+              <tr>
+                <th scope="col">Task</th>
+                <th scope="col">Title</th>
+                <th scope="col">Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dashboard.backlog_tasks.map((task) => (
+                <ResponsiveTableRow key={task.id}>
+                  <ResponsiveCell label="Task">
+                    <Link to={`${base}/tasks/${encodeURIComponent(task.id)}`} className="touch-target font-mono text-xs text-blue-400">
+                      {task.id}
+                    </Link>
+                  </ResponsiveCell>
+                  <ResponsiveCell label="Title" className="text-sm text-dark-text">{task.title}</ResponsiveCell>
+                  <ResponsiveCell label="Reason" className="text-xs text-dark-muted">{task.ball_reason}</ResponsiveCell>
+                </ResponsiveTableRow>
+              ))}
+            </tbody>
+          </ResponsiveTable>
         </section>
       );
     case "next_up": {
@@ -147,7 +161,7 @@ function NextAction({ dashboard, projectId }: DashboardProps) {
         <section data-testid="next-action" className="rounded-lg border border-dark-border bg-dark-surface p-6">
           <div className="mb-3 flex items-baseline justify-between gap-4">
             <h2 className="text-sm font-medium text-dark-text">Next up</h2>
-            <Link to={`${base}/tasks?status=ready`} className="text-xs text-blue-400 hover:text-blue-300">All ready tasks →</Link>
+            <Link to={`${base}/tasks?status=ready`} className="touch-target text-xs text-blue-400 hover:text-blue-300">All ready tasks →</Link>
           </div>
           <Link to={`${base}/tasks/${encodeURIComponent(task.id)}`} className="block rounded-lg border border-dark-border bg-dark-bg p-4 transition hover:bg-dark-border">
             <div className="flex items-start justify-between gap-4">
@@ -218,10 +232,10 @@ function BrokenFiles({ files }: { files: DashboardResponse["broken_files"] }) {
 
 export function Dashboard({ dashboard, projectId }: DashboardProps) {
   const statTiles = [
-    ["Blocked on You", dashboard.stats.waiting_for_human, "text-orange-400"],
+    ["Needs you", dashboard.stats.waiting_for_human, "text-orange-400"],
     ["In Progress", dashboard.stats.in_progress, ""],
     ["Blocked", dashboard.stats.blocked, "text-red-400"],
-    ["Completed", dashboard.stats.completed, "text-green-400"],
+    ["Done", dashboard.stats.completed, "text-green-400"],
     ["Total", dashboard.stats.total, ""],
   ] as const;
 
@@ -229,23 +243,28 @@ export function Dashboard({ dashboard, projectId }: DashboardProps) {
     <div className="space-y-6">
       <BrokenFiles files={dashboard.broken_files} />
       <NextAction dashboard={dashboard} projectId={projectId} />
-      <section className="grid grid-cols-1 gap-6 md:grid-cols-5" aria-label="Task statistics">
-        {statTiles.map(([label, count, className]) => (
-          <div key={label} className="rounded-lg border border-dark-border bg-dark-surface p-6">
-            <div className="text-sm text-dark-muted">{label}</div>
-            <div className={`mt-2 text-3xl font-bold ${className}`}>{count}</div>
-            {label === "Blocked on You" && (
-              <Link to={projectPath(projectId, "/tasks?status=draft")} className="mt-1 block text-xs text-dark-muted hover:text-blue-300">
-                +{dashboard.stats.awaiting_input} in backlog
-              </Link>
-            )}
-          </div>
-        ))}
+      <section className="overflow-hidden rounded-lg border border-dark-border bg-dark-surface" aria-label="Task statistics">
+        <dl className="grid grid-cols-5 divide-x divide-dark-border">
+          {statTiles.map(([label, count, className]) => (
+            <div key={label} className="min-w-0 px-1 py-2 text-center min-[820px]:px-4 min-[820px]:py-3">
+              <dt className="truncate text-[10px] font-medium uppercase tracking-wide text-dark-muted min-[820px]:text-xs">{label}</dt>
+              <dd className={`mt-0.5 text-xl font-bold leading-none min-[820px]:text-2xl ${className}`}>{count}</dd>
+            </div>
+          ))}
+        </dl>
+        {dashboard.stats.awaiting_input > 0 && (
+          <Link
+            to={projectPath(projectId, "/tasks?status=draft")}
+            className="touch-target flex w-full justify-center border-t border-dark-border px-3 text-xs text-dark-muted hover:bg-dark-border hover:text-blue-300"
+          >
+            +{dashboard.stats.awaiting_input} in backlog
+          </Link>
+        )}
       </section>
       <section className="rounded-lg border border-dark-border bg-dark-surface">
         <div className="flex items-center justify-between border-b border-dark-border p-6">
           <h2 className="text-xl font-semibold">Active Tasks</h2>
-          <Link to={projectPath(projectId, "/tasks")} className="text-sm text-blue-400 hover:text-blue-300">View all</Link>
+          <Link to={projectPath(projectId, "/tasks")} className="touch-target text-sm text-blue-400 hover:text-blue-300">View all</Link>
         </div>
         <div className="space-y-4 p-4">
           {dashboard.active_tasks.length > 0 ? dashboard.active_tasks.map((task) => (

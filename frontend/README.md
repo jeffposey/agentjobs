@@ -18,6 +18,13 @@ run before commit because it includes both pytest and this frontend check. To
 intentionally refresh generated artifacts, run `npm run generate:api` and review the
 diff.
 
+`npm run check` also verifies that the committed PWA icons match
+`assets/app-icon.svg`. Run `npm run generate:icons` after changing that source. The
+production build injects the current hashed JavaScript and CSS into a shell-only
+service worker; task API responses are deliberately never cached. Cross-device HTTPS,
+installation, teardown, and offline behavior are documented in
+[`docs/mobile-access.md`](../docs/mobile-access.md).
+
 The development server runs at `http://localhost:5173/app/` and proxies `/api` to the
 AgentJobs server at `http://127.0.0.1:8765`. `npm run build` writes the production
 bundle to `frontend/dist/`; FastAPI serves that bundle at `/app`.

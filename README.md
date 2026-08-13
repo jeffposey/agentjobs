@@ -142,6 +142,7 @@ with TaskClient() as client:
 - [API reference](docs/api-reference.md)
 - [Quick start](docs/quickstart.md)
 - [Installation guide](docs/installation.md)
+- [Mobile and installed-app access](docs/mobile-access.md)
 - [Migration guide](docs/migration-guide.md)
 
 ## Development
