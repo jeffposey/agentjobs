@@ -8,7 +8,7 @@ Tasks live in the directory named by `tasks_directory` in `.agentjobs/config.yam
 non-recursively, so files in subdirectories are invisible to the store — that is how
 `tasks/test-data/` stays out of the real backlog.
 
-The schema is **v2**, defined by [`models_v2.py`](../src/agentjobs/models_v2.py) and
+The schema is **v2**, defined by [`models_v2.py`](https://github.com/jeffposey/agentjobs/blob/main/src/agentjobs/models_v2.py) and
 declared machine-readably in `schema/agentjobs-v2.yaml`. Every file starts with
 `schema: 2`. A file without that stamp is v1 and the loader refuses it **by name**
 rather than guessing — `agentjobs migrate-schema` converts it. Schema v1 was retired in
@@ -119,7 +119,7 @@ parent: null               # task id of an umbrella task
 
 spec:
   summary: >-              # REQUIRED. 1-2 sentences, for every audience
-    The upcoming React frontend runs on Vite at :5173; CORS currently blocks it.
+    The React development server runs on Vite at :5173; CORS currently blocks it.
   intent: |                # optional: WHY this task exists
     Browsers enforce same-origin policy; without an allowlist entry every request
     from the frontend dies in preflight.
@@ -218,7 +218,7 @@ writes the wrong key and produces a file the loader then refuses as v1.
 
 Unknown fields are rejected outright (`extra="forbid"`), so a stale key fails by name
 rather than being silently ignored — whether it came from a hand edit, a migrator bug or
-a GUI form posting a retired field name.
+a React form posting a retired field name.
 
 ## Editing tasks
 

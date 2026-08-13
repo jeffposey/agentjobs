@@ -1,4 +1,4 @@
-"""Browser-facing routes delivering the AgentJobs web UI."""
+"""Legacy server-rendered compatibility routes; React at `/app/` is the primary UI."""
 
 from __future__ import annotations
 

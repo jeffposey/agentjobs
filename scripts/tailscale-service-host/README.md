@@ -1,6 +1,7 @@
 # AgentJobs Tailscale Service host
 
-This optional proxy publishes a loopback web server through a named Tailscale Service.
+This optional proxy publishes AgentJobs' loopback server and packaged React application
+through a named Tailscale Service.
 It uses `tsnet`, so each app gets a virtual Tailscale node and a dedicated Service
 hostname without changing the identity of the physical host. One compiled binary can
 host several apps by running one process and state directory per Service.

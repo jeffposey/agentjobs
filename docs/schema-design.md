@@ -1,7 +1,8 @@
 # Task Schema v2 — Design Proposal
 
-**Status: ACCEPTED — D1–D3 resolved with Jeff on 2026-07-29 (§11). Nothing here is
-implemented yet; implementation tasks are derived in §12.**
+**Status: HISTORICAL DESIGN RECORD — accepted on 2026-07-29 and subsequently
+implemented as schema v2. Sections describing future work capture the decision-time
+plan; use [task-schema.md](task-schema.md) for the current contract.**
 
 Produced under task-048. This document is the deliverable of the schema design pass: the
 proposed next iteration of the task schema, the reasoning behind each change, the
@@ -662,7 +663,7 @@ typing) predates this pass and lands first, per §10.
 | task-051 | Migrator: `agentjobs migrate-schema` converts the corpus per §3's mapping and §8's workload note; corpus test re-verifies in v2 form | task-050 |
 | task-052 | Manager + API: claim / handoff / log / release / close, manager-appended transitions, inbox and next queries, taxonomy + dependency validation at save, `task.handoff` / `task.question` / `task.closed` webhook events | task-051 |
 | task-053 | CLI mirrors: `agentjobs inbox / next / claim / handoff / log / close` | task-052 |
-| task-054 | Jinja GUI on v2: inbox view (`ball=human` with `ball_prompt` per row), agent-activity view, task detail rendering spec / log / acceptance. **Scope widened by D2's amendment** — the GUI is the *primary human editing surface*, not a viewer, so it must cover the edits a human actually makes: handoff, decision/answer log entries, acceptance status, close | task-052 |
+| task-054 | **Historical plan for the now-legacy Jinja compatibility UI:** inbox view (`ball=human` with `ball_prompt` per row), agent-activity view, and task detail editing. React later replaced it as the primary human interface. | task-052 |
 | task-055 | Single-writer concurrency: `save_task` currently read-modify-writes with no locking, so two agents can both claim one `ready` task. Serialize writes through the manager/API plus advisory file locking; regression test the double-claim race. Independent of v2 — the race exists in v1 today | — |
 | task-045 (reshaped) | Sub-task *behavior* atop v2's `parent` field: `get_subtasks`, umbrella non-claimability, `?parent=` filter, cycle/self/exists validation, GUI children list — its two schema changes are absorbed into task-050 | task-052 |
 | task-046 (narrowed) | Resumption contract documented in ALLAGENTS.md / docs/agent-workflow.md; first live exercise of the handoff loop | task-052 |

@@ -10,6 +10,30 @@ WORKFLOW_GUIDE = ROOT / "docs" / "agent-workflow.md"
 DISPATCH_DESIGN = ROOT / "docs" / "agent-dispatch-design.md"
 
 
+@pytest.mark.parametrize(
+    ("path", "required"),
+    [
+        ("README.md", "packaged React web application"),
+        ("ENGINEERING.md", "packaged React Web UI"),
+        ("docs/index.md", "packaged React web application"),
+        ("docs/installation.md", "platform-independent `py3-none-any` wheel"),
+        ("docs/quickstart.md", "primary UI opens at `http://localhost:8765/app/`"),
+        ("frontend/README.md", "React owns the current design"),
+    ],
+)
+def test_current_documentation_is_react_first(path: str, required: str) -> None:
+    text = (ROOT / path).read_text(encoding="utf-8")
+    assert required in text
+
+
+@pytest.mark.parametrize("path", ["README.md", "ENGINEERING.md", "docs/index.md"])
+def test_primary_entry_points_do_not_present_server_rendering_as_the_ui(path: str) -> None:
+    text = (ROOT / path).read_text(encoding="utf-8").lower()
+    assert "a server-rendered web ui" not in text
+    if "jinja" in text:
+        assert "legacy" in text or "historical" in text or "compatibility" in text
+
+
 def test_dispatch_guide_exists_and_links_to_canonical_resumption_contract() -> None:
     """A dispatched agent must not be pointed at a missing or self-invented contract."""
     assert WORKFLOW_GUIDE.is_file()

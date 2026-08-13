@@ -132,7 +132,7 @@ At any human-decision point:
    signal; all substance belongs in the task record.
 5. Stop. Do not merge or make the decision on the human's behalf.
 
-The web UI can record approval or requested changes. Approval hands the ball back as
+The React UI can record approval or requested changes. Approval hands the ball back as
 `agent/work` with instructions to rebase, merge, update branch metadata, and close.
 Requested changes hand it back as `agent/revise`, with the feedback preserved in both
 `ball_prompt` and the handoff log.
@@ -252,12 +252,16 @@ except TaskClientError as exc:
     print(f"AgentJobs request failed: {exc}")
 ```
 
-AgentJobs is not yet published to PyPI. Install and start it from a clone:
+AgentJobs is not yet published to PyPI. Install it from a clone and open the primary
+React application:
 
 ```bash
 poetry install
-poetry run agentjobs serve
+poetry run agentjobs open
 ```
+
+`agentjobs serve` is the foreground-server form. Both serve the packaged React app at
+`/app/`; neither needs Node at runtime.
 
 See the [task schema reference](task-schema.md), [API reference](api-reference.md), and
 [schema-v2 design](schema-design.md) for the complete field and endpoint contracts.

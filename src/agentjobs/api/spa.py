@@ -1,4 +1,4 @@
-"""Serve the built React single-page application without shadowing the Jinja UI."""
+"""Serve the primary React application without shadowing legacy compatibility routes."""
 
 from __future__ import annotations
 

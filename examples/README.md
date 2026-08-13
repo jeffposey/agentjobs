@@ -18,8 +18,8 @@ Code examples for integrating AI agents with AgentJobs.
 ## Running Examples
 
 ```bash
-# Start AgentJobs server first
-agentjobs serve
+# Start AgentJobs and open the primary React UI
+agentjobs open
 
 # In another terminal, run examples
 cd examples/

@@ -293,7 +293,7 @@ def get_current_user(request: Request) -> Optional[str]:
 
 
 def get_templates() -> Jinja2Templates:
-    """Provide a shared Jinja2Templates instance for web views."""
+    """Provide templates for the legacy server-rendered compatibility routes."""
     global _TEMPLATES
     if _TEMPLATES is None:
         template_dir = Path(__file__).parent / "templates"
