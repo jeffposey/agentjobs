@@ -2,12 +2,12 @@ schema: 2
 id: task-093-mobile-and-pwa
 title: Make the client usable on a phone, and installable
 created: '2026-08-13T02:19:47.902546Z'
-updated: '2026-08-13T09:21:37.390185Z'
+updated: '2026-08-13T09:24:02.666846Z'
 lifecycle: active
-ball: agent
-ball_reason: revise
-ball_prompt: Replace the oversized task-count panels with a compact summary that does
-  not consume the top of the phone dashboard, then return for review.
+ball: human
+ball_reason: review
+ball_prompt: Review the compact count strip. Reply approve if this fixes the wasted-space
+  issue, or name what still feels wrong.
 archived: false
 priority: high
 category: ux
@@ -323,3 +323,25 @@ log:
   data:
     ball: agent
     ball_reason: revise
+- id: 10
+  ts: '2026-08-13T09:24:02.645319Z'
+  actor: codex
+  type: progress
+  body: 'Replaced the oversized phone task-count cards with a compact summary strip.
+
+
+    Feature commit 97609eb renders all five counts in one divided strip, with a single
+    backlog link below only when needed. At a 390px browser viewport the complete
+    summary is 99px tall, has no horizontal overflow, and retains the five semantic
+    definition values. Frontend verification passed: 5 test files / 14 tests, generated
+    API and icons current, lint, TypeScript, and production PWA build.'
+  data: {}
+- id: 11
+  ts: '2026-08-13T09:24:02.666722Z'
+  actor: codex
+  type: handoff
+  body: 'Revision ready: the five giant count panels are now one compact 99px phone
+    summary strip.'
+  data:
+    ball: human
+    ball_reason: review
