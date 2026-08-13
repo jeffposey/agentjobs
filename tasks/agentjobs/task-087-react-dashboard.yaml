@@ -2,7 +2,7 @@ schema: 2
 id: task-087-react-dashboard
 title: React dashboard, including the next-action ladder
 created: '2026-08-11T07:38:05.463116Z'
-updated: '2026-08-13T08:30:23.350138Z'
+updated: '2026-08-13T08:36:44.049559Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -124,4 +124,29 @@ log:
     final visual parity review; no physical-device or installation check is part of
     task 087. Usage-window telemetry is unavailable in this session; no estimate was
     invented.'
+  data: {}
+- id: 3
+  ts: '2026-08-13T08:36:44.035681Z'
+  actor: codex
+  type: decision
+  body: 'Compute the complete dashboard projection, including next_action precedence,
+    once in Python and expose it through a typed /api/projects/{project_id}/dashboard
+    endpoint used by React and the Jinja dashboard. Rejected alternative: derive blocked/backlog/next-up/empty
+    precedence again in TypeScript and maintain duplicate state-machine tests; that
+    creates two domain definitions that can drift.'
+  data: {}
+- id: 4
+  ts: '2026-08-13T08:36:44.049481Z'
+  actor: codex
+  type: progress
+  body: 'Shared dashboard API projection committed.
+
+
+    Feature commit d387663 adds a shared Python projection consumed by the existing
+    Jinja dashboard and a new project-scoped typed dashboard endpoint, regenerates
+    the OpenAPI client, and extends the five-state ladder test to assert the API next_action
+    values. Verified with: poetry run pytest tests/test_attention_tiers.py -q (30
+    passed); focused Ruff checks (passed); focused MyPy checks (passed); git diff
+    --check (passed). Remaining: finish and commit the React screen, run the full
+    repository gate, restart the server, and perform real-browser verification.'
   data: {}
