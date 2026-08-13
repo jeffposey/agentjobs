@@ -1047,6 +1047,25 @@
         "title": "ProjectResponse",
         "type": "object"
       },
+      "ProjectRevisionResponse": {
+        "description": "Small file-derived change signal for one project's task collection.",
+        "properties": {
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          },
+          "task_count": {
+            "title": "Task Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision",
+          "task_count"
+        ],
+        "title": "ProjectRevisionResponse",
+        "type": "object"
+      },
       "RejectActionRequest": {
         "description": "Reject task with reason.",
         "properties": {
@@ -2242,6 +2261,49 @@
         "summary": "Get Dashboard",
         "tags": [
           "dashboard"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/revision": {
+      "get": {
+        "description": "Answer whether any task file changed without loading the task collection.",
+        "operationId": "get_project_revision_api_projects__project_id__revision_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRevisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Project Revision",
+        "tags": [
+          "live updates"
         ]
       }
     },
@@ -3677,6 +3739,28 @@
         "summary": "Test Webhook",
         "tags": [
           "webhooks"
+        ]
+      }
+    },
+    "/api/revision": {
+      "get": {
+        "description": "Answer whether any task file changed without loading the task collection.",
+        "operationId": "get_project_revision_api_revision_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRevisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Project Revision",
+        "tags": [
+          "live updates"
         ]
       }
     },

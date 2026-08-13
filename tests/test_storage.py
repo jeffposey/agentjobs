@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import os
 
 import pytest
 
@@ -119,6 +120,40 @@ def test_list_and_search_tasks(tmp_path: Path) -> None:
     matches = storage.search_tasks("docs")
     assert len(matches) == 1
     assert matches[0].id == "task-002"
+
+
+def test_project_revision_tracks_direct_same_count_rewrites(tmp_path: Path) -> None:
+    """A direct writer is visible even when count, size, and mtime are unchanged."""
+    storage = TaskStorage(tmp_path)
+    path = tmp_path / "task-001.yaml"
+    path.write_text("title: alpha\n", encoding="utf-8")
+    original_stat = path.stat()
+    before = storage.project_revision()
+
+    path.write_text("title: bravo\n", encoding="utf-8")
+    os.utime(path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+
+    after = storage.project_revision()
+    assert before[1] == after[1] == 1
+    assert before[0] != after[0]
+
+
+def test_project_revision_tracks_bulk_add_change_and_delete(tmp_path: Path) -> None:
+    storage = TaskStorage(tmp_path)
+    storage.save_task(_build_task("task-001"))
+    initial = storage.project_revision()
+
+    storage.save_task(_build_task("task-001", title="Changed"))
+    storage.save_task(_build_task("task-002"))
+    changed = storage.project_revision()
+
+    (tmp_path / "task-002.yaml").unlink()
+    deleted = storage.project_revision()
+
+    assert initial[1] == 1
+    assert changed[1] == 2
+    assert deleted[1] == 1
+    assert len({initial[0], changed[0], deleted[0]}) == 3
 
 
 def test_lock_files_are_not_globbed_as_tasks(tmp_path: Path) -> None:

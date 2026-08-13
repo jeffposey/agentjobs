@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
@@ -20,20 +20,7 @@ import { Dashboard } from "./components/Dashboard";
 import { ConnectionUnavailable } from "./components/ConnectionUnavailable";
 import { TaskList } from "./components/TaskList";
 import { TaskDetail } from "./components/TaskDetail";
-
-function useOnlineStatus() {
-  const [online, setOnline] = useState(() => navigator.onLine);
-  useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
-  }, []);
-  return online;
-}
+import { LiveUpdateStatus } from "./components/LiveUpdates";
 
 function ProjectRedirect() {
   const navigate = useNavigate();
@@ -97,7 +84,7 @@ function DashboardPage({ projectId }: { projectId: string }) {
     return <StatusCard title="Opening dashboard...">Loading current project data.</StatusCard>;
   }
 
-  if (dashboardQuery.isError) {
+  if (dashboardQuery.isError && !dashboardQuery.data) {
     return <ConnectionUnavailable offline={false} />;
   }
 
@@ -120,7 +107,7 @@ function TaskListPage({ projectId }: { projectId: string }) {
     return <StatusCard title="Unsupported task schema"><p>{tasksQuery.error.message}</p><p className="mt-4">Upgrade the UI before viewing this project.</p></StatusCard>;
   }
   if (tasksQuery.isPending || brokenQuery.isPending) return <StatusCard title="Opening tasks...">Loading current task data.</StatusCard>;
-  if (tasksQuery.isError || brokenQuery.isError) return <ConnectionUnavailable offline={false} />;
+  if (!tasksQuery.data || !brokenQuery.data) return <ConnectionUnavailable offline={false} />;
   return <TaskList tasks={tasksQuery.data} brokenFiles={brokenQuery.data} projectId={projectId} />;
 }
 
@@ -141,7 +128,7 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
 
   if (detailQuery.error instanceof UnsupportedTaskSchemaError) return <StatusCard title="Unsupported task schema">{detailQuery.error.message}</StatusCard>;
   if (detailQuery.isPending) return <StatusCard title="Opening task...">Loading the complete task record.</StatusCard>;
-  if (detailQuery.isError) return <StatusCard title="Task could not be loaded">Confirm the task still exists, then return to the list.</StatusCard>;
+  if (detailQuery.isError && !detailQuery.data) return <StatusCard title="Task could not be loaded">Confirm the task still exists, then return to the list.</StatusCard>;
   const user = detailQuery.data.identity.user;
   const refresh = async () => { await queryClient.invalidateQueries(); };
   const actionError = approve.error || changes.error || reject.error;
@@ -172,6 +159,7 @@ function ProjectApp() {
         </nav>
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
+        <LiveUpdateStatus projectId={projectId} />
         <Routes>
           <Route index element={<DashboardPage projectId={projectId} />} />
           <Route path="tasks" element={<TaskListPage projectId={projectId} />} />
@@ -200,8 +188,6 @@ function StatusCard({ title, children }: { title: string; children: React.ReactN
 }
 
 export function App() {
-  const online = useOnlineStatus();
-  if (!online) return <ConnectionUnavailable offline />;
   return (
     <Routes>
       <Route index element={<ProjectRedirect />} />

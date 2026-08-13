@@ -109,6 +109,25 @@ class TestScopedIsolation:
         assert alpha["title"] == "Alpha task"
         assert beta["title"] == "Beta task"
 
+    def test_revision_is_small_project_scoped_and_changes_after_a_direct_write(
+        self, two_projects, tmp_path: Path
+    ) -> None:
+        client, _ = two_projects
+        alpha_before = client.get("/api/projects/alpha/revision")
+        beta_before = client.get("/api/projects/beta/revision")
+
+        path = tmp_path / "alpha" / "tasks" / f"{SHARED_TASK_ID}.yaml"
+        path.write_text(path.read_text(encoding="utf-8") + "# direct writer\n", encoding="utf-8")
+
+        alpha_after = client.get("/api/projects/alpha/revision")
+        beta_after = client.get("/api/projects/beta/revision")
+
+        assert alpha_before.status_code == alpha_after.status_code == 200
+        assert set(alpha_after.json()) == {"revision", "task_count"}
+        assert alpha_after.json()["task_count"] == 1
+        assert alpha_after.json()["revision"] != alpha_before.json()["revision"]
+        assert beta_after.json() == beta_before.json()
+
     def test_alternating_requests_do_not_poison_the_cache(self, two_projects) -> None:
         # A maxsize=1 cache passes the test above if the calls happen to be ordered
         # conveniently. Alternating repeatedly is what actually catches it.

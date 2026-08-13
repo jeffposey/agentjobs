@@ -49,6 +49,53 @@ The command prints the private `https://<host>.<tailnet>.ts.net` address. Open i
 the [Serve CLI reference](https://tailscale.com/docs/reference/tailscale-cli/serve).
 The first run may provide a URL for enabling HTTPS in the tailnet.
 
+This machine-level setup intentionally shares one web origin with every other app
+served from that Tailscale hostname. Ports and paths separate HTTP routing, but some
+Android browsers still group installed apps by hostname. Use the dedicated Service
+setup below when AgentJobs must coexist with another installed app from the same
+physical computer.
+
+## Dedicated hostname for a separately installed app
+
+A Tailscale Service gives AgentJobs its own MagicDNS name and virtual IP while the
+Python server remains on the same computer. The Service host must have a tag-based
+server identity, so do not convert a person's existing workstation node merely to add
+an app hostname. Run the small `tsnet` proxy in
+`scripts/tailscale-service-host` instead; it appears as a separate virtual node and
+leaves the workstation's identity unchanged.
+
+One-time tailnet administration:
+
+1. Create the tag `tag:agentjobs-host` and allow the intended administrator to own it.
+2. Define `svc:agentjobs` with endpoint `tcp:443`.
+3. Generate a single-use auth key restricted to `tag:agentjobs-host`.
+4. Approve the virtual host's advertisement for `svc:agentjobs`.
+5. Ensure the reviewing users and devices can access `svc:agentjobs` in the tailnet
+   policy.
+
+Build and authenticate the proxy on its first run:
+
+```powershell
+cd scripts/tailscale-service-host
+go build -o tailscale-service-host.exe .
+$env:TS_AUTHKEY = '<single-use tagged key>'
+./tailscale-service-host.exe -backend http://127.0.0.1:8765
+```
+
+The virtual node stores its identity in a hostname-specific directory under the
+current user's configuration directory. Run one proxy process per named Service; the
+same compiled helper can therefore give several apps on one computer independent
+origins and identities.
+After the first successful connection, clear `TS_AUTHKEY` and revoke or discard the
+single-use key. Later starts need only the executable and the backend argument. The
+private install URL is `https://agentjobs.<tailnet>.ts.net/app/`; it has a different
+origin from every machine-level Serve URL.
+
+Tailscale documents the virtual IP and stable MagicDNS behavior in
+[Tailscale Services](https://tailscale.com/docs/features/tailscale-services) and the
+in-process host pattern in
+[Register a tsnet application as a Tailscale Service](https://tailscale.com/docs/features/tsnet/how-to/register-service).
+
 To install AgentJobs, use the browser's **Install app** or **Add to Home Screen** action,
 then launch the new AgentJobs icon. It should open without browser chrome because the
 manifest requests standalone display. Installation wording varies by browser and OS.

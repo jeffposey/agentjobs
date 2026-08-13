@@ -721,6 +721,22 @@ export type ProjectResponse = {
 };
 
 /**
+ * ProjectRevisionResponse
+ *
+ * Small file-derived change signal for one project's task collection.
+ */
+export type ProjectRevisionResponse = {
+    /**
+     * Revision
+     */
+    revision: string;
+    /**
+     * Task Count
+     */
+    task_count: number;
+};
+
+/**
  * RejectActionRequest
  *
  * Reject task with reason.
@@ -1611,6 +1627,36 @@ export type GetDashboardApiProjectsProjectIdDashboardGetResponses = {
 
 export type GetDashboardApiProjectsProjectIdDashboardGetResponse = GetDashboardApiProjectsProjectIdDashboardGetResponses[keyof GetDashboardApiProjectsProjectIdDashboardGetResponses];
 
+export type GetProjectRevisionApiProjectsProjectIdRevisionGetData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/revision';
+};
+
+export type GetProjectRevisionApiProjectsProjectIdRevisionGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetProjectRevisionApiProjectsProjectIdRevisionGetError = GetProjectRevisionApiProjectsProjectIdRevisionGetErrors[keyof GetProjectRevisionApiProjectsProjectIdRevisionGetErrors];
+
+export type GetProjectRevisionApiProjectsProjectIdRevisionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProjectRevisionResponse;
+};
+
+export type GetProjectRevisionApiProjectsProjectIdRevisionGetResponse = GetProjectRevisionApiProjectsProjectIdRevisionGetResponses[keyof GetProjectRevisionApiProjectsProjectIdRevisionGetResponses];
+
 export type SearchTasksApiProjectsProjectIdSearchGetData = {
     body?: never;
     path: {
@@ -2447,6 +2493,22 @@ export type TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponses = 
 };
 
 export type TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponse = TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponses[keyof TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponses];
+
+export type GetProjectRevisionApiRevisionGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/revision';
+};
+
+export type GetProjectRevisionApiRevisionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProjectRevisionResponse;
+};
+
+export type GetProjectRevisionApiRevisionGetResponse = GetProjectRevisionApiRevisionGetResponses[keyof GetProjectRevisionApiRevisionGetResponses];
 
 export type SearchTasksApiSearchGetData = {
     body?: never;

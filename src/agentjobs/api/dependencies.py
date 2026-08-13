@@ -255,6 +255,11 @@ def get_task_manager(request: Request) -> TaskManager:
     return manager_for(request_project(request))
 
 
+def get_task_storage(request: Request) -> TaskStorage:
+    """Provide task storage scoped to the project this request addresses."""
+    return storage_for(request_project(request))
+
+
 def get_webhook_manager(request: Request) -> WebhookManager:
     """Provide a WebhookManager scoped to the project this request addresses."""
     return webhook_manager_for(request_project(request))

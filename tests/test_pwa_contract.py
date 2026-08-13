@@ -16,9 +16,10 @@ def png_size(path: Path) -> tuple[int, int]:
     return struct.unpack(">II", data[16:24])
 
 
-def test_manifest_declares_standalone_scope_and_reproducible_icons() -> None:
+def test_manifest_declares_unique_identity_standalone_scope_and_reproducible_icons() -> None:
     manifest = json.loads((FRONTEND / "public" / "manifest.webmanifest").read_text())
 
+    assert manifest["id"] == "/app/agentjobs"
     assert manifest["display"] == "standalone"
     assert manifest["start_url"] == "/app/"
     assert manifest["scope"] == "/app/"
@@ -51,4 +52,5 @@ def test_build_injects_hashed_application_assets_into_the_shell_cache() -> None:
     assert '"/app/"' in builder
     assert r"\/app\/assets\/" in builder
     assert "...builtAssets" in builder
+    assert "await readFile(resolve(dist, relativePath))" in builder
     assert "agentjobs-shell-${revision}" in builder
