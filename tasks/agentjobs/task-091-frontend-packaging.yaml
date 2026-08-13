@@ -2,13 +2,9 @@ schema: 2
 id: task-091-frontend-packaging
 title: Ship the built frontend in the wheel, with no node at install time
 created: '2026-08-11T07:38:07.378882Z'
-updated: '2026-08-13T21:28:37.418774Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-13T21:29:58.296578Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: infrastructure
@@ -17,7 +13,6 @@ tags:
 - packaging
 effort: half a day
 assignment:
-  owner: codex
   eligible: []
 parent: task-098-react-phase-4-ship
 spec:
@@ -114,7 +109,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-091-frontend-packaging
-  status: active
+  status: merged
+  merged_at: '2026-08-13T21:29:58.266981Z'
 log:
 - id: 1
   ts: '2026-08-13T21:13:28.687703Z'
@@ -171,3 +167,25 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 6
+  ts: '2026-08-13T21:29:58.281972Z'
+  actor: codex
+  type: progress
+  body: 'Approved universal frontend wheel merged to main as 01e01a0.
+
+
+    After Jeff approved through the UI, the branch was rebased and merged with --no-ff.
+    The complete merged-main gate passed: 604 Python tests, 41 Vitest tests, generated
+    contract and icon checks, lint, production build, and the real-server Playwright
+    path. The release-specific clean-checkout verification had already produced py3-none-any
+    and booted the installed server without Node. No push performed.'
+  data: {}
+- id: 7
+  ts: '2026-08-13T21:29:58.296460Z'
+  actor: codex
+  type: transition
+  body: Closed completed after approval, merge 01e01a0, and a passing full merged-main
+    gate.
+  data:
+    lifecycle: closed
+    outcome: completed
