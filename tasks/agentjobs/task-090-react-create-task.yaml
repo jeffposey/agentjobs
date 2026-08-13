@@ -2,7 +2,7 @@ schema: 2
 id: task-090-react-create-task
 title: Create a task from the browser
 created: '2026-08-11T07:38:06.904250Z'
-updated: '2026-08-13T20:58:12.607018Z'
+updated: '2026-08-13T21:05:30.170554Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -211,3 +211,17 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 10
+  ts: '2026-08-13T21:05:30.170429Z'
+  actor: codex
+  type: progress
+  body: 'Merged-main server restart on port 8765 remains blocked by the pre-existing
+    inaccessible listener; merged main is running on 18890.
+
+
+    agentjobs restart found listener PID 117620, but Windows reports that process
+    as nonexistent while the socket remains bound, so the replacement process could
+    not bind. A merged-main server was started at http://127.0.0.1:18890 instead.
+    Health is ok, its OpenAPI TaskCreateRequest includes context, and task 090 reads
+    closed there. No push performed.'
+  data: {}
