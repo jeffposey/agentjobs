@@ -2,7 +2,7 @@ schema: 2
 id: task-108-react-project-switcher
 title: Add the project switcher to React
 created: '2026-08-13T22:42:14.777527Z'
-updated: '2026-08-13T22:55:30.404171Z'
+updated: '2026-08-13T22:58:19.312835Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -148,3 +148,15 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 8
+  ts: '2026-08-13T22:58:19.312731Z'
+  actor: codex
+  type: progress
+  body: 'Deployed the approved merged bundle to the live Tailnet backend.
+
+
+    Restarted the verified AgentJobs backend on 127.0.0.1:8876 after merge. Both the
+    backend and https://agentjobs.tailfed1df.ts.net/app/ now serve the merged asset
+    assets/index-CHcF4Rgh.js, and the health endpoint reports ok. The temporary review
+    server on 18892 was stopped.'
+  data: {}
