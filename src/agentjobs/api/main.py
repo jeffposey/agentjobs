@@ -132,6 +132,6 @@ for _router in PROJECT_SCOPED_ROUTERS:
         dependencies=[Depends(project_id_contract)],
     )
 
-# Registered last so the SPA catch-all cannot shadow the Jinja or API routers. Its
-# asset mount is internally ordered before the shell fallback.
+# Registered last so the React catch-all cannot shadow the API or legacy Jinja
+# compatibility routers. Its asset mount is internally ordered before the shell fallback.
 register_spa(app)

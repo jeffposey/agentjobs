@@ -24,8 +24,6 @@ decision and question log, and the acceptance criteria. That
 2026-08-11: a zero-context headless agent reconstructed the work and found
 [three defects in the dispatch design](tasks/agentjobs/task-060-agent-dispatch.yaml).
 
-![AgentJobs showing the schema-v2 parent task, its progress roll-up, and five children with derived status badges](docs/img/task-063-schema-v2-detail.png)
-
 ## Why this is not another task tracker
 
 - **Hierarchy has workflow meaning.** Parent tasks roll up their children and are not
@@ -34,21 +32,39 @@ decision and question log, and the acceptance criteria. That
 - **Git is the database.** One YAML file per task keeps work diffable, reviewable, and
   portable between tools without adding a service to operate.
 
+## The React application
+
+The primary human interface is a responsive React application at `/app/`. It is
+designed for desktop and laptop browsers, tablets, and phones, so a reviewer can
+inspect task details, create tasks, approve work, or request changes from the device
+that is convenient at the time.
+
+The React UI adapts rather than merely shrinking: navigation and action groups stack
+on smaller screens, wide task tables become labelled cards, and interactive controls
+retain touch-friendly sizing. Over private HTTPS, the same application can be
+installed from a phone or tablet browser as a Progressive Web App (PWA). See
+[Mobile and installed-app access](docs/mobile-access.md) for the secure setup and its
+network-only task-data behavior.
+
+The production React bundle is included in the Python package. Running an installed
+release therefore requires Python, but not Node, npm, a separate frontend server, or
+a particular desktop operating system.
+
 ## What works today
 
 - Schema-v2 task records with lifecycle, ball, outcome, typed logs, acceptance criteria,
   dependencies, parent relationships, and strict validation
 - A FastAPI REST API and Python client for claiming, handing off, releasing, closing,
   querying, and logging work
-- A server-rendered web UI with multiple registered projects, task detail pages,
-  hierarchy roll-ups, and human review actions
+- A packaged React web application for desktop browsers, tablets, and phones, with
+  multiple registered projects, task creation and detail pages, hierarchy roll-ups,
+  and human review actions
 - Basic CLI workflows for creating, listing, showing, claiming/finishing interactively,
   serving, and migrating tasks
 - Markdown-to-YAML and schema-v1-to-v2 migration tools
 
-The full schema-v2 command vocabulary and the remaining schema-v2 GUI views are still
-open work. See [task-053](tasks/agentjobs/task-053-schema-v2-cli.yaml) and
-[task-054](tasks/agentjobs/task-054-schema-v2-gui.yaml).
+The Python client and REST API expose the full schema-v2 state verbs. Some dedicated
+CLI mirrors remain backlog work; the React application is the primary human interface.
 
 ## The design is part of the product
 
@@ -69,7 +85,8 @@ wrapper. No agent-loops design document exists yet.
 ## Installation
 
 AgentJobs requires Python 3.11 or newer and is not yet published to PyPI. Run it from a
-clone:
+clone; Node is needed only for contributors building the React bundle, never to install
+or run a release wheel:
 
 ```bash
 git clone https://github.com/jeffposey/agentjobs.git
@@ -87,7 +104,7 @@ poetry run agentjobs open
 cd /path/to/your-project
 poetry -P /path/to/agentjobs run agentjobs init
 
-# Start the local UI and open it in a browser
+# Start the server and open the packaged React application in a browser
 poetry -P /path/to/agentjobs run agentjobs open
 ```
 
@@ -156,10 +173,11 @@ cd agentjobs
 poetry install
 npm --prefix frontend install
 poetry run python scripts/check.py
-poetry run agentjobs serve
+poetry run agentjobs open
 ```
 
-The React frontend is an independent project under `frontend/`:
+The React application's source and focused development commands live under
+`frontend/`:
 
 ```bash
 cd frontend
@@ -169,9 +187,9 @@ npm run check
 
 The repository commit gate is `poetry run python scripts/check.py` from the root. It
 runs the Python suite and the frontend's generated-contract check, linter, Vitest
-component suite, and production build. `npm run check` is the focused frontend half of
-that gate. Run `npm run generate:api` when an intentional backend contract change needs
-to be recorded.
+component suite, production build, and one real-server Playwright path. `npm run check`
+is the focused frontend half of that gate. Run `npm run generate:api` when an
+intentional backend contract change needs to be recorded.
 
 During development Vite serves it at `http://localhost:5173/app/` and proxies API
 requests to AgentJobs on port 8765. After `npm run build`, FastAPI serves the same app

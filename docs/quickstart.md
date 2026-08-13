@@ -1,94 +1,78 @@
-# AgentJobs Quick Start
+# AgentJobs quick start
 
-This guide covers the minimum steps to spin up AgentJobs, populate tasks, and interact via
-the REST API and Python client library.
+This guide initializes a project, opens the packaged React application, and runs the
+canonical schema-v2 handoff loop.
 
-## 1. Install & Initialise
+## 1. Install and initialize
 
-```bash
-pip install agentjobs
-cd /path/to/project
-agentjobs init
-```
-
-Follow the prompts to create `.agentjobs/config.yaml` and the initial `tasks/` directory.
-
-## 2. Launch the REST API
+Until AgentJobs is published, run it from a clone:
 
 ```bash
-agentjobs serve --reload
+git clone https://github.com/jeffposey/agentjobs.git
+cd agentjobs
+poetry install
+
+cd /path/to/your-project
+poetry -P /path/to/agentjobs run agentjobs init
 ```
 
-Open `http://localhost:8765/docs` to explore the interactive Swagger UI. The API is served
-from `http://localhost:8765`.
+Initialization creates `.agentjobs/config.yaml`, the configured task directory, and a
+project registration for the local server.
 
-## 3. Create Tasks via CLI or API
+## 2. Open the React application
 
 ```bash
-agentjobs create --title "Ship REST layer" --category engineering --priority high
+poetry -P /path/to/agentjobs run agentjobs open
 ```
 
-Equivalent `curl` request:
+The primary UI opens at `http://localhost:8765/app/`. From there you can switch among
+registered projects, create a draft or ready task, inspect hierarchy and dependencies,
+and record review approval or requested changes. FastAPI's interactive API reference
+is available separately at `http://localhost:8765/docs`.
+
+## 3. Create and find work
+
+Create work in the React UI, or use the CLI:
 
 ```bash
-curl -X POST http://localhost:8765/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-        "title": "Ship REST layer",
-        "description": "Implement FastAPI routes",
-        "priority": "high",
-        "category": "engineering"
-      }'
+poetry -P /path/to/agentjobs run agentjobs create \
+  --title "Ship REST layer" --category engineering --priority high
+poetry -P /path/to/agentjobs run agentjobs list --lifecycle ready
+poetry -P /path/to/agentjobs run agentjobs work --agent codex
 ```
 
-## 4. Use the Python Client
+## 4. Use the schema-v2 Python client
 
 ```python
-from agentjobs import TaskClient
+from agentjobs import Ball, BallReason, TaskClient
 
-client = TaskClient()
-
-# Fetch next available work item
-next_task = client.get_next_task()
-if next_task:
-    client.mark_in_progress(next_task.id, agent="codex")
-    prompt = client.get_starter_prompt(next_task.id)
-    print("Starter prompt:\n", prompt)
-
-    client.add_progress_update(
-        next_task.id,
-        summary="Initial endpoints ready",
-        details="Tasks list + detail routes implemented",
-        agent="codex",
-    )
-    client.mark_deliverable_complete(
-        next_task.id,
-        deliverable_path="docs/api-reference.md",
-    )
-    client.mark_completed(next_task.id, summary="Phase 2 delivered")
+with TaskClient() as client:
+    task = client.get_next_task(agent="codex")
+    if task is not None:
+        task = client.claim_task(task.id, agent="codex")
+        client.add_progress_update(
+            task.id,
+            agent="codex",
+            summary="Initial implementation is ready",
+            details="The complete project check passed.",
+        )
+        client.handoff_task(
+            task.id,
+            actor="codex",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Review the change; approve it or request specific revisions.",
+        )
 ```
 
-Set a custom base URL if the agent runs remotely:
+The task record—not chat—is the durable working memory. See the
+[agent workflow guide](agent-workflow.md) for claiming, releasing, closing, logging,
+and resuming tasks.
 
-```python
-client = TaskClient(base_url="http://agentjobs.internal:8765", timeout=10)
-```
-
-## 5. Search & Prompts
+## 5. Stop the server
 
 ```bash
-curl "http://localhost:8765/api/search?q=docs"
+poetry -P /path/to/agentjobs run agentjobs stop
 ```
 
-```python
-client.add_followup_prompt(
-    next_task.id,
-    content="Need regression tests for client library",
-    author="lead-engineer",
-    context="Planning review",
-)
-```
-
-## 6. Shut Down
-
-Press `Ctrl+C` in the terminal running `agentjobs serve`. The server exits cleanly.
+If you ran `agentjobs serve` in the foreground, press `Ctrl+C` instead.

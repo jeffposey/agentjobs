@@ -8,7 +8,10 @@ Budget about 15 minutes. You do not need to read `schema-design.md` first.
 
 ---
 
-## v1 in one screen
+## Historical v1 in one screen
+
+Schema v1 is retired. This section exists only to explain the migration that produced
+the current v2 model; new tasks and integrations must use v2.
 
 A task is **one YAML file**, loaded by one Pydantic model. `Task` is the root, and it
 owns ten lists of small nested objects:
@@ -58,7 +61,7 @@ from every other kind of waiting.
     ```
 
     Waiting on a human. For what? Unknown — you have to read `comments[]` to find out,
-    and the GUI has no field to render, which is why its review banner says the same
+    and the historical UI had no field to render, which is why its review banner said the same
     generic sentence for every task.
 
 === "v2"

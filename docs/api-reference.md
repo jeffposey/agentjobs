@@ -1,178 +1,88 @@
-# AgentJobs REST API Reference
+# AgentJobs REST API reference
 
-The AgentJobs REST API exposes task management capabilities for agents and tooling. All
-endpoints serve and accept JSON unless explicitly noted. FastAPI automatically publishes
-interactive documentation at [`/docs`](http://localhost:8765/docs).
+AgentJobs exposes the schema-v2 task workflow as JSON. The generated OpenAPI document
+is the endpoint and payload source of truth:
 
-## Base URL
+- Interactive reference: [`http://localhost:8765/docs`](http://localhost:8765/docs)
+- Repository contract: [`frontend/openapi.json`](https://github.com/jeffposey/agentjobs/blob/main/frontend/openapi.json)
+- Generated TypeScript client: `frontend/src/api/generated/`
 
-```
-http://localhost:8765
-```
+Run `agentjobs open` or `agentjobs serve` before using the local URLs. AgentJobs has no
+authentication; keep it on loopback unless a private HTTPS proxy and access policy are
+in place.
 
-No authentication is required during Phase 2. Future releases will add auth headers.
+## Project scoping
 
-Set the tasks directory explicitly by exporting `AGENTJOBS_TASKS_DIR` (defaults to the
-`tasks/` directory configured during `agentjobs init`).
+Every project-owned endpoint is available in two forms:
 
-## Conventions
+- `/api/...` uses the default project resolved for the server process.
+- `/api/projects/{project_id}/...` addresses one registered project explicitly.
 
-- Timestamps follow ISO 8601 (`2025-01-01T12:00:00Z`).
-- Task identifiers take the form `task-###`.
-- Enum fields use lowercase strings (`draft`, `in_progress`, `high`, ...).
+Use `GET /api/projects` to discover project identifiers. The React application uses
+the scoped form so switching projects never depends on the server's current directory.
 
-## Task Endpoints
+## Task reads
 
-### List Tasks
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/tasks` | List tasks; filter with `lifecycle`, `ball`, `priority`, or `parent` |
+| `GET` | `/api/tasks/next` | Return the next claimable task; accepts `agent` and `priority` |
+| `GET` | `/api/tasks/{task_id}` | Return one task record |
+| `GET` | `/api/tasks/{task_id}/detail` | Return the full review/resumption view with relationships |
+| `GET` | `/api/tasks/broken` | Report task files that exist but fail validation |
+| `GET` | `/api/search?q=...` | Search task content |
+| `GET` | `/api/dashboard` | Return dashboard counts and activity |
+| `GET` | `/api/revision` | Return the project revision used for client refresh |
 
-`GET /api/tasks`
+The human inbox is `GET /api/tasks?ball=human`; external blockers are
+`GET /api/tasks?ball=external`. These are derived from schema-v2 axes, not legacy status
+strings.
 
-Query parameters:
+## Task creation and editing
 
-- `status_filter` (`draft | ready | in_progress | blocked | waiting_for_human | under_review | completed | archived`)
-- `priority_filter` (`low | medium | high | critical`)
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/tasks` | Create a draft or ready task |
+| `PATCH` | `/api/tasks/{task_id}` | Update editable metadata and specification fields |
+| `DELETE` | `/api/tasks/{task_id}` | Archive the task through the storage policy |
+| `PATCH` | `/api/tasks/{task_id}/deliverables/{path}` | Mark a deliverable done |
 
-Response (`200 OK`):
+State axes do not move through the generic patch route. Use the verbs below so
+preconditions are enforced and transition history is appended.
 
-```json
-[
-  {
-    "id": "task-101",
-    "title": "Implement REST layer",
-    "status": "in_progress",
-    "priority": "high",
-    "category": "engineering",
-    "description": "Build FastAPI routes for task management.",
-    "prompts": {"starter": "...", "followups": []},
-    "status_updates": [...],
-    "deliverables": [...]
-  }
-]
-```
+## Canonical state verbs
 
-### Get Next Task
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/tasks/{task_id}/claim` | Atomically claim ready work for an eligible agent |
+| `POST` | `/api/tasks/{task_id}/handoff` | Move the ball with a holder, reason, and concrete ask |
+| `POST` | `/api/tasks/{task_id}/release` | Return claimed work to the ready pool |
+| `POST` | `/api/tasks/{task_id}/close` | Close with `completed`, `cancelled`, `superseded`, or `duplicate` |
+| `POST` | `/api/tasks/{task_id}/log` | Append a typed note, progress, decision, question, answer, or instruction |
+| `POST` | `/api/tasks/{task_id}/progress` | Append a structured progress entry |
 
-`GET /api/tasks/next`
+The React review actions use `/approve`, `/request-changes`, and `/reject`. Approval
+records the human handoff back to `agent/work`; it does not run git or merge a branch.
 
-Optional query parameter `priority` (e.g. `critical`) filters by priority tier. Returns
-`null` when no ready tasks remain.
+## Minimal client example
 
-### Get Task
+```python
+from agentjobs import Ball, BallReason, TaskClient
 
-`GET /api/tasks/{task_id}`
-
-Errors:
-
-- `404` – `{ "detail": "Task task-999 not found" }`
-
-### Create Task
-
-`POST /api/tasks`
-
-Request body:
-
-```json
-{
-  "title": "Design API contract",
-  "description": "Document request/response pairs",
-  "priority": "high",
-  "category": "engineering",
-  "tags": ["api", "docs"]
-}
-```
-
-Response (`201 Created`) returns the persisted task. Validation errors emit
-`400` with a descriptive `detail` string.
-
-### Replace Task
-
-`PUT /api/tasks/{task_id}`
-
-Accepts the same payload shape as creation. Any omitted required fields fall back to the
-current task definition.
-
-### Update Task (Partial)
-
-`PATCH /api/tasks/{task_id}`
-
-Body contains only the fields to change. Sending an empty body results in `400`.
-
-### Archive Task
-
-`DELETE /api/tasks/{task_id}`
-
-Sets status to `archived` and records a status update.
-
-### Mark Deliverable Complete
-
-`PATCH /api/tasks/{task_id}/deliverables/{deliverable_path}`
-
-URL-encode the deliverable path (`docs%2Fplan.md`). On success returns the updated task.
-
-## Status & Progress
-
-### Update Status
-
-`POST /api/tasks/{task_id}/status`
-
-```json
-{
-  "status": "in_progress",
-  "author": "codex",
-  "summary": "Started work",
-  "details": "Initial scaffolding in place."
-}
+with TaskClient(base_url="http://localhost:8765") as client:
+    task = client.get_next_task(agent="codex")
+    if task:
+        client.claim_task(task.id, agent="codex")
+        client.handoff_task(
+            task.id,
+            actor="codex",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Review the verified branch and approve or request changes.",
+        )
 ```
 
-### Add Progress Update
+## Webhooks
 
-`POST /api/tasks/{task_id}/progress`
-
-```json
-{
-  "author": "codex",
-  "summary": "Halfway",
-  "details": "Finished REST endpoints"
-}
-```
-
-Both endpoints return the updated task. Missing tasks return `404`.
-
-## Prompt Management
-
-### Get Starter Prompt
-
-`GET /api/tasks/{task_id}/prompts/starter`
-
-Response:
-
-```json
-{"task_id": "task-123", "starter": "Kick-off instructions"}
-```
-
-### Add Follow-up Prompt
-
-`POST /api/tasks/{task_id}/prompts`
-
-```json
-{
-  "author": "human",
-  "content": "Clarify error handling scenarios?",
-  "context": "QA review"
-}
-```
-
-Returns the updated task with appended `prompts.followups` entry.
-
-## Search
-
-`GET /api/search?q=keyword`
-
-Searches titles, descriptions, and tags. Blank queries receive `400`.
-
-## Health Check
-
-- `GET /health` – legacy root health endpoint.
-- `GET /api/health` – API-scoped health response.
-
-Both return `{ "status": "ok" }`.
+Webhook management is available under `/api/webhooks` and the equivalent scoped path.
+See the [webhook guide](webhooks.md) for events, signatures, and payloads.

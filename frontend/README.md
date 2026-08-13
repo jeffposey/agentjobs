@@ -86,8 +86,9 @@ deliberately limited to one high-value path: browser task creation through a rea
 server and temporary project.
 
 Tailwind is bundled through its Vite plugin. The stylesheet uses Tailwind 4's
-CSS-first theme variables and a `.dark` custom variant, preserving the Jinja UI's
-palette and class-driven dark mode without a CDN or `tailwind.config.js`.
+CSS-first theme variables and a `.dark` custom variant. Its palette was initially
+derived from the legacy Jinja compatibility UI, but React owns the current design
+system and ships without a CDN or `tailwind.config.js`.
 
 ## Generated API client
 

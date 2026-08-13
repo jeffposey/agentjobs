@@ -51,7 +51,7 @@ user authorizes it.
     a passing suite is not by itself evidence the feature works.
 5.  **Hand off**: `handoff` to `human`/`review` with a `ball_prompt` saying what was done
     and what needs review, and **commit that to `main`** — a handoff sitting on your
-    branch is invisible in the dashboard, so the human you are handing to will never see
+    branch is invisible in the React app, so the human you are handing to will never see
     it. **Stop there** — do not merge.
 6.  **On approval**: Rebase onto `main`, merge `--no-ff`, mark the branch `merged`,
     `close` the task with `outcome: completed`, and `git worktree remove` your worktree.
@@ -113,10 +113,10 @@ Three failures on 2026-08-11, all in one afternoon, all from skipping this:
     `git checkout --` them — that destroys work you did not write.
 2.  An agent checked out its own branch and replaced the tree under a peer mid-task. The
     peer's next commit would have gone to the wrong branch.
-3.  An agent finished and left the clone on `main`. The owner opened the dashboard, did
+3.  An agent finished and left the clone on `main`. The owner opened the React app, did
     not see a task waiting for review, and reasonably concluded the product was broken.
     It was not: **tasks are YAML files here, so the checked-out branch decides what the
-    GUI shows.** Before reporting that a task is missing, check what is checked out.
+    React UI shows.** Before reporting that a task is missing, check what is checked out.
 
 ### Logging Work to the Task
 The task record — not the surrounding conversation — is the source of truth for where

@@ -1,4 +1,4 @@
-"""Shared dashboard projection for the Jinja and React clients."""
+"""Dashboard projection shared by the React API and legacy Jinja compatibility views."""
 
 from __future__ import annotations
 

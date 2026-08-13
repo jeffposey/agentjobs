@@ -6,14 +6,17 @@ This handbook is the canonical source for universal engineering practices across
 **AgentJobs** is a lightweight task management system designed for AI agent workflows.
 -   **Core Philosophy**: "Git-Friendly" & "Lightweight".
 -   **Data Source**: YAML files in the `tasks/` directory are the single source of truth.
--   **Interface**: CLI (`agentjobs`) and Web UI (`agentjobs serve`).
+-   **Interface**: CLI (`agentjobs`) and packaged React Web UI (`agentjobs open`, or
+    `/app/` on a running `agentjobs serve`).
 
 ## Tech Stack
 -   **Language**: Python 3.11+
 -   **Web Framework**: FastAPI
 -   **CLI Framework**: Typer
 -   **Data Validation**: Pydantic v2
--   **Templating**: Jinja2
+-   **Web application**: React 19, TypeScript, Vite, Tailwind CSS, TanStack Query
+-   **Compatibility surface**: Jinja2 remains only for legacy server-rendered routes;
+    it is not the primary or recommended UI.
 -   **Package Manager**: Poetry
 
 ## Development Workflow
@@ -30,8 +33,9 @@ poetry run agentjobs init  # If starting fresh
     poetry run python scripts/check.py
     ```
 -   This single gate runs pytest, verifies the generated frontend API client, lints,
-    runs the Vitest component suite in jsdom, and builds the React app. Use focused
-    pytest or npm commands while iterating, but do not substitute them for the gate.
+    runs the Vitest component suite in jsdom, builds the React app, and exercises one
+    real-server browser path with Playwright. Use focused pytest or npm commands while
+    iterating, but do not substitute them for the gate.
 -   Ensure high test coverage for core logic (`manager.py`, `storage.py`).
 
 ### Code Style
@@ -91,7 +95,7 @@ against one clone and none of them can see the others.
 One consequence is worth knowing whoever you are, because it looks like a bug and is
 not: **tasks are YAML files in this repository, so whichever branch is checked out
 decides what the dashboard shows.** A task handed to you for review on a branch does not
-exist as far as `main` is concerned. If the GUI is missing something you expect, check
+exist as far as `main` is concerned. If the React app is missing something you expect, check
 what is checked out before filing anything.
 
 ### Commit Hygiene
@@ -141,7 +145,7 @@ own status transitions, on the reasoning that they belonged beside the work they
 described. That reasoning was wrong, and the failure is not subtle.
 
 **The dashboard reads one working tree.** A handoff committed to a branch is invisible
-to the person it is addressed to — they open the GUI, see the task still `ready`, and
+to the person it is addressed to — they open the React app, see the task still `ready`, and
 conclude nothing is waiting for them. The merge gate depends on a human seeing a review
 request, so recording that request somewhere the human cannot see it defeats the gate
 entirely. Worktrees make it airtight: the shared clone is then *never* on the review
@@ -168,7 +172,8 @@ review request the reviewer can actually see.
 ## Safety Rails
 -   **Never** delete user data without explicit confirmation.
 -   **Always** use the `TaskStorage` abstraction; avoid direct file I/O on task files where possible.
--   **Verify** local server startup (`poetry run agentjobs serve`) after modifying API routes.
+-   **Verify** local server startup and the React `/app/` route (`poetry run agentjobs
+    open`) after modifying API routes or frontend serving.
 -   **Restart the server after changing models, storage, or task files.** A running
     `agentjobs serve` holds the imported code in memory. If the task files change
     underneath it — a schema migration, a checkout, a bulk edit — it reads new data with

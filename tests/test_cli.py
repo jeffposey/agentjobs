@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -143,6 +144,34 @@ def test_serve_command_args(monkeypatch) -> None:
         mock_run.assert_called_once_with(
             "agentjobs.api.main:app", host="192.168.1.25", port=9000, reload=True
         )
+
+
+def test_open_targets_react_app_on_existing_server() -> None:
+    with (
+        patch("agentjobs.cli._find_process_by_port", return_value=1234),
+        patch("webbrowser.open") as browser_open,
+    ):
+        result = runner.invoke(app, ["open", "--port", "9000"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    assert "Opening http://localhost:9000/app/" in result.stdout
+    browser_open.assert_called_once_with("http://localhost:9000/app/")
+
+
+def test_open_starts_installed_python_module_without_poetry() -> None:
+    with (
+        patch("agentjobs.cli._find_process_by_port", side_effect=[None, 1234]),
+        patch("platform.system", return_value="Linux"),
+        patch("subprocess.Popen") as process_open,
+        patch("time.sleep"),
+        patch("webbrowser.open"),
+    ):
+        result = runner.invoke(app, ["open"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    command = process_open.call_args.args[0]
+    assert command[:4] == [sys.executable, "-m", "agentjobs.cli", "serve"]
+    assert "poetry" not in command
 
 
 @pytest.mark.parametrize("command", ["serve", "restart", "open"])

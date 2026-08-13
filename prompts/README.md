@@ -1,6 +1,9 @@
-# AgentJobs Prompts
+# Historical AgentJobs Prompts
 
-Agent instructions for AgentJobs development tasks.
+These files preserve implementation prompts from AgentJobs' earlier phased roadmap.
+They are historical records, not current product or contributor documentation. Current
+work is specified in schema-v2 task YAML and resumed through `spec`, `ball_prompt`, and
+the typed `log`; see [`docs/agent-workflow.md`](../docs/agent-workflow.md).
 
 ## Structure
 
@@ -10,7 +13,8 @@ Agent instructions for AgentJobs development tasks.
 
 ## Usage
 
-Prompts are automatically linked during migration:
+The examples below document the retired schema-v1 migration format and are retained
+only to explain the archived files:
 
 ```bash
 agentjobs migrate \

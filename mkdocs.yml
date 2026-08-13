@@ -1,5 +1,5 @@
 site_name: AgentJobs Schema
-site_description: Task schema v1 (implemented) and v2 (proposed), generated from LinkML.
+site_description: AgentJobs task schema v2, with the retired v1 schema preserved for migration history.
 repo_url: https://github.com/jeffposey/agentjobs
 docs_dir: docs
 
@@ -52,12 +52,12 @@ markdown_extensions:
 
 nav:
   - Overview: index.md
-  - Schema v2 (proposed):
+  - Schema v2 (current):
       - Understanding the schema: schema/understanding.md
       - Entity diagram: schema/v2-erd.md
       - Design rationale: schema-design.md
       - Reference: schema/v2/index.md
-  - Schema v1 (implemented):
+  - Schema v1 (retired):
       - Entity diagram: schema/v1-erd.md
       - Reference: schema/v1/index.md
   - Project docs:
@@ -68,6 +68,7 @@ nav:
       - Webhooks: webhooks.md
       - Quickstart: quickstart.md
       - Installation: installation.md
+      - Mobile and installed-app access: mobile-access.md
       - Migration guide: migration-guide.md
 
 # The 160+ per-class/slot/enum/type pages under schema/v1 and schema/v2 are reached

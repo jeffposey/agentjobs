@@ -1,50 +1,49 @@
-# AgentJobs Schema
+# AgentJobs documentation
 
-The schema is the product; git is its database. This site is generated from the two
-LinkML schemas in [`schema/`](https://github.com/jeffposey/agentjobs/tree/main/schema),
-so it cannot drift from them.
+AgentJobs is a git-backed handoff protocol with a packaged React web application. Task
+YAML remains the source of truth; the React UI at `/app/`, the REST API, CLI, and Python
+client are views and controlled writers over the same schema-v2 records.
 
-| | Status | Source | Verified by |
-|---|---|---|---|
-| **[v1](schema/v1/index.md)** | Implemented | `src/agentjobs/models.py`, transcribed to `schema/agentjobs-v1.yaml` | `linkml-validate` over all 31 live task files |
-| **[v2](schema/v2/index.md)** | Proposed, accepted, **not implemented** | `schema/agentjobs-v2.yaml`, from [the design doc](schema-design.md) | Compiles; consistency rules declared; no corpus exists yet |
+## Start here
 
-Start with the **[v2 entity diagram](schema/v2-erd.md)** and the
-**[design rationale](schema-design.md)**, then compare against the
-**[v1 entity diagram](schema/v1-erd.md)**.
+- [Installation](installation.md) — install from a clone today and understand the
+  Python-only runtime contract for release wheels.
+- [Quick start](quickstart.md) — initialize a project, open the React application,
+  create a task, and exercise the canonical handoff loop.
+- [Agent workflow](agent-workflow.md) — resume work from a task record and use the
+  schema-v2 state verbs.
+- [Mobile and installed-app access](mobile-access.md) — privately expose and install
+  the React PWA over HTTPS.
+- [API reference](api-reference.md) — current endpoint families and the generated
+  OpenAPI source of truth.
 
-## What changed, in one screen
+## Current schema
 
-v1's single 8-value `status` answered three different questions at once. v2 splits them
-into orthogonal axes, which is the change everything else follows from:
+Schema v2 is implemented in `src/agentjobs/models_v2.py`, declared in
+`schema/agentjobs-v2.yaml`, and used by the live task corpus.
 
-| Question | v1 | v2 |
-|---|---|---|
-| Where in its life? | `status` | `lifecycle` (draft/ready/active/closed) |
-| Who acts next? | `status` | `ball` (agent/human/external) — **required while open** |
-| Why are they holding it? | `under_review` only | `ball_reason`, scoped to the holder |
-| What do they need to do? | — | `ball_prompt` — **required whenever the ball is set** |
-| How did it end? | `status` | `outcome` + `archived` as a separate visibility flag |
+- [Understand schema v2](schema/understanding.md)
+- [Task schema reference](task-schema.md)
+- [v2 entity diagram](schema/v2-erd.md)
+- [Generated v2 reference](schema/v2/index.md)
+- [Historical design rationale](schema-design.md)
 
-The two required fields are the point: an open task with nobody responsible, or a
-handoff with no stated ask, are both unrepresentable in v2.
+Schema v1 is retired. Its [entity diagram](schema/v1-erd.md) and
+[generated reference](schema/v1/index.md) remain only for migration and repository
+history; new records and integrations must use v2.
 
-Deleted in v2 (D1): `phases`, `prompts`, `issues`, the `Comment` model,
-`dependencies[].status`, and `human_summary`. Merged: `status_updates` + `comments` +
-`prompts.followups` became one typed append-only `log`.
+## Development and operations
 
-## Regenerating
-
-```bash
-bash scripts/regen-schema-docs.sh   # JSON Schema, ER diagrams, reference docs, corpus validation
-poetry run mkdocs serve             # browse at http://127.0.0.1:8000
-```
+- [Repository engineering guidance](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md)
+- [React frontend development](https://github.com/jeffposey/agentjobs/blob/main/frontend/README.md)
+- [Webhook integrations](webhooks.md)
+- [Schema migration](migration-guide.md)
+- [Agent dispatch design](agent-dispatch-design.md) — accepted design record; clearly
+  labelled where implementation is still pending
 
 Everything under `docs/schema/v1/`, `docs/schema/v2/`, and `schema/generated/` is
-generated. Hand-edit only the two files in `schema/`.
+generated. Regenerate it from the repository root with:
 
-!!! note "On `schema/generated/models_v2_preview.py`"
-    `gen-pydantic` renders the v2 schema as working Pydantic models. It is checked in
-    as evidence that the schema is implementable and as the starting point for
-    task-050 — **not** wired into the package. Whether generated models become the
-    real `models.py` or stay a reference is task-050's call.
+```bash
+bash scripts/regen-schema-docs.sh
+```
