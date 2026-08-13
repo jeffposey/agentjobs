@@ -1,0 +1,78 @@
+schema: 2
+id: task-108-react-project-switcher
+title: Add the project switcher to React
+created: '2026-08-13T22:42:14.777527Z'
+updated: '2026-08-13T22:42:14.778271Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- react-frontend
+- multi-project
+- mobile
+- ux
+effort: half a working session
+assignment:
+  eligible: []
+spec:
+  summary: Add an accessible project switcher to the shared React header so desktop,
+    tablet, and phone users can move among every registered AgentJobs project without
+    entering URLs manually.
+  intent: The packaged React app is now the primary interface, but it omitted the
+    multi-project navigation already present in the legacy compatibility UI. This
+    makes the current tablet app appear single-project and contradicts the quickstart.
+  description: Fetch the existing project registry in the React shell and render a
+    project switcher on every project-scoped React page. It must list every registered
+    project, show the active project, and navigate to the selected project dashboard
+    using the React /app/p/<project>/ route. Keep the control usable at tablet and
+    phone widths and preserve the existing dashboard, task list, task detail, and
+    create routes. Add focused component/routing coverage and exercise the packaged
+    app with at least two registered projects. Correct current documentation that
+    claims project switching so it accurately describes the implemented control.
+  constraints: '- Implement in the packaged React application; do not extend the legacy
+    Jinja UI.`n- Use GET /api/projects and project-scoped React routes; do not hardcode
+    project ids.`n- Switching projects goes to the selected project dashboard so a
+    task-specific route cannot silently resolve to an unrelated same-id record.`n-
+    The control must be keyboard accessible, have an explicit accessible name, meet
+    existing touch-target sizing, and not overflow a phone-width header.`n- Verify
+    with at least two registered projects in the real packaged application.'
+  out_of_scope: A cross-project combined task view. Persisting a last-selected project
+    across browsers. Rebuilding project registration/onboarding in React. Removing
+    legacy Jinja routes.
+  context:
+  - path: frontend/src/App.tsx
+    why: Owns the shared React shell, project routing, and current project label.
+  - path: tasks/agentjobs/task-061-project-switcher.yaml
+    why: Historical accepted behavior for explicit project switching in the legacy
+      UI.
+  - path: docs/quickstart.md
+    why: Currently claims that the React UI can switch registered projects.
+acceptance:
+- id: ac-1
+  text: Every project-scoped React page has a project switcher listing every registered
+    project and marking the active project.
+  status: pending
+- id: ac-2
+  text: Choosing another project navigates to that project dashboard under /app/p/<project>/
+    and loads its scoped data.
+  status: pending
+- id: ac-3
+  text: The switcher is keyboard accessible, touch-sized, and fits the shared header
+    at phone and tablet widths without horizontal overflow.
+  status: pending
+- id: ac-4
+  text: Automated tests cover registry loading, active selection, and project navigation,
+    and the packaged app is browser-verified with at least two real registered projects.
+  status: pending
+- id: ac-5
+  text: Quickstart and other current-facing references to React project switching
+    match the shipped behavior.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log: []
