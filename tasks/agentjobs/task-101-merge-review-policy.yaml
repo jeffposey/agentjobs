@@ -1,0 +1,117 @@
+schema: 2
+id: task-101-merge-review-policy
+title: 'Merge review as a policy: an admin default plus a per-task override'
+created: '2026-08-13T03:06:00.470908Z'
+updated: '2026-08-13T03:06:00.471667Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: 'Decide the shape before anyone builds it: whether this is one setting
+  or three (review-required, what satisfies a dependency, what dispatch may hand out
+  unattended), whether a per-task override may only relax the default or also tighten
+  it, whether an agent may set its own exemption, and whether ''review'' should name
+  a kind -- behavioural, code, none -- rather than a boolean. See the five open questions
+  in the description.'
+archived: false
+priority: medium
+category: workflow
+tags:
+- workflow
+- schema
+- dispatch
+- merge-gate
+effort: a thinking pass, then probably medium
+assignment:
+  eligible: []
+spec:
+  summary: Whether a task needs human review before its branch merges is currently
+    a hard rule in a document. Make it a configured policy -- an admin-level default
+    with a per-task override -- that dispatch, the claim gate, and the GUI all honour.
+  intent: 'The merge gate is currently a rule in ENGINEERING.md, enforced by agents
+    reading a document and by `claim_task` refusing unmet dependencies. That makes
+    it all-or-nothing: either every task waits for a human, or the rule is broken.
+    A configured policy would let the gate sit where it earns its keep -- at a phase
+    boundary, or on the tasks that touch something risky -- instead of on all of them
+    uniformly.
+
+
+    The immediate motivation is that an agent loop cannot get through a phase, so
+    the owner becomes the rate limiter on work he is not, in practice, reviewing as
+    code. The deeper motivation is that ''needs human review'' is a property of a
+    task, and this schema already models properties of tasks.'
+  description: "## Where this came from\n\nCaptured 2026-08-12 from the owner, after\
+    \ discovering that an unattended agent loop\ncannot get through a phase:\n\n>\
+    \ \"this kind of thing should be an admin setting plus task level setting decision,\n\
+    > which affects dispatch, and such.... whether tasks needs human review before\
+    \ merge\n> or not.... for now, I feel like I'm in the way of merges as this continues\
+    \ to be a\n> pretty vibe coded and then PM and QA review kind of process\"\n\n\
+    Not yet specified. The shape below is the reasoning available at capture time,\
+    \ not a\ndecision.\n\n## The concrete blockage\n\n`claim_task` refuses a task\
+    \ with unmet `needs`. `_unmet_needs` treats a dependency as\nsatisfied only when\
+    \ the other task is **closed**. Closing happens after a merge, and\nmerging requires\
+    \ explicit human approval. So four separate concerns are welded into\none chain:\n\
+    \n    may I start this  <-  is my dependency closed  <-  has it merged  <-  has\
+    \ a human approved\n\nThe consequence, observed: an agent given phase 1 (task-095)\
+    \ can complete exactly one\nchild and then must stop, because 084 and 085 need\
+    \ 083 *closed*. There is no technical\nreason it could not build 084 on a branch\
+    \ stacked on 083's unmerged branch -- the code\nexists, it is simply not on `main`\
+    \ yet.\n\n## What a policy might separate\n\n- **Does this task's branch need\
+    \ human approval before it merges?** The review policy\n  proper. Admin default,\
+    \ per-task override.\n- **What satisfies a `needs` dependency?** Closed, or merged,\
+    \ or \"the branch exists\n  and its tests pass\". This is the axis that actually\
+    \ unblocks a long loop, and it is\n  schema-adjacent -- it changes what `_unmet_needs`\
+    \ means.\n- **What may dispatch hand out unattended?** A dispatched agent could\
+    \ be permitted a\n  whole phase when every child in it is marked review-exempt,\
+    \ and a single task\n  otherwise.\n\nThese are three questions and it is not obvious\
+    \ they want one setting.\n\n## The default is the whole decision\n\nWhatever the\
+    \ mechanism, the **admin default** governs the tasks nobody thinks about,\nwhich\
+    \ is nearly all of them. Default to review-required with an explicit opt-out.\
+    \ The\nreverse quietly becomes \"never review\", and the discovery arrives several\
+    \ phases later\nattached to work nobody looked at.\n\n## Open questions for the\
+    \ owner\n\n1. Is this one setting or the three above, separately?\n2. Does a per-task\
+    \ override let a task demand *more* review than the default, or only\n   less?\
+    \ Only-less is simpler; only-more is safer.\n3. Who may set the override -- any\
+    \ agent, or only a human? An agent that can exempt\n   itself from review has\
+    \ no review.\n4. Does relaxing what satisfies a dependency need a new lifecycle\
+    \ state, or a new\n   dependency type, or is it a property of the `needs` edge?\n\
+    5. What happens to work already merged under an exemption that later turns out\
+    \ to be\n   wrong? Today the answer is a git revert and an honest log entry, which\
+    \ may be\n   enough.\n\n## Note on the honest version of the current process\n\
+    \nThe owner's own framing is that this is \"vibe coded and then PM and QA review\"\
+    \ -- that\nhe is reviewing behaviour and task records rather than reading Python\
+    \ and TypeScript.\nIf that is what the gate actually is, the policy should say\
+    \ so rather than describing a\ncode review that is not happening. A gate whose\
+    \ stated purpose matches its real one can\nbe reasoned about; one that overstates\
+    \ itself manufactures assurance nobody has. That\nargues for naming the *kind*\
+    \ of review a task needs -- behavioural, or code, or none --\nrather than a boolean."
+  constraints: '- The admin default must be review-required. An opt-out that defaults
+    to off is not a policy.
+
+    - Whatever is decided must be visible on the task and in the GUI. A gate that
+    was skipped silently is worse than no gate.
+
+    - Anything merged under an exemption must still be recoverable: a real merge commit,
+    an honest log entry, nothing pushed without approval.
+
+    - Do not weaken `_unmet_needs` for dangling or unresolvable dependency ids. That
+    guard exists because a typo''d id silently disabled the gate entirely.'
+  out_of_scope: Authentication and per-user permissions (task-066) -- this is a policy
+    on tasks, not on people. Automated code review as a replacement for human review;
+    that is worth considering but is its own task. Changing the merge mechanics themselves
+    (`--no-ff`, branch bookkeeping).
+  context:
+  - path: src/agentjobs/manager.py
+    why: claim_task and _unmet_needs -- where the four concerns are currently welded
+      together.
+  - path: ENGINEERING.md
+    why: The Merge Gate section, which is the rule this would make configurable.
+  - path: prompts/task-095-phase-1-loop.md
+    why: Section 0 -- the workaround that exists because this setting does not.
+  - path: tasks/agentjobs/task-068-dispatch-config.yaml
+    why: Existing dispatch configuration, the likely home for an admin default.
+acceptance: []
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log: []
