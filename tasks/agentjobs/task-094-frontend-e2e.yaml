@@ -2,10 +2,11 @@ schema: 2
 id: task-094-frontend-e2e
 title: 'Harden the frontend harness: network-boundary mocking and one end-to-end path'
 created: '2026-08-13T02:19:48.337101Z'
-updated: '2026-08-13T20:32:21.413190Z'
-lifecycle: ready
+updated: '2026-08-13T20:58:46.721846Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: medium
 category: testing
@@ -15,6 +16,7 @@ tags:
 - testing
 effort: a day
 assignment:
+  owner: codex
   eligible: []
 parent: task-098-react-phase-4-ship
 spec:
@@ -89,5 +91,16 @@ dependencies:
   type: needs
   note: The real-browser path follows the new write surface it must prove.
 links: []
-branches: []
-log: []
+branches:
+- name: test/task-094-frontend-e2e
+  status: active
+log:
+- id: 1
+  ts: '2026-08-13T20:58:46.711313Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
