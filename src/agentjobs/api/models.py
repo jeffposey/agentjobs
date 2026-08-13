@@ -35,6 +35,13 @@ class DashboardStats(BaseModel):
     completed: int
 
 
+class ProjectRevisionResponse(BaseModel):
+    """Small file-derived change signal for one project's task collection."""
+
+    revision: str
+    task_count: int
+
+
 class DashboardRecentUpdate(BaseModel):
     """A compact task-log record for the recent activity list."""
 

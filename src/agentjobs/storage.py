@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import errno
+import hashlib
 import logging
 import os
 import time
@@ -88,6 +89,33 @@ class TaskStorage:
         """Initialize storage with tasks directory."""
         self.tasks_dir = Path(tasks_dir)
         self.tasks_dir.mkdir(parents=True, exist_ok=True)
+
+    def project_revision(self) -> tuple[str, int]:
+        """Return a cheap signal that changes when this project's task files change.
+
+        The API is not the only writer: the CLI, agents, direct edits, and git all
+        replace YAML files without going through a shared process counter.  Hashing
+        sorted file bytes covers every one of those paths, including a rapid same-size
+        rewrite on filesystems whose timestamps collide.  It deliberately does not
+        parse or validate YAML, so broken task files still participate in the signal.
+        """
+        digest = hashlib.blake2s(digest_size=12)
+        count = 0
+        for path in sorted(self.tasks_dir.glob("*.yaml"), key=lambda item: item.name):
+            try:
+                content = path.read_bytes()
+            except FileNotFoundError:
+                # An atomic writer can replace a file between glob and stat.  The next
+                # poll will see the completed replacement; a transient 500 would turn
+                # an ordinary write into a false unreachable signal.
+                continue
+            count += 1
+            digest.update(path.name.encode("utf-8"))
+            digest.update(b"\0")
+            digest.update(len(content).to_bytes(8, "big"))
+            digest.update(content)
+            digest.update(b"\0")
+        return digest.hexdigest(), count
 
     def _task_path(self, task_id: str) -> Path:
         """Resolve the path for a given task identifier.
