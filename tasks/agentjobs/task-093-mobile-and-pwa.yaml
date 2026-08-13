@@ -2,7 +2,7 @@ schema: 2
 id: task-093-mobile-and-pwa
 title: Make the client usable on a phone, and installable
 created: '2026-08-13T02:19:47.902546Z'
-updated: '2026-08-13T08:55:40.094544Z'
+updated: '2026-08-13T08:58:44.233770Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -221,4 +221,29 @@ log:
     restart was attempted, but an orphaned inaccessible listener on 127.0.0.1:8765
     refused replacement; alternate loopback ports will be used for trustworthy verification.
     Usage-window telemetry is unavailable in this session; no estimate was invented.'
+  data: {}
+- id: 3
+  ts: '2026-08-13T08:58:44.217501Z'
+  actor: codex
+  type: decision
+  body: 'Reject unspecified/wildcard bind hosts in every server-starting CLI path
+    (serve, restart, open), while allowing localhost and a specific interface address
+    for the documented direct-bind fallback. Rejected alternative: print a warning
+    but still bind 0.0.0.0/::; AgentJobs has no authentication, so a warning does
+    not prevent accidental unauthenticated network exposure.'
+  data: {}
+- id: 4
+  ts: '2026-08-13T08:58:44.233677Z'
+  actor: codex
+  type: progress
+  body: 'Wildcard bind refusal committed.
+
+
+    Feature commit 87ce0da adds a shared bind-host validator used by serve, restart,
+    and open. It refuses 0.0.0.0, ::, [::], *, and + before starting or stopping anything;
+    a specific address remains permitted for the explicitly documented fallback. Verified
+    with poetry run pytest tests/test_cli.py -q (25 passed), Ruff (passed), and git
+    diff --check (passed). Remaining: responsive component pattern, PWA shell/offline/update
+    behavior, reproducible icons, proxy documentation, full checks, and browser/device
+    evidence.'
   data: {}
