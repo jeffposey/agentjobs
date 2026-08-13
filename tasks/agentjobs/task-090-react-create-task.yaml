@@ -2,13 +2,9 @@ schema: 2
 id: task-090-react-create-task
 title: Create a task from the browser
 created: '2026-08-11T07:38:06.904250Z'
-updated: '2026-08-13T20:56:57.658821Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-13T20:58:12.607018Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: ux
@@ -18,7 +14,6 @@ tags:
 - workflow
 effort: a day
 assignment:
-  owner: codex
   eligible: []
 parent: task-098-react-phase-4-ship
 spec:
@@ -106,7 +101,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-090-react-create-task
-  status: active
+  status: merged
+  merged_at: '2026-08-13T20:58:12.567033Z'
 log:
 - id: 1
   ts: '2026-08-13T20:32:21.390949Z'
@@ -194,3 +190,24 @@ log:
     so it generated task-002. That numbering defect is separate from task 090 and
     is not silently added to this parent task scope.'
   data: {}
+- id: 8
+  ts: '2026-08-13T20:58:12.591296Z'
+  actor: codex
+  type: progress
+  body: 'Approved branch merged to main as 778513a and merged-main verification passed.
+
+
+    After Jeff approved through the UI, feat/task-090-react-create-task was rebased
+    onto main and merged with --no-ff. poetry run python scripts/check.py passed on
+    merged main: 596 backend tests, 40 frontend tests, generated schema/client checks,
+    icon check, lint, and production build. No push performed.'
+  data: {}
+- id: 9
+  ts: '2026-08-13T20:58:12.606932Z'
+  actor: codex
+  type: transition
+  body: Closed completed after Jeff approved the real browser creation flow and merge
+    778513a passed the full gate.
+  data:
+    lifecycle: closed
+    outcome: completed
