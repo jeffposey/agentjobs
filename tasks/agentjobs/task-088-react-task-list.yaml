@@ -2,11 +2,12 @@ schema: 2
 id: task-088-react-task-list
 title: React task list, with the filtering that Alpine made untestable
 created: '2026-08-11T07:38:05.953311Z'
-updated: '2026-08-13T09:33:15.535730Z'
+updated: '2026-08-13T09:36:12.616169Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: Review the React task list on phone. Try search and the three filters;
+  refresh once if useful. Reply approve or name the issue to fix.
 archived: false
 priority: medium
 category: ux
@@ -67,19 +68,19 @@ spec:
 acceptance:
 - id: ac-1
   text: the list defaults to Open, meaning lifecycle != closed
-  status: pending
+  status: met
 - id: ac-2
   text: a test asserts a closed task is absent from the default view
-  status: pending
+  status: met
 - id: ac-3
   text: filtering flattens the tree, and no row disappears under a filtered-out parent
-  status: pending
+  status: met
 - id: ac-4
   text: a dangling parent reference and a parent cycle both still render every task
-  status: pending
+  status: met
 - id: ac-5
   text: filter state lives in the URL and survives a refresh
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-084-typed-api-client
@@ -139,3 +140,31 @@ log:
     and URL state. Next: real-browser phone/desktop/filter/refresh verification and
     full repository gate.'
   data: {}
+- id: 4
+  ts: '2026-08-13T09:36:12.602286Z'
+  actor: codex
+  type: progress
+  body: 'Task-list implementation and verification complete; ready for human review.
+
+
+    Feature commits: 8a28f40 (typed broken-file response), 34d7978 (React task list),
+    and 3c8c8cf (list broken-file coverage). Full repository gate passed with 588
+    pytest tests and 18 frontend tests; after the final listing-warning test, all
+    19 frontend tests pass. Real-browser evidence: 390px phone view had labelled cards,
+    default Open filter, 44px minimum controls, no horizontal overflow, and no closed
+    task-093 row; URL search/status/priority/scope values survived a full reload;
+    1024px view restored the native table, kept 44px controls, and expanded a four-child
+    group from 41 to 45 visible rows. The task record''s dangling-parent, cycle, filtered-parent,
+    default-closed exclusion, URL-state, and broken-file cases are automated. All
+    five acceptance criteria are met. Human review is the remaining gate. No push
+    performed.'
+  data: {}
+- id: 5
+  ts: '2026-08-13T09:36:12.616081Z'
+  actor: codex
+  type: handoff
+  body: React task list is ready for review with URL-backed filters, responsive cards,
+    and lossless tree behavior.
+  data:
+    ball: human
+    ball_reason: review
