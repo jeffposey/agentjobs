@@ -2,11 +2,13 @@ schema: 2
 id: task-089-react-task-detail
 title: 'React task detail: spec, log, and the review actions'
 created: '2026-08-11T07:38:06.430653Z'
-updated: '2026-08-13T09:50:39.593114Z'
+updated: '2026-08-13T09:53:39.583709Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: Review the final React task-detail page on phone. The complete spec,
+  relationships, newest-first log, and review buttons are visible here. Reply approve
+  or name the issue to fix.
 archived: false
 priority: medium
 category: ux
@@ -70,19 +72,19 @@ acceptance:
 - id: ac-1
   text: the full spec and the log render, newest-first, with decisions and open questions
     distinguishable
-  status: pending
+  status: met
 - id: ac-2
   text: review actions move the ball through the manager verbs and appear in the log
-  status: pending
+  status: met
 - id: ac-3
   text: an unclear acting identity blocks the action rather than defaulting
-  status: pending
+  status: met
 - id: ac-4
   text: dependencies and child tasks are shown and linked
-  status: pending
+  status: met
 - id: ac-5
   text: review actions exist only here, not on the dashboard
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-084-typed-api-client
@@ -144,3 +146,32 @@ log:
     Remaining: real-browser responsive/read review, safe mutation evidence without
     changing a live task, and full gate.'
   data: {}
+- id: 4
+  ts: '2026-08-13T09:53:39.569743Z'
+  actor: codex
+  type: progress
+  body: 'Final React parity screen implemented and fully verified; ready for human
+    review.
+
+
+    Feature commits: 2180741 (complete typed detail/identity/action contract), 61ad34e
+    (React detail and review UI), and 78b1b81 (phone touch-target correction). Full
+    gate passed: 589 pytest tests and 24 frontend tests, plus generated API/icon currency,
+    lint, TypeScript, and production PWA build. API evidence covers manager-backed
+    approve/request-changes/reject log entries and refusal when acting identity is
+    missing or wrong. Component evidence covers every spec field, parent/child/dependency
+    links, newest-first log, distinguishable decisions/open questions, configured-identity
+    actions, identity blocking, and absence of actions from the dashboard. Real-browser
+    evidence: 390px detail and action pages have no horizontal overflow and all controls
+    are at least 44px; the configured reviewer is Jeff Posey and all three actions
+    fill the phone width; 1024px detail shows full spec sections and task hierarchy
+    with no overflow. All five acceptance criteria are met. No push performed.'
+  data: {}
+- id: 5
+  ts: '2026-08-13T09:53:39.583622Z'
+  actor: codex
+  type: handoff
+  body: Final React task-detail and review-action screen is ready for human review.
+  data:
+    ball: human
+    ball_reason: review
