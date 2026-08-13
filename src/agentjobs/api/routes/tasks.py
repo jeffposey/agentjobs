@@ -11,8 +11,15 @@ from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.manager import TaskManager, TaskNotFoundError
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Outcome, Priority, Task
 
-from ..dependencies import get_project, get_task_manager, project_config
-from ..models import BrokenTaskFile, TaskCreateRequest, TaskUpdateRequest
+from ..dependencies import current_identity, get_project, get_task_manager, project_config
+from ..models import (
+    BrokenTaskFile,
+    HumanActionResponse,
+    ReviewIdentity,
+    TaskCreateRequest,
+    TaskDetailResponse,
+    TaskUpdateRequest,
+)
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -25,9 +32,21 @@ def acting_user(project: Any, user: str) -> str:
     than to write an attribution nobody can resolve later.
     """
     try:
-        return validate_actor(project_config(project), user)
+        validated = validate_actor(project_config(project), user)
     except UnknownActorError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    identity = current_identity(project)
+    if not identity.ok:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=identity.detail,
+        )
+    if user != identity.user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Review actions must be attributed to configured user {identity.user!r}.",
+        )
+    return validated
 
 
 @router.get("", response_model=List[Task])
@@ -72,6 +91,33 @@ async def get_next_task(
 ) -> Optional[Task]:
     """The next claimable task: ready, eligible for the agent, no unmet needs."""
     return manager.get_next_task(priority=priority, agent=agent)
+
+
+@router.get("/{task_id}/detail", response_model=TaskDetailResponse)
+async def get_task_detail(
+    task_id: str,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Any = Depends(get_project),
+) -> TaskDetailResponse:
+    """Return the complete resumption and review contract for one task."""
+    task = manager.get_task(task_id)
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task {task_id} not found",
+        )
+    identity = current_identity(project)
+    return TaskDetailResponse(
+        task=task,
+        parent_task=manager.get_task(task.parent) if task.parent else None,
+        children=manager.get_subtasks(task_id),
+        identity=ReviewIdentity(
+            ok=identity.ok,
+            user=identity.user,
+            problem=identity.problem,
+            detail=identity.detail,
+        ),
+    )
 
 
 @router.get("/{task_id}", response_model=Task)
@@ -187,13 +233,13 @@ class RejectActionRequest(HumanActionRequest):
     )
 
 
-@router.post("/{task_id}/approve", response_model=Dict[str, Any])
+@router.post("/{task_id}/approve", response_model=HumanActionResponse)
 async def approve_task(
     task_id: str,
     payload: HumanActionRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
-) -> Dict[str, Any]:
+) -> HumanActionResponse:
     """Record human approval and hand the ball back to the agent (agent/work).
 
     Nothing here merges anything. The GUI cannot run git, and a button that implied
@@ -216,7 +262,7 @@ async def approve_task(
             ),
             body=f"Approved by {user} through the web UI.",
         )
-        return {"task": task.model_dump(mode="json")}
+        return HumanActionResponse(task=task)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -224,13 +270,13 @@ async def approve_task(
         ) from exc
 
 
-@router.post("/{task_id}/request-changes", response_model=Dict[str, Any])
+@router.post("/{task_id}/request-changes", response_model=HumanActionResponse)
 async def request_changes(
     task_id: str,
     payload: FeedbackActionRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
-) -> Dict[str, Any]:
+) -> HumanActionResponse:
     """Record requested changes and hand the ball back to the agent (agent/revise).
 
     The feedback is the payload of the handoff, so it rides in the ball_prompt and the
@@ -246,7 +292,7 @@ async def request_changes(
             ball_prompt=payload.feedback,
             body=f"Changes requested by {user}:\n\n{payload.feedback}",
         )
-        return {"task": task.model_dump(mode="json")}
+        return HumanActionResponse(task=task)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -254,13 +300,13 @@ async def request_changes(
         ) from exc
 
 
-@router.post("/{task_id}/reject", response_model=Dict[str, Any])
+@router.post("/{task_id}/reject", response_model=HumanActionResponse)
 async def reject_task(
     task_id: str,
     payload: RejectActionRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
-) -> Dict[str, Any]:
+) -> HumanActionResponse:
     """Reject a task: closed as cancelled, archived, reason on the record."""
     user = acting_user(project, payload.user)
     try:
@@ -271,7 +317,7 @@ async def reject_task(
             body=f"Rejected by {user}: {payload.reason}",
             archive=True,
         )
-        return {"task": task.model_dump(mode="json")}
+        return HumanActionResponse(task=task)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

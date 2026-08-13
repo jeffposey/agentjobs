@@ -593,6 +593,19 @@
         "title": "HumanActionRequest",
         "type": "object"
       },
+      "HumanActionResponse": {
+        "description": "A manager-backed human action returns the newly persisted task state.",
+        "properties": {
+          "task": {
+            "$ref": "#/components/schemas/Task"
+          }
+        },
+        "required": [
+          "task"
+        ],
+        "title": "HumanActionResponse",
+        "type": "object"
+      },
       "Lifecycle": {
         "description": "Where a task is in its life (design doc section 3).",
         "enum": [
@@ -1089,6 +1102,49 @@
         "title": "ReleaseRequest",
         "type": "object"
       },
+      "ReviewIdentity": {
+        "description": "Configured human identity used by review mutations, or why none is safe.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User"
+          }
+        },
+        "required": [
+          "ok",
+          "user",
+          "problem",
+          "detail"
+        ],
+        "title": "ReviewIdentity",
+        "type": "object"
+      },
       "Spec": {
         "additionalProperties": false,
         "description": "The specification, split along the questions agents actually ask.\n\nv1 had one `description` blob plus a `prompts.starter` that largely restated it.",
@@ -1522,6 +1578,42 @@
           "description"
         ],
         "title": "TaskCreateRequest",
+        "type": "object"
+      },
+      "TaskDetailResponse": {
+        "description": "Everything the React detail page needs to resume and review one task.",
+        "properties": {
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            },
+            "title": "Children",
+            "type": "array"
+          },
+          "identity": {
+            "$ref": "#/components/schemas/ReviewIdentity"
+          },
+          "parent_task": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Task"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "task": {
+            "$ref": "#/components/schemas/Task"
+          }
+        },
+        "required": [
+          "task",
+          "parent_task",
+          "children",
+          "identity"
+        ],
+        "title": "TaskDetailResponse",
         "type": "object"
       },
       "TaskUpdateRequest": {
@@ -2704,9 +2796,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Approve Task Api Projects  Project Id  Tasks  Task Id  Approve Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/HumanActionResponse"
                 }
               }
             },
@@ -2909,6 +2999,58 @@
           }
         },
         "summary": "Mark Deliverable",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}/detail": {
+      "get": {
+        "description": "Return the complete resumption and review contract for one task.",
+        "operationId": "get_task_detail_api_projects__project_id__tasks__task_id__detail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Task Detail",
         "tags": [
           "tasks"
         ]
@@ -3139,9 +3281,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Reject Task Api Projects  Project Id  Tasks  Task Id  Reject Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/HumanActionResponse"
                 }
               }
             },
@@ -3265,9 +3405,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Request Changes Api Projects  Project Id  Tasks  Task Id  Request Changes Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/HumanActionResponse"
                 }
               }
             },
@@ -3998,9 +4136,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Approve Task Api Tasks  Task Id  Approve Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/HumanActionResponse"
                 }
               }
             },
@@ -4176,6 +4312,49 @@
           }
         },
         "summary": "Mark Deliverable",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/detail": {
+      "get": {
+        "description": "Return the complete resumption and review contract for one task.",
+        "operationId": "get_task_detail_api_tasks__task_id__detail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Task Detail",
         "tags": [
           "tasks"
         ]
@@ -4370,9 +4549,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Reject Task Api Tasks  Task Id  Reject Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/HumanActionResponse"
                 }
               }
             },
@@ -4478,9 +4655,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Request Changes Api Tasks  Task Id  Request Changes Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/HumanActionResponse"
                 }
               }
             },

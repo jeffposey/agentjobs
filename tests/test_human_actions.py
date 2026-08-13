@@ -218,6 +218,37 @@ def test_the_review_buttons_act_as_the_configured_user(
     assert "Acting as" in page
 
 
+def test_detail_contract_includes_identity_parent_and_children(
+    client: TestClient, sample_task_in_review: str
+) -> None:
+    """React receives relationships and the safe acting identity in one snapshot."""
+    child = client.post(
+        "/api/tasks",
+        json={
+            "title": "Child task",
+            "description": "Child body",
+            "category": "test",
+            "lifecycle": "ready",
+            "parent": sample_task_in_review,
+        },
+    )
+    assert child.status_code == 201
+
+    response = client.get(f"/api/tasks/{sample_task_in_review}/detail")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["task"]["id"] == sample_task_in_review
+    assert payload["parent_task"] is None
+    assert [task["id"] for task in payload["children"]] == [child.json()["id"]]
+    assert payload["identity"] == {
+        "ok": True,
+        "user": "jeff",
+        "problem": None,
+        "detail": "",
+    }
+
+
 def test_review_actions_are_hidden_when_config_names_nobody(
     client: TestClient, sample_task_in_review: str, tmp_path: Path
 ) -> None:
@@ -231,6 +262,17 @@ def test_review_actions_are_hidden_when_config_names_nobody(
 
     assert "No user configured" in page
     assert "btn-approve" not in page
+
+    detail = client.get(f"/api/tasks/{sample_task_in_review}/detail").json()
+    assert detail["identity"]["ok"] is False
+    assert detail["identity"]["user"] is None
+
+    refused = client.post(
+        f"/api/tasks/{sample_task_in_review}/approve",
+        json={"user": "human"},
+    )
+    assert refused.status_code == 400
+    assert "could not say who took it" in refused.json()["detail"]
 
 
 def test_approve_nonexistent_task(client: TestClient) -> None:
