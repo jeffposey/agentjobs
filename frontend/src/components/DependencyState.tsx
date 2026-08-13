@@ -20,9 +20,6 @@ export function dependencyState(task: TaskRead) {
   if (task.lifecycle === "closed") {
     return { kind: "done" as const, label: "Done", reasons: [] };
   }
-  if (task.lifecycle === "active") {
-    return { kind: "flight" as const, label: "In flight", reasons: [] };
-  }
   if ((task.unmet_needs?.length ?? 0) > 0) {
     return {
       kind: "blocked" as const,
@@ -36,6 +33,16 @@ export function dependencyState(task: TaskRead) {
       label: "Blocked",
       reasons: [task.ball_prompt || "Waiting for an external dependency."],
     };
+  }
+  if (task.ball === "human") {
+    return {
+      kind: "waiting" as const,
+      label: task.display_status,
+      reasons: task.ball_prompt ? [task.ball_prompt] : [],
+    };
+  }
+  if (task.lifecycle === "active") {
+    return { kind: "flight" as const, label: "In flight", reasons: [] };
   }
   if ((task.open_children_count ?? 0) > 0) {
     const count = task.open_children_count ?? 0;

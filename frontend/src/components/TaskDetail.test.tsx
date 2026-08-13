@@ -74,6 +74,7 @@ describe("TaskDetail resumption contract", () => {
     expect(screen.getByText("Needs task-needed; it is still open.")).toBeVisible();
     expect(screen.getByText("task-child needs this task.")).toBeVisible();
     expect(screen.getByRole("region", { name: "Umbrella dependency graph" })).toHaveTextContent("task-missing (missing)");
+    expect(screen.getByRole("region", { name: "Dependency state" })).toHaveTextContent("Waiting for review");
   });
 
   it("surfaces dependency cycles as data errors without hiding graph nodes", () => {

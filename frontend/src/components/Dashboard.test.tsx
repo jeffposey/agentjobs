@@ -155,6 +155,13 @@ describe("Dashboard next-action ladder", () => {
 
     expect(screen.getByText("Waiting for task-first (still open)")).toBeVisible();
   });
+
+  it("keeps a human-held active card in review instead of calling it in flight", () => {
+    renderDashboard(dashboard({ active_tasks: [blocked] }));
+
+    expect(screen.getByText("Waiting for review")).toBeVisible();
+    expect(screen.queryByText("In flight")).not.toBeInTheDocument();
+  });
 });
 
 describe("Dashboard supporting sections", () => {
