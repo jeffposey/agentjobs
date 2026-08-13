@@ -2,11 +2,14 @@ schema: 2
 id: task-102-react-first-documentation
 title: Make AgentJobs documentation React-first everywhere
 created: '2026-08-13T21:07:34.270802Z'
-updated: '2026-08-13T21:30:21.022726Z'
+updated: '2026-08-13T21:40:11.909096Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: Review commits 674f860 and 9847b34. Confirm current-facing AgentJobs
+  documentation is React-first, remaining Jinja mentions are clearly legacy/compatibility
+  or historical, and agentjobs open now goes directly to /app/ without requiring Poetry
+  at runtime; approve to merge or request changes.
 archived: false
 priority: medium
 category: documentation
@@ -61,23 +64,23 @@ spec:
 acceptance:
 - id: ac-1
   text: README.md presents the packaged React application as the AgentJobs web UI
-  status: pending
+  status: met
 - id: ac-2
   text: all repository README and docs files are audited for stale HTML/Jinja-first
     guidance
-  status: pending
+  status: met
 - id: ac-3
   text: current setup, serve, development, test, PWA, and release instructions match
     the shipped React application
-  status: pending
+  status: met
 - id: ac-4
   text: remaining Jinja or server-rendered UI references are necessary and explicitly
     labelled legacy, fallback, implementation-only, or historical
-  status: pending
+  status: met
 - id: ac-5
   text: documentation links and documented commands are verified and the complete
     repository check passes
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-091-frontend-packaging
@@ -98,3 +101,43 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 2
+  ts: '2026-08-13T21:40:11.887766Z'
+  actor: codex
+  type: decision
+  body: Treat completed phase prompts and accepted design documents as historical
+    records rather than rewriting their decision-time language. Their index pages
+    now label that status explicitly. Current-facing READMEs, guides, examples, engineering
+    guidance, code comments, and schema/API documentation present React as the primary
+    product; every necessary Jinja reference is labelled legacy or compatibility-only.
+  data: {}
+- id: 3
+  ts: '2026-08-13T21:40:11.897573Z'
+  actor: codex
+  type: progress
+  body: 'Repository-wide React-first documentation audit is complete in commits 674f860
+    and 9847b34.
+
+
+    Audited every repository README and docs tree, including generated schema areas
+    by inventory and terminology scan. Replaced the v1 quickstart, API reference,
+    webhook guide, migration placeholder, and stale schema-site status with current
+    schema-v2 guidance. Root, engineering, workflow, frontend, examples, mobile/operations,
+    and release docs now identify the packaged React app at /app/ as primary; historical
+    prompts/designs are labelled, and Jinja is described only as legacy compatibility.
+    The audit exposed that agentjobs open still targeted the legacy root and launched
+    via Poetry; 674f860 now opens /app/ and starts via the installed Python interpreter,
+    with regression tests proving no Poetry runtime dependency. Verification: CLI
+    documentation and migration commands matched --help; MkDocs built with --strict;
+    poetry run python scripts/check.py passed with 615 Python tests, 41 Vitest tests,
+    generated checks, lint, production build, and 1 Playwright path. No push performed.'
+  data: {}
+- id: 4
+  ts: '2026-08-13T21:40:11.909028Z'
+  actor: codex
+  type: handoff
+  body: The React-first documentation and command audit is complete and ready for
+    review.
+  data:
+    ball: human
+    ball_reason: review
