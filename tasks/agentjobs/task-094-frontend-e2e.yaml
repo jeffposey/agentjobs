@@ -2,13 +2,9 @@ schema: 2
 id: task-094-frontend-e2e
 title: 'Harden the frontend harness: network-boundary mocking and one end-to-end path'
 created: '2026-08-13T02:19:48.337101Z'
-updated: '2026-08-13T21:09:21.319378Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-13T21:12:57.108375Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: testing
@@ -18,7 +14,6 @@ tags:
 - testing
 effort: a day
 assignment:
-  owner: codex
   eligible: []
 parent: task-098-react-phase-4-ship
 spec:
@@ -95,7 +90,8 @@ dependencies:
 links: []
 branches:
 - name: test/task-094-frontend-e2e
-  status: active
+  status: merged
+  merged_at: '2026-08-13T21:12:57.081135Z'
 log:
 - id: 1
   ts: '2026-08-13T20:58:46.711313Z'
@@ -150,3 +146,25 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 5
+  ts: '2026-08-13T21:12:57.094712Z'
+  actor: codex
+  type: progress
+  body: 'Approved frontend integration hardening merged to main as 3a0f6fc.
+
+
+    After Jeff approved through the UI, the branch was rebased onto current main and
+    merged with --no-ff. The complete merged-main gate passed: 598 backend tests,
+    41 Vitest tests using MSW at the HTTP boundary, generated schema/client and icon
+    checks, lint, production build, and the Playwright real-server temporary-project
+    path. No push performed.'
+  data: {}
+- id: 6
+  ts: '2026-08-13T21:12:57.108288Z'
+  actor: codex
+  type: transition
+  body: Closed completed after approval, merge 3a0f6fc, and a passing full merged-main
+    gate.
+  data:
+    lifecycle: closed
+    outcome: completed
