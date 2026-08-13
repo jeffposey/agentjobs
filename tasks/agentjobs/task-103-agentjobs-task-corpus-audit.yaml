@@ -2,11 +2,14 @@ schema: 2
 id: task-103-agentjobs-task-corpus-audit
 title: Audit every AgentJobs task for stale or obsolete records
 created: '2026-08-13T21:07:34.827860Z'
-updated: '2026-08-13T21:55:49.898649Z'
+updated: '2026-08-13T22:16:57.150058Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: Review the exact audit report at C:/projects/aj-103/docs/task-corpus-audit.md
+  and branch commit 39c11ea. Also review the task-record reconciliations summarized
+  there, including retirement of 054/058 and new tasks 104-106. Approve to merge or
+  request changes.
 archived: false
 priority: medium
 category: maintenance
@@ -60,28 +63,32 @@ acceptance:
 - id: ac-1
   text: every AgentJobs task file is inspected and the audit inventory accounts for
     the complete corpus
-  status: pending
+  status: met
 - id: ac-2
   text: stale summaries, prompts, acceptance states, dependencies, parents, links,
     context paths, and branch metadata are corrected
-  status: pending
+  status: met
 - id: ac-3
   text: obsolete temporary, duplicate, or superseded records are removed, closed,
     or archived with evidence and rationale
-  status: pending
+  status: met
 - id: ac-4
   text: no open task incorrectly describes HTML/Jinja as the current primary UI after
     the React program
-  status: pending
+  status: met
 - id: ac-5
   text: the corpus loads without task errors, has no newly introduced dangling needs
     or parent relationships, and passes the repository task-corpus tests
-  status: pending
+  status: met
 - id: ac-6
   text: a final durable report lists updates, retirements, preserved historical exceptions,
     and remaining follow-up work
-  status: pending
-deliverables: []
+  status: met
+deliverables:
+- path: docs/task-corpus-audit.md
+  note: Dated inventory, reconciliations, preserved exceptions, and follow-up work
+    for all AgentJobs task records.
+  status: done
 dependencies:
 - task: task-102-react-first-documentation
   type: needs
@@ -101,3 +108,43 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 2
+  ts: '2026-08-13T22:16:57.110064Z'
+  actor: codex
+  type: decision
+  body: Preserve completed task prose and logs as contemporaneous history even when
+    they describe Jinja or pre-React state; update only current open instructions
+    and durable state. Close task 054 superseded because its unbuilt Jinja-only GUI
+    scope is obsolete. Close task 058 superseded because tasks 061, 088, and 089 collectively
+    delivered its product scope. Preserve duplicate numeric prefixes 080/081 and fix
+    only future allocation through task 105, because renaming referenced historical
+    ids creates more risk than value.
+  data: {}
+- id: 3
+  ts: '2026-08-13T22:16:57.129747Z'
+  actor: codex
+  type: progress
+  body: 'Completed the full AgentJobs task-corpus audit and committed the durable
+    report as 39c11ea.
+
+
+    Inspected all 76 starting records, then the 79-record final corpus after creating
+    follow-ups 104-106. Retired tasks 054 and 058 as superseded; reconciled stale
+    current state in tasks 051, 056, 059, 063, 075, 082, 098; redirected open UI tasks
+    065-067, 073, and 092 to React/current Python paths; created follow-ups for README
+    screenshots, numeric ID allocation, and physical PWA verification. Added regression
+    checks for unique ids, dangling parents/dependencies, missing context paths, and
+    legacy-template targets in open UI work. Verification: 90 focused corpus tests,
+    strict MkDocs build, and full repository gate with 622 Python tests, 41 Vitest
+    tests, generated API/icon checks, lint, production build, and 1 Playwright path.
+    No push performed.'
+  data: {}
+- id: 4
+  ts: '2026-08-13T22:16:57.149975Z'
+  actor: codex
+  type: handoff
+  body: 'The complete task-corpus audit is ready. Primary review target: C:/projects/aj-103/docs/task-corpus-audit.md.
+    Branch review target: maintenance/task-103-agentjobs-task-corpus-audit at 39c11ea.'
+  data:
+    ball: human
+    ball_reason: review
