@@ -2,7 +2,7 @@ schema: 2
 id: task-098-react-phase-4-ship
 title: React phase 4 -- write, prove, and ship
 created: '2026-08-13T02:35:20.787231Z'
-updated: '2026-08-13T02:35:20.787930Z'
+updated: '2026-08-13T21:08:07.769331Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -32,7 +32,9 @@ spec:
     React UI, and a browser test proves the stack agrees with itself.**
 
 
-    Children: task-090 create task, task-094 e2e hardening, task-091 packaging.
+    Children, in order: task-090 create task, task-094 e2e hardening, task-091 packaging,
+    task-102 React-first documentation audit, task-103 complete AgentJobs task-corpus
+    audit.
 
 
     Grouped as the phase that makes the client a shipped product rather than a
@@ -45,9 +47,12 @@ spec:
     ladder-rung acceptance criterion needs the React dashboard from phase 2 to exist.
 
 
-    091 is last on purpose. Packaging a bundle that is still changing shape means
+    091 is the last product build step on purpose. Packaging a bundle that is still
+    changing shape means
 
-    doing it twice.'
+    doing it twice. After the shipped artifact is fixed, 102 reconciles current-facing
+    documentation with the React product, and 103 performs the final corpus-wide durable-state
+    audit.'
   constraints: '- `pip install agentjobs` requires no node, no npm, and no network
     beyond PyPI.
 
@@ -76,6 +81,14 @@ acceptance:
 - id: ac-4
   text: the client renders with no internet access beyond the local server
   status: pending
+- id: ac-5
+  text: repository-facing documentation presents React as the current AgentJobs web
+    UI
+  status: pending
+- id: ac-6
+  text: the complete AgentJobs task corpus is audited and stale or obsolete records
+    are reconciled
+  status: pending
 deliverables: []
 dependencies:
 - task: task-096-react-phase-2-parity
@@ -83,4 +96,25 @@ dependencies:
   note: Needs the screens to package and to hang creation off.
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-13T21:07:34.866467Z'
+  actor: codex
+  type: decision
+  body: 'Expanded phase 4 with two explicitly ordered final audit children at Jeff
+    Posey?s request: task 102 makes all current-facing repository documentation React-first
+    after packaging, and task 103 then audits the complete AgentJobs task corpus for
+    stale or obsolete durable records. Rejected leaving these as informal post-phase
+    cleanup because that would make completion possible while README guidance and
+    task memory still describe the superseded UI.'
+  data: {}
+- id: 2
+  ts: '2026-08-13T21:08:07.769270Z'
+  actor: codex
+  type: progress
+  body: 'Phase order is now explicit through the two final audit children.
+
+
+    Task 102 needs packaging task 091; task 103 needs task 102. Packaging remains
+    the final product build step, not the final phase child.'
+  data: {}

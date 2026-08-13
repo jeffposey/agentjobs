@@ -2,7 +2,7 @@ schema: 2
 id: task-091-frontend-packaging
 title: Ship the built frontend in the wheel, with no node at install time
 created: '2026-08-11T07:38:07.378882Z'
-updated: '2026-08-13T20:32:21.425709Z'
+updated: '2026-08-13T21:07:34.856349Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -105,7 +105,8 @@ dependencies:
   note: Supplies the foundation this builds on.
 - task: task-094-frontend-e2e
   type: needs
-  note: Packaging is last so the verified bundle shape is final before it is shipped.
+  note: Packaging is the final product build step after the verified bundle shape
+    is stable.
 links: []
 branches: []
 log: []

@@ -1,0 +1,90 @@
+schema: 2
+id: task-103-agentjobs-task-corpus-audit
+title: Audit every AgentJobs task for stale or obsolete records
+created: '2026-08-13T21:07:34.827860Z'
+updated: '2026-08-13T21:07:34.828603Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: maintenance
+tags:
+- tasks
+- audit
+- maintenance
+effort: a day
+assignment:
+  eligible: []
+parent: task-098-react-phase-4-ship
+spec:
+  summary: Inspect the complete AgentJobs task corpus after the React documentation
+    audit, update stale durable state and references, and remove or retire records
+    that no longer belong.
+  intent: The task corpus is the product workflow and long-term memory. After a large
+    frontend program, stale specs, prompts, dependency edges, and temporary records
+    can misdirect both agents and humans unless the whole corpus is deliberately reconciled.
+  description: Read every task under tasks/agentjobs, including closed history and
+    open work. Check summaries, descriptions, ball prompts, acceptance state, dependencies,
+    parents, links, context paths, branch state, and references to superseded UI architecture
+    or process. Correct records whose current durable state is wrong; close, archive,
+    or remove obsolete test artifacts, duplicates, and superseded open tasks when
+    the evidence supports it. Preserve meaningful completed history and record why
+    anything is retired or removed. Finish with a corpus-level report that lets a
+    zero-context reader understand what changed and what intentionally remains.
+  constraints: '- Inspect every tasks/agentjobs YAML record; sampling is insufficient.
+
+    - Use TaskManager state verbs and update APIs rather than hand-editing lifecycle,
+    ball, outcome, or logs.
+
+    - Preserve completed historical evidence unless it is erroneous, a temporary artifact,
+    or an explicitly superseded duplicate.
+
+    - Record the evidence and reason before closing, archiving, or removing material
+    records.
+
+    - Do not absorb implementation work discovered by the audit; create or update
+    durable follow-up tasks when authorized and leave clear findings.'
+  out_of_scope: Implementing every product issue discovered during the audit. Rewriting
+    valid historical logs merely to use current terminology.
+  context:
+  - path: tasks/agentjobs/
+    why: The complete corpus in scope.
+  - path: ALLAGENTS.md
+    why: Lifecycle, resumption, and logging contracts each record must satisfy.
+  - path: docs/task-schema.md
+    why: Schema v2 field and state semantics.
+acceptance:
+- id: ac-1
+  text: every AgentJobs task file is inspected and the audit inventory accounts for
+    the complete corpus
+  status: pending
+- id: ac-2
+  text: stale summaries, prompts, acceptance states, dependencies, parents, links,
+    context paths, and branch metadata are corrected
+  status: pending
+- id: ac-3
+  text: obsolete temporary, duplicate, or superseded records are removed, closed,
+    or archived with evidence and rationale
+  status: pending
+- id: ac-4
+  text: no open task incorrectly describes HTML/Jinja as the current primary UI after
+    the React program
+  status: pending
+- id: ac-5
+  text: the corpus loads without task errors, has no newly introduced dangling needs
+    or parent relationships, and passes the repository task-corpus tests
+  status: pending
+- id: ac-6
+  text: a final durable report lists updates, retirements, preserved historical exceptions,
+    and remaining follow-up work
+  status: pending
+deliverables: []
+dependencies:
+- task: task-102-react-first-documentation
+  type: needs
+  note: Audit task records after current-facing repository documentation establishes
+    the final React terminology.
+links: []
+branches: []
+log: []

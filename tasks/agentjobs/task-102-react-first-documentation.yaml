@@ -1,0 +1,87 @@
+schema: 2
+id: task-102-react-first-documentation
+title: Make AgentJobs documentation React-first everywhere
+created: '2026-08-13T21:07:34.270802Z'
+updated: '2026-08-13T21:07:34.271577Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: documentation
+tags:
+- react-frontend
+- documentation
+- audit
+effort: half a day
+assignment:
+  eligible: []
+parent: task-098-react-phase-4-ship
+spec:
+  summary: Audit and update repository-facing documentation so React is presented
+    as the AgentJobs web UI, with HTML/Jinja described only where a clearly labelled
+    legacy or historical fact must remain.
+  intent: Shipping React is incomplete if users and contributors are still taught
+    that AgentJobs is an HTML/Jinja application. Documentation must describe the product
+    that actually ships and make legacy context unmistakable.
+  description: After the React bundle ships in the wheel, audit README files, engineering
+    guidance, user guides, setup and release instructions, architecture notes, examples,
+    and current-facing code comments for stale descriptions of the web product. Direct
+    users to the packaged React application and its real routes, development workflow,
+    testing stack, PWA behavior, and no-Node installation story. Remove or rewrite
+    guidance that still presents the server-rendered HTML/Jinja surface as the current
+    UI. Where Jinja remains an implementation dependency, compatibility fallback,
+    or historical design record, label that status explicitly rather than letting
+    it read as the recommended product surface. Keep README.md accurate as the repository
+    index.
+  constraints: '- Treat React as the primary and recommended web UI everywhere current-facing.
+
+    - Audit all repository READMEs and docs, not only frontend/README.md.
+
+    - Do not make false claims: necessary legacy or historical references must be
+    labelled as such, not silently erased.
+
+    - Verify commands, routes, and installation instructions against the packaged
+    application after task 091.
+
+    - Keep README.md an accurate repository index.'
+  out_of_scope: Removing the legacy Jinja implementation or dependency solely for
+    wording consistency. Product redesign. Rewriting completed task history.
+  context:
+  - path: README.md
+    why: Primary repository entry point.
+  - path: ENGINEERING.md
+    why: Canonical stack and verification guidance.
+  - path: frontend/README.md
+    why: React development and test documentation.
+  - path: docs/
+    why: User, architecture, schema, and operations guides to audit.
+acceptance:
+- id: ac-1
+  text: README.md presents the packaged React application as the AgentJobs web UI
+  status: pending
+- id: ac-2
+  text: all repository README and docs files are audited for stale HTML/Jinja-first
+    guidance
+  status: pending
+- id: ac-3
+  text: current setup, serve, development, test, PWA, and release instructions match
+    the shipped React application
+  status: pending
+- id: ac-4
+  text: remaining Jinja or server-rendered UI references are necessary and explicitly
+    labelled legacy, fallback, implementation-only, or historical
+  status: pending
+- id: ac-5
+  text: documentation links and documented commands are verified and the complete
+    repository check passes
+  status: pending
+deliverables: []
+dependencies:
+- task: task-091-frontend-packaging
+  type: needs
+  note: Document the final installed and served product only after wheel packaging
+    is settled.
+links: []
+branches: []
+log: []
