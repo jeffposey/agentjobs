@@ -2,12 +2,9 @@ schema: 2
 id: task-088-react-task-list
 title: React task list, with the filtering that Alpine made untestable
 created: '2026-08-11T07:38:05.953311Z'
-updated: '2026-08-13T09:43:47.205494Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Merge the approved task locally, close it, clean up its worktree, and
-  continue with task 089. Do not push.
+updated: '2026-08-13T09:44:09.270872Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: ux
@@ -16,7 +13,6 @@ tags:
 - react-frontend
 effort: a day
 assignment:
-  owner: codex
   eligible: []
 parent: task-096-react-phase-2-parity
 spec:
@@ -96,7 +92,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-088-react-task-list
-  status: active
+  status: merged
+  merged_at: '2026-08-13T09:44:09.232517Z'
 log:
 - id: 1
   ts: '2026-08-13T09:27:46.382370Z'
@@ -176,3 +173,22 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 7
+  ts: '2026-08-13T09:44:09.255563Z'
+  actor: codex
+  type: progress
+  body: 'Human-approved React task-list branch merged into main.
+
+
+    Jeff approved task 088. Local no-fast-forward merge commit: 4182cb7. All five
+    acceptance criteria remain met. No push performed; task 089 is next in the required
+    phase order.'
+  data: {}
+- id: 8
+  ts: '2026-08-13T09:44:09.270773Z'
+  actor: codex
+  type: transition
+  body: Closed completed after explicit human approval and no-fast-forward merge 4182cb7.
+  data:
+    lifecycle: closed
+    outcome: completed
