@@ -2,10 +2,9 @@ schema: 2
 id: task-082-react-frontend
 title: React + TypeScript frontend, built against the existing API
 created: '2026-08-11T07:38:03.164059Z'
-updated: '2026-08-13T22:09:23.593102Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-13T22:24:27.489803Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: architecture
@@ -168,7 +167,7 @@ spec:
 acceptance:
 - id: ac-1
   text: all four phases are closed completed
-  status: pending
+  status: met
 - id: ac-2
   text: the Jinja UI still works, unmodified in behaviour, at every commit along the
     way
@@ -265,3 +264,14 @@ log:
     098 closure after task 103, and ac-4 remains pending because physical-device install/private-proxy
     evidence was explicitly not completed.'
   data: {}
+- id: 3
+  ts: '2026-08-13T22:24:27.489732Z'
+  actor: codex
+  type: transition
+  body: 'The four-phase React epic is complete: phases 095 through 098 are closed
+    completed and the packaged React app is the primary interface. Physical phone/tablet
+    installation and private-proxy evidence remains honestly pending under related
+    task 106 rather than being claimed here.'
+  data:
+    lifecycle: closed
+    outcome: completed

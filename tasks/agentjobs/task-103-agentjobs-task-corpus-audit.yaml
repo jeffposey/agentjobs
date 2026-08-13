@@ -2,13 +2,9 @@ schema: 2
 id: task-103-agentjobs-task-corpus-audit
 title: Audit every AgentJobs task for stale or obsolete records
 created: '2026-08-13T21:07:34.827860Z'
-updated: '2026-08-13T22:22:01.912690Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-13T22:24:27.379958Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: maintenance
@@ -18,7 +14,6 @@ tags:
 - maintenance
 effort: a day
 assignment:
-  owner: codex
   eligible: []
 parent: task-098-react-phase-4-ship
 spec:
@@ -96,7 +91,8 @@ dependencies:
 links: []
 branches:
 - name: maintenance/task-103-agentjobs-task-corpus-audit
-  status: active
+  status: merged
+  merged_at: '2026-08-13T22:24:27.331071Z'
 log:
 - id: 1
   ts: '2026-08-13T21:55:49.860667Z'
@@ -155,3 +151,13 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 6
+  ts: '2026-08-13T22:24:27.379676Z'
+  actor: codex
+  type: transition
+  body: Jeff approved the complete corpus audit. Branch commit 8133c72 merged to main
+    with --no-ff as 7617d36. Review-usability feedback is preserved as task 107. No
+    push performed.
+  data:
+    lifecycle: closed
+    outcome: completed
