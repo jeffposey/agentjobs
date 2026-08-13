@@ -2,16 +2,13 @@ schema: 2
 id: task-096-react-phase-2-parity
 title: React phase 2 -- parity, on every device
 created: '2026-08-13T02:35:19.871523Z'
-updated: '2026-08-13T17:22:21.188013Z'
+updated: '2026-08-13T17:30:57.545103Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Physical finish check for phase 2: from a phone over the documented
-  private HTTPS proxy, install AgentJobs, confirm it opens standalone, open dashboard/list/detail,
-  then leave the server unreachable once and confirm the stale-data warning. Also
-  confirm an already-installed app receives a deployed bundle update without clearing
-  its cache. Reply with the results; the phase cannot be closed until this evidence
-  exists.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 category: ux
@@ -134,3 +131,11 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 4
+  ts: '2026-08-13T17:30:57.544888Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
