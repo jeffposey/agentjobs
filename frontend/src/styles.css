@@ -32,6 +32,9 @@ a {
 
 .touch-target {
   min-height: 44px;
+}
+
+.touch-target:not(.block) {
   display: inline-flex;
   align-items: center;
 }

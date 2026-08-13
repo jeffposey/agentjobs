@@ -36,7 +36,7 @@ function TaskCard({ task, projectId }: { task: Task; projectId: string }) {
   return (
     <Link
       to={projectPath(projectId, `/tasks/${encodeURIComponent(task.id)}`)}
-      className="touch-target block rounded-lg border border-dark-border bg-dark-surface p-4 transition hover:border-blue-500"
+      className="touch-target block overflow-hidden rounded-lg border border-dark-border bg-dark-surface p-4 transition hover:border-blue-500"
     >
       <div className="flex flex-col items-start justify-between gap-4 min-[820px]:flex-row min-[820px]:items-center">
         <div className="min-w-0">
