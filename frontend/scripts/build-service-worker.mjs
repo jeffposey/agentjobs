@@ -17,7 +17,12 @@ const shellUrls = [
   "/app/icons/icon-maskable-512.png",
   ...builtAssets,
 ];
-const revision = createHash("sha256").update(template).update(shellUrls.join("\n")).digest("hex").slice(0, 12);
+const revisionHash = createHash("sha256").update(template);
+for (const url of shellUrls) {
+  const relativePath = url === "/app/" ? "index.html" : url.replace(/^\/app\//, "");
+  revisionHash.update(url).update(await readFile(resolve(dist, relativePath)));
+}
+const revision = revisionHash.digest("hex").slice(0, 12);
 const serviceWorker = template
   .replace("__CACHE_NAME__", `agentjobs-shell-${revision}`)
   .replace("__SHELL_URLS__", JSON.stringify(shellUrls, null, 2));

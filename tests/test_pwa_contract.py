@@ -52,4 +52,5 @@ def test_build_injects_hashed_application_assets_into_the_shell_cache() -> None:
     assert '"/app/"' in builder
     assert r"\/app\/assets\/" in builder
     assert "...builtAssets" in builder
+    assert "await readFile(resolve(dist, relativePath))" in builder
     assert "agentjobs-shell-${revision}" in builder
