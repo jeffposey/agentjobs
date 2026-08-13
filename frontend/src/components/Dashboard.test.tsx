@@ -162,6 +162,18 @@ describe("Dashboard next-action ladder", () => {
     expect(screen.getByText("Waiting for review")).toBeVisible();
     expect(screen.queryByText("In flight")).not.toBeInTheDocument();
   });
+
+  it.each(["nothing_claimable", "empty_project"] as const)(
+    "links the %s ladder rung to browser task creation",
+    (nextAction) => {
+      renderDashboard(dashboard({ next_action: nextAction }));
+
+      expect(screen.getByRole("link", { name: "Create task" })).toHaveAttribute(
+        "href",
+        "/p/inbox/tasks/new",
+      );
+    },
+  );
 });
 
 describe("Dashboard supporting sections", () => {

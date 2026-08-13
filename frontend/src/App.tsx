@@ -7,6 +7,7 @@ import {
   getProjectsApiProjectsGetOptions,
   getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetOptions,
   approveTaskApiProjectsProjectIdTasksTaskIdApprovePostMutation,
+  createTaskApiProjectsProjectIdTasksPostMutation,
   listBrokenTasksApiProjectsProjectIdTasksBrokenGetOptions,
   listTasksApiProjectsProjectIdTasksGetOptions,
   rejectTaskApiProjectsProjectIdTasksTaskIdRejectPostMutation,
@@ -20,6 +21,7 @@ import { Dashboard } from "./components/Dashboard";
 import { ConnectionUnavailable } from "./components/ConnectionUnavailable";
 import { TaskList } from "./components/TaskList";
 import { TaskDetail } from "./components/TaskDetail";
+import { TaskCreate } from "./components/TaskCreate";
 import { LiveUpdateStatus } from "./components/LiveUpdates";
 
 function ProjectRedirect() {
@@ -145,6 +147,31 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
   );
 }
 
+function TaskCreatePage({ projectId }: { projectId: string }) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const tasksQuery = useQuery(
+    listTasksApiProjectsProjectIdTasksGetOptions({ path: { project_id: projectId } }),
+  );
+  const create = useMutation(createTaskApiProjectsProjectIdTasksPostMutation());
+
+  return (
+    <TaskCreate
+      projectId={projectId}
+      existingTaskIds={(tasksQuery.data ?? []).map((task) => task.id)}
+      onCreate={async (request) => {
+        const task = await create.mutateAsync({
+          path: { project_id: projectId },
+          body: request,
+        });
+        await queryClient.invalidateQueries();
+        navigate(`/p/${encodeURIComponent(projectId)}/tasks?status=all`);
+        return task;
+      }}
+    />
+  );
+}
+
 function ProjectApp() {
   const { projectId = "" } = useParams<{ projectId: string }>();
   return (
@@ -155,6 +182,7 @@ function ProjectApp() {
           <span className="hidden rounded-md border border-dark-border bg-dark-bg px-3 py-2 font-mono text-xs text-dark-muted sm:block">{projectId}</span>
           <Link to={projectPath(projectId)} className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">Dashboard</Link>
           <Link to={projectPath(projectId, "/tasks")} className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">Tasks</Link>
+          <Link to={projectPath(projectId, "/tasks/new")} className="touch-target rounded-md px-3 text-sm font-medium text-blue-300 hover:bg-dark-border">Create</Link>
           <a href="/docs" className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">API Docs</a>
         </nav>
       </header>
@@ -163,6 +191,7 @@ function ProjectApp() {
         <Routes>
           <Route index element={<DashboardPage projectId={projectId} />} />
           <Route path="tasks" element={<TaskListPage projectId={projectId} />} />
+          <Route path="tasks/new" element={<TaskCreatePage projectId={projectId} />} />
           <Route path="tasks/:taskId" element={<TaskDetailPage projectId={projectId} />} />
           <Route path="*" element={<Navigate to="/not-found" replace />} />
         </Routes>
