@@ -2,15 +2,13 @@ schema: 2
 id: task-094-frontend-e2e
 title: 'Harden the frontend harness: network-boundary mocking and one end-to-end path'
 created: '2026-08-13T02:19:48.337101Z'
-updated: '2026-08-13T21:04:29.589457Z'
+updated: '2026-08-13T21:09:21.319378Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Review commit 83ee6dc on test/task-094-frontend-e2e. Confirm the MSW
-  test intercepts HTTP while retaining the generated client; the Playwright path uses
-  a real uvicorn server and fresh TemporaryDirectory; and npm run check includes both
-  layers. This child has no new product UI to click. Approve or request changes; approval
-  authorizes rebase and --no-ff merge, not push.
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: medium
 category: testing
@@ -144,3 +142,11 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 4
+  ts: '2026-08-13T21:09:21.319288Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
