@@ -2,15 +2,18 @@ schema: 2
 id: task-086-live-updates
 title: 'Live updates: the view reflects a handoff without a manual refresh'
 created: '2026-08-11T07:38:05.001732Z'
-updated: '2026-08-13T18:06:58.298185Z'
+updated: '2026-08-13T18:10:13.746100Z'
 lifecycle: active
-ball: agent
-ball_reason: revise
-ball_prompt: Review found that Android treats the Tailscale-hosted AgentJobs endpoint
-  as an already-installed app, colliding with another app served from the same Tailscale
-  host. Add and verify an explicit, stable AgentJobs PWA manifest id so it can be
-  installed separately, rebuild the review server, and return for physical tablet
-  installation verification.
+ball: human
+ball_reason: review
+ball_prompt: Retry installation from the private HTTPS AgentJobs link on jeffs-tab-s7.
+  The deployed manifest now has explicit id /app/agentjobs and a new content-derived
+  service-worker cache 9e9705a5021f. Confirm Chrome offers Install app/Add to Home
+  screen and that AgentJobs coexists with the previously installed Tailscale-hosted
+  app. Then launch AgentJobs standalone, background it, and report ready for a safe
+  live-handoff/resume check. Explicitly approve if both separate installation and
+  live resume work, or report the exact remaining behavior. On approval Codex will
+  merge/close task 086 and immediately start task 099.
 archived: false
 priority: high
 category: ux
@@ -307,3 +310,48 @@ log:
   data:
     ball: agent
     ball_reason: revise
+- id: 8
+  ts: '2026-08-13T18:10:13.701270Z'
+  actor: codex
+  type: decision
+  body: Added explicit stable manifest id /app/agentjobs after Android Chrome treated
+    the Tailscale-hosted page as another already-installed app. The manifest-id mechanism
+    was chosen because Chrome documents it as the PWA identity and supports separate
+    installed apps; relying on inferred start_url identity was rejected because it
+    reproduced the collision. Also changed service-worker cache revisioning to hash
+    each shell asset content, not only the asset URL list, because a manifest-only
+    identity change otherwise retained the old cache name and could keep serving the
+    colliding manifest.
+  data:
+    rejected:
+    - implicit start_url identity
+    - shell cache version based only on URL list
+- id: 9
+  ts: '2026-08-13T18:10:13.723932Z'
+  actor: codex
+  type: progress
+  body: 'PWA identity collision review revision is deployed for another tablet install
+    attempt.
+
+
+    New feature commits: 366ff39 adds explicit manifest id /app/agentjobs and a contract
+    test; c1acd35 hashes shell asset contents into the service-worker cache revision.
+    Full poetry run python scripts/check.py passed again: 592 Python tests, 30 Vitest
+    tests, generated client/icon/lint checks, TypeScript, production build. The service-worker
+    cache changed from bbd767cb61ac to 9e9705a5021f. Fresh feature server PID 246828
+    is on loopback 8876; Tailscale Serve preserves the existing default app on 8766
+    and privately proxies HTTPS port 8443 to AgentJobs. Live verification over the
+    Tailscale URL returned HTTP 200, manifest id /app/agentjobs, and cache agentjobs-shell-9e9705a5021f.
+    Physical Android installation remains the required proof; if Chrome retained its
+    previous page state, close the tab and reopen the same HTTPS URL so the activated
+    worker reloads once.'
+  data: {}
+- id: 10
+  ts: '2026-08-13T18:10:13.746019Z'
+  actor: codex
+  type: handoff
+  body: PWA identity collision fixed and deployed; separate Android installation and
+    suspension/resume now need physical confirmation.
+  data:
+    ball: human
+    ball_reason: review
