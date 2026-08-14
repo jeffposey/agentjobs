@@ -63,6 +63,7 @@ nav:
   - Project docs:
       - Agent workflow: agent-workflow.md
       - Agent dispatch design: agent-dispatch-design.md
+      - MCP integration design: mcp-integration-design.md
       - Task schema reference (v1 + v2): task-schema.md
       - API reference: api-reference.md
       - Webhooks: webhooks.md

@@ -1,0 +1,91 @@
+schema: 2
+id: task-116-codex-plugin-and-skill
+title: Package the AgentJobs MCP server as a Codex plugin and skill
+created: '2026-08-14T19:19:59.065290Z'
+updated: '2026-08-14T19:19:59.066024Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- mcp
+- codex-plugin
+- skill
+effort: 1 day
+assignment:
+  eligible: []
+parent: task-109-agentjobs-mcp-managed-interface
+spec:
+  summary: Create a versioned AgentJobs Codex plugin that launches the installed standalone
+    MCP server and teaches the managed zero-context workflow without duplicating protocol
+    or lifecycle logic.
+  intent: The standalone server provides cross-client interoperability, while Codex
+    users need a discoverable, installable bundle with the right server wiring and
+    workflow guidance. Packaging should make managed operations the default interface.
+  description: 'Implement section 7 (Codex plugin) of docs/mcp-integration-design.md
+    using current OpenAI plugin and skill conventions. Add `.codex-plugin/plugin.json`,
+    `.mcp.json`, and `skills/agentjobs/SKILL.md`. The MCP entry launches the installed
+    `agentjobs mcp` command; no server code is vendored into the plugin.
+
+
+    The skill must trigger for AgentJobs task discovery, creation, lifecycle work,
+    logging, and handoff. It teaches projects_list first, explicit project/actor inputs,
+    zero-context task_get reading order, manager verbs, operation ID/revision retry
+    behavior, task-files-on-main policy for this repository, and the fact that YAML
+    is readable generated state. Keep schemas in MCP metadata rather than copying
+    them into prose. Add a local marketplace entry or documented test fixture, install
+    it, start a new session, and verify tools and skill discovery.'
+  constraints: '- Follow the accepted one-server/two-distributions architecture.
+
+    - Plugin and package versions stay aligned.
+
+    - The skill cannot tell agents to edit task YAML or use generic state setters.
+
+    - Do not embed secrets or machine-specific absolute paths in the plugin.
+
+    - The initial plugin is Codex-specific packaging; standalone MCP remains the contract
+    for other clients.
+
+    - Hook implementation is task-117; leave a clean extension point without claiming
+    direct-write enforcement is complete.'
+  out_of_scope: Public marketplace submission, custom plugin UI, remote MCP registration,
+    and the direct-write hook implementation.
+  context: []
+acceptance:
+- id: ac-1
+  text: The plugin has a valid manifest, bundled MCP config, and AgentJobs skill and
+    launches the installed server rather than a copy.
+  status: pending
+- id: ac-2
+  text: Plugin/package version compatibility and upgrade behavior are tested and documented.
+  status: pending
+- id: ac-3
+  text: A local marketplace install followed by a new Codex session exposes the skill
+    and all 13 AgentJobs tools.
+  status: pending
+- id: ac-4
+  text: Skill tests/examples drive projects_list -> task_get -> managed verb and never
+    recommend direct YAML or generic state mutation.
+  status: pending
+- id: ac-5
+  text: Plugin artifacts contain no secrets or machine-specific paths.
+  status: pending
+deliverables:
+- path: plugins/agentjobs
+  note: Codex plugin manifest, MCP wiring, and skill.
+  status: pending
+dependencies:
+- task: task-115-mcp-protocol-and-agent-evals
+  type: needs
+  note: Package only the protocol surface proven by the integration suite.
+links:
+- url: https://developers.openai.com/plugins/build/plugins
+  rel: doc
+  title: OpenAI plugin packaging
+- url: https://learn.chatgpt.com/docs/build-skills
+  rel: doc
+  title: OpenAI Codex skills
+branches: []
+log: []

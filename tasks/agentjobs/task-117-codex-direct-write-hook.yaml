@@ -1,0 +1,98 @@
+schema: 2
+id: task-117-codex-direct-write-hook
+title: Block direct task YAML writes with the Codex pre-tool hook
+created: '2026-08-14T19:20:00.696519Z'
+updated: '2026-08-14T19:20:00.697285Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- codex
+- hooks
+- direct-write
+- validation
+effort: 1-2 days
+assignment:
+  eligible: []
+parent: task-109-agentjobs-mcp-managed-interface
+spec:
+  summary: Add and test a plugin-bundled Codex PreToolUse hook that denies practical
+    patch, shell, PowerShell, and script attempts to mutate AgentJobs-managed task
+    YAML while preserving read-only access.
+  intent: MCP availability does not stop an agent from choosing general file tools.
+    The hook must intercept the original failure class before execution and redirect
+    the agent to the managed tools, while clearly remaining a guardrail rather than
+    a security claim.
+  description: 'Implement section 8 (Codex pre-tool hook) of docs/mcp-integration-design.md.
+    Resolve managed task directories from AgentJobs project configuration and registry,
+    canonicalize paths on Windows/POSIX, inspect PreToolUse inputs, and deny writes
+    to managed `*.yaml` task records.
+
+
+    Cover apply_patch/Edit/Write, shell redirection, PowerShell Set/Add-Content, Out-File,
+    New/Remove/Move/Copy-Item and aliases, POSIX tee/redirection/sed -i/mv/cp/rm,
+    and general interpreter invocations that explicitly target a managed task path.
+    Allow Get-Content/rg/git diff/read tools and AgentJobs MCP/CLI/API operations.
+    The denial names the project and tells the agent which managed tools to use. Bundle
+    the hook in the plugin, document review/trust, and test the exact hook JSON protocol
+    and exit/deny response.'
+  constraints: '- Use current Codex PreToolUse schema and matcher behavior; plugin
+    hooks require user trust.
+
+    - Synchronous, deterministic, bounded execution with no network dependency.
+
+    - Prefer conservative denial when a general interpreter explicitly names a managed
+    task path.
+
+    - Do not block read-only task access.
+
+    - State prominently that hosted/specialized tools, disabled/untrusted hooks, and
+    obfuscated scripts may bypass it.
+
+    - Do not call the hook a complete security boundary.'
+  out_of_scope: Claude/Gemini hook implementations, operating-system ACLs, sandbox
+    changes, repository validation/receipts (task-118), or blocking writes outside
+    managed task YAML.
+  context: []
+acceptance:
+- id: ac-1
+  text: Hook fixtures deny patch, redirection, PowerShell, POSIX writer, move/copy/delete,
+    and explicit script writes for relative, absolute, quoted, mixed-separator, and
+    Windows case variants.
+  verify: poetry run pytest tests/test_codex_task_write_hook.py
+  status: pending
+- id: ac-2
+  text: Read-only task-file operations and AgentJobs MCP/CLI/API calls remain allowed.
+  status: pending
+- id: ac-3
+  text: Denials name the managed project/path and direct the agent to the relevant
+    AgentJobs tools.
+  status: pending
+- id: ac-4
+  text: The plugin loads the reviewed/trusted hook and its docs explain trust, disable,
+    bypass, and non-security-boundary limits.
+  status: pending
+- id: ac-5
+  text: A live Codex behavior check reproduces the original direct-write attempt and
+    observes denial before the file changes.
+  status: pending
+deliverables:
+- path: plugins/agentjobs/hooks
+  note: Plugin hook definition and guard implementation.
+  status: pending
+- path: tests/test_codex_task_write_hook.py
+  note: Practical write-path coverage matrix.
+  status: pending
+dependencies:
+- task: task-116-codex-plugin-and-skill
+  type: needs
+  note: The hook is bundled and versioned through the AgentJobs plugin.
+links:
+- url: https://learn.chatgpt.com/docs/hooks
+  rel: doc
+  title: Current Codex hooks contract
+branches: []
+log: []

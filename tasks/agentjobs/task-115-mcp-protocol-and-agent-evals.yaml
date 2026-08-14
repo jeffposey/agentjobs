@@ -1,0 +1,97 @@
+schema: 2
+id: task-115-mcp-protocol-and-agent-evals
+title: Prove the MCP contract with protocol and agent-behavior evaluations
+created: '2026-08-14T19:19:57.357606Z'
+updated: '2026-08-14T19:19:57.358344Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: infrastructure
+tags:
+- mcp
+- protocol-tests
+- evals
+effort: 2 days
+assignment:
+  eligible: []
+parent: task-109-agentjobs-mcp-managed-interface
+spec:
+  summary: Add protocol-level integration tests and realistic agent evaluations that
+    prove the packaged MCP server works against a real AgentJobs service and drives
+    valid behavior under retries, races, ambiguity, and hostile direct-write prompts.
+  intent: Unit tests can prove handlers in isolation while missing broken STDIO framing,
+    packaging, tool metadata, server/client skew, or agents choosing the wrong interface.
+    Release needs evidence at the protocol and behavior boundaries where the original
+    failure occurred.
+  description: 'Implement section 9 of docs/mcp-integration-design.md. Snapshot and
+    validate the complete tools/list contract, then launch the packaged STDIO server
+    with an official MCP client or inspector against a freshly started real AgentJobs
+    HTTP service. Exercise initialize, list, call, structured output, text fallback,
+    invalid input, clean shutdown, and stderr-only diagnostics.
+
+
+    Build a deterministic evaluation harness for the ten accepted scenarios: full
+    create/claim/log/handoff loop, zero-context resume, colliding projects, racing
+    claim, retry after lost response, refusal of direct-lifecycle instructions, direct-write
+    attempts, read-only YAML access, broken-file reporting, and invalid handoff/close.
+    Record tool traces and final task state as test artifacts without depending on
+    a particular model''s prose.'
+  constraints: '- Use a real service and packaged STDIO process for protocol proof;
+    mocks may supplement but not replace it.
+
+    - Keep model-based evals deterministic enough to diagnose; contract assertions
+    use tool traces and persisted state.
+
+    - Test Windows and POSIX command/quoting behavior where environment permits.
+
+    - Do not weaken schemas to make an eval pass.
+
+    - Any discovered product defect outside the design becomes a separate task rather
+    than silent scope growth.'
+  out_of_scope: Implementing missing tools, plugin marketplace publication, or notification
+    delivery.
+  context: []
+acceptance:
+- id: ac-1
+  text: A packaged STDIO subprocess passes initialize, tools/list, tools/call, invalid-call,
+    structured/text result, shutdown, and stdout-purity tests.
+  verify: poetry run pytest tests/test_mcp_protocol.py
+  status: pending
+- id: ac-2
+  text: All ten agent-behavior scenarios produce a versioned pass/fail artifact with
+    tool trace and final persisted state.
+  status: pending
+- id: ac-3
+  text: Project collision, claim race, restart replay, and post-commit warning scenarios
+    are exercised against a real fresh HTTP service.
+  status: pending
+- id: ac-4
+  text: The installed wheel and MCP command are tested on Windows and have a documented
+    POSIX verification path.
+  status: pending
+- id: ac-5
+  text: The complete repository gate includes or invokes the stable MCP protocol suite.
+  verify: poetry run python scripts/check.py
+  status: pending
+deliverables:
+- path: tests/test_mcp_protocol.py
+  note: Packaged protocol integration tests.
+  status: pending
+- path: tests/mcp_evals
+  note: Deterministic behavior scenarios and evidence format.
+  status: pending
+dependencies:
+- task: task-112-mcp-read-tools
+  type: needs
+  note: Behavior scenarios require the complete read surface.
+- task: task-114-mcp-mutation-tools
+  type: needs
+  note: Behavior scenarios require the complete mutation surface.
+links:
+- url: https://developers.openai.com/plugins/build/mcp-server
+  rel: doc
+  title: OpenAI MCP tool design and testing guidance
+branches: []
+log: []

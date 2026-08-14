@@ -1,0 +1,103 @@
+schema: 2
+id: task-118-task-validation-and-receipts
+title: Add portable task-corpus validation and managed-write receipts
+created: '2026-08-14T19:20:02.257786Z'
+updated: '2026-08-14T19:20:02.258462Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: infrastructure
+tags:
+- validation
+- direct-write
+- git-hooks
+- receipts
+effort: 2 days
+assignment:
+  eligible: []
+parent: task-109-agentjobs-mcp-managed-interface
+spec:
+  summary: Add a portable AgentJobs validation command plus manager-produced write
+    receipts and a local staged-change gate, so invalid or unsupported direct task
+    edits are loud outside Codex too.
+  intent: Hooks are client-specific and bypassable. The repository needs a cross-agent
+    semantic backstop, while local commits need evidence that staged task content
+    came from AgentJobs' managed write path rather than a valid-looking direct edit.
+  description: 'Implement section 8 (managed-write receipts and portable validation)
+    of docs/mcp-integration-design.md. Add `agentjobs validate` for strict schema/corpus
+    checks and `agentjobs validate --staged` for local commit policy. Every successful
+    TaskStorage write emits a machine-local receipt under `.agentjobs/write-receipts/`
+    with project/task/result hash, operation, actor when known, timestamp, and AgentJobs
+    version. Ignore receipts in Git.
+
+
+    Portable validation checks YAML parsing/schema, filename-ID agreement, lifecycle
+    invariants, log integrity, configured taxonomy/actors where policy requires, parent/dependency
+    existence and cycles using the canonical graph implementation, context/deliverable
+    path policy, and canonical serialization. `--staged` additionally requires each
+    staged task hash to match its latest receipt. Provide a repository Git-hook installation
+    path and an explicit noisy maintainer recovery override requiring a reason and
+    listing paths. CI/clean-clone validation does not require receipts and documents
+    that it cannot prove writer provenance.'
+  constraints: '- Receipts are machine-local evidence, not task state and not a cryptographic
+    security boundary.
+
+    - Do not commit receipts or make CI depend on them.
+
+    - Normal manager, API, CLI, MCP, migration, and UI writes all produce receipts
+    through TaskStorage.
+
+    - The recovery bypass must be explicit, reasoned, visible, and unsuitable as an
+    unattended agent default.
+
+    - Reuse task-100''s canonical dependency-cycle behavior; do not implement a competing
+    graph rule.
+
+    - Read-only task access remains supported; content-only direct edits are unsupported
+    generated-state mutation.'
+  out_of_scope: Codex PreToolUse behavior, OS access controls, signing receipts with
+    a central secret, auto-repairing corrupt tasks, or changing dependency semantics.
+  context: []
+acceptance:
+- id: ac-1
+  text: '`agentjobs validate` reports all accepted semantic, relationship, path-policy,
+    and canonical-serialization failures with filenames/fields and a nonzero exit.'
+  verify: poetry run pytest tests/test_validate.py
+  status: pending
+- id: ac-2
+  text: Every supported TaskStorage write produces a current gitignored receipt matching
+    the canonical persisted hash.
+  status: pending
+- id: ac-3
+  text: '`agentjobs validate --staged` accepts manager-written staged tasks and rejects
+    valid-looking direct edits without matching receipts.'
+  status: pending
+- id: ac-4
+  text: The explicit recovery override requires a reason, lists bypassed paths, and
+    is not enabled by default or agent guidance.
+  status: pending
+- id: ac-5
+  text: CI/clean-clone mode validates without receipts and documentation states the
+    writer-provenance limitation.
+  status: pending
+- id: ac-6
+  text: Existing corpus, migration, API, UI, and concurrent write tests remain green.
+  verify: poetry run python scripts/check.py
+  status: pending
+deliverables:
+- path: src/agentjobs
+  note: Portable validator, receipt emission, and staged gate.
+  status: pending
+- path: tests/test_validate.py
+  note: Semantic, receipt, bypass, and clean-clone coverage.
+  status: pending
+dependencies:
+- task: task-100-dependency-cycle-deadlock
+  type: needs
+  note: Portable validation must reuse the accepted canonical cycle visibility behavior
+    rather than duplicate it.
+links: []
+branches: []
+log: []

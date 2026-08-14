@@ -1,0 +1,88 @@
+schema: 2
+id: task-109-agentjobs-mcp-managed-interface
+title: Ship a managed AgentJobs MCP interface and direct-write guardrails
+created: '2026-08-14T19:18:45.666884Z'
+updated: '2026-08-14T19:18:45.668061Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- mcp
+- agent-integration
+- validation
+- codex-plugin
+effort: multi-task program
+assignment:
+  eligible: []
+spec:
+  summary: Deliver the accepted AgentJobs MCP architecture as a standalone local server
+    plus a Codex plugin, while making direct task-YAML mutation unsupported, preventable
+    where the client permits it, and loud everywhere else.
+  intent: Agents currently have easier access to general file tools than to AgentJobs'
+    validated domain operations. That allowed an invalid active task with no ball
+    to bypass the manager and disappear. The program must make managed operations
+    the obvious path and preserve the task corpus as valid, visible, resumable state.
+  description: 'This is the implementation umbrella for docs/mcp-integration-design.md.
+    Complete it through its children: standalone STDIO foundation; project and actor
+    routing; read/query tools; authoritative idempotency, concurrency, and error semantics;
+    validated mutation tools; protocol and behavioral proof; Codex plugin/skill packaging;
+    direct-write hook enforcement; portable validation and managed-write receipts;
+    and documentation/release integration.
+
+
+    The parent is finished by its children and must not become a second implementation
+    workstream. At closure, review the children''s evidence against the design''s
+    end-to-end contract, run the complete repository gate, and exercise one real zero-context
+    create/claim/log/handoff flow through the installed MCP server.'
+  constraints: '- The decisions in docs/mcp-integration-design.md are accepted and
+    must not be reopened during implementation.
+
+    - Ship one MCP implementation in the AgentJobs package; the Codex plugin packages
+    it rather than forking it.
+
+    - MCP writes must traverse TaskClient -> project-scoped REST -> TaskManager ->
+    TaskStorage.
+
+    - Do not expose generic lifecycle, ball, outcome, YAML, or arbitrary-record setters.
+
+    - Preserve unrelated task-100 and task-105 scope; do not absorb a Beads migration
+    or notification receiver.'
+  out_of_scope: Implementing a Beads replatform, a remote Streamable HTTP MCP deployment,
+    a notification delivery service, or arbitrary batch mutation.
+  context: []
+acceptance:
+- id: ac-1
+  text: Every child task is closed completed and its acceptance evidence is present
+    in the task log.
+  verify: poetry run agentjobs list
+  status: pending
+- id: ac-2
+  text: A clean installed MCP client can discover a project, create or claim valid
+    work, append progress, and hand off for human review without direct YAML mutation.
+  status: pending
+- id: ac-3
+  text: Direct-write hook and repository backstop behavior matches the cross-agent
+    matrix in the design.
+  status: pending
+- id: ac-4
+  text: Protocol, behavioral, packaging, documentation, and complete repository gates
+    pass.
+  verify: poetry run python scripts/check.py
+  status: pending
+deliverables:
+- path: src/agentjobs/mcp
+  note: Standalone MCP implementation.
+  status: pending
+- path: docs/mcp-integration-design.md
+  note: Accepted design implemented by the child graph.
+  status: done
+dependencies: []
+links:
+- url: https://modelcontextprotocol.io/specification/2025-11-25/server/tools
+  rel: design
+  title: MCP tools specification
+branches: []
+log: []

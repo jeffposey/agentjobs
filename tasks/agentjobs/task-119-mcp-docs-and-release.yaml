@@ -1,0 +1,102 @@
+schema: 2
+id: task-119-mcp-docs-and-release
+title: Document, version, and release the AgentJobs MCP integration
+created: '2026-08-14T19:20:03.863069Z'
+updated: '2026-08-14T19:20:03.863763Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: documentation
+tags:
+- mcp
+- documentation
+- release
+- cross-agent
+effort: 1-2 days
+assignment:
+  eligible: []
+parent: task-109-agentjobs-mcp-managed-interface
+spec:
+  summary: Integrate the completed MCP server, plugin, hook, validation backstop,
+    compatibility policy, and cross-agent setup into AgentJobs documentation and release
+    verification.
+  intent: A correct server is ineffective if agents do not discover it, users cannot
+    install or upgrade it, or client-specific pages overpromise hook enforcement.
+    Documentation is part of making the managed interface the obvious path.
+  description: 'Implement sections 7, 8 (cross-agent matrix), and 10 of docs/mcp-integration-design.md
+    after the protocol and enforcement surfaces stabilize. Update README and docs
+    index; add standalone MCP setup plus Codex desktop/CLI/plugin, Claude, Gemini,
+    and generic MCP client pages. Each includes service health, projects_list, actor
+    configuration, a complete zero-context create/claim/log/handoff example, upgrade/rollback,
+    and the exact protection level it receives.
+
+
+    Update task-schema and agent-workflow guidance to call YAML readable generated
+    state, not an authoring interface. Document operation IDs, revisions, structured
+    errors, plugin/hook trust, managed-write receipts, local Git hook, portable validation,
+    version skew, and the future-notification boundary. Build docs, validate links,
+    install from the built wheel/plugin, run the real happy path, and prepare release
+    notes/changelog evidence.'
+  constraints: '- Do not claim hooks are security boundaries or that non-Codex clients
+    receive Codex prevention.
+
+    - Do not document remote Streamable HTTP, notification delivery, or public marketplace
+    publication as shipped.
+
+    - Keep MCP tool schemas authoritative in tools/list; docs show workflows, not
+    a drifting duplicate reference.
+
+    - Preserve React-first UI and current CLI/API documentation.
+
+    - Version package, plugin, compatibility notes, and release artifacts coherently.'
+  out_of_scope: Implementing missing functionality, public plugin submission, marketing
+    screenshots, or a notification receiver.
+  context: []
+acceptance:
+- id: ac-1
+  text: README and docs index lead users to standalone MCP and Codex plugin setup
+    and the managed workflow.
+  status: pending
+- id: ac-2
+  text: Codex, Claude, Gemini, and generic client guidance names exact install, health,
+    project, actor, workflow, upgrade, rollback, and enforcement behavior.
+  status: pending
+- id: ac-3
+  text: Task schema and agent workflow guides explicitly treat task YAML as readable
+    generated state and direct content edits as unsupported.
+  status: pending
+- id: ac-4
+  text: Docs distinguish MCP, plugin/skill, Codex hook, local receipt gate, portable
+    validation, and future notifications without overclaiming.
+  status: pending
+- id: ac-5
+  text: Built wheel/plugin installation and one real create/claim/log/handoff flow
+    are captured as release evidence; documentation and complete repository gates
+    pass.
+  verify: poetry run python scripts/check.py
+  status: pending
+deliverables:
+- path: README.md
+  note: MCP and plugin discoverability.
+  status: pending
+- path: docs
+  note: Cross-agent setup, generated-state policy, and release guidance.
+  status: pending
+dependencies:
+- task: task-115-mcp-protocol-and-agent-evals
+  type: needs
+  note: Document only the protocol behavior proven by release tests.
+- task: task-116-codex-plugin-and-skill
+  type: needs
+  note: Requires final plugin installation and upgrade behavior.
+- task: task-117-codex-direct-write-hook
+  type: needs
+  note: Requires verified hook coverage and limitations.
+- task: task-118-task-validation-and-receipts
+  type: needs
+  note: Requires final validator, receipt gate, and cross-agent backstop behavior.
+links: []
+branches: []
+log: []

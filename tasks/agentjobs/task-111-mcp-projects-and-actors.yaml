@@ -1,0 +1,84 @@
+schema: 2
+id: task-111-mcp-projects-and-actors
+title: Add MCP-safe project discovery and actor attribution
+created: '2026-08-14T19:18:48.672848Z'
+updated: '2026-08-14T19:18:48.673602Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: infrastructure
+tags:
+- mcp
+- multi-project
+- actors
+effort: 1 day
+assignment:
+  eligible: []
+parent: task-109-agentjobs-mcp-managed-interface
+spec:
+  summary: Extend the authoritative REST models and TaskClient for explicit project-scoped
+    calls, project actor discovery, and validation of every supplied mutation actor.
+  intent: Task IDs are only unique inside a project, and actor names are durable audit
+    data. An MCP session must never guess either one from cwd, model identity, or
+    a stale hidden selection.
+  description: 'Implement section 3 of docs/mcp-integration-design.md. Add typed TaskClient
+    support for `/api/projects` and `/api/projects/{project_id}/...` routes. Extend
+    the project response with the configured actor vocabulary (`id`, `kind`, `display_name`)
+    and `default_user` needed for discovery, without using the human default as an
+    agent mutation identity. Provide shared server helpers that require exact `project_id`
+    on all task tools and require/validate `actor` on all mutations.
+
+
+    Preserve `_local` for existing single-project compatibility. Add two-project fixtures
+    with colliding task IDs and actor vocabularies that differ, proving reads and
+    writes never leak across projects.'
+  constraints: '- No mutable current-project or set-context state in MCP.
+
+    - No cwd-based fallback after a tool receives a project-scoped request.
+
+    - Never infer actor from the model, OS user, MCP session, or human default_user.
+
+    - Projects with no actors preserve current compatibility; configured projects
+    reject unknown actors through the existing actor validator.
+
+    - Route construction belongs in TaskClient, not individual MCP handlers.'
+  out_of_scope: Authentication for networked MCP, multiple-human account management
+    (task-066), registry onboarding, and read/mutation domain tool implementations.
+  context: []
+acceptance:
+- id: ac-1
+  text: TaskClient lists projects and addresses every supported task route by explicit
+    project ID.
+  verify: poetry run pytest tests/test_client.py tests/test_api_multiproject.py
+  status: pending
+- id: ac-2
+  text: Project discovery returns actor IDs, kinds, display names, and default_user
+    without choosing an agent actor.
+  status: pending
+- id: ac-3
+  text: Unknown projects and actors fail before mutation with stable, useful errors
+    that name valid choices.
+  status: pending
+- id: ac-4
+  text: Two projects with the same task ID remain isolated under alternating MCP-adapter
+    calls.
+  status: pending
+- id: ac-5
+  text: Single-project `_local` behavior remains compatible.
+  status: pending
+deliverables:
+- path: src/agentjobs/client.py
+  note: Project-scoped client and discovery methods.
+  status: pending
+- path: src/agentjobs/api/routes/projects.py
+  note: Actor-aware project discovery response.
+  status: pending
+dependencies:
+- task: task-110-mcp-stdio-foundation
+  type: needs
+  note: Uses the shared MCP server configuration and adapter boundary.
+links: []
+branches: []
+log: []

@@ -37,6 +37,7 @@ history; new records and integrations must use v2.
 - [Repository engineering guidance](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md)
 - [React frontend development](https://github.com/jeffposey/agentjobs/blob/main/frontend/README.md)
 - [Webhook integrations](webhooks.md)
+- [MCP integration design](mcp-integration-design.md)
 - [Schema migration](migration-guide.md)
 - [Agent dispatch design](agent-dispatch-design.md) — accepted design record; clearly
   labelled where implementation is still pending

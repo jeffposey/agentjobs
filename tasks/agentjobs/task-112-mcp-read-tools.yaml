@@ -1,0 +1,90 @@
+schema: 2
+id: task-112-mcp-read-tools
+title: Expose AgentJobs read and query tools over MCP
+created: '2026-08-14T19:18:50.196475Z'
+updated: '2026-08-14T19:18:50.197151Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- mcp
+- read-tools
+- resumption
+effort: 1-2 days
+assignment:
+  eligible: []
+parent: task-109-agentjobs-mcp-managed-interface
+spec:
+  summary: Implement the five accepted read-only MCP tools with project scoping, broken-file
+    visibility, dependency facts, children, pagination limits, and structured outputs.
+  intent: Agents need a concise, dependable way to discover projects and reconstruct
+    zero-context work before mutation. Read tools must preserve AgentJobs' loud-error
+    behavior instead of making broken files or blocked work disappear.
+  description: 'Implement the read inventory in section 4 of docs/mcp-integration-design.md:
+    `projects_list`, `tasks_list`, `task_get`, `tasks_search`, and `task_next`. Generate
+    input/output schemas from authoritative response types where possible, return
+    structuredContent plus short text fallback, and apply accurate read-only/non-destructive/closed-world
+    annotations.
+
+
+    `task_get` must return the complete schema-v2 task, computed dependency facts,
+    and subtasks. List/search include broken task files beside valid records and enforce
+    the accepted 1-200 result limit. `task_next` does not claim and explains why no
+    task is available when broken, cyclic, dependency-blocked, ineligible, or genuinely
+    absent work is relevant.'
+  constraints: '- Exact tool names and fields are fixed by the design; do not collapse
+    them into a mode-based generic query tool.
+
+    - All task tools require project_id.
+
+    - Return stable IDs and full resumption data, not a prose-only summary.
+
+    - Broken files remain distinct from missing tasks.
+
+    - This task is read-only; do not add claim-on-next or any mutation.'
+  out_of_scope: Mutation verbs, idempotency, direct-write enforcement, custom MCP
+    UI/resources, or changing queue ranking (task-081-task-selection-ranking).
+  context: []
+acceptance:
+- id: ac-1
+  text: tools/list publishes exactly the five accepted read tools with explicit input/output
+    schemas and accurate annotations.
+  verify: poetry run pytest tests/test_mcp_read_tools.py
+  status: pending
+- id: ac-2
+  text: task_get returns a complete zero-context TaskDocument, dependency facts, and
+    children for the addressed project.
+  status: pending
+- id: ac-3
+  text: list and search report broken task files beside valid tasks and enforce deterministic
+    result limits.
+  status: pending
+- id: ac-4
+  text: task_next never claims and explains no-result states usefully.
+  status: pending
+- id: ac-5
+  text: Colliding IDs across two projects return only the explicitly addressed record.
+  status: pending
+deliverables:
+- path: src/agentjobs/mcp
+  note: Read/query MCP handlers and typed results.
+  status: pending
+- path: tests/test_mcp_read_tools.py
+  note: Read contract and behavior coverage.
+  status: pending
+dependencies:
+- task: task-110-mcp-stdio-foundation
+  type: needs
+  note: Requires the packaged protocol server.
+- task: task-111-mcp-projects-and-actors
+  type: needs
+  note: Requires explicit project and actor discovery plumbing.
+links:
+- url: https://modelcontextprotocol.io/specification/2025-11-25/server/tools
+  rel: doc
+  title: MCP tool schemas and results
+branches: []
+log: []

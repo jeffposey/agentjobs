@@ -1,0 +1,92 @@
+schema: 2
+id: task-110-mcp-stdio-foundation
+title: Build the standalone AgentJobs MCP STDIO foundation
+created: '2026-08-14T19:18:47.191937Z'
+updated: '2026-08-14T19:18:47.192650Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: infrastructure
+tags:
+- mcp
+- stdio
+- packaging
+effort: 1-2 days
+assignment:
+  eligible: []
+parent: task-109-agentjobs-mcp-managed-interface
+spec:
+  summary: Add the packaged `agentjobs mcp` STDIO server, official MCP SDK dependency,
+    startup compatibility probes, and shared result plumbing without implementing
+    the domain tool inventory yet.
+  intent: Every supported agent client needs one protocol implementation with clean
+    packaging and process behavior. Establishing the boundary first prevents individual
+    tools from inventing their own transport, HTTP, logging, or version policy.
+  description: 'Implement section 1 and section 7 (Standalone) of docs/mcp-integration-design.md.
+    Add the official Python MCP SDK, a typed MCP package, and an `agentjobs mcp` command
+    that speaks only MCP on stdout and sends diagnostics to stderr. The process connects
+    to the configured AgentJobs HTTP service, probes health/version/project capability,
+    publishes the accepted server instructions, reports the installed AgentJobs version
+    and schema compatibility, and shuts down cleanly.
+
+
+    Create shared adapters for structuredContent plus text fallback, safety annotations,
+    and error/result serialization. Domain handlers remain for later children. Build
+    and install the wheel in a clean environment and launch the command on Windows;
+    add POSIX-compatible implementation and tests suitable for CI.'
+  constraints: '- Use local STDIO only for the initial release; do not add Streamable
+    HTTP or embed MCP into FastAPI.
+
+    - The MCP package may import TaskClient and generated API/Pydantic types, not
+    TaskManager or TaskStorage.
+
+    - Do not silently start or own the AgentJobs HTTP server.
+
+    - Keep non-protocol output off stdout.
+
+    - Server and plugin versions track the AgentJobs package version; fail actionable
+    on incompatible major versions.'
+  out_of_scope: Project/actor discovery fields, domain read tools, mutation tools,
+    Codex plugin packaging, hooks, and remote authentication.
+  context: []
+acceptance:
+- id: ac-1
+  text: '`agentjobs mcp` completes MCP initialize over STDIO with the accepted name,
+    version, capabilities, and first-512-character instructions.'
+  verify: poetry run pytest tests/test_mcp_server.py
+  status: pending
+- id: ac-2
+  text: No log, banner, warning, or traceback corrupts MCP stdout; diagnostics and
+    startup failures use stderr.
+  status: pending
+- id: ac-3
+  text: Startup probes the configured REST service and returns actionable unavailable/version-skew
+    errors without starting a service.
+  status: pending
+- id: ac-4
+  text: A built wheel installs in a clean Python 3.11 or 3.12 environment and launches
+    the STDIO server on Windows; implementation remains POSIX compatible.
+  verify: poetry build
+  status: pending
+- id: ac-5
+  text: The MCP package imports no TaskManager or TaskStorage mutation path.
+  status: pending
+deliverables:
+- path: src/agentjobs/mcp
+  note: Protocol server package and shared adapters.
+  status: pending
+- path: pyproject.toml
+  note: MCP SDK dependency and packaged command wiring.
+  status: pending
+dependencies: []
+links:
+- url: https://learn.chatgpt.com/docs/extend/mcp
+  rel: doc
+  title: OpenAI MCP configuration and transport guidance
+- url: https://modelcontextprotocol.io/specification/2025-11-25/basic/transports
+  rel: design
+  title: MCP transport specification
+branches: []
+log: []

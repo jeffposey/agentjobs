@@ -1,0 +1,108 @@
+schema: 2
+id: task-113-mcp-mutation-safety
+title: Make agent mutations idempotent, revision-safe, and diagnosable
+created: '2026-08-14T19:18:51.732678Z'
+updated: '2026-08-14T19:18:51.733344Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: infrastructure
+tags:
+- mcp
+- idempotency
+- concurrency
+- errors
+effort: 2-3 days
+assignment:
+  eligible: []
+parent: task-109-agentjobs-mcp-managed-interface
+spec:
+  summary: Extend the authoritative manager, REST API, and TaskClient with durable
+    operation IDs, creation locking, optimistic revisions, and a stable structured
+    error contract for MCP mutations.
+  intent: MCP clients may retry after timeouts, agents race, and a response can be
+    lost after persistence. Safety must live below MCP so every client gets the same
+    no-duplicate and no-stale-write behavior.
+  description: 'Implement sections 5 and 6 of docs/mcp-integration-design.md in the
+    existing authoritative mutation path. Add caller UUID `operation_id` support to
+    create, claim, release, handoff, close, authored log append, and content update.
+    Detect identical replays under lock and return the prior persisted task without
+    a new write/log entry; reject reuse with a different operation, actor, task, or
+    normalized payload.
+
+
+    Add a project-wide creation lock and a manager-owned creation entry so retrying
+    an auto-ID create finds the original task. Require `expected_revision` for content
+    update, handoff, and close; return the current task on conflict. Preserve atomic
+    append and existing claim/release preconditions. Define stable REST/TaskClient
+    error codes and retryability used by MCP, keeping missing and broken tasks separate.
+    Do not implement MCP handlers here.'
+  constraints: '- Idempotency is durable across MCP/server restart; an in-memory MCP
+    cache is insufficient.
+
+    - Operation detection and state checks occur in the manager/storage lock, not
+    as preflight-only REST checks.
+
+    - Same operation ID plus different normalized intent is a conflict and writes
+    nothing.
+
+    - A post-commit webhook failure cannot roll back task state; expose it as a warning
+    when available.
+
+    - Preserve compatibility for existing non-MCP API/client callers through a documented
+    migration/default strategy.
+
+    - Do not duplicate task-105 automatic-ID parsing scope; creation locking must
+    work with explicit IDs and the generator available at implementation time.'
+  out_of_scope: MCP tool registration, batch operations, create-and-claim transactions,
+    remote authentication, notification delivery, or rewriting the task schema beyond
+    manager-owned log metadata.
+  context: []
+acceptance:
+- id: ac-1
+  text: Retrying every mutation with the same operation ID is a no-op replay with
+    no duplicate task or log entry, including after process restart.
+  verify: poetry run pytest tests/test_idempotency.py
+  status: pending
+- id: ac-2
+  text: Reusing an operation ID for different intent returns operation_conflict and
+    leaves the task unchanged.
+  status: pending
+- id: ac-3
+  text: Concurrent auto-ID creates are serialized and a timed-out create retry resolves
+    to its original task.
+  status: pending
+- id: ac-4
+  text: Stale content update, handoff, and close requests return revision_conflict
+    with the current task.
+  status: pending
+- id: ac-5
+  text: REST and TaskClient expose the stable design error codes, retryable flag,
+    field errors, suggested action, replayed flag, and warnings.
+  status: pending
+- id: ac-6
+  text: Existing claim and concurrent log behavior remains atomic and compatible.
+  verify: poetry run pytest tests/test_concurrency.py tests/test_client.py tests/test_api.py
+  status: pending
+deliverables:
+- path: src/agentjobs/manager.py
+  note: Authoritative durable operation and revision semantics.
+  status: pending
+- path: src/agentjobs/api/models.py
+  note: Typed mutation result and error contracts.
+  status: pending
+- path: src/agentjobs/client.py
+  note: High-level safe mutation client support.
+  status: pending
+dependencies:
+- task: task-110-mcp-stdio-foundation
+  type: needs
+  note: Uses the accepted MCP-facing result/error shape.
+- task: task-111-mcp-projects-and-actors
+  type: needs
+  note: Operations are scoped by explicit project and validated actor.
+links: []
+branches: []
+log: []

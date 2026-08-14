@@ -1,0 +1,97 @@
+schema: 2
+id: task-114-mcp-mutation-tools
+title: Expose validated AgentJobs mutation verbs over MCP
+created: '2026-08-14T19:18:53.357357Z'
+updated: '2026-08-14T19:18:53.358067Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- mcp
+- mutation-tools
+- lifecycle
+effort: 2 days
+assignment:
+  eligible: []
+parent: task-109-agentjobs-mcp-managed-interface
+spec:
+  summary: Implement the eight accepted MCP mutation tools as typed, high-level domain
+    verbs over TaskClient, with no generic state or YAML mutation surface.
+  intent: Agents need an obvious managed path for creating, claiming, handing off,
+    releasing, closing, logging, and editing permitted task content. The tool contract
+    must make invalid lifecycle/ball combinations unrepresentable or reject them through
+    existing domain validation.
+  description: 'Implement section 4''s mutation inventory in docs/mcp-integration-design.md:
+    `task_create_draft`, `task_create_ready`, `task_claim`, `task_release`, `task_handoff`,
+    `task_close`, `task_log_append`, and `task_update_content`. Use the exact input
+    types, MutationResult output, operation IDs, revision requirements, and structured
+    errors already added to the authoritative service.
+
+
+    Use a discriminated handoff target so invalid ball/reason pairs do not validate.
+    Exclude agent/available from handoff; release owns that transition. Create schemas
+    omit all managed state and add the manager-owned creation event. ContentPatch
+    exposes only the accepted authoring fields and cannot replace log or state axes.
+    Return the fully reloaded task after success/replay.'
+  constraints: '- Handlers call only TaskClient; no imports of TaskManager, TaskStorage,
+    YAML, or task paths.
+
+    - Do not expose set lifecycle/ball/outcome, save YAML, generic patch, batch, create-and-claim,
+    transition-log, or unrestricted update tools.
+
+    - Tool names and schemas are fixed by the design.
+
+    - Every mutation requires explicit project_id, actor, and operation_id.
+
+    - Preserve REST/manager validation messages and stable codes; do not reimplement
+    lifecycle rules in MCP.'
+  out_of_scope: Read tools, Codex plugin/skill packaging, direct-write hook, portable
+    validator, remote MCP, or custom UI.
+  context: []
+acceptance:
+- id: ac-1
+  text: tools/list publishes exactly the eight accepted mutation tools with exact
+    schemas and annotations.
+  verify: poetry run pytest tests/test_mcp_mutation_tools.py
+  status: pending
+- id: ac-2
+  text: Create draft/ready, claim, release, every valid handoff family, close, log
+    append, and content update succeed through a real REST service and return reloaded
+    TaskDocuments.
+  status: pending
+- id: ac-3
+  text: Invalid lifecycle/ball/outcome combinations, transition log forgery, state
+    fields in content patch, unknown actor, stale revision, and unmet dependencies
+    fail immediately with structured errors and no write.
+  status: pending
+- id: ac-4
+  text: A repository search and schema snapshot prove no generic state, YAML, arbitrary
+    patch, batch, or create-and-claim tool is exposed.
+  status: pending
+- id: ac-5
+  text: Timeout retries return replayed results without duplicate state transitions
+    or log entries.
+  status: pending
+deliverables:
+- path: src/agentjobs/mcp
+  note: Validated mutation MCP handlers and schemas.
+  status: pending
+- path: tests/test_mcp_mutation_tools.py
+  note: Mutation contract and rejection coverage.
+  status: pending
+dependencies:
+- task: task-110-mcp-stdio-foundation
+  type: needs
+  note: Requires the packaged server and shared schema/result adapters.
+- task: task-111-mcp-projects-and-actors
+  type: needs
+  note: Requires explicit project and actor plumbing.
+- task: task-113-mcp-mutation-safety
+  type: needs
+  note: Requires authoritative operation, revision, replay, and error behavior.
+links: []
+branches: []
+log: []
