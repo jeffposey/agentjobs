@@ -1,121 +1,123 @@
 schema: 2
 id: task-081-task-selection-ranking
-title: 'Design: what ranks the claimable queue, and what /next must explain'
+title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-11T06:05:20.474393Z'
+updated: '2026-08-15T22:33:15.236503Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: medium
+priority: high
 category: architecture
 tags:
-- design
-- scheduling
 - agent-dx
+- design
+- queue-order
+- scheduling
+- schema
+- total-order
 assignment:
   eligible: []
 spec:
-  summary: get_next_task() ranks by (priority, most-recently-updated). With every
-    candidate at high priority, a bulk grooming pass left the choice of next task
-    to microsecond file-write order.
-  intent: Make the answer to 'what should I do next' come from signals that mean something,
-    and make it explain itself. Auto-dispatch and agent loops will consume this answer
-    with no human reading it.
-  description: "Raised by Jeff on 2026-08-11, after `get_next_task()` offered task-080\
-    \ when the task\nactually waiting to be done was task-079.\n\n## What happened,\
-    \ precisely\n\n`get_next_task()` filters to claimable tasks -- ready, eligible,\
-    \ no unmet `needs`, no\nopen children -- then sorts by `(priority_rank, -updated)`.\
-    \ On 2026-08-11 that produced:\n\n```\n04:37:06.742900  task-068-dispatch-config\n\
-    04:37:06.759369  task-069-dispatch-log-entries\n...\n04:37:06.939007  task-080-dispatch-model-profiles\n\
-    ```\n\nThirteen task files were rewritten inside one second by a bulk re-parenting\
-    \ pass. Every\ncandidate was `high`, so `priority_rank` tied for all of them and\
-    \ the entire ranking\nfell through to `-updated` -- which at that point differed\
-    \ only in microseconds, in the\norder the loop happened to write the files. **The\
-    \ recommended next task was decided by\nfilesystem write order during an unrelated\
-    \ grooming pass.**\n\nThis is not a bad sort key that produced a slightly wrong\
-    \ order. It is a ranking with no\nsignal left in it, returning an answer with\
-    \ full confidence.\n\n## The three problems, which are separable\n\n1. **Recency\
-    \ is backwards as a tiebreak.** `-updated` promotes whatever was touched most\n\
-    \   recently, so editing a task advances it in the queue and a task nobody has\
-    \ edited in\n   weeks sinks. Any bulk edit reshuffles the whole backlog. Oldest-ready-first\
-    \ is at\n   least stable and starvation-free; whether age is the *right* signal\
-    \ is part of what\n   this task decides.\n\n2. **Priority has stopped discriminating.**\
-    \ Eight of nine candidates were `high`. A\n   column that is constant carries\
-    \ no information, and the tiebreak silently becomes the\n   ranking. Whatever\
-    \ is designed here has to keep working when a human has marked\n   everything\
-    \ important, because that is the normal state of a real backlog.\n\n3. **The dependency\
-    \ graph is present and unused.** `needs` edges already record what\n   each task\
-    \ unblocks: on the same day, task-077 unblocked two tasks, 068/069/076 one\n \
-    \  each, and 080/078/075 none. \"How much does finishing this release?\" is computable\
-    \ from\n   data already in every task file and is a better signal than either\
-    \ input currently\n   used.\n\n## And a fourth, which is why this was noticed\
-    \ at all\n\n`/next` returns a bare task. There is no way to ask why *that* one,\
-    \ or what came second,\nso a ranking built on nothing looks identical to a ranking\
-    \ built on judgement. Even a\ncorrect algorithm needs to explain itself here --\
-    \ the same argument task-080 makes for\npreviewing a dispatch launch plan before\
-    \ anything starts.\n\n## Scope\n\nA design document, not a sort-key patch. It\
-    \ should settle:\n\n- What signals rank a claimable queue, and how they combine\
-    \ when priority is uniform.\n- Whether unblocking value (transitive `needs` descendants)\
-    \ belongs in the ranking, and\n  what it costs to compute on a corpus this size.\n\
-    - Whether an in-flight effort should be preferred over starting a new one -- `parent`\n\
-    \  now records which tasks are one effort, and finishing beats starting.\n- What\
-    \ `/next` must return alongside the task: which signals fired, what ranked second,\n\
-    \  and why the top task beat it.\n- Whether ties should be broken deterministically\
-    \ (by id) rather than by a timestamp\n  that a bulk edit can flatten.\n\n## Why\
-    \ this matters more than it looks\n\nToday a human reads the queue and applies\
-    \ judgement, so a bad ranking is a mild\nannoyance. Task-074 (auto-dispatch) will\
-    \ consume this function's answer without a human\nin the loop, and task-078 (agent\
-    \ loops) will consume it repeatedly. At that point the\nranking stops being advice\
-    \ and starts being the thing that decides what gets built.\n\nFiled `medium` deliberately.\
-    \ Marking it `high` would add a ninth `high` task to a queue\nwhose central problem\
-    \ is that `high` no longer means anything -- which would be a small\ndemonstration\
-    \ of the bug rather than a fix for it.\n"
-  constraints: '- Must degrade well when every task is high priority; that is the
-    normal state of a real backlog, not an edge case.
+  summary: Design a schema-backed queue_position that gives every open task an explicit
+    place within its priority band, so AgentJobs always has one durable answer to
+    what comes next.
+  intent: Priority levels are deliberately coarse, and dependencies answer eligibility
+    rather than scheduling. AgentJobs currently falls back to updated timestamps,
+    so grooming or logging silently changes the queue. The work order must be explicit
+    task data that humans and every client can see and change intentionally.
+  description: 'The core decision is settled: add a first-class `queue_position` to
+    the task schema. `priority` remains the urgency band; `queue_position` is the
+    authoritative order within that band. Together they form a total order for open
+    work. This is not described as a tie-breaker because it is real scheduling data,
+    not an incidental fallback.
 
-    - Ties must break deterministically. A timestamp a bulk edit can flatten is not
-    a tiebreak.
 
-    - Ranking inputs must come from data already in the task files. This is not a
-    licence to add scoring fields humans have to maintain by hand.
+    Dependencies, eligibility, lifecycle, ball state, and open-child rules determine
+    whether a task is currently claimable. They do not encode which independent task
+    should come first. `get_next_task()` filters by those rules and then selects the
+    lowest `(priority rank, queue_position)`. Mutable timestamps are never part of
+    the order.
 
-    - The existing claimability filter (ready, eligible, no unmet needs, no open children)
-    is settled and not up for redesign here; this is about ordering what survives
-    it.'
-  out_of_scope: '- Implementing the ranking. This task produces the design; implementation
-    tasks are derived from it.
 
-    - Estimating or predicting effort from task prose.
+    The design must settle readable storage and managed reorder mechanics: positive
+    positions, uniqueness within each open priority band, default insertion at the
+    bottom of a band, explicit before/after moves, priority changes with defined placement,
+    concurrency under a project-level reorder lock, and sparse numbering or another
+    human-readable strategy that avoids rewriting the corpus on every move. Missing/duplicate
+    positions or a failed rebalance are reported as queue corruption; task selection
+    must not silently fall back to timestamp or ID.
 
-    - Changing what makes a task claimable.'
-  context: []
+
+    The order must be visible and operable everywhere: REST and Python client, dedicated
+    CLI commands, React list/drag and keyboard controls, MCP read results and a high-level
+    reorder verb, portable validation, generated schema docs, and agent rules requiring
+    the explicit queue rather than chat instructions or invented dependency edges.
+    Creation defaults must always produce a valid position.
+
+
+    Migration assigns every open task a deterministic initial position, then records
+    the currently requested program order: task-109 MCP first, task-120 issue reporter
+    second, and this queue-ordering program after those. The design produces implementation
+    children; it does not hide implementation inside a one-line sort change.'
+  constraints: '- Every open task has exactly one queue position within its priority
+    band; no two open tasks in one band may share it.
+
+    - Priority plus queue_position is the complete scheduling order after claimability
+    filtering. No timestamp, filesystem order, or implicit ID order participates.
+
+    - Dependencies remain semantic prerequisites only. Never add a needs edge merely
+    to say one independent task should be done before another.
+
+    - All create, import, migration, reprioritize, reorder, close, and archive paths
+    preserve a valid total order through manager/domain operations.
+
+    - Reordering is a managed domain verb, not a generic content patch or direct YAML
+    edit.
+
+    - The user-facing term is Queue position (or Work order), not tie-breaker.
+
+    - The design must remain readable in YAML and safe under concurrent agents.'
+  out_of_scope: Estimating effort from prose, automatic business-priority scoring,
+    using dependency centrality as a substitute for explicit human order, or making
+    one global queue span multiple separately configured projects.
+  context:
+  - path: src/agentjobs/manager.py
+    why: Current claimability filter and timestamp-based ordering that must be replaced.
+  - path: src/agentjobs/models_v2.py
+    why: Schema and invariants for the new queue_position field.
+  - path: docs/mcp-integration-design.md
+    why: Managed agent surface that must expose and obey queue order without generic
+      mutation.
+  - path: frontend/src
+    why: Task lists and accessible reorder interaction.
 acceptance:
 - id: sc-1
-  text: The design names the ranking signals, says where each comes from in the existing
-    schema, and specifies how they combine when priority is uniform across every candidate
+  text: The design specifies queue_position as first-class schema data and defines
+    the total sort as priority band followed by queue position after claimability
+    filtering.
   status: pending
 - id: sc-2
-  text: It decides whether unblocking value belongs in the ranking, with the rejected
-    alternative recorded, and states the cost of computing it over the whole corpus
+  text: Every open task is guaranteed one unique position in its priority band; missing,
+    duplicate, or invalid positions are loud corpus errors with no timestamp/ID fallback.
   status: pending
 - id: sc-3
-  text: Tie-breaking is deterministic and does not depend on a mutable timestamp;
-    the design demonstrates this against the 2026-08-11 case where thirteen tasks
-    shared one second
+  text: Create, move before/after, reprioritize, close/archive, migration, compaction/rebalance,
+    and concurrent reorder semantics are fully specified.
   status: pending
 - id: sc-4
-  text: It specifies what /next returns besides the task -- which signals fired, the
-    runner-up, and why the top task beat it -- in a form both the CLI and the API
-    can render
+  text: REST, Python client, CLI, React UI, MCP, validation, and agent guidance all
+    read or mutate the same managed queue order and explain why a task is next.
   status: pending
 - id: sc-5
-  text: It states how auto-dispatch (task-074) and agent loops (task-078) consume
-    the ranking, and what happens when the queue is empty or every candidate ties
+  text: The migration has a deterministic baseline and explicitly places task-109
+    first, task-120 second, and the queue-ordering implementation after them without
+    inventing needs dependencies.
   status: pending
 - id: sc-6
-  text: Implementation tasks are derived from the design rather than this task expanding
-    to include the code
+  text: Implementation child tasks are derived for schema/storage/manager, API/CLI/React,
+    and MCP/rules/validation, with acceptance tests that prove ordering never depends
+    on updated timestamps.
   status: pending
 deliverables:
 - path: docs/task-selection-design.md
@@ -172,4 +174,15 @@ log:
     then 058 -- reflects nothing but file-write order. A human ranked the queue better
     than the function did, in under a minute, using a signal the function does not
     have.'
+  data: {}
+- id: 2
+  ts: '2026-08-15T22:33:15.236441Z'
+  actor: codex
+  type: decision
+  body: 'Jeff settled the central requirement: priority levels alone are insufficient,
+    and dependencies must not be abused as scheduling order. Design `queue_position`
+    as authoritative first-class order within a priority band. Claimability filters
+    first; priority + queue_position selects next; timestamps and IDs are not normal
+    fallbacks. The product and agent rules must keep the order complete through every
+    managed write path.'
   data: {}

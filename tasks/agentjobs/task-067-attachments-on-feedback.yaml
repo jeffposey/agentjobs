@@ -2,28 +2,27 @@ schema: 2
 id: task-067-attachments-on-feedback
 title: Attach images to feedback and issue reports, primarily by clipboard paste
 created: '2026-08-10T23:31:30.455098Z'
-updated: '2026-08-13T22:10:49.299445Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: 'Decide the storage question before this is claimed: where do binaries
-  live in a product whose premise is diffable YAML in git? Sidecar files, git-lfs,
-  inline base64, or an external store. The interaction work is straightforward once
-  that is settled.'
+updated: '2026-08-15T22:34:23.788153Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
-priority: medium
+priority: high
 category: ux
 tags:
+- attachments
 - gui
-- workflow
+- issue-reporter
 - schema
-effort: half a day once the storage decision is made
+- workflow
+effort: half a day
 assignment:
   eligible: []
+parent: task-120-issue-reporter-workflow
 spec:
-  summary: A screenshot is the fastest way to report a visual bug and there is nowhere
-    to put one. Support pasting images into the review and report-issue boxes -- after
-    deciding where binaries live in a product built on diffable YAML.
+  summary: Store pasted screenshot snippets as repo-local sidecar images referenced
+    from the specific feedback/report log entry, keeping YAML readable while making
+    visual evidence immediate.
   intent: 'Every defect found in this project so far has been visual -- a filter matching
     nothing, a page of validation errors, a badge rendering an enum name. Each was
     described in prose across several messages when a screenshot would have been unambiguous
@@ -80,7 +79,20 @@ spec:
     \ as links? Inline is the point --\n  a screenshot nobody clicks is a screenshot\
     \ nobody sees.\n- Whether the CLI and API can attach too, or only the GUI. The\
     \ API taking a base64 body\n  and writing a sidecar file keeps one storage path\
-    \ rather than two."
+    \ rather than two.\n\n## Storage decision (accepted 2026-08-15)\n\nUse image-only\
+    \ sidecar files below the configured task directory at `attachments/<task-id>/<sha256>.<ext>`.\
+    \ The referencing log entry gets additive `attachments[]` metadata containing\
+    \ the repo-relative path, media type, SHA-256, byte size, and accessible label.\
+    \ Write the blob atomically through the same managed storage/service boundary\
+    \ as the log mutation, validate the hash/path on read, and render it inline. Accept\
+    \ clipboard PNG plus JPEG/WebP uploads, with a 5 MiB per-image default ceiling.\n\
+    \nRejected: inline base64 because it destroys YAML readability and diffs; an external\
+    \ object store because a checkout would no longer be complete; mandatory Git LFS\
+    \ because it adds installation and hosting requirements to a lightweight local\
+    \ tool. Git retains sidecar history permanently, so repository growth is the explicit\
+    \ cost. Do not silently delete attachments; report orphaned/unreferenced files\
+    \ for later maintenance, and allow an optional future LFS migration if a repository's\
+    \ scale warrants it."
   constraints: '- Do not compromise the diffability of task YAML. A record that a
     human cannot read in a text editor has lost the property the storage model exists
     for.
@@ -125,8 +137,9 @@ acceptance:
 deliverables: []
 dependencies:
 - task: task-065-report-issue-action
-  type: related
-  note: Second surface for the same widget; neither blocks the other.
+  type: needs
+  note: Build the shared report surface first, then add the common attachment widget
+    and storage path.
 links: []
 branches: []
 log:
@@ -169,3 +182,23 @@ log:
     with the packaged React component or shared Python logic that owns the current
     product surface. Historical design context remains unchanged.'
   data: {}
+- id: 3
+  ts: '2026-08-15T22:29:33.991055Z'
+  actor: codex
+  type: decision
+  body: 'Storage decision: use image-only sidecars under the configured task directory
+    at attachments/<task-id>/<sha256>.<ext>, referenced by additive attachments[]
+    metadata on the specific log entry. Default limit is 5 MiB per image. Inline base64,
+    required Git LFS, and external storage are rejected; permanent Git growth is accepted
+    and must be visible rather than silently cleaned up. This resolves the human/spec
+    question and makes the task ready after task-065.'
+  data: {}
+- id: 4
+  ts: '2026-08-15T22:29:34.013143Z'
+  actor: codex
+  type: handoff
+  body: The storage decision is recorded; the specification is now ready for implementation
+    after task-065.
+  data:
+    ball: agent
+    ball_reason: available

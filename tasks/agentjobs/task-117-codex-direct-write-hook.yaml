@@ -2,7 +2,7 @@ schema: 2
 id: task-117-codex-direct-write-hook
 title: Block direct task YAML writes with the Codex pre-tool hook
 created: '2026-08-14T19:20:00.696519Z'
-updated: '2026-08-14T19:20:00.697285Z'
+updated: '2026-08-15T22:34:23.865140Z'
 lifecycle: ready
 ball: agent
 ball_reason: available

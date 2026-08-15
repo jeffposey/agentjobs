@@ -2,7 +2,7 @@ schema: 2
 id: task-119-mcp-docs-and-release
 title: Document, version, and release the AgentJobs MCP integration
 created: '2026-08-14T19:20:03.863069Z'
-updated: '2026-08-14T19:20:03.863763Z'
+updated: '2026-08-15T22:34:23.821870Z'
 lifecycle: ready
 ball: agent
 ball_reason: available

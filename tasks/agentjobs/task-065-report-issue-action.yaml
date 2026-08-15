@@ -2,19 +2,21 @@ schema: 2
 id: task-065-report-issue-action
 title: 'Report Issue: capture a problem from any page, as a task'
 created: '2026-08-10T22:57:38.570148Z'
-updated: '2026-08-13T22:10:49.247362Z'
+updated: '2026-08-15T22:34:23.806760Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: medium
+priority: high
 category: developer_experience
 tags:
 - gui
+- issue-reporter
 - workflow
 effort: 2-3 hours
 assignment:
   eligible: []
+parent: task-120-issue-reporter-workflow
 spec:
   summary: Findings made while using the app have nowhere to go and end up in chat.
     Add a project-wide Report Issue action that creates a task, pre-filled with where
@@ -58,7 +60,12 @@ spec:
 
     **Worth deciding while building:** whether the new task lands in the project being
     viewed or a designated one. Viewing project A and filing a bug about AgentJobs
-    itself is the common case, and silently filing it into A would be wrong.'
+    itself is the common case, and silently filing it into A would be wrong.
+
+
+    Within task-120 this is the shared single-report foundation. Its form and manager-backed
+    creation service must be reusable by task-121 so batch capture does not invent
+    a second creation path.'
   constraints: '- Creates a normal task through the existing manager. No new store,
     no resurrection of `issues[]`.
 

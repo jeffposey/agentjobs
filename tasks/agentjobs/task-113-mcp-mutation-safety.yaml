@@ -2,7 +2,7 @@ schema: 2
 id: task-113-mcp-mutation-safety
 title: Make agent mutations idempotent, revision-safe, and diagnosable
 created: '2026-08-14T19:18:51.732678Z'
-updated: '2026-08-14T19:18:51.733344Z'
+updated: '2026-08-15T22:34:23.921864Z'
 lifecycle: ready
 ball: agent
 ball_reason: available

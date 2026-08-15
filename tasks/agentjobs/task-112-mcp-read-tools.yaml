@@ -2,7 +2,7 @@ schema: 2
 id: task-112-mcp-read-tools
 title: Expose AgentJobs read and query tools over MCP
 created: '2026-08-14T19:18:50.196475Z'
-updated: '2026-08-14T19:18:50.197151Z'
+updated: '2026-08-15T22:34:23.935961Z'
 lifecycle: ready
 ball: agent
 ball_reason: available

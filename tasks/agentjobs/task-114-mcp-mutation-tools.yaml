@@ -2,7 +2,7 @@ schema: 2
 id: task-114-mcp-mutation-tools
 title: Expose validated AgentJobs mutation verbs over MCP
 created: '2026-08-14T19:18:53.357357Z'
-updated: '2026-08-14T19:18:53.358067Z'
+updated: '2026-08-15T22:34:23.907312Z'
 lifecycle: ready
 ball: agent
 ball_reason: available

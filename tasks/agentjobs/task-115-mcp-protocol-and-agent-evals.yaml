@@ -2,7 +2,7 @@ schema: 2
 id: task-115-mcp-protocol-and-agent-evals
 title: Prove the MCP contract with protocol and agent-behavior evaluations
 created: '2026-08-14T19:19:57.357606Z'
-updated: '2026-08-14T19:19:57.358344Z'
+updated: '2026-08-15T22:34:23.893313Z'
 lifecycle: ready
 ball: agent
 ball_reason: available

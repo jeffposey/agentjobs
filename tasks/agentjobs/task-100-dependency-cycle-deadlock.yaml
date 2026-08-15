@@ -2,12 +2,12 @@ schema: 2
 id: task-100-dependency-cycle-deadlock
 title: A `needs` cycle deadlocks silently
 created: '2026-08-13T02:35:21.254172Z'
-updated: '2026-08-13T02:35:21.254751Z'
+updated: '2026-08-15T22:34:23.851684Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: medium
+priority: high
 category: correctness
 tags:
 - schema
@@ -85,4 +85,12 @@ deliverables: []
 dependencies: []
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-15T22:34:23.752653Z'
+  actor: codex
+  type: decision
+  body: Raised to high for the task-109 execution run because task-118 genuinely needs
+    the canonical dependency-cycle behavior. This is a real implementation prerequisite,
+    not an edge invented to express backlog order.
+  data: {}

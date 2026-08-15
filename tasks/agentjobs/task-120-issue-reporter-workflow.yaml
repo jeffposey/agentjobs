@@ -1,0 +1,104 @@
+schema: 2
+id: task-120-issue-reporter-workflow
+title: 'Issue reporter: rapid screenshot-backed and batch task capture'
+created: '2026-08-15T22:29:32.639551Z'
+updated: '2026-08-15T22:33:15.275439Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- issue-reporter
+- screenshots
+- batch-capture
+- gui
+- workflow
+effort: multi-task program
+assignment:
+  eligible: []
+spec:
+  summary: Turn observations made while using AgentJobs into normal, actionable tasks
+    with near-zero friction, including pasted screenshot snippets and a tray for submitting
+    many findings together.
+  intent: "Findings currently leak into chat or memory because stopping work to author\
+    \ tasks is too expensive. A global reporter, clipboard screenshots, and a durable\
+    \ multi-item capture tray make recording cheaper than forgetting, while keeping\
+    \ tasks\u2014not chat and not a parallel issue store\u2014as the system of record."
+  description: 'This is the implementation umbrella for the issue-reporting workflow.
+    Complete it through task-065 (global single-issue reporting), task-067 (Git-backed
+    screenshot attachments), and task-121 (multi-item capture tray and one-action
+    submission). The parent is finished by its children and must not become a parallel
+    implementation workstream.
+
+
+    The intended experience is continuous capture: report one issue immediately, or
+    keep collecting titled notes and pasted snippets while reviewing the product,
+    then create all of them as normal tasks in one action. Created items use the same
+    manager-backed task path as every other task; there is no separate issue database
+    or inbox.'
+  constraints: '- Every submitted finding becomes a normal task through the managed
+    API/TaskManager path.
+
+    - Preserve the reporter''s page/project/task context per finding.
+
+    - Clipboard paste is the primary screenshot interaction.
+
+    - The capture tray must survive navigation and an accidental reload until each
+    item is successfully submitted.
+
+    - Successful and failed items must be distinguishable so a partial submission
+    never loses unsent work.
+
+    - This program is explicitly second after task-109. That is scheduling order,
+    not a semantic prerequisite, so it must be represented by queue position once
+    task-081 ships and never by an invented needs edge.'
+  out_of_scope: A separate issue entity or store, duplicate detection, automatic triage
+    or prioritization, image annotation/cropping, video, and arbitrary bulk mutation
+    of existing tasks.
+  context:
+  - path: frontend/src/App.tsx
+    why: Global shell where issue capture is reachable from every page.
+  - path: src/agentjobs/api/routes/tasks.py
+    why: Existing manager-backed task creation boundary the reporter must reuse.
+acceptance:
+- id: ac-1
+  text: Every child task is closed completed with acceptance evidence in its task
+    log.
+  status: pending
+- id: ac-2
+  text: A user can report one issue from any page and the result is a normal contextualized
+    task.
+  status: pending
+- id: ac-3
+  text: A pasted screenshot snippet is stored repo-locally without making task YAML
+    unreadable and renders inline with the relevant report or feedback.
+  status: pending
+- id: ac-4
+  text: A user can collect multiple titled findings with optional snippets, review
+    them, and create all of them in one action without losing failed items.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-15T22:29:32.653700Z'
+  actor: codex
+  type: decision
+  body: 'Created as the next epic after task-109. Existing tasks 065 and 067 are its
+    first two children; task-121 adds the requested multi-issue capture-and-submit
+    workflow. A separate issue store remains rejected: submission creates ordinary
+    tasks.'
+  data: {}
+- id: 2
+  ts: '2026-08-15T22:33:15.275387Z'
+  actor: codex
+  type: decision
+  body: Removed the scheduling-only needs edge to task-109. MCP first and issue reporter
+    second is queue order, not a prerequisite relationship. Task-081 now owns the
+    schema-backed queue_position that will encode this durably; internal child dependencies
+    remain because those are real implementation prerequisites.
+  data: {}

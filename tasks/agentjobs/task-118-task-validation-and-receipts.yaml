@@ -2,7 +2,7 @@ schema: 2
 id: task-118-task-validation-and-receipts
 title: Add portable task-corpus validation and managed-write receipts
 created: '2026-08-14T19:20:02.257786Z'
-updated: '2026-08-14T19:20:02.258462Z'
+updated: '2026-08-15T22:34:23.837262Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -40,7 +40,13 @@ spec:
     staged task hash to match its latest receipt. Provide a repository Git-hook installation
     path and an explicit noisy maintainer recovery override requiring a reason and
     listing paths. CI/clean-clone validation does not require receipts and documents
-    that it cannot prove writer provenance.'
+    that it cannot prove writer provenance.
+
+
+    The override is an emergency-recovery mechanism for a maintainer when no managed
+    operation can express the repair. It is not an agent convenience switch: ordinary
+    MCP, API, CLI, or GUI errors must be diagnosed through the managed path rather
+    than bypassed.'
   constraints: '- Receipts are machine-local evidence, not task state and not a cryptographic
     security boundary.
 
@@ -56,7 +62,12 @@ spec:
     graph rule.
 
     - Read-only task access remains supported; content-only direct edits are unsupported
-    generated-state mutation.'
+    generated-state mutation.
+
+
+    - Emergency direct repair requires an explicit human/maintainer decision, a recorded
+    reason, exact affected paths, and a successful full validation afterward. Agent
+    guidance must never enable the override autonomously.'
   out_of_scope: Codex PreToolUse behavior, OS access controls, signing receipts with
     a central secret, auto-repairing corrupt tasks, or changing dependency semantics.
   context: []
@@ -75,8 +86,9 @@ acceptance:
     valid-looking direct edits without matching receipts.'
   status: pending
 - id: ac-4
-  text: The explicit recovery override requires a reason, lists bypassed paths, and
-    is not enabled by default or agent guidance.
+  text: The emergency recovery override requires explicit maintainer intent and a
+    reason, lists bypassed paths, requires post-repair validation, and is not enabled
+    by default or autonomous agent guidance.
   status: pending
 - id: ac-5
   text: CI/clean-clone mode validates without receipts and documentation states the

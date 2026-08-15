@@ -2,7 +2,7 @@ schema: 2
 id: task-116-codex-plugin-and-skill
 title: Package the AgentJobs MCP server as a Codex plugin and skill
 created: '2026-08-14T19:19:59.065290Z'
-updated: '2026-08-14T19:19:59.066024Z'
+updated: '2026-08-15T22:34:23.879326Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -36,7 +36,12 @@ spec:
     behavior, task-files-on-main policy for this repository, and the fact that YAML
     is readable generated state. Keep schemas in MCP metadata rather than copying
     them into prose. Add a local marketplace entry or documented test fixture, install
-    it, start a new session, and verify tools and skill discovery.'
+    it, start a new session, and verify tools and skill discovery.
+
+
+    The local Codex configuration is shared by the desktop app, CLI, and IDE extension.
+    Installation and verification must therefore cover both a terminal session and
+    a fresh desktop-app session, not treat them as separate integrations.'
   constraints: '- Follow the accepted one-server/two-distributions architecture.
 
     - Plugin and package versions stay aligned.
@@ -49,7 +54,13 @@ spec:
     for other clients.
 
     - Hook implementation is task-117; leave a clean extension point without claiming
-    direct-write enforcement is complete.'
+    direct-write enforcement is complete.
+
+
+    - The skill says to use AgentJobs MCP for all task operations when the tools are
+    present. An MCP error is surfaced and diagnosed; it is not permission to hand-edit
+    YAML. Managed REST/CLI use is an availability fallback, and direct YAML is limited
+    to the documented emergency-recovery override.'
   out_of_scope: Public marketplace submission, custom plugin UI, remote MCP registration,
     and the direct-write hook implementation.
   context: []
@@ -62,12 +73,14 @@ acceptance:
   text: Plugin/package version compatibility and upgrade behavior are tested and documented.
   status: pending
 - id: ac-3
-  text: A local marketplace install followed by a new Codex session exposes the skill
-    and all 13 AgentJobs tools.
+  text: One shared local MCP configuration is verified in fresh Codex CLI and Codex
+    desktop-app sessions; both expose the AgentJobs skill and all 13 tools without
+    duplicate setup.
   status: pending
 - id: ac-4
-  text: Skill tests/examples drive projects_list -> task_get -> managed verb and never
-    recommend direct YAML or generic state mutation.
+  text: Skill tests/examples drive projects_list -> task_get -> managed verb, prefer
+    MCP whenever present, and never recommend direct YAML or generic state mutation
+    as an ordinary fallback.
   status: pending
 - id: ac-5
   text: Plugin artifacts contain no secrets or machine-specific paths.

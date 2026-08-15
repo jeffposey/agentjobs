@@ -1,0 +1,124 @@
+schema: 2
+id: task-121-batch-issue-capture
+title: Add a persistent multi-issue capture tray and one-action task submission
+created: '2026-08-15T22:29:34.692845Z'
+updated: '2026-08-15T22:34:23.769089Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- issue-reporter
+- batch-capture
+- screenshots
+- gui
+- workflow
+effort: 1-2 days
+assignment:
+  eligible: []
+parent: task-120-issue-reporter-workflow
+spec:
+  summary: Let a user collect a list of findings with optional pasted screenshot snippets,
+    keep collecting while navigating, then create all findings as normal tasks in
+    one action.
+  intent: Product review commonly produces a cluster of small findings. Reopening
+    and submitting a modal for every one interrupts the review and pushes observations
+    back into chat. A durable capture tray separates fast collection from task creation
+    while preserving evidence and context per issue.
+  description: 'Add a global issue-capture tray to the React application. A user can
+    add multiple cards quickly; each card has a required title, optional details,
+    captured page/project/task context, and zero or more pasted screenshots using
+    task-067''s shared attachment widget. Adding another finding must keep focus in
+    the capture flow instead of closing the reporter.
+
+
+    Persist the unsent tray locally, including image blobs, so navigation or an accidental
+    reload does not erase a review session. IndexedDB is the expected browser mechanism
+    because screenshot blobs do not belong in localStorage; the implementation may
+    choose an equivalent local-only store with the same durability and cleanup behavior.
+
+
+    `Create N tasks` is one user action. Each item goes through the same manager-backed
+    report/create service from task-065 and receives a stable client operation ID
+    so retry cannot duplicate successfully created tasks. The result reports success/failure
+    per item, links created task IDs, removes only confirmed successes, and keeps
+    failed/unsubmitted cards intact for correction and retry. This is intentionally
+    not an arbitrary MCP batch-mutation tool and need not promise an all-or-nothing
+    transaction across N task files.'
+  constraints: '- One user action submits the full tray, but partial success is explicit
+    and retry-safe rather than disguised as atomicity.
+
+    - Reuse task-065''s task creation path and task-067''s attachment storage/widget.
+
+    - Never create a parallel issue store; the tray is local unsent composition state
+    only.
+
+    - Preserve each item''s original route, project, and related task rather than
+    applying submit-time context to the whole batch.
+
+    - Do not lose prose or screenshots on validation, upload, network, or partial
+    server failure.
+
+    - Successful retry must not duplicate tasks already created by an earlier partial
+    attempt.
+
+    - Keyboard-first capture and clipboard paste are primary; file selection remains
+    a fallback.'
+  out_of_scope: Bulk editing existing tasks, automatic deduplication/triage, cross-device
+    synchronization of an unsent tray, image annotation, and an all-or-nothing multi-file
+    database transaction.
+  context:
+  - path: frontend/src/App.tsx
+    why: Global shell and persistent capture-tray entry point.
+  - path: frontend/src
+    why: Reuse the report form and attachment widget produced by sibling tasks.
+  - path: src/agentjobs/api/routes/tasks.py
+    why: Manager-backed creation and idempotency boundary; no direct task file writes.
+acceptance:
+- id: ac-1
+  text: The global reporter can hold multiple issue cards, each with title, details,
+    original context, and optional pasted screenshot snippets.
+  status: pending
+- id: ac-2
+  text: The unsent tray, including image blobs, survives route changes and an accidental
+    browser reload on the same device.
+  status: pending
+- id: ac-3
+  text: One Create N tasks action submits every valid card through the normal manager-backed
+    task creation path and shows the created task ID for each success.
+  status: pending
+- id: ac-4
+  text: A partial failure removes no failed item or attachment, identifies the error
+    per card, and retry creates no duplicate for an item already confirmed successful.
+  status: pending
+- id: ac-5
+  text: Each created task preserves the context captured when that finding was added,
+    not merely the page visible at batch submission time.
+  status: pending
+- id: ac-6
+  text: Component and real-browser tests cover multi-item keyboard capture, clipboard
+    images, reload recovery, successful submission, partial failure, and retry.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-065-report-issue-action
+  type: needs
+  note: Reuses the single-report task creation service and global entry point.
+- task: task-067-attachments-on-feedback
+  type: needs
+  note: Reuses the accepted sidecar storage and clipboard attachment widget for per-item
+    snippets.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-15T22:29:34.708786Z'
+  actor: codex
+  type: instruction
+  body: 'Requested workflow: keep recording a whole list of issues and screenshot
+    snippets with minimal interruption, then create all of them in one action. Preserve
+    unsent items through reloads and preserve failed items through partial submission;
+    successful retries must be idempotent.'
+  data: {}

@@ -2,7 +2,7 @@ schema: 2
 id: task-109-agentjobs-mcp-managed-interface
 title: Ship a managed AgentJobs MCP interface and direct-write guardrails
 created: '2026-08-14T19:18:45.666884Z'
-updated: '2026-08-14T19:18:45.668061Z'
+updated: '2026-08-15T22:33:27.485083Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -36,7 +36,13 @@ spec:
     The parent is finished by its children and must not become a second implementation
     workstream. At closure, review the children''s evidence against the design''s
     end-to-end contract, run the complete repository gate, and exercise one real zero-context
-    create/claim/log/handoff flow through the installed MCP server.'
+    create/claim/log/handoff flow through the installed MCP server.
+
+
+    Execution order is deliberate: this is the next AgentJobs program. Work it as
+    a parent loop and continue through eligible children without interleaving unrelated
+    backlog work. The first executable child is task-110; dependency edges determine
+    the rest.'
   constraints: '- The decisions in docs/mcp-integration-design.md are accepted and
     must not be reopened during implementation.
 
@@ -49,7 +55,16 @@ spec:
     - Do not expose generic lifecycle, ball, outcome, YAML, or arbitrary-record setters.
 
     - Preserve unrelated task-100 and task-105 scope; do not absorb a Beads migration
-    or notification receiver.'
+    or notification receiver.
+
+
+    - When AgentJobs MCP tools are available, agents use them for every task read
+    and mutation. Codex desktop, CLI, and IDE sessions must share the installed local
+    MCP configuration. REST/TaskClient and the product CLI/GUI remain supported managed
+    clients of the same authoritative manager path. Direct YAML mutation is reserved
+    for a documented emergency recovery that the managed interfaces cannot perform;
+    it requires an explicit reason and validation and is never the ordinary fallback
+    for a failed or inconvenient tool call.'
   out_of_scope: Implementing a Beads replatform, a remote Streamable HTTP MCP deployment,
     a notification delivery service, or arbitrary batch mutation.
   context: []
@@ -72,6 +87,11 @@ acceptance:
     pass.
   verify: poetry run python scripts/check.py
   status: pending
+- id: ac-5
+  text: A Codex CLI session and a Codex desktop-app session discover and use the same
+    configured AgentJobs MCP server; agent guidance prefers MCP whenever it is available
+    and documents direct YAML repair only as an explicit validated emergency path.
+  status: pending
 deliverables:
 - path: src/agentjobs/mcp
   note: Standalone MCP implementation.
@@ -85,4 +105,23 @@ links:
   rel: design
   title: MCP tools specification
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-15T22:29:32.577644Z'
+  actor: codex
+  type: instruction
+  body: Jeff set task-109 as the next AgentJobs program. Run its dependency-ordered
+    parent loop before unrelated backlog work. MCP is the default task interface wherever
+    available; REST/CLI/GUI remain managed paths to the same manager, while direct
+    task-YAML editing is emergency recovery only and must be explicit and validated.
+  data: {}
+- id: 2
+  ts: '2026-08-15T22:33:27.485016Z'
+  actor: codex
+  type: decision
+  body: 'Scheduling clarification: dependencies remain only for genuine prerequisites
+    inside the MCP implementation graph. Independent epic order is MCP (task-109),
+    then issue reporter (task-120), then explicit queue ordering (task-081). The existing
+    updated-time queue was refreshed only as a temporary compatibility measure; task-081
+    replaces that accidental behavior with schema-backed queue_position.'
+  data: {}

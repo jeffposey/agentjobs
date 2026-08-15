@@ -2,7 +2,7 @@ schema: 2
 id: task-111-mcp-projects-and-actors
 title: Add MCP-safe project discovery and actor attribution
 created: '2026-08-14T19:18:48.672848Z'
-updated: '2026-08-14T19:18:48.673602Z'
+updated: '2026-08-15T22:34:23.949562Z'
 lifecycle: ready
 ball: agent
 ball_reason: available

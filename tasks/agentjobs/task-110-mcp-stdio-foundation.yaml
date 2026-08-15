@@ -2,7 +2,7 @@ schema: 2
 id: task-110-mcp-stdio-foundation
 title: Build the standalone AgentJobs MCP STDIO foundation
 created: '2026-08-14T19:18:47.191937Z'
-updated: '2026-08-14T19:18:47.192650Z'
+updated: '2026-08-15T22:34:23.962785Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
