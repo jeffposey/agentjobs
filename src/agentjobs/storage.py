@@ -233,6 +233,25 @@ class TaskStorage:
             except FileNotFoundError:  # pragma: no cover - already cleaned up
                 pass
 
+    #: Lock name covering the whole project, used for creation. It is not a task id and
+    #: cannot collide with one: generated and hand-written ids never start with a dot.
+    CREATION_LOCK = ".creation"
+
+    @contextmanager
+    def creation_lock(self, *, timeout: Optional[float] = None) -> Iterator[None]:
+        """Serialise task creation across the whole project.
+
+        Per-task locking cannot help here: before a task exists there is nothing to
+        lock, so two concurrent creates both generate the same next id, both find
+        nothing on disk, and one silently overwrites the other. The id is the thing
+        being decided, which is why this lock covers the project rather than an id.
+
+        Creation is rare next to mutation, so a single writer for it costs nothing
+        measurable, and it is held for as little as possible.
+        """
+        with self.locked(self.CREATION_LOCK, timeout=timeout):
+            yield
+
     def mutate_task(self, task_id: str, mutator: Callable[[Task], Optional[Task]]) -> Task:
         """Read, change and write one task while holding its lock.
 
