@@ -1,0 +1,102 @@
+schema: 2
+id: task-005
+title: Add a promote command to the agentjobs CLI
+created: '2026-08-17T20:49:57.635022Z'
+updated: '2026-08-17T20:49:57.635894Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: cli
+tags:
+- cli
+- promote
+- schema-v2
+effort: small
+assignment:
+  eligible: []
+parent: task-003
+spec:
+  summary: The CLI has no `promote` command. `grep promote src/agentjobs/cli.py` returns
+    nothing, so the one verb that exits `draft` is missing from the surface a human
+    is most likely to be sitting in front of when they finish writing a spec.
+  intent: Make promote reachable from the CLI the same way claim, handoff, release
+    and close already are, so the draft exit is not a hole in an otherwise complete
+    verb set.
+  description: "`promote` exists in the manager (`manager.promote_task`, `src/agentjobs/manager.py:783`),\
+    \ the REST API (`src/agentjobs/api/routes/status.py:238`), the MCP tools (`src/agentjobs/mcp/mutation_tools.py:622`)\
+    \ and the Python client (`client.py:671`). It does not exist in `src/agentjobs/cli.py`.\n\
+    \nAdd the command alongside the existing lifecycle commands, matching whatever\
+    \ shape they already use \u2014 do not invent a new convention for this one verb.\
+    \ Read the neighbouring claim/handoff/release/close commands first and copy their\
+    \ argument names, their actor resolution, their `operation_id` generation, their\
+    \ `expected_revision` handling if they do that, and their error rendering. The\
+    \ point of this task is that a human typing `agentjobs promote task-042` gets\
+    \ the same experience as `agentjobs claim task-042`, not that promote gets a bespoke\
+    \ interface.\n\nTwo behaviours worth getting right because the manager already\
+    \ has opinions about them:\n\n- An optional note/body. When none is given, `manager.promote_task`\
+    \ writes \"Promoted by {actor}; the spec is finished and it is claimable.\" Do\
+    \ not duplicate that default in the CLI \u2014 let the manager supply it.\n- `invalid_transition`\
+    \ is the expected non-exceptional failure (the task is not a draft, or was already\
+    \ promoted). It should print as a plain explanation with a non-zero exit code,\
+    \ not a traceback."
+  constraints: "Do not change the manager verb, the REST route, the MCP tool, or the\
+    \ OpenAPI schema \u2014 this is a CLI surface only. Go through the existing client/manager\
+    \ path rather than touching task files. Match the surrounding CLI commands' conventions\
+    \ instead of introducing new ones. `poetry run python scripts/check.py` must pass,\
+    \ and the command must be run for real against a draft task, not only unit-tested."
+  out_of_scope: The React promote control (sibling task under the same parent). Any
+    other missing CLI command; if the audit in ac-4 turns up further gaps, record
+    them as a finding on this task and let a separate task be filed, rather than widening
+    this one.
+  context:
+  - path: src/agentjobs/cli.py
+    why: The file with the gap; the existing lifecycle commands here are the template
+      to copy.
+  - path: src/agentjobs/manager.py
+    why: promote_task at line 783 - transition rules, the default log body, and the
+      invalid_transition case.
+  - path: src/agentjobs/client.py
+    why: Line 671, client.promote - the call the CLI should route through.
+acceptance:
+- id: ac-1
+  text: '`agentjobs promote <task-id>` promotes a draft to ready/agent/available and
+    appends a promote log entry attributed to the acting actor.'
+  verify: Run it against a real draft task, then read the record back.
+  status: pending
+- id: ac-2
+  text: The command's arguments, actor resolution and error output match the existing
+    claim/handoff/release/close commands rather than a new convention.
+  verify: Side-by-side reading of the commands in cli.py, noted on the task.
+  status: pending
+- id: ac-3
+  text: Promoting a non-draft prints a readable explanation and exits non-zero, with
+    no traceback.
+  verify: Run it against a ready task and paste the output.
+  status: pending
+- id: ac-4
+  text: An audit records which manager verbs the CLI exposes and which it does not,
+    so the next gap is found by reading rather than by tripping over it.
+  verify: Findings logged on this task.
+  status: pending
+- id: ac-5
+  text: poetry run python scripts/check.py passes.
+  verify: Command output on the task.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T20:49:57.635068Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: d17f4b93-6e28-4c51-a09b-8fa3d2e61c74
+      kind: create
+      fingerprint: 3623866cbe278abd489ff0ea28955c12
