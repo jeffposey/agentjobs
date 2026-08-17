@@ -3,6 +3,14 @@
 Every task is a single YAML file. These files are the source of truth for the project —
 not a chat log, not an issue tracker.
 
+They are also **generated state**. This page describes the shape of what AgentJobs
+writes, so you can read a task file and know what every field means. It is not an
+authoring guide: hand-editing a task skips validation, the per-task lock, and the log
+entry that records the change, which is how an invalid record gets written that no
+surface will show you. Make changes through the [MCP tools](mcp.md), the REST API, the
+CLI, or the web UI — all four reach the same validated write path — and run
+`agentjobs validate` if you ever suspect a file was shaped by something else.
+
 Tasks live in the directory named by `tasks_directory` in `.agentjobs/config.yaml`
 (`tasks/agentjobs/` for this repo's own backlog). `TaskStorage` globs `*.yaml`
 non-recursively, so files in subdirectories are invisible to the store — that is how

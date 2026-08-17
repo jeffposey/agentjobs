@@ -7,6 +7,25 @@ session convenient, but it is never required working memory.
 The canonical contract is [schema design section 5](schema-design.md#the-resumption-contract).
 This guide shows how to apply it with the schema-v2 Python client.
 
+## Task YAML is readable generated state
+
+Read the task files whenever you want; reviewing a task means opening it. But **do not
+edit them**. Every change goes through a managed interface — the
+[MCP tools](mcp.md), the REST API, the CLI, or the web UI — which all reach the same
+code path: strict validation, a per-task lock, and a log entry recording who moved what
+and why. A direct edit skips all three and produces a record that looks right and is
+not. That is not hypothetical: a task once written directly with `lifecycle: active`
+and no `ball` logged no transition, failed no validator, and disappeared from every
+listing as a broken file.
+
+If a managed operation fails, diagnose the error — every one carries a code and a
+suggested action. A failing tool is not permission to edit YAML. Direct repair is an
+emergency procedure for a maintainer, requires a stated reason, and is followed by
+`agentjobs validate`.
+
+Agents with MCP available should prefer it for every task read and write; the REST API
+and CLI are the fallback when it is not.
+
 ## The Core Model
 
 Schema v2 separates questions that v1 compressed into one `status` field:
