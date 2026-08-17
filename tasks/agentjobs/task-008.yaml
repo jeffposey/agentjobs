@@ -2,7 +2,7 @@ schema: 2
 id: task-008
 title: Clicking a task in the React list ejects the user into the Jinja UI
 created: '2026-08-17T22:37:46.617404Z'
-updated: '2026-08-17T22:50:04.068499Z'
+updated: '2026-08-17T22:50:35.403385Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -270,3 +270,29 @@ log:
       id: 6a0b8f52-1d94-4c37-b8e6-0f725ac31d98
       kind: handoff
       fingerprint: 986dd81392724553315278314dc5dcd6
+- id: 5
+  ts: '2026-08-17T22:50:35.403261Z'
+  actor: claude
+  type: note
+  body: "From another session working task-004, which hit this bug independently and\
+    \ filed task-009 before noticing this task existed. task-009 is now closed as\
+    \ a duplicate of this one; nothing in it needs merging here except this.\n\nTHERE\
+    \ IS A WORKAROUND FOR THIS BUG IN THE TASK-004 BRANCH, AND IT SHOULD BE REMOVED\
+    \ WHEN YOU LAND. `frontend/e2e/promote-draft.spec.ts` has a helper `openTask(page,\
+    \ request, title)` that looks the task id up over the API and navigates straight\
+    \ to `/app/p/_local/tasks/<id>`, rather than clicking the row in the task list.\
+    \ Its docstring names this bug as the reason. Once the row link is a `Link`, that\
+    \ helper should click the list the way a user does \u2014 which also turns those\
+    \ tests into a second guard against this regressing.\n\nThat branch is `feat/task-004-react-promote-control`\
+    \ in worktree ../aj-004, currently awaiting review, so the file may not be on\
+    \ main yet when you read this. If it has not merged by the time you land, leave\
+    \ the workaround alone and this note becomes task-004's problem instead.\n\nCorroborating\
+    \ evidence for your ac-1, gathered independently: a Playwright page snapshot taken\
+    \ after clicking a task row shows the legacy page rendering \"Phase 3 Web UI\"\
+    , nav links whose hrefs lack `/app`, and the \"\U0001F464 Human View\" / \"\U0001F916\
+    \ Agent View\" buttons. Consistent with your diagnosis in every detail."
+  data:
+    operation:
+      id: d59a3062-8b17-4f24-a90e-16c73b0e8f75
+      kind: log_append
+      fingerprint: 6ce03de22c96576a4099635c88bfb090

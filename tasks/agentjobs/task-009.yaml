@@ -2,10 +2,9 @@ schema: 2
 id: task-009
 title: Clicking a task in the React list drops the user into the legacy Jinja UI
 created: '2026-08-17T22:47:26.479797Z'
-updated: '2026-08-17T22:47:47.230724Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-17T22:50:21.177316Z'
+lifecycle: closed
+outcome: duplicate
 archived: false
 priority: high
 category: frontend
@@ -127,3 +126,32 @@ log:
       id: c07e5b83-91d4-4a26-8f70-3b5a91e62d47
       kind: update_content
       fingerprint: f75e820b79302d1eab631dd18de3d5e9
+- id: 3
+  ts: '2026-08-17T22:50:21.177197Z'
+  actor: claude
+  type: transition
+  body: "Duplicate of task-008, which is the better record and is already being worked.\n\
+    \ntask-008 was created 22:37:46 and claimed 22:38:03, in worktree ../aj-008 on\
+    \ branch fix/task-008-task-list-link. I created this one at 22:47:26 \u2014 nine\
+    \ minutes later, and I simply did not look before filing. Not a race.\n\ntask-008\
+    \ is also stronger than this one on every axis: it had already completed the raw-anchor\
+    \ audit that this task only asked for as ac-2 (finding ProjectSwitcher navigates\
+    \ via useNavigate, which respects the basename, and that the remaining raw anchors\
+    \ point at /docs and are legitimately external); it connects the bug to task-006's\
+    \ stale-dashboard report by way of the Jinja UI having no live updates; and it\
+    \ names task-007 as the complementary server-side fix. Nothing here is worth merging\
+    \ into it except one detail, which I have appended to its log: task-004's e2e\
+    \ helper openTask() navigates by task id rather than clicking the list, specifically\
+    \ to route around this bug, and that workaround should be removed when task-008\
+    \ lands.\n\nLesson, recorded rather than just felt: this repository is worked\
+    \ by several agents at once, and the backlog moves underneath a long session.\
+    \ tasks_search and tasks_list before task_create, always \u2014 the cost of checking\
+    \ is a few seconds and the cost of not checking is a duplicate that a human has\
+    \ to notice."
+  data:
+    lifecycle: closed
+    outcome: duplicate
+    operation:
+      id: 6b3f8d21-0c47-4e95-a186-72d0e4f5cb39
+      kind: close
+      fingerprint: e6d03f640be89cfe5b3cf6a2ea7d3b45
