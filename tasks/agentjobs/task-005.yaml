@@ -2,10 +2,11 @@ schema: 2
 id: task-005
 title: Add a promote command to the agentjobs CLI
 created: '2026-08-17T20:49:57.635022Z'
-updated: '2026-08-17T20:49:57.635894Z'
-lifecycle: ready
+updated: '2026-08-17T20:55:52.046138Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: medium
 category: cli
@@ -15,6 +16,7 @@ tags:
 - schema-v2
 effort: small
 assignment:
+  owner: claude
   eligible: []
 parent: task-003
 spec:
@@ -87,7 +89,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-005-cli-promote-command
+  status: active
 log:
 - id: 1
   ts: '2026-08-17T20:49:57.635068Z'
@@ -100,3 +104,98 @@ log:
       id: d17f4b93-6e28-4c51-a09b-8fa3d2e61c74
       kind: create
       fingerprint: 3623866cbe278abd489ff0ea28955c12
+- id: 2
+  ts: '2026-08-17T20:55:14.708660Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 7f2c1a94-8d3e-4b56-9a01-2e5f6c8b3d71
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-17T20:55:27.282349Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: a3e91d70-52bc-4f18-8e6a-1c94b0d7f253
+      kind: update_content
+      fingerprint: a93a059289528b8e1efce0b47379aaaa
+- id: 4
+  ts: '2026-08-17T20:55:52.046004Z'
+  actor: claude
+  type: progress
+  body: 'ac-4 audit: CLI verb coverage against the manager. The spec''s premise for
+    ac-2 is wrong and the gap is much wider than "promote is missing".
+
+
+    `grep -n "manager\.[a-z_]*(" src/agentjobs/cli.py` returns exactly five call sites
+    (lines 519, 657, 678, 688, 809). Full comparison against the public methods of
+    `TaskManager` (`grep -n "^    def [a-z]" src/agentjobs/manager.py`):
+
+
+    EXPOSED as a standalone command:
+
+    - create_task -> `agentjobs create`
+
+    - list_tasks -> `agentjobs list`
+
+    - get_task -> `agentjobs show`
+
+
+    REACHABLE ONLY INSIDE the interactive `agentjobs work` flow, never standalone:
+
+    - get_next_task (cli.py:657)
+
+    - claim_task (cli.py:678) - and it is called as `claim_task(id, agent=...)`
+
+    - close_task (cli.py:688) - hardcoded to Outcome.COMPLETED, no other outcome reachable
+
+
+    NOT EXPOSED ANYWHERE in the CLI:
+
+    - promote_task (this task)
+
+    - handoff
+
+    - release_task
+
+    - archive_task
+
+    - update_task
+
+    - delete_task
+
+    - search_tasks
+
+    - add_log_entry / add_progress_update
+
+    - mark_deliverable_complete
+
+    - dependency_facts / get_subtasks
+
+
+    So the CLI does not have "an otherwise complete verb set" with one hole in it,
+    as the spec assumed. It has three nouns (create/list/show), one scripted happy
+    path (`work`), and no standalone state verbs at all. A human at the CLI today
+    cannot hand off, release, archive, log progress, or close as anything other than
+    completed.
+
+
+    Consequence for ac-2: there is no claim/handoff/release/close command to copy
+    argument names or actor resolution from. See the decision entry that follows for
+    what I matched instead. Per the task''s out_of_scope, the remaining gaps are recorded
+    here and not acted on; they are worth a separate task.'
+  data:
+    operation:
+      id: c5b8e2a1-9f74-4d03-b16e-8a72c9d05f34
+      kind: log_append
+      fingerprint: de13e0f85e2a1bb39ab4016c291c1ec4
