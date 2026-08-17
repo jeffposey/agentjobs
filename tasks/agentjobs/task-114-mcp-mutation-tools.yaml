@@ -2,11 +2,9 @@ schema: 2
 id: task-114-mcp-mutation-tools
 title: Expose validated AgentJobs mutation verbs over MCP
 created: '2026-08-14T19:18:53.357357Z'
-updated: '2026-08-17T07:39:39.942369Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-17T08:01:18.503432Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -16,7 +14,6 @@ tags:
 - lifecycle
 effort: 2 days
 assignment:
-  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -97,7 +94,7 @@ dependencies:
 links: []
 branches:
 - name: feat/task-114-mcp-mutation-tools
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-17T07:39:37.926543Z'
@@ -108,3 +105,23 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 2
+  ts: '2026-08-17T08:01:17.948101Z'
+  actor: claude
+  type: decision
+  body: 'Approved for merge under the session delegation recorded on task-109. Review
+    performed before merging: read the full diff; confirmed the complete gate passes,
+    that no schema anywhere exposes a state axis or a generic setter, and that a real
+    MCP client can run create -> claim -> log -> handoff -> resume -> close against
+    a live service while a stale revision, an invalid holder/reason pair and a lifecycle-setting
+    patch are each refused with a code.'
+  data: {}
+- id: 3
+  ts: '2026-08-17T08:01:18.503310Z'
+  actor: claude
+  type: transition
+  body: Merged to main as 84420d1 (--no-ff) under the session delegation. Worktree
+    removed, branch deleted. All acceptance criteria met.
+  data:
+    lifecycle: closed
+    outcome: completed

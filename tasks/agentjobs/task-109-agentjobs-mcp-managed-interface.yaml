@@ -2,7 +2,7 @@ schema: 2
 id: task-109-agentjobs-mcp-managed-interface
 title: Ship a managed AgentJobs MCP interface and direct-write guardrails
 created: '2026-08-14T19:18:45.666884Z'
-updated: '2026-08-17T07:39:14.694669Z'
+updated: '2026-08-17T08:01:18.789777Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -209,4 +209,13 @@ log:
     lock, optimistic revisions and a stable error code set, with client.operations
     as the retry-safe client surface. task-114 (mutation tools) is now eligible and
     is next.
+  data: {}
+- id: 9
+  ts: '2026-08-17T08:01:18.789648Z'
+  actor: claude
+  type: progress
+  body: Child 5 of 10 complete. task-114 (mutation tools) merged to main as 84420d1.
+    Thirteen tools are now published and the end-to-end managed loop works through
+    the packaged server. task-115 (protocol and agent evals) is next; task-116 depends
+    on it.
   data: {}
