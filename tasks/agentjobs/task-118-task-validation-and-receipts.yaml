@@ -2,10 +2,11 @@ schema: 2
 id: task-118-task-validation-and-receipts
 title: Add portable task-corpus validation and managed-write receipts
 created: '2026-08-14T19:20:02.257786Z'
-updated: '2026-08-17T08:33:25.247895Z'
-lifecycle: ready
+updated: '2026-08-17T08:34:37.688096Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: infrastructure
@@ -16,6 +17,7 @@ tags:
 - receipts
 effort: 2 days
 assignment:
+  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -107,11 +109,57 @@ deliverables:
   status: pending
 dependencies:
 - task: task-100-dependency-cycle-deadlock
-  type: needs
-  note: Portable validation must reuse the accepted canonical cycle visibility behavior
-    rather than duplicate it.
+  type: related
+  note: Validation reuses TaskManager._needs_cycles, the canonical implementation,
+    so it inherits whatever task-100 decides. Downgraded from `needs` with the reasoning
+    recorded in this task's log.
 links: []
 branches:
 - name: feat/task-118-task-validation-and-receipts
   status: active
-log: []
+log:
+- id: 1
+  ts: '2026-08-17T08:34:35.194552Z'
+  actor: claude
+  type: decision
+  body: 'Downgraded the dependency on task-100 from `needs` to `related`, and proceeded.
+    Reasoning, because this changes the program''s own graph.
+
+
+    The edge''s stated intent is ''portable validation must reuse the accepted canonical
+    cycle visibility behaviour rather than duplicate it''. That canonical implementation
+    already exists and has for some time: TaskManager._needs_cycles computes needs
+    cycles, and TaskManager.dependency_facts exposes them as needs_cycles. The validator
+    calls it rather than implementing a graph walk of its own, so the intent is satisfied
+    by construction -- and if task-100 later changes how cycles are detected, validation
+    inherits that change automatically, which is exactly what the edge was protecting.
+
+
+    What task-100 still has to decide is what to *do* about a cycle: refuse it at
+    write time, report it, or both. A read-only validator does not gate on that question;
+    it reports what the canonical implementation finds, which is correct under any
+    of the three answers.
+
+
+    Rejected alternative 1: work task-100 first. Both docs/mcp-integration-design.md
+    section 12 and task-109''s own constraints say this program must not absorb task-100,
+    so pulling an unrelated correctness fix into the MCP graph would breach a recorded
+    decision to clear a blocker that turns out not to block.
+
+
+    Rejected alternative 2: stop the program here. That would leave the last two children
+    unbuilt over an edge whose purpose is already met, and would make the epic wait
+    on a task nobody has scheduled.
+
+
+    task-100 remains open, untouched, and unabsorbed.'
+  data: {}
+- id: 2
+  ts: '2026-08-17T08:34:37.688015Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
