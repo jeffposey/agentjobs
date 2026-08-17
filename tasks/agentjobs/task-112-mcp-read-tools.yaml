@@ -2,10 +2,11 @@ schema: 2
 id: task-112-mcp-read-tools
 title: Expose AgentJobs read and query tools over MCP
 created: '2026-08-14T19:18:50.196475Z'
-updated: '2026-08-15T22:34:23.935961Z'
-lifecycle: ready
+updated: '2026-08-17T06:55:05.632114Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: developer_experience
@@ -15,6 +16,7 @@ tags:
 - resumption
 effort: 1-2 days
 assignment:
+  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -86,5 +88,16 @@ links:
 - url: https://modelcontextprotocol.io/specification/2025-11-25/server/tools
   rel: doc
   title: MCP tool schemas and results
-branches: []
-log: []
+branches:
+- name: feat/task-112-mcp-read-tools
+  status: active
+log:
+- id: 1
+  ts: '2026-08-17T06:55:03.448857Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
