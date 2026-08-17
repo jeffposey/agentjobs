@@ -2,10 +2,11 @@ schema: 2
 id: task-114-mcp-mutation-tools
 title: Expose validated AgentJobs mutation verbs over MCP
 created: '2026-08-14T19:18:53.357357Z'
-updated: '2026-08-15T22:34:23.907312Z'
-lifecycle: ready
+updated: '2026-08-17T07:39:39.942369Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: developer_experience
@@ -15,6 +16,7 @@ tags:
 - lifecycle
 effort: 2 days
 assignment:
+  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -93,5 +95,16 @@ dependencies:
   type: needs
   note: Requires authoritative operation, revision, replay, and error behavior.
 links: []
-branches: []
-log: []
+branches:
+- name: feat/task-114-mcp-mutation-tools
+  status: active
+log:
+- id: 1
+  ts: '2026-08-17T07:39:37.926543Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
