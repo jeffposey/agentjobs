@@ -2,7 +2,7 @@ schema: 2
 id: task-110-mcp-stdio-foundation
 title: Build the standalone AgentJobs MCP STDIO foundation
 created: '2026-08-14T19:18:47.191937Z'
-updated: '2026-08-17T06:12:02.584571Z'
+updated: '2026-08-17T06:21:23.477921Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -180,3 +180,12 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 6
+  ts: '2026-08-17T06:21:23.477818Z'
+  actor: Jeff Posey
+  type: decision
+  body: 'Approved for merge. Reviewed the FastAPI 0.109 -> 0.119 bump forced by the
+    official MCP SDK, the TaskRead alias in frontend/src/api/types.ts, the stdout
+    ownership approach, and the 0.x major+minor version policy. Proceed: rebase onto
+    main, merge --no-ff, close.'
+  data: {}
