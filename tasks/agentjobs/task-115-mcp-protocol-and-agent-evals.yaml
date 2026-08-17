@@ -2,10 +2,11 @@ schema: 2
 id: task-115-mcp-protocol-and-agent-evals
 title: Prove the MCP contract with protocol and agent-behavior evaluations
 created: '2026-08-14T19:19:57.357606Z'
-updated: '2026-08-15T22:34:23.893313Z'
-lifecycle: ready
+updated: '2026-08-17T08:01:51.547529Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: infrastructure
@@ -15,6 +16,7 @@ tags:
 - evals
 effort: 2 days
 assignment:
+  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -93,5 +95,16 @@ links:
 - url: https://developers.openai.com/plugins/build/mcp-server
   rel: doc
   title: OpenAI MCP tool design and testing guidance
-branches: []
-log: []
+branches:
+- name: feat/task-115-mcp-protocol-and-agent-evals
+  status: active
+log:
+- id: 1
+  ts: '2026-08-17T08:01:49.417752Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
