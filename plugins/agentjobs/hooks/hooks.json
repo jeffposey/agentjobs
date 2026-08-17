@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "apply_patch|edit|write|create_file|str_replace_editor|multi_edit|notebook_edit|bash|shell|powershell|pwsh|cmd|run_command|local_shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CODEX_PLUGIN_ROOT}/hooks/guard_task_yaml.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
