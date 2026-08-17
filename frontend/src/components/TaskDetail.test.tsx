@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
@@ -50,15 +50,27 @@ const detail: TaskDetailResponse = {
   identity: { ok: true, user: "Jeff Posey", problem: null, detail: "" },
 };
 
-function renderDetail(value = detail) {
+function renderDetail(value = detail, extra: { promoteError?: string | null; promoteBusy?: boolean } = {}) {
   const actions = {
     onApprove: vi.fn(async () => undefined),
     onRequestChanges: vi.fn(async () => undefined),
     onReject: vi.fn(async () => undefined),
+    onPromote: vi.fn(async () => undefined),
   };
-  render(<MemoryRouter><TaskDetail detail={value} projectId="inbox" {...actions} /></MemoryRouter>);
+  render(<MemoryRouter><TaskDetail detail={value} projectId="inbox" {...actions} {...extra} /></MemoryRouter>);
   return actions;
 }
+
+/** A draft as the API returns one: lifecycle draft, ball with the human who wrote it. */
+const draftDetail: TaskDetailResponse = {
+  ...detail,
+  task: task("task-draft", { lifecycle: "draft", ball: "human", ball_reason: "spec", ball_prompt: "Finish the spec.", display_status: "Needs spec" }),
+  parent_task: null,
+  children: [],
+  needs: [],
+  blocks: [],
+  child_dependency_edges: [],
+};
 
 describe("TaskDetail resumption contract", () => {
   it("renders the complete spec and relationships", () => {
@@ -125,5 +137,70 @@ describe("TaskDetail resumption contract", () => {
     expect(screen.queryByRole("button", { name: /Approve/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Request Changes/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Reject/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("TaskDetail promote control", () => {
+  it("offers promotion on a draft and not on anything else", () => {
+    renderDetail(draftDetail);
+    expect(screen.getByRole("region", { name: "Promote draft" })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Promote to Ready/ })).toBeVisible();
+  });
+
+  it("is absent on a task that is not a draft", () => {
+    renderDetail();
+    expect(screen.queryByRole("region", { name: "Promote draft" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Promote to Ready/ })).not.toBeInTheDocument();
+  });
+
+  it("sends a typed note, and null when the note is left empty", async () => {
+    const withNote = renderDetail(draftDetail);
+    fireEvent.change(screen.getByLabelText("Promotion note (optional)"), { target: { value: "  Spec is finished.  " } });
+    fireEvent.click(screen.getByRole("button", { name: /Promote to Ready/ }));
+    // Trimmed, so trailing whitespace does not become the log body.
+    await waitFor(() => expect(withNote.onPromote).toHaveBeenCalledWith("Spec is finished."));
+
+    cleanup();
+
+    const withoutNote = renderDetail(draftDetail);
+    fireEvent.click(screen.getByRole("button", { name: /Promote to Ready/ }));
+    // null, not "", so the manager supplies its own default body.
+    await waitFor(() => expect(withoutNote.onPromote).toHaveBeenCalledWith(null));
+  });
+
+  it("does not imply the merge-review semantics of the approve actions", () => {
+    renderDetail(draftDetail);
+    const panel = screen.getByRole("region", { name: "Promote draft" });
+    expect(within(panel).queryByText(/merge/i)).not.toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /Approve/ })).not.toBeInTheDocument();
+    expect(within(panel).getByText(/only way out of draft/i)).toBeVisible();
+  });
+
+  it("shows a refusal rather than swallowing it", () => {
+    renderDetail(draftDetail, { promoteError: "Task 'task-draft' is not a draft (it is ready); only a draft can be promoted." });
+    expect(screen.getByRole("alert")).toHaveTextContent("only a draft can be promoted");
+  });
+
+  it("still shows the refusal once the task has stopped being a draft", () => {
+    // The revision-conflict case: someone else promoted it, which is why the attempt
+    // was refused. If the message lived inside the draft-only panel it would vanish
+    // exactly here, leaving a click that silently did nothing.
+    renderDetail(detail, { promoteError: "This task changed while the page was open, so it was not promoted." });
+    expect(screen.queryByRole("region", { name: "Promote draft" })).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("changed while the page was open");
+  });
+
+  it("disables the button while a promotion is in flight", () => {
+    renderDetail(draftDetail, { promoteBusy: true });
+    expect(screen.getByRole("button", { name: /Promote to Ready/ })).toBeDisabled();
+  });
+
+  it("refuses to promote when identity is unclear", () => {
+    renderDetail(
+      { ...draftDetail, identity: { ok: false, user: null, problem: "missing", detail: "No user configured in this project." } },
+    );
+    const panel = screen.getByRole("region", { name: "Promote draft" });
+    expect(within(panel).getByText("No user configured in this project.")).toBeVisible();
+    expect(within(panel).queryByRole("button", { name: /Promote to Ready/ })).not.toBeInTheDocument();
   });
 });

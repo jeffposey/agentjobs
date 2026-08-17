@@ -81,6 +81,55 @@ function ReviewPanel({
   );
 }
 
+function PromotePanel({ detail, promoteBusy, promoteError, onPromote }: TaskDetailProps) {
+  const [note, setNote] = useState("");
+  // Gated on the lifecycle, not on the ball. A draft's ball is usually human/spec,
+  // but promote is legal exactly when the task is a draft, and the panel should
+  // appear for the same reason the manager would accept the verb.
+  if (detail.task.lifecycle !== "draft") return null;
+
+  return (
+    <section className="space-y-4 rounded-xl border-2 border-blue-600/50 bg-blue-950/30 p-4 min-[820px]:p-6" aria-label="Promote draft">
+      <h2 className="text-lg font-semibold text-blue-300">Draft — not claimable yet</h2>
+      <p className="text-sm text-dark-muted">Promoting says the spec is finished and puts this task in the pool for an agent to claim. It is the only way out of draft. It does not assign the work, and it does not run git.</p>
+      {detail.identity.ok && detail.identity.user ? (
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onPromote(note.trim() ? note.trim() : null);
+          }}
+        >
+          <p className="text-sm text-dark-muted">Acting as <strong className="text-dark-text">{detail.identity.user}</strong>.</p>
+          <label htmlFor="promote-note" className="block text-sm font-semibold">Promotion note (optional)</label>
+          <textarea id="promote-note" value={note} onChange={(event) => setNote(event.target.value)} rows={3} className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-blue-500 focus:outline-none" placeholder="Say why the spec is finished. Left empty, AgentJobs writes its own sentence." />
+          <button type="submit" disabled={promoteBusy} className="touch-target rounded-lg bg-blue-600 px-4 font-semibold text-white hover:bg-blue-700 disabled:opacity-60">▲ Promote to Ready</button>
+        </form>
+      ) : (
+        <div className="rounded-lg border border-blue-600/50 bg-dark-bg p-4 text-sm">
+          <strong className="text-blue-300">{detail.identity.problem === "multiple" ? "Multiple users configured. " : "No user configured. "}</strong>
+          <span className="text-dark-muted">{detail.identity.detail}</span>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The promote refusal, rendered outside the promote panel on purpose.
+ *
+ * The most important refusal to show is a revision conflict, and by the time it is
+ * shown the task has usually stopped being a draft -- someone else promoted it, which
+ * is why the conflict happened. Rendering the message inside a panel that only exists
+ * for drafts made it disappear in exactly that case.
+ */
+function PromoteError({ promoteError }: TaskDetailProps) {
+  if (!promoteError) return null;
+  return (
+    <p role="alert" className="rounded-xl border-2 border-red-600/50 bg-red-950/30 p-4 text-sm text-red-200">{promoteError}</p>
+  );
+}
+
 function Relationships({ detail, projectId }: { detail: TaskDetailResponse; projectId: string }) {
   if (detail.children.length === 0 && detail.needs.length === 0 && detail.blocks.length === 0 && !detail.task.parent) return null;
   return (
@@ -134,9 +183,15 @@ export type TaskDetailProps = {
   projectId: string;
   busy?: boolean;
   error?: string | null;
+  // Promote carries its own busy and error state rather than sharing the review
+  // panel's: a failed approve must not blank the promote panel, and a refused
+  // promote has a specific explanation the generic review message would hide.
+  promoteBusy?: boolean;
+  promoteError?: string | null;
   onApprove: () => Promise<void> | void;
   onRequestChanges: (feedback: string) => Promise<void> | void;
   onReject: (reason: string) => Promise<void> | void;
+  onPromote: (note: string | null) => Promise<void> | void;
 };
 
 export function TaskDetail(props: TaskDetailProps) {
@@ -159,6 +214,8 @@ export function TaskDetail(props: TaskDetailProps) {
         {metadata.map(({ label, value, date }) => <div className="border-b border-r border-dark-border p-3 min-[820px]:border-b-0" key={label}><div className="text-xs text-dark-muted">{label}</div><div className="mt-1 break-words text-sm">{date ? new Date(value).toLocaleString() : value}</div></div>)}
       </section>
 
+      <PromoteError {...props} />
+      <PromotePanel {...props} />
       <ReviewPanel {...props} />
       {task.ball !== "human" && task.ball_prompt && <section className="rounded-xl border border-dark-border bg-dark-surface p-4"><h2 className="mb-2 text-xs font-semibold uppercase text-dark-muted">Current ask ({task.ball}/{task.ball_reason})</h2><SpecText>{task.ball_prompt}</SpecText></section>}
       <section className="rounded-lg border border-dark-border bg-dark-surface p-4" aria-label="Dependency state"><h2 className="mb-2 text-sm font-semibold">Work state</h2><DependencyState task={task} /></section>
