@@ -1,0 +1,170 @@
+schema: 2
+id: task-006
+title: 'Regression: the React app stopped auto-updating in desktop Chrome'
+created: '2026-08-17T20:58:33.455435Z'
+updated: '2026-08-17T20:58:33.456197Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: bug
+tags:
+- gui
+- react-frontend
+- regression
+effort: half a day
+assignment:
+  eligible: []
+spec:
+  summary: "The React frontend no longer refreshes itself while open in Chrome on\
+    \ Windows \u2014 task changes only appear after a manual F5. This worked when\
+    \ task-086 shipped live updates on 2026-08-13, so it is a regression, not missing\
+    \ functionality. Mobile PWA viewers may still be updating; that has not been checked."
+  intent: "Reported by Jeff on 2026-08-17 from ordinary use: the dashboard sat open\
+    \ in desktop Chrome while task records changed and went on showing the old state\
+    \ until the page was reloaded by hand.\n\nThis is the exact failure task-086 was\
+    \ built to eliminate, and it matters for the same reason it mattered then: the\
+    \ merge gate assumes a human sitting in front of an open dashboard notices a review\
+    \ request. A dashboard that silently goes stale turns every handoff into a notification\
+    \ nobody receives, and \u2014 worse than never having had the feature \u2014 it\
+    \ does so while the person watching believes live updates are working."
+  description: "## The report\n\n- **Environment**: Chrome on Windows, desktop. Served\
+    \ from the local server on 8876.\n- **Symptom**: an open page does not reflect\
+    \ task changes; F5 shows them immediately.\n- **Was working**: task-086 shipped\
+    \ and was verified on 2026-08-13, including a real-browser check that an external\
+    \ write appeared in an open dashboard with no reload.\n- **Unverified**: whether\
+    \ the installed mobile PWA (`https://agentjobs.tailfed1df.ts.net/app/`) still\
+    \ updates. Jeff suspects it might. Establishing that is diagnostic gold \u2014\
+    \ if mobile works and desktop does not, the fault is in something desktop-specific\
+    \ (cache, service worker, an extension, a stale bundle) rather than in the poller\
+    \ or the endpoint.\n\n## First: reproduce and localise\n\nReproduce before theorising,\
+    \ and do it against a **freshly started server** on a page you have hard-reloaded,\
+    \ so you are not diagnosing a stale process or a stale bundle.\n\nOpen the dashboard,\
+    \ then with DevTools Network open, change a task from the CLI or by writing a\
+    \ file and watch for:\n\n1. **Are `/api/projects/{id}/revision` requests happening\
+    \ at all, every ~15s?**\n   - No requests \u2192 the poller is not mounted, not\
+    \ running, or the effect is being torn down. Look at where `LiveUpdateStatus`\
+    \ is mounted and whether the route you are on is under it.\n   - Requests happening\
+    \ but failing \u2192 the catch path is swallowing them; after two misses you should\
+    \ see the \"Live updates are paused\" banner. If polls fail and no banner appears,\
+    \ that is a second bug.\n   - Requests succeeding but `revision` never changing\
+    \ \u2192 the fault is server-side in the revision digest, not in the client.\n\
+    \   - `revision` changing but no refetch of dashboard/task queries \u2192 the\
+    \ invalidation predicate is not matching, which is the most likely single cause\
+    \ (see below).\n\nRecord which of those five it is in the task log before changing\
+    \ any code. Everything after that follows from it.\n\n## Standing hypotheses,\
+    \ in rough order of suspicion\n\nStated as hypotheses. None has been confirmed;\
+    \ a first look at the code (2026-08-17) did **not** find an obvious break, which\
+    \ is itself information \u2014 this is probably not a one-line typo.\n\n1. **The\
+    \ invalidation allowlist has drifted from the generated client.** `PROJECT_TASK_QUERY_IDS`\
+    \ in `LiveUpdates.tsx` is a hardcoded set of seven generated query `_id` strings.\
+    \ A poll that detects a revision change invalidates only queries whose key matches\
+    \ that set. Spot-checked on 2026-08-17: all seven ids still exist in `@tanstack/react-query.gen.ts`,\
+    \ so the set is not stale in the obvious way. But it is an allowlist, so any read\
+    \ endpoint added since task-086 \u2014 or any view that switched to a different\
+    \ endpoint \u2014 silently falls outside it and never refetches. The poll succeeds,\
+    \ the revision advances, and nothing on screen moves. **This design is the standing\
+    \ hazard regardless of whether it is today's cause**, and the fix should include\
+    \ making drift impossible or loud rather than silent.\n2. **Something is caching\
+    \ the response.** The revision endpoint is polled with plain GETs. If it has acquired\
+    \ a cacheable response \u2014 or the service worker started serving it \u2014\
+    \ Chrome can answer every poll from cache with an unchanged revision while the\
+    \ server has moved on. Check the response headers and whether the request shows\
+    \ as `(from disk cache)` or `(ServiceWorker)`.\n3. **A stale service-worker shell\
+    \ in desktop Chrome.** Task-086 hashes shell asset contents into the cache name,\
+    \ so a serving mismatch is meant to be impossible; verify rather than assume,\
+    \ since a desktop tab that has been open across deploys is exactly the case that\
+    \ goes wrong. This one also predicts the mobile app is *fine* and only the long-lived\
+    \ desktop install is stale.\n4. **The effect is being remounted or torn down.**\
+    \ `LiveUpdateStatus` re-creates its poller whenever `projectId` or `queryClient`\
+    \ changes. If a parent now re-renders with a new `queryClient` identity, the poller\
+    \ is destroyed and rebuilt continuously, which can look like nothing polling.\
+    \ React Strict Mode double-mount was tested at the time; a new parent is not.\n\
+    5. **A server-side revision digest that no longer changes.** Least likely \u2014\
+    \ the digest hashes filenames and bytes \u2014 but cheap to rule out with two\
+    \ `curl`s around a file write.\n\n## What the fix has to include\n\nWhatever the\
+    \ cause, this regressed silently and was found by a human noticing staleness days\
+    \ later. A fix that only restores the behaviour leaves that intact.\n\n- A test\
+    \ that fails when the invalidation allowlist and the generated client drift apart,\
+    \ rather than one that asserts the current seven strings are the current seven\
+    \ strings.\n- Whatever check would have caught *this* instance. If the honest\
+    \ answer is that no automated check could have, say so in the log and explain\
+    \ why, rather than adding a test that proves nothing."
+  constraints: "- Reproduce and localise before changing code; record which of the\
+    \ five diagnostic branches applies in the task log.\n- Check the mobile PWA too.\
+    \ Whether it is affected is a load-bearing diagnostic, not a nice-to-have, and\
+    \ only the human can check it on the physical device.\n- Preserve every task-086\
+    \ constraint \u2014 they are binding and were expensive to establish: steady state\
+    \ is one small request; a failed refresh never blanks the last good view; one\
+    \ dropped request never reports unreachable; `navigator.onLine` never decides\
+    \ what is displayed; refresh fires on `visibilitychange`, not only `focus`.\n\
+    - No server-sent events and no websockets. Task-086 rejected both with reasoning;\
+    \ reopening either needs a measurement, not a preference.\n- Do not fix this by\
+    \ shortening the poll interval or by adding a blanket `invalidateQueries()`. Both\
+    \ hide the fault instead of finding it."
+  out_of_scope: "Rebuilding the live-update transport. Live updates for the legacy\
+    \ Jinja UI. Notifications outside the browser. Any broader refresh-architecture\
+    \ rework \u2014 if the investigation turns up one, file it separately rather than\
+    \ absorbing it here."
+  context:
+  - path: frontend/src/components/LiveUpdates.tsx
+    why: 'The whole client-side poller: the 15s interval, the focus/visibility/online
+      triggers, the miss counting, and the PROJECT_TASK_QUERY_IDS allowlist that decides
+      what gets refetched.'
+  - path: frontend/src/App.tsx
+    why: "LiveUpdateStatus is mounted once at line 191, inside ProjectApp \u2014 so\
+      \ it covers the /p/:projectId/* routes and nothing above them."
+  - path: frontend/src/api/generated/@tanstack/react-query.gen.ts
+    why: The generated query keys. Their _id strings are what the allowlist has to
+      match; drift between the two is silent.
+  - path: frontend/src/components/LiveUpdates.test.tsx
+    why: The existing fake-timer coverage. Worth asking what it would have caught
+      here, since it passes today.
+  - path: src/agentjobs/storage.py
+    why: Where the file-derived revision digest is computed, if the fault turns out
+      to be server-side.
+  - path: tasks/agentjobs/task-086-live-updates.yaml
+    why: 'The original feature: the rejected transports, the six acceptance criteria,
+      and the verification evidence this regression contradicts.'
+acceptance:
+- id: ac-1
+  text: the cause is identified and recorded in the task log, with the evidence that
+    distinguished it from the other hypotheses
+  status: pending
+- id: ac-2
+  text: an open dashboard in desktop Chrome on Windows reflects a CLI or direct-file
+    task change within roughly one poll interval, with no manual refresh, verified
+    against a freshly started server
+  status: pending
+- id: ac-3
+  text: the same is confirmed for the installed mobile PWA, and the pre-fix mobile
+    behaviour is recorded either way
+  status: pending
+- id: ac-4
+  text: all six task-086 acceptance criteria still hold after the fix, re-verified
+    rather than assumed
+  status: pending
+- id: ac-5
+  text: an automated check fails if the invalidation allowlist and the generated query
+    keys drift apart, or the log explains why no such check is possible
+  status: pending
+- id: ac-6
+  text: poetry run python scripts/check.py passes
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T20:58:33.455488Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: 9f3c1e28-4d7a-4b16-9a4e-2c5b8f0d71a3
+      kind: create
+      fingerprint: cb5d56f17ad8cb9089acb06ea25e9e66
