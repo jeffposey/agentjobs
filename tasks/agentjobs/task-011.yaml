@@ -1,0 +1,157 @@
+schema: 2
+id: task-011
+title: Merging frontend code does not update the running server, and nothing says
+  so
+created: '2026-08-17T23:01:49.593543Z'
+updated: '2026-08-17T23:01:49.594359Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- workflow
+- react-frontend
+- build
+effort: a few hours
+assignment:
+  eligible: []
+spec:
+  summary: The built frontend lives in a gitignored directory, so merging a frontend
+    change to main leaves every running server serving the previous bundle until someone
+    manually rebuilds. There is no step in the merge gate that rebuilds or deploys,
+    and no signal anywhere that the running app is behind the code.
+  intent: 'On 2026-08-17 a critical fix (task-008) was approved, merged to main, and
+    reported as done. Jeff then clicked a task and hit the exact bug again, because
+    the server he uses was still serving a bundle built two hours earlier. The fix
+    was real, the merge was real, and the deployed application was unchanged.
+
+
+    The agent had verified the fix in a browser -- against a server it built and started
+    in its own worktree. That is a genuinely useful check and it is not the same check
+    as "the thing Jeff opens now behaves correctly". Nothing in the workflow closes
+    that gap, and nothing makes the gap visible: the running app looks completely
+    normal while being arbitrarily far behind main.
+
+
+    This will keep happening. Every frontend task ends with an agent honestly reporting
+    success against a build that no user is running.'
+  description: '## The mechanism
+
+
+    - `frontend/` holds the source; `npm run build` emits into `src/agentjobs/frontend_dist/`.
+
+    - `.gitignore:10` excludes `/src/agentjobs/frontend_dist/`, correctly -- build
+    artifacts do not belong in git, and ENGINEERING.md says exports are build artifacts.
+
+    - The server serves whatever is on disk in that directory. FastAPI''s static handling
+    reads per request, so a rebuild alone is enough; no restart is needed for assets.
+    But nothing performs the rebuild.
+
+    - Therefore: `git merge` of a frontend change updates the source and nothing else.
+    The running server keeps serving the old hashed bundle indefinitely.
+
+
+    Observed concretely on 2026-08-17: after task-008 merged at d7dd9e2, `curl http://localhost:8876/app/`
+    still returned `assets/index-CHcF4Rgh.js`, dated 16:11, while the merged source
+    contained the fix. A manual `npm run build` produced `index-2yVqyTin.js` and the
+    server picked it up immediately with no restart.
+
+
+    ## What to decide
+
+
+    This is a workflow gap, and the fix could sit in several places. Worth thinking
+    about before building:
+
+
+    1. **Add a rebuild step to the merge procedure** in ENGINEERING.md, so closing
+    a frontend task includes rebuilding and confirming the running server serves the
+    new bundle. Cheapest, but it is a rule people forget, which is the same failure
+    mode as the one being fixed.
+
+    2. **Make the server detect it.** The app could compare the built bundle''s identity
+    against the source revision and surface a warning when they diverge. Turns a silent
+    gap into a visible one, which is the more durable shape.
+
+    3. **Build on demand or on startup**, so a freshly started server always serves
+    current code. Removes the gap for restarts but not for a long-running server.
+
+    4. **Some combination**, most likely 1 plus 2.
+
+
+    Do not simply commit `frontend_dist`. That was considered and rejected here: it
+    makes every frontend change produce a large binary diff, invites merge conflicts
+    in generated output, and contradicts the repo''s stated position on build artifacts.
+    The problem is not that the artifact is missing from git; it is that nothing rebuilds
+    it and nothing notices.
+
+
+    ## Related
+
+
+    Verification guidance in ENGINEERING.md already says to exercise a change the
+    way a user would, against a freshly started server. That was followed on task-008
+    and still missed this, because "a freshly started server" was one the agent built
+    in its own worktree. Whatever comes out of this task should sharpen that sentence:
+    the check that matters is the one against the deployment the human actually opens.'
+  constraints: '- Do not commit the built frontend to git.
+
+    - Any warning surfaced to a user must not fire spuriously on a normal dev setup,
+    or it will be ignored within a day.
+
+    - Keep the merge gate''s existing shape: this adds a deploy/verify concern, it
+    does not replace human approval.'
+  out_of_scope: Packaging and release process for the published wheel. Any CI system,
+    which this repo does not currently have. Retiring the Jinja UI or the routing
+    work in task-007.
+  context:
+  - path: .gitignore
+    why: Line 10 excludes src/agentjobs/frontend_dist, which is why a merge never
+      changes what a running server serves.
+  - path: frontend/vite.config.ts
+    why: outDir points at src/agentjobs/frontend_dist -- the link between source and
+      what is served.
+  - path: ENGINEERING.md
+    why: The merge gate and the verification section, both of which currently end
+      before anything is deployed.
+  - path: tasks/agentjobs/task-008.yaml
+    why: 'The incident: a critical fix merged, reported done, and still broken for
+      the user because the server served the old bundle.'
+acceptance:
+- id: ac-1
+  text: merging a frontend change and following the documented procedure results in
+    the running server serving the new bundle, demonstrated end to end
+  status: pending
+- id: ac-2
+  text: if the running server is serving a bundle older than the checked-out source,
+    that is visible to someone without them having to compare asset hashes by hand
+  status: pending
+- id: ac-3
+  text: the chosen approach is recorded as a decision with its rejected alternatives,
+    including why frontend_dist stays out of git
+  status: pending
+- id: ac-4
+  text: ENGINEERING.md's verification guidance distinguishes verifying against your
+    own scratch server from verifying against the deployment the user opens
+  status: pending
+- id: ac-5
+  text: poetry run python scripts/check.py passes
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T23:01:49.593599Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: c17f6b28-9d34-4e05-8a71-3b62f094ac5d
+      kind: create
+      fingerprint: 7cda8dd9c188383514b582c24b80faf2
