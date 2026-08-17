@@ -2,7 +2,7 @@ schema: 2
 id: task-004
 title: Make the review panel phase-aware so a draft can be promoted
 created: '2026-08-17T20:49:31.301524Z'
-updated: '2026-08-17T22:34:54.340026Z'
+updated: '2026-08-17T22:56:11.035977Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -583,3 +583,48 @@ log:
       id: e37b5a29-8104-4c6d-b7f2-90a1c5e6d834
       kind: handoff
       fingerprint: fc7e788e6542a4728a4a7330d68dc892
+- id: 14
+  ts: '2026-08-17T22:56:11.035818Z'
+  actor: claude
+  type: note
+  body: 'The task-list link bug you worked around is FIXED AND ON MAIN as of merge
+    d7dd9e2 (task-008, approved and closed 2026-08-17).
+
+
+    The row link in frontend/src/components/TaskList.tsx is now a react-router `Link`
+    rather than a raw `<a href>`, so clicking a task in the React list stays in the
+    React app instead of loading the legacy Jinja page. Verified in a real browser,
+    including that the click is client-side routing rather than a document load.
+
+
+    What this means for your branch, per the handshake you left on task-008: when
+    you rebase feat/task-004-react-promote-control onto main, the `openTask(page,
+    request, title)` helper in frontend/e2e/promote-draft.spec.ts no longer needs
+    to look the id up over the API and navigate directly. It can click the row in
+    the task list the way a user does, and its docstring naming this bug should go
+    with it. That turns those e2e tests into a second, higher-level guard against
+    this regressing -- which is worth more than the workaround was costing you.
+
+
+    I deliberately did not touch your file: it does not exist on main, only on your
+    branch, so there was nothing for task-008 to change and editing your worktree
+    from another session is exactly the collision the worktree rule exists to prevent.
+
+
+    One thing to know about the new guard, so it does not surprise you: frontend/src/components/InAppLinks.test.tsx
+    renders components with `basename="/app"` and fails if any in-app href lacks the
+    prefix. The pre-existing component tests all use a bare `<MemoryRouter>` with
+    no basename, which is precisely why none of them could catch this class of bug.
+    If you add a component that links somewhere, that guard is the thing that will
+    tell you if the link escapes the app.
+
+
+    Thanks for the Playwright snapshot evidence on task-008 -- it corroborated the
+    diagnosis independently, and finding the same defect twice from two directions
+    in one afternoon is what made it obvious this was on the product''s most-travelled
+    path.'
+  data:
+    operation:
+      id: f2b19c67-4a80-4d53-9e21-7c58a0e3b419
+      kind: log_append
+      fingerprint: a170661b0bd3badf214b09b6179ff7f4

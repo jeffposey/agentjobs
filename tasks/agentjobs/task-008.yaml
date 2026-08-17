@@ -2,45 +2,9 @@ schema: 2
 id: task-008
 title: Clicking a task in the React list ejects the user into the Jinja UI
 created: '2026-08-17T22:37:46.617404Z'
-updated: '2026-08-17T22:50:35.403385Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Ready for merge approval. Branch fix/task-008-task-list-link, commit
-  23dad82, two files.
-
-
-  What changed: the task list row is now a react-router `Link` rather than a raw `<a
-  href>`. That one character class was the whole bug -- raw anchors are not routed,
-  so the /app basename was dropped and clicking a task loaded the Jinja page. Path
-  builders are untouched.
-
-
-  You can check it yourself without merging: a server from the worktree is running
-  on port 8899 serving this branch. Open http://localhost:8899/app/p/agentjobs/tasks
-  and click any task. It should stay in the React app. Stop that server when you are
-  done with it -- it is a review fixture, not something to leave running, and the
-  real one on 8876 is untouched.
-
-
-  Evidence: clicking a row lands on /app/p/agentjobs/tasks/task-008, renders the React
-  detail page, and a sentinel set on `window` before the click survives it -- which
-  proves client-side routing rather than a full page load. The new guard renders components
-  WITH a basename (the existing tests use a bare MemoryRouter, which is exactly why
-  none of them caught this) and fails if any in-app href escapes the prefix; I confirmed
-  it fails on the old raw anchor before trusting it. Frontend gate green: 13 files,
-  52 tests, lint, types, build. Python: 1227 passed, 1 failed -- the same pre-existing
-  task-002 git-excluded context path that fails in every worktree, unrelated to this
-  branch.
-
-
-  On approval I will rebase, merge --no-ff, close, and remove the worktree.
-
-
-  One thing worth your attention beyond this merge: task-007 (the server-side redirect)
-  is now more clearly worth doing, not less. This fix protects people already inside
-  the React app; task-007 protects people who arrive by address. They are different
-  doors to the same room, and today both were open.'
+updated: '2026-08-17T22:55:55.269547Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: bug
@@ -50,7 +14,6 @@ tags:
 - react-frontend
 effort: an hour
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: The React task list renders each row's link as a raw anchor whose href
@@ -129,29 +92,31 @@ acceptance:
 - id: ac-1
   text: clicking a task in the React task list stays in the React app and shows the
     React task detail page, verified in a browser against a running server
-  status: pending
+  status: met
 - id: ac-2
   text: the rendered href of a task row link begins with /app/ when the router basename
     is /app
-  status: pending
+  status: met
 - id: ac-3
   text: the click is client-side routing, not a full document load
-  status: pending
+  status: met
 - id: ac-4
   text: an automated test fails if an in-app link renders without the basename, covering
     the task list and the other components that link to tasks
-  status: pending
+  status: met
 - id: ac-5
   text: genuine external links such as /docs still work and are untouched
-  status: pending
+  status: met
 - id: ac-6
   text: poetry run python scripts/check.py passes, or any failure is shown to be the
     known pre-existing worktree-only corpus failure
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-008-task-list-link
+  status: merged
 log:
 - id: 1
   ts: '2026-08-17T22:37:46.617451Z'
@@ -296,3 +261,78 @@ log:
       id: d59a3062-8b17-4f24-a90e-16c73b0e8f75
       kind: log_append
       fingerprint: 6ce03de22c96576a4099635c88bfb090
+- id: 6
+  ts: '2026-08-17T22:53:24.245572Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 7
+  ts: '2026-08-17T22:55:36.917469Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: b7e2c845-3f61-49d0-92a7-8c04e5f31762
+      kind: update_content
+      fingerprint: 8c37babbb8463de7060248cfe9153e43
+- id: 8
+  ts: '2026-08-17T22:55:55.269404Z'
+  actor: claude
+  type: transition
+  body: 'Closed after explicit approval from Jeff Posey, recorded in log entry 6 through
+    the web UI.
+
+
+    Merged: rebased onto main, frontend gate re-run after the rebase and passing (13
+    test files, 52 tests, generated-client check, lint, TypeScript, production build),
+    merged --no-ff at d7dd9e2. Branch marked merged and deleted; worktree C:/projects/aj-008
+    removed; the review server on port 8899 stopped.
+
+
+    All six acceptance criteria met. ac-6 is met via its own escape clause: the only
+    Python failure is the pre-existing worktree-only test_agentjobs_context_paths_exist,
+    whose assertion names task-002 and a git-excluded path, and this branch touched
+    no Python and no task files.
+
+
+    On the task-004 workaround flagged in log entry 5: LEFT IN PLACE, deliberately,
+    and it is now task-004''s to remove. frontend/e2e/promote-draft.spec.ts does not
+    exist on main -- it lives only on the unmerged branch feat/task-004-react-promote-control
+    -- so there was nothing here to change, which is exactly the case that note anticipated.
+    The blocking condition is now cleared: the row link is a Link on main as of d7dd9e2,
+    so when task-004 rebases, its openTask helper should navigate by clicking the
+    task list the way a user does. A note saying so has been added to task-004 so
+    its session does not have to rediscover this.
+
+
+    Two observations worth keeping, neither of which needs action here:
+
+
+    First, this bug was found twice independently on the same afternoon -- by Jeff
+    clicking a task, and by the task-004 session whose Playwright run landed on the
+    legacy page. Two discoveries, one of them filed as task-009 and closed as a duplicate.
+    That is a reasonable outcome of parallel agents rather than a process failure,
+    but it is evidence that a defect on the most common path in the product will be
+    found by everyone at once, expensively, rather than by a test.
+
+
+    Second, and more pointed: Jeff approved this fix through the Jinja UI. The merge
+    gate depends on a human seeing a review request, and the surface he actually used
+    to see and approve it is the deprecated one that has no live updates. That is
+    not an argument against the Jinja UI existing; it is an argument for task-007,
+    because until the default route changes, the UI a person lands on is the one that
+    cannot tell them anything has happened.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: e40d7a91-52c6-4b38-9f07-1a63b820e5d4
+      kind: close
+      fingerprint: c1eed8cb7d8d7cece2399d7969d416f5
