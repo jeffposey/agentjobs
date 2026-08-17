@@ -2,26 +2,9 @@ schema: 2
 id: task-111-mcp-projects-and-actors
 title: Add MCP-safe project discovery and actor attribution
 created: '2026-08-14T19:18:48.672848Z'
-updated: '2026-08-17T06:51:46.673880Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Review and approve merging feat/task-111-mcp-projects-and-actors into\
-  \ main.\n\nThe one behaviour change that reaches beyond MCP: claim, handoff, release,\
-  \ close, log\nand progress now reject an actor the project does not configure. This\
-  \ is the point of\nthe task, but it is a real tightening of the REST API, so it\
-  \ is worth your explicit\nagreement rather than mine. A project with no configured\
-  \ actors still accepts any id,\nso a fresh `agentjobs init` is unaffected; a configured\
-  \ project -- including this one,\nwhich defines Jeff Posey, claude and codex --\
-  \ now refuses anything else. Any script of\nyours that posts under a different name\
-  \ will start getting a 400.\n\nAlso worth a look:\n- src/agentjobs/mcp/routing.py,\
-  \ which is where the \"never infer a project, never\n  derive an actor\" rules live.\
-  \ The actor check duplicates the REST authority on\n  purpose, so the error can\
-  \ name the configured actors before a write is attempted.\n- The _parse_task fix\
-  \ in client.py: list_tasks was broken against a real server and\n  the suite could\
-  \ not have caught it. Commit 4160696.\n\nApprove and I will rebase, merge --no-ff,\
-  \ close the task, and continue the task-109\nparent loop with task-112 (read tools)\
-  \ and task-113 (mutation safety), which both\nbecome eligible.\n"
+updated: '2026-08-17T06:54:27.098597Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: infrastructure
@@ -31,7 +14,6 @@ tags:
 - actors
 effort: 1 day
 assignment:
-  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -102,7 +84,7 @@ dependencies:
 links: []
 branches:
 - name: feat/task-111-mcp-projects-and-actors
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-17T06:25:17.738102Z'
@@ -188,3 +170,13 @@ log:
     not configure. Also reviewed mcp/routing.py and the _parse_task fix. Proceed:
     rebase onto main, merge --no-ff, close.'
   data: {}
+- id: 7
+  ts: '2026-08-17T06:54:27.098494Z'
+  actor: claude
+  type: transition
+  body: Merged to main as 9104fd5 (--no-ff) after explicit approval, including explicit
+    approval of the REST tightening. Worktree removed. All five acceptance criteria
+    met.
+  data:
+    lifecycle: closed
+    outcome: completed

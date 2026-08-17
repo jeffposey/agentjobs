@@ -2,7 +2,7 @@ schema: 2
 id: task-109-agentjobs-mcp-managed-interface
 title: Ship a managed AgentJobs MCP interface and direct-write guardrails
 created: '2026-08-14T19:18:45.666884Z'
-updated: '2026-08-17T06:23:42.171752Z'
+updated: '2026-08-17T06:54:27.364564Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -148,4 +148,18 @@ log:
     schemas; frontend/src/api/types.ts now aliases TaskReadOutput back to TaskRead.
     Next eligible child is task-111 (projects and actors); its only dependency, task-110,
     is satisfied.'
+  data: {}
+- id: 5
+  ts: '2026-08-17T06:54:27.364392Z'
+  actor: claude
+  type: progress
+  body: 'Child 2 of 10 complete. task-111 (project routing and actor attribution)
+    merged to main as 9104fd5. Behaviour change the rest of the program now depends
+    on: every mutating REST verb validates its actor against the project''s configured
+    vocabulary, and TaskClient.for_project(id) is the only supported way to address
+    a project. Shared helpers for tools live in src/agentjobs/mcp/routing.py.
+
+
+    task-112 (read tools) and task-113 (mutation safety) both became eligible; taking
+    task-112 first, then task-113, which task-114 needs.'
   data: {}
