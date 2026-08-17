@@ -27,31 +27,90 @@ function SpecText({ children, muted = false }: { children: string; muted?: boole
   return <div className={`whitespace-pre-wrap text-sm leading-6 ${muted ? "text-dark-muted" : "text-dark-text"}`}>{children}</div>;
 }
 
+/**
+ * The one box a human acts through, wearing the vocabulary of the phase the task
+ * is in.
+ *
+ * A draft has not been specified yet, so the primary action is "this spec is
+ * finished, make it claimable". A task past draft is being reviewed, so the primary
+ * action is "approved, go merge". The other two actions do not change at all: asking
+ * for changes and rejecting mean the same thing while a spec is being written as
+ * they do after work is done, and only their wording needed to follow the phase.
+ *
+ * The primary button dispatches to a different verb per phase, and that difference
+ * is not cosmetic. `approve` hands the ball back and leaves `lifecycle` alone;
+ * `promote` moves `lifecycle` draft -> ready and clears the owner. Sending a draft
+ * through approve would leave it draft/agent-work, which `get_next_task()` never
+ * returns -- claimable by nobody, forever.
+ */
 function ReviewPanel({
   detail,
   busy,
   error,
+  promoteBusy,
   onApprove,
   onRequestChanges,
   onReject,
+  onPromote,
 }: TaskDetailProps) {
-  const [mode, setMode] = useState<"none" | "changes" | "reject">("none");
+  const [mode, setMode] = useState<"none" | "promote" | "changes" | "reject">("none");
   const [feedback, setFeedback] = useState("");
   if (detail.task.ball !== "human") return null;
 
+  const planning = detail.task.lifecycle === "draft";
+  const working = busy || promoteBusy;
+  const copy = planning
+    ? {
+        label: "Draft actions",
+        heading: "Draft — the spec is with you",
+        guidance: "These actions update the task record. Promoting puts this task in the pool for an agent to claim; nothing here runs git.",
+        primary: "▲ Promote — make it claimable",
+        secondary: "✎ Send feedback",
+        feedbackLabel: "Feedback on the spec",
+        feedbackPlaceholder: "Explain what the spec still needs...",
+      }
+    : {
+        label: "Review actions",
+        heading: `${detail.task.display_status} — the ball is with you`,
+        guidance: "These actions update the task record and hand work back to the agent. They do not run git.",
+        primary: "✓ Approve — agent may merge",
+        secondary: "✎ Request Changes",
+        feedbackLabel: "Feedback or questions",
+        feedbackPlaceholder: "Explain what needs to change...",
+      };
+  const toggle = (next: "promote" | "changes" | "reject") => setMode(mode === next ? "none" : next);
+
   return (
-    <section className="space-y-4 rounded-xl border-2 border-yellow-600/50 bg-yellow-950/30 p-4 min-[820px]:p-6" aria-label="Review actions">
-      <h2 className="text-lg font-semibold text-yellow-300">{detail.task.display_status} — the ball is with you</h2>
+    <section className="space-y-4 rounded-xl border-2 border-yellow-600/50 bg-yellow-950/30 p-4 min-[820px]:p-6" aria-label={copy.label}>
+      <h2 className="text-lg font-semibold text-yellow-300">{copy.heading}</h2>
       {detail.task.ball_prompt && <SpecText>{detail.task.ball_prompt}</SpecText>}
       {detail.identity.ok && detail.identity.user ? (
         <>
-          <p className="text-sm text-dark-muted">Acting as <strong className="text-dark-text">{detail.identity.user}</strong>. These actions update the task record and hand work back to the agent. They do not run git.</p>
+          <p className="text-sm text-dark-muted">Acting as <strong className="text-dark-text">{detail.identity.user}</strong>. {copy.guidance}</p>
           <div className="mobile-action-row flex flex-wrap gap-3">
-            <button type="button" disabled={busy} onClick={() => void onApprove()} className="touch-target rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">✓ Approve — agent may merge</button>
-            <button type="button" disabled={busy} onClick={() => setMode(mode === "changes" ? "none" : "changes")} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white hover:bg-yellow-700 disabled:opacity-60">✎ Request Changes</button>
-            <button type="button" disabled={busy} onClick={() => setMode(mode === "reject" ? "none" : "reject")} className="touch-target rounded-lg bg-red-600 px-4 font-semibold text-white hover:bg-red-700 disabled:opacity-60">✕ Reject &amp; Archive</button>
+            <button type="button" disabled={working} onClick={() => (planning ? toggle("promote") : void onApprove())} className="touch-target rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">{copy.primary}</button>
+            <button type="button" disabled={working} onClick={() => toggle("changes")} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white hover:bg-yellow-700 disabled:opacity-60">{copy.secondary}</button>
+            <button type="button" disabled={working} onClick={() => toggle("reject")} className="touch-target rounded-lg bg-red-600 px-4 font-semibold text-white hover:bg-red-700 disabled:opacity-60">✕ Reject &amp; Archive</button>
           </div>
-          {mode !== "none" && (
+          {mode === "promote" && (
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                // null rather than "" for an empty note, so the manager writes its
+                // own sentence instead of the UI inventing a blank one.
+                void onPromote(feedback.trim() ? feedback.trim() : null);
+              }}
+            >
+              <label htmlFor="promote-note" className="block text-sm font-semibold">Promotion note (optional)</label>
+              <textarea id="promote-note" value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={4} className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none" placeholder="Say why the spec is finished. Left empty, AgentJobs writes its own sentence." />
+              <div className="mobile-action-row flex gap-3">
+                <button type="submit" disabled={working} className="touch-target rounded-lg bg-emerald-600 px-4 font-semibold text-white disabled:opacity-60">Promote</button>
+                <button type="button" onClick={() => { setMode("none"); setFeedback(""); }} className="touch-target rounded-lg border border-dark-border px-4 font-semibold">Cancel</button>
+              </div>
+            </form>
+          )}
+          {(mode === "changes" || mode === "reject") && (
             <form
               className="space-y-3"
               onSubmit={(event) => {
@@ -61,10 +120,10 @@ function ReviewPanel({
                 void (mode === "changes" ? onRequestChanges(value) : onReject(value));
               }}
             >
-              <label htmlFor="review-feedback" className="block text-sm font-semibold">{mode === "changes" ? "Feedback or questions" : "Reason for rejection"}</label>
-              <textarea id="review-feedback" required value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={4} className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none" placeholder={mode === "changes" ? "Explain what needs to change..." : "Explain why this task should stop..."} />
+              <label htmlFor="review-feedback" className="block text-sm font-semibold">{mode === "changes" ? copy.feedbackLabel : "Reason for rejection"}</label>
+              <textarea id="review-feedback" required value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={4} className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none" placeholder={mode === "changes" ? copy.feedbackPlaceholder : "Explain why this task should stop..."} />
               <div className="mobile-action-row flex gap-3">
-                <button type="submit" disabled={busy || !feedback.trim()} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white disabled:opacity-60">Submit</button>
+                <button type="submit" disabled={working || !feedback.trim()} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white disabled:opacity-60">Submit</button>
                 <button type="button" onClick={() => { setMode("none"); setFeedback(""); }} className="touch-target rounded-lg border border-dark-border px-4 font-semibold">Cancel</button>
               </div>
             </form>
@@ -81,47 +140,14 @@ function ReviewPanel({
   );
 }
 
-function PromotePanel({ detail, promoteBusy, promoteError, onPromote }: TaskDetailProps) {
-  const [note, setNote] = useState("");
-  // Gated on the lifecycle, not on the ball. A draft's ball is usually human/spec,
-  // but promote is legal exactly when the task is a draft, and the panel should
-  // appear for the same reason the manager would accept the verb.
-  if (detail.task.lifecycle !== "draft") return null;
-
-  return (
-    <section className="space-y-4 rounded-xl border-2 border-blue-600/50 bg-blue-950/30 p-4 min-[820px]:p-6" aria-label="Promote draft">
-      <h2 className="text-lg font-semibold text-blue-300">Draft — not claimable yet</h2>
-      <p className="text-sm text-dark-muted">Promoting says the spec is finished and puts this task in the pool for an agent to claim. It is the only way out of draft. It does not assign the work, and it does not run git.</p>
-      {detail.identity.ok && detail.identity.user ? (
-        <form
-          className="space-y-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void onPromote(note.trim() ? note.trim() : null);
-          }}
-        >
-          <p className="text-sm text-dark-muted">Acting as <strong className="text-dark-text">{detail.identity.user}</strong>.</p>
-          <label htmlFor="promote-note" className="block text-sm font-semibold">Promotion note (optional)</label>
-          <textarea id="promote-note" value={note} onChange={(event) => setNote(event.target.value)} rows={3} className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-blue-500 focus:outline-none" placeholder="Say why the spec is finished. Left empty, AgentJobs writes its own sentence." />
-          <button type="submit" disabled={promoteBusy} className="touch-target rounded-lg bg-blue-600 px-4 font-semibold text-white hover:bg-blue-700 disabled:opacity-60">▲ Promote to Ready</button>
-        </form>
-      ) : (
-        <div className="rounded-lg border border-blue-600/50 bg-dark-bg p-4 text-sm">
-          <strong className="text-blue-300">{detail.identity.problem === "multiple" ? "Multiple users configured. " : "No user configured. "}</strong>
-          <span className="text-dark-muted">{detail.identity.detail}</span>
-        </div>
-      )}
-    </section>
-  );
-}
-
 /**
- * The promote refusal, rendered outside the promote panel on purpose.
+ * The promote refusal, rendered outside the action panel on purpose.
  *
- * The most important refusal to show is a revision conflict, and by the time it is
- * shown the task has usually stopped being a draft -- someone else promoted it, which
- * is why the conflict happened. Rendering the message inside a panel that only exists
- * for drafts made it disappear in exactly that case.
+ * The refusal most worth showing is a revision conflict, and it arrives precisely
+ * because somebody else promoted the task first -- which moves the ball to
+ * agent/available, and the panel above returns null the moment the ball leaves the
+ * human. An in-panel message would therefore vanish at the exact moment it was
+ * needed, leaving a click that appeared to do nothing. Observed, not predicted.
  */
 function PromoteError({ promoteError }: TaskDetailProps) {
   if (!promoteError) return null;
@@ -183,9 +209,9 @@ export type TaskDetailProps = {
   projectId: string;
   busy?: boolean;
   error?: string | null;
-  // Promote carries its own busy and error state rather than sharing the review
-  // panel's: a failed approve must not blank the promote panel, and a refused
-  // promote has a specific explanation the generic review message would hide.
+  // Promote keeps its own error state rather than sharing `error`: the generic
+  // "could not be recorded, reload and try again" hides the one explanation that
+  // actually tells a human what happened and what to do about it.
   promoteBusy?: boolean;
   promoteError?: string | null;
   onApprove: () => Promise<void> | void;
@@ -215,7 +241,6 @@ export function TaskDetail(props: TaskDetailProps) {
       </section>
 
       <PromoteError {...props} />
-      <PromotePanel {...props} />
       <ReviewPanel {...props} />
       {task.ball !== "human" && task.ball_prompt && <section className="rounded-xl border border-dark-border bg-dark-surface p-4"><h2 className="mb-2 text-xs font-semibold uppercase text-dark-muted">Current ask ({task.ball}/{task.ball_reason})</h2><SpecText>{task.ball_prompt}</SpecText></section>}
       <section className="rounded-lg border border-dark-border bg-dark-surface p-4" aria-label="Dependency state"><h2 className="mb-2 text-sm font-semibold">Work state</h2><DependencyState task={task} /></section>

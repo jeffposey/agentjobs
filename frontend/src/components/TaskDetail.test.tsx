@@ -140,67 +140,104 @@ describe("TaskDetail resumption contract", () => {
   });
 });
 
-describe("TaskDetail promote control", () => {
-  it("offers promotion on a draft and not on anything else", () => {
+describe("TaskDetail action panel speaks the phase it is in", () => {
+  it("offers planning actions on a draft, in one panel", () => {
     renderDetail(draftDetail);
-    expect(screen.getByRole("region", { name: "Promote draft" })).toBeVisible();
-    expect(screen.getByRole("button", { name: /Promote to Ready/ })).toBeVisible();
+
+    const panel = screen.getByRole("region", { name: "Draft actions" });
+    expect(within(panel).getByRole("button", { name: "▲ Promote — make it claimable" })).toBeVisible();
+    expect(within(panel).getByRole("button", { name: "✎ Send feedback" })).toBeVisible();
+    expect(within(panel).getByRole("button", { name: "✕ Reject & Archive" })).toBeVisible();
+
+    // The merge-review vocabulary must not appear on a task whose work has not
+    // started -- there is nothing to approve and nothing to merge yet.
+    expect(within(panel).queryByRole("button", { name: /Approve/ })).not.toBeInTheDocument();
+    expect(within(panel).queryByText(/merge/i)).not.toBeInTheDocument();
+    // One panel, not two.
+    expect(screen.getAllByRole("region", { name: /actions$/ })).toHaveLength(1);
   });
 
-  it("is absent on a task that is not a draft", () => {
+  it("keeps the review actions on a task past draft", () => {
     renderDetail();
-    expect(screen.queryByRole("region", { name: "Promote draft" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Promote to Ready/ })).not.toBeInTheDocument();
+
+    const panel = screen.getByRole("region", { name: "Review actions" });
+    expect(within(panel).getByRole("button", { name: "✓ Approve — agent may merge" })).toBeVisible();
+    expect(within(panel).getByRole("button", { name: "✎ Request Changes" })).toBeVisible();
+    expect(within(panel).getByRole("button", { name: "✕ Reject & Archive" })).toBeVisible();
+    expect(within(panel).queryByRole("button", { name: /Promote/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("region", { name: /actions$/ })).toHaveLength(1);
   });
 
   it("sends a typed note, and null when the note is left empty", async () => {
     const withNote = renderDetail(draftDetail);
+    fireEvent.click(screen.getByRole("button", { name: /Promote — make it claimable/ }));
     fireEvent.change(screen.getByLabelText("Promotion note (optional)"), { target: { value: "  Spec is finished.  " } });
-    fireEvent.click(screen.getByRole("button", { name: /Promote to Ready/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Promote" }));
     // Trimmed, so trailing whitespace does not become the log body.
     await waitFor(() => expect(withNote.onPromote).toHaveBeenCalledWith("Spec is finished."));
 
     cleanup();
 
     const withoutNote = renderDetail(draftDetail);
-    fireEvent.click(screen.getByRole("button", { name: /Promote to Ready/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Promote — make it claimable/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Promote" }));
     // null, not "", so the manager supplies its own default body.
     await waitFor(() => expect(withoutNote.onPromote).toHaveBeenCalledWith(null));
   });
 
-  it("does not imply the merge-review semantics of the approve actions", () => {
-    renderDetail(draftDetail);
-    const panel = screen.getByRole("region", { name: "Promote draft" });
-    expect(within(panel).queryByText(/merge/i)).not.toBeInTheDocument();
-    expect(within(panel).queryByRole("button", { name: /Approve/ })).not.toBeInTheDocument();
-    expect(within(panel).getByText(/only way out of draft/i)).toBeVisible();
+  it("never sends a draft through approve", async () => {
+    // approve leaves lifecycle alone, so a draft sent through it would sit at
+    // draft/agent-work, which get_next_task() never returns.
+    const actions = renderDetail(draftDetail);
+    fireEvent.click(screen.getByRole("button", { name: /Promote — make it claimable/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Promote" }));
+    await waitFor(() => expect(actions.onPromote).toHaveBeenCalled());
+    expect(actions.onApprove).not.toHaveBeenCalled();
   });
 
-  it("shows a refusal rather than swallowing it", () => {
+  it("still sends feedback and rejections through the unchanged actions on a draft", async () => {
+    const actions = renderDetail(draftDetail);
+
+    fireEvent.click(screen.getByRole("button", { name: /Send feedback/ }));
+    fireEvent.change(screen.getByLabelText("Feedback on the spec"), { target: { value: "Acceptance is vague." } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await waitFor(() => expect(actions.onRequestChanges).toHaveBeenCalledWith("Acceptance is vague."));
+
+    fireEvent.click(screen.getByRole("button", { name: /Reject & Archive/ }));
+    fireEvent.change(screen.getByLabelText("Reason for rejection"), { target: { value: "Superseded." } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await waitFor(() => expect(actions.onReject).toHaveBeenCalledWith("Superseded."));
+  });
+
+  it("shows a promote refusal rather than swallowing it", () => {
     renderDetail(draftDetail, { promoteError: "Task 'task-draft' is not a draft (it is ready); only a draft can be promoted." });
     expect(screen.getByRole("alert")).toHaveTextContent("only a draft can be promoted");
   });
 
-  it("still shows the refusal once the task has stopped being a draft", () => {
-    // The revision-conflict case: someone else promoted it, which is why the attempt
-    // was refused. If the message lived inside the draft-only panel it would vanish
-    // exactly here, leaving a click that silently did nothing.
-    renderDetail(detail, { promoteError: "This task changed while the page was open, so it was not promoted." });
-    expect(screen.queryByRole("region", { name: "Promote draft" })).not.toBeInTheDocument();
+  it("still shows the refusal once the ball has left the human", () => {
+    // The revision-conflict case: someone else promoted it, which both caused the
+    // refusal and moved the ball to the agent -- so the panel itself is gone. Inside
+    // the panel, this message would vanish exactly when it is needed.
+    renderDetail(
+      { ...draftDetail, task: task("task-draft", { lifecycle: "ready", ball: "agent", ball_reason: "available" }) },
+      { promoteError: "This task changed while the page was open, so it was not promoted." },
+    );
+    expect(screen.queryByRole("region", { name: /actions$/ })).not.toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("changed while the page was open");
   });
 
-  it("disables the button while a promotion is in flight", () => {
+  it("disables the actions while a promotion is in flight", () => {
     renderDetail(draftDetail, { promoteBusy: true });
-    expect(screen.getByRole("button", { name: /Promote to Ready/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Promote — make it claimable/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Send feedback/ })).toBeDisabled();
   });
 
-  it("refuses to promote when identity is unclear", () => {
-    renderDetail(
-      { ...draftDetail, identity: { ok: false, user: null, problem: "missing", detail: "No user configured in this project." } },
-    );
-    const panel = screen.getByRole("region", { name: "Promote draft" });
+  it("offers no action at all when identity is unclear", () => {
+    renderDetail({ ...draftDetail, identity: { ok: false, user: null, problem: "missing", detail: "No user configured in this project." } });
+
+    const panel = screen.getByRole("region", { name: "Draft actions" });
     expect(within(panel).getByText("No user configured in this project.")).toBeVisible();
-    expect(within(panel).queryByRole("button", { name: /Promote to Ready/ })).not.toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /Promote/ })).not.toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /Send feedback/ })).not.toBeInTheDocument();
   });
 });
