@@ -1,0 +1,132 @@
+schema: 2
+id: task-122-claude-code-plugin-and-guard
+title: Ship a Claude Code plugin, skill, and direct-write guard
+created: '2026-08-17T16:52:09.435545Z'
+updated: '2026-08-17T16:52:09.719106Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+category: developer_experience
+tags:
+- mcp
+- claude
+- plugin
+- agent-integration
+effort: 1-2 days
+assignment:
+  eligible: []
+spec:
+  summary: Give Claude Code the same three-part AgentJobs bundle Codex has -- MCP
+    wiring, a workflow skill, and a PreToolUse guard against direct task-YAML writes
+    -- reusing the existing guard logic rather than forking it.
+  intent: task-109 shipped a Codex plugin because that was the client the design named.
+    Claude Code has the same three extension points, so the missing guard is unbuilt
+    work rather than a platform limit -- and Claude Code is the client AgentJobs is
+    actually developed in, so it is the session most likely to reach for a file editor
+    on a task file.
+  description: "Codex has a bundle: MCP wiring, a workflow skill, and a `PreToolUse`\
+    \ hook that refuses\ndirect writes to task YAML. Claude Code supports all three\
+    \ mechanisms, so the same\nbundle is buildable and only the packaging differs.\
+    \ Today a Claude Code session gets\nthe MCP tools and nothing stopping it editing\
+    \ a task file with its own Edit/Write/Bash\ntools, which is the exact failure\
+    \ class this program exists to close -- and Claude Code\nis the client actually\
+    \ being used to develop AgentJobs.\n\nBuild `plugins/agentjobs-claude/` (or extend\
+    \ the existing plugin directory if a shared\nlayout is cleaner -- decide and record\
+    \ which):\n\n- A `.mcp.json` server entry launching the installed `agentjobs mcp`,\
+    \ as Codex's does.\n  No vendored server.\n- A skill ported from `plugins/agentjobs/skills/agentjobs/SKILL.md`.\
+    \ The content is\n  client-agnostic; check the frontmatter and description conventions\
+    \ Claude Code\n  expects, and keep the two skills from drifting -- either share\
+    \ one file or add a test\n  asserting they teach the same rules.\n- A `PreToolUse`\
+    \ hook reusing `plugins/agentjobs/hooks/guard_task_yaml.py`. The\n  decision logic,\
+    \ path canonicalisation, writer/reader command tables and the 82 test\n  cases\
+    \ are all client-agnostic. What differs is the hook event shape on stdin and the\n\
+    \  decision shape on stdout. Factor the protocol adapter out rather than forking\
+    \ the\n  script; a second copy of the writer tables will disagree with the first.\n\
+    - Installation, verification, trust, disable, and upgrade docs matching the Codex\
+    \ ones.\n\nThen update `docs/mcp-clients.md` and the cross-agent matrix in `docs/mcp.md`,\
+    \ both of\nwhich currently say a Claude pre-tool guard is not shipped and point\
+    \ at this task.\n"
+  constraints: "- Reuse guard_task_yaml.py's decision logic; only the event/decision\
+    \ protocol may be\n  client-specific. Two copies of the writer tables will drift.\n\
+    - The skill must not tell an agent to edit task YAML, and must not present a failing\n\
+    \  tool as permission to. Mirror the Codex skill's wording on that exactly.\n\
+    - Do not claim the hook is a security boundary. The same bypasses apply: tools\
+    \ it never\n  observes, a disabled hook, obfuscation, anything started outside\
+    \ the client.\n- No machine-specific absolute paths and no secrets in plugin artifacts.\n\
+    - Plugin version tracks the AgentJobs package version, as Codex's does.\n- Verify\
+    \ against current Claude Code plugin, skill and hook documentation rather than\n\
+    \  assuming the Codex shapes carry over.\n"
+  out_of_scope: Gemini or other client packaging, public marketplace publication,
+    remote MCP transport, changes to the MCP tool surface, and any change to the authoritative
+    manager/REST write path.
+  context:
+  - path: plugins/agentjobs
+    why: 'The Codex bundle to mirror: manifest, .mcp.json, skill, hooks.'
+  - path: plugins/agentjobs/hooks/guard_task_yaml.py
+    why: The guard whose decision logic must be reused, not forked.
+  - path: tests/test_codex_task_write_hook.py
+    why: 82 client-agnostic cases the Claude hook should also satisfy.
+  - path: docs/mcp-clients.md
+    why: Says a Claude guard is not shipped and points at this task.
+acceptance:
+- id: ac-1
+  text: A Claude Code plugin provides the AgentJobs MCP server and skill; a fresh
+    session exposes all 13 tools and triggers the skill on task work.
+  status: pending
+- id: ac-2
+  text: A PreToolUse guard denies Edit/Write/Bash attempts to write managed task YAML
+    and never blocks reads, reusing the Codex guard's decision logic through a shared
+    module.
+  status: pending
+- id: ac-3
+  text: The write-path matrix from tests/test_codex_task_write_hook.py passes against
+    the Claude hook protocol, including its event and decision shapes.
+  verify: poetry run pytest tests/test_claude_task_write_hook.py
+  status: pending
+- id: ac-4
+  text: A live Claude Code session reproduces a direct-write attempt and observes
+    the denial before the file changes.
+  status: pending
+- id: ac-5
+  text: docs/mcp-clients.md and the cross-agent matrix in docs/mcp.md report Claude's
+    actual protection, and the documentation contract tests are updated to match.
+  status: pending
+deliverables:
+- path: plugins/agentjobs-claude
+  note: Claude Code plugin, skill, and hook.
+  status: pending
+- path: tests/test_claude_task_write_hook.py
+  note: Guard coverage.
+  status: pending
+dependencies:
+- task: task-117-codex-direct-write-hook
+  type: needs
+  note: Reuses the guard logic and its coverage matrix.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T16:52:09.435608Z'
+  actor: system
+  type: transition
+  body: Created draft by system.
+  data:
+    lifecycle: draft
+    operation:
+      id: 35907189-e862-4cce-bbc6-6aa71ed9b6c9
+      kind: create
+      fingerprint: 5108e05d4d602183c1744eb7836e896f
+- id: 2
+  ts: '2026-08-17T16:52:09.718940Z'
+  actor: claude
+  type: decision
+  body: 'Filed as its own task rather than reopening task-109. The MCP program delivered
+    what its accepted design specified -- one server plus Codex packaging -- and it
+    is complete. A second client''s packaging is new scope, not an unfinished part
+    of the old scope, and folding it back in would make a finished program look unfinished
+    and hide when each piece actually landed. Rejected alternative: reopen task-109
+    and add an eleventh child.'
+  data: {}

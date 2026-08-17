@@ -2,7 +2,7 @@ schema: 2
 id: task-109-agentjobs-mcp-managed-interface
 title: Ship a managed AgentJobs MCP interface and direct-write guardrails
 created: '2026-08-14T19:18:45.666884Z'
-updated: '2026-08-17T09:14:34.176775Z'
+updated: '2026-08-17T17:01:53.060330Z'
 lifecycle: ready
 ball: human
 ball_reason: review
@@ -359,3 +359,14 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 19
+  ts: '2026-08-17T17:01:53.060138Z'
+  actor: claude
+  type: note
+  body: 'Post-handoff correction. docs/mcp-clients.md and the cross-agent matrix in
+    docs/mcp.md said Claude gets no pre-tool hook because it is a Codex plugin mechanism.
+    That is wrong: Claude Code has PreToolUse hooks, skills and plugins, so the guard
+    is unbuilt rather than impossible. Corrected on main as 3558b80, with a contract
+    test that fails if the phrasing returns. The Claude bundle is filed as task-122;
+    task-109 keeps its original scope.'
+  data: {}
