@@ -45,9 +45,16 @@ you install it, plus portable validation.
 ```
 
 Protection: MCP tools and portable validation, plus the receipt gate if you install the
-git hook. **No pre-tool hook** — that is a Codex plugin mechanism, and nothing here
-prevents Claude from writing task YAML with its own file tools. Install the commit gate
-if that matters to you:
+git hook. **No pre-tool hook is shipped for Claude yet**, so nothing stops Claude
+writing task YAML with its own file tools.
+
+That is a gap in what AgentJobs ships, not a limit of the client. Claude Code has
+`PreToolUse` hooks, skills, and a plugin system, so the same three-part bundle is
+buildable here; the guard's logic is client-agnostic and only its event and decision
+shapes are Codex-specific. Tracked as task-122.
+
+Until then, install the commit gate, which is client-independent and catches the same
+edits one step later:
 
 ```bash
 agentjobs validate --install-hook
