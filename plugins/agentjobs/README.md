@@ -105,13 +105,46 @@ pip install agentjobs
 agentjobs serve
 ```
 
-Then add the plugin from a local marketplace entry pointing at this directory, and
-**start a new session** — plugins, MCP servers and hooks are all read at session start,
-so an existing session will not see it.
+### Claude Code
+
+The repository root is a plugin marketplace — `.claude-plugin/marketplace.json` lists
+this directory. Add the marketplace, then install from it:
+
+```bash
+claude plugin marketplace add https://github.com/jeffposey/agentjobs
+```
+
+```bash
+claude plugin install agentjobs@agentjobs
+```
+
+Working from a clone? Point the first command at your checkout instead of the URL —
+`claude plugin marketplace add /path/to/agentjobs` — and it will pick up whatever is on
+your current branch.
+
+Useful neighbours: `claude plugin list` shows what is installed,
+`claude plugin details agentjobs` shows the components and their token cost, and
+`claude plugin marketplace list` shows which marketplaces are registered. `--scope`
+takes `user` (default), `project`, or `local` on both `install` and `marketplace add`.
+
+The same operations are available interactively as `/plugin` inside a session.
+
+### Codex
+
+Add a local marketplace entry pointing at this directory through your Codex plugin
+configuration, then start a new session.
+
+### Either client
+
+**Start a new session afterwards.** Plugins, MCP servers and hooks are all read at
+session start, so the session you install from will not see it — including the one that
+ran the install command.
 
 One local Codex configuration is shared by the desktop app, the CLI, and the IDE
 extension. Install once; all three pick it up on their next new session. Claude Code
 works the same way across its own surfaces.
+
+Both clients ask you to review and trust the hook the first time it would run.
 
 **Working from a clone rather than an install?** `.mcp.json` names the `agentjobs`
 command, which a Poetry virtualenv does not put on `PATH`. See

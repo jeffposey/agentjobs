@@ -23,7 +23,9 @@ import pytest
 
 from agentjobs.__version__ import __version__
 
-PLUGIN = Path(__file__).resolve().parents[1] / "plugins" / "agentjobs"
+ROOT = Path(__file__).resolve().parents[1]
+PLUGIN = ROOT / "plugins" / "agentjobs"
+MARKETPLACE = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
 MANIFEST = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
 CODEX_MANIFEST = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
 SKILL = (PLUGIN / "skills" / "agentjobs" / "SKILL.md").read_text(encoding="utf-8")
@@ -66,6 +68,45 @@ class TestManifest:
         """The only thing they may legitimately disagree about: each client's entry
         point and its own tool vocabulary."""
         assert MANIFEST["hooks"] != CODEX_MANIFEST["hooks"]
+
+
+class TestMarketplace:
+    """The repository root is the marketplace a user adds.
+
+    Without this file `claude plugin install` has nothing to resolve, and the install
+    instructions are an untestable sentence — which is what they were until somebody
+    tried to follow them. The Codex marketplace entry lives at a different path
+    (.agents/plugins/marketplace.json) and is not covered here.
+    """
+
+    def test_it_declares_a_marketplace_named_for_the_project(self):
+        assert MARKETPLACE["name"] == "agentjobs"
+        assert MARKETPLACE["owner"]["name"]
+        assert MARKETPLACE["description"]
+
+    def test_it_lists_the_plugin_and_the_source_resolves_to_a_real_plugin(self):
+        """A source path that does not contain a plugin manifest fails at install
+        time, on the user's machine, with the repository looking fine from here."""
+        entry = next(item for item in MARKETPLACE["plugins"] if item["name"] == "agentjobs")
+
+        source = ROOT / entry["source"]
+        assert source.is_dir(), entry["source"]
+        assert (source / ".claude-plugin" / "plugin.json").exists()
+
+    def test_the_marketplace_and_plugin_agree_on_the_plugin_name(self):
+        """`claude plugin install agentjobs@agentjobs` resolves the marketplace entry;
+        the installed plugin then identifies itself by its own manifest. A mismatch
+        installs cleanly and then shows up under a name the docs never mention."""
+        entry = next(item for item in MARKETPLACE["plugins"] if item["name"] == "agentjobs")
+
+        assert entry["name"] == MANIFEST["name"]
+
+    def test_the_source_is_relative_so_it_works_from_a_clone_or_the_remote(self):
+        entry = next(item for item in MARKETPLACE["plugins"] if item["name"] == "agentjobs")
+
+        assert entry["source"].startswith("./")
+        for marker in ("C:/Users", "C:\\\\Users", "/home/", "/Users/"):
+            assert marker not in json.dumps(MARKETPLACE), marker
 
 
 class TestNoSecretsOrMachinePaths:

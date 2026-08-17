@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "agentjobs",
+  "description": "The AgentJobs bundle: MCP wiring for the task tools, the workflow skill, and the guard that refuses direct writes to managed task YAML.",
+  "owner": {
+    "name": "Jeff Posey"
+  },
+  "plugins": [
+    {
+      "name": "agentjobs",
+      "description": "Managed task operations for AgentJobs: discovery, the claim/handoff/release/close loop, the append-only log, and zero-context resumption. Includes a PreToolUse guard that refuses direct writes to task YAML.",
+      "author": {
+        "name": "Jeff Posey"
+      },
+      "category": "productivity",
+      "homepage": "https://github.com/jeffposey/agentjobs",
+      "license": "MIT",
+      "source": "./plugins/agentjobs"
+    }
+  ]
+}

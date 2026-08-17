@@ -67,22 +67,38 @@ you install it, plus portable validation.
 
 ## Claude Code
 
-Install the same plugin directory,
+The repository root is a plugin marketplace. Add it, then install from it:
+
+```bash
+claude plugin marketplace add https://github.com/jeffposey/agentjobs
+```
+
+```bash
+claude plugin install agentjobs@agentjobs
+```
+
+From a clone, point the first command at your checkout —
+`claude plugin marketplace add /path/to/agentjobs` — and it installs whatever is on the
+branch you have out. The same operations are available interactively as `/plugin`.
+
+You get the same directory Codex installs,
 [`plugins/agentjobs`](https://github.com/jeffposey/agentjobs/tree/main/plugins/agentjobs),
-via a local marketplace entry. It carries a Claude manifest beside the Codex one over
-one server entry, one skill, and one guard, so Claude gets all three: the MCP wiring,
-the workflow skill, and a `PreToolUse` guard that refuses direct writes to managed task
-YAML with `Edit`, `Write`, `NotebookEdit` or `Bash`.
+which carries a Claude manifest beside the Codex one over one server entry, one skill,
+and one guard. So Claude gets all three: the MCP wiring, the workflow skill, and a
+`PreToolUse` guard that refuses direct writes to managed task YAML with `Edit`,
+`Write`, `NotebookEdit` or `Bash`.
 
 Claude will ask you to review and trust the hook before it runs. Read
 `hooks/task_write_guard.py` and `hooks/guard_task_yaml_claude.py` first.
 
 **Start a new session afterwards.** Plugins, MCP servers and hooks are read at session
-start.
+start — including in the session you ran the install command from, which will not see
+it.
 
-Verify: ask "what should I work on in *project*?" — the skill should trigger. Then ask
-Claude to edit a task YAML file directly; it should be refused, with a message naming
-the file and the AgentJobs tools to use instead.
+Verify in the new session: `claude plugin list` should show it, and asking "what should
+I work on in *project*?" should trigger the skill. Then ask Claude to edit a task YAML
+file directly; it should be refused, with a message naming the file and the AgentJobs
+tools to use instead.
 
 Protection: MCP tools, plus the pre-tool hook once trusted, plus the receipt gate if
 you install it, plus portable validation. The same as Codex.
