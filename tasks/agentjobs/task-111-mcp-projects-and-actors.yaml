@@ -2,10 +2,11 @@ schema: 2
 id: task-111-mcp-projects-and-actors
 title: Add MCP-safe project discovery and actor attribution
 created: '2026-08-14T19:18:48.672848Z'
-updated: '2026-08-15T22:34:23.949562Z'
-lifecycle: ready
+updated: '2026-08-17T06:25:19.975772Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: infrastructure
@@ -15,6 +16,7 @@ tags:
 - actors
 effort: 1 day
 assignment:
+  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -80,5 +82,16 @@ dependencies:
   type: needs
   note: Uses the shared MCP server configuration and adapter boundary.
 links: []
-branches: []
-log: []
+branches:
+- name: feat/task-111-mcp-projects-and-actors
+  status: active
+log:
+- id: 1
+  ts: '2026-08-17T06:25:17.738102Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
