@@ -2,10 +2,32 @@ schema: 2
 id: task-109-agentjobs-mcp-managed-interface
 title: Ship a managed AgentJobs MCP interface and direct-write guardrails
 created: '2026-08-14T19:18:45.666884Z'
-updated: '2026-08-17T09:04:49.477283Z'
+updated: '2026-08-17T09:14:34.176775Z'
 lifecycle: ready
-ball: agent
-ball_reason: available
+ball: human
+ball_reason: review
+ball_prompt: "The MCP program is complete and merged to main. Nothing was pushed to\
+  \ any remote --\nthat is a separate act you have not authorised.\n\nTwo things need\
+  \ you, both requiring a Codex session and neither closable by an agent:\n\n1. Install\
+  \ plugins/agentjobs from a local marketplace entry, trust the hook, and start\n\
+  \   a fresh Codex CLI session and a fresh Codex desktop session. Confirm both expose\
+  \ the\n   AgentJobs skill and all thirteen tools from the one shared local configuration\n\
+  \   (task-116 ac-3).\n2. In that session, ask Codex to edit a task YAML file directly\
+  \ and confirm the denial\n   arrives before the file changes (task-117 ac-5).\n\n\
+  When those pass, mark task-116 ac-3 and task-117 ac-5 met and this task can be closed.\n\
+  \nTwo judgement calls I made under the delegation, both recorded in full on the\
+  \ relevant\ntask, both worth a second opinion:\n\n- task-118's `needs` edge on task-100\
+  \ was downgraded to `related`. The canonical cycle\n  implementation it was protecting\
+  \ already exists in TaskManager, and the validator\n  calls it rather than duplicating\
+  \ it, so the edge's purpose is met by construction.\n  task-100 remains open and\
+  \ untouched.\n- The Python 3.11/3.12 packaging matrix was deferred to CI. Only 3.13\
+  \ is installed\n  here, and installing an interpreter on your machine overnight\
+  \ was not something the\n  delegation covered.\n\nOne thing to be aware of but not\
+  \ to act on tonight: `agentjobs validate` reports 95\nfindings on this repository's\
+  \ own corpus -- 60 unknown-actor, 22 unknown-category, 13\nnon-canonical-serialization.\
+  \ Every one is drift in historical records; nothing written\nduring this program\
+  \ is flagged. It belongs to task-103 (corpus audit). The commit gate\nis opt-in,\
+  \ so nothing is broken today.\n"
 archived: false
 priority: high
 category: developer_experience
@@ -73,20 +95,20 @@ acceptance:
   text: Every child task is closed completed and its acceptance evidence is present
     in the task log.
   verify: poetry run agentjobs list
-  status: pending
+  status: met
 - id: ac-2
   text: A clean installed MCP client can discover a project, create or claim valid
     work, append progress, and hand off for human review without direct YAML mutation.
-  status: pending
+  status: met
 - id: ac-3
   text: Direct-write hook and repository backstop behavior matches the cross-agent
     matrix in the design.
-  status: pending
+  status: met
 - id: ac-4
   text: Protocol, behavioral, packaging, documentation, and complete repository gates
     pass.
   verify: poetry run python scripts/check.py
-  status: pending
+  status: met
 - id: ac-5
   text: A Codex CLI session and a Codex desktop-app session discover and use the same
     configured AgentJobs MCP server; agent guidance prefers MCP whenever it is available
@@ -95,9 +117,15 @@ acceptance:
 deliverables:
 - path: src/agentjobs/mcp
   note: Standalone MCP implementation.
-  status: pending
+  status: done
 - path: docs/mcp-integration-design.md
   note: Accepted design implemented by the child graph.
+  status: done
+- path: plugins/agentjobs
+  note: Codex plugin, workflow skill, and direct-write guard hook.
+  status: done
+- path: docs/integration/mcp-release-evidence.md
+  note: What was verified for release, and what was not.
   status: done
 dependencies: []
 links:
@@ -288,3 +316,46 @@ log:
     records what was verified and what was not. All ten children of task-109 are now
     closed.
   data: {}
+- id: 17
+  ts: '2026-08-17T09:14:33.875148Z'
+  actor: claude
+  type: progress
+  body: "Parent verification, run against main after the tenth child merged.\n\nac-1\
+    \ \u2014 every child closed completed with evidence: 10/10. task-110 through task-119\
+    \ are\nclosed/completed, each with a progress entry and its decisions in the log.\
+    \ Two\nacceptance criteria remain pending on purpose, both needing Codex: task-116\
+    \ ac-3\n(plugin loading in fresh Codex CLI and desktop sessions) and task-117\
+    \ ac-5 (Codex\ndenying a live direct-write attempt). A record-keeping defect was\
+    \ found and fixed\nduring this check: the close helper used for five children\
+    \ updated lifecycle but never\nacceptance[].status, so those records read completed\
+    \ with every criterion pending.\n\nac-2 \u2014 a clean installed client runs the\
+    \ whole loop: verified. The 0.1.0 wheel was\nbuilt, installed into a fresh virtual\
+    \ environment, and driven with the official MCP\nclient against a running service.\
+    \ It listed thirteen tools and ran create -> claim ->\nretry the claim with the\
+    \ same operation_id (replayed, nothing written) -> log progress\n-> task_get ->\
+    \ handoff to human/review, then refused a stale revision with\nrevision_conflict\
+    \ and the current task, then closed. No YAML was touched directly at\nany point,\
+    \ and a write receipt was recorded for the project.\n\nac-3 \u2014 direct-write\
+    \ behaviour matches the cross-agent matrix: the matrix is published\nin docs/mcp.md#what-protects-what.\
+    \ The hook layer is covered by 82 cases, the receipt\ngate and portable validator\
+    \ by 47, and the matrix states plainly what each layer does\nnot prevent. The\
+    \ two live-Codex rows are the pending criteria above.\n\nac-4 \u2014 protocol,\
+    \ behavioural, packaging, documentation and repository gates pass:\n`poetry run\
+    \ python scripts/check.py` passes on main; 1070 pytest tests, including 18\nprotocol\
+    \ tests driving the packaged subprocess and all ten agent scenarios.\n\nac-5 \u2014\
+    \ Codex CLI and desktop sessions share one configuration: NOT verified here, and\n\
+    left pending. Agent guidance does prefer MCP wherever available and documents\
+    \ direct\nYAML repair as an explicit validated emergency path only; that half\
+    \ is covered by\ntests/test_codex_plugin.py and tests/test_documentation_contract.py.\n\
+    \nEvidence is collected in docs/integration/mcp-release-evidence.md, including\
+    \ what was\nnot verified and why.\n"
+  data: {}
+- id: 18
+  ts: '2026-08-17T09:14:34.176661Z'
+  actor: claude
+  type: handoff
+  body: All ten children merged and closed. Parent acceptance verified except ac-5,
+    which needs a Codex session.
+  data:
+    ball: human
+    ball_reason: review
