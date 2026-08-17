@@ -2,7 +2,7 @@ schema: 2
 id: task-109-agentjobs-mcp-managed-interface
 title: Ship a managed AgentJobs MCP interface and direct-write guardrails
 created: '2026-08-14T19:18:45.666884Z'
-updated: '2026-08-17T08:33:02.615056Z'
+updated: '2026-08-17T08:52:10.544611Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -266,4 +266,16 @@ log:
     closed with ac-5 pending for human verification in Codex. task-118 (validation
     and receipts) is next -- it is the portable backstop for everything the hook cannot
     see, and the layer the hook's own docs point at.
+  data: {}
+- id: 15
+  ts: '2026-08-17T08:52:10.544430Z'
+  actor: claude
+  type: progress
+  body: "Child 9 of 10 complete. task-118 (validation and receipts) merged to main\
+    \ as af20447. Running \\\agentjobs validate\\ on this repository's own corpus\
+    \ reports 95 findings: 60 unknown-actor, 22 unknown-category, 13 non-canonical-serialization.\
+    \ All are pre-existing drift in historical records -- nothing written this session\
+    \ is flagged -- and belong to task-103 (corpus audit), not to this program. The\
+    \ pre-commit gate is opt-in via \\\agentjobs validate --install-hook\\, so nothing\
+    \ breaks today. task-119 (docs and release) is the last child."
   data: {}

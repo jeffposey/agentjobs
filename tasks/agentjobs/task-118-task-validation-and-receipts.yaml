@@ -2,11 +2,9 @@ schema: 2
 id: task-118-task-validation-and-receipts
 title: Add portable task-corpus validation and managed-write receipts
 created: '2026-08-14T19:20:02.257786Z'
-updated: '2026-08-17T08:34:37.688096Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-17T08:52:10.265095Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: infrastructure
@@ -17,7 +15,6 @@ tags:
 - receipts
 effort: 2 days
 assignment:
-  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -116,7 +113,7 @@ dependencies:
 links: []
 branches:
 - name: feat/task-118-task-validation-and-receipts
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-17T08:34:35.194552Z'
@@ -163,3 +160,23 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 3
+  ts: '2026-08-17T08:52:09.678947Z'
+  actor: claude
+  type: decision
+  body: 'Approved for merge under the session delegation recorded on task-109. Review
+    performed before merging: read the full diff; confirmed the complete gate passes
+    (1058 tests) and ran the validator against this repository''s real 94-record corpus.
+    Every state and log invariant I had re-implemented turned out unreachable -- the
+    model rejects those files at load -- so those checks were deleted rather than
+    kept as decoration.'
+  data: {}
+- id: 4
+  ts: '2026-08-17T08:52:10.264957Z'
+  actor: claude
+  type: transition
+  body: Merged to main as af20447 (--no-ff) under the session delegation. Worktree
+    removed, branch deleted. All acceptance criteria met.
+  data:
+    lifecycle: closed
+    outcome: completed
