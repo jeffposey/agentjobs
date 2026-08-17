@@ -435,12 +435,11 @@ def evaluate(event: Dict[str, Any], directories: Sequence[Path], cwd: Path) -> D
         if not command.strip():
             return {"decision": Decision.ALLOW}
 
-        candidates = _candidate_paths(command)
-        managed = [
+        mentioned = [
             (candidate, is_managed_task_file(candidate, directories, cwd))
-            for candidate in candidates
+            for candidate in _candidate_paths(command)
         ]
-        managed = [(path, owner) for path, owner in managed if owner is not None]
+        managed = [(path, owner) for path, owner in mentioned if owner is not None]
         if not managed:
             return {"decision": Decision.ALLOW}
         if _is_read_only_command(command):
