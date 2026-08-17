@@ -1,0 +1,220 @@
+schema: 2
+id: task-126-mcp-in-process-manager
+title: Let the STDIO MCP server run without a separately started service
+created: '2026-08-17T20:47:31.623715Z'
+updated: '2026-08-17T20:47:58.093396Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: architecture
+tags:
+- mcp
+- architecture
+- packaging
+effort: 2-3 days
+assignment:
+  eligible: []
+parent: task-125-plugin-install-without-a-clone
+spec:
+  summary: '`agentjobs mcp` is a REST client: it refuses to start unless an `agentjobs
+    serve` process is already listening at AGENTJOBS_URL. Give it an in-process path
+    to TaskManager so a single user needs one process, not two.'
+  intent: A single user on one machine should not have to run a background service
+    to use a task tool through their agent. The two-process requirement is an artifact
+    of the web UI existing first, and it is the reason a plugin install cannot stand
+    alone.
+  description: 'This is the load-bearing child of task-125. Publishing the package
+    and fixing the
+
+    invocation are cosmetic until the server can run on its own.
+
+
+    TODAY. `src/agentjobs/mcp/compat.py` probes AGENTJOBS_URL at startup and raises
+
+    StartupError if nothing answers, with text that states the design plainly: "Start
+    it
+
+    with `agentjobs serve`, or point AGENTJOBS_URL at the running service. The MCP
+    server
+
+    does not start one for you." The plugin''s `.mcp.json` hardcodes
+
+    `http://127.0.0.1:8765`. So the delivered experience for anyone who has not already
+
+    started a service is a server that fails at initialize.
+
+
+    WHAT TO BUILD. A local transport for TaskClient that calls TaskManager in process
+
+    instead of over HTTP, selected when no service is configured. The tool layer above
+    it
+
+    should not know which one it got -- `src/agentjobs/mcp/routing.py` and the tool
+    modules
+
+    already speak to a client object, so this is a swap beneath them rather than a
+    rewrite.
+
+
+    Suggested resolution order, to be confirmed against the code rather than adopted
+    on my
+
+    say-so: an explicitly set AGENTJOBS_URL wins (someone deliberately pointing at
+    a running
+
+    service, including the web UI''s), otherwise in-process. Getting this backwards
+    matters:
+
+    if in-process silently wins while a service is running, two processes hold the
+    same task
+
+    files and the file locking is doing work it was not designed for. Decide it, record
+    it,
+
+    and test both orders.
+
+
+    THE CONSTRAINT THIS BRUSHES, addressed rather than ignored. task-109 constrains:
+    "MCP
+
+    writes must traverse TaskClient -> project-scoped REST -> TaskManager -> TaskStorage."
+
+    Read literally this forbids the change. Read for its purpose -- stated in that
+    task''s
+
+    intent as making the validated manager the path agents actually take, after an
+    invalid
+
+    task bypassed it -- an in-process TaskManager satisfies it completely, because
+
+    TaskManager IS the validation. The HTTP hop was the mechanism, not the goal. Record
+    this
+
+    as a decision on this task, with that reasoning, so a later reader sees a considered
+
+    reinterpretation rather than a forgotten constraint.
+
+
+    WHAT MUST NOT CHANGE. Idempotency by operation_id, the project-wide creation lock,
+
+    optimistic revisions, and the error code set all live at or below the manager
+    (task-113)
+
+    and must behave identically on both transports. The strongest evidence this change
+    is
+
+    safe is the existing suite passing against BOTH -- so parametrise the protocol
+    and agent
+
+    evaluations from task-115 over the two transports rather than writing new ones.
+
+
+    CONCURRENCY IS THE REAL RISK. The current architecture has exactly one writer
+    process
+
+    because everything funnels through the service. In-process MCP means a session
+    and a
+
+    running `agentjobs serve` can both write. Establish what TaskStorage''s locking
+    actually
+
+    guarantees across processes before claiming this is safe; if it is insufficient,
+    that is
+
+    a finding for this task, not a detail to leave for whoever hits it.'
+  constraints: "- Writes go through TaskManager. Do not reach TaskStorage directly\
+    \ from the tool layer.\n- Do not spawn `agentjobs serve` as a child process. Stale\
+    \ servers serving old code are\n  a failure ENGINEERING.md already documents.\n\
+    - The MCP tool surface does not change: same tools, same arguments, same result\
+    \ shapes,\n  same error codes, whichever transport is in use.\n- An explicitly\
+    \ configured AGENTJOBS_URL must never be silently ignored.\n- The web UI and CLI\
+    \ keep working exactly as they do now."
+  out_of_scope: Removing the REST API, changing the web UI's architecture, remote
+    transport, and any change to the task schema or the tool surface.
+  context:
+  - path: src/agentjobs/mcp/compat.py
+    why: The startup probe and the error text that states the current design.
+  - path: src/agentjobs/mcp/config.py
+    why: AGENTJOBS_URL resolution lives here.
+  - path: src/agentjobs/mcp/routing.py
+    why: The seam the tools already speak through; the transport swap should be invisible
+      above it.
+  - path: src/agentjobs/manager.py
+    why: The authoritative validated path both transports must reach.
+acceptance:
+- id: ac-1
+  text: With no service running and AGENTJOBS_URL unset, `agentjobs mcp` starts, lists
+    every tool, and completes a create/claim/log/handoff/close loop against a real
+    task directory.
+  verify: Drive the packaged server with the official MCP client, no `agentjobs serve`
+    anywhere.
+  status: pending
+- id: ac-2
+  text: With AGENTJOBS_URL explicitly set to a running service, the server uses it
+    and does not silently fall back to in-process.
+  verify: Both orders covered by tests, and the resolution rule recorded as a decision.
+  status: pending
+- id: ac-3
+  text: The task-115 protocol and agent-behaviour evaluations pass against both transports
+    from one parametrised suite, not two copies.
+  verify: poetry run pytest, plus the evals artifact showing both transports
+  status: pending
+- id: ac-4
+  text: Idempotent replay, revision conflicts, the creation lock, and the error code
+    set behave identically on both transports.
+  verify: Existing task-113 coverage parametrised over the transports
+  status: pending
+- id: ac-5
+  text: What happens when an in-process session and a running service write concurrently
+    is established and documented -- either proven safe by TaskStorage's locking or
+    reported as a limitation with its blast radius named.
+  verify: A concurrency test that actually races them, and a decision entry stating
+    the finding.
+  status: pending
+deliverables:
+- path: src/agentjobs/mcp/compat.py
+  note: Startup no longer requires a reachable service when none is configured.
+  status: pending
+- path: src/agentjobs/client.py
+  note: 'Or wherever TaskClient lives: gains a local transport beside the HTTP one.'
+  status: pending
+- path: docs/mcp.md
+  note: Must describe both transports and the resolution rule between them.
+  status: pending
+dependencies:
+- task: task-113-mcp-mutation-safety
+  type: related
+  note: Owns idempotency, the creation lock, revisions and error codes; ac-4 re-proves
+    all of it on the new transport.
+- task: task-115-mcp-protocol-and-agent-evals
+  type: related
+  note: Its ten scenarios become the parametrised proof that both transports behave
+    identically.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T20:47:31.623775Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7b05d3e2-8c46-4fb9-a037-9d528bef4c6c
+      kind: create
+      fingerprint: c35b8405d69bf7ef863096260ea91136
+- id: 2
+  ts: '2026-08-17T20:47:58.093247Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 8c16e4f3-9d57-4a0b-b148-0e639caf5d7d
+      kind: update_content
+      fingerprint: 23ea6d5f03b60f5bfcb113c83c8e54cd

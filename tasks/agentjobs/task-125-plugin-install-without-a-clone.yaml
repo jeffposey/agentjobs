@@ -1,0 +1,140 @@
+schema: 2
+id: task-125-plugin-install-without-a-clone
+title: Make the AgentJobs plugin work for someone who only installs it
+created: '2026-08-17T20:46:19.909573Z'
+updated: '2026-08-17T20:46:47.734675Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: architecture
+tags:
+- mcp
+- plugin
+- packaging
+- onboarding
+effort: multi-task program
+assignment:
+  eligible: []
+spec:
+  summary: 'Installing the AgentJobs plugin from a marketplace gives a user files,
+    not a working system: the MCP server is a REST client with no service to talk
+    to, the Python package it invokes is not installed, and the write guard silently
+    protects nothing because the machine has no project registry. This epic makes
+    a plugin install sufficient on its own.'
+  intent: Every claim that AgentJobs is installable is currently untested against
+    a machine that has not cloned this repository. task-122 established that a first
+    real install finds defects immediately and that structural tests do not substitute
+    for one; this epic is the same lesson applied one level out, to the population
+    that has no repository at all.
+  description: "A marketplace install copies a directory. It does not run pip and\
+    \ it cannot start a\nprocess. Everything the current bundle assumes about the\
+    \ machine it lands on comes from\nthis repository being cloned first, which is\
+    \ true for exactly one person.\n\nWHAT A CLONE-FREE USER ACTUALLY GETS TODAY,\
+    \ traced 2026-08-17 rather than assumed:\n\n- `skills/agentjobs/SKILL.md` -- works.\
+    \ Pure markdown, no dependencies.\n- `hooks/*.py` -- load and run. Deliberately\
+    \ stdlib-only, importing nothing from the\n  AgentJobs package, so the install\
+    \ does not break them. But see the registry problem\n  below, which makes them\
+    \ a no-op.\n- `.mcp.json` -- BROKEN. It runs the console script `agentjobs`, which\
+    \ arrives with the\n  Python package, which a plugin install does not deliver.\n\
+    - Even with the package installed, `agentjobs mcp` is a CLIENT of a REST service\
+    \ at\n  AGENTJOBS_URL. `src/agentjobs/mcp/compat.py` says so in the error text\
+    \ a user would\n  hit: \"The MCP server does not start one for you.\" So a second\
+    \ process, `agentjobs\n  serve`, must already be running.\n- `~/.agentjobs/projects.yaml`\
+    \ does not exist on a fresh machine, so\n  `managed_directories()` returns an\
+    \ empty list and the guard allows every write. It is\n  installed, loaded, and\
+    \ protecting nothing.\n- The hook shells out to bare `python`. On Windows with\
+    \ no real Python on PATH that is\n  the Microsoft Store stub.\n\nThe architecture\
+    \ is not the problem; the delivery assumes a developer's machine. Four\nchildren\
+    \ close the gap, and their order is a real dependency chain rather than a\npreference:\n\
+    \n1. task-126 makes the STDIO server self-sufficient. Everything else is cosmetic\
+    \ until a\n   user can run the server without separately running a service.\n\
+    2. task-127 publishes the package and changes the invocation so no clone or venv\
+    \ is\n   needed.\n3. task-128 gives the agent a way to create and register a project,\
+    \ so a successful\n   install is not merely a correctly configured emptiness.\n\
+    4. task-129 fixes the guard's silent no-op, which is worth doing whether or not\
+    \ the rest\n   of this epic ever happens.\n\nNOT URGENT. Jeff set this aside on\
+    \ 2026-08-17: it becomes real when someone other than\nhim is going to try AgentJobs.\
+    \ Until then it is the map of what that would cost. Do not\npromote it over backlog\
+    \ work that serves the person actually using the product today."
+  constraints: "- Writes must still reach TaskManager/TaskStorage through the validated\
+    \ path. task-109's\n  constraint named REST as the route; its PURPOSE was validation,\
+    \ not HTTP. An\n  in-process manager satisfies the purpose and task-126 records\
+    \ that reading explicitly.\n- Do not have the MCP server spawn `agentjobs serve`\
+    \ as a child process. That\n  reintroduces the stale-server failure ENGINEERING.md\
+    \ already carries a warning about,\n  plus port conflicts and orphans.\n- No machine-specific\
+    \ absolute paths and no secrets in plugin artifacts.\n- Verification for every\
+    \ child means a real install on a machine state that has not\n  cloned this repository,\
+    \ not a test asserting the configuration looks right."
+  out_of_scope: Remote/hosted MCP transport, multi-user or networked deployment, authentication,
+    a hosted AgentJobs service, and any change to the task schema.
+  context:
+  - path: plugins/agentjobs/.mcp.json
+    why: Invokes the bare `agentjobs` console script and pins AGENTJOBS_URL. Both
+      assumptions fail without a clone.
+  - path: src/agentjobs/mcp/compat.py
+    why: 'Lines ~145-152 are the error a clone-free user hits: the MCP server requires
+      a separately running service.'
+  - path: plugins/agentjobs/hooks/task_write_guard.py
+    why: managed_directories() reads ~/.agentjobs/projects.yaml; empty registry means
+      the guard allows everything.
+  - path: pyproject.toml
+    why: Packaging metadata and the agentjobs console script entry point.
+acceptance:
+- id: ac-1
+  text: Every child task is closed completed with its evidence in the task log.
+  verify: tasks_list with parent=task-125-plugin-install-without-a-clone
+  status: pending
+- id: ac-2
+  text: On a machine that has never cloned this repository, installing the plugin
+    and starting a session yields working MCP tools, a triggering skill, and a guard
+    that actually denies -- with no separate service started by hand.
+  verify: A real install on a clean machine or a clean user profile. Not substitutable
+    by tests.
+  status: pending
+- id: ac-3
+  text: That user can go from zero to a registered project with tasks in it without
+    leaving the agent session.
+  verify: Live session, driven the way a new user would.
+  status: pending
+deliverables:
+- path: docs/mcp-clients.md
+  note: Must end up describing an install path that works without a clone, replacing
+    instructions that silently assume one.
+  status: pending
+dependencies:
+- task: task-122-claude-code-plugin-and-guard
+  type: related
+  note: Shipped the Claude bundle and proved that only a real install finds this class
+    of defect. This epic is that lesson applied to users with no repository.
+- task: task-124-codex-plugin-install-and-verification
+  type: related
+  note: Codex's install verification. Same delivery surface, different client; findings
+    should cross-pollinate.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T20:46:19.909631Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: 5f83b1c0-6a24-4d97-8e15-7b306c9d2f4a
+      kind: create
+      fingerprint: 73401de6dc40664aaae3670679af0f38
+- id: 2
+  ts: '2026-08-17T20:46:47.734555Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 6a94c2d1-7b35-4ea8-9f26-8c417ade3b5b
+      kind: update_content
+      fingerprint: 1bf81eebd4b6890a604ac572499e6c76

@@ -1,0 +1,215 @@
+schema: 2
+id: task-127-publish-and-invoke-without-a-venv
+title: Publish the package and invoke it without a clone or a virtualenv
+created: '2026-08-17T20:48:41.056258Z'
+updated: '2026-08-17T20:50:29.065317Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: infrastructure
+tags:
+- packaging
+- release
+- mcp
+- plugin
+effort: 1-2 days
+assignment:
+  eligible: []
+parent: task-125-plugin-install-without-a-clone
+spec:
+  summary: The plugin's .mcp.json runs the bare console script `agentjobs`, which
+    only exists if the user pip-installed the package or cloned the repo. Publish
+    AgentJobs to PyPI and change the invocation to something that resolves on a machine
+    with neither.
+  intent: A plugin install should not silently depend on a Python package the user
+    has never heard of. Publishing is the difference between a bundle that configures
+    AgentJobs and a bundle that delivers it.
+  description: '`plugins/agentjobs/.mcp.json` is `{"command": "agentjobs", "args":
+    ["mcp"]}`. That
+
+    resolves in exactly two situations: the package was pip-installed into an environment
+    on
+
+    PATH, or someone is inside a clone''s virtualenv. A marketplace install delivers
+    neither,
+
+    so the MCP server never starts for a clone-free user.
+
+
+    Two halves.
+
+
+    PUBLISH. `pyproject.toml` already carries the metadata -- name, license, homepage,
+
+    classifiers, the `agentjobs = "agentjobs.cli:app"` script -- so this is a release
+
+    process, not a packaging rewrite. Settle: whether 0.1.0 is the number to publish,
+    who
+
+    owns the PyPI name, whether a TestPyPI dry run comes first, and how the version
+    stays in
+
+    step with the plugin manifests, which currently hardcode `0.1.0` in two files.
+
+    Note the wheel bundles `src/agentjobs/frontend_dist`, so publishing means the
+    React app
+
+    ships too; confirm the built assets are actually in the sdist and wheel rather
+    than
+
+    assuming the `include` stanza works.
+
+
+    INVOKE. `uvx agentjobs mcp` fetches and runs the published package in an ephemeral
+
+    environment, needing only `uv` on the machine -- no clone, no venv, no pip step
+    by the
+
+    user. That is the recommended shape, but verify it against how the client actually
+
+    spawns servers before committing: MCP clients spawn through argv with no shell,
+    which is
+
+    exactly what made the Windows `agentjobs` shim unusable in task-122 log entry
+    3. Check
+
+    that `uvx` itself resolves that way on Windows, macOS and Linux.
+
+
+    Weigh at least one alternative and record why it lost: `pipx run agentjobs mcp`
+    (same
+
+    idea, different tool, more likely already installed by Python users but slower
+    to
+
+    resolve), or documenting `pip install agentjobs` as a prerequisite (honest, but
+    it puts
+
+    a manual step in front of the install this epic exists to make sufficient).
+
+
+    Whatever wins, `uv` or its equivalent is then a prerequisite the user must have.
+    Say so
+
+    in the docs plainly and check what the failure looks like when it is missing --
+    a server
+
+    that fails to spawn with no explanation is worse than a documented dependency.
+
+
+    VERSION SKEW is the quiet risk. `uvx agentjobs` with no pin fetches the newest
+    release,
+
+    while the installed plugin is whatever version the marketplace served. The MCP
+    server
+
+    already refuses a mismatched service (`compat.py` checks version and schema),
+    so decide
+
+    whether the invocation pins a version, floats, or floats within a range -- and
+    make the
+
+    mismatch produce an intelligible message rather than a startup failure.'
+  constraints: "- Do not vendor the server into the plugin directory. One implementation,\
+    \ packaged, as\n  task-109 established.\n- No machine-specific absolute paths\
+    \ in .mcp.json.\n- The invocation must work on Windows, macOS and Linux, spawned\
+    \ through argv with no\n  shell.\n- Publishing to PyPI is irreversible for a given\
+    \ version number. Jeff decides when it\n  happens and under whose account; an\
+    \ agent prepares and proposes it.\n- Plugin manifest versions and the package\
+    \ version must not be able to drift silently."
+  out_of_scope: Conda or OS package manager distribution, a standalone binary, a hosted
+    service, and any change to the MCP tool surface.
+  context:
+  - path: plugins/agentjobs/.mcp.json
+    why: The bare `agentjobs` command this task replaces.
+  - path: pyproject.toml
+    why: Existing release metadata, the console script, and the frontend_dist include
+      stanza.
+  - path: src/agentjobs/mcp/compat.py
+    why: Version and schema compatibility checks that decide what a mismatch looks
+      like.
+  - path: docs/mcp-clients.md
+    why: Carries the per-client install instructions that currently assume a clone.
+acceptance:
+- id: ac-1
+  text: The package is published and installable from a public index into a clean
+    environment, and `agentjobs mcp` runs from that install.
+  verify: Fresh venv, install from the index (not from the working tree), start the
+    server.
+  status: pending
+- id: ac-2
+  text: The plugin's .mcp.json invocation starts the server on a machine with no clone
+    and no pre-existing AgentJobs install.
+  verify: Real plugin install on a clean profile; the deciding evidence for this task.
+  status: pending
+- id: ac-3
+  text: The invocation is verified on Windows, macOS and Linux, spawned the way an
+    MCP client spawns it rather than from a shell.
+  verify: Recorded per platform; note which were tested on real machines and which
+    were not.
+  status: pending
+- id: ac-4
+  text: Version resolution between the installed plugin and the fetched package is
+    decided, implemented, and produces an intelligible message on mismatch instead
+    of a bare startup failure.
+  verify: A test that forces the mismatch and asserts the message.
+  status: pending
+- id: ac-5
+  text: A single source of truth drives the package version and both plugin manifests;
+    drift fails a test.
+  verify: poetry run pytest tests/test_claude_plugin.py tests/test_codex_plugin.py
+  status: pending
+- id: ac-6
+  text: The published artifacts actually contain the built frontend assets the include
+    stanza claims.
+  verify: Inspect the built sdist and wheel contents, do not trust the stanza.
+  status: pending
+deliverables:
+- path: plugins/agentjobs/.mcp.json
+  note: Invocation that resolves without a clone or venv.
+  status: pending
+- path: pyproject.toml
+  note: Release-ready metadata and whatever drives the single version source.
+  status: pending
+- path: docs/mcp-clients.md
+  note: Install instructions for a user who will never clone this repository, including
+    any prerequisite such as uv.
+  status: pending
+dependencies:
+- task: task-126-mcp-in-process-manager
+  type: needs
+  note: Publishing an invocation that still demands a separately running service would
+    ship a broken experience with a shorter command. The server has to stand alone
+    first.
+- task: task-119-mcp-docs-and-release
+  type: related
+  note: Established the release documentation and evidence practice this extends to
+    an actual publication.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T20:48:41.056310Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: 9d27f504-0e68-4b1c-a259-1f74acbe6e8e
+      kind: create
+      fingerprint: a431b6ce48ee3ed8a121b2444a24edc1
+- id: 2
+  ts: '2026-08-17T20:50:29.065160Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 2a5ac837-3192-4e4f-d580-42a7cf29b021
+      kind: update_content
+      fingerprint: 292f0ca5bdf6fbbb513047b5c1c281a9

@@ -1,0 +1,151 @@
+schema: 2
+id: task-129-guard-silent-noop-on-empty-registry
+title: Stop the write guard from silently protecting nothing
+created: '2026-08-17T20:50:05.641263Z'
+updated: '2026-08-17T20:51:04.173336Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: correctness
+tags:
+- hooks
+- guard
+- observability
+effort: half a day
+assignment:
+  eligible: []
+parent: task-125-plugin-install-without-a-clone
+spec:
+  summary: When the machine registry is missing or empty, `managed_directories()`
+    returns an empty list and the guard allows every write while appearing installed
+    and healthy. Make that state observable instead of silent.
+  intent: A guard that cannot be distinguished from a working guard when it is doing
+    nothing is worse than no guard, because it converts a known gap into false confidence.
+    Every other layer of this system states plainly what it does not protect; this
+    one does not.
+  description: "`plugins/agentjobs/hooks/task_write_guard.py::managed_directories()`\
+    \ builds its list from\nAGENTJOBS_TASKS_DIR, AGENTJOBS_PROJECT_ROOT, and the registry\
+    \ at\n`~/.agentjobs/projects.yaml`. On a machine with none of those -- which is\
+    \ every machine\nthat has installed the plugin and not yet registered a project\
+    \ -- it returns `[]`, and\n`evaluate()` then has nothing to match against, so\
+    \ every write is allowed.\n\nNothing is broken in the strict sense: with no managed\
+    \ directories there is nothing to\nprotect. The problem is that this is indistinguishable,\
+    \ from the outside, from a guard\nthat is working. A user installs the bundle,\
+    \ is told it refuses direct writes to task\nYAML, and gets no signal that it is\
+    \ inert. That is the same failure shape as the\nNotebookEdit hole in task-122\
+    \ log entry 11 and the invented manifest schema in entry 18:\ncorrect-looking\
+    \ configuration, no enforcement, no symptom.\n\nThis is worth fixing whether or\
+    \ not the rest of task-125 is ever built, because it is\nalready true on any machine\
+    \ but Jeff's.\n\nWHAT TO DECIDE, and it is a genuine design question rather than\
+    \ an obvious fix. The hook\nruns on every Edit, Write, NotebookEdit and Bash call,\
+    \ so anything it emits routinely is\nnoise a user will learn to ignore -- and\
+    \ Claude's protocol makes `allow` mean \"skip the\npermission system\", so the\
+    \ guard deliberately says nothing when it permits (task-122 log\nentry 11, binding).\
+    \ Whatever this task does must not violate that.\n\nOptions worth weighing, none\
+    \ of them yet chosen:\n- A one-line note on the FIRST matched call of a session\
+    \ and never again.\n- Say nothing at runtime, and surface it through a check the\
+    \ user or agent can run --\n  which pairs naturally with task-128's onboarding\
+    \ path.\n- Distinguish \"no registry file at all\" (probably a fresh install,\
+    \ worth mentioning)\n  from \"registry exists and lists no projects\" (probably\
+    \ deliberate, stay quiet).\n\nAlso confirm, rather than assume: whether a malformed\
+    \ or unreadable registry currently\nfails closed, fails open, or throws. `_registry_roots()`\
+    \ parses YAML by hand with a\nminimal scan, so a file it cannot understand may\
+    \ silently produce zero roots -- which\nwould be the same invisible no-op arriving\
+    \ from a different direction, and a more\nalarming one because the user does have\
+    \ projects.\n\nSECOND, SMALLER ITEM in the same area: `hooks-claude.json` invokes\
+    \ bare `python`. On\nWindows without real Python on PATH that resolves to the\
+    \ Microsoft Store stub, which\nexits without running the guard -- fail-open again,\
+    \ silently. Establish what the hook\ndoes when its interpreter is missing or wrong,\
+    \ and whether that can be made visible."
+  constraints: "- Do not emit a Claude `permissionDecision: \"allow\"`. It means \"\
+    skip the permission\n  system\", and the hook matches Edit, Write, NotebookEdit\
+    \ and Bash -- task-122 log entry\n  11 is binding on this.\n- Do not make the\
+    \ hook noisy on the common path. It runs on nearly every tool call.\n- The guard\
+    \ must stay stdlib-only and must not import the AgentJobs package; it has to\n\
+    \  work when the package is not installed.\n- Keep fail-open behaviour on internal\
+    \ error. Changing that is not in scope here.\n- The shared decision module stays\
+    \ shared: no client-specific divergence beyond the\n  existing serialisers."
+  out_of_scope: Making the hook a security boundary, changing the fail-open error
+    posture, and any change to which tools or paths are considered writes.
+  context:
+  - path: plugins/agentjobs/hooks/task_write_guard.py
+    why: managed_directories() at ~line 205 and _registry_roots() at ~line 241 are
+      the whole subject.
+  - path: plugins/agentjobs/hooks/hooks-claude.json
+    why: Invokes bare `python`; the interpreter-missing case.
+  - path: tests/task_write_guard_matrix.py
+    why: The shared case table both clients subclass.
+acceptance:
+- id: ac-1
+  text: With no registry and no environment overrides, the inert state is discoverable
+    by the user rather than silent -- by whichever mechanism this task selects, recorded
+    as a decision with its rejected alternatives.
+  verify: Test the chosen mechanism; the decision entry carries the reasoning.
+  status: pending
+- id: ac-2
+  text: The guard still says nothing on the ordinary allow path, and still never emits
+    a Claude allow decision.
+  verify: poetry run pytest tests/test_claude_task_write_hook.py -k allow
+  status: pending
+- id: ac-3
+  text: A malformed or unreadable registry is established to fail one way or the other,
+    deliberately, with a test pinning it -- not left to a hand-rolled YAML scan returning
+    zero roots by accident.
+  verify: Cases for missing, empty, malformed and unreadable registry files.
+  status: pending
+- id: ac-4
+  text: What the hook does when `python` does not resolve, or resolves to the Windows
+    Store stub, is established and documented.
+  verify: Reproduce on a PATH without real Python; record the observed behaviour.
+  status: pending
+- id: ac-5
+  text: The shared matrix still passes for both clients and the guard remains importable
+    with the AgentJobs package absent.
+  verify: poetry run pytest tests/test_claude_task_write_hook.py tests/test_codex_task_write_hook.py
+  status: pending
+deliverables:
+- path: plugins/agentjobs/hooks/task_write_guard.py
+  note: managed_directories() and whatever surfaces the empty case.
+  status: pending
+- path: tests/task_write_guard_matrix.py
+  note: Cases for empty, missing, malformed and unreadable registries.
+  status: pending
+- path: docs/mcp.md
+  note: The what-protects-what matrix should say what an unregistered machine gets.
+  status: pending
+dependencies:
+- task: task-117-codex-direct-write-hook
+  type: related
+  note: Built the guard and its coverage matrix.
+- task: task-122-claude-code-plugin-and-guard
+  type: related
+  note: Log entry 11 binds the no-allow rule this task must not break; log entry 21
+    records the chained-command precision limit found in the same area.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T20:50:05.641315Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: 1f49b726-2081-4d3e-c47b-3196ceb18a10
+      kind: create
+      fingerprint: 89038f75f350f3564381cd16b98946f3
+- id: 2
+  ts: '2026-08-17T20:51:04.173207Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 4c7ce059-53b4-4061-f702-64f19fac2243
+      kind: update_content
+      fingerprint: e78904bbac46c7bf8249a4af01509acb

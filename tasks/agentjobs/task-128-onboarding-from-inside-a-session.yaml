@@ -1,0 +1,192 @@
+schema: 2
+id: task-128-onboarding-from-inside-a-session
+title: Let a new user create and register their first project from the agent session
+created: '2026-08-17T20:49:21.864907Z'
+updated: '2026-08-17T20:50:42.388694Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: developer_experience
+tags:
+- mcp
+- onboarding
+- plugin
+effort: 1 day
+assignment:
+  eligible: []
+parent: task-125-plugin-install-without-a-clone
+spec:
+  summary: 'A successful plugin install leaves a user with working tools and nothing
+    to point them at: `agentjobs init` exists only as a CLI command, unreachable for
+    someone whose entire surface is the plugin. Give the MCP server a way to create
+    and register a project so onboarding happens in conversation.'
+  intent: The gap between "the plugin installed correctly" and "I can use AgentJobs"
+    is currently a shell command a new user has no reason to know exists. Closing
+    it inside the session is what makes the install self-sufficient rather than merely
+    correct.
+  description: 'Once task-126 and task-127 land, a user can install the plugin and
+    get fourteen working
+
+    tools. `projects_list` then returns an empty list and there is nothing else the
+    agent can
+
+    do for them: every other tool requires a project_id, and the only way to create
+    one is
+
+    `agentjobs init` from a shell inside the project directory.
+
+
+    For the population this epic is about, that shell command is not obviously available
+    and
+
+    not obviously discoverable. The install succeeds and the product appears empty.
+
+
+    WHAT TO BUILD. A creation tool on the MCP surface -- working name `project_init`
+    -- that
+
+    registers a directory as an AgentJobs project: writes `.agentjobs/config.yaml`,
+    creates
+
+    the tasks directory, and adds the project to the machine registry at
+
+    `~/.agentjobs/projects.yaml`. It must go through the same code path `agentjobs
+    init`
+
+    uses; a second implementation of project creation will drift from the first.
+
+
+    Decide and record: the actor vocabulary. Every mutating tool requires an actor
+    from the
+
+    project''s configured list, and a brand-new project has no list, so `project_init`
+    has to
+
+    establish one -- and the human''s `default_user` -- as part of creation. Whether
+    that
+
+    comes from arguments, from sensible defaults, or from asking the user through
+    the agent
+
+    is the substance of this task, not a detail.
+
+
+    WHAT MAKES THIS DELICATE. `project_init` writes to a directory the user names
+    and to
+
+    their home directory, on the strength of an agent''s tool call. That is a different
+    risk
+
+    class from every other tool on this surface, which only ever touches an
+
+    already-registered project. At minimum: refuse to initialise a directory that
+    is already
+
+    a project unless explicitly told to, never write outside the named directory and
+    the
+
+    registry, and make the tool''s description state plainly what it creates and where
+    -- an
+
+    agent reading only the schema should not be able to run it by accident.
+
+
+    THE SKILL SHOULD KNOW. `SKILL.md` currently opens with `projects_list` and assumes
+    the
+
+    answer is non-empty. Teach it the empty case: offer to set one up, do not invent
+    a
+
+    project silently. That wording matters more than the tool -- it is what turns
+    an empty
+
+    install into a first task.'
+  constraints: "- Reuse the existing init code path. Do not write a second project-creation\n\
+    \  implementation.\n- The tool must not write anywhere except the directory it\
+    \ was given and the machine\n  registry.\n- Initialising over an existing project\
+    \ must not be the default behaviour.\n- No generic filesystem tool sneaks in under\
+    \ this name: `project_init` creates a project,\n  and nothing else.\n- The skill\
+    \ must not invent or assume a project when `projects_list` is empty."
+  out_of_scope: Project deletion or de-registration, editing an existing project's
+    configuration, multi-project templates, and any change to the task schema.
+  context:
+  - path: src/agentjobs/cli.py
+    why: '`agentjobs init` and the code path the tool must reuse.'
+  - path: src/agentjobs/mcp/mutation_tools.py
+    why: How existing mutation tools are declared, validated and attributed.
+  - path: plugins/agentjobs/skills/agentjobs/SKILL.md
+    why: Opens with projects_list and assumes a non-empty answer.
+acceptance:
+- id: ac-1
+  text: An MCP tool creates and registers a project, and it shares the code path with
+    `agentjobs init` rather than duplicating it.
+  verify: poetry run pytest, plus a test asserting one implementation
+  status: pending
+- id: ac-2
+  text: The new project's actor vocabulary and default_user are established at creation,
+    so the very next mutating tool call succeeds without hand-editing config.
+  verify: Create a project through the tool, then create and claim a task in it, all
+    through MCP.
+  status: pending
+- id: ac-3
+  text: Initialising a directory that is already a project is refused unless explicitly
+    overridden, and the tool never writes outside the named directory and the registry.
+  verify: Tests for both, including an attempted write outside the target.
+  status: pending
+- id: ac-4
+  text: With an empty registry, a session asked to work on tasks offers to set a project
+    up instead of failing or inventing one.
+  verify: Live session on a profile with no registered projects.
+  status: pending
+- id: ac-5
+  text: SKILL.md teaches the empty-registry case, and both clients' skills stay in
+    step.
+  verify: poetry run pytest tests/test_codex_plugin.py tests/test_claude_plugin.py
+  status: pending
+deliverables:
+- path: src/agentjobs/mcp/mutation_tools.py
+  note: 'Or a new module: the project creation tool.'
+  status: pending
+- path: plugins/agentjobs/skills/agentjobs/SKILL.md
+  note: Teaches the empty-registry path.
+  status: pending
+- path: docs/mcp.md
+  note: Tool reference gains the new verb and its safety rules.
+  status: pending
+dependencies:
+- task: task-126-mcp-in-process-manager
+  type: related
+  note: Onboarding only matters to a user whose server starts unaided, but the tool
+    itself does not depend on the transport.
+- task: task-111-mcp-projects-and-actors
+  type: related
+  note: Established actor validation against the project vocabulary; this task has
+    to create that vocabulary from nothing.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T20:49:21.864990Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: 0e38a615-1f79-4c2d-b36a-2085bdf07f9f
+      kind: create
+      fingerprint: ef19184bc04a7c70584775a1d453f4f6
+- id: 2
+  ts: '2026-08-17T20:50:42.388358Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 3b6bd948-42a3-4f50-e691-53b8d0ea1132
+      kind: update_content
+      fingerprint: 1686de8b9e28476cc831a96588028c90
