@@ -291,14 +291,14 @@
         "properties": {
           "active_tasks": {
             "items": {
-              "$ref": "#/components/schemas/TaskRead"
+              "$ref": "#/components/schemas/TaskRead-Output"
             },
             "title": "Active Tasks",
             "type": "array"
           },
           "backlog_tasks": {
             "items": {
-              "$ref": "#/components/schemas/TaskRead"
+              "$ref": "#/components/schemas/TaskRead-Output"
             },
             "title": "Backlog Tasks",
             "type": "array"
@@ -324,7 +324,7 @@
           "next_task": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TaskRead"
+                "$ref": "#/components/schemas/TaskRead-Output"
               },
               {
                 "type": "null"
@@ -343,7 +343,7 @@
           },
           "waiting_tasks": {
             "items": {
-              "$ref": "#/components/schemas/TaskRead"
+              "$ref": "#/components/schemas/TaskRead-Output"
             },
             "title": "Waiting Tasks",
             "type": "array"
@@ -1735,7 +1735,7 @@
           },
           "children": {
             "items": {
-              "$ref": "#/components/schemas/TaskRead"
+              "$ref": "#/components/schemas/TaskRead-Output"
             },
             "title": "Children",
             "type": "array"
@@ -1753,7 +1753,7 @@
           "parent_task": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TaskRead"
+                "$ref": "#/components/schemas/TaskRead-Output"
               },
               {
                 "type": "null"
@@ -1761,7 +1761,7 @@
             ]
           },
           "task": {
-            "$ref": "#/components/schemas/TaskRead"
+            "$ref": "#/components/schemas/TaskRead-Output"
           }
         },
         "required": [
@@ -1776,7 +1776,224 @@
         "title": "TaskDetailResponse",
         "type": "object"
       },
-      "TaskRead": {
+      "TaskRead-Input": {
+        "additionalProperties": false,
+        "description": "Task plus server-computed dependency state for read surfaces.",
+        "properties": {
+          "acceptance": {
+            "items": {
+              "$ref": "#/components/schemas/AcceptanceCriterion"
+            },
+            "title": "Acceptance",
+            "type": "array"
+          },
+          "actionable": {
+            "default": false,
+            "title": "Actionable",
+            "type": "boolean"
+          },
+          "archived": {
+            "default": false,
+            "description": "Visibility flag, orthogonal to how the task ended.",
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "assignment": {
+            "$ref": "#/components/schemas/Assignment"
+          },
+          "ball": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ball"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who acts next. Required while open."
+          },
+          "ball_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The ask, addressed to whoever holds the ball. Required when ball is set.",
+            "title": "Ball Prompt"
+          },
+          "ball_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BallReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why they hold it, scoped to the holder."
+          },
+          "branches": {
+            "items": {
+              "$ref": "#/components/schemas/Branch"
+            },
+            "title": "Branches",
+            "type": "array"
+          },
+          "category": {
+            "description": "Project taxonomy; validated against config.",
+            "title": "Category",
+            "type": "string"
+          },
+          "created": {
+            "format": "date-time",
+            "title": "Created",
+            "type": "string"
+          },
+          "deliverables": {
+            "items": {
+              "$ref": "#/components/schemas/Deliverable"
+            },
+            "title": "Deliverables",
+            "type": "array"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/Dependency"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Free text. An estimate, not a contract.",
+            "title": "Effort"
+          },
+          "id": {
+            "description": "Unique task identifier.",
+            "title": "Id",
+            "type": "string"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/Lifecycle",
+            "default": "draft"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "title": "Links",
+            "type": "array"
+          },
+          "log": {
+            "items": {
+              "$ref": "#/components/schemas/LogEntry"
+            },
+            "title": "Log",
+            "type": "array"
+          },
+          "needs_cycles": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Needs Cycles",
+            "type": "array"
+          },
+          "open_children_count": {
+            "default": 0,
+            "title": "Open Children Count",
+            "type": "integer"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Outcome"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How it ended. Set only when closed."
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Task id of the umbrella task, if any.",
+            "title": "Parent"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/Priority",
+            "default": "medium"
+          },
+          "schema": {
+            "default": 2,
+            "description": "Schema version stamp. Always 2 for this model (D3).",
+            "title": "Schema",
+            "type": "integer"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/Spec"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "description": "Task title.",
+            "title": "Title",
+            "type": "string"
+          },
+          "unblocks_count": {
+            "default": 0,
+            "title": "Unblocks Count",
+            "type": "integer"
+          },
+          "unmet_needs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unmet Needs",
+            "type": "array"
+          },
+          "updated": {
+            "format": "date-time",
+            "title": "Updated",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created",
+          "updated",
+          "category",
+          "spec"
+        ],
+        "title": "TaskRead",
+        "type": "object"
+      },
+      "TaskRead-Output": {
         "additionalProperties": false,
         "description": "Task plus server-computed dependency state for read surfaces.",
         "properties": {
@@ -2186,6 +2403,27 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VersionResponse": {
+        "description": "What a client needs to decide whether it can talk to this service.\n\nTwo independent numbers. ``version`` is the installed AgentJobs distribution and\ngoverns the shape of the REST surface; ``schema_version`` is the task-record\nschema and governs the shape of the documents that surface returns. A client can\nmatch one and not the other, so neither is derivable from the other.",
+        "properties": {
+          "schema_version": {
+            "description": "Task record schema version served.",
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "version": {
+            "description": "Installed AgentJobs package version.",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "schema_version"
+        ],
+        "title": "VersionResponse",
         "type": "object"
       },
       "Webhook": {
@@ -2815,7 +3053,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/TaskRead"
+                    "$ref": "#/components/schemas/TaskRead-Output"
                   },
                   "title": "Response List Tasks Api Projects  Project Id  Tasks Get",
                   "type": "array"
@@ -4254,7 +4492,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/TaskRead"
+                    "$ref": "#/components/schemas/TaskRead-Output"
                   },
                   "title": "Response List Tasks Api Tasks Get",
                   "type": "array"
@@ -5124,6 +5362,28 @@
         "summary": "Request Changes",
         "tags": [
           "tasks"
+        ]
+      }
+    },
+    "/api/version": {
+      "get": {
+        "description": "Report the versions a client must match before it starts issuing calls.\n\nAdded for the MCP server's startup probe, which refuses to serve tools against a\nservice it cannot understand. The version is already in ``/openapi.json``, but\nreading it there makes every client parse a large document to learn two fields.",
+        "operationId": "api_version_api_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Version",
+        "tags": [
+          "system"
         ]
       }
     },

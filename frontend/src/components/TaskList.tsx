@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
-import type { BrokenTaskFile, TaskRead } from "../api/generated";
+import type { BrokenTaskFile, TaskRead } from "../api/types";
 import { BrokenFiles } from "./BrokenFiles";
 import { DependencyState } from "./DependencyState";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";

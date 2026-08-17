@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
-import type { DashboardResponse, TaskRead } from "../api/generated";
+import type { DashboardResponse, TaskRead } from "../api/types";
 import { Dashboard } from "./Dashboard";
 
 function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {

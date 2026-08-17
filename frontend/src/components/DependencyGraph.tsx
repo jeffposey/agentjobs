@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 
-import type { ScopedDependencyEdge, TaskRead } from "../api/generated";
+import type { ScopedDependencyEdge, TaskRead } from "../api/types";
 import { DependencyState } from "./DependencyState";
 
 function taskPath(projectId: string, taskId: string) {

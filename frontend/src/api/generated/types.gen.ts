@@ -230,11 +230,11 @@ export type DashboardResponse = {
     /**
      * Active Tasks
      */
-    active_tasks: Array<TaskRead>;
+    active_tasks: Array<TaskReadOutput>;
     /**
      * Backlog Tasks
      */
-    backlog_tasks: Array<TaskRead>;
+    backlog_tasks: Array<TaskReadOutput>;
     /**
      * Broken Files
      */
@@ -243,7 +243,7 @@ export type DashboardResponse = {
      * Next Action
      */
     next_action: 'blocked' | 'backlog' | 'next_up' | 'nothing_claimable' | 'empty_project';
-    next_task: TaskRead | null;
+    next_task: TaskReadOutput | null;
     /**
      * Recent Updates
      */
@@ -252,7 +252,7 @@ export type DashboardResponse = {
     /**
      * Waiting Tasks
      */
-    waiting_tasks: Array<TaskRead>;
+    waiting_tasks: Array<TaskReadOutput>;
 };
 
 /**
@@ -1179,14 +1179,14 @@ export type TaskDetailResponse = {
     /**
      * Children
      */
-    children: Array<TaskRead>;
+    children: Array<TaskReadOutput>;
     identity: ReviewIdentity;
     /**
      * Needs
      */
     needs: Array<DependencyRelation>;
-    parent_task: TaskRead | null;
-    task: TaskRead;
+    parent_task: TaskReadOutput | null;
+    task: TaskReadOutput;
 };
 
 /**
@@ -1194,7 +1194,135 @@ export type TaskDetailResponse = {
  *
  * Task plus server-computed dependency state for read surfaces.
  */
-export type TaskRead = {
+export type TaskReadInput = {
+    /**
+     * Acceptance
+     */
+    acceptance?: Array<AcceptanceCriterion>;
+    /**
+     * Actionable
+     */
+    actionable?: boolean;
+    /**
+     * Archived
+     *
+     * Visibility flag, orthogonal to how the task ended.
+     */
+    archived?: boolean;
+    assignment?: Assignment;
+    /**
+     * Who acts next. Required while open.
+     */
+    ball?: Ball | null;
+    /**
+     * Ball Prompt
+     *
+     * The ask, addressed to whoever holds the ball. Required when ball is set.
+     */
+    ball_prompt?: string | null;
+    /**
+     * Why they hold it, scoped to the holder.
+     */
+    ball_reason?: BallReason | null;
+    /**
+     * Branches
+     */
+    branches?: Array<Branch>;
+    /**
+     * Category
+     *
+     * Project taxonomy; validated against config.
+     */
+    category: string;
+    /**
+     * Created
+     */
+    created: string;
+    /**
+     * Deliverables
+     */
+    deliverables?: Array<Deliverable>;
+    /**
+     * Dependencies
+     */
+    dependencies?: Array<Dependency>;
+    /**
+     * Effort
+     *
+     * Free text. An estimate, not a contract.
+     */
+    effort?: string | null;
+    /**
+     * Id
+     *
+     * Unique task identifier.
+     */
+    id: string;
+    lifecycle?: Lifecycle;
+    /**
+     * Links
+     */
+    links?: Array<Link>;
+    /**
+     * Log
+     */
+    log?: Array<LogEntry>;
+    /**
+     * Needs Cycles
+     */
+    needs_cycles?: Array<Array<string>>;
+    /**
+     * Open Children Count
+     */
+    open_children_count?: number;
+    /**
+     * How it ended. Set only when closed.
+     */
+    outcome?: Outcome | null;
+    /**
+     * Parent
+     *
+     * Task id of the umbrella task, if any.
+     */
+    parent?: string | null;
+    priority?: Priority;
+    /**
+     * Schema
+     *
+     * Schema version stamp. Always 2 for this model (D3).
+     */
+    schema?: number;
+    spec: Spec;
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Title
+     *
+     * Task title.
+     */
+    title: string;
+    /**
+     * Unblocks Count
+     */
+    unblocks_count?: number;
+    /**
+     * Unmet Needs
+     */
+    unmet_needs?: Array<string>;
+    /**
+     * Updated
+     */
+    updated: string;
+};
+
+/**
+ * TaskRead
+ *
+ * Task plus server-computed dependency state for read surfaces.
+ */
+export type TaskReadOutput = {
     /**
      * Acceptance
      */
@@ -1401,6 +1529,31 @@ export type ValidationError = {
 };
 
 /**
+ * VersionResponse
+ *
+ * What a client needs to decide whether it can talk to this service.
+ *
+ * Two independent numbers. ``version`` is the installed AgentJobs distribution and
+ * governs the shape of the REST surface; ``schema_version`` is the task-record
+ * schema and governs the shape of the documents that surface returns. A client can
+ * match one and not the other, so neither is derivable from the other.
+ */
+export type VersionResponse = {
+    /**
+     * Schema Version
+     *
+     * Task record schema version served.
+     */
+    schema_version: number;
+    /**
+     * Version
+     *
+     * Installed AgentJobs package version.
+     */
+    version: string;
+};
+
+/**
  * Webhook
  *
  * Webhook configuration for task event notifications.
@@ -1491,11 +1644,11 @@ export type DashboardResponseWritable = {
     /**
      * Active Tasks
      */
-    active_tasks: Array<TaskReadWritable>;
+    active_tasks: Array<TaskReadOutputWritable>;
     /**
      * Backlog Tasks
      */
-    backlog_tasks: Array<TaskReadWritable>;
+    backlog_tasks: Array<TaskReadOutputWritable>;
     /**
      * Broken Files
      */
@@ -1504,7 +1657,7 @@ export type DashboardResponseWritable = {
      * Next Action
      */
     next_action: 'blocked' | 'backlog' | 'next_up' | 'nothing_claimable' | 'empty_project';
-    next_task: TaskReadWritable | null;
+    next_task: TaskReadOutputWritable | null;
     /**
      * Recent Updates
      */
@@ -1513,7 +1666,7 @@ export type DashboardResponseWritable = {
     /**
      * Waiting Tasks
      */
-    waiting_tasks: Array<TaskReadWritable>;
+    waiting_tasks: Array<TaskReadOutputWritable>;
 };
 
 /**
@@ -1654,14 +1807,14 @@ export type TaskDetailResponseWritable = {
     /**
      * Children
      */
-    children: Array<TaskReadWritable>;
+    children: Array<TaskReadOutputWritable>;
     identity: ReviewIdentity;
     /**
      * Needs
      */
     needs: Array<DependencyRelation>;
-    parent_task: TaskReadWritable | null;
-    task: TaskReadWritable;
+    parent_task: TaskReadOutputWritable | null;
+    task: TaskReadOutputWritable;
 };
 
 /**
@@ -1669,7 +1822,7 @@ export type TaskDetailResponseWritable = {
  *
  * Task plus server-computed dependency state for read surfaces.
  */
-export type TaskReadWritable = {
+export type TaskReadOutputWritable = {
     /**
      * Acceptance
      */
@@ -2106,7 +2259,7 @@ export type ListTasksApiProjectsProjectIdTasksGetResponses = {
      *
      * Successful Response
      */
-    200: Array<TaskRead>;
+    200: Array<TaskReadOutput>;
 };
 
 export type ListTasksApiProjectsProjectIdTasksGetResponse = ListTasksApiProjectsProjectIdTasksGetResponses[keyof ListTasksApiProjectsProjectIdTasksGetResponses];
@@ -2949,7 +3102,7 @@ export type ListTasksApiTasksGetResponses = {
      *
      * Successful Response
      */
-    200: Array<TaskRead>;
+    200: Array<TaskReadOutput>;
 };
 
 export type ListTasksApiTasksGetResponse = ListTasksApiTasksGetResponses[keyof ListTasksApiTasksGetResponses];
@@ -3456,6 +3609,22 @@ export type RequestChangesApiTasksTaskIdRequestChangesPostResponses = {
 };
 
 export type RequestChangesApiTasksTaskIdRequestChangesPostResponse = RequestChangesApiTasksTaskIdRequestChangesPostResponses[keyof RequestChangesApiTasksTaskIdRequestChangesPostResponses];
+
+export type ApiVersionApiVersionGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/version';
+};
+
+export type ApiVersionApiVersionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: VersionResponse;
+};
+
+export type ApiVersionApiVersionGetResponse = ApiVersionApiVersionGetResponses[keyof ApiVersionApiVersionGetResponses];
 
 export type ListWebhooksApiWebhooksGetData = {
     body?: never;

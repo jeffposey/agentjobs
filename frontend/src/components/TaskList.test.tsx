@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
-import type { BrokenTaskFile, TaskRead } from "../api/generated";
+import type { BrokenTaskFile, TaskRead } from "../api/types";
 import { TaskList } from "./TaskList";
 
 function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {

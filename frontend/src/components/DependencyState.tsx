@@ -1,4 +1,4 @@
-import type { TaskRead } from "../api/generated";
+import type { TaskRead } from "../api/types";
 
 const STATE_CLASSES = {
   actionable: "border-emerald-700 bg-emerald-950/40 text-emerald-300",

@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 
-import type { DashboardResponse, TaskRead } from "../api/generated";
+import type { DashboardResponse, TaskRead } from "../api/types";
 import { BrokenFiles } from "./BrokenFiles";
 import { DependencyState } from "./DependencyState";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
