@@ -2,10 +2,11 @@ schema: 2
 id: task-116-codex-plugin-and-skill
 title: Package the AgentJobs MCP server as a Codex plugin and skill
 created: '2026-08-14T19:19:59.065290Z'
-updated: '2026-08-15T22:34:23.879326Z'
-lifecycle: ready
+updated: '2026-08-17T08:14:06.234959Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: developer_experience
@@ -15,6 +16,7 @@ tags:
 - skill
 effort: 1 day
 assignment:
+  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -100,5 +102,16 @@ links:
 - url: https://learn.chatgpt.com/docs/build-skills
   rel: doc
   title: OpenAI Codex skills
-branches: []
-log: []
+branches:
+- name: feat/task-116-codex-plugin-and-skill
+  status: active
+log:
+- id: 1
+  ts: '2026-08-17T08:14:04.076367Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
