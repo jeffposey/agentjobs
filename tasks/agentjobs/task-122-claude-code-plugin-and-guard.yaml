@@ -2,7 +2,7 @@ schema: 2
 id: task-122-claude-code-plugin-and-guard
 title: Ship a Claude Code plugin, skill, and direct-write guard
 created: '2026-08-17T16:52:09.435545Z'
-updated: '2026-08-17T17:46:48.002475Z'
+updated: '2026-08-17T17:50:58.467716Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -105,6 +105,10 @@ dependencies:
 - task: task-117-codex-direct-write-hook
   type: needs
   note: Reuses the guard logic and its coverage matrix.
+- task: task-123-draft-to-ready-promotion-verb
+  type: needs
+  note: 'This task is draft and cannot be claimed: no verb promotes draft to ready.
+    task-123 ships that verb and promotes this record as its own end-to-end proof.'
 links: []
 branches: []
 log:
@@ -181,3 +185,15 @@ log:
       id: 6f2a1c94-3b8e-4d21-9f57-0c8a5e7b1d43
       kind: log_append
       fingerprint: 5ca80b6d7ba4e4158ee722be0cc94956
+- id: 4
+  ts: '2026-08-17T17:50:58.467466Z'
+  actor: claude
+  type: note
+  body: Updated dependencies.
+  data:
+    fields:
+    - dependencies
+    operation:
+      id: c8b41f27-6d95-4e30-a1b6-93f2d70e5c84
+      kind: update_content
+      fingerprint: f78da23ae9600129011e3ba8034bad02

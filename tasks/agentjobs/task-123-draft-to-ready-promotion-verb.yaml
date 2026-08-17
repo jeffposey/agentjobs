@@ -1,0 +1,127 @@
+schema: 2
+id: task-123-draft-to-ready-promotion-verb
+title: Add a draft-to-ready promotion verb
+created: '2026-08-17T17:50:47.885433Z'
+updated: '2026-08-17T17:50:47.886175Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: core
+tags:
+- schema
+- mcp
+- workflow
+effort: half a day
+assignment:
+  eligible: []
+spec:
+  summary: 'A task created `draft` can never be worked: no verb in the manager, REST
+    API, MCP surface or CLI moves it to `ready`, and `task_claim` refuses anything
+    that is not `ready`. Add the missing promotion verb so the draft workflow has
+    an exit.'
+  intent: 'Drafting a task and finishing its spec later is a workflow the schema explicitly
+    supports -- tasks are born `draft` with `ball: human`, `ball_reason: spec` --
+    and `task_create_draft` is a shipped MCP tool. But nothing completes the loop,
+    so every draft ever created is a dead record. This was found when task-122, filed
+    as a draft with a complete spec, could not be claimed.'
+  description: "`lifecycle` is written in exactly four places in `TaskManager`: at\
+    \ creation, by\n`claim_task` (`ready` -> `active`), by `release_task` (`active`\
+    \ -> `ready`), and by\n`close_task`. `handoff` deliberately moves only the ball,\
+    \ so handing a draft to an\nagent leaves it `draft` and unclaimable. `claim_task`\
+    \ raises unless the task is\n`ready`. There is no promotion, in the manager, the\
+    \ REST routes, the MCP tools, or the\nCLI.\n\nAdd one verb meaning \"the spec\
+    \ is finished; this is workable now\":\n\n- A `TaskManager` method promoting `draft`\
+    \ -> `ready`, setting the target state\n  `release_task` already produces: `lifecycle:\
+    \ ready`, `ball: agent`,\n  `ball_reason: available`. It must append its own `transition`\
+    \ log entry like every\n  other verb, take `actor` and `operation_id`, honour\
+    \ the replay/conflict guard, and\n  accept `expected_revision`. Refuse anything\
+    \ not `draft`, with the same shape of\n  error `claim_task` raises.\n- A REST\
+    \ route beside the other task verbs.\n- An MCP mutation tool, named to match the\
+    \ surrounding vocabulary.\n\n**Decide and record: whether promotion validates\
+    \ the spec.** The verb's whole meaning\nis that the spec is finished, so requiring\
+    \ a non-empty summary and description and at\nleast one acceptance criterion is\
+    \ defensible. The argument against is that it invents\na completeness rule the\
+    \ schema does not otherwise have, and would make the verb fail\non records a human\
+    \ considers ready. Recommendation is to promote without extra\nvalidation and\
+    \ let `agentjobs validate` keep owning completeness, but make the call\nexplicitly\
+    \ rather than by omission.\n\n**This makes the tool count fourteen.** The number\
+    \ is asserted and prosed in several\nplaces, all of which have to move together:\
+    \ `Serving 13 tool(s)` in\n`tests/test_mcp_protocol.py` and in `docs/mcp.md` and\
+    \ `docs/mcp-clients.md`, the\n\"thirteen tools\" prose in `docs/mcp-clients.md`,\
+    \ `docs/mcp.md`,\n`plugins/agentjobs/README.md` and `docs/integration/mcp-release-evidence.md`,\
+    \ the tool\nlist in `tests/test_documentation_contract.py`, and the skill."
+  constraints: "- The verb goes through the manager like every other state move, with\
+    \ its own log\n  entry. Do not add a generic lifecycle setter, and do not let\
+    \ `task_update_content`\n  reach `lifecycle` -- the state axes are absent from\
+    \ that schema on purpose.\n- `draft` -> `ready` only. The reverse direction is\
+    \ not part of this task.\n- Follow the existing verb's shape: replay guard, `expected_revision`,\
+    \ structured\n  refusal, webhook if the neighbouring verbs fire one.\n- The tool-count\
+    \ change must land everywhere at once; a doc saying thirteen next to a\n  server\
+    \ serving fourteen is worse than either number."
+  out_of_scope: Reverse transitions (`ready` -> `draft`), any change to how `handoff`
+    treats lifecycle, spec-completeness rules beyond the single decision named above,
+    CLI commands (the CLI exposes no other state verb), and task-122's own work.
+  context:
+  - path: src/agentjobs/manager.py
+    why: claim_task and release_task are the shape to mirror; release_task already
+      produces the exact target state.
+  - path: src/agentjobs/mcp/mutation_tools.py
+    why: Where the tool is registered and where the count of thirteen lives.
+  - path: tests/test_documentation_contract.py
+    why: Asserts the published tool list.
+  - path: docs/task-schema.md
+    why: The state-axis contract this verb has to stay inside.
+acceptance:
+- id: ac-1
+  text: A draft task can be promoted to ready through the manager, the REST API, and
+    the MCP tool, and is then claimable; the promotion appends a transition log entry
+    naming the actor.
+  status: pending
+- id: ac-2
+  text: Promotion refuses a task that is not draft, with a structured error matching
+    the shape task_claim raises, and cannot be reached through task_update_content.
+  status: pending
+- id: ac-3
+  text: The decision on whether promotion validates spec completeness is recorded
+    on this task with its rejected alternative.
+  status: pending
+- id: ac-4
+  text: Every reference to the tool count reports fourteen -- protocol test, documentation
+    contract test, docs/mcp.md, docs/mcp-clients.md, plugins/agentjobs/README.md,
+    docs/integration/mcp-release-evidence.md, and the skill.
+  status: pending
+- id: ac-5
+  text: poetry run python scripts/check.py passes.
+  verify: poetry run python scripts/check.py
+  status: pending
+- id: ac-6
+  text: task-122 is promoted to ready with the shipped verb and claimed, demonstrating
+    the loop end to end.
+  status: pending
+deliverables:
+- path: src/agentjobs/manager.py
+  note: The promotion verb.
+  status: pending
+- path: src/agentjobs/mcp/mutation_tools.py
+  note: The MCP tool.
+  status: pending
+- path: tests/test_manager.py
+  note: Promotion coverage, including the refusal path.
+  status: pending
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T17:50:47.885479Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: a17c3e56-9b24-4f8a-8d13-2e6f0b4c7a91
+      kind: create
+      fingerprint: 66665ed637670d76fbc77ea88d3666e5
