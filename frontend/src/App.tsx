@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
@@ -10,9 +10,11 @@ import {
   createTaskApiProjectsProjectIdTasksPostMutation,
   listBrokenTasksApiProjectsProjectIdTasksBrokenGetOptions,
   listTasksApiProjectsProjectIdTasksGetOptions,
+  promoteTaskApiProjectsProjectIdTasksTaskIdPromotePostMutation,
   rejectTaskApiProjectsProjectIdTasksTaskIdRejectPostMutation,
   requestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostMutation,
 } from "./api/generated/@tanstack/react-query.gen";
+import { readRefusal } from "./api/mutation-error";
 import {
   requireSupportedTaskSchemas,
   UnsupportedTaskSchemaError,
@@ -128,11 +130,17 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
   const approve = useMutation(approveTaskApiProjectsProjectIdTasksTaskIdApprovePostMutation());
   const changes = useMutation(requestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostMutation());
   const reject = useMutation(rejectTaskApiProjectsProjectIdTasksTaskIdRejectPostMutation());
+  const promote = useMutation(promoteTaskApiProjectsProjectIdTasksTaskIdPromotePostMutation());
+  // Held here rather than read off promote.error because a revision conflict is not
+  // a failure to report and forget: the page reloads and the human is asked again,
+  // so the explanation has to outlive the mutation that produced it.
+  const [promoteError, setPromoteError] = useState<string | null>(null);
 
   if (detailQuery.error instanceof UnsupportedTaskSchemaError) return <StatusCard title="Unsupported task schema">{detailQuery.error.message}</StatusCard>;
   if (detailQuery.isPending) return <StatusCard title="Opening task...">Loading the complete task record.</StatusCard>;
   if (detailQuery.isError && !detailQuery.data) return <StatusCard title="Task could not be loaded">Confirm the task still exists, then return to the list.</StatusCard>;
   const user = detailQuery.data.identity.user;
+  const revision = detailQuery.data.task.updated;
   const refresh = async () => { await queryClient.invalidateQueries(); };
   const actionError = approve.error || changes.error || reject.error;
   return (
@@ -141,9 +149,32 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
       projectId={projectId}
       busy={approve.isPending || changes.isPending || reject.isPending}
       error={actionError ? "The action could not be recorded. Reload and try again." : null}
+      promoteBusy={promote.isPending}
+      promoteError={promoteError}
       onApprove={async () => { if (!user) return; await approve.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user } }); await refresh(); }}
       onRequestChanges={async (feedback) => { if (!user) return; await changes.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, feedback } }); await refresh(); }}
       onReject={async (reason) => { if (!user) return; await reject.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, reason } }); await navigate(`/p/${encodeURIComponent(projectId)}/tasks`, { replace: true }); }}
+      onPromote={async (note) => {
+        if (!user) return;
+        setPromoteError(null);
+        try {
+          // expected_revision comes from the loaded record, so a task edited from
+          // another surface since this page rendered is refused rather than
+          // overwritten.
+          await promote.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { actor: user, body: note, expected_revision: revision } });
+          await refresh();
+        } catch (error) {
+          const refusal = readRefusal(error);
+          if (refusal?.code === "revision_conflict") {
+            // Re-read and re-present. Resending against the new revision without
+            // being asked would promote a task the human has not seen.
+            await refresh();
+            setPromoteError("This task changed while the page was open, so it was not promoted. The record below has been reloaded — read it, then promote again if you still want to.");
+            return;
+          }
+          setPromoteError(refusal ? refusal.message : "The promotion could not be recorded. Reload the page and try again.");
+        }
+      }}
     />
   );
 }

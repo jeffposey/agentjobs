@@ -7,6 +7,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import uvicorn
+import yaml
+
+from agentjobs.project_setup import build_project_config
 
 
 def main() -> None:
@@ -15,6 +18,18 @@ def main() -> None:
         root = Path(directory)
         os.environ["AGENTJOBS_PROJECT_ROOT"] = str(root)
         os.environ["AGENTJOBS_HOME"] = str(root / ".agentjobs-home")
+        # A human actor, because every action the UI attributes to a person is
+        # refused when the project has none -- so without one, the browser path
+        # could only ever exercise the pages that ask nobody to act.
+        config_path = root / ".agentjobs" / "config.yaml"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            yaml.safe_dump(
+                build_project_config(project_name="End-to-end project", user="E2E Human"),
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
         uvicorn.run(
             "agentjobs.api.main:app",
             host="127.0.0.1",
