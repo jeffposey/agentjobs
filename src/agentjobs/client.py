@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from types import TracebackType
 from typing import Any, Dict, List, Optional
@@ -45,6 +46,21 @@ class ProjectSummary(BaseModel):
         return [actor.id for actor in self.actors]
 
 
+class MutationResult(BaseModel):
+    """What one safe mutation did.
+
+    ``replayed`` is the field that cannot be derived any other way: a client that
+    retried after a timeout has no way to tell "I just did that" from "you already
+    had", and guessing wrong means either a duplicate log entry or a lost update.
+    """
+
+    project_id: str
+    operation_id: Optional[str] = None
+    replayed: bool = False
+    task: Task
+    warnings: List[str] = Field(default_factory=list)
+
+
 class TaskClientError(RuntimeError):
     """Raised when the REST API returns an error or connection fails.
 
@@ -54,10 +70,46 @@ class TaskClientError(RuntimeError):
     different repair from a refused connection.
     """
 
-    def __init__(self, message: str, *, status_code: Optional[int] = None) -> None:
-        """Record the message and, when the service answered, its status."""
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: Optional[int] = None,
+        body: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Record the message, the status when the service answered, and its body."""
         super().__init__(message)
         self.status_code = status_code
+        self.body = body or {}
+
+    @property
+    def code(self) -> Optional[str]:
+        """The stable failure code, when the service returned a structured error."""
+        value = self.body.get("code")
+        return str(value) if isinstance(value, str) else None
+
+    @property
+    def retryable(self) -> bool:
+        """Whether an identical retry could plausibly succeed."""
+        return bool(self.body.get("retryable", False))
+
+    @property
+    def current_task(self) -> Optional[Dict[str, Any]]:
+        """On a revision conflict, the state that made the caller's decision stale."""
+        value = self.body.get("current_task")
+        return value if isinstance(value, dict) else None
+
+    @property
+    def field_errors(self) -> List[Dict[str, Any]]:
+        """Per-field rejections, when the service reported any."""
+        value = self.body.get("field_errors")
+        return value if isinstance(value, list) else []
+
+    @property
+    def suggested_action(self) -> Optional[str]:
+        """What the service suggests doing about it."""
+        value = self.body.get("suggested_action")
+        return str(value) if isinstance(value, str) else None
 
 
 class TaskClient:
@@ -99,6 +151,11 @@ class TaskClient:
     def project_id(self) -> Optional[str]:
         """The project this client addresses, or None for the default project."""
         return self._project_id
+
+    @property
+    def operations(self) -> "TaskOperations":
+        """The retry-safe mutation surface for this client."""
+        return TaskOperations(self)
 
     # ------------------------------------------------------------------
     # Project scoping
@@ -504,6 +561,47 @@ class TaskClient:
                 serialised[key] = value
         return serialised
 
+    @staticmethod
+    def _extract_error_body(response: httpx.Response) -> Dict[str, Any]:
+        """Keep the structured error body, when the service sent one."""
+        try:
+            payload = response.json()
+        except ValueError:
+            return {}
+        return payload if isinstance(payload, dict) else {}
+
+    def _mutation(
+        self,
+        path: str,
+        payload: Dict[str, Any],
+        *,
+        operation_id: Optional[str],
+        expected_revision: Optional[datetime | str] = None,
+    ) -> MutationResult:
+        """POST one safe mutation and parse its envelope.
+
+        The envelope is requested explicitly. Without ``?envelope=true`` the endpoint
+        returns the bare task exactly as it always has, which is what keeps every
+        existing caller working while this surface exists alongside them.
+        """
+        body = dict(payload)
+        body["operation_id"] = operation_id
+        if expected_revision is not None:
+            body["expected_revision"] = (
+                expected_revision.isoformat()
+                if isinstance(expected_revision, datetime)
+                else str(expected_revision)
+            )
+        response = self._request("POST", self._path(path), json=body, params={"envelope": "true"})
+        data = response.json()
+        return MutationResult(
+            project_id=data.get("project_id") or (self._project_id or ""),
+            operation_id=data.get("operation_id"),
+            replayed=bool(data.get("replayed", False)),
+            task=self._parse_task(data["task"]),
+            warnings=list(data.get("warnings") or []),
+        )
+
     def _parse_task(self, data: Dict[str, Any]) -> Task:
         """Parse the stored task out of a read response.
 
@@ -530,7 +628,11 @@ class TaskClient:
             return response
         except httpx.HTTPStatusError as exc:
             detail = self._extract_error_detail(exc.response)
-            raise TaskClientError(detail, status_code=exc.response.status_code) from exc
+            raise TaskClientError(
+                detail,
+                status_code=exc.response.status_code,
+                body=self._extract_error_body(exc.response),
+            ) from exc
         except httpx.RequestError as exc:
             raise TaskClientError(f"Request failed: {exc}") from exc
 
@@ -546,3 +648,170 @@ class TaskClient:
     @staticmethod
     def _enum_to_str(value: Enum | str) -> str:
         return value.value if isinstance(value, Enum) else str(value)
+
+
+class TaskOperations:
+    """The retry-safe mutation surface.
+
+    Every method takes a caller-generated ``operation_id``, so resending a request
+    after a timeout replays the original result instead of writing a second time. The
+    verbs that act on content a caller has already read also take an
+    ``expected_revision``, so a decision made against a stale copy is refused rather
+    than silently overwriting whatever arrived in between.
+
+    A separate object rather than more methods on TaskClient: this is a distinct
+    contract, not a variation on the old one, and grouping it says so. It also avoids
+    a `close` mutation colliding with closing the connection.
+    """
+
+    def __init__(self, client: "TaskClient") -> None:
+        """Bind the operations surface to one (possibly project-scoped) client."""
+        self._client = client
+
+    def claim(self, task_id: str, *, actor: str, operation_id: str) -> MutationResult:
+        """Claim a ready task, safely under retry."""
+        return self._client._mutation(
+            f"/tasks/{task_id}/claim", {"agent": actor}, operation_id=operation_id
+        )
+
+    def release(
+        self, task_id: str, *, actor: str, operation_id: str, body: Optional[str] = None
+    ) -> MutationResult:
+        """Return a claimed task to the pool, safely under retry."""
+        return self._client._mutation(
+            f"/tasks/{task_id}/release",
+            {"actor": actor, "body": body},
+            operation_id=operation_id,
+        )
+
+    def handoff(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        operation_id: str,
+        expected_revision: datetime | str,
+        ball: Ball | str,
+        ball_reason: BallReason | str,
+        ball_prompt: str,
+        body: Optional[str] = None,
+    ) -> MutationResult:
+        """Move the ball, refusing a decision made against a stale read."""
+        return self._client._mutation(
+            f"/tasks/{task_id}/handoff",
+            {
+                "actor": actor,
+                "ball": self._client._enum_to_str(ball),
+                "ball_reason": self._client._enum_to_str(ball_reason),
+                "ball_prompt": ball_prompt,
+                "body": body,
+            },
+            operation_id=operation_id,
+            expected_revision=expected_revision,
+        )
+
+    def close(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        operation_id: str,
+        expected_revision: datetime | str,
+        outcome: Outcome | str,
+        body: Optional[str] = None,
+        archive: bool = False,
+    ) -> MutationResult:
+        """End a task, refusing a decision made against a stale read."""
+        return self._client._mutation(
+            f"/tasks/{task_id}/close",
+            {
+                "actor": actor,
+                "outcome": self._client._enum_to_str(outcome),
+                "body": body,
+                "archive": archive,
+            },
+            operation_id=operation_id,
+            expected_revision=expected_revision,
+        )
+
+    def append_log(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        operation_id: str,
+        type: LogEntryType | str = LogEntryType.NOTE,
+        body: str,
+        re: Optional[int] = None,
+        data: Optional[Dict[str, Any]] = None,
+    ) -> MutationResult:
+        """Append one authored log entry, safely under retry.
+
+        No expected_revision: an append is atomic and commutative, so two agents
+        writing independent progress entries must not conflict with each other.
+        """
+        return self._client._mutation(
+            f"/tasks/{task_id}/log",
+            {
+                "actor": actor,
+                "type": self._client._enum_to_str(type),
+                "body": body,
+                "re": re,
+                "data": data or {},
+            },
+            operation_id=operation_id,
+        )
+
+    def create(
+        self,
+        *,
+        actor: str,
+        operation_id: str,
+        title: str,
+        description: str,
+        summary: str,
+        lifecycle: Lifecycle | str = Lifecycle.DRAFT,
+        **fields: Any,
+    ) -> Task:
+        """Create a task, safely under retry.
+
+        Returns the Task rather than a MutationResult: creation has no envelope route,
+        because a retry that resolves to the original task is indistinguishable from
+        the original call, which is the entire point.
+        """
+        payload: Dict[str, Any] = {
+            "actor": actor,
+            "operation_id": operation_id,
+            "title": title,
+            "description": description,
+            "summary": summary,
+            "lifecycle": self._client._enum_to_str(lifecycle),
+        }
+        payload.update(self._client._serialise_payload(fields))
+        response = self._client._request("POST", self._client._path("/tasks"), json=payload)
+        return self._client._parse_task(response.json())
+
+    def update_content(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        operation_id: str,
+        expected_revision: datetime | str,
+        **updates: Any,
+    ) -> Task:
+        """Update authoring content, refusing an edit computed from a stale read."""
+        payload = self._client._serialise_payload(updates)
+        payload["operation_id"] = operation_id
+        payload["expected_revision"] = (
+            expected_revision.isoformat()
+            if isinstance(expected_revision, datetime)
+            else str(expected_revision)
+        )
+        response = self._client._request(
+            "PATCH",
+            self._client._path(f"/tasks/{task_id}"),
+            json=payload,
+            params={"actor": actor},
+        )
+        return self._client._parse_task(response.json())
