@@ -2,10 +2,9 @@ schema: 2
 id: task-113-mcp-mutation-safety
 title: Make agent mutations idempotent, revision-safe, and diagnosable
 created: '2026-08-14T19:18:51.732678Z'
-updated: '2026-08-15T22:34:23.921864Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-17T07:39:14.424638Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: infrastructure
@@ -104,5 +103,26 @@ dependencies:
   type: needs
   note: Operations are scoped by explicit project and validated actor.
 links: []
-branches: []
-log: []
+branches:
+- name: feat/task-113-mcp-mutation-safety
+  status: merged
+log:
+- id: 1
+  ts: '2026-08-17T07:39:13.890188Z'
+  actor: claude
+  type: decision
+  body: 'Approved for merge under the session delegation recorded on task-109. Review
+    performed before merging: read the full diff; confirmed the complete gate passes,
+    that omitting operation_id and expected_revision preserves prior behaviour exactly,
+    and that the creation lock is load-bearing -- with it disabled, eight concurrent
+    creates all took id task-001 and seven silently overwrote each other.'
+  data: {}
+- id: 2
+  ts: '2026-08-17T07:39:14.424555Z'
+  actor: claude
+  type: transition
+  body: Merged to main as b31597f (--no-ff) under the session delegation. Worktree
+    removed, branch deleted. All acceptance criteria met.
+  data:
+    lifecycle: closed
+    outcome: completed

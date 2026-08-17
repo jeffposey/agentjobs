@@ -2,7 +2,7 @@ schema: 2
 id: task-109-agentjobs-mcp-managed-interface
 title: Ship a managed AgentJobs MCP interface and direct-write guardrails
 created: '2026-08-14T19:18:45.666884Z'
-updated: '2026-08-17T07:14:48.416087Z'
+updated: '2026-08-17T07:39:14.694669Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -199,4 +199,14 @@ log:
     server now publishes five read tools from src/agentjobs/mcp/inventory.py, which
     is the extension point the mutation children add to. Next eligible child is task-113
     (mutation safety), which task-114 needs.
+  data: {}
+- id: 8
+  ts: '2026-08-17T07:39:14.694555Z'
+  actor: claude
+  type: progress
+  body: Child 4 of 10 complete. task-113 (mutation safety) merged to main as b31597f.
+    The authoritative path now carries durable operation ids, a project-wide creation
+    lock, optimistic revisions and a stable error code set, with client.operations
+    as the retry-safe client surface. task-114 (mutation tools) is now eligible and
+    is next.
   data: {}
