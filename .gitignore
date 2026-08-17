@@ -63,3 +63,8 @@ out/
 # Machine-local evidence of managed writes. Never committed: they would make every
 # write a diff, and a clean clone has none anyway.
 .agentjobs/write-receipts/
+
+# Client MCP wiring. The working entry names an interpreter path that is specific to
+# one machine's virtualenv, so there is no version of this file that is correct for
+# two people at once. docs/mcp-clients.md carries both invocations; write your own.
+.mcp.json
