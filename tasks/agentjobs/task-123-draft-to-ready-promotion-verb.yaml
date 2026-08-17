@@ -2,11 +2,43 @@ schema: 2
 id: task-123-draft-to-ready-promotion-verb
 title: Add a draft-to-ready promotion verb
 created: '2026-08-17T17:50:47.885433Z'
-updated: '2026-08-17T17:51:22.791297Z'
+updated: '2026-08-17T18:23:35.804723Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Two branches are waiting on you. Neither is merged and nothing is pushed.\n\
+  \n1. docs/mcp-clone-invocation (commit 5616f57) -- the .mcp.json disposition you\
+  \ asked\n   me to decide. I gitignored it and wrote a \"Developing from a clone\"\
+  \ section in\n   docs/mcp-clients.md carrying both invocations. Reasoning and the\
+  \ rejected\n   alternative are logged as a decision on task-122. Two files.\n\n\
+  2. feat/task-123-draft-to-ready-promotion (commit 7b0e5f8) -- this task. 22 files.\n\
+  \nWhy task-123 exists: task-122 could not be claimed. Nothing in the manager, REST\n\
+  routes, MCP tools or CLI promotes draft -> ready, and claim_task refuses anything\
+  \ not\nready. So every task ever created by task_create_draft -- a shipped MCP tool\
+  \ -- was a\ndead record. You chose to fix that before task-122 rather than work\
+  \ around it.\n\nWhat to review, in rough order of how much I would want a second\
+  \ pair of eyes:\n\n- The verb's target state. promote_task produces ready/agent/available,\
+  \ identical to\n  release_task. I think that is right -- a promoted draft is unowned\
+  \ work in the pool\n  -- but it does discard the draft's ball_prompt, which may\
+  \ have held something the\n  spec author wrote.\n- The decision NOT to validate\
+  \ spec completeness on promotion (logged, with the\n  rejected alternative). The\
+  \ consequence is that promoting a thin draft succeeds and\n  only agentjobs validate\
+  \ catches it.\n- The tool count moving 13 -> 14. This touches your two pending Codex\
+  \ checks:\n  task-116 ac-3 asks you to confirm \"all thirteen tools\" in a fresh\
+  \ Codex session. I\n  updated that wording in docs/integration/mcp-release-evidence.md\
+  \ to fourteen, on the\n  assumption you will run the check after this merges. If\
+  \ you would rather verify\n  against thirteen first, hold this branch until you\
+  \ have.\n\nVerification: full gate green from the worktree (1079 pytest, 42 vitest,\
+  \ Playwright,\nopenapi and generated client current). Plus a cross-process exercise\
+  \ against a freshly\nstarted server -- draft refused a claim, promote returned ready/agent/available\
+  \ with a\ntransition entry naming the actor, the claim then succeeded, a second\
+  \ promote was\nrefused, and the state landed in the YAML on disk. Full evidence\
+  \ in the progress entry.\n\nac-6 is deliberately still open: promoting the real\
+  \ task-122 has to go through the\nrunning service, which holds the old code until\
+  \ this merges. On your approval I will\nmerge --no-ff, then promote and claim task-122\
+  \ with the shipped verb as ac-6's proof,\nthen continue into task-122 itself.\n\n\
+  Still yours, unchanged: task-116 ac-3 and task-117 ac-5 need a live Codex session,\
+  \ and\ntask-109 sits at human/review waiting on exactly those two."
 archived: false
 priority: high
 category: core
@@ -154,3 +186,147 @@ log:
       id: b52f8d70-1a49-4c3e-85b6-7d0e29f4c168
       kind: update_content
       fingerprint: b1e6833f780102f30fea00aa62ee6bd0
+- id: 4
+  ts: '2026-08-17T18:22:58.030309Z'
+  actor: claude
+  type: decision
+  body: 'ac-3: promotion does NOT validate spec completeness. `promote_task` moves
+    the
+
+    lifecycle and records who said so; it does not inspect summary, description, or
+
+    acceptance criteria.
+
+
+    Rejected alternative: require a non-empty summary and description and at least
+    one
+
+    acceptance criterion, on the reasoning that the verb literally means "the spec
+    is
+
+    finished". Rejected for two reasons. It would invent a completeness rule that
+    exists
+
+    nowhere else in the schema -- nothing stops a task being *created* `ready` with
+    an
+
+    empty spec today, so enforcing it only on the draft path would make the stricter
+
+    route the one nobody takes. And `agentjobs validate` already owns completeness,
+    across
+
+    the whole corpus and with findings a human can read; a weaker second copy inside
+    the
+
+    verb would refuse records their author considers ready, with no way to say "yes,
+    I
+
+    mean it" short of not using the verb.
+
+
+    The consequence, stated so it is not rediscovered as a bug: promoting a thin draft
+
+    succeeds. `agentjobs validate` is where that gets caught, as it already is for
+    thin
+
+    tasks created ready.
+
+
+    Also decided, smaller: no webhook fires on promotion. `handoff` and `close` fire;
+
+    `claim` and `release` do not. Promotion is pool movement, not a directed ask,
+    and
+
+    `release_task` -- which produces the identical target state -- is silent. A
+
+    `task.promoted` event with no subscriber and no analogue on its nearest neighbour
+
+    would be noise.'
+  data:
+    operation:
+      id: e4a26b83-7f10-4d55-9c2a-8b3e5147f206
+      kind: log_append
+      fingerprint: 1ef3faf0fc37819c9dd043233cdeb6c6
+- id: 5
+  ts: '2026-08-17T18:23:16.026616Z'
+  actor: claude
+  type: progress
+  body: "Implemented on feat/task-123-draft-to-ready-promotion, commit 7b0e5f8, worktree\n\
+    ../aj-123. 22 files, 670 insertions.\n\nWhat was built:\n- `TaskManager.promote_task`\
+    \ (src/agentjobs/manager.py), draft -> ready/agent/\n  available, clearing owner\
+    \ and ball_prompt. Own `transition` log entry, replay guard,\n  `expected_revision`,\
+    \ structured refusal mirroring `claim_task`'s wording.\n- `POST /api/tasks/{id}/promote`\
+    \ with `PromoteRequest` (a `RevisionedRequest`), placed\n  before /claim, and\
+    \ the status.py module docstring now lists promote in the loop.\n- `TaskOperations.promote`\
+    \ on the client, and the `task_promote` MCP tool.\n\nVerification, beyond the\
+    \ suite:\n- Full gate green from the worktree: 1079 pytest (was 1072; +7), 42\
+    \ vitest, the\n  Playwright e2e path, `openapi.json matches`, `Generated API client\
+    \ files are current`.\n- Cross-process exercise against a freshly started server\
+    \ on a scratch project, not\n  TestClient -- scratchpad/promo_check.py. Result:\
+    \ draft created `draft/human/spec`;\n  claim refused 409 \"not available to claim\
+    \ (it is needs spec)\"; promote 200 giving\n  `ready`, `agent/available`, ball_prompt\
+    \ cleared, log entry\n  `transition` by Ada \"Promoted by Ada; the spec is finished\
+    \ and it is claimable.\";\n  claim then 200 -> `active` owned by bot; promoting\
+    \ the non-draft refused 409 \"not a\n  draft (it is in progress (bot))\"; and\
+    \ the state is on disk in the YAML.\n- New tests: three in test_manager.py (including\
+    \ one asserting a handoff does NOT\n  promote, which is the trap that produced\
+    \ this bug), two in test_mcp_mutation_tools.py\n  (promote-then-claim, and stale-revision\
+    \ refusal), one in test_api.py covering the\n  route's 409/200/409 sequence.\n\
+    \nac-1, ac-2, ac-3, ac-4, ac-5 are met. ac-6 is not, and cannot be until this\
+    \ merges:\npromoting the real task-122 goes through the running service, which\
+    \ holds the old code\nuntil then. It is the first thing to do after merge.\n\n\
+    The OpenAPI schema and four generated frontend client files changed because a\
+    \ route\nwas added; they are regenerated and committed, which is what `assert-generated-clean`\n\
+    requires. A further dozen files under src/api/generated showed as modified with\
+    \ no\ncontent diff -- line-ending churn only -- and were restored rather than\
+    \ committed."
+  data:
+    operation:
+      id: f19d4c60-2b73-4e18-a05f-6c81937da2b5
+      kind: log_append
+      fingerprint: 48313b5bfc0c20f23e72ced28988931b
+- id: 6
+  ts: '2026-08-17T18:23:35.804586Z'
+  actor: claude
+  type: handoff
+  body: "Two branches are waiting on you. Neither is merged and nothing is pushed.\n\
+    \n1. docs/mcp-clone-invocation (commit 5616f57) -- the .mcp.json disposition you\
+    \ asked\n   me to decide. I gitignored it and wrote a \"Developing from a clone\"\
+    \ section in\n   docs/mcp-clients.md carrying both invocations. Reasoning and\
+    \ the rejected\n   alternative are logged as a decision on task-122. Two files.\n\
+    \n2. feat/task-123-draft-to-ready-promotion (commit 7b0e5f8) -- this task. 22\
+    \ files.\n\nWhy task-123 exists: task-122 could not be claimed. Nothing in the\
+    \ manager, REST\nroutes, MCP tools or CLI promotes draft -> ready, and claim_task\
+    \ refuses anything not\nready. So every task ever created by task_create_draft\
+    \ -- a shipped MCP tool -- was a\ndead record. You chose to fix that before task-122\
+    \ rather than work around it.\n\nWhat to review, in rough order of how much I\
+    \ would want a second pair of eyes:\n\n- The verb's target state. promote_task\
+    \ produces ready/agent/available, identical to\n  release_task. I think that is\
+    \ right -- a promoted draft is unowned work in the pool\n  -- but it does discard\
+    \ the draft's ball_prompt, which may have held something the\n  spec author wrote.\n\
+    - The decision NOT to validate spec completeness on promotion (logged, with the\n\
+    \  rejected alternative). The consequence is that promoting a thin draft succeeds\
+    \ and\n  only agentjobs validate catches it.\n- The tool count moving 13 -> 14.\
+    \ This touches your two pending Codex checks:\n  task-116 ac-3 asks you to confirm\
+    \ \"all thirteen tools\" in a fresh Codex session. I\n  updated that wording in\
+    \ docs/integration/mcp-release-evidence.md to fourteen, on the\n  assumption you\
+    \ will run the check after this merges. If you would rather verify\n  against\
+    \ thirteen first, hold this branch until you have.\n\nVerification: full gate\
+    \ green from the worktree (1079 pytest, 42 vitest, Playwright,\nopenapi and generated\
+    \ client current). Plus a cross-process exercise against a freshly\nstarted server\
+    \ -- draft refused a claim, promote returned ready/agent/available with a\ntransition\
+    \ entry naming the actor, the claim then succeeded, a second promote was\nrefused,\
+    \ and the state landed in the YAML on disk. Full evidence in the progress entry.\n\
+    \nac-6 is deliberately still open: promoting the real task-122 has to go through\
+    \ the\nrunning service, which holds the old code until this merges. On your approval\
+    \ I will\nmerge --no-ff, then promote and claim task-122 with the shipped verb\
+    \ as ac-6's proof,\nthen continue into task-122 itself.\n\nStill yours, unchanged:\
+    \ task-116 ac-3 and task-117 ac-5 need a live Codex session, and\ntask-109 sits\
+    \ at human/review waiting on exactly those two."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 0c7b39ae-58d4-4f21-b36e-1e952af8d073
+      kind: handoff
+      fingerprint: c69169d8f6a7cf06582bfd5e6a081ec1
