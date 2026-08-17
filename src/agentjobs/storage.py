@@ -18,6 +18,7 @@ import yaml
 from pydantic import ValidationError
 
 from .models_v2 import SchemaVersionError, Task
+from .receipts import ReceiptStore
 from .models_v2 import load_task as _validate_v2
 from .projects import contained_path
 
@@ -89,6 +90,7 @@ class TaskStorage:
         """Initialize storage with tasks directory."""
         self.tasks_dir = Path(tasks_dir)
         self.tasks_dir.mkdir(parents=True, exist_ok=True)
+        self.receipts = ReceiptStore.for_tasks_directory(self.tasks_dir)
 
     def project_revision(self) -> tuple[str, int]:
         """Return a cheap signal that changes when this project's task files change.
@@ -309,7 +311,27 @@ class TaskStorage:
         )
         yaml_text = yaml.safe_dump(task_dict, sort_keys=False, allow_unicode=False)
         path.write_text(yaml_text, encoding="utf-8")
+        # Recorded here, at the single point every managed write passes through, so
+        # the manager, the API, the CLI, MCP, the GUI and the schema migrator all
+        # produce receipts without any of them knowing receipts exist.
+        self.receipts.record(
+            task_id=task.id, path=path, data=yaml_text.encode("utf-8"), operation="write"
+        )
         return task
+
+    def canonical_bytes(self, task: Task) -> bytes:
+        """Serialise a task exactly as ``_write_task`` would.
+
+        Exposed so the validator can compare a stored file against the form AgentJobs
+        would have produced, and report the difference when a file was hand-shaped.
+        """
+        task_dict = task.model_dump(
+            mode="json",
+            by_alias=True,
+            exclude_none=True,
+            exclude={"display_status"},
+        )
+        return yaml.safe_dump(task_dict, sort_keys=False, allow_unicode=False).encode("utf-8")
 
     def load_all(self) -> "LoadResult":
         """Load every task, keeping the broken ones instead of dropping them.
