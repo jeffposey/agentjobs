@@ -2,7 +2,7 @@ schema: 2
 id: task-109-agentjobs-mcp-managed-interface
 title: Ship a managed AgentJobs MCP interface and direct-write guardrails
 created: '2026-08-14T19:18:45.666884Z'
-updated: '2026-08-17T08:52:10.544611Z'
+updated: '2026-08-17T09:04:49.477283Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -278,4 +278,13 @@ log:
     \ is flagged -- and belong to task-103 (corpus audit), not to this program. The\
     \ pre-commit gate is opt-in via \\\agentjobs validate --install-hook\\, so nothing\
     \ breaks today. task-119 (docs and release) is the last child."
+  data: {}
+- id: 16
+  ts: '2026-08-17T09:04:49.477052Z'
+  actor: claude
+  type: progress
+  body: Child 10 of 10 complete. task-119 (docs and release) merged to main as ba0bf88.
+    docs/mcp.md and docs/mcp-clients.md are the reference and per-client pages; docs/integration/mcp-release-evidence.md
+    records what was verified and what was not. All ten children of task-109 are now
+    closed.
   data: {}

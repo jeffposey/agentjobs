@@ -2,11 +2,9 @@ schema: 2
 id: task-119-mcp-docs-and-release
 title: Document, version, and release the AgentJobs MCP integration
 created: '2026-08-14T19:20:03.863069Z'
-updated: '2026-08-17T08:52:37.194406Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-17T09:04:49.180172Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: documentation
@@ -17,7 +15,6 @@ tags:
 - cross-agent
 effort: 1-2 days
 assignment:
-  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -102,7 +99,7 @@ dependencies:
 links: []
 branches:
 - name: feat/task-119-mcp-docs-and-release
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-17T08:52:34.922241Z'
@@ -113,3 +110,23 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 2
+  ts: '2026-08-17T09:04:48.603099Z'
+  actor: claude
+  type: decision
+  body: 'Approved for merge under the session delegation recorded on task-109. Review
+    performed before merging: read the full diff; confirmed the complete gate passes,
+    that the docs are reachable from the index and nav with every relative link resolving,
+    and that the release wheel installs into a clean environment and runs the full
+    create/claim/retry/log/handoff/stale-revision/close loop through the packaged
+    MCP command.'
+  data: {}
+- id: 3
+  ts: '2026-08-17T09:04:49.180085Z'
+  actor: claude
+  type: transition
+  body: Merged to main as ba0bf88 (--no-ff) under the session delegation. Worktree
+    removed, branch deleted. All acceptance criteria met.
+  data:
+    lifecycle: closed
+    outcome: completed
