@@ -2,7 +2,7 @@ schema: 2
 id: task-122-claude-code-plugin-and-guard
 title: Ship a Claude Code plugin, skill, and direct-write guard
 created: '2026-08-17T16:52:09.435545Z'
-updated: '2026-08-17T16:52:09.719106Z'
+updated: '2026-08-17T17:46:48.002475Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -130,3 +130,54 @@ log:
     and hide when each piece actually landed. Rejected alternative: reopen task-109
     and add an eleventh child.'
   data: {}
+- id: 3
+  ts: '2026-08-17T17:46:48.002348Z'
+  actor: claude
+  type: decision
+  body: 'The repository''s own `.mcp.json` is gitignored rather than committed, and
+
+    docs/mcp-clients.md gains a "Developing from a clone" section carrying both
+
+    invocations. Branch docs/mcp-clone-invocation, commit 5616f57.
+
+
+    Rejected alternative: commit a PATH-based `.mcp.json` (`command: "agentjobs"`).
+    It
+
+    looks like the friendlier default but is wrong for the only population that clones
+
+    this repository. `pip install agentjobs` puts a launcher on PATH; a Poetry clone
+    does
+
+    not. On Windows the venv holds a POSIX shebang script named `agentjobs` and an
+
+    `agentjobs.cmd` shim, and no `.exe` -- an MCP client spawns its server through
+    argv
+
+    with no shell, so neither is launchable. The invocation that works is
+
+    `<venv>/Scripts/python.exe -m agentjobs.cli mcp`.
+
+
+    So a committed PATH entry would be a tracked file every contributor has to edit
+    to
+
+    name their own virtualenv: a permanently dirty working tree, and a machine-specific
+
+    absolute path one `git add -A` away from being published. The zero-config experience
+
+    it was supposed to buy never existed, because the command it names does not resolve
+
+    from a clone. Ignoring the file costs nothing real and removes the leak.
+
+
+    The docs note is the durable half of this and had to be written under either option:
+
+    the guide previously spelled every command `agentjobs`, including `agentjobs serve`,
+
+    which is false for anyone developing here.'
+  data:
+    operation:
+      id: 6f2a1c94-3b8e-4d21-9f57-0c8a5e7b1d43
+      kind: log_append
+      fingerprint: 5ca80b6d7ba4e4158ee722be0cc94956
