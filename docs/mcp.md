@@ -50,15 +50,17 @@ variables:
 
 Both are also available as `--base-url` and `--timeout`.
 
-### Codex
+### Codex and Claude Code
 
 Install the bundled plugin from
 [`plugins/agentjobs`](https://github.com/jeffposey/agentjobs/tree/main/plugins/agentjobs).
-It carries the MCP wiring, the workflow skill, and the direct-write guard hook. One
-local Codex configuration is shared by the desktop app, the CLI, and the IDE
-extension, so install once and start a new session in whichever you use.
+It carries the MCP wiring, the workflow skill, and the direct-write guard hook, with a
+manifest for each client over one server entry, one skill, and one guard. One local
+Codex configuration is shared by the desktop app, the CLI, and the IDE extension, so
+install once and start a new session in whichever you use; Claude Code works the same
+way across its own surfaces.
 
-### Claude, Gemini, and any other MCP client
+### Gemini, and any other MCP client
 
 Add a STDIO server entry:
 
@@ -74,10 +76,10 @@ Add a STDIO server entry:
 }
 ```
 
-You get the same fourteen tools as Codex. You do **not** get a pre-tool hook: the one
-that ships is written against Codex's hook protocol, and no equivalent is packaged for
-other clients yet. Claude Code in particular *can* run one — it has `PreToolUse` hooks
-— so this is unbuilt work rather than a platform limit. See
+You get the same fourteen tools. You do **not** get a pre-tool hook: the guard ships one
+entry point per client protocol, and only Codex's and Claude Code's are written. The
+decision itself is client-agnostic, so a third client needs a third entry point rather
+than a third guard — unbuilt work rather than a platform limit. See
 [what protects what](#what-protects-what).
 
 ### Verify
@@ -165,21 +167,25 @@ Every failure carries a stable code:
 Making the right thing easy is not the same as making the wrong thing impossible, and
 the difference is worth being precise about.
 
-| Client / writer | MCP tools | Codex pre-tool hook | Local receipt gate | `agentjobs validate` |
+| Client / writer | MCP tools | Pre-tool hook | Local receipt gate | `agentjobs validate` |
 | --- | --- | --- | --- | --- |
 | Codex with the plugin | yes | yes, once you trust the hook | yes, if installed | yes |
-| Codex, standalone MCP | yes | only if you install the hook separately | optional | yes |
-| Claude, Gemini, other MCP | yes | not shipped yet (buildable — Claude Code has hooks) | yes, via the git hook | yes |
+| Claude Code with the plugin | yes | yes, once you trust the hook | yes, if installed | yes |
+| Codex or Claude, standalone MCP | yes | only if you install the hook separately | optional | yes |
+| Gemini, other MCP | yes | not shipped yet (a third entry point, not a third guard) | yes, via the git hook | yes |
 | A text editor or a script | no | no | yes, at commit | yes |
 | CI, or a clean clone | no writes | no | receipts are not committed | yes |
 
 - **The MCP tools** make managed operations the obvious path.
-- **The Codex hook** refuses `apply_patch`, shell redirection, PowerShell and POSIX
-  writers, and interpreter one-liners aimed at managed task YAML. It is a guardrail,
-  not a security boundary: hosted tools it never sees, an untrusted or disabled hook,
-  obfuscation, and anything started outside Codex all get past it. It is currently the
-  only pre-tool guard that ships; a Claude Code equivalent is possible and not yet
-  built.
+- **The pre-tool hook** refuses `apply_patch`, `Edit`, `Write`, `NotebookEdit`, shell
+  redirection, PowerShell and POSIX writers, and interpreter one-liners aimed at managed
+  task YAML. One module decides; each client gets a thin entry point that serialises the
+  answer its own way, so Codex and Claude Code cannot drift into different coverage. It
+  is a guardrail, not a security boundary: hosted tools it never sees, an untrusted or
+  disabled hook, obfuscation, and anything started outside the client all get past it.
+  It is also conservative in one direction on purpose — an interpreter naming a managed
+  path is refused even when it is only reading — so expect occasional false refusals,
+  more of them in clients whose shell tool is used heavily.
 - **The receipt gate** (`agentjobs validate --staged`, installed with
   `agentjobs validate --install-hook`) refuses a commit whose staged task files do not
   match a recorded managed write. This is the only check that catches a *valid-looking*

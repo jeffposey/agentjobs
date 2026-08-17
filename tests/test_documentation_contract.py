@@ -141,23 +141,46 @@ def test_the_mcp_guide_states_what_each_layer_does_not_prevent() -> None:
         assert bypass.split()[0] in text, bypass
 
 
-def test_no_page_claims_non_codex_clients_get_the_codex_hook() -> None:
-    """The single most tempting overclaim in this whole program."""
+def test_no_page_claims_a_client_without_a_hook_is_protected_by_one() -> None:
+    """The single most tempting overclaim in this whole program.
+
+    Claude's hook now ships, so the sentence this used to assert about Claude is false
+    and was deleted. The assertion moved to Gemini rather than being dropped: what has
+    to stay true is that *whichever* clients have no entry point are described as having
+    none, and shipping one client's hook is exactly when it gets tempting to soften that
+    for the rest.
+    """
     text = flat(CLIENT_GUIDE.read_text(encoding="utf-8"))
-    assert "No pre-tool hook is shipped for Claude yet" in text
-    assert "nothing stops Claude writing task YAML" in text
+    assert "No pre-tool hook is shipped for Gemini yet" in text
+    assert "nothing stops Gemini writing task YAML" in text
+    assert "No pre-tool hook is shipped for Claude" not in text
+
+
+def test_the_client_guide_states_what_claudes_shipped_guard_covers() -> None:
+    """Naming the tools matters: a reader who thinks the guard covers everything will
+    not notice that a tool outside the matcher is unguarded."""
+    text = flat(CLIENT_GUIDE.read_text(encoding="utf-8"))
+    for tool in ("`Edit`", "`Write`", "`NotebookEdit`", "`Bash`"):
+        assert tool in text, tool
+
+
+def test_the_client_guide_warns_that_claudes_guard_refuses_some_reads() -> None:
+    """Deliberate, and the cost lands on the client used most in this repository. A
+    user meeting it with no warning reasonably files it as a bug."""
+    text = flat(CLIENT_GUIDE.read_text(encoding="utf-8"))
+    assert "false refusal" in text
+    assert "only reading" in text
 
 
 def test_the_docs_do_not_blame_the_client_for_work_we_have_not_done() -> None:
-    """The first draft said the missing Claude hook was "a Codex plugin mechanism",
-    which reads as a platform limit. Claude Code has PreToolUse hooks; the hook is
-    simply unbuilt. Overclaiming misleads a reader about their protection, and this
-    kind of understating misleads them about their options."""
+    """An early draft called a missing hook "a Codex plugin mechanism", which reads as
+    a platform limit rather than unbuilt work. Overclaiming misleads a reader about
+    their protection; this kind of understating misleads them about their options."""
     for page in (MCP_GUIDE, CLIENT_GUIDE):
         text = flat(page.read_text(encoding="utf-8"))
         assert "Codex plugin mechanism" not in text, page.name
         assert "Codex mechanism" not in text, page.name
-    assert "Claude Code has" in flat(CLIENT_GUIDE.read_text(encoding="utf-8"))
+    assert "rather than a limit of the client" in flat(CLIENT_GUIDE.read_text(encoding="utf-8"))
 
 
 def test_the_docs_do_not_present_unshipped_work_as_shipped() -> None:
