@@ -174,6 +174,96 @@ def serve(
     )
 
 
+@app.command()
+def validate(
+    staged: bool = typer.Option(
+        False,
+        "--staged",
+        help="Also require each staged task file to match a managed-write receipt.",
+    ),
+    install_hook: bool = typer.Option(
+        False,
+        "--install-hook",
+        help="Install a pre-commit hook that runs `agentjobs validate --staged`.",
+    ),
+) -> None:
+    """Check every task file, and optionally the staged ones.
+
+    Without `--staged` this needs nothing but the files, so it is the check that works
+    in CI and in a clean clone. It proves the corpus is safe to load; it cannot prove
+    which program wrote a file, because a careful hand edit produces a file that
+    validates perfectly.
+
+    `--staged` closes that gap locally by requiring each staged task to match a receipt
+    from a managed write. Receipts are machine-local and never committed, so the check
+    is only meaningful on the machine that made the change.
+    """
+    from .validation import check_staged_receipts, override_reason, validate_corpus
+
+    base_dir = Path.cwd()
+    config = _load_config(base_dir)
+    tasks_dir = _resolve_tasks_dir(base_dir, config)
+
+    if install_hook:
+        typer.echo(_install_pre_commit_hook(base_dir))
+        raise typer.Exit(0)
+
+    report = validate_corpus(tasks_dir, project_config=config, project_root=base_dir)
+    findings = list(report.findings)
+
+    if staged:
+        reason = override_reason()
+        staged_findings = check_staged_receipts(base_dir, tasks_dir)
+        if reason and staged_findings:
+            # Noisy on purpose. A bypass nobody notices becomes the normal path, so
+            # every skipped file is named alongside the stated reason.
+            typer.echo("⚠️  Managed-write gate bypassed by explicit maintainer override.", err=True)
+            typer.echo(f"    Reason: {reason}", err=True)
+            for finding in staged_findings:
+                typer.echo(f"    Bypassed: {finding.filename} ({finding.rule})", err=True)
+            typer.echo("    The schema and relationship checks still had to pass.", err=True)
+        else:
+            findings.extend(staged_findings)
+
+    if findings:
+        for finding in sorted(findings, key=lambda item: item.filename):
+            typer.echo(finding.render(), err=True)
+        typer.echo(
+            f"\n❌ {len(findings)} problem(s) across {report.checked} task file(s).", err=True
+        )
+        raise typer.Exit(1)
+
+    typer.echo(f"✓ {report.checked} task file(s) validated; no problems found.")
+
+
+def _install_pre_commit_hook(base_dir: Path) -> str:
+    """Write a pre-commit hook that runs the staged gate."""
+    hooks_dir = base_dir / ".git" / "hooks"
+    if not hooks_dir.is_dir():
+        raise typer.BadParameter(f"{base_dir} does not look like a git repository.")
+    path = hooks_dir / "pre-commit"
+    script = (
+        "#!/bin/sh\n"
+        "# Installed by `agentjobs validate --install-hook`.\n"
+        "# Refuses a commit whose staged task files were not written by AgentJobs.\n"
+        "# Bypass for an emergency repair by stating a reason:\n"
+        "#   AGENTJOBS_ALLOW_DIRECT_WRITE_REASON='...' git commit\n"
+        "exec agentjobs validate --staged\n"
+    )
+    if path.exists() and "agentjobs validate --staged" not in path.read_text(encoding="utf-8"):
+        return (
+            f"A pre-commit hook already exists at {path} and was left alone. Add\n"
+            "  agentjobs validate --staged\n"
+            "to it yourself so both checks run."
+        )
+    path.write_text(script, encoding="utf-8")
+    try:
+        path.chmod(0o755)
+    except OSError:  # pragma: no cover - Windows ignores the mode
+        pass
+    return f"✓ Installed the AgentJobs pre-commit hook at {path}."
+
+
 @app.command("mcp")
 def mcp_server(
     base_url: Optional[str] = typer.Option(
