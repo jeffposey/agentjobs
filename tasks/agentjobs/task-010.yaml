@@ -1,0 +1,122 @@
+schema: 2
+id: task-010
+title: A corpus test can only pass on one machine, and fails in every worktree
+created: '2026-08-17T22:48:19.433930Z'
+updated: '2026-08-17T22:48:40.244529Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: testing
+tags:
+- testing
+- developer-experience
+- worktrees
+effort: small
+assignment:
+  eligible: []
+spec:
+  summary: test_agentjobs_context_paths_exist asserts that every context path in every
+    task file exists on disk. task-002 points at .agents/plugins/marketplace.json,
+    which is untracked and locally excluded, so it exists only in Jeff's clone. The
+    test passes there and fails in every worktree, every fresh clone, and would fail
+    in CI.
+  intent: 'A test that can only pass on one machine is worse than no test: it fails
+    for people who did nothing wrong, trains them to ignore a red gate, and cannot
+    catch the thing it was written for without also crying wolf.'
+  description: "`tests/test_task_corpus.py:97` checks each task's `spec.context[].path`\
+    \ against the repository root, skipping only URLs and glob-ish paths:\n\n    assert\
+    \ (REPO_ROOT / path).exists(), f\"{task.id} has missing context path {path}\"\n\
+    \n`tasks/agentjobs/task-002-*.yaml` lists `.agents/plugins/marketplace.json` in\
+    \ both `context` and `deliverables`. That file is not in git:\n\n    $ git ls-files\
+    \ .agents/            -> (nothing)\n    $ git check-ignore -v .agents/plugins/marketplace.json\n\
+    \      .git/info/exclude:7    .agents/plugins/marketplace.json\n\n`.git/info/exclude`\
+    \ is a per-clone, machine-local ignore file. It is not committed and does not\
+    \ travel. So the asserted file exists in one working tree on one machine, and\
+    \ nowhere else.\n\nWHAT THIS COSTS. The test passes in the main clone and fails\
+    \ in every git worktree, every fresh clone, and any CI checkout. Agents in this\
+    \ repository are REQUIRED to work in worktrees (ALLAGENTS.md), so every agent\
+    \ that runs the gate hits this. Observed twice on 2026-08-17, during task-005\
+    \ and task-004: in both cases the failure named a file the agent had never touched,\
+    \ and time went into proving the change was innocent rather than into the work.\
+    \ Neither agent could have fixed it, because the fix is not in the branch they\
+    \ were on.\n\nThe deeper problem is that the assertion is about machine state\
+    \ rather than about the repository, so it cannot fail for the reason it was written\
+    \ to catch \u2014 a stale pointer in a task file \u2014 without also failing for\
+    \ reasons that have nothing to do with task files.\n\nWHICH FIX IS A REAL DECISION,\
+    \ and it interacts with task-002. Three candidates, and this task should choose\
+    \ deliberately and record why:\n\n1. Track the file. `.agents/plugins/marketplace.json`\
+    \ is a plugin manifest that arguably belongs in the repo, and task-002 is already\
+    \ about making that plugin install exist for someone other than Jeff. If task-002\
+    \ will track it anyway, this may resolve itself and this task becomes \"confirm\
+    \ and add a regression test\".\n2. Teach the test to skip paths that git ignores\
+    \ or does not track, so it asserts only on paths the repository actually carries.\n\
+    3. Narrow the pointer in task-002 to something tracked.\n\nOption 1 or 3 is likely\
+    \ right; option 2 weakens the check and should not be chosen just because it is\
+    \ easy. Check task-002's current state before deciding \u2014 this task may be\
+    \ a no-op once task-002 lands, in which case say so and close it rather than inventing\
+    \ work."
+  constraints: "Do not simply delete the test or blanket-skip the assertion \u2014\
+    \ stale context pointers are worth catching and that is what it is for. Whatever\
+    \ is chosen, the outcome must be that a fresh clone with no local excludes runs\
+    \ `poetry run python scripts/check.py` green. Verify by running the gate somewhere\
+    \ that is NOT the main clone: a git worktree is sufficient and is what agents\
+    \ actually use."
+  out_of_scope: Building or fixing the plugin install itself, which is task-002. Auditing
+    other tests for machine-dependence beyond noting anything obvious found in passing.
+  context:
+  - path: tests/test_task_corpus.py
+    why: Line 97 is the assertion; the surrounding test defines what it means to skip
+      a path.
+  - path: tasks/agentjobs
+    why: task-002 holds the offending context and deliverable pointer, and is itself
+      about making that install real. Read it before choosing a fix; this task may
+      collapse into it.
+  - path: ALLAGENTS.md
+    why: Requires agents to work in worktrees, which is why this failure is hit constantly
+      rather than rarely.
+acceptance:
+- id: ac-1
+  text: poetry run python scripts/check.py passes in a git worktree that has no locally-excluded
+    files copied into it.
+  verify: Fresh worktree, run the gate, paste the summary line.
+  status: pending
+- id: ac-2
+  text: The chosen fix is recorded as a decision with its reasoning and the rejected
+    alternatives, including whether task-002 supersedes this.
+  verify: Decision entry on this task.
+  status: pending
+- id: ac-3
+  text: The test still fails when a task file genuinely points at a path the repository
+    does not carry.
+  verify: Add such a pointer temporarily, observe the failure, remove it.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T22:48:19.433979Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: 4e18c26d-b703-4a95-8f61-2c07e93b5da8
+      kind: create
+      fingerprint: a82a562df2030330d2924af282a8f046
+- id: 2
+  ts: '2026-08-17T22:48:40.244421Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: a41c9078-3e6b-42d5-9f80-6c1e5b207a93
+      kind: update_content
+      fingerprint: eba09431ae6f59fee96d9f4e72c01d09

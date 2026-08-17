@@ -1,0 +1,129 @@
+schema: 2
+id: task-009
+title: Clicking a task in the React list drops the user into the legacy Jinja UI
+created: '2026-08-17T22:47:26.479797Z'
+updated: '2026-08-17T22:47:47.230724Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: frontend
+tags:
+- frontend
+- react
+- routing
+- bug
+effort: small
+assignment:
+  eligible: []
+spec:
+  summary: The React task list builds its row links as raw anchors holding a router
+    path with no `/app` basename, so clicking a task performs a full page navigation
+    out of the React app and the server answers with the old server-rendered page.
+    The task list is currently a one-way door out of the React UI.
+  intent: 'A navigation bug that silently ejects users from the app they are using
+    is worse than a missing feature: nothing errors, the page even looks plausible,
+    and the user concludes the React UI is what they are seeing. It also quietly undermines
+    every feature on the React task detail page.'
+  description: "`TaskList.tsx:169` renders the row link as a plain anchor:\n\n   \
+    \ <a href={taskPath(projectId, row.task.id)} className=\"touch-target block overflow-hidden\"\
+    >\n\n`taskPath` returns a router-relative path \u2014 `/p/_local/tasks/task-003`.\
+    \ The router is mounted with `basename=\"/app\"` (`frontend/src/main.tsx`), so\
+    \ router-relative paths only resolve correctly when react-router prepends that\
+    \ basename. `Dashboard.tsx` and `TaskDetail.tsx` use react-router `<Link>` and\
+    \ therefore get it. `TaskList.tsx` uses a raw `<a href>` and does not.\n\nThe\
+    \ browser treats it as an ordinary link, performs a full navigation to `/p/_local/tasks/task-003`,\
+    \ and the server serves the LEGACY Jinja route at that path.\n\nOBSERVED, not\
+    \ theorised. A Playwright page snapshot taken after clicking a task in the list\
+    \ shows the legacy page: heading \"AgentJobs\" with \"Phase 3 Web UI\", nav links\
+    \ whose hrefs lack `/app`, and the \"\U0001F464 Human View\" / \"\U0001F916 Agent\
+    \ View\" buttons \u2014 none of which exist in the React app.\n\nCONSEQUENCE.\
+    \ The most obvious route to any task detail page leaves the React app entirely,\
+    \ so every feature on the React task detail page is unreachable that way. This\
+    \ was found while building task-004's promote control: the control works, and\
+    \ a user clicking through the task list would never reach it. The task-004 e2e\
+    \ tests deliberately navigate by id instead of clicking the list, with a comment\
+    \ explaining why \u2014 that workaround should be removed as part of this fix,\
+    \ and the tests should click the list the way a user does.\n\nThe fix is probably\
+    \ one line \u2014 swap the anchor for a `<Link to={...}>` \u2014 but verify rather\
+    \ than assume: check whether the anchor was deliberate (a full reload has different\
+    \ behaviour for the service worker and for scroll restoration), and check the\
+    \ rest of `frontend/src` for other raw anchors carrying router paths. `grep -rn\
+    \ '<a href={' frontend/src --include=*.tsx` is the starting point; `ProjectSwitcher`\
+    \ and `BrokenFiles` are worth a look."
+  constraints: "Do not change the legacy Jinja routes or remove them as part of this\
+    \ \u2014 they are a separate migration concern. Keep the fix to navigation; do\
+    \ not redesign the task list. `poetry run python scripts/check.py` must pass,\
+    \ and the fix must be exercised by clicking a task in the list in a real browser\
+    \ against a running server, not only asserted in Vitest."
+  out_of_scope: Retiring the legacy Jinja UI. Any change to the task detail page's
+    contents.
+  context:
+  - path: frontend/src/components/TaskList.tsx
+    why: 'Line 169: the raw anchor holding a basename-less router path. The bug.'
+  - path: frontend/src/main.tsx
+    why: The router is mounted with basename="/app", which is what raw anchors fail
+      to account for.
+  - path: frontend/src/components/Dashboard.tsx
+    why: Uses react-router Link for the same kind of navigation and gets it right;
+      the model to follow.
+  - path: frontend/e2e/promote-draft.spec.ts
+    why: openTask() navigates by id rather than clicking the list, with a comment
+      naming this bug. Remove that workaround when this is fixed.
+acceptance:
+- id: ac-1
+  text: Clicking a task row in the React task list opens the React task detail page
+    and stays inside the React app.
+  verify: 'Real browser against a running server: click a row, confirm the URL keeps
+    the /app prefix and the page renders React regions such as ''Full specification''
+    rather than the legacy ''Human View'' / ''Agent View'' buttons.'
+  status: pending
+- id: ac-2
+  text: An audit records every other place in frontend/src that builds a router path
+    into a raw anchor, and each is either fixed or recorded as deliberate with the
+    reason.
+  verify: grep output and findings logged on this task.
+  status: pending
+- id: ac-3
+  text: 'The e2e workaround is removed: promote-draft.spec.ts opens tasks by clicking
+    the list, the way a user does, and still passes.'
+  verify: Diff plus a passing Playwright run.
+  status: pending
+- id: ac-4
+  text: "A test fails if this regresses \u2014 asserting on where the click actually\
+    \ lands, not merely that an anchor exists."
+  verify: Show the test failing against the unfixed code, then passing.
+  status: pending
+- id: ac-5
+  text: poetry run python scripts/check.py passes.
+  verify: Command output on the task.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T22:47:26.479849Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: 9f2b64c1-7a03-4e58-b1d9-53c087e2fa64
+      kind: create
+      fingerprint: 443ffff391e352d4093d0719313a857e
+- id: 2
+  ts: '2026-08-17T22:47:47.230568Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: c07e5b83-91d4-4a26-8f70-3b5a91e62d47
+      kind: update_content
+      fingerprint: f75e820b79302d1eab631dd18de3d5e9
