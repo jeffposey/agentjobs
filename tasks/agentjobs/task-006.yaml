@@ -2,10 +2,40 @@ schema: 2
 id: task-006
 title: 'Regression: the React app stopped auto-updating in desktop Chrome'
 created: '2026-08-17T20:58:33.455435Z'
-updated: '2026-08-17T20:58:33.456197Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-17T21:40:24.186366Z'
+lifecycle: active
+ball: human
+ball_reason: decision
+ball_prompt: "Two things need you, and the first takes ten seconds.\n\n1. IMMEDIATE\
+  \ FIX, no code required. You were on the legacy Jinja UI, not the React app. Open\
+  \ http://localhost:8876/app/p/agentjobs (note the /app prefix) and live updates\
+  \ work -- verified today in your own Chrome. On the tablet, the installed app must\
+  \ point at https://agentjobs.tailfed1df.ts.net/app/ ; if it was installed from the\
+  \ bare hostname it is pinned to the Jinja UI and needs reinstalling from the /app/\
+  \ URL. C:/ai/shared/launchers/open-agentjobs.ps1 already opens the right URL, so\
+  \ launching through it always lands correctly.\n\n2. THE DECISION, which is why\
+  \ the ball is yours. http://localhost:8876/ currently 307-redirects to /p/agentjobs,\
+  \ which is the deprecated Jinja UI. The supported React app is at /app/. So the\
+  \ product's default front door delivers the UI that ENGINEERING.md calls legacy\
+  \ and that lacks live updates, and the two URLs differ only by the /app prefix.\
+  \ This will keep happening -- to you, and to anyone else who ever runs this -- until\
+  \ the routing changes. Which do you want:\n  (a) Redirect / and /p/{project} to\
+  \ their /app/ equivalents, making React the default and leaving Jinja reachable\
+  \ only by an explicit legacy path. Smallest change that removes the trap. My recommendation.\n\
+  \  (b) Retire the Jinja UI entirely. Cleaner end state, larger job, needs its own\
+  \ task.\n  (c) Leave routing alone and treat this as a bookmark problem.\nWhichever\
+  \ you choose is new work and belongs in its own task; task-006 as filed was a React\
+  \ regression that does not exist.\n\n3. MERGE APPROVAL for what is on the branch.\
+  \ fix/task-006-live-updates-regression, commit 7939a2a, two files, no behaviour\
+  \ change: it exports the invalidation allowlist and adds a drift guard so a future\
+  \ project-scoped endpoint cannot silently fall outside live updates. That is ac-5,\
+  \ which stands on its own merits regardless of the misdiagnosis. Frontend gate passes\
+  \ fully (48 tests, lint, types, build). The Python suite has one failure, tests/test_task_corpus.py::test_agentjobs_context_paths_exist,\
+  \ which is pre-existing and fails in ANY worktree because task-002 references .agents/plugins/marketplace.json,\
+  \ a file git-excluded from everything but the main clone. Nothing in this branch\
+  \ touches Python or task files.\n\nAlso worth a decision, not filed because I was\
+  \ not authorised to widen scope: that corpus test fails for every agent that follows\
+  \ the mandatory worktree rule."
 archived: false
 priority: high
 category: bug
@@ -15,6 +45,7 @@ tags:
 - regression
 effort: half a day
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: "The React frontend no longer refreshes itself while open in Chrome on\
@@ -168,3 +199,339 @@ log:
       id: 9f3c1e28-4d7a-4b16-9a4e-2c5b8f0d71a3
       kind: create
       fingerprint: cb5d56f17ad8cb9089acb06ea25e9e66
+- id: 2
+  ts: '2026-08-17T21:15:37.016139Z'
+  actor: claude
+  type: progress
+  body: "Human evidence from Jeff, 2026-08-17, answering ac-3 and narrowing the hypotheses\
+    \ sharply.\n\nObserved:\n- Desktop Chrome on Windows: fails to auto-update. Confirmed\
+    \ again just now.\n- Installed PWA on the tablet: ALSO fails to auto-update. The\
+    \ pre-fix mobile behaviour is therefore \"broken\", same as desktop.\n- Backgrounding\
+    \ the tablet app and foregrounding it did NOT produce an update. This is the case\
+    \ task-086 ac-5 verified as passing on 2026-08-13.\n- Pull-to-refresh on the tablet\
+    \ DID update it. Pull-to-refresh is a full document reload, so it proves the server\
+    \ has the new data and the API returns it; it says nothing about the poller.\n\
+    \nWhat this eliminates:\n- Hypothesis 3, a stale desktop service-worker shell,\
+    \ is dead. It predicted mobile would be fine. Mobile is not fine.\n- Anything\
+    \ Chrome-on-Windows-specific -- an extension, a desktop-only cache setting, one\
+    \ stale long-lived tab -- is dead for the same reason. Two different devices,\
+    \ two different origins (loopback 8876 and the Tailscale host), same failure.\n\
+    - The server having stale data is dead: a reload shows current data immediately.\n\
+    \nWhat this points at: the fault is in the shared React client, on the path between\
+    \ \"poll detects a change\" and \"the view rerenders\". Both platforms run the\
+    \ same bundle, so a client-side defect is the only hypothesis consistent with\
+    \ all three observations.\n\nThe foreground-return detail is the sharpest signal\
+    \ available and deserves care. `visibilitychange` firing on resume is what ac-5\
+    \ tested, and it is tested deterministically in LiveUpdates.test.tsx, which passes.\
+    \ Two readings remain and they need different fixes:\n  (a) the trigger never\
+    \ fires or the poller is not running, so no request is made; or\n  (b) the request\
+    \ is made and the revision comparison works, but the invalidation does not reach\
+    \ the queries the visible components are actually subscribed to.\nReading (b)\
+    \ is now the favourite. Hypothesis 1 -- the hardcoded PROJECT_TASK_QUERY_IDS allowlist\
+    \ -- predicts exactly this shape: polls succeed, revision advances, nothing rerenders,\
+    \ and a hard reload fixes it because a reload refetches everything regardless\
+    \ of query keys. Hypothesis 4, a torn-down effect, predicts (a) instead.\n\nNext\
+    \ step is to distinguish (a) from (b) by observing whether the revision requests\
+    \ are actually being issued, before touching any code. Jeff's report cannot settle\
+    \ that; only the network panel or an instrumented run can."
+  data:
+    operation:
+      id: 1a7b4c60-8e35-4d29-9f11-6b0d3e82c4f7
+      kind: log_append
+      fingerprint: 814964ecab4b529c86a2c832d44d71ab
+- id: 3
+  ts: '2026-08-17T21:16:23.990641Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: b2d94f11-7c68-4a53-8e02-3f1a6d75c9be
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 4
+  ts: '2026-08-17T21:20:07.462069Z'
+  actor: claude
+  type: progress
+  body: 'Localisation in progress. Ruling out, with evidence rather than reading:
+
+
+    - Service worker caching of the API (hypothesis 2, and the service-worker half
+    of hypothesis 3) is DEAD. frontend/src/service-worker.js line 30 short-circuits
+    any same-origin GET under /api/ to `event.respondWith(fetch(request))` before
+    any cache is consulted, with a comment saying task data is always network-only.
+    Nothing in the SW can serve a stale revision.
+
+    - Query-key drift (hypothesis 1) is WEAKENED to near-dead for the visible views.
+    Every page in App.tsx subscribes through the generated `...Options()` helpers
+    -- DashboardPage uses getDashboardApiProjectsProjectIdDashboardGetOptions, TaskListPage
+    uses listTasksApiProjectsProjectIdTasksGetOptions plus listBrokenTasks..., TaskDetailPage
+    uses getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetOptions. All three ids
+    are in PROJECT_TASK_QUERY_IDS, so the predicate should match them.
+
+    - Poller teardown by unstable queryClient identity (hypothesis 4) is DEAD. main.tsx
+    line 10 constructs the QueryClient once at module scope, outside the component
+    tree, so its identity never changes and the effect''s dependency array is stable.
+
+
+    Live observation against the running server on 8876, React app at /app/p/agentjobs,
+    instrumented by wrapping window.fetch in the page:
+
+    - The poller is running. Exactly one instance: one dispatched `focus` event produces
+    exactly one GET /api/projects/agentjobs/revision. An earlier reading that suggested
+    seven concurrent pollers was me misattributing requests that had accumulated across
+    several waits; corrected here so the record does not carry it forward.
+
+    - The revision endpoint responds 200 and the server-side digest is live (curl
+    showed revision 89f9634996e3076c84f3a48c, task_count 107).
+
+
+    Measurement caveat worth recording, because it invalidated my first attempt: the
+    browser-pane tab reports document.visibilityState === "hidden" even while displayed
+    in the harness. Chrome clamps and then intensively throttles setTimeout in hidden
+    tabs, so "no interval polls appeared during a 25-second wait" is NOT evidence
+    the interval is broken in this environment. Triggering the check by dispatching
+    a focus event sidesteps the throttle and is the measurement this diagnosis rests
+    on. Anyone re-running this must account for the same confound.
+
+
+    Still open, and the next thing to measure: whether a revision CHANGE produces
+    a refetch of the dashboard query. That distinguishes branch (a) from branch (b)
+    and is the last fork before a cause can be named. This log entry exists partly
+    to move the revision itself.'
+  data:
+    operation:
+      id: c81f2a94-3e57-4b60-9d2c-7a4e10b3f6d8
+      kind: log_append
+      fingerprint: cc88ac0d62ee20866639e27c91883ce5
+- id: 5
+  ts: '2026-08-17T21:22:28.169321Z'
+  actor: claude
+  type: note
+  body: Revision-moving probe while the task list page is open under instrumentation.
+    No content significance; retained because deleting log entries is not a thing
+    this system does and a reader finding this should know why it exists.
+  data:
+    operation:
+      id: d4e07b52-9a16-4c83-b7f0-25e91c6a83d1
+      kind: log_append
+      fingerprint: b9c2628bde79f9b89c2201378b52cd5d
+- id: 6
+  ts: '2026-08-17T21:30:21.212872Z'
+  actor: claude
+  type: progress
+  body: 'THE HEADLINE: current main is not broken. I could not reproduce the failure
+    against it, in two independent browsers, and the live-update client code has not
+    changed since it was verified working.
+
+
+    Evidence, all gathered 2026-08-17 against the running server on 8876 serving the
+    packaged frontend:
+
+
+    1. Full chain verified working on the dashboard. With window.fetch instrumented
+    in the page: a real task write (a log entry on this task) moved the server revision
+    from 89f9634996e3076c84f3a48c to 22391338739829233c7b464e; the next check fetched
+    the revision exactly once and refetched the dashboard exactly once. The rendered
+    DOM was then read directly and showed this task as "In flight" and IN PROGRESS
+    2 / TOTAL 107 -- current state, on a page that had never been reloaded. That is
+    ac-1 and ac-2 behaviour, observed.
+
+    2. Full chain verified working on the task list. Same instrumentation at /app/p/agentjobs/tasks:
+    one revision fetch, two data refetches (listTasks and listBrokenTasks).
+
+    3. The interval is alive. With no synthetic events dispatched at all: 4 revision
+    polls in 54 seconds, against 3 expected at a 15-second interval.
+
+    4. Verified again in Jeff''s OWN Chrome, not just the harness browser, via the
+    Chrome extension: a fresh tab at /app/p/agentjobs loaded bundle /app/assets/index-CHcF4Rgh.js
+    -- byte-identical to what the server currently serves -- registered the service
+    worker, held cache agentjobs-shell-1e9a3f05bbbc, and polled 4 times in 58 seconds.
+    No stale bundle, no stale cache, poller healthy. That tab has been closed again.
+
+    5. The code is unchanged. git log 7cd1bfa..main -- frontend/src/components/LiveUpdates.tsx
+    frontend/src/main.tsx returns nothing and the diff is empty. Both files are byte-identical
+    to the revision that passed all six of task-086''s acceptance criteria on 2026-08-13,
+    including physical tablet proof.
+
+
+    So all five original hypotheses are now dead or irrelevant to current main:
+
+    - H1 query-key drift: dead as a present cause. Every page subscribes through the
+    generated Options helpers and every id is in the allowlist; the predicate was
+    additionally asserted against real generated key objects and matches.
+
+    - H2 response caching: dead. The service worker short-circuits /api/ to network
+    before any cache, and the revision responses observed were fresh each time.
+
+    - H3 stale service-worker shell: dead. Jeff''s own Chrome loads the current bundle.
+
+    - H4 poller teardown: dead. The QueryClient is module-scoped in main.tsx and exactly
+    one poller instance responds to each trigger.
+
+    - H5 server-side digest: dead. The digest moves on every task write, observed
+    twice.
+
+
+    One correction to my own earlier reading, recorded so it is not carried forward:
+    I briefly believed one focus event produced seven concurrent pollers. It does
+    not -- it produces exactly one request. Those extra requests were interval polls
+    that had accumulated across earlier waits and that I misattributed.
+
+
+    A timing fact that matters for interpreting all of this: the served frontend was
+    rebuilt at 21:11 today, which is AFTER the original report and roughly when Jeff
+    re-confirmed the failure. Another agent''s merge (the project switcher / promote
+    work) rebuilt the static assets. So the build I have exonerated is not necessarily
+    the build Jeff''s long-open tabs were running when they went stale. A browser
+    tab keeps executing the JavaScript it loaded until it is reloaded; that is ordinary
+    behaviour, not a defect, and it would produce exactly what Jeff describes on both
+    devices independently -- old code in a long-lived session, fresh data whenever
+    the document is actually reloaded by F5 or pull-to-refresh.
+
+
+    I cannot confirm that from here, and I will not assert it as the cause. The failing
+    artefact is the specific browser session Jeff has open, and that is the one thing
+    this environment cannot reach: the Chrome extension exposes only tabs it created,
+    not his existing ones.'
+  data:
+    operation:
+      id: e6b3a071-5d24-4f89-9c31-8b70e2d41a5f
+      kind: log_append
+      fingerprint: c0eadc42ae22f6e5d74f30443eeea44e
+- id: 7
+  ts: '2026-08-17T21:37:48.345545Z'
+  actor: claude
+  type: progress
+  body: "ROOT CAUSE CONFIRMED. The React app was never the thing failing to update.\
+    \ Jeff was not looking at the React app.\n\nThe decisive evidence came from Jeff's\
+    \ actual failing tab. Asked to print its loaded scripts, it returned:\n  https://cdn.tailwindcss.com,\
+    \ https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js, https://cdn.jsdelivr.net/npm/marked@11.0.0/marked.min.js\n\
+    \nThose are the legacy Jinja UI's CDN scripts. The React app loads exactly one\
+    \ script, /app/assets/index-CHcF4Rgh.js, and no CDN tags at all. So the failing\
+    \ session was the server-rendered Jinja UI, which has no live-update mechanism\
+    \ and never did -- task-086 listed \"Live updates for the Jinja UI\" in its out_of_scope,\
+    \ so this is absence of a feature in that UI, not a regression in the one that\
+    \ has it.\n\nHow a person lands there, verified by request:\n- GET http://localhost:8876/\
+    \ returns 307 -> http://localhost:8876/p/agentjobs\n- GET /p/agentjobs serves\
+    \ the Jinja UI (cdn.tailwindcss.com and alpinejs present)\n- GET /app/p/agentjobs\
+    \ serves React (/app/assets/index-CHcF4Rgh.js, no CDN)\n\nThe server's default\
+    \ route therefore delivers the deprecated UI. The two addresses differ only by\
+    \ the /app prefix and are otherwise identical, so /p/agentjobs and /app/p/agentjobs\
+    \ are near-indistinguishable in a browser bar, in a bookmark, and in an installed\
+    \ app's start_url. C:/ai/shared/launchers/open-agentjobs.ps1 does the right thing\
+    \ -- it opens /app/ on both the tailnet URL and the loopback fallback -- so anything\
+    \ not launched through it, a typed hostname or an older bookmark or an app installed\
+    \ from the root, lands on Jinja.\n\nThis explains every observation without residue,\
+    \ including the ones that killed the earlier hypotheses:\n- Both devices affected:\
+    \ both reach the app by address, not by launcher.\n- F5 and pull-to-refresh work:\
+    \ Jinja is server-rendered, so a document reload is the only way it ever gets\
+    \ new data. That is its normal behaviour, not a symptom.\n- Foreground return\
+    \ does nothing: there is no visibilitychange handler in that UI to fire.\n- Every\
+    \ test I ran passed: I was on /app/, the React app, which is healthy.\n\n\"It\
+    \ used to update automatically\" is consistent with this too, and is worth stating\
+    \ precisely because it is the part a future reader will doubt. Jeff verified live\
+    \ updates on 2026-08-13 during task-086 review -- on the React app, at the URLs\
+    \ that review used. The Jinja UI he is on now is a different surface that never\
+    \ had the feature. Nothing regressed; the session moved.\n\nCorrection to my own\
+    \ framing, recorded because the task title and summary now misstate the problem:\
+    \ this task was filed as a React regression on the strength of a reasonable but\
+    \ wrong inference, and I carried that inference forward through five hypotheses\
+    \ before testing the one assumption underneath all of them -- that the failing\
+    \ page was the React app. The cheapest possible check, reading the failing tab's\
+    \ script tags, was the one that settled it. Worth remembering that \"which build\
+    \ is it running\" should have been \"which application is it running\".\n\nStatus\
+    \ of the task's own acceptance criteria under the corrected diagnosis:\n- ac-1\
+    \ is met by this entry.\n- ac-2 and ac-3 are met for the React app by the evidence\
+    \ in the previous entry, in two browsers including Jeff's own Chrome, but they\
+    \ are now the wrong criteria: they test a surface that was never broken.\n- ac-4\
+    \ holds -- task-086's six criteria are unaffected, and its code is unchanged.\n\
+    - ac-5 is met by commit a69f78a, described in the next entry.\n- ac-6 is not yet\
+    \ met; see the next entry for exactly what passed and what did not.\n\nWhat remains\
+    \ is a product decision rather than a defect fix, and it belongs to Jeff: whether\
+    \ the default route should stop delivering the deprecated UI."
+  data:
+    operation:
+      id: f0c5d8a3-2b91-4e76-8c05-9d3a4f712be6
+      kind: log_append
+      fingerprint: 640db8c3bd920add37c9ed42cbd1ba58
+- id: 8
+  ts: '2026-08-17T21:40:02.669777Z'
+  actor: claude
+  type: progress
+  body: 'Deliverable and verification status.
+
+
+    Branch fix/task-006-live-updates-regression, worktree C:/projects/aj-006, one
+    commit 7939a2a touching exactly two files:
+
+    - frontend/src/components/LiveUpdates.tsx: exports PROJECT_TASK_QUERY_IDS and
+    adds NON_TASK_PROJECT_QUERY_IDS, a map of project-scoped queries that deliberately
+    do not refetch on a revision change, each with its reason (the poller''s own revision
+    endpoint, and the two webhook config reads).
+
+    - frontend/src/components/LiveUpdates.drift.test.tsx: new. Six tests. Every project-scoped
+    generated query must be classified as task data or explicitly exempt, so adding
+    a read endpoint fails the suite until someone decides; no classified id may survive
+    that the generated client no longer defines; and the predicate is asserted against
+    real generated key objects rather than strings, so a change to the key shape fails
+    loudly instead of silently matching nothing. A guard against vacuous passing asserts
+    the enumeration actually finds queries.
+
+
+    This satisfies ac-5. It is worth being clear about what it is and is not: it is
+    the durability requirement the task asked for, and it would NOT have caught the
+    bug that was actually reported, because that bug was not in this code at all.
+    The honest answer to "what check would have caught this instance" is that no unit
+    test could have -- the defect is that a user''s default route lands them on a
+    different application. What would have caught it is a check that the default route
+    serves the supported UI, which is a routing assertion, not a live-update one.
+
+
+    Verification, stated precisely because ac-6 is not fully met:
+
+    - Frontend gate PASSES on the branch. npm run check exits 0: 12 test files, 48
+    tests, generated-client check, lint, TypeScript, and production build.
+
+    - Python suite: 1226 passed, 1 failed. The failure is tests/test_task_corpus.py::test_agentjobs_context_paths_exist,
+    on task-002''s context path .agents/plugins/marketplace.json. It is PRE-EXISTING
+    and unrelated to this branch, which touches no Python and no task files. The path
+    exists in the main clone but is git-excluded via .git/info/exclude, so it is absent
+    from every worktree. The test therefore passes in the shared clone and fails in
+    any worktree -- that is, it fails for every agent following the worktree rule
+    that ALLAGENTS.md requires. Worth its own task; not filed, because the task graph
+    defines scope and this was not authorised.
+
+
+    Two process notes for the next reader:
+
+    - The first commit of this branch failed TypeScript even though vitest passed,
+    because vitest does not typecheck and npm run check does. It was amended rather
+    than followed by a fixup, so no revision of this branch fails the gate.
+
+    - Running npm run check regenerates the API client and leaves seventeen generated
+    files modified with pure line-ending churn (git diff --ignore-all-space is empty).
+    These were restored, not committed. Anyone running the gate in a worktree will
+    see the same dirty tree and should not commit it.'
+  data:
+    operation:
+      id: 0b7e4c19-6a83-4d52-9f30-1c86b5e0d7a4
+      kind: log_append
+      fingerprint: f61b6775f80dd121e6514f61d191a049
+- id: 9
+  ts: '2026-08-17T21:40:24.186222Z'
+  actor: claude
+  type: handoff
+  body: 'Root cause confirmed and it is not a React defect: Jeff was using the legacy
+    Jinja UI, which has no live updates. Handing over a same-day workaround, a routing
+    decision, and a merge request for the ac-5 drift guard.'
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: 3c9d6e40-71b5-4a28-b6f1-9e05c8a2d371
+      kind: handoff
+      fingerprint: 1e3d4696a55e6587ecf8af01d0e45d13
