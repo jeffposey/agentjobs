@@ -2,7 +2,7 @@ schema: 2
 id: task-118-task-validation-and-receipts
 title: Add portable task-corpus validation and managed-write receipts
 created: '2026-08-14T19:20:02.257786Z'
-updated: '2026-08-15T22:34:23.837262Z'
+updated: '2026-08-17T08:33:25.247895Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -111,5 +111,7 @@ dependencies:
   note: Portable validation must reuse the accepted canonical cycle visibility behavior
     rather than duplicate it.
 links: []
-branches: []
+branches:
+- name: feat/task-118-task-validation-and-receipts
+  status: active
 log: []
