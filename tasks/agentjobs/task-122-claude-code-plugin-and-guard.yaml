@@ -2,51 +2,57 @@ schema: 2
 id: task-122-claude-code-plugin-and-guard
 title: Ship a Claude Code plugin, skill, and direct-write guard
 created: '2026-08-17T16:52:09.435545Z'
-updated: '2026-08-17T18:40:25.243474Z'
+updated: '2026-08-17T19:26:57.339055Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: "Claimed and researched, no code written yet. Branch feat/task-122-claude-code-plugin-and-guard\
-  \ exists with worktree ../aj-122, both empty. Stopping here on context, not on a\
-  \ blocker.\n\nTHREE THINGS FOR YOU\n\n1. docs/mcp-clone-invocation (commit 5616f57)\
-  \ is still unmerged. You approved 123 by\n   name and this one was never answered.\
-  \ It is the .mcp.json gitignore plus the\n   \"Developing from a clone\" section,\
-  \ two files, gate-green. It touches\n   docs/mcp-clients.md, which ac-5 also edits,\
-  \ so merging it BEFORE the next session\n   avoids a conflict. Say yes and the next\
-  \ session merges it first.\n\n2. Restart the launcher server (C:/ai/shared/launchers/open-agentjobs.ps1).\
-  \ The one on\n   8876 still runs pre-merge code and has no /promote. 8765 is current.\n\
-  \n3. At the START of the next session, before any work: confirm the tool list shows\n\
-  \   fourteen and includes task_promote. That single check closes the one thing the\
-  \ live\n   MCP verification on task-123 could not reach, and it is also this task's\
-  \ ac-1.\n   Nothing here needs a plugin installed to see it -- the project .mcp.json\
-  \ already\n   wires the server.\n\nWHAT THE NEXT SESSION DOES, in order. Everything\
-  \ it needs is in the decision entry\nabove; it should not re-derive the client contracts,\
-  \ which are recorded there verbatim\nfrom current docs.\n\na. Extract the decision\
-  \ logic from plugins/agentjobs/hooks/guard_task_yaml.py into a\n   shared module\
-  \ in the same directory. Everything from the tables down to `_deny`\n   moves; only\
-  \ `main()`'s serialisation stays client-specific. The stdin shapes already\n   match\
-  \ -- that is the finding worth not losing.\nb. Leave the Codex entry point where\
-  \ it is so its path in hooks.json does not change.\n   Add a Claude entry point\
-  \ beside it emitting the hookSpecificOutput envelope.\nc. Add .claude-plugin/plugin.json\
-  \ and a Claude hooks file, matcher\n   Edit|Write|NotebookEdit|Bash. Same directory,\
-  \ same skill, same .mcp.json.\nd. Add name: agentjobs to the skill frontmatter --\
-  \ required, and the docs are explicit\n   about why omitting it breaks on marketplace\
-  \ installs.\ne. tests/test_claude_task_write_hook.py, running the 82 cases from\n\
-  \   tests/test_codex_task_write_hook.py against the Claude entry point, asserting\
-  \ the\n   Claude decision shape. Parametrising both entry points over one case table\
-  \ would be\n   better than a second copy of the table.\nf. Then ac-5: docs/mcp-clients.md\
-  \ and the docs/mcp.md matrix currently say no Claude\n   guard ships and point at\
-  \ this task. Both change, plus the contract tests.\n\nOne judgement worth your eye\
-  \ when it lands: the guard denies an interpreter that merely\nNAMES a managed task\
-  \ path, even if it is only reading. Deliberate, and the reasoning is\nin a comment\
-  \ at guard_task_yaml.py:414. It will now apply to Claude's Bash tool, which\nis\
-  \ used far more heavily here than Codex's shell -- so expect more false denials\
-  \ in\nyour own sessions than Codex ever produced. If that turns out to be annoying\
-  \ in\npractice, that is a real finding, not a bug to paper over.\n\nUnchanged and\
-  \ still yours: task-116 ac-3 and task-117 ac-5 need a live Codex session,\nand task-109\
-  \ waits on exactly those two. Note ac-3's wording now says fourteen tools.\nMain\
-  \ is clean apart from the untracked .mcp.json, which is intentional and becomes\n\
-  ignored when branch 1 merges."
+ball_prompt: "READY FOR REVIEW. Four commits on feat/task-122-claude-code-plugin-and-guard,\
+  \ worktree ../aj-122, rebased onto main at 0413be1. Gate green: 1204 pytest, 42\
+  \ vitest, build, 1 Playwright. Nothing merged, nothing pushed. ac-2, ac-3 and ac-5\
+  \ are met; ac-1 is met on its tool half and ac-4 needs you.\n\n  e2d2eab  refactor(hooks):\
+  \ share the write-guard decision between Codex and Claude\n  e1cad1d  feat(plugin):\
+  \ package the bundle for Claude Code alongside Codex\n  a3c1514  docs(mcp): report\
+  \ Claude's actual protection now that its guard ships\n  c134735  fix(hooks): give\
+  \ the shell branch its own name for its path list\n\nWHAT TO LOOK AT FIRST, in order\
+  \ of how much it would cost to get wrong.\n\n1. plugins/agentjobs/hooks/guard_task_yaml_claude.py\
+  \ \u2014 THE ALLOW IS SILENCE. Claude's permissionDecision \"allow\" means \"skip\
+  \ the permission system\", not \"no objection\". The hook matches Edit/Write/NotebookEdit/Bash,\
+  \ so printing an allow would have auto-approved nearly every call in your sessions,\
+  \ and it would look exactly like a session where you trust your tools. It prints\
+  \ nothing instead. Reasoning in log entry 11, and a test named for the failure.\
+  \ If you disagree, this is the line to argue about.\n\n2. THE MATRIX FOUND A REAL\
+  \ HOLE, not a hypothetical one. FILE_WRITE_TOOLS was Codex snake_case matched on\
+  \ .lower(); Claude's NotebookEdit folds to \"notebookedit\" and matched nothing.\
+  \ The Claude matcher would have registered the tool and the guard would then have\
+  \ allowed every write it made \u2014 correct-looking configuration, no protection.\
+  \ Fixed by normalising separators as well as case, so it closes for every spelling\
+  \ rather than the one that was noticed. This is the argument for running the matrix\
+  \ per client rather than trusting the shared module once.\n\n3. THE FALSE-DENIAL\
+  \ JUDGEMENT YOU FLAGGED. It shipped as-is, unloosened. It now applies to Bash, which\
+  \ is used far more here than Codex's shell. I have no practice data \u2014 nobody\
+  \ has run a session with the guard installed yet, so \"is it annoying\" is genuinely\
+  \ unanswered rather than answered favourably. It is documented in three places (module\
+  \ docstring, plugin README, docs/mcp-clients.md) and pinned by test_an_interpreter_only_reading_a_task_path_is_still_denied,\
+  \ so if you decide later to loosen it, the decision is visible rather than a silent\
+  \ table edit. My read: leave it and collect the data.\n\nWHAT ONLY YOU CAN CLOSE\n\
+  \nac-4, and the skill-trigger half of ac-1. Both need the plugin installed from\
+  \ a local marketplace entry pointing at plugins/agentjobs, and then a NEW Claude\
+  \ Code session \u2014 plugins and hooks are read at session start, so the session\
+  \ that installs it cannot observe it. I drove the hook as a subprocess against this\
+  \ repository's REAL registered task directory instead (log entry 12): Edit and shell\
+  \ redirection at a real task file both DENY with the full message; ordinary Write,\
+  \ Read of a task file, and `cat` of a task file all allow silently. That is honest\
+  \ evidence for the mechanism and is NOT ac-4, so I did not mark it as such.\n\n\
+  After approval I will rebase, merge --no-ff, mark the branch merged, close the task,\
+  \ and remove the worktree.\n\nSTILL YOURS, NOT ABSORBED\n\n- task-116 ac-3 and task-117\
+  \ ac-5 need a live Codex session; task-109 waits on exactly those two.\n- The React\
+  \ UI has no promote control, so task_promote is reachable only via MCP and REST.\
+  \ Unfiled \u2014 say the word and I will file it.\n- agentjobs validate reports\
+  \ 95 findings on this repo's own corpus (task-103). task-100 open and untouched.\
+  \ Neither touched here.\n\nONE SMALL PRE-EXISTING THING, no action needed: tests/test_task_corpus.py\
+  \ does not satisfy black 23.12.1 on main, and scripts/check.py does not run black,\
+  \ so nothing catches it. I reverted my accidental reformat rather than smuggling\
+  \ it into this branch."
 archived: false
 priority: high
 category: developer_experience
@@ -117,32 +123,49 @@ acceptance:
   text: A Claude Code plugin provides the AgentJobs MCP server and skill; a fresh
     session exposes all 14 tools (13 plus task_promote from task-123) and triggers
     the skill on task work.
+  verify: 'PARTLY MET. Tool half verified 2026-08-17 from a fresh session: fourteen
+    tools including task_promote (log entry 10). Skill-trigger half still needs a
+    session with the plugin installed.'
   status: pending
 - id: ac-2
   text: A PreToolUse guard denies Edit/Write/Bash attempts to write managed task YAML
     and never blocks reads, reusing the Codex guard's decision logic through a shared
     module.
-  status: pending
+  verify: poetry run pytest tests/test_claude_task_write_hook.py tests/test_codex_task_write_hook.py
+  status: met
 - id: ac-3
   text: The write-path matrix from tests/test_codex_task_write_hook.py passes against
     the Claude hook protocol, including its event and decision shapes.
   verify: poetry run pytest tests/test_claude_task_write_hook.py
-  status: pending
+  status: met
 - id: ac-4
   text: A live Claude Code session reproduces a direct-write attempt and observes
     the denial before the file changes.
+  verify: Needs the plugin installed from a marketplace entry and a NEW session; plugins
+    are read at session start, so the session that installs it cannot also observe
+    it. Not substitutable by the subprocess evidence in log entry 12.
   status: pending
 - id: ac-5
   text: docs/mcp-clients.md and the cross-agent matrix in docs/mcp.md report Claude's
     actual protection, and the documentation contract tests are updated to match.
-  status: pending
+  verify: poetry run pytest tests/test_documentation_contract.py
+  status: met
 deliverables:
-- path: plugins/agentjobs-claude
-  note: Claude Code plugin, skill, and hook.
-  status: pending
+- path: plugins/agentjobs
+  note: One directory, two manifests. .claude-plugin/plugin.json, hooks/hooks-claude.json
+    and hooks/guard_task_yaml_claude.py added; hooks/task_write_guard.py holds the
+    shared decision. Supersedes the planned plugins/agentjobs-claude, per the layout
+    decision in log entry 8.
+  status: done
+- path: tests/task_write_guard_matrix.py
+  note: One case table, subclassed by both clients' test files.
+  status: done
 - path: tests/test_claude_task_write_hook.py
-  note: Guard coverage.
-  status: pending
+  note: Guard coverage plus Claude's protocol, envelope and registration.
+  status: done
+- path: tests/test_claude_plugin.py
+  note: Claude manifest packaging.
+  status: done
 dependencies:
 - task: task-117-codex-direct-write-hook
   type: needs
@@ -389,3 +412,164 @@ log:
       id: d70b5f19-8c26-4e43-a1f8-93052c7b6ea0
       kind: handoff
       fingerprint: 60245e5b753c8aa6fd5edf8027661ca1
+- id: 10
+  ts: '2026-08-17T18:53:16.300202Z'
+  actor: claude
+  type: handoff
+  body: 'ac-1 VERIFIED. A fresh Claude Code session lists fourteen AgentJobs MCP tools
+    and task_promote is among them: projects_list, tasks_list, tasks_search, task_get,
+    task_create_draft, task_create_ready, task_promote, task_claim, task_release,
+    task_handoff, task_close, task_update_content, task_log_append, task_next.
+
+
+    This is the check the task-123 session could not perform from inside itself, because
+    an MCP server process holds its tool inventory from session start. Confirmed here
+    from a session started after the merge. The MCP half of ac-1 is closed; the skill-trigger
+    half still needs a session with the plugin installed.
+
+
+    Also confirmed from the prompt: docs/mcp-clone-invocation and task-123 are both
+    merged to main, working tree clean, nothing pushed to any remote. Taking the ball
+    back to do the implementation work.'
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 1f3a7c60-4e21-4b8a-9d05-2c6b81e4f907
+      kind: handoff
+      fingerprint: 07fd03de6a06c33bb21af4e0dbc5ab7c
+- id: 11
+  ts: '2026-08-17T19:25:17.573707Z'
+  actor: claude
+  type: decision
+  body: "THREE DECISIONS FROM THE IMPLEMENTATION PASS. Binding; do not relitigate.\n\
+    \n1. THE CLAUDE HOOK PRINTS NOTHING WHEN IT ALLOWS.\n\nClaude's `permissionDecision:\
+    \ \"allow\"` does not mean \"this hook has no objection\". It\nmeans \"skip the\
+    \ permission system for this call\". The hook matches Edit, Write,\nNotebookEdit\
+    \ and Bash, so emitting an allow on every event would silently auto-approve\n\
+    nearly everything a session does \u2014 including every call the user's own settings\
+    \ would\notherwise have prompted about. Exiting 0 with no output is Claude's way\
+    \ of saying a hook\nhas no opinion, so that is what an allow does.\n\nCodex is\
+    \ the opposite: its protocol expects a decision on every event, so its entry\n\
+    point still answers `allow` explicitly. This is the ONLY behavioural difference\
+    \ between\nthe two entry points, and it is deliberate. It reads as a missing feature,\
+    \ so it is\nstated in the module docstring, the plugin README, docs/mcp-clients.md,\
+    \ and a test named\nfor the failure it prevents (test_it_never_emits_an_allow_or_an_ask_decision).\n\
+    \nRejected alternative: emit `permissionDecision: \"allow\"` for symmetry with\
+    \ Codex. That\nwould have been a silent, session-wide permission bypass that looks\
+    \ identical to a user\nwho trusts their tools \u2014 the worst kind of failure,\
+    \ because nothing surfaces it.\n\n2. A REAL BUG, FOUND BY RUNNING THE MATRIX AGAINST\
+    \ CLAUDE FOR THE FIRST TIME.\n\nFILE_WRITE_TOOLS was written in Codex's snake_case\
+    \ (`notebook_edit`) and matched on a\nplain `.lower()`. Claude's tool is `NotebookEdit`,\
+    \ which folds to `notebookedit` and\nmatched nothing. So the Claude matcher would\
+    \ have registered NotebookEdit and the guard\nwould then have ALLOWED every write\
+    \ it made \u2014 a hole that looks correct in the\nconfiguration file, which is\
+    \ exactly the false confidence the matrix exists to catch.\n\nFixed at the root\
+    \ rather than by adding an entry: tool names are now matched with\nseparators\
+    \ stripped as well as case folded (`_normalise_tool`), so every current and\n\
+    future spelling of a tool name lands on one table key. Regression test\n`test_one_tool_is_caught_however_its_client_spells_it`\
+    \ pins four spellings.\n\nRejected alternative: add \"notebookedit\" to the table.\
+    \ It fixes the one tool that was\nnoticed and leaves the next client's spelling\
+    \ to be discovered the same way.\n\n3. evaluate() RETURNS A NEUTRAL DECISION,\
+    \ NOT EITHER CLIENT'S PAYLOAD.\n\n`{\"decision\": \"allow\"|\"deny\", \"reason\"\
+    : ...}`. Had it kept returning Codex's\n`permission_decision` payload, the Claude\
+    \ entry point would be translating between two\nprotocols rather than adding one,\
+    \ and Codex's shape would quietly have become the shared\none. A test asserts\
+    \ the shared module contains none of `permission_decision`,\n`hookSpecificOutput`,\
+    \ or `permissionDecision`.\n\nThe finding from the research pass held: there is\
+    \ no stdin adapter. Both clients send\n`tool_name`/`tool_input` and `cwd`, which\
+    \ `evaluate()` already read."
+  data:
+    operation:
+      id: 6b2e4d18-0f57-4c93-a1d6-7e35b09f2a41
+      kind: log_append
+      fingerprint: 85d68ca046ee31789af816eefc774df1
+- id: 12
+  ts: '2026-08-17T19:25:44.828866Z'
+  actor: claude
+  type: progress
+  body: "IMPLEMENTATION COMPLETE. Four commits on feat/task-122-claude-code-plugin-and-guard,\n\
+    worktree ../aj-122, rebased onto main at 0413be1. Gate green. Nothing merged,\
+    \ nothing\npushed.\n\n  e2d2eab  refactor(hooks): share the write-guard decision\
+    \ between Codex and Claude\n  e1cad1d  feat(plugin): package the bundle for Claude\
+    \ Code alongside Codex\n  a3c1514  docs(mcp): report Claude's actual protection\
+    \ now that its guard ships\n  c134735  fix(hooks): give the shell branch its own\
+    \ name for its path list\n\nWHAT LANDED, against the lettered plan in log entry\
+    \ 9.\n\n(a) plugins/agentjobs/hooks/task_write_guard.py \u2014 the whole decision:\
+    \ tables, path\n    canonicalisation, `evaluate`, `_deny`, plus a shared `run()`\
+    \ holding the stdin read\n    and the fail-open error handling, since that is\
+    \ the part that must not differ\n    between clients.\n(b) guard_task_yaml.py\
+    \ stays at its path, so no installed Codex configuration changes.\n    It is now\
+    \ ~55 lines: a docstring and a `serialise()`. guard_task_yaml_claude.py is\n \
+    \   new beside it.\n(c) .claude-plugin/plugin.json and hooks/hooks-claude.json,\
+    \ matcher\n    `Edit|Write|NotebookEdit|Bash`. Same directory, same .mcp.json,\
+    \ same skill.\n(d) ALREADY DONE \u2014 SKILL.md line 2 has carried `name: agentjobs`\
+    \ since the Codex\n    plugin shipped, and tests/test_codex_plugin.py already\
+    \ asserted it. No change was\n    needed. Recorded because the plan listed it\
+    \ as work and a future reader will\n    otherwise look for the commit.\n(e) tests/task_write_guard_matrix.py\
+    \ holds ONE case table; both client test files\n    subclass it. tests/test_claude_task_write_hook.py\
+    \ exists for ac-3's verify command.\n    Each case runs the shared decision AND\
+    \ that client's serialiser, so a passing case\n    proves the denial survives\
+    \ into the shape the client actually reads.\n(f) docs/mcp-clients.md, the docs/mcp.md\
+    \ matrix and prose, and\n    tests/test_documentation_contract.py.\n\nVERIFICATION.\n\
+    \n  poetry run python scripts/check.py     1204 pytest / 42 vitest / build / 1\
+    \ Playwright\n  poetry run pytest tests/test_claude_task_write_hook.py     (ac-3's\
+    \ verify) passes\n  black --check, ruff, mypy  clean on every file this branch\
+    \ touches\n\nThe worktree needed its own `poetry install` AND its own `npm ci`\
+    \ in frontend/ \u2014 the\nroot npm ci is not enough, the frontend has its own\
+    \ package.json, and without it\nscripts/check.py dies on a missing openapi-ts.\
+    \ Worth knowing for the next worktree.\n\nThen the hook was driven the way a client\
+    \ drives it \u2014 as a subprocess, one JSON event\non stdin, against THIS repository's\
+    \ real registered task directory rather than a\nfixture:\n\n  Edit  \u2192 C:/projects/agentjobs/tasks/agentjobs/task-122-*.yaml\
+    \   DENY, exit 0,\n          message naming the file, the managed directory, and\
+    \ the MCP tools\n  Bash  \u2192 echo broken > <same path>                    \
+    \           DENY, exit 0\n  Write \u2192 src/agentjobs/manager.py            \
+    \                    allow, exit 0, silent\n  Read  \u2192 <the same task file>\
+    \                                    allow, exit 0, silent\n  Bash  \u2192 cat\
+    \ <the same task file>                                allow, exit 0, silent\n\n\
+    NOT VERIFIED, and it cannot be from here: ac-4, and the skill-trigger half of\
+    \ ac-1.\nBoth need a Claude Code session with the plugin actually installed from\
+    \ a marketplace\nentry, and plugins are read at session start \u2014 so this session\
+    \ cannot install it and\nthen observe it. That is a genuine restart boundary,\
+    \ not a substitution I should paper\nover by calling the subprocess evidence above\
+    \ \"a live session\".\n\nPRE-EXISTING, NOT MINE, NOT ABSORBED:\n- tests/test_task_corpus.py\
+    \ does not satisfy black 23.12.1 on main. I reformatted it by\n  accident running\
+    \ black over tests/, then reverted it. scripts/check.py does not run\n  black,\
+    \ so nothing catches this today.\n- frontend/src/api/generated/* rewrite with\
+    \ line-ending churn whenever openapi-ts runs\n  in a fresh worktree. assert-generated-clean\
+    \ passes, so it is noise; reverted.\n- The mypy error fixed in c134735 existed\
+    \ on main at guard_task_yaml.py:399. It is gone\n  on this branch because the\
+    \ branch replaces that file; main still has it until merge."
+  data:
+    operation:
+      id: 9c47f2a3-51be-4d08-8e62-3fa0c1d75b64
+      kind: log_append
+      fingerprint: 3173565d638a90ca599fe8a3d100c10c
+- id: 13
+  ts: '2026-08-17T19:26:29.745940Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 2d5a8e71-3c96-4b40-9f18-6ea72c40b3d5
+      kind: update_content
+      fingerprint: 420326861b72a5e7a6415dd44c32df1f
+- id: 14
+  ts: '2026-08-17T19:26:57.338858Z'
+  actor: claude
+  type: handoff
+  body: Implementation complete and verified to the limit this session can reach.
+    Handing to human for the merge gate and for the two acceptance criteria that require
+    a Claude Code session with the plugin installed.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 7e1b95c4-2a63-4f80-b5d7-8c40e2917fa6
+      kind: handoff
+      fingerprint: e72b6414bb0de7a5f5b8b25bbdcd95a9
