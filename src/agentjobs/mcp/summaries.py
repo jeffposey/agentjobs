@@ -170,9 +170,22 @@ TASK_DOCUMENT_SCHEMA: Dict[str, Any] = {
 }
 
 
-def summary_line(count: int, noun: str, *, truncated: bool = False, broken: int = 0) -> str:
-    """One sentence for clients that do not read structured results."""
-    parts = [f"{count} {noun}{'' if count == 1 else 's'}"]
+def summary_line(
+    count: int,
+    singular: str,
+    *,
+    plural: Optional[str] = None,
+    truncated: bool = False,
+    broken: int = 0,
+) -> str:
+    """One sentence for clients that do not read structured results.
+
+    The plural is passed rather than derived. Appending "s" produced "3 matchs" in
+    real output, and an English pluralisation rule is not worth writing for a handful
+    of nouns fixed at their call sites.
+    """
+    word = singular if count == 1 else (plural or f"{singular}s")
+    parts = [f"{count} {word}"]
     if truncated:
         parts.append("(more available; raise limit or narrow the query)")
     if broken:

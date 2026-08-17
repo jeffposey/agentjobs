@@ -352,7 +352,9 @@ def build_tasks_search(client: TaskClient) -> ToolDefinition:
         }
         return success(
             payload,
-            summary_line(len(rows), "match", truncated=truncated, broken=len(broken)),
+            summary_line(
+                len(rows), "match", plural="matches", truncated=truncated, broken=len(broken)
+            ),
         )
 
     return ToolDefinition(

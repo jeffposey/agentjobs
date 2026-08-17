@@ -601,6 +601,27 @@ class TestSummaries:
 
         assert row["project_id"] == "alpha"
 
+    @pytest.mark.parametrize(
+        "count,plural,expected",
+        [
+            (1, None, "1 task."),
+            (2, None, "2 tasks."),
+            (1, "matches", "1 match."),
+            (3, "matches", "3 matches."),
+        ],
+    )
+    def test_the_summary_line_pluralises_correctly(self, count, plural, expected):
+        """Deriving the plural produced "3 matchs" in real tool output."""
+        noun = "task" if plural is None else "match"
+
+        assert summaries.summary_line(count, noun, plural=plural) == expected
+
+    def test_the_summary_line_names_unreadable_files(self):
+        line = summaries.summary_line(2, "task", truncated=True, broken=1)
+
+        assert "more available" in line
+        assert "1 unreadable task file" in line
+
     def test_limited_reports_truncation_only_when_it_cuts(self):
         assert summaries.limited([1, 2, 3], 5) == ([1, 2, 3], False)
         assert summaries.limited([1, 2, 3], 2) == ([1, 2], True)
