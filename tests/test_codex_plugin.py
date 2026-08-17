@@ -173,7 +173,10 @@ class TestReadme:
             assert section in README, section
 
     def test_it_says_a_new_session_is_required(self):
-        assert "start a new Codex session" in README.lower() or "new Codex session" in README
+        """Phrased for whichever client is reading, now that both install this one
+        directory. The fact a reader needs is that an existing session will not see it."""
+        assert "start a new session" in FLAT_README
+        assert "read at session start" in FLAT_README
 
     def test_it_states_that_one_config_serves_cli_desktop_and_ide(self):
         assert "desktop app, the CLI, and the IDE extension" in FLAT_README
