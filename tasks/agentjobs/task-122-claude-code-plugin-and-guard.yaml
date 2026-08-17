@@ -2,7 +2,7 @@ schema: 2
 id: task-122-claude-code-plugin-and-guard
 title: Ship a Claude Code plugin, skill, and direct-write guard
 created: '2026-08-17T16:52:09.435545Z'
-updated: '2026-08-17T20:18:05.148509Z'
+updated: '2026-08-17T20:21:33.671541Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -688,3 +688,53 @@ log:
       id: c5e91b34-7a08-4d62-9e15-40f8b271a6dc
       kind: log_append
       fingerprint: 763bc7c48338915002adcd0873e278f7
+- id: 19
+  ts: '2026-08-17T20:21:33.671359Z'
+  actor: claude
+  type: progress
+  body: 'ac-1 observed satisfied in a live session (2026-08-17).
+
+
+    The plugin is installed. This session''s skill listing carries `agentjobs:agentjobs`
+
+    (plugin-scoped, not project-local), and the MCP server registered as
+
+    `plugin:agentjobs:agentjobs` alongside the project-local `agentjobs` entry.
+
+
+    Jeff opened the session with the literal ac-1 phrase, "what should I work on in
+
+    agentjobs?", and the skill triggered on it unprompted -- I invoked
+
+    `Skill(agentjobs:agentjobs)` before touching anything else, and worked the backlog
+
+    through the MCP tools as the skill instructs. That is the criterion''s exact test,
+
+    performed by the user rather than staged by an agent.
+
+
+    On the known wart: BOTH servers connected. The plugin `.mcp.json`''s bare `agentjobs`
+
+    command resolved, and it did not collide with the project `.mcp.json` entry of
+    the same
+
+    name -- they surfaced as two separately-namespaced tool sets. So the predicted
+    failure
+
+    did not occur on this machine. Whether that generalises past a machine with the
+    console
+
+    script already on PATH is untested, and log entry 3''s concern stands for a clean
+    clone.
+
+
+    ac-4 (the direct-write denial) is untested here -- nothing in this session attempted
+    a
+
+    write to tasks/. Marking ac-1 met is Jeff''s call, not mine; this entry is the
+    evidence.'
+  data:
+    operation:
+      id: 6f2c1a84-9d3b-4e17-8a52-0c7b41d9e6f0
+      kind: log_append
+      fingerprint: 7da7f16a333875c80c5ebe514a2d601c
