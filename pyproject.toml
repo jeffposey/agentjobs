@@ -122,5 +122,7 @@ disallow_untyped_defs = true
 # yaml is handled properly instead, via the types-PyYAML dev dependency, so its calls
 # are actually checked rather than waved through. flask is imported by one example
 # script and is not a dependency of the package at all.
-module = ["uvicorn.*", "httpx.*", "flask.*", "linkml.*"]
+# jsonschema arrives as a dependency of the MCP SDK and ships no stubs; the MCP
+# server uses it to validate tool arguments against their published schemas.
+module = ["uvicorn.*", "httpx.*", "flask.*", "linkml.*", "jsonschema.*"]
 ignore_missing_imports = true
