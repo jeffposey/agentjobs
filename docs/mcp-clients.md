@@ -52,8 +52,8 @@ via a local marketplace entry. It bundles three things: the MCP wiring, the Agen
 workflow skill, and the direct-write guard hook.
 
 Codex will ask you to review and trust the hook before it runs. Read
-`hooks/guard_task_yaml.py` first — it is dependency-free and offline by design, so
-there is not much of it.
+`hooks/task_write_guard.py` and `hooks/guard_task_yaml.py` first — they are
+dependency-free and offline by design, so there is not much of them.
 
 **Start a new session afterwards.** Plugins, MCP servers and hooks are read at session
 start. One local Codex configuration is shared by the desktop app, the CLI, and the IDE
@@ -65,7 +65,56 @@ Verify: ask "what should I work on in *project*?" — the skill should trigger, 
 Protection: MCP tools, plus the pre-tool hook once trusted, plus the receipt gate if
 you install it, plus portable validation.
 
-## Claude Code / Claude Desktop
+## Claude Code
+
+The repository root is a plugin marketplace. Add it, then install from it:
+
+```bash
+claude plugin marketplace add https://github.com/jeffposey/agentjobs
+```
+
+```bash
+claude plugin install agentjobs@agentjobs
+```
+
+From a clone, point the first command at your checkout —
+`claude plugin marketplace add /path/to/agentjobs` — and it installs whatever is on the
+branch you have out. The same operations are available interactively as `/plugin`.
+
+You get the same directory Codex installs,
+[`plugins/agentjobs`](https://github.com/jeffposey/agentjobs/tree/main/plugins/agentjobs),
+which carries a Claude manifest beside the Codex one over one server entry, one skill,
+and one guard. So Claude gets all three: the MCP wiring, the workflow skill, and a
+`PreToolUse` guard that refuses direct writes to managed task YAML with `Edit`,
+`Write`, `NotebookEdit` or `Bash`.
+
+Claude will ask you to review and trust the hook before it runs. Read
+`hooks/task_write_guard.py` and `hooks/guard_task_yaml_claude.py` first.
+
+**Start a new session afterwards.** Plugins, MCP servers and hooks are read at session
+start — including in the session you ran the install command from, which will not see
+it.
+
+Verify in the new session: `claude plugin list` should show it, and asking "what should
+I work on in *project*?" should trigger the skill. Then ask Claude to edit a task YAML
+file directly; it should be refused, with a message naming the file and the AgentJobs
+tools to use instead.
+
+Protection: MCP tools, plus the pre-tool hook once trusted, plus the receipt gate if
+you install it, plus portable validation. The same as Codex.
+
+One difference from Codex is deliberate and worth knowing, because it reads as a
+missing feature: when the guard allows a call, the Claude hook prints **nothing**.
+Claude's `permissionDecision: "allow"` means "skip the permission system for this
+call", not "no objection" — and the hook matches every file-writing tool, so emitting
+it would auto-approve nearly everything a session does.
+
+Expect the occasional false refusal. An interpreter that names a managed task path is
+refused even when it is only reading, because the guard cannot tell the difference from
+the outside. `Bash` is used heavily in Claude sessions, so this comes up more here than
+it ever did in Codex.
+
+## Claude Desktop, and any client without the plugin
 
 ```json
 {
@@ -80,16 +129,10 @@ you install it, plus portable validation.
 ```
 
 Protection: MCP tools and portable validation, plus the receipt gate if you install the
-git hook. **No pre-tool hook is shipped for Claude yet**, so nothing stops Claude
-writing task YAML with its own file tools.
-
-That is a gap in what AgentJobs ships, not a limit of the client. Claude Code has
-`PreToolUse` hooks, skills, and a plugin system, so the same three-part bundle is
-buildable here; the guard's logic is client-agnostic and only its event and decision
-shapes are Codex-specific. Tracked as task-122.
-
-Until then, install the commit gate, which is client-independent and catches the same
-edits one step later:
+git hook. A bare server entry carries no hook and no skill, so nothing stops the client
+writing task YAML with its own file tools. Install the plugin above where your client
+supports one, or install the commit gate, which is client-independent and catches the
+same edits one step later:
 
 ```bash
 agentjobs validate --install-hook
@@ -97,8 +140,13 @@ agentjobs validate --install-hook
 
 ## Gemini
 
-Same STDIO entry as Claude, in Gemini's MCP configuration. Same protection level: tools
-and validation, no pre-tool hook.
+Same STDIO entry as the one above, in Gemini's MCP configuration. Same protection
+level: tools and validation. **No pre-tool hook is shipped for Gemini yet**, so nothing
+stops Gemini writing task YAML with its own file tools.
+
+That is a gap in what AgentJobs ships rather than a limit of the client. The guard's
+decision logic is client-agnostic and already serialises two clients' decision shapes
+out of one module, so a third would be a third entry point, not a third guard.
 
 ## Any other MCP client
 

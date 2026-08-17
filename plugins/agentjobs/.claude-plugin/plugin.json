@@ -1,0 +1,19 @@
+{
+  "name": "agentjobs",
+  "version": "0.1.0",
+  "description": "Managed task operations for AgentJobs: discovery, the claim/handoff/release/close loop, the append-only log, and zero-context resumption.",
+  "author": "Jeff Posey",
+  "homepage": "https://github.com/jeffposey/agentjobs",
+  "license": "MIT",
+  "keywords": [
+    "agentjobs",
+    "tasks",
+    "workflow",
+    "mcp"
+  ],
+  "mcpServers": "./.mcp.json",
+  "skills": [
+    "skills/agentjobs"
+  ],
+  "hooks": "./hooks/hooks-claude.json"
+}
