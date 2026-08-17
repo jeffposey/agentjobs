@@ -40,6 +40,37 @@ class TaskClient:
                 transport=transport,
             )
 
+    @property
+    def base_url(self) -> str:
+        """The service URL this client talks to, for diagnostics and error text."""
+        return self._base_url
+
+    # ------------------------------------------------------------------
+    # Service metadata
+    # ------------------------------------------------------------------
+    def service_health(self) -> Dict[str, Any]:
+        """Return the service health payload, raising when it is unreachable."""
+        response = self._request("GET", "/api/health")
+        payload: Dict[str, Any] = response.json()
+        return payload
+
+    def service_version(self) -> Dict[str, Any]:
+        """Return the service's AgentJobs version and served task schema version."""
+        response = self._request("GET", "/api/version")
+        payload: Dict[str, Any] = response.json()
+        return payload
+
+    def list_projects(self) -> List[Dict[str, Any]]:
+        """List every project the service serves, as raw records.
+
+        Deliberately untyped at this layer. The typed, project-scoped surface the MCP
+        tools consume is built on top of this by the project/actor routing work; this
+        method exists so the MCP startup probe can prove the endpoint answers.
+        """
+        response = self._request("GET", "/api/projects")
+        payload: List[Dict[str, Any]] = response.json()
+        return payload
+
     # ------------------------------------------------------------------
     # Context manager helpers
     # ------------------------------------------------------------------
