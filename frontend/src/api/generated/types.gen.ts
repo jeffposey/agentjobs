@@ -633,6 +633,26 @@ export type ProgressUpdateRequest = {
 };
 
 /**
+ * ProjectActor
+ *
+ * One actor a project's config defines.
+ */
+export type ProjectActor = {
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: string;
+};
+
+/**
  * ProjectInitializationRequest
  *
  * Create a project in an existing directory, then register it.
@@ -730,6 +750,16 @@ export type ProjectRegistrationRequest = {
  * A registered project as exposed to API consumers.
  */
 export type ProjectResponse = {
+    /**
+     * Actors
+     */
+    actors?: Array<ProjectActor>;
+    /**
+     * Default User
+     *
+     * The configured human. Present so a client can address a person; it is never an agent's mutation identity.
+     */
+    default_user?: string | null;
     /**
      * Id
      */

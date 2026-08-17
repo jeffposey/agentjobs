@@ -9,22 +9,32 @@ from fastapi.testclient import TestClient
 
 from agentjobs.api.dependencies import get_task_manager, reset_dependency_cache
 from agentjobs.api.main import app
+from agentjobs.api.routes.status import get_acting_project
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Lifecycle, Priority
+from agentjobs.projects import Project
 from agentjobs.storage import TaskStorage
 
 
 @pytest.fixture()
 def api_client(tmp_path) -> Iterator[Tuple[TestClient, TaskManager]]:
-    """Provide a TestClient bound to a temporary storage directory."""
+    """Provide a TestClient bound to a temporary storage directory.
+
+    The acting project is overridden alongside the manager. Overriding only the
+    manager left actor validation resolving the *default* project, which with an
+    empty registry is the working directory -- the AgentJobs repository itself. These
+    tests would then have been checking their actor names against the real
+    ``.agentjobs/config.yaml``, and renaming an actor there would break unrelated API
+    tests. tmp_path has no config, so any actor is accepted, which is what a
+    transport-level test wants to exercise.
+    """
     reset_dependency_cache()
     storage = TaskStorage(tmp_path)
     manager = TaskManager(storage)
+    project = Project(id="test-project", name="Test Project", root=tmp_path)
 
-    def _override_manager() -> TaskManager:
-        return manager
-
-    app.dependency_overrides[get_task_manager] = _override_manager
+    app.dependency_overrides[get_task_manager] = lambda: manager
+    app.dependency_overrides[get_acting_project] = lambda: project
     with TestClient(app) as client:
         yield client, manager
     app.dependency_overrides.clear()
@@ -75,9 +85,7 @@ def test_create_task_preserves_complete_resumption_spec(api_client) -> None:
             "intent": "Creation should not require a terminal.",
             "constraints": "Use the manager-backed API.",
             "out_of_scope": "Editing existing tasks.",
-            "context": [
-                {"path": "src/agentjobs/manager.py", "why": "Owns task creation."}
-            ],
+            "context": [{"path": "src/agentjobs/manager.py", "why": "Owns task creation."}],
             "lifecycle": "ready",
         },
     )
@@ -92,9 +100,7 @@ def test_create_task_preserves_complete_resumption_spec(api_client) -> None:
         "description": "Build and verify the browser form.",
         "constraints": "Use the manager-backed API.",
         "out_of_scope": "Editing existing tasks.",
-        "context": [
-            {"path": "src/agentjobs/manager.py", "why": "Owns task creation."}
-        ],
+        "context": [{"path": "src/agentjobs/manager.py", "why": "Owns task creation."}],
     }
 
 

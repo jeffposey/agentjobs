@@ -907,6 +907,30 @@
         "title": "ProgressUpdateRequest",
         "type": "object"
       },
+      "ProjectActor": {
+        "description": "One actor a project's config defines.",
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "display_name"
+        ],
+        "title": "ProjectActor",
+        "type": "object"
+      },
       "ProjectInitializationRequest": {
         "description": "Create a project in an existing directory, then register it.",
         "properties": {
@@ -1067,6 +1091,25 @@
       "ProjectResponse": {
         "description": "A registered project as exposed to API consumers.",
         "properties": {
+          "actors": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectActor"
+            },
+            "title": "Actors",
+            "type": "array"
+          },
+          "default_user": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The configured human. Present so a client can address a person; it is never an agent's mutation identity.",
+            "title": "Default User"
+          },
           "id": {
             "title": "Id",
             "type": "string"

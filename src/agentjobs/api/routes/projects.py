@@ -5,9 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
+import yaml
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, Field
 
+from agentjobs.actors import default_user, load_actors
 from agentjobs.models_v2 import Ball, Lifecycle, Task
 from agentjobs.project_setup import build_project_config, initialize_project
 from agentjobs.projects import (
@@ -18,7 +20,7 @@ from agentjobs.projects import (
     validate_project_id,
 )
 
-from ..dependencies import get_registry, list_projects, storage_for
+from ..dependencies import get_registry, list_projects, project_config, storage_for
 
 router = APIRouter(prefix="/api", tags=["projects"])
 
@@ -58,6 +60,14 @@ class ProjectInspection(BaseModel):
     suggested_id: str
 
 
+class ProjectActor(BaseModel):
+    """One actor a project's config defines."""
+
+    id: str
+    kind: str
+    display_name: str
+
+
 class ProjectResponse(BaseModel):
     """A registered project as exposed to API consumers."""
 
@@ -66,6 +76,14 @@ class ProjectResponse(BaseModel):
     root: str
     tasks_directory: str
     task_count: Optional[int]
+    actors: List[ProjectActor] = Field(default_factory=list)
+    default_user: Optional[str] = Field(
+        default=None,
+        description=(
+            "The configured human. Present so a client can address a person; it is "
+            "never an agent's mutation identity."
+        ),
+    )
 
 
 def _resolved_directory(value: str) -> Path:
@@ -97,14 +115,41 @@ def _registration_details(
     return identifier, project_name
 
 
+def _actor_vocabulary(project: Any) -> tuple[List[ProjectActor], Optional[str]]:
+    """Read a project's configured actors and its human default.
+
+    Discovery has to carry these because an agent must supply an exact actor on every
+    mutation and has no other way to learn the vocabulary. ``default_user`` is
+    reported for addressing a person, not for an agent to adopt: inferring an actor
+    from the human default is precisely the attribution bug actors.py exists to stop.
+
+    A project whose config cannot be read reports an empty vocabulary rather than
+    failing the listing, matching how a missing directory is already handled. Nothing
+    is weakened by that: the authoritative validator reads the same config at mutation
+    time, so a project that cannot be read here rejects unknown actors there anyway.
+    """
+    try:
+        config = project_config(project)
+    except (OSError, yaml.YAMLError):
+        return [], None
+    vocabulary = [
+        ProjectActor(id=actor.id, kind=actor.kind, display_name=actor.display_name)
+        for actor in load_actors(config).values()
+    ]
+    return vocabulary, default_user(config)
+
+
 def _describe(project: Any, task_count: Optional[int]) -> ProjectResponse:
     """Render a project as an API payload."""
+    actors, human = _actor_vocabulary(project)
     return ProjectResponse(
         id=project.id,
         name=project.name,
         root=str(project.root),
         tasks_directory=str(project.tasks_dir()),
         task_count=task_count,
+        actors=actors,
+        default_user=human,
     )
 
 
