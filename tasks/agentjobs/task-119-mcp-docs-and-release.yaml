@@ -2,10 +2,11 @@ schema: 2
 id: task-119-mcp-docs-and-release
 title: Document, version, and release the AgentJobs MCP integration
 created: '2026-08-14T19:20:03.863069Z'
-updated: '2026-08-15T22:34:23.821870Z'
-lifecycle: ready
+updated: '2026-08-17T08:52:37.194406Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: documentation
@@ -16,6 +17,7 @@ tags:
 - cross-agent
 effort: 1-2 days
 assignment:
+  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -98,5 +100,16 @@ dependencies:
   type: needs
   note: Requires final validator, receipt gate, and cross-agent backstop behavior.
 links: []
-branches: []
-log: []
+branches:
+- name: feat/task-119-mcp-docs-and-release
+  status: active
+log:
+- id: 1
+  ts: '2026-08-17T08:52:34.922241Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
