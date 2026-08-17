@@ -43,6 +43,22 @@ from agentjobs.models_v2 import (
 from agentjobs.projects import ProjectRegistry
 from agentjobs.storage import TaskStorage
 
+READ_NAMES = [
+    "projects_list",
+    "tasks_list",
+    "task_get",
+    "tasks_search",
+    "task_next",
+]
+"""The read inventory. Named rather than counted: the registry also carries the
+mutation tools, and a count would not notice a rename."""
+
+
+def read_declarations(registry):
+    """Only the read tools, so mutation tools do not fail read-only assertions."""
+    return [item for item in registry.declarations() if item.name in set(READ_NAMES)]
+
+
 SHARED_ID = "task-001-shared-id"
 ACTORS = [
     {"name": "Ada", "kind": "human", "display_name": "Ada Lovelace"},
@@ -171,18 +187,18 @@ class TestPublishedContract:
     def test_exactly_the_five_accepted_read_tools_are_published(self, service):
         registry, _, _ = service
 
-        assert registry.names == [
-            "projects_list",
-            "tasks_list",
-            "task_get",
-            "tasks_search",
-            "task_next",
-        ]
+        assert [name for name in registry.names if name in set(READ_NAMES)] == READ_NAMES
+
+    def test_the_read_tools_come_first_in_the_inventory(self, service):
+        """A client renders the list in order; looking should precede writing."""
+        registry, _, _ = service
+
+        assert registry.names[: len(READ_NAMES)] == READ_NAMES
 
     def test_every_tool_declares_both_schemas_and_a_description(self, service):
         registry, _, _ = service
 
-        for declared in registry.declarations():
+        for declared in read_declarations(registry):
             assert declared.inputSchema["type"] == "object"
             assert declared.outputSchema is not None
             assert declared.description and len(declared.description) > 40
@@ -190,7 +206,7 @@ class TestPublishedContract:
     def test_every_read_tool_is_annotated_read_only_and_closed_world(self, service):
         registry, _, _ = service
 
-        for declared in registry.declarations():
+        for declared in read_declarations(registry):
             annotations = declared.annotations
             assert annotations is not None
             assert annotations.readOnlyHint is True
@@ -200,7 +216,7 @@ class TestPublishedContract:
     def test_only_projects_list_may_omit_a_project_id(self, service):
         registry, _, _ = service
 
-        for declared in registry.declarations():
+        for declared in read_declarations(registry):
             required = declared.inputSchema.get("required", [])
             if declared.name == "projects_list":
                 assert required == []
@@ -211,14 +227,14 @@ class TestPublishedContract:
         """A silently ignored argument is worse than a rejected one."""
         registry, _, _ = service
 
-        for declared in registry.declarations():
+        for declared in read_declarations(registry):
             assert declared.inputSchema["additionalProperties"] is False
 
     def test_no_read_tool_offers_a_claim_shortcut(self, service):
-        """ac-4 and the constraints: this layer never mutates."""
+        """The read layer never mutates, not even as a convenience."""
         registry, _, _ = service
 
-        for declared in registry.declarations():
+        for declared in read_declarations(registry):
             blob = (declared.description or "").lower()
             assert "claim-on" not in blob
             for schema in (declared.inputSchema, declared.outputSchema or {}):

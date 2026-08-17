@@ -15,6 +15,7 @@ from io import TextIOWrapper
 from typing import Any, Iterator, Mapping, Optional, TextIO, Union
 
 import anyio
+import jsonschema
 import mcp.server.stdio
 from mcp import types
 from mcp.server.lowlevel import NotificationOptions, Server
@@ -25,11 +26,11 @@ from ..client import TaskClient
 from ..models_v2 import SCHEMA_VERSION
 from .compat import ServiceInfo, StartupError, probe_service
 from .config import McpConfig
-from .errors import ErrorCode, ToolError
+from .errors import ErrorCode, FieldError, ToolError
 from .instructions import SERVER_INSTRUCTIONS
 from .inventory import build_registry
 from .results import ToolOutput, failure
-from .tools import ToolRegistry
+from .tools import ToolDefinition, ToolRegistry
 
 SERVER_NAME = "agentjobs"
 
@@ -77,6 +78,38 @@ def configure_logging(level: int = logging.INFO) -> None:
     logging.captureWarnings(True)
 
 
+def validate_arguments(definition: ToolDefinition, arguments: Mapping[str, Any]) -> None:
+    """Check tool arguments against the tool's published input schema.
+
+    Raises :class:`ToolError` naming the offending path, so a schema failure carries
+    the same ``invalid_input`` code and ``field_errors`` as every other refusal. The
+    alternative -- letting the SDK validate -- produces a bare sentence and no code,
+    which is exactly the case an agent most needs to branch on, because it is the one
+    it can fix without asking anybody.
+    """
+    validator = jsonschema.Draft202012Validator(definition.input_schema)
+    problems = sorted(validator.iter_errors(dict(arguments)), key=lambda item: list(item.path))
+    if not problems:
+        return
+    raise ToolError(
+        code=ErrorCode.INVALID_INPUT,
+        message=(
+            f"Arguments for {definition.name!r} do not match its schema: " f"{problems[0].message}"
+        ),
+        field_errors=[
+            FieldError(
+                path=".".join(str(part) for part in problem.path) or "(root)",
+                message=problem.message,
+            )
+            for problem in problems[:5]
+        ],
+        suggested_action=(
+            f"Re-read the inputSchema published for {definition.name!r} and send only "
+            "the fields it declares."
+        ),
+    )
+
+
 def build_server(registry: ToolRegistry) -> Server[Any, Any]:
     """Create the MCP server bound to a tool registry."""
     server: Server[Any, Any] = Server(SERVER_NAME, version=__version__)
@@ -85,12 +118,17 @@ def build_server(registry: ToolRegistry) -> Server[Any, Any]:
     async def list_tools() -> list[types.Tool]:
         return registry.declarations()
 
-    @server.call_tool()
+    # validate_input=False because the SDK's own check reports a schema failure as
+    # text with no structuredContent, which is the one class of error an agent could
+    # not branch on. Validating here instead makes every failure -- malformed
+    # arguments included -- arrive in the same shape with the same codes.
+    @server.call_tool(validate_input=False)
     async def call_tool(
         name: str, arguments: Optional[Mapping[str, Any]]
     ) -> Union[ToolOutput, types.CallToolResult]:
         try:
             definition = registry.get(name)
+            validate_arguments(definition, arguments or {})
             return await definition.handler(arguments or {})
         except ToolError as exc:
             return failure(exc)

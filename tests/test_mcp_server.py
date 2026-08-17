@@ -453,6 +453,14 @@ class TestPackagedCommand:
             "task_get",
             "tasks_search",
             "task_next",
+            "task_create_draft",
+            "task_create_ready",
+            "task_claim",
+            "task_release",
+            "task_handoff",
+            "task_close",
+            "task_log_append",
+            "task_update_content",
         ]
 
     def test_stdout_carries_only_json_rpc(self, running_service):
