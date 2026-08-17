@@ -2,7 +2,7 @@ schema: 2
 id: task-109-agentjobs-mcp-managed-interface
 title: Ship a managed AgentJobs MCP interface and direct-write guardrails
 created: '2026-08-14T19:18:45.666884Z'
-updated: '2026-08-17T08:01:18.789777Z'
+updated: '2026-08-17T08:13:40.288292Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -218,4 +218,13 @@ log:
     Thirteen tools are now published and the end-to-end managed loop works through
     the packaged server. task-115 (protocol and agent evals) is next; task-116 depends
     on it.
+  data: {}
+- id: 10
+  ts: '2026-08-17T08:13:40.288177Z'
+  actor: claude
+  type: progress
+  body: Child 6 of 10 complete. task-115 (protocol and agent evals) merged to main
+    as 09c72f4. All ten design scenarios pass and write a versioned evidence artifact
+    to out/mcp-evals/report.json (41 recorded calls). task-116 (Codex plugin and skill)
+    is now eligible.
   data: {}

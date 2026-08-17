@@ -2,11 +2,9 @@ schema: 2
 id: task-115-mcp-protocol-and-agent-evals
 title: Prove the MCP contract with protocol and agent-behavior evaluations
 created: '2026-08-14T19:19:57.357606Z'
-updated: '2026-08-17T08:01:51.547529Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-17T08:13:40.015093Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: infrastructure
@@ -16,7 +14,6 @@ tags:
 - evals
 effort: 2 days
 assignment:
-  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -97,7 +94,7 @@ links:
   title: OpenAI MCP tool design and testing guidance
 branches:
 - name: feat/task-115-mcp-protocol-and-agent-evals
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-17T08:01:49.417752Z'
@@ -108,3 +105,23 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 2
+  ts: '2026-08-17T08:13:39.444687Z'
+  actor: claude
+  type: decision
+  body: 'Approved for merge under the session delegation recorded on task-109. Review
+    performed before merging: read the full diff; confirmed the complete gate passes
+    and that the protocol tests genuinely drive the packaged command as a subprocess
+    against a real service. One eval assertion was wrong on first run -- it forgot
+    the manager-owned creation entry -- and was corrected in the test rather than
+    by changing behaviour.'
+  data: {}
+- id: 3
+  ts: '2026-08-17T08:13:40.014928Z'
+  actor: claude
+  type: transition
+  body: Merged to main as 09c72f4 (--no-ff) under the session delegation. Worktree
+    removed, branch deleted. All acceptance criteria met.
+  data:
+    lifecycle: closed
+    outcome: completed
