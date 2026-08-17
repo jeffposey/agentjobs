@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 /**
  * The loop the dashboard already promises: a human writes a draft, the drafts panel
@@ -21,19 +21,19 @@ async function createTask(page: Page, title: string, lifecycle: "Draft" | "Ready
 }
 
 /**
- * Open a task's detail page by id.
+ * Open a task's detail page the way a user does: by clicking it in the task list.
  *
- * Deliberately not by clicking it in the task list: `TaskList.tsx` renders a raw
- * `<a href>` holding a router path with no `/app` basename, so that click leaves the
- * React app for the legacy server-rendered page. That is a real bug and a separate
- * one; routing around it here keeps these tests about promote.
+ * This used to look the id up over the API and navigate directly, because the row
+ * link was a raw anchor that dropped the /app basename and ejected the browser into
+ * the legacy server-rendered UI (task-008, fixed). Clicking is worth more than the
+ * workaround was: it means these tests also fail if that regresses.
  */
-async function openTask(page: Page, request: APIRequestContext, title: string) {
-  const tasks = await (await request.get("/api/tasks")).json();
-  const match = tasks.find((task: { title: string }) => task.title === title);
-  expect(match, `no task titled ${title}`).toBeTruthy();
-  await page.goto(`/app/p/_local/tasks/${match.id}`);
+async function openTask(page: Page, title: string) {
+  await page.goto("/app/p/_local/tasks?status=all");
+  await page.getByRole("link", { name: new RegExp(title) }).click();
   await expect(page.getByRole("region", { name: "Full specification" })).toBeVisible();
+  // Still inside the React app, not the Jinja page the old anchor landed on.
+  await expect(page).toHaveURL(/\/app\/p\/_local\/tasks\//);
 }
 
 test("walks the whole drafts loop: create, find through the dashboard, promote", async ({ page }) => {
@@ -66,9 +66,9 @@ test("walks the whole drafts loop: create, find through the dashboard, promote",
   await expect(log).toContainText("E2E Human");
 });
 
-test("wears the review vocabulary once a task is past draft", async ({ page, request }) => {
+test("wears the review vocabulary once a task is past draft", async ({ page }) => {
   await createTask(page, "Ready from the start", "Ready");
-  await openTask(page, request, "Ready from the start");
+  await openTask(page, "Ready from the start");
 
   // Ready/agent-available: the ball is not with the human, so no action panel at all.
   await expect(page.getByRole("region", { name: "Draft actions" })).toBeHidden();
@@ -76,9 +76,9 @@ test("wears the review vocabulary once a task is past draft", async ({ page, req
   await expect(page.getByRole("region", { name: "Dependency state" })).toContainText("Actionable now");
 });
 
-test("promoting without a note records the manager's own sentence", async ({ page, request }) => {
+test("promoting without a note records the manager's own sentence", async ({ page }) => {
   await createTask(page, "Draft without a note", "Draft");
-  await openTask(page, request, "Draft without a note");
+  await openTask(page, "Draft without a note");
 
   await page.getByRole("button", { name: /Promote — make it claimable/ }).click();
   await page.getByRole("button", { name: "Promote", exact: true }).click();
@@ -91,7 +91,7 @@ test("promoting without a note records the manager's own sentence", async ({ pag
 
 test("a task changed underneath the open page is refused, reloaded and re-offered", async ({ page, request }) => {
   await createTask(page, "Draft changed underneath", "Draft");
-  await openTask(page, request, "Draft changed underneath");
+  await openTask(page, "Draft changed underneath");
 
   const panel = page.getByRole("region", { name: "Draft actions" });
   await expect(panel).toBeVisible();
@@ -118,7 +118,7 @@ test("send feedback and reject still work on a draft, unchanged", async ({ page,
   // The relabelling is cosmetic for these two: they must still call request-changes
   // and reject, and land the same records they always did.
   await createTask(page, "Draft that gets feedback", "Draft");
-  await openTask(page, request, "Draft that gets feedback");
+  await openTask(page, "Draft that gets feedback");
 
   const panel = page.getByRole("region", { name: "Draft actions" });
   await panel.getByRole("button", { name: /Send feedback/ }).click();
@@ -137,7 +137,7 @@ test("send feedback and reject still work on a draft, unchanged", async ({ page,
   await expect(page.getByRole("region", { name: "Draft actions" })).toBeHidden();
 
   await createTask(page, "Draft that gets rejected", "Draft");
-  await openTask(page, request, "Draft that gets rejected");
+  await openTask(page, "Draft that gets rejected");
   const rejectPanel = page.getByRole("region", { name: "Draft actions" });
   const taskId = (await page.locator("div.select-all").first().innerText()).trim();
   await rejectPanel.getByRole("button", { name: /Reject & Archive/ }).click();
