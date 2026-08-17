@@ -37,11 +37,37 @@ def flat(text: str) -> str:
 
 
 class TestManifest:
+    """Asserted against what the installer actually enforces.
+
+    The first version of this file asserted the shape I had invented, and it passed
+    while `claude plugin install` rejected the manifest outright. These assertions now
+    mirror the real published manifests under
+    ~/.claude/plugins/marketplaces/claude-plugins-official/plugins/, which is the only
+    schema evidence available offline.
+    """
+
     def test_it_declares_the_expected_shape(self):
         assert MANIFEST["name"] == "agentjobs"
         assert MANIFEST["mcpServers"] == "./.mcp.json"
-        assert MANIFEST["skills"] == ["skills/agentjobs"]
         assert MANIFEST["hooks"] == "./hooks/hooks-claude.json"
+
+    def test_the_author_is_an_object_not_a_string(self):
+        """The installer rejects a bare string: `author: Invalid input: expected
+        object, received string`. The Codex manifest uses a string and is fine, so the
+        two genuinely differ here and cannot simply be copied across."""
+        assert isinstance(MANIFEST["author"], dict)
+        assert MANIFEST["author"]["name"]
+
+    def test_it_does_not_declare_skills(self):
+        """`skills: Invalid input` from the installer. No official plugin declares the
+        field, and several ship a skills/ directory that is discovered by convention --
+        so declaring it is not a stricter spelling of the same thing, it is invalid."""
+        assert "skills" not in MANIFEST
+
+    def test_the_skill_sits_where_convention_will_find_it(self):
+        """Replaces the manifest declaration: skills/<name>/SKILL.md, matching
+        example-plugin's skills/example-skill/ layout."""
+        assert (PLUGIN / "skills" / "agentjobs" / "SKILL.md").exists()
 
     def test_the_plugin_version_tracks_the_package_version(self):
         """They ship from one release; a drift means somebody upgraded half of it."""
@@ -49,8 +75,6 @@ class TestManifest:
 
     def test_every_referenced_path_exists(self):
         assert (PLUGIN / MANIFEST["mcpServers"]).exists()
-        for skill in MANIFEST["skills"]:
-            assert (PLUGIN / skill / "SKILL.md").exists()
         assert (PLUGIN / MANIFEST["hooks"]).exists()
 
     def test_it_points_at_the_same_server_and_skill_as_the_codex_manifest(self):
@@ -59,9 +83,11 @@ class TestManifest:
         assert MANIFEST["name"] == CODEX_MANIFEST["name"]
         assert MANIFEST["version"] == CODEX_MANIFEST["version"]
         assert MANIFEST["description"] == CODEX_MANIFEST["description"]
-        assert MANIFEST["skills"] == CODEX_MANIFEST["skills"]
         assert (PLUGIN / MANIFEST["mcpServers"]).resolve() == (
             PLUGIN / CODEX_MANIFEST["mcpServers"]
+        ).resolve()
+        assert (PLUGIN / CODEX_MANIFEST["skills"][0] / "SKILL.md").resolve() == (
+            PLUGIN / "skills" / "agentjobs" / "SKILL.md"
         ).resolve()
 
     def test_the_two_manifests_register_different_hooks(self):
