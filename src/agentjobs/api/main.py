@@ -21,6 +21,7 @@ from .routes import (
     web_legacy_router,
     web_router,
 )
+from .routes.status import MutationError, mutation_error_response
 from .spa import register_spa
 
 DESCRIPTION = (
@@ -77,6 +78,16 @@ async def handle_task_load_error(request: Any, exc: TaskLoadError) -> JSONRespon
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": f"Task file could not be loaded -- {exc}", "broken": exc.as_dict()},
     )
+
+
+@app.exception_handler(MutationError)
+async def handle_mutation_error(request: Any, exc: MutationError) -> JSONResponse:
+    """Return the structured refusal a mutation raised.
+
+    Registered as a handler rather than caught per route, so all six mutation
+    endpoints report failure in one shape without repeating a try/except six times.
+    """
+    return await mutation_error_response(request, exc)
 
 
 @app.exception_handler(RequestValidationError)

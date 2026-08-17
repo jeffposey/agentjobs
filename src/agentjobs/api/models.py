@@ -150,7 +150,39 @@ class HumanActionResponse(BaseModel):
     task: Task
 
 
-class TaskCreateRequest(BaseModel):
+class SafeMutationRequest(BaseModel):
+    """Fields every mutation may carry to make a retry safe.
+
+    Both are optional, so existing callers are untouched and keep last-write-wins
+    behaviour. A client that supplies them gets: a retry that replays instead of
+    writing twice, and a refusal when it decided against a version of the task that
+    has since moved on.
+    """
+
+    operation_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Caller-generated UUID. Resending the same request with the same id "
+            "replays the original result instead of writing again; reusing it for a "
+            "different request is a conflict and writes nothing."
+        ),
+    )
+
+
+class RevisionedRequest(SafeMutationRequest):
+    """A mutation that acts on content the caller has already read."""
+
+    expected_revision: Optional[datetime] = Field(
+        default=None,
+        description=(
+            "The `updated` value from a prior read. When supplied, the request is "
+            "refused if the task changed in the meantime, and the current task is "
+            "returned so the caller can decide again."
+        ),
+    )
+
+
+class TaskCreateRequest(SafeMutationRequest):
     """Payload for creating a new task."""
 
     id: Optional[str] = Field(
@@ -231,7 +263,7 @@ class TaskCreateRequest(BaseModel):
         return payload
 
 
-class TaskUpdateRequest(BaseModel):
+class TaskUpdateRequest(RevisionedRequest):
     """Payload for partially updating a task.
 
     The state axes are deliberately absent: lifecycle, ball and outcome move only
@@ -252,13 +284,71 @@ class TaskUpdateRequest(BaseModel):
     branches: Optional[List[Branch]] = None
 
 
-class ClaimRequest(BaseModel):
+class MutationResult(BaseModel):
+    """What a mutation did, for callers that need more than the new task.
+
+    Returned only when a request asks for it with `?envelope=true`, so the existing
+    task-shaped responses stay exactly as they were. `replayed` is the field that
+    cannot be derived any other way: a caller retrying after a timeout has no way to
+    tell "I did that" from "you already had".
+    """
+
+    project_id: str = Field(description="Project the mutation addressed.")
+    operation_id: Optional[str] = Field(
+        default=None, description="The operation id the caller supplied, echoed back."
+    )
+    replayed: bool = Field(
+        description=(
+            "True when this operation had already been applied, so nothing was written "
+            "and no log entry was added."
+        )
+    )
+    task: TaskRead = Field(description="The task as persisted and reloaded.")
+    warnings: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Post-commit side effects that failed, such as webhook delivery. A warning "
+            "never means the task write failed; that would be an error."
+        ),
+    )
+
+
+class ErrorDetail(BaseModel):
+    """One rejected input field."""
+
+    path: str
+    message: str
+
+
+class ErrorBody(BaseModel):
+    """The structured error a mutation returns instead of prose.
+
+    An agent has to branch on failures, and pattern-matching an English sentence is
+    not a contract. The code set is closed and matches the MCP error vocabulary
+    exactly, so the two layers cannot drift into describing the same failure
+    differently.
+    """
+
+    code: str = Field(description="Stable machine-readable failure code.")
+    message: str = Field(description="Human-readable explanation.")
+    retryable: bool = Field(description="Whether an identical retry could succeed.")
+    detail: str = Field(description="Alias of message, for callers reading FastAPI's shape.")
+    task_id: Optional[str] = None
+    current_task: Optional[TaskRead] = Field(
+        default=None,
+        description="Present on a revision conflict: the state that made you stale.",
+    )
+    field_errors: List[ErrorDetail] = Field(default_factory=list)
+    suggested_action: Optional[str] = None
+
+
+class ClaimRequest(SafeMutationRequest):
     """An agent takes ownership of a ready task."""
 
     agent: str = Field(..., description="Actor id claiming the task.")
 
 
-class HandoffRequest(BaseModel):
+class HandoffRequest(RevisionedRequest):
     """The ball moves; the ask travels with it."""
 
     actor: str = Field(..., description="Who is handing the work over.")
@@ -273,14 +363,14 @@ class HandoffRequest(BaseModel):
     )
 
 
-class ReleaseRequest(BaseModel):
+class ReleaseRequest(SafeMutationRequest):
     """An agent bows out; the task returns to the pool."""
 
     actor: str = Field(..., description="Who is releasing the task.")
     body: Optional[str] = Field(default=None, description="Optional log entry body.")
 
 
-class CloseRequest(BaseModel):
+class CloseRequest(RevisionedRequest):
     """End the task with an outcome."""
 
     actor: str = Field(..., description="Who is closing the task.")
@@ -289,7 +379,7 @@ class CloseRequest(BaseModel):
     archive: bool = Field(default=False, description="Also hide the task from listings.")
 
 
-class LogAppendRequest(BaseModel):
+class LogAppendRequest(SafeMutationRequest):
     """Append one entry to the unified log."""
 
     actor: str = Field(..., description="Actor id writing the entry.")
@@ -304,7 +394,7 @@ class LogAppendRequest(BaseModel):
     data: Dict[str, Any] = Field(default_factory=dict, description="Optional structured payload.")
 
 
-class ProgressUpdateRequest(BaseModel):
+class ProgressUpdateRequest(SafeMutationRequest):
     """Progress update payload appended to the task log."""
 
     author: str

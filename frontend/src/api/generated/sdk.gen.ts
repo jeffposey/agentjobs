@@ -135,6 +135,10 @@ export const listTasksApiProjectsProjectIdTasksGet = <ThrowOnError extends boole
  * Create Task
  *
  * Create a new task record.
+ *
+ * With an operation_id the create runs under the project-wide creation lock and a
+ * retry resolves to the task the first attempt made, rather than producing a second
+ * one with a different generated id.
  */
 export const createTaskApiProjectsProjectIdTasksPost = <ThrowOnError extends boolean = false>(options: Options<CreateTaskApiProjectsProjectIdTasksPostData, ThrowOnError>) => (options.client ?? client).post<CreateTaskApiProjectsProjectIdTasksPostResponses, CreateTaskApiProjectsProjectIdTasksPostErrors, ThrowOnError>({
     url: '/api/projects/{project_id}/tasks',
@@ -411,6 +415,10 @@ export const listTasksApiTasksGet = <ThrowOnError extends boolean = false>(optio
  * Create Task
  *
  * Create a new task record.
+ *
+ * With an operation_id the create runs under the project-wide creation lock and a
+ * retry resolves to the task the first attempt made, rather than producing a second
+ * one with a different generated id.
  */
 export const createTaskApiTasksPost = <ThrowOnError extends boolean = false>(options: Options<CreateTaskApiTasksPostData, ThrowOnError>) => (options.client ?? client).post<CreateTaskApiTasksPostResponses, CreateTaskApiTasksPostErrors, ThrowOnError>({
     url: '/api/tasks',
