@@ -24,6 +24,26 @@ decision and question log, and the acceptance criteria. That
 2026-08-11: a zero-context headless agent reconstructed the work and found
 [three defects in the dispatch design](tasks/agentjobs/task-060-agent-dispatch.yaml).
 
+## Agents connect over MCP
+
+```bash
+pip install agentjobs && agentjobs serve
+```
+
+Then point any MCP client at `agentjobs mcp`. Thirteen tools cover discovery, the whole
+claim/handoff/release/close loop, the append-only log, and zero-context resumption —
+each one validated, locked and logged by the same code the UI writes through.
+
+Task YAML stays readable and stops being writable: there is no `set_lifecycle`, no
+generic patch, and no way to author a state change without recording it. Retries are
+safe (send the same `operation_id` and it replays rather than writing twice) and stale
+decisions are refused rather than silently overwriting someone.
+
+Codex additionally gets a bundled plugin with a workflow skill and a hook that refuses
+direct writes to task files. Every client gets `agentjobs validate`, the portable
+backstop. [What each layer does and does not prevent](docs/mcp.md#what-protects-what)
+is written down rather than implied.
+
 ## Why this is not another task tracker
 
 - **Hierarchy has workflow meaning.** Parent tasks roll up their children and are not
