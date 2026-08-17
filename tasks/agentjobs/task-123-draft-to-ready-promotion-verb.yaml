@@ -2,43 +2,13 @@ schema: 2
 id: task-123-draft-to-ready-promotion-verb
 title: Add a draft-to-ready promotion verb
 created: '2026-08-17T17:50:47.885433Z'
-updated: '2026-08-17T18:23:35.804723Z'
+updated: '2026-08-17T18:24:59.453036Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Two branches are waiting on you. Neither is merged and nothing is pushed.\n\
-  \n1. docs/mcp-clone-invocation (commit 5616f57) -- the .mcp.json disposition you\
-  \ asked\n   me to decide. I gitignored it and wrote a \"Developing from a clone\"\
-  \ section in\n   docs/mcp-clients.md carrying both invocations. Reasoning and the\
-  \ rejected\n   alternative are logged as a decision on task-122. Two files.\n\n\
-  2. feat/task-123-draft-to-ready-promotion (commit 7b0e5f8) -- this task. 22 files.\n\
-  \nWhy task-123 exists: task-122 could not be claimed. Nothing in the manager, REST\n\
-  routes, MCP tools or CLI promotes draft -> ready, and claim_task refuses anything\
-  \ not\nready. So every task ever created by task_create_draft -- a shipped MCP tool\
-  \ -- was a\ndead record. You chose to fix that before task-122 rather than work\
-  \ around it.\n\nWhat to review, in rough order of how much I would want a second\
-  \ pair of eyes:\n\n- The verb's target state. promote_task produces ready/agent/available,\
-  \ identical to\n  release_task. I think that is right -- a promoted draft is unowned\
-  \ work in the pool\n  -- but it does discard the draft's ball_prompt, which may\
-  \ have held something the\n  spec author wrote.\n- The decision NOT to validate\
-  \ spec completeness on promotion (logged, with the\n  rejected alternative). The\
-  \ consequence is that promoting a thin draft succeeds and\n  only agentjobs validate\
-  \ catches it.\n- The tool count moving 13 -> 14. This touches your two pending Codex\
-  \ checks:\n  task-116 ac-3 asks you to confirm \"all thirteen tools\" in a fresh\
-  \ Codex session. I\n  updated that wording in docs/integration/mcp-release-evidence.md\
-  \ to fourteen, on the\n  assumption you will run the check after this merges. If\
-  \ you would rather verify\n  against thirteen first, hold this branch until you\
-  \ have.\n\nVerification: full gate green from the worktree (1079 pytest, 42 vitest,\
-  \ Playwright,\nopenapi and generated client current). Plus a cross-process exercise\
-  \ against a freshly\nstarted server -- draft refused a claim, promote returned ready/agent/available\
-  \ with a\ntransition entry naming the actor, the claim then succeeded, a second\
-  \ promote was\nrefused, and the state landed in the YAML on disk. Full evidence\
-  \ in the progress entry.\n\nac-6 is deliberately still open: promoting the real\
-  \ task-122 has to go through the\nrunning service, which holds the old code until\
-  \ this merges. On your approval I will\nmerge --no-ff, then promote and claim task-122\
-  \ with the shipped verb as ac-6's proof,\nthen continue into task-122 itself.\n\n\
-  Still yours, unchanged: task-116 ac-3 and task-117 ac-5 need a live Codex session,\
-  \ and\ntask-109 sits at human/review waiting on exactly those two."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 category: core
@@ -330,3 +300,11 @@ log:
       id: 0c7b39ae-58d4-4f21-b36e-1e952af8d073
       kind: handoff
       fingerprint: c69169d8f6a7cf06582bfd5e6a081ec1
+- id: 7
+  ts: '2026-08-17T18:24:59.452916Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
