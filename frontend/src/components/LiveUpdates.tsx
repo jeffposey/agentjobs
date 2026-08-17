@@ -7,7 +7,17 @@ export const NORMAL_POLL_MS = 15_000;
 export const FAST_RETRY_MS = 2_000;
 export const MISSES_BEFORE_WARNING = 2;
 
-const PROJECT_TASK_QUERY_IDS = new Set([
+/**
+ * Project-scoped queries whose data changes when a task file changes. A revision
+ * change refetches exactly these.
+ *
+ * This is an allowlist, so drift is silent by construction: a read endpoint added
+ * later and left out of it never refetches, the poll keeps succeeding, and the only
+ * symptom is a screen that quietly stops updating. `LiveUpdates.drift.test.tsx`
+ * exists to make that loud -- it requires every project-scoped generated query to
+ * appear here or in NON_TASK_PROJECT_QUERY_IDS below.
+ */
+export const PROJECT_TASK_QUERY_IDS = new Set([
   "getDashboardApiProjectsProjectIdDashboardGet",
   "searchTasksApiProjectsProjectIdSearchGet",
   "listTasksApiProjectsProjectIdTasksGet",
@@ -15,6 +25,26 @@ const PROJECT_TASK_QUERY_IDS = new Set([
   "getNextTaskApiProjectsProjectIdTasksNextGet",
   "getTaskApiProjectsProjectIdTasksTaskIdGet",
   "getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGet",
+]);
+
+/**
+ * Project-scoped queries that deliberately do NOT refetch on a revision change,
+ * each with the reason it is exempt. Listing them explicitly is what lets the drift
+ * test tell "considered and excluded" apart from "forgotten".
+ */
+export const NON_TASK_PROJECT_QUERY_IDS = new Map([
+  [
+    "getProjectRevisionApiProjectsProjectIdRevisionGet",
+    "The poller's own endpoint. Refetching it from its own result would loop.",
+  ],
+  [
+    "listWebhooksApiProjectsProjectIdWebhooksGet",
+    "Webhook subscriptions are configuration, not task data; task writes never change them.",
+  ],
+  [
+    "getWebhookApiProjectsProjectIdWebhooksWebhookIdGet",
+    "Same as the webhook list: configuration, unaffected by task writes.",
+  ],
 ]);
 
 type GeneratedQueryKey = {
