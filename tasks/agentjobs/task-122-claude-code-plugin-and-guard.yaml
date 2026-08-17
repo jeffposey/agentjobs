@@ -2,11 +2,10 @@ schema: 2
 id: task-122-claude-code-plugin-and-guard
 title: Ship a Claude Code plugin, skill, and direct-write guard
 created: '2026-08-17T16:52:09.435545Z'
-updated: '2026-08-17T17:50:58.467716Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Finish specifying this task.
+updated: '2026-08-17T18:34:01.204477Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: high
 category: developer_experience
@@ -197,3 +196,18 @@ log:
       id: c8b41f27-6d95-4e30-a1b6-93f2d70e5c84
       kind: update_content
       fingerprint: f78da23ae9600129011e3ba8034bad02
+- id: 5
+  ts: '2026-08-17T18:34:01.204293Z'
+  actor: claude
+  type: transition
+  body: Promoted with the verb shipped by task-123. The spec was complete when it
+    was filed; the record was stuck only because no draft-to-ready transition existed.
+    This is task-123 ac-6 proved on a real task.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: 3d8f61b2-9c47-4a05-b7e3-2f0a5d94e816
+      kind: promote
+      fingerprint: aedc6de8043951dbb74b4b03b8fed754

@@ -2,13 +2,9 @@ schema: 2
 id: task-123-draft-to-ready-promotion-verb
 title: Add a draft-to-ready promotion verb
 created: '2026-08-17T17:50:47.885433Z'
-updated: '2026-08-17T18:24:59.453036Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-17T18:34:37.741136Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: core
@@ -18,7 +14,6 @@ tags:
 - workflow
 effort: half a day
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'A task created `draft` can never be worked: no verb in the manager, REST
@@ -82,28 +77,28 @@ acceptance:
   text: A draft task can be promoted to ready through the manager, the REST API, and
     the MCP tool, and is then claimable; the promotion appends a transition log entry
     naming the actor.
-  status: pending
+  status: met
 - id: ac-2
   text: Promotion refuses a task that is not draft, with a structured error matching
     the shape task_claim raises, and cannot be reached through task_update_content.
-  status: pending
+  status: met
 - id: ac-3
   text: The decision on whether promotion validates spec completeness is recorded
     on this task with its rejected alternative.
-  status: pending
+  status: met
 - id: ac-4
   text: Every reference to the tool count reports fourteen -- protocol test, documentation
     contract test, docs/mcp.md, docs/mcp-clients.md, plugins/agentjobs/README.md,
     docs/integration/mcp-release-evidence.md, and the skill.
-  status: pending
+  status: met
 - id: ac-5
   text: poetry run python scripts/check.py passes.
   verify: poetry run python scripts/check.py
-  status: pending
+  status: met
 - id: ac-6
   text: task-122 is promoted to ready with the shipped verb and claimed, demonstrating
     the loop end to end.
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs/manager.py
   note: The promotion verb.
@@ -118,7 +113,7 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-123-draft-to-ready-promotion
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-17T17:50:47.885479Z'
@@ -308,3 +303,63 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 8
+  ts: '2026-08-17T18:34:18.687175Z'
+  actor: claude
+  type: progress
+  body: "ac-6 met. Merged to main as e1ba0d4 (--no-ff) after Jeff's approval, recorded\
+    \ through\nthe web UI (commit 1101162).\n\ntask-122 was promoted with the shipped\
+    \ verb and came back `ready`, `agent/available`,\nball_prompt cleared, with a\
+    \ `transition` entry by claude. It had been stuck `draft`\nsince it was filed.\
+    \ That is the bug this task existed to fix, closed on the record that\nfound it.\n\
+    \nTwo things about *how* ac-6 was done, worth stating because they are not obvious:\n\
+    \n- It went through the REST route, not the MCP tool. The MCP server process is\
+    \ spawned\n  once at Claude Code session start and holds its tool inventory for\
+    \ the life of that\n  session, so `task_promote` is not callable here no matter\
+    \ what the service serves --\n  it appears in the next session. This is the \"\
+    start a new session afterwards\" note in\n  docs/mcp-clients.md, observed. REST\
+    \ and MCP reach the same manager; the MCP tool's\n  own coverage is in tests/test_mcp_mutation_tools.py\
+    \ and the live-subprocess\n  inventory assertion in tests/test_mcp_protocol.py,\
+    \ both green.\n- The service on 8765 had to be restarted to pick up the new route,\
+    \ and I killed it\n  mid-restart before restoring it. It is back up on merged\
+    \ code. The launcher's server\n  on 8876 is still running pre-merge code: it reads\
+    \ and writes fine (no schema change,\n  only an added route) but has no /promote\
+    \ until Jeff restarts it with\n  C:/ai/shared/launchers/open-agentjobs.ps1.\n\n\
+    Also observed while doing this, filed nowhere yet and deliberately not absorbed:\
+    \ the\nReact UI has no promote control, so the verb is reachable only through\
+    \ MCP and REST. A\nhuman looking at a draft in the dashboard still has no button\
+    \ that makes it claimable.\nApproving a draft does not help -- /approve calls\
+    \ handoff, which by design leaves\nlifecycle alone, so it would produce a still-draft\
+    \ task whose prompt tells an agent to\ngo merge something."
+  data:
+    operation:
+      id: 7a4e0d38-15c9-4b62-9d07-3c8f2a6b4e51
+      kind: log_append
+      fingerprint: 03c4ae1f6b9b01b81fc892182fb92cf1
+- id: 9
+  ts: '2026-08-17T18:34:29.688841Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 9b3c7e42-0a86-4d15-b7f9-58e1c4620da3
+      kind: update_content
+      fingerprint: 28589dfc28d939cdf80d811defc29fd2
+- id: 10
+  ts: '2026-08-17T18:34:37.740953Z'
+  actor: claude
+  type: transition
+  body: All six acceptance criteria met. Merged to main as e1ba0d4 with --no-ff after
+    Jeff's approval; branch marked merged. Draft tasks now have an exit, proved on
+    task-122, which was the record that exposed the gap.
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 2e5a8c17-4b93-4f06-a2d8-7c1b6e390f45
+      kind: close
+      fingerprint: c4f92f841e315a91c70a416a6d8c4d1a
