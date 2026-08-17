@@ -59,3 +59,7 @@ Thumbs.db
 
 # Build artifacts and evidence produced by a run, never sources.
 out/
+
+# Machine-local evidence of managed writes. Never committed: they would make every
+# write a diff, and a clean clone has none anyway.
+.agentjobs/write-receipts/
