@@ -8,13 +8,21 @@ prove compatible at startup.
 from __future__ import annotations
 
 from ..client import TaskClient
+from .mutation_tools import mutation_tool_definitions
 from .read_tools import read_tool_definitions
 from .tools import ToolRegistry
 
 
 def build_registry(client: TaskClient) -> ToolRegistry:
-    """Every tool this server offers, bound to one connected client."""
+    """Every tool this server offers, bound to one connected client.
+
+    Reads first, then mutations. The order is what a client renders in its tool list,
+    and an agent meeting AgentJobs for the first time should see how to look before it
+    sees how to write.
+    """
     registry = ToolRegistry()
     for definition in read_tool_definitions(client):
+        registry.register(definition)
+    for definition in mutation_tool_definitions(client):
         registry.register(definition)
     return registry
