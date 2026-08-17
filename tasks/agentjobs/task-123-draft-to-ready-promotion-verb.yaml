@@ -2,10 +2,11 @@ schema: 2
 id: task-123-draft-to-ready-promotion-verb
 title: Add a draft-to-ready promotion verb
 created: '2026-08-17T17:50:47.885433Z'
-updated: '2026-08-17T17:50:47.886175Z'
-lifecycle: ready
+updated: '2026-08-17T17:51:22.791297Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: core
@@ -15,6 +16,7 @@ tags:
 - workflow
 effort: half a day
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: 'A task created `draft` can never be worked: no verb in the manager, REST
@@ -112,7 +114,9 @@ deliverables:
   status: pending
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-123-draft-to-ready-promotion
+  status: active
 log:
 - id: 1
   ts: '2026-08-17T17:50:47.885479Z'
@@ -125,3 +129,28 @@ log:
       id: a17c3e56-9b24-4f8a-8d13-2e6f0b4c7a91
       kind: create
       fingerprint: 66665ed637670d76fbc77ea88d3666e5
+- id: 2
+  ts: '2026-08-17T17:51:15.159895Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: d3e97a15-4c68-4b02-9e71-5fa38c2d6013
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-17T17:51:22.791139Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: b52f8d70-1a49-4c3e-85b6-7d0e29f4c168
+      kind: update_content
+      fingerprint: b1e6833f780102f30fea00aa62ee6bd0
