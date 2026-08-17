@@ -275,6 +275,10 @@ export const listTasksApiProjectsProjectIdTasksGetOptions = (options: Options<Li
  * Create Task
  *
  * Create a new task record.
+ *
+ * With an operation_id the create runs under the project-wide creation lock and a
+ * retry resolves to the task the first attempt made, rather than producing a second
+ * one with a different generated id.
  */
 export const createTaskApiProjectsProjectIdTasksPostMutation = (options?: Partial<Options<CreateTaskApiProjectsProjectIdTasksPostData>>): UseMutationOptions<CreateTaskApiProjectsProjectIdTasksPostResponse, CreateTaskApiProjectsProjectIdTasksPostError, Options<CreateTaskApiProjectsProjectIdTasksPostData>> => {
     const mutationOptions: UseMutationOptions<CreateTaskApiProjectsProjectIdTasksPostResponse, CreateTaskApiProjectsProjectIdTasksPostError, Options<CreateTaskApiProjectsProjectIdTasksPostData>> = {
@@ -776,6 +780,10 @@ export const listTasksApiTasksGetOptions = (options?: Options<ListTasksApiTasksG
  * Create Task
  *
  * Create a new task record.
+ *
+ * With an operation_id the create runs under the project-wide creation lock and a
+ * retry resolves to the task the first attempt made, rather than producing a second
+ * one with a different generated id.
  */
 export const createTaskApiTasksPostMutation = (options?: Partial<Options<CreateTaskApiTasksPostData>>): UseMutationOptions<CreateTaskApiTasksPostResponse, CreateTaskApiTasksPostError, Options<CreateTaskApiTasksPostData>> => {
     const mutationOptions: UseMutationOptions<CreateTaskApiTasksPostResponse, CreateTaskApiTasksPostError, Options<CreateTaskApiTasksPostData>> = {

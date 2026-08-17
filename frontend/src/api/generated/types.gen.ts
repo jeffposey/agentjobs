@@ -141,6 +141,12 @@ export type ClaimRequest = {
      * Actor id claiming the task.
      */
     agent: string;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
+     */
+    operation_id?: string | null;
 };
 
 /**
@@ -167,6 +173,18 @@ export type CloseRequest = {
      * Optional log entry body.
      */
     body?: string | null;
+    /**
+     * Expected Revision
+     *
+     * The `updated` value from a prior read. When supplied, the request is refused if the task changed in the meantime, and the current task is returned so the caller can decide again.
+     */
+    expected_revision?: string | null;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
+     */
+    operation_id?: string | null;
     /**
      * How it ended.
      */
@@ -437,6 +455,18 @@ export type HandoffRequest = {
      * Log entry body; defaults to the ball_prompt.
      */
     body?: string | null;
+    /**
+     * Expected Revision
+     *
+     * The `updated` value from a prior read. When supplied, the request is refused if the task changed in the meantime, and the current task is returned so the caller can decide again.
+     */
+    expected_revision?: string | null;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
+     */
+    operation_id?: string | null;
 };
 
 /**
@@ -527,6 +557,12 @@ export type LogAppendRequest = {
         [key: string]: unknown;
     };
     /**
+     * Operation Id
+     *
+     * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
+     */
+    operation_id?: string | null;
+    /**
      * Re
      *
      * Optional id of the earlier entry this threads to.
@@ -599,6 +635,88 @@ export type LogEntry = {
 export type LogEntryType = 'note' | 'progress' | 'transition' | 'handoff' | 'decision' | 'question' | 'answer' | 'instruction';
 
 /**
+ * MutationResult
+ *
+ * What a mutation did, for callers that need more than the new task.
+ *
+ * Returned only when a request asks for it with `?envelope=true`, so the existing
+ * task-shaped responses stay exactly as they were. `replayed` is the field that
+ * cannot be derived any other way: a caller retrying after a timeout has no way to
+ * tell "I did that" from "you already had".
+ */
+export type MutationResultInput = {
+    /**
+     * Operation Id
+     *
+     * The operation id the caller supplied, echoed back.
+     */
+    operation_id?: string | null;
+    /**
+     * Project Id
+     *
+     * Project the mutation addressed.
+     */
+    project_id: string;
+    /**
+     * Replayed
+     *
+     * True when this operation had already been applied, so nothing was written and no log entry was added.
+     */
+    replayed: boolean;
+    /**
+     * The task as persisted and reloaded.
+     */
+    task: TaskReadInput;
+    /**
+     * Warnings
+     *
+     * Post-commit side effects that failed, such as webhook delivery. A warning never means the task write failed; that would be an error.
+     */
+    warnings?: Array<string>;
+};
+
+/**
+ * MutationResult
+ *
+ * What a mutation did, for callers that need more than the new task.
+ *
+ * Returned only when a request asks for it with `?envelope=true`, so the existing
+ * task-shaped responses stay exactly as they were. `replayed` is the field that
+ * cannot be derived any other way: a caller retrying after a timeout has no way to
+ * tell "I did that" from "you already had".
+ */
+export type MutationResultOutput = {
+    /**
+     * Operation Id
+     *
+     * The operation id the caller supplied, echoed back.
+     */
+    operation_id?: string | null;
+    /**
+     * Project Id
+     *
+     * Project the mutation addressed.
+     */
+    project_id: string;
+    /**
+     * Replayed
+     *
+     * True when this operation had already been applied, so nothing was written and no log entry was added.
+     */
+    replayed: boolean;
+    /**
+     * The task as persisted and reloaded.
+     */
+    task: TaskReadOutput;
+    /**
+     * Warnings
+     *
+     * Post-commit side effects that failed, such as webhook delivery. A warning never means the task write failed; that would be an error.
+     */
+    warnings?: Array<string>;
+};
+
+/**
  * Outcome
  *
  * How a task ended. Set if and only if lifecycle is closed.
@@ -626,6 +744,12 @@ export type ProgressUpdateRequest = {
      * Details
      */
     details?: string | null;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
+     */
+    operation_id?: string | null;
     /**
      * Summary
      */
@@ -836,6 +960,12 @@ export type ReleaseRequest = {
      * Optional log entry body.
      */
     body?: string | null;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
+     */
+    operation_id?: string | null;
 };
 
 /**
@@ -1156,6 +1286,12 @@ export type TaskCreateRequest = {
      * External references relevant to the task.
      */
     links?: Array<Link>;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
+     */
+    operation_id?: string | null;
     /**
      * Out Of Scope
      *
@@ -1521,9 +1657,21 @@ export type TaskUpdateRequest = {
      */
     effort?: string | null;
     /**
+     * Expected Revision
+     *
+     * The `updated` value from a prior read. When supplied, the request is refused if the task changed in the meantime, and the current task is returned so the caller can decide again.
+     */
+    expected_revision?: string | null;
+    /**
      * Links
      */
     links?: Array<Link> | null;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
+     */
+    operation_id?: string | null;
     /**
      * Parent
      */
@@ -1706,6 +1854,47 @@ export type DashboardResponseWritable = {
  */
 export type HumanActionResponseWritable = {
     task: TaskWritable;
+};
+
+/**
+ * MutationResult
+ *
+ * What a mutation did, for callers that need more than the new task.
+ *
+ * Returned only when a request asks for it with `?envelope=true`, so the existing
+ * task-shaped responses stay exactly as they were. `replayed` is the field that
+ * cannot be derived any other way: a caller retrying after a timeout has no way to
+ * tell "I did that" from "you already had".
+ */
+export type MutationResultOutputWritable = {
+    /**
+     * Operation Id
+     *
+     * The operation id the caller supplied, echoed back.
+     */
+    operation_id?: string | null;
+    /**
+     * Project Id
+     *
+     * Project the mutation addressed.
+     */
+    project_id: string;
+    /**
+     * Replayed
+     *
+     * True when this operation had already been applied, so nothing was written and no log entry was added.
+     */
+    replayed: boolean;
+    /**
+     * The task as persisted and reloaded.
+     */
+    task: TaskReadOutputWritable;
+    /**
+     * Warnings
+     *
+     * Post-commit side effects that failed, such as webhook delivery. A warning never means the task write failed; that would be an error.
+     */
+    warnings?: Array<string>;
 };
 
 /**
@@ -2477,7 +2666,14 @@ export type UpdateTaskApiProjectsProjectIdTasksTaskIdPatchData = {
          */
         project_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Actor
+         *
+         * Actor recorded on the manager-owned note an operation_id creates.
+         */
+        actor?: string | null;
+    };
     url: '/api/projects/{project_id}/tasks/{task_id}';
 };
 
@@ -2545,7 +2741,14 @@ export type ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostData = {
          */
         project_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
     url: '/api/projects/{project_id}/tasks/{task_id}/claim';
 };
 
@@ -2560,9 +2763,11 @@ export type ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostError = ClaimTaskAp
 
 export type ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostResponses = {
     /**
+     * Response Claim Task Api Projects  Project Id  Tasks  Task Id  Claim Post
+     *
      * Successful Response
      */
-    200: Task;
+    200: MutationResultOutput | Task;
 };
 
 export type ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostResponse = ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostResponses[keyof ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostResponses];
@@ -2579,7 +2784,14 @@ export type CloseTaskApiProjectsProjectIdTasksTaskIdClosePostData = {
          */
         project_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
     url: '/api/projects/{project_id}/tasks/{task_id}/close';
 };
 
@@ -2594,9 +2806,11 @@ export type CloseTaskApiProjectsProjectIdTasksTaskIdClosePostError = CloseTaskAp
 
 export type CloseTaskApiProjectsProjectIdTasksTaskIdClosePostResponses = {
     /**
+     * Response Close Task Api Projects  Project Id  Tasks  Task Id  Close Post
+     *
      * Successful Response
      */
-    200: Task;
+    200: MutationResultOutput | Task;
 };
 
 export type CloseTaskApiProjectsProjectIdTasksTaskIdClosePostResponse = CloseTaskApiProjectsProjectIdTasksTaskIdClosePostResponses[keyof CloseTaskApiProjectsProjectIdTasksTaskIdClosePostResponses];
@@ -2685,7 +2899,14 @@ export type HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostData = {
          */
         project_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
     url: '/api/projects/{project_id}/tasks/{task_id}/handoff';
 };
 
@@ -2700,9 +2921,11 @@ export type HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostError = Handoff
 
 export type HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostResponses = {
     /**
+     * Response Handoff Task Api Projects  Project Id  Tasks  Task Id  Handoff Post
+     *
      * Successful Response
      */
-    200: Task;
+    200: MutationResultOutput | Task;
 };
 
 export type HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostResponse = HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostResponses[keyof HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostResponses];
@@ -2719,7 +2942,14 @@ export type AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostData = {
          */
         project_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
     url: '/api/projects/{project_id}/tasks/{task_id}/log';
 };
 
@@ -2734,9 +2964,11 @@ export type AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostError = AppendLo
 
 export type AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostResponses = {
     /**
+     * Response Append Log Entry Api Projects  Project Id  Tasks  Task Id  Log Post
+     *
      * Successful Response
      */
-    200: Task;
+    200: MutationResultOutput | Task;
 };
 
 export type AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostResponse = AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostResponses[keyof AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostResponses];
@@ -2753,7 +2985,14 @@ export type PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostData = 
          */
         project_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
     url: '/api/projects/{project_id}/tasks/{task_id}/progress';
 };
 
@@ -2768,9 +3007,11 @@ export type PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostError =
 
 export type PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostResponses = {
     /**
+     * Response Post Progress Update Api Projects  Project Id  Tasks  Task Id  Progress Post
+     *
      * Successful Response
      */
-    200: Task;
+    200: MutationResultOutput | Task;
 };
 
 export type PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostResponse = PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostResponses[keyof PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostResponses];
@@ -2821,7 +3062,14 @@ export type ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostData = {
          */
         project_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
     url: '/api/projects/{project_id}/tasks/{task_id}/release';
 };
 
@@ -2836,9 +3084,11 @@ export type ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostError = Release
 
 export type ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostResponses = {
     /**
+     * Response Release Task Api Projects  Project Id  Tasks  Task Id  Release Post
+     *
      * Successful Response
      */
-    200: Task;
+    200: MutationResultOutput | Task;
 };
 
 export type ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostResponse = ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostResponses[keyof ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostResponses];
@@ -3284,7 +3534,14 @@ export type UpdateTaskApiTasksTaskIdPatchData = {
          */
         task_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Actor
+         *
+         * Actor recorded on the manager-owned note an operation_id creates.
+         */
+        actor?: string | null;
+    };
     url: '/api/tasks/{task_id}';
 };
 
@@ -3344,7 +3601,14 @@ export type ClaimTaskApiTasksTaskIdClaimPostData = {
          */
         task_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
     url: '/api/tasks/{task_id}/claim';
 };
 
@@ -3359,9 +3623,11 @@ export type ClaimTaskApiTasksTaskIdClaimPostError = ClaimTaskApiTasksTaskIdClaim
 
 export type ClaimTaskApiTasksTaskIdClaimPostResponses = {
     /**
+     * Response Claim Task Api Tasks  Task Id  Claim Post
+     *
      * Successful Response
      */
-    200: Task;
+    200: MutationResultOutput | Task;
 };
 
 export type ClaimTaskApiTasksTaskIdClaimPostResponse = ClaimTaskApiTasksTaskIdClaimPostResponses[keyof ClaimTaskApiTasksTaskIdClaimPostResponses];
@@ -3374,7 +3640,14 @@ export type CloseTaskApiTasksTaskIdClosePostData = {
          */
         task_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
     url: '/api/tasks/{task_id}/close';
 };
 
@@ -3389,9 +3662,11 @@ export type CloseTaskApiTasksTaskIdClosePostError = CloseTaskApiTasksTaskIdClose
 
 export type CloseTaskApiTasksTaskIdClosePostResponses = {
     /**
+     * Response Close Task Api Tasks  Task Id  Close Post
+     *
      * Successful Response
      */
-    200: Task;
+    200: MutationResultOutput | Task;
 };
 
 export type CloseTaskApiTasksTaskIdClosePostResponse = CloseTaskApiTasksTaskIdClosePostResponses[keyof CloseTaskApiTasksTaskIdClosePostResponses];
@@ -3468,7 +3743,14 @@ export type HandoffTaskApiTasksTaskIdHandoffPostData = {
          */
         task_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
     url: '/api/tasks/{task_id}/handoff';
 };
 
@@ -3483,9 +3765,11 @@ export type HandoffTaskApiTasksTaskIdHandoffPostError = HandoffTaskApiTasksTaskI
 
 export type HandoffTaskApiTasksTaskIdHandoffPostResponses = {
     /**
+     * Response Handoff Task Api Tasks  Task Id  Handoff Post
+     *
      * Successful Response
      */
-    200: Task;
+    200: MutationResultOutput | Task;
 };
 
 export type HandoffTaskApiTasksTaskIdHandoffPostResponse = HandoffTaskApiTasksTaskIdHandoffPostResponses[keyof HandoffTaskApiTasksTaskIdHandoffPostResponses];
@@ -3498,7 +3782,14 @@ export type AppendLogEntryApiTasksTaskIdLogPostData = {
          */
         task_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
     url: '/api/tasks/{task_id}/log';
 };
 
@@ -3513,9 +3804,11 @@ export type AppendLogEntryApiTasksTaskIdLogPostError = AppendLogEntryApiTasksTas
 
 export type AppendLogEntryApiTasksTaskIdLogPostResponses = {
     /**
+     * Response Append Log Entry Api Tasks  Task Id  Log Post
+     *
      * Successful Response
      */
-    200: Task;
+    200: MutationResultOutput | Task;
 };
 
 export type AppendLogEntryApiTasksTaskIdLogPostResponse = AppendLogEntryApiTasksTaskIdLogPostResponses[keyof AppendLogEntryApiTasksTaskIdLogPostResponses];
@@ -3528,7 +3821,14 @@ export type PostProgressUpdateApiTasksTaskIdProgressPostData = {
          */
         task_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
     url: '/api/tasks/{task_id}/progress';
 };
 
@@ -3543,9 +3843,11 @@ export type PostProgressUpdateApiTasksTaskIdProgressPostError = PostProgressUpda
 
 export type PostProgressUpdateApiTasksTaskIdProgressPostResponses = {
     /**
+     * Response Post Progress Update Api Tasks  Task Id  Progress Post
+     *
      * Successful Response
      */
-    200: Task;
+    200: MutationResultOutput | Task;
 };
 
 export type PostProgressUpdateApiTasksTaskIdProgressPostResponse = PostProgressUpdateApiTasksTaskIdProgressPostResponses[keyof PostProgressUpdateApiTasksTaskIdProgressPostResponses];
@@ -3588,7 +3890,14 @@ export type ReleaseTaskApiTasksTaskIdReleasePostData = {
          */
         task_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
     url: '/api/tasks/{task_id}/release';
 };
 
@@ -3603,9 +3912,11 @@ export type ReleaseTaskApiTasksTaskIdReleasePostError = ReleaseTaskApiTasksTaskI
 
 export type ReleaseTaskApiTasksTaskIdReleasePostResponses = {
     /**
+     * Response Release Task Api Tasks  Task Id  Release Post
+     *
      * Successful Response
      */
-    200: Task;
+    200: MutationResultOutput | Task;
 };
 
 export type ReleaseTaskApiTasksTaskIdReleasePostResponse = ReleaseTaskApiTasksTaskIdReleasePostResponses[keyof ReleaseTaskApiTasksTaskIdReleasePostResponses];

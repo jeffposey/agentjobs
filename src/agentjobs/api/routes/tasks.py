@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from agentjobs.actors import UnknownActorError, validate_actor
+from agentjobs.operations import OperationConflictError, RevisionConflictError
+from agentjobs.projects import Project
 from agentjobs.manager import TaskManager, TaskNotFoundError
 from agentjobs.models_v2 import (
     Ball,
@@ -19,6 +21,7 @@ from agentjobs.models_v2 import (
     Task,
 )
 
+from .status import acting_actor, get_acting_project
 from ..dependencies import current_identity, get_project, get_task_manager, project_config
 from ..models import (
     BrokenTaskFile,
@@ -242,10 +245,27 @@ async def get_task(task_id: str, manager: TaskManager = Depends(get_task_manager
 async def create_task(
     payload: TaskCreateRequest,
     manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_acting_project),
 ) -> Task:
-    """Create a new task record."""
+    """Create a new task record.
+
+    With an operation_id the create runs under the project-wide creation lock and a
+    retry resolves to the task the first attempt made, rather than producing a second
+    one with a different generated id.
+    """
+    kwargs = payload.manager_kwargs()
+    kwargs.pop("operation_id", None)
+    actor = kwargs.pop("actor", None)
+    if payload.operation_id is not None and actor is not None:
+        actor = acting_actor(project, str(actor))
     try:
-        return manager.create_task(**payload.manager_kwargs())
+        return manager.create_task(
+            actor=actor,
+            operation_id=payload.operation_id,
+            **kwargs,
+        )
+    except OperationConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -257,22 +277,36 @@ async def create_task(
 async def update_task(
     task_id: str,
     payload: TaskUpdateRequest,
+    actor: Optional[str] = Query(
+        default=None,
+        description="Actor recorded on the manager-owned note an operation_id creates.",
+    ),
     manager: TaskManager = Depends(get_task_manager),
 ) -> Task:
     """Apply a partial update to a task. State axes move through the verbs, not here."""
     updates = payload.model_dump(exclude_unset=True)
+    operation_id = updates.pop("operation_id", None)
+    expected_revision = updates.pop("expected_revision", None)
     if not updates:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No updates provided",
         )
     try:
-        return manager.update_task(task_id, **updates)
+        return manager.update_task(
+            task_id,
+            operation_id=operation_id,
+            expected_revision=expected_revision,
+            actor=actor,
+            **updates,
+        )
     except TaskNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+    except (OperationConflictError, RevisionConflictError) as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
