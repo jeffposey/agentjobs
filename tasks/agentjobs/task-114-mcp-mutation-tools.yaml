@@ -2,7 +2,7 @@ schema: 2
 id: task-114-mcp-mutation-tools
 title: Expose validated AgentJobs mutation verbs over MCP
 created: '2026-08-14T19:18:53.357357Z'
-updated: '2026-08-17T08:01:18.503432Z'
+updated: '2026-08-17T09:05:54.301243Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -55,25 +55,25 @@ acceptance:
   text: tools/list publishes exactly the eight accepted mutation tools with exact
     schemas and annotations.
   verify: poetry run pytest tests/test_mcp_mutation_tools.py
-  status: pending
+  status: met
 - id: ac-2
   text: Create draft/ready, claim, release, every valid handoff family, close, log
     append, and content update succeed through a real REST service and return reloaded
     TaskDocuments.
-  status: pending
+  status: met
 - id: ac-3
   text: Invalid lifecycle/ball/outcome combinations, transition log forgery, state
     fields in content patch, unknown actor, stale revision, and unmet dependencies
     fail immediately with structured errors and no write.
-  status: pending
+  status: met
 - id: ac-4
   text: A repository search and schema snapshot prove no generic state, YAML, arbitrary
     patch, batch, or create-and-claim tool is exposed.
-  status: pending
+  status: met
 - id: ac-5
   text: Timeout retries return replayed results without duplicate state transitions
     or log entries.
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs/mcp
   note: Validated mutation MCP handlers and schemas.
@@ -125,3 +125,15 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 4
+  ts: '2026-08-17T09:05:54.301116Z'
+  actor: claude
+  type: note
+  body: Corrected the acceptance record. Every criterion on this task was verified
+    before merge -- the evidence is in this task's progress entry and in the merge
+    commit -- but the close helper used for this child updated only the lifecycle
+    and never set acceptance[].status, so the record read `completed` with every criterion
+    still `pending`. A reader would have had to infer the verification from prose,
+    which is the thing the acceptance list exists to stop. Statuses set to met; nothing
+    about the work changed.
+  data: {}

@@ -2,7 +2,7 @@ schema: 2
 id: task-113-mcp-mutation-safety
 title: Make agent mutations idempotent, revision-safe, and diagnosable
 created: '2026-08-14T19:18:51.732678Z'
-updated: '2026-08-17T07:39:14.424638Z'
+updated: '2026-08-17T09:05:53.493353Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -64,27 +64,27 @@ acceptance:
   text: Retrying every mutation with the same operation ID is a no-op replay with
     no duplicate task or log entry, including after process restart.
   verify: poetry run pytest tests/test_idempotency.py
-  status: pending
+  status: met
 - id: ac-2
   text: Reusing an operation ID for different intent returns operation_conflict and
     leaves the task unchanged.
-  status: pending
+  status: met
 - id: ac-3
   text: Concurrent auto-ID creates are serialized and a timed-out create retry resolves
     to its original task.
-  status: pending
+  status: met
 - id: ac-4
   text: Stale content update, handoff, and close requests return revision_conflict
     with the current task.
-  status: pending
+  status: met
 - id: ac-5
   text: REST and TaskClient expose the stable design error codes, retryable flag,
     field errors, suggested action, replayed flag, and warnings.
-  status: pending
+  status: met
 - id: ac-6
   text: Existing claim and concurrent log behavior remains atomic and compatible.
   verify: poetry run pytest tests/test_concurrency.py tests/test_client.py tests/test_api.py
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs/manager.py
   note: Authoritative durable operation and revision semantics.
@@ -126,3 +126,15 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 3
+  ts: '2026-08-17T09:05:53.493228Z'
+  actor: claude
+  type: note
+  body: Corrected the acceptance record. Every criterion on this task was verified
+    before merge -- the evidence is in this task's progress entry and in the merge
+    commit -- but the close helper used for this child updated only the lifecycle
+    and never set acceptance[].status, so the record read `completed` with every criterion
+    still `pending`. A reader would have had to infer the verification from prose,
+    which is the thing the acceptance list exists to stop. Statuses set to met; nothing
+    about the work changed.
+  data: {}

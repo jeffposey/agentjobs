@@ -2,7 +2,7 @@ schema: 2
 id: task-118-task-validation-and-receipts
 title: Add portable task-corpus validation and managed-write receipts
 created: '2026-08-14T19:20:02.257786Z'
-updated: '2026-08-17T08:52:10.265095Z'
+updated: '2026-08-17T09:05:56.162272Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -75,28 +75,28 @@ acceptance:
   text: '`agentjobs validate` reports all accepted semantic, relationship, path-policy,
     and canonical-serialization failures with filenames/fields and a nonzero exit.'
   verify: poetry run pytest tests/test_validate.py
-  status: pending
+  status: met
 - id: ac-2
   text: Every supported TaskStorage write produces a current gitignored receipt matching
     the canonical persisted hash.
-  status: pending
+  status: met
 - id: ac-3
   text: '`agentjobs validate --staged` accepts manager-written staged tasks and rejects
     valid-looking direct edits without matching receipts.'
-  status: pending
+  status: met
 - id: ac-4
   text: The emergency recovery override requires explicit maintainer intent and a
     reason, lists bypassed paths, requires post-repair validation, and is not enabled
     by default or autonomous agent guidance.
-  status: pending
+  status: met
 - id: ac-5
   text: CI/clean-clone mode validates without receipts and documentation states the
     writer-provenance limitation.
-  status: pending
+  status: met
 - id: ac-6
   text: Existing corpus, migration, API, UI, and concurrent write tests remain green.
   verify: poetry run python scripts/check.py
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs
   note: Portable validator, receipt emission, and staged gate.
@@ -180,3 +180,15 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 5
+  ts: '2026-08-17T09:05:56.162182Z'
+  actor: claude
+  type: note
+  body: Corrected the acceptance record. Every criterion on this task was verified
+    before merge -- the evidence is in this task's progress entry and in the merge
+    commit -- but the close helper used for this child updated only the lifecycle
+    and never set acceptance[].status, so the record read `completed` with every criterion
+    still `pending`. A reader would have had to infer the verification from prose,
+    which is the thing the acceptance list exists to stop. Statuses set to met; nothing
+    about the work changed.
+  data: {}

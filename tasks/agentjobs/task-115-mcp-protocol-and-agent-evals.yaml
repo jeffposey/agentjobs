@@ -2,7 +2,7 @@ schema: 2
 id: task-115-mcp-protocol-and-agent-evals
 title: Prove the MCP contract with protocol and agent-behavior evaluations
 created: '2026-08-14T19:19:57.357606Z'
-updated: '2026-08-17T08:13:40.015093Z'
+updated: '2026-08-17T09:05:55.109643Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -57,23 +57,23 @@ acceptance:
   text: A packaged STDIO subprocess passes initialize, tools/list, tools/call, invalid-call,
     structured/text result, shutdown, and stdout-purity tests.
   verify: poetry run pytest tests/test_mcp_protocol.py
-  status: pending
+  status: met
 - id: ac-2
   text: All ten agent-behavior scenarios produce a versioned pass/fail artifact with
     tool trace and final persisted state.
-  status: pending
+  status: met
 - id: ac-3
   text: Project collision, claim race, restart replay, and post-commit warning scenarios
     are exercised against a real fresh HTTP service.
-  status: pending
+  status: met
 - id: ac-4
   text: The installed wheel and MCP command are tested on Windows and have a documented
     POSIX verification path.
-  status: pending
+  status: met
 - id: ac-5
   text: The complete repository gate includes or invokes the stable MCP protocol suite.
   verify: poetry run python scripts/check.py
-  status: pending
+  status: met
 deliverables:
 - path: tests/test_mcp_protocol.py
   note: Packaged protocol integration tests.
@@ -125,3 +125,15 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 4
+  ts: '2026-08-17T09:05:55.109511Z'
+  actor: claude
+  type: note
+  body: Corrected the acceptance record. Every criterion on this task was verified
+    before merge -- the evidence is in this task's progress entry and in the merge
+    commit -- but the close helper used for this child updated only the lifecycle
+    and never set acceptance[].status, so the record read `completed` with every criterion
+    still `pending`. A reader would have had to infer the verification from prose,
+    which is the thing the acceptance list exists to stop. Statuses set to met; nothing
+    about the work changed.
+  data: {}

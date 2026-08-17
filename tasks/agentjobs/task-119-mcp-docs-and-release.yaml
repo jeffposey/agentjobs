@@ -2,7 +2,7 @@ schema: 2
 id: task-119-mcp-docs-and-release
 title: Document, version, and release the AgentJobs MCP integration
 created: '2026-08-14T19:20:03.863069Z'
-updated: '2026-08-17T09:04:49.180172Z'
+updated: '2026-08-17T09:05:57.221805Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -57,25 +57,25 @@ acceptance:
 - id: ac-1
   text: README and docs index lead users to standalone MCP and Codex plugin setup
     and the managed workflow.
-  status: pending
+  status: met
 - id: ac-2
   text: Codex, Claude, Gemini, and generic client guidance names exact install, health,
     project, actor, workflow, upgrade, rollback, and enforcement behavior.
-  status: pending
+  status: met
 - id: ac-3
   text: Task schema and agent workflow guides explicitly treat task YAML as readable
     generated state and direct content edits as unsupported.
-  status: pending
+  status: met
 - id: ac-4
   text: Docs distinguish MCP, plugin/skill, Codex hook, local receipt gate, portable
     validation, and future notifications without overclaiming.
-  status: pending
+  status: met
 - id: ac-5
   text: Built wheel/plugin installation and one real create/claim/log/handoff flow
     are captured as release evidence; documentation and complete repository gates
     pass.
   verify: poetry run python scripts/check.py
-  status: pending
+  status: met
 deliverables:
 - path: README.md
   note: MCP and plugin discoverability.
@@ -130,3 +130,15 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 4
+  ts: '2026-08-17T09:05:57.221718Z'
+  actor: claude
+  type: note
+  body: Corrected the acceptance record. Every criterion on this task was verified
+    before merge -- the evidence is in this task's progress entry and in the merge
+    commit -- but the close helper used for this child updated only the lifecycle
+    and never set acceptance[].status, so the record read `completed` with every criterion
+    still `pending`. A reader would have had to infer the verification from prose,
+    which is the thing the acceptance list exists to stop. Statuses set to met; nothing
+    about the work changed.
+  data: {}
