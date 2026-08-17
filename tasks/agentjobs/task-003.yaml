@@ -1,0 +1,139 @@
+schema: 2
+id: task-003
+title: Add a promote control to the React UI
+created: '2026-08-17T20:44:54.282010Z'
+updated: '2026-08-17T20:44:54.282795Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: frontend
+tags:
+- frontend
+- react
+- promote
+- schema-v2
+effort: small
+assignment:
+  eligible: []
+spec:
+  summary: "The draft-to-ready promotion verb added by task-123 exists in the manager,\
+    \ the REST API, the MCP tools and the Python client, but the React app never got\
+    \ a control for it. A human can create a draft in the UI and cannot advance it\
+    \ there \u2014 they have to drop to an MCP client or hand-roll a REST call."
+  intent: 'Close the loop the UI already opens: if the dashboard invites a human to
+    create drafts and tells them drafts "need a decision before they become work",
+    the UI must be where that decision can be made.'
+  description: "`task_promote` is the only exit from `draft`. It is reachable from\
+    \ the MCP tool surface (`src/agentjobs/mcp/mutation_tools.py:622`), the REST API\
+    \ (`POST /api/projects/{project_id}/tasks/{task_id}/promote`, `src/agentjobs/api/routes/status.py:238`),\
+    \ the manager (`manager.promote_task`, `src/agentjobs/manager.py:783`) and the\
+    \ Python client (`client.py:671`). It is not reachable from the React app.\n\n\
+    The generated frontend client already has the binding \u2014 `promoteTaskApiProjectsProjectIdTasksTaskIdPromotePost`\
+    \ in `frontend/src/api/generated/sdk.gen.ts:307`, with a TanStack mutation in\
+    \ `@tanstack/react-query.gen.ts`. Nothing in `frontend/src` outside `generated/`\
+    \ references it. The only mutations the app wires up are approve, request-changes\
+    \ and reject (`frontend/src/App.tsx:128-130`) plus task creation. So this is a\
+    \ wiring gap, not a missing endpoint \u2014 no backend or client-regeneration\
+    \ work is expected.\n\nThe dead end is concrete. `TaskCreate.tsx:116` offers a\
+    \ Draft/Ready radio, so a human can create a draft from the UI. `Dashboard.tsx:123-126`\
+    \ shows a drafts panel captioned as work \"that need[s] a decision before they\
+    \ become work\", linking to `?status=draft`. Follow that link, open the draft,\
+    \ and there is no way to make the decision: `ReviewPanel` in `TaskDetail.tsx:40`\
+    \ returns null unless `ball === \"human\"`, and its actions are approve/changes/reject\
+    \ \u2014 none of which promote.\n\nBuild the control:\n\n- Surface it on the task\
+    \ detail page for tasks with `lifecycle === \"draft\"`. `ReviewPanel` is currently\
+    \ gated on the ball, so either widen that gate deliberately or add a sibling panel;\
+    \ whatever renders must not imply the merge-review semantics of the existing three\
+    \ buttons.\n- Send `expected_revision` from the loaded task and handle a `revision_conflict`\
+    \ by re-reading and re-presenting, the same contract the MCP path follows. Do\
+    \ not retry blindly.\n- Carry the acting user the way approve/reject already do\
+    \ (`detail.identity`), and let the human supply an optional promotion note \u2014\
+    \ `manager.promote_task` falls back to \"Promoted by {actor}; the spec is finished\
+    \ and it is claimable.\" when no body is given, and a human promoting from the\
+    \ UI usually has a better sentence than that.\n- Report failure in the panel rather\
+    \ than swallowing it; `invalid_transition` (already promoted, or not a draft)\
+    \ is the expected non-exceptional error and should read as an explanation, not\
+    \ a crash.\n\nSeparate finding, recorded here so it is not lost: the `agentjobs`\
+    \ CLI has no `promote` command either \u2014 `grep promote src/agentjobs/cli.py`\
+    \ is empty. That is a second hole in the same verb's reach and probably deserves\
+    \ its own task; it is not part of this one."
+  constraints: "Frontend-only. Use the existing generated client \u2014 do not hand-write\
+    \ the request, and do not regenerate the API client as part of this change. Follow\
+    \ the repo's verification bar: `poetry run python scripts/check.py` must pass,\
+    \ and the change must be exercised against a freshly started server through the\
+    \ real `/app/` route, not only in Vitest. Assert on rendered values, not on the\
+    \ presence of markup."
+  out_of_scope: Adding a `promote` command to the `agentjobs` CLI (noted in the description,
+    belongs in its own task). Any change to the promote endpoint, the manager verb,
+    the MCP tool, or the OpenAPI schema. Redesigning the review panel's existing approve/request-changes/reject
+    actions.
+  context:
+  - path: frontend/src/App.tsx
+    why: Where the three existing task mutations are wired to the generated TanStack
+      hooks; the promote mutation belongs alongside them.
+  - path: frontend/src/components/TaskDetail.tsx
+    why: ReviewPanel is gated on ball === 'human' at line 40 and holds the existing
+      action buttons; the promote control lands here or beside it.
+  - path: frontend/src/components/Dashboard.tsx
+    why: Lines 123-126 are the drafts panel that promises a decision the UI cannot
+      currently make.
+  - path: frontend/src/components/TaskCreate.tsx
+    why: Line 116 lets a human create a draft from the UI, which is what creates the
+      dead end.
+  - path: frontend/src/api/generated/sdk.gen.ts
+    why: Line 307 already binds the promote endpoint; no regeneration needed.
+  - path: src/agentjobs/manager.py
+    why: promote_task at line 783 - the transition rules, the default log body, and
+      the invalid_transition case the UI must present.
+  - path: src/agentjobs/api/routes/status.py
+    why: Line 238, the REST route and its PromoteRequest revision contract.
+acceptance:
+- id: ac-1
+  text: Opening a draft task in the React app at /app/ shows a promote control; opening
+    a non-draft task does not.
+  verify: Browser against a freshly started server, one draft task and one ready task.
+  status: pending
+- id: ac-2
+  text: Promoting from the UI moves the task to ready/agent/available and appends
+    a promote log entry attributed to the acting human.
+  verify: Read the task record after the click, via task_get or the task YAML.
+  status: pending
+- id: ac-3
+  text: An optional note typed in the UI lands as the promote log entry body; leaving
+    it empty produces the manager's default body.
+  verify: Two promotions, one with a note and one without, comparing the resulting
+    log entries.
+  status: pending
+- id: ac-4
+  text: A stale revision (task changed underneath the open page) surfaces as a readable
+    conflict message and re-reads the task rather than writing twice or failing silently.
+  verify: Mutate the task from another surface with the detail page open, then promote.
+  status: pending
+- id: ac-5
+  text: 'The full drafts loop works end to end in one browser session: create a draft
+    via TaskCreate, find it through the dashboard drafts panel, promote it, and see
+    it appear as ready.'
+  verify: Single manual browser pass, recorded on the task.
+  status: pending
+- id: ac-6
+  text: poetry run python scripts/check.py passes.
+  verify: Command output on the task.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T20:44:54.282078Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: b41d7e58-2c93-4a16-8d0f-3e7c95a1b662
+      kind: create
+      fingerprint: 3ebbcfa48fb23b998f25d8212d518841
