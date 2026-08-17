@@ -1,47 +1,47 @@
 schema: 2
 id: task-004
-title: Add a promote control to the React UI
+title: Make the review panel phase-aware so a draft can be promoted
 created: '2026-08-17T20:49:31.301524Z'
-updated: '2026-08-17T21:38:28.370329Z'
+updated: '2026-08-17T22:34:54.340026Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: "Review and approve or reject the merge of feat/task-004-react-promote-control\
-  \ (3 commits: dbad40e, eb1cf22, cbe5f98). Nothing is merged; the branch is in worktree\
-  \ ../aj-004.\n\nWHAT IT DOES. A promote control on the React task detail page, closing\
-  \ the loop the UI already opened. It is a sibling panel gated on lifecycle === \"\
-  draft\", not a fourth button in the review panel, because approve/request-changes/reject\
-  \ carry merge-review meaning that does not apply to a draft. It sends expected_revision\
-  \ from the loaded record; a conflict re-reads and re-presents rather than resending.\
-  \ An optional note passes through as null when empty so the manager writes its own\
-  \ sentence.\n\nFILES: frontend/src/components/TaskDetail.tsx (PromotePanel + PromoteError),\
-  \ frontend/src/App.tsx (mutation wiring), frontend/src/api/mutation-error.ts (new),\
-  \ plus tests in TaskDetail.test.tsx, mutation-error.test.ts, e2e/promote-draft.spec.ts,\
-  \ and a human actor added to e2e/run_server.py.\n\nEVIDENCE: all six acceptance\
-  \ criteria verified against a real server through /app/ \u2014 see the verification\
-  \ entry. 53 vitest (was 42), 5 Playwright, tsc and build clean. Python side 1226\
-  \ passed with one failure that is the known .agents/ environmental one, proven to\
-  \ be file presence only; the gate should be re-run on main at merge, as it was for\
-  \ task-005 where it came out fully green.\n\nTHREE THINGS I WANT YOUR CALL ON.\n\
-  \n1. TWO PANELS ON A DRAFT. A draft's ball is human, so ReviewPanel still renders\
-  \ alongside the new promote panel \u2014 meaning a draft shows both Promote and\
-  \ the three merge-review buttons including \"Approve \u2014 agent may merge\". Redesigning\
-  \ those three is out of scope for this task so I left them. Is that acceptable as\
-  \ shipped, or should ReviewPanel exclude drafts?\n\n2. A REAL BUG I FOUND AND DID\
-  \ NOT FIX. Clicking a task in the React task list leaves the React app entirely\
-  \ for the legacy Jinja page: TaskList.tsx:169 uses a raw <a href> with a router\
-  \ path missing the /app basename, while Dashboard and TaskDetail use react-router\
-  \ Link and get it right. Confirmed in a Playwright snapshot. This makes the whole\
-  \ React task detail page \u2014 including this new control \u2014 unreachable by\
-  \ the most obvious route. It wants its own task; say the word and I will file it.\n\
-  \n3. THE CORPUS TEST LANDMINE, repeated from task-005 since it will keep costing\
-  \ time: tests/test_task_corpus.py::test_agentjobs_context_paths_exist asserts on\
-  \ .agents/plugins/marketplace.json, which .git/info/exclude:7 keeps out of git.\
-  \ It passes only in your main clone and fails in every worktree and any fresh checkout.\n\
-  \nOn approval I will rebase onto main, merge --no-ff, re-run the full gate there,\
-  \ mark the branch merged, close the task, remove the worktree, and then close the\
-  \ task-003 parent (its ac-3 wants one comparison of the CLI and UI promote log entries,\
-  \ which I will do at that point)."
+ball_prompt: "REVIEW IT RUNNING: http://127.0.0.1:8901/app/p/_local/tasks/task-001\n\
+  \nPort 8901 (not 8876, not 8765), serving this branch from worktree ../aj-004 against\
+  \ a throwaway sandbox project \u2014 nothing you click there can touch the real\
+  \ backlog. Four seeded tasks:\n\n  task-001  DRAFT       the planning vocabulary;\
+  \ promote it with a note\n  task-002  DRAFT       promote with no note; log should\
+  \ show the manager's own sentence\n  task-003  PAST DRAFT  the review vocabulary,\
+  \ for side-by-side comparison\n  task-004  READY       ball is with an agent, so\
+  \ no panel at all\n\nStop it when done:  powershell -c 'Get-NetTCPConnection -LocalPort\
+  \ 8901 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force\
+  \ }'\n\nWHAT TO APPROVE: merging feat/task-004-react-promote-control, now 4 commits\
+  \ \u2014 dbad40e (refusal reader), eb1cf22 (first attempt), cbe5f98 (e2e), 8015624\
+  \ (the rebuild you asked for). Nothing is merged.\n\nTHE REBUILD. One panel, phase-aware.\
+  \ A draft shows Promote / Send feedback / Reject & Archive; anything else keeps\
+  \ Approve / Request Changes / Reject & Archive. Buttons two and three run the same\
+  \ code in both phases and call the same unchanged endpoints \u2014 only their words\
+  \ change. The primary button dispatches to promote on a draft and approve otherwise,\
+  \ and that dispatch is the one place the distinction lives; there is a test asserting\
+  \ a draft never reaches approve.\n\nWORTH A LOOK WHILE YOU ARE IN THERE: Send feedback\
+  \ on a draft turns out to be a genuinely useful planning move that was previously\
+  \ unreachable \u2014 it hands the draft back to the agent to revise the spec, keeping\
+  \ it a draft, and the page then reads \"Revising\". That fell out of your design,\
+  \ not mine.\n\nEVIDENCE: all eight acceptance criteria met, verified against a real\
+  \ server. Full gate green in the worktree \u2014 1227 pytest, 54 vitest, 6 Playwright,\
+  \ build clean. One honest caveat: the corpus test passes there only because I copied\
+  \ .agents/plugins/marketplace.json in to reproduce your clone's local state; that\
+  \ landmine is untouched.\n\nSTILL OPEN, YOUR CALL, unchanged from the last handoff:\n\
+  \n1. TaskList.tsx:169 uses a raw <a href> missing the /app basename, so clicking\
+  \ a task in the list drops you into the legacy Jinja page. It makes this panel unreachable\
+  \ by the obvious route. Want it filed?\n\n2. Same for the corpus-test landmine (.agents/\
+  \ is in .git/info/exclude, so the test can only pass in your clone).\n\n3. New:\
+  \ should the merge gate in ENGINEERING.md require a review server URL for frontend\
+  \ work? This handoff is the first one that had one, and only because you asked.\n\
+  \nOn approval: rebase onto main, merge --no-ff, re-run the gate on main, mark branch\
+  \ merged, close, remove the worktree, stop the review server, then close the task-003\
+  \ parent (its ac-3 wants one comparison of the CLI and UI promote log entries \u2014\
+  \ I will do that then)."
 archived: false
 priority: medium
 category: frontend
@@ -56,97 +56,125 @@ assignment:
   eligible: []
 parent: task-003
 spec:
-  summary: The React app has no way to promote a draft to ready, so a human can create
-    a draft in the UI and cannot advance it there. The endpoint and the generated
-    client binding both already exist; only the control is missing.
-  intent: 'Close the loop the UI already opens: the dashboard invites a human to create
-    drafts and tells them drafts need a decision before they become work, so the UI
-    must be where that decision can be made.'
+  summary: "The React app has no way to promote a draft to ready, so a human can create\
+    \ a draft in the UI and cannot advance it there. The endpoint and its generated\
+    \ client binding both already exist; what is missing is a control \u2014 and the\
+    \ right place for it is the review panel the page already has, relabelled for\
+    \ the planning phase."
+  intent: "Close the loop the UI already opens: the dashboard invites a human to create\
+    \ drafts and tells them drafts need a decision before they become work, so the\
+    \ UI must be where that decision can be made \u2014 in one coherent set of actions\
+    \ for the phase the task is in, not a second box beside the first."
   description: "The generated frontend client already binds the endpoint \u2014 `promoteTaskApiProjectsProjectIdTasksTaskIdPromotePost`\
     \ in `frontend/src/api/generated/sdk.gen.ts:307`, with a TanStack mutation in\
     \ `@tanstack/react-query.gen.ts`. Nothing in `frontend/src` outside `generated/`\
-    \ references it. The only mutations the app wires up are approve, request-changes\
-    \ and reject (`frontend/src/App.tsx:128-130`) plus task creation. This is a wiring\
-    \ gap, not a missing endpoint: no backend work and no client regeneration is expected.\n\
-    \nThe dead end is concrete. `TaskCreate.tsx:116` offers a Draft/Ready radio, so\
-    \ a human can create a draft from the UI. `Dashboard.tsx:123-126` shows a drafts\
-    \ panel captioned as work \"that need[s] a decision before they become work\"\
-    , linking to `?status=draft`. Follow that link, open the draft, and there is no\
-    \ way to make the decision: `ReviewPanel` in `TaskDetail.tsx:40` returns null\
-    \ unless `ball === \"human\"`, and its actions are approve/changes/reject \u2014\
-    \ none of which promote.\n\nBuild the control:\n\n- Surface it on the task detail\
-    \ page for tasks with `lifecycle === \"draft\"`. `ReviewPanel` is currently gated\
-    \ on the ball, so either widen that gate deliberately or add a sibling panel;\
-    \ whatever renders must not imply the merge-review semantics of the existing three\
-    \ buttons.\n- Send `expected_revision` from the loaded task and handle a `revision_conflict`\
-    \ by re-reading and re-presenting, the same contract the MCP path follows. Do\
-    \ not retry blindly.\n- Carry the acting user the way approve/reject already do\
-    \ (`detail.identity`), and let the human supply an optional promotion note \u2014\
-    \ `manager.promote_task` falls back to \"Promoted by {actor}; the spec is finished\
-    \ and it is claimable.\" when no body is given, and a human promoting from the\
-    \ UI usually has a better sentence than that.\n- Report failure in the panel rather\
-    \ than swallowing it; `invalid_transition` (already promoted, or not a draft)\
-    \ is the expected non-exceptional error and should read as an explanation, not\
-    \ a crash."
+    \ references it. This is a wiring gap, not a missing endpoint: no backend work\
+    \ and no client regeneration is expected.\n\nThe dead end is concrete. `TaskCreate.tsx:116`\
+    \ offers a Draft/Ready radio, so a human can create a draft from the UI. `Dashboard.tsx:123-126`\
+    \ shows a drafts panel captioned as work \"that need[s] a decision before they\
+    \ become work\". Follow it, open the draft, and there is no way to make the decision.\n\
+    \n**Build it as one phase-aware panel.** `ReviewPanel` in `TaskDetail.tsx` already\
+    \ renders whenever the ball is with the human, and already offers the three actions\
+    \ a human takes on a task. Two of them are correct during planning exactly as\
+    \ they are \u2014 \"here is what the spec is missing\" and \"kill this idea\"\
+    \ \u2014 and only their labels read wrong. So the panel changes labels by phase\
+    \ and dispatches its primary button by phase:\n\n- **Draft:** `[\u25B2 Promote\
+    \ \u2014 make it claimable]` `[\u270E Send feedback]` `[\u2715 Reject & Archive]`\n\
+    - **Anything else:** `[\u2713 Approve \u2014 agent may merge]` `[\u270E Request\
+    \ Changes]` `[\u2715 Reject & Archive]`\n\nThe primary button calls `promote`\
+    \ on a draft and `approve` otherwise. Buttons two and three keep calling `request-changes`\
+    \ and `reject` unchanged \u2014 labels only.\n\nThis is a reversal of the original\
+    \ approach, which built a separate promote panel beside the review panel. See\
+    \ the binding decision in the log. The verbs behind the buttons are NOT merged:\
+    \ `approve` moves the ball and leaves `lifecycle` alone, while `promote` moves\
+    \ `lifecycle` draft\u2192ready and clears the owner. Calling approve on a draft\
+    \ would leave it `draft` + `agent/work`, which `get_next_task()` never returns\
+    \ \u2014 permanently unclaimable. The relabelling is a UI concern and stops at\
+    \ the UI.\n\nAlso required:\n\n- Send `expected_revision` from the loaded task\
+    \ and handle a `revision_conflict` by re-reading and re-presenting, the same contract\
+    \ the MCP path follows. Do not retry blindly.\n- Carry the acting user the way\
+    \ approve/reject already do (`detail.identity`), and let the human supply an optional\
+    \ promotion note \u2014 `manager.promote_task` falls back to \"Promoted by {actor};\
+    \ the spec is finished and it is claimable.\" when no body is given.\n- Render\
+    \ the promote refusal OUTSIDE the panel. After somebody else promotes the task\
+    \ its ball becomes `agent/available` and the whole panel stops rendering, so a\
+    \ message inside it disappears at the exact moment it is needed. This was observed,\
+    \ not predicted."
   constraints: "Frontend-only. Use the existing generated client \u2014 do not hand-write\
-    \ the request, and do not regenerate the API client as part of this change. `poetry\
-    \ run python scripts/check.py` must pass, and the change must be exercised against\
-    \ a freshly started server through the real `/app/` route, not only in Vitest.\
-    \ Assert on rendered values, not on the presence of markup."
+    \ the request, and do not regenerate the API client as part of this change. Do\
+    \ not change what `approve`, `request-changes` or `reject` DO; their labels change,\
+    \ their endpoints do not. `poetry run python scripts/check.py` must pass, and\
+    \ the change must be exercised against a freshly started server through the real\
+    \ `/app/` route, not only in Vitest. Assert on rendered values, not on the presence\
+    \ of markup."
   out_of_scope: The CLI `promote` command (sibling task under the same parent). Any
     change to the promote endpoint, the manager verb, the MCP tool, or the OpenAPI
-    schema. Redesigning the review panel's existing approve/request-changes/reject
-    actions.
+    schema. Merging or otherwise altering the approve/promote verbs behind the buttons.
+    The TaskList basename bug recorded in this task's log, which is separate work.
   context:
-  - path: frontend/src/App.tsx
-    why: Where the three existing task mutations are wired to the generated TanStack
-      hooks; the promote mutation belongs alongside them.
   - path: frontend/src/components/TaskDetail.tsx
-    why: ReviewPanel is gated on ball === 'human' at line 40 and holds the existing
-      action buttons; the promote control lands here or beside it.
+    why: ReviewPanel is the panel to make phase-aware; it is gated on ball === 'human'
+      and holds the three action buttons.
+  - path: frontend/src/App.tsx
+    why: Where the task mutations are wired to the generated TanStack hooks; the promote
+      mutation belongs alongside approve/changes/reject.
+  - path: src/agentjobs/api/routes/tasks.py
+    why: 'Line 376 onward: what approve, request-changes and reject actually do. Read
+      before assuming any two of them are the same verb.'
+  - path: src/agentjobs/manager.py
+    why: promote_task at line 783 - moves lifecycle and clears the owner, which is
+      what makes it distinct from approve.
   - path: frontend/src/components/Dashboard.tsx
     why: Lines 123-126 are the drafts panel that promises a decision the UI cannot
       currently make.
-  - path: frontend/src/components/TaskCreate.tsx
-    why: Line 116 lets a human create a draft from the UI, which is what creates the
-      dead end.
   - path: frontend/src/api/generated/sdk.gen.ts
     why: Line 307 already binds the promote endpoint; no regeneration needed.
-  - path: src/agentjobs/manager.py
-    why: promote_task at line 783 - the transition rules, the default log body, and
-      the invalid_transition case the UI must present.
 acceptance:
 - id: ac-1
-  text: Opening a draft task in the React app at /app/ shows a promote control; opening
-    a non-draft task does not.
-  verify: Browser against a freshly started server, one draft task and one ready task.
-  status: pending
+  text: On a draft, the review panel's three buttons read Promote / Send feedback
+    / Reject & Archive; on a non-draft they read Approve / Request Changes / Reject
+    & Archive. There is exactly one action panel in both cases.
+  verify: Browser against a freshly started server, one draft and one non-draft, asserting
+    on the rendered button labels.
+  status: met
 - id: ac-2
   text: Promoting from the UI moves the task to ready/agent/available and appends
     a promote log entry attributed to the acting human.
   verify: Read the task record after the click, via task_get or the task YAML.
-  status: pending
+  status: met
 - id: ac-3
   text: An optional note typed in the UI lands as the promote log entry body; leaving
     it empty produces the manager's default body.
   verify: Two promotions, one with a note and one without, comparing the resulting
     log entries.
-  status: pending
+  status: met
 - id: ac-4
   text: A stale revision (task changed underneath the open page) surfaces as a readable
     conflict message and re-reads the task rather than writing twice or failing silently.
+    The message remains visible even though the panel itself stops rendering.
   verify: Mutate the task from another surface with the detail page open, then promote.
-  status: pending
+  status: met
 - id: ac-5
+  text: "Send feedback and Reject still work on a draft, calling request-changes and\
+    \ reject unchanged \u2014 the relabelling did not break or rewire them."
+  verify: Exercise both on a draft against a real server and read the resulting task
+    record.
+  status: met
+- id: ac-6
   text: 'The full drafts loop works end to end in one browser session: create a draft
     via TaskCreate, find it through the dashboard drafts panel, promote it, and see
     it appear as ready.'
-  verify: Single manual browser pass, recorded on the task.
-  status: pending
-- id: ac-6
+  verify: Single browser pass against a real server, recorded on the task.
+  status: met
+- id: ac-7
   text: poetry run python scripts/check.py passes.
   verify: Command output on the task.
-  status: pending
+  status: met
+- id: ac-8
+  text: The handoff for review includes a running review server URL the reviewer can
+    click, serving this branch against a throwaway project rather than the real backlog.
+  verify: URL in the ball_prompt, server confirmed serving the branch build.
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -365,3 +393,193 @@ log:
       id: c2e83b41-7d95-4f08-a6b2-51d970fc38e6
       kind: handoff
       fingerprint: eca0dabdf5eaa08dba5354c4bef019b4
+- id: 8
+  ts: '2026-08-17T22:23:00.743702Z'
+  actor: claude
+  type: decision
+  body: "BINDING, from Jeff, 2026-08-17. This reverses decision #1 in log entry 4.\
+    \ Do not relitigate it.\n\nONE PANEL, RELABELLED BY PHASE \u2014 not a sibling\
+    \ promote panel. On a draft the existing review box shows:\n\n  [\u25B2 Promote\
+    \ \u2014 make it claimable]  [\u270E Send feedback]  [\u2715 Reject & Archive]\n\
+    \nand on anything else it keeps today's:\n\n  [\u2713 Approve \u2014 agent may\
+    \ merge]  [\u270E Request Changes]  [\u2715 Reject & Archive]\n\nJeff's reasoning,\
+    \ which I accept: request-changes and reject are ALREADY the right actions during\
+    \ planning \u2014 \"here is what the spec is missing\" and \"kill this idea\"\
+    \ both make sense on a draft. My two-panel design left those two sitting in merge-review\
+    \ clothing while promote hid in a separate box beside them. A human looking at\
+    \ a draft should see one coherent set of choices for the phase they are in. That\
+    \ is a UI problem and he is right about it.\n\nWHERE I PUSHED BACK, AND THE OUTCOME.\
+    \ Jeff also proposed that promote is \"basically just renaming what Approve does\"\
+    , and that needing the separate `promote` verb behind it is a backend design flaw.\
+    \ I disagreed, on evidence, and he did not overrule that part \u2014 the change\
+    \ stays UI-only.\n\nThe two verbs are structurally different, not cosmetically:\n\
+    - `approve` (tasks.py:376) calls `handoff(ball=agent, ball_reason=work)` and deliberately\
+    \ does NOT touch `lifecycle`.\n- `promote` (manager.py:783) moves `lifecycle`\
+    \ draft\u2192ready AND clears `assignment.owner` AND sets ball agent/available.\n\
+    \nClicking approve on a draft would therefore leave `lifecycle: draft` with `ball:\
+    \ agent/work`. `get_next_task()` returns only `ready` tasks, so that task becomes\
+    \ permanently unclaimable \u2014 precisely the failure `promote_task`'s docstring\
+    \ names: \"without this verb a drafted task stays unclaimable for good.\" Merging\
+    \ the two endpoints would mean one route branching on lifecycle internally, which\
+    \ moves the complexity out of sight rather than removing it.\n\nSo: the flaw was\
+    \ real and it was in the UI. The verb set stays as it is. `request-changes` and\
+    \ `reject` are unchanged and already phase-agnostic \u2014 only their labels change\
+    \ \u2014 and the primary button dispatches to `promote` on a draft and `approve`\
+    \ otherwise.\n\nCONSEQUENCE ACCEPTED: the panel keeps its `ball === \"human\"\
+    ` gate rather than gaining a second lifecycle-based entry condition, because one\
+    \ panel with one gate is the point. A draft parked on `external` or `agent` therefore\
+    \ shows no promote control in the UI; that is an odd state a draft should rarely\
+    \ be in, and the CLI and MCP still reach it."
+  data:
+    operation:
+      id: 4d7a1e58-9c26-4b03-a17f-62e0d5b39f84
+      kind: log_append
+      fingerprint: 4bcbbc7d4e1d0aef958545df281569f0
+- id: 9
+  ts: '2026-08-17T22:23:14.049325Z'
+  actor: claude
+  type: handoff
+  body: "Rebuild the control per the binding decision in log entry 8: fold promote\
+    \ into the existing ReviewPanel and relabel the three buttons by phase, instead\
+    \ of the sibling PromotePanel currently on the branch. Draft gets [\u25B2 Promote\
+    \ \u2014 make it claimable] [\u270E Send feedback] [\u2715 Reject & Archive];\
+    \ everything else keeps [\u2713 Approve \u2014 agent may merge] [\u270E Request\
+    \ Changes] [\u2715 Reject & Archive]. request-changes and reject keep calling\
+    \ their existing endpoints unchanged \u2014 labels only. The primary button dispatches\
+    \ to promote on a draft and approve otherwise.\n\nKeep from the existing branch:\
+    \ the expected_revision contract, the optional note passing as null when empty,\
+    \ mutation-error.ts, and PromoteError rendering OUTSIDE the panel (still required,\
+    \ and more so now \u2014 after somebody else promotes the task the ball becomes\
+    \ agent/available and the whole panel returns null, so an in-panel message would\
+    \ vanish exactly when it is needed).\n\nThen re-verify all six acceptance criteria,\
+    \ and hand back with a running review server URL this time, not just a diff."
+  data:
+    ball: agent
+    ball_reason: revise
+    operation:
+      id: 7e05c93a-6b18-4d27-a94e-3f81b02c5de9
+      kind: handoff
+      fingerprint: 4dd2cdab0c3501abb86509a73c1017c8
+- id: 10
+  ts: '2026-08-17T22:23:51.599626Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, spec, title.
+  data:
+    fields:
+    - acceptance
+    - spec
+    - title
+    operation:
+      id: b8f31d0c-4a67-4e29-95b1-73c2e0a48d5f
+      kind: update_content
+      fingerprint: 50c26b0412fe0c1d9ca2d3a3bab96d42
+- id: 11
+  ts: '2026-08-17T22:34:02.185294Z'
+  actor: claude
+  type: progress
+  body: "Rebuilt per the binding decision. Commit 8015624 on the same branch, on top\
+    \ of dbad40e / eb1cf22 / cbe5f98.\n\nWHAT CHANGED FROM THE FIRST ATTEMPT. `PromotePanel`\
+    \ is gone. `ReviewPanel` now derives a `copy` object from `lifecycle === \"draft\"\
+    ` and renders one set of buttons wearing that phase's vocabulary, with `aria-label`\
+    \ \"Draft actions\" or \"Review actions\". Buttons two and three call `onRequestChanges`\
+    \ and `onReject` in both phases \u2014 identical code path, different words. Only\
+    \ the primary button branches: `onPromote` on a draft, `onApprove` otherwise.\
+    \ `PromoteError` still renders outside the panel, and the reason is now stronger\
+    \ than before: promoting elsewhere moves the ball to agent/available, and the\
+    \ panel returns null the moment the ball leaves the human, so an in-panel message\
+    \ would vanish precisely when a conflict occurred.\n\nac-1 MET. Vitest asserts\
+    \ the three rendered button labels in each phase, and asserts `getAllByRole(\"\
+    region\", {name: /actions$/})` has length 1 \u2014 one panel, not two, in both\
+    \ phases. Playwright confirms the draft panel against the live server.\n\nac-2\
+    \ MET. Live server: after promoting, the work state reads \"Actionable now\" where\
+    \ it read \"Needs spec\", and the log carries the acting human.\n\nac-3 MET. Two\
+    \ live promotions. With a note the log carries it; without, it carries \"Promoted\
+    \ by E2E Human; the spec is finished and it is claimable.\" A vitest case pins\
+    \ that an empty note arrives as null and a typed one arrives trimmed.\n\nac-4\
+    \ MET. The conflict test still passes with the panel merged: the alert reads \"\
+    changed while the page was open\", the reloaded log shows the other surface's\
+    \ promotion, and the log holds exactly one entry \u2014 the second write did not\
+    \ happen.\n\nac-5 MET, new criterion. A live Playwright pass exercises both relabelled\
+    \ actions on a draft. Send feedback leaves the task at draft with ball agent/revise\
+    \ and the feedback verbatim in the record \u2014 the page then reads \"Revising\"\
+    , which is the correct meaning of feedback on a spec: go rewrite it. Reject closes\
+    \ it cancelled and archived; asserted by reading the record back over the API,\
+    \ not from the page. Neither endpoint was touched.\n\nONE THING THIS TURNED UP,\
+    \ worth knowing: `request-changes` on a draft is genuinely useful and was previously\
+    \ unreachable in any sensible form. It hands a draft back to the agent to revise\
+    \ the spec, keeping it a draft. That is a real planning-phase workflow the UI\
+    \ now exposes, and it came for free from Jeff's design rather than from the original\
+    \ one.\n\nac-6 MET. Full loop in one session through the dashboard drafts panel.\n\
+    \nac-7 MET. `poetry run python scripts/check.py` in the worktree: 1227 passed,\
+    \ 0 failed. 54 vitest across 12 files, API client check clean, tsc + vite build\
+    \ clean, 6 Playwright. Stated precisely: the corpus test that failed on earlier\
+    \ runs passes here because I copied `.agents/plugins/marketplace.json` into the\
+    \ worktree to reproduce the main clone's local state. That is environment reproduction,\
+    \ not a fix \u2014 the underlying landmine is unchanged and still worth its own\
+    \ task.\n\nac-8 MET. Review server described in the handoff."
+  data:
+    operation:
+      id: 2a6f94b3-5d81-4c07-b29e-6f430e58a1d2
+      kind: log_append
+      fingerprint: c35f327eae1548abdb24a17c478b1a0b
+- id: 12
+  ts: '2026-08-17T22:34:24.636483Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 5c81a740-2b93-4d68-a057-e9f1206b34ca
+      kind: update_content
+      fingerprint: f869e8f9507d3ee4d1c751f7a8bd038b
+- id: 13
+  ts: '2026-08-17T22:34:54.339868Z'
+  actor: claude
+  type: handoff
+  body: "REVIEW IT RUNNING: http://127.0.0.1:8901/app/p/_local/tasks/task-001\n\n\
+    Port 8901 (not 8876, not 8765), serving this branch from worktree ../aj-004 against\
+    \ a throwaway sandbox project \u2014 nothing you click there can touch the real\
+    \ backlog. Four seeded tasks:\n\n  task-001  DRAFT       the planning vocabulary;\
+    \ promote it with a note\n  task-002  DRAFT       promote with no note; log should\
+    \ show the manager's own sentence\n  task-003  PAST DRAFT  the review vocabulary,\
+    \ for side-by-side comparison\n  task-004  READY       ball is with an agent,\
+    \ so no panel at all\n\nStop it when done:  powershell -c 'Get-NetTCPConnection\
+    \ -LocalPort 8901 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess\
+    \ -Force }'\n\nWHAT TO APPROVE: merging feat/task-004-react-promote-control, now\
+    \ 4 commits \u2014 dbad40e (refusal reader), eb1cf22 (first attempt), cbe5f98\
+    \ (e2e), 8015624 (the rebuild you asked for). Nothing is merged.\n\nTHE REBUILD.\
+    \ One panel, phase-aware. A draft shows Promote / Send feedback / Reject & Archive;\
+    \ anything else keeps Approve / Request Changes / Reject & Archive. Buttons two\
+    \ and three run the same code in both phases and call the same unchanged endpoints\
+    \ \u2014 only their words change. The primary button dispatches to promote on\
+    \ a draft and approve otherwise, and that dispatch is the one place the distinction\
+    \ lives; there is a test asserting a draft never reaches approve.\n\nWORTH A LOOK\
+    \ WHILE YOU ARE IN THERE: Send feedback on a draft turns out to be a genuinely\
+    \ useful planning move that was previously unreachable \u2014 it hands the draft\
+    \ back to the agent to revise the spec, keeping it a draft, and the page then\
+    \ reads \"Revising\". That fell out of your design, not mine.\n\nEVIDENCE: all\
+    \ eight acceptance criteria met, verified against a real server. Full gate green\
+    \ in the worktree \u2014 1227 pytest, 54 vitest, 6 Playwright, build clean. One\
+    \ honest caveat: the corpus test passes there only because I copied .agents/plugins/marketplace.json\
+    \ in to reproduce your clone's local state; that landmine is untouched.\n\nSTILL\
+    \ OPEN, YOUR CALL, unchanged from the last handoff:\n\n1. TaskList.tsx:169 uses\
+    \ a raw <a href> missing the /app basename, so clicking a task in the list drops\
+    \ you into the legacy Jinja page. It makes this panel unreachable by the obvious\
+    \ route. Want it filed?\n\n2. Same for the corpus-test landmine (.agents/ is in\
+    \ .git/info/exclude, so the test can only pass in your clone).\n\n3. New: should\
+    \ the merge gate in ENGINEERING.md require a review server URL for frontend work?\
+    \ This handoff is the first one that had one, and only because you asked.\n\n\
+    On approval: rebase onto main, merge --no-ff, re-run the gate on main, mark branch\
+    \ merged, close, remove the worktree, stop the review server, then close the task-003\
+    \ parent (its ac-3 wants one comparison of the CLI and UI promote log entries\
+    \ \u2014 I will do that then)."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: e37b5a29-8104-4c6d-b7f2-90a1c5e6d834
+      kind: handoff
+      fingerprint: fc7e788e6542a4728a4a7330d68dc892
