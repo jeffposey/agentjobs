@@ -14,7 +14,18 @@ from .models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome, Prior
 
 
 class TaskClientError(RuntimeError):
-    """Raised when the REST API returns an error or connection fails."""
+    """Raised when the REST API returns an error or connection fails.
+
+    ``status_code`` is the HTTP status when the service answered, and ``None`` when
+    it could not be reached at all. Callers need the difference: a 404 from a route
+    that should exist means the service is the wrong version, which is a completely
+    different repair from a refused connection.
+    """
+
+    def __init__(self, message: str, *, status_code: Optional[int] = None) -> None:
+        """Record the message and, when the service answered, its status."""
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class TaskClient:
@@ -336,7 +347,7 @@ class TaskClient:
             return response
         except httpx.HTTPStatusError as exc:
             detail = self._extract_error_detail(exc.response)
-            raise TaskClientError(detail) from exc
+            raise TaskClientError(detail, status_code=exc.response.status_code) from exc
         except httpx.RequestError as exc:
             raise TaskClientError(f"Request failed: {exc}") from exc
 

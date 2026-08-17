@@ -102,23 +102,30 @@ def probe_service(
     base_url = client.base_url
     try:
         client.service_health()
+    except TaskClientError as exc:
+        raise StartupError(_unreachable(base_url, exc)) from exc
+
+    try:
         version_payload = client.service_version()
+    except TaskClientError as exc:
+        # A 404 here is the one case where the service answered and still cannot be
+        # used: it is an AgentJobs old enough not to have /api/version. Reporting
+        # that as "not reachable" sends the reader to look for a server that is
+        # demonstrably running -- which is exactly what happened the first time this
+        # ran against a service left over from before the endpoint existed.
+        if exc.status_code == 404:
+            raise StartupError(_predates_version_endpoint(base_url)) from exc
+        raise StartupError(_unreachable(base_url, exc)) from exc
+
+    try:
         projects = client.list_projects()
     except TaskClientError as exc:
-        raise StartupError(
-            f"AgentJobs service at {base_url} is not reachable ({exc}). "
-            "Start it with `agentjobs serve`, or point AGENTJOBS_URL at the running "
-            "service. The MCP server does not start one for you."
-        ) from exc
+        raise StartupError(_unreachable(base_url, exc)) from exc
 
     server_version = str(version_payload.get("version", ""))
     raw_schema = version_payload.get("schema_version")
     if not server_version or not isinstance(raw_schema, int):
-        raise StartupError(
-            f"AgentJobs service at {base_url} did not report a usable version. "
-            "This build predates the /api/version endpoint the MCP server requires; "
-            "upgrade the service to a matching AgentJobs release."
-        )
+        raise StartupError(_predates_version_endpoint(base_url))
 
     for message in (
         check_version(client_version=client_version, server_version=server_version),
@@ -132,6 +139,22 @@ def probe_service(
         version=server_version,
         schema_version=raw_schema,
         project_ids=tuple(_project_ids(projects, base_url=base_url)),
+    )
+
+
+def _unreachable(base_url: str, exc: TaskClientError) -> str:
+    return (
+        f"AgentJobs service at {base_url} is not reachable ({exc}). "
+        "Start it with `agentjobs serve`, or point AGENTJOBS_URL at the running "
+        "service. The MCP server does not start one for you."
+    )
+
+
+def _predates_version_endpoint(base_url: str) -> str:
+    return (
+        f"AgentJobs service at {base_url} did not report a usable version. It "
+        "predates the /api/version endpoint the MCP server requires; upgrade the "
+        "service to a matching AgentJobs release and restart it."
     )
 
 

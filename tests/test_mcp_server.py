@@ -108,6 +108,17 @@ def live_client(running_service):
     client.close()
 
 
+class _ClientWithoutVersionRoute(TaskClient):
+    """Stands in for an AgentJobs old enough to have no /api/version route.
+
+    It asks the live service for a path that genuinely does not exist, so the probe
+    sees a real 404 from a real server rather than a fabricated exception.
+    """
+
+    def service_version(self):
+        return self._request("GET", "/api/version-from-a-newer-release").json()
+
+
 class TestStartupProbe:
     def test_version_endpoint_reports_package_and_schema(self, live_client):
         payload = live_client.service_version()
@@ -143,12 +154,29 @@ class TestStartupProbe:
                 live_client, client_version=__version__, client_schema=SCHEMA_VERSION
             )
 
-    def test_a_service_without_the_version_endpoint_is_refused(self, monkeypatch, live_client):
+    def test_a_service_returning_an_empty_version_body_is_refused(self, monkeypatch, live_client):
         monkeypatch.setattr(live_client, "service_version", dict)
         with pytest.raises(compat.StartupError, match="predates the /api/version endpoint"):
             compat.probe_service(
                 live_client, client_version=__version__, client_schema=SCHEMA_VERSION
             )
+
+    def test_a_404_on_the_version_route_is_not_reported_as_unreachable(self, running_service):
+        """An older AgentJobs is running, not absent, and the message must say so.
+
+        Observed for real: a service started before /api/version existed answered
+        /api/health and 404'd the version probe, and the first draft told the reader
+        to start a server that was visibly already running. Driven through a genuine
+        404 -- a route the old build simply does not have -- because the branch keys
+        on the status code, which a stubbed return value cannot produce.
+        """
+        client = _ClientWithoutVersionRoute(running_service, timeout=10.0)
+        with pytest.raises(compat.StartupError) as caught:
+            compat.probe_service(client, client_version=__version__, client_schema=SCHEMA_VERSION)
+        client.close()
+        message = str(caught.value)
+        assert "predates the /api/version endpoint" in message
+        assert "not reachable" not in message
 
 
 # ----------------------------------------------------------------------------
