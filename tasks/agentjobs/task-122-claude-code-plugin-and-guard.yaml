@@ -2,7 +2,7 @@ schema: 2
 id: task-122-claude-code-plugin-and-guard
 title: Ship a Claude Code plugin, skill, and direct-write guard
 created: '2026-08-17T16:52:09.435545Z'
-updated: '2026-08-17T19:59:13.978698Z'
+updated: '2026-08-17T20:18:05.148509Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -640,3 +640,51 @@ log:
       id: 3b6f8027-5d14-4ac9-97e2-61b0d3a58c72
       kind: handoff
       fingerprint: 2dedc21cf38a162e16aa5280cbb4f78f
+- id: 18
+  ts: '2026-08-17T20:18:05.148289Z'
+  actor: claude
+  type: decision
+  body: "THE PLUGIN MANIFEST SCHEMA, ESTABLISHED BY A REAL INSTALL. Merge 4dfb9bd.\n\
+    \nJeff ran the install. It failed:\n\n  Plugin temp_local_..._afzp3p has an invalid\
+    \ manifest file at\n  ...\\.claude-plugin\\plugin.json.\n  Validation errors:\
+    \ author: Invalid input: expected object, received string,\n                 \
+    \    skills: Invalid input\n\nBoth were mine, and the packaging tests passed the\
+    \ whole time because they asserted the\nshape I had invented rather than the shape\
+    \ the installer enforces. That is the finding\nworth keeping: a test written from\
+    \ the same assumption as the code it checks is\ndecoration. ac-4 exists precisely\
+    \ to catch this class, and it did, on the first real run.\n\nWHAT THE SCHEMA ACTUALLY\
+    \ IS, evidence-based rather than assumed. Read from the published\nmanifests already\
+    \ on this machine at\n~/.claude/plugins/marketplaces/claude-plugins-official/plugins/*/.claude-plugin/plugin.json:\n\
+    \n- `author` is an OBJECT for Claude: {\"name\": ..., \"email\": ...}. Codex takes\
+    \ a bare\n  string, and the Codex manifest in this same directory still does.\
+    \ The two clients\n  genuinely differ on this field, so it cannot be copied across.\
+    \ This is the second\n  time a Codex shape was assumed to carry over and did not;\
+    \ the first was the matcher\n  vocabulary.\n- `skills` IS NOT A DECLARABLE FIELD.\
+    \ Not one official plugin declares it, while several\n  ship a `skills/` directory.\
+    \ Discovery is by convention: `skills/<name>/SKILL.md`, as in\n  example-plugin's\
+    \ `skills/example-skill/`. Ours already sat at\n  `skills/agentjobs/SKILL.md`,\
+    \ so the declaration was deleted, not reshaped.\n- `hooks` and `mcpServers` as\
+    \ relative path strings were NOT flagged by the validator,\n  which reported every\
+    \ error at once rather than stopping at the first. So they are\n  accepted fields.\
+    \ `keywords`, `homepage`, `license` likewise passed.\n\nTHE NEXT RISK, stated\
+    \ before it bites rather than after. Hook discovery convention is\n`hooks/hooks.json`\
+    \ -- the exact filename Codex already occupies in this shared directory,\nholding\
+    \ Codex's matcher and `${CODEX_PLUGIN_ROOT}`. We declare\n`\"hooks\": \"./hooks/hooks-claude.json\"\
+    ` explicitly and the validator accepted the field,\nwhich suggests declaration\
+    \ is honoured. UNKNOWN: whether an explicit declaration\noverrides convention,\
+    \ sits alongside it, or is ignored in favour of it.\n\nIf the install now succeeds\
+    \ and the guard still does not fire, that is the cause, and the\none-directory\
+    \ layout decision (log entry 8) needs revisiting on new evidence rather than\n\
+    being relitigated on the old: Codex would have to yield the conventional filename,\
+    \ e.g.\nCodex moves to `hooks/hooks-codex.json` named by its own manifest's `hooks`\
+    \ field, leaving\n`hooks/hooks.json` to Claude's convention. Do not make that\
+    \ change speculatively. Find out\nfirst.\n\nWHAT IS STILL UNVERIFIED. Everything\
+    \ above is schema correctness. Whether the plugin\ninstalls, whether the skill\
+    \ triggers, and whether the guard denies in a live session are\nall still open\
+    \ -- ac-4 and the skill half of ac-1. The only way to close them is another\n\
+    real install, which is exactly the point."
+  data:
+    operation:
+      id: c5e91b34-7a08-4d62-9e15-40f8b271a6dc
+      kind: log_append
+      fingerprint: 763bc7c48338915002adcd0873e278f7
