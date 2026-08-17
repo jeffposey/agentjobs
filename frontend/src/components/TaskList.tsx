@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import type { BrokenTaskFile, TaskRead } from "../api/types";
 import { BrokenFiles } from "./BrokenFiles";
@@ -166,14 +166,14 @@ export function TaskList({
             {visibleRows.map((row) => (
               <ResponsiveTableRow key={row.task.id}>
                 <ResponsiveCell label="Task" style={!flattened ? { paddingLeft: `${0.5 + row.depth * 1.5}rem` } : undefined}>
-                  <a href={taskPath(projectId, row.task.id)} className="touch-target block overflow-hidden">
+                  <Link to={taskPath(projectId, row.task.id)} className="touch-target block overflow-hidden">
                     <span className="block font-mono text-xs text-blue-400">{row.task.id}</span>
                     <span className="block truncate font-medium text-dark-text">{row.task.title}</span>
                     <span className="block text-xs text-dark-muted">
                       {row.task.category}
                       {flattened && row.ancestors.length > 0 ? ` · part of ${row.ancestors.at(-1)}` : ""}
                     </span>
-                  </a>
+                  </Link>
                   {!flattened && row.childCount > 0 && (
                     <button type="button" aria-expanded={expanded.has(row.task.id)} onClick={() => toggle(row.task.id)} className="touch-target text-xs text-blue-400 hover:text-blue-300">
                       {expanded.has(row.task.id) ? "▾" : "▸"} {row.childCount} sub-task{row.childCount === 1 ? "" : "s"}{row.openChildren ? `, ${row.openChildren} open` : ""}
