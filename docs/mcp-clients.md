@@ -9,6 +9,41 @@ All of them need a running service first:
 agentjobs serve
 ```
 
+## Developing from a clone
+
+Every configuration below spells the command `agentjobs`, which is correct when you
+installed the package — `pip install agentjobs` puts a launcher on `PATH`. **It is not
+correct when you are working from a clone**, and that is the case for anyone
+contributing to AgentJobs itself.
+
+A Poetry virtualenv on Windows has no `agentjobs.exe`. It has a POSIX shebang script
+with no extension and an `agentjobs.cmd` shim, and an MCP client spawns its server
+through argv with no shell, so neither one launches. Call the interpreter instead and
+let it find the module:
+
+```json
+{
+  "mcpServers": {
+    "agentjobs": {
+      "command": "C:/path/to/virtualenvs/agentjobs-XXXXXXXX-py3.13/Scripts/python.exe",
+      "args": ["-m", "agentjobs.cli", "mcp"],
+      "env": { "AGENTJOBS_URL": "http://127.0.0.1:8765" }
+    }
+  }
+}
+```
+
+`poetry env info --path` prints the directory. On POSIX the venv's `bin/agentjobs` is
+directly executable, so `<venv>/bin/agentjobs` with `args: ["mcp"]` also works; the
+interpreter form works on both and is the one to reach for if you are unsure.
+
+The same applies to `agentjobs serve` and every other command in this file: from a
+clone they are `poetry run agentjobs …`.
+
+Client MCP configuration files are gitignored in this repository for that reason — the
+working entry names one machine's virtualenv, so there is no committed version of it
+that is right for two people at once.
+
 ## Codex
 
 Install the plugin from
