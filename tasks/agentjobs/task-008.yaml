@@ -1,0 +1,272 @@
+schema: 2
+id: task-008
+title: Clicking a task in the React list ejects the user into the Jinja UI
+created: '2026-08-17T22:37:46.617404Z'
+updated: '2026-08-17T22:50:04.068499Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: 'Ready for merge approval. Branch fix/task-008-task-list-link, commit
+  23dad82, two files.
+
+
+  What changed: the task list row is now a react-router `Link` rather than a raw `<a
+  href>`. That one character class was the whole bug -- raw anchors are not routed,
+  so the /app basename was dropped and clicking a task loaded the Jinja page. Path
+  builders are untouched.
+
+
+  You can check it yourself without merging: a server from the worktree is running
+  on port 8899 serving this branch. Open http://localhost:8899/app/p/agentjobs/tasks
+  and click any task. It should stay in the React app. Stop that server when you are
+  done with it -- it is a review fixture, not something to leave running, and the
+  real one on 8876 is untouched.
+
+
+  Evidence: clicking a row lands on /app/p/agentjobs/tasks/task-008, renders the React
+  detail page, and a sentinel set on `window` before the click survives it -- which
+  proves client-side routing rather than a full page load. The new guard renders components
+  WITH a basename (the existing tests use a bare MemoryRouter, which is exactly why
+  none of them caught this) and fails if any in-app href escapes the prefix; I confirmed
+  it fails on the old raw anchor before trusting it. Frontend gate green: 13 files,
+  52 tests, lint, types, build. Python: 1227 passed, 1 failed -- the same pre-existing
+  task-002 git-excluded context path that fails in every worktree, unrelated to this
+  branch.
+
+
+  On approval I will rebase, merge --no-ff, close, and remove the worktree.
+
+
+  One thing worth your attention beyond this merge: task-007 (the server-side redirect)
+  is now more clearly worth doing, not less. This fix protects people already inside
+  the React app; task-007 protects people who arrive by address. They are different
+  doors to the same room, and today both were open.'
+archived: false
+priority: critical
+category: bug
+tags:
+- gui
+- routing
+- react-frontend
+effort: an hour
+assignment:
+  owner: claude
+  eligible: []
+spec:
+  summary: The React task list renders each row's link as a raw anchor whose href
+    omits the router's /app basename, so clicking a task performs a full page load
+    into the legacy Jinja task page. The user leaves the React app without any indication,
+    and live updates stop working from that point on.
+  intent: 'Reported by Jeff on 2026-08-17, immediately after task-006 concluded that
+    his stale dashboard was explained by how he reached the app. That conclusion was
+    incomplete, and this is the missing half: the React app ejects users into the
+    legacy UI by itself. No bookmark, no typed address, no stale install required
+    -- open React, click a task, and you are in Jinja.
+
+
+    This is the better explanation of the original report. It is also worse than what
+    task-006 described, because it needs no user error at all and it happens on the
+    single most common action in the product.
+
+
+    The consequence is the same one that makes it matter: the Jinja UI has no live
+    updates, so from the moment a user clicks a task they are looking at a page that
+    will never change until they reload it. The merge gate assumes a human watching
+    a dashboard notices a review request.'
+  description: "## The defect\n\n`frontend/src/components/TaskList.tsx` line 169 renders\
+    \ each row as:\n\n```tsx\n<a href={taskPath(projectId, row.task.id)} ...>\n```\n\
+    \nand `taskPath` (line 91) returns `/p/{project}/tasks/{id}`.\n\nEvery path builder\
+    \ in the frontend deliberately omits the `/app` prefix, because `main.tsx` mounts\
+    \ the router with `basename=\"/app\"` and react-router's `Link` applies it. That\
+    \ is correct and consistent \u2014 in `App.tsx`, `Dashboard.tsx`, `TaskDetail.tsx`,\
+    \ and `DependencyGraph.tsx`, all of which use `<Link>`.\n\n`TaskList.tsx` is the\
+    \ only file that uses a raw `<a href>`. A raw anchor is not routed: the basename\
+    \ is never applied, the browser performs a real navigation to `/p/{project}/tasks/{id}`,\
+    \ and the server serves the Jinja task page there.\n\nAudited 2026-08-17: this\
+    \ is the only instance. `ProjectSwitcher.tsx` has no `Link` either but navigates\
+    \ via `useNavigate()`, which respects the basename. The remaining raw anchors\
+    \ in the codebase point at `/docs`, the FastAPI documentation, which is genuinely\
+    \ outside the React app and correct as-is.\n\n## The fix\n\nUse `Link` from react-router-dom,\
+    \ as every other in-app navigation does. This also restores client-side routing\
+    \ for that click, which is a second thing the raw anchor broke: the current behaviour\
+    \ is a full document load, discarding the SPA and every cached query.\n\nDo not\
+    \ \"fix\" this by hardcoding `/app` into `taskPath`. That would diverge from the\
+    \ other builders, and it would break again the moment the basename changes.\n\n\
+    ## The guard\n\nA test that fails if an in-app link escapes the React app. Assert\
+    \ the *rendered* href, not the source: render the task list inside a router configured\
+    \ with `basename=\"/app\"` and assert the row link's href begins with `/app/`.\
+    \ A raw anchor fails that assertion; a `Link` passes it.\n\nWorth extending to\
+    \ the other components that link to tasks, since the class of bug is \"someone\
+    \ used an anchor instead of a Link\" and nothing currently prevents it anywhere."
+  constraints: '- Use react-router navigation for in-app targets. Do not hardcode
+    the /app prefix into path builders.
+
+    - Keep the row''s existing keyboard and touch affordances; it is a full-row click
+    target and must stay one.
+
+    - Assert the rendered href, not the presence of a Link component in source. The
+    bug is what the browser does with the markup.
+
+    - Genuine external links (/docs) stay raw anchors and must not be swept up.'
+  out_of_scope: 'The server-side default-route redirect, which is task-007 and remains
+    worth doing independently: it protects people who arrive by address, while this
+    protects people already inside the app. Retiring the Jinja UI. Any redesign of
+    the task list.'
+  context:
+  - path: frontend/src/components/TaskList.tsx
+    why: Line 169 is the raw anchor and line 91 the path builder it uses. The single
+      defect.
+  - path: frontend/src/main.tsx
+    why: Mounts the router with basename="/app", which is why unprefixed paths are
+      correct for Link and wrong for a raw anchor.
+  - path: frontend/src/components/Dashboard.tsx
+    why: 'The correct pattern to follow: same unprefixed path builder, navigated with
+      Link.'
+  - path: tasks/agentjobs/task-007.yaml
+    why: The complementary server-side fix for people who arrive by address rather
+      than by clicking.
+acceptance:
+- id: ac-1
+  text: clicking a task in the React task list stays in the React app and shows the
+    React task detail page, verified in a browser against a running server
+  status: pending
+- id: ac-2
+  text: the rendered href of a task row link begins with /app/ when the router basename
+    is /app
+  status: pending
+- id: ac-3
+  text: the click is client-side routing, not a full document load
+  status: pending
+- id: ac-4
+  text: an automated test fails if an in-app link renders without the basename, covering
+    the task list and the other components that link to tasks
+  status: pending
+- id: ac-5
+  text: genuine external links such as /docs still work and are untouched
+  status: pending
+- id: ac-6
+  text: poetry run python scripts/check.py passes, or any failure is shown to be the
+    known pre-existing worktree-only corpus failure
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T22:37:46.617451Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: 2f8e5b04-6c19-4a73-9d58-1e40b7a3c962
+      kind: create
+      fingerprint: d7a6ebe62c93079a675a0921a0163e36
+- id: 2
+  ts: '2026-08-17T22:38:03.832796Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 8b41d90e-3a67-4c25-9e08-5f721ba36d47
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-17T22:49:47.039760Z'
+  actor: claude
+  type: progress
+  body: 'Fixed, guarded, and verified in a real browser. Branch fix/task-008-task-list-link,
+    worktree C:/projects/aj-008, commit 23dad82, two files.
+
+
+    The change:
+
+    - frontend/src/components/TaskList.tsx: the row link is now a react-router `Link`
+    instead of a raw `<a href>`, with `Link` added to the existing react-router-dom
+    import. The path builder is untouched and still returns an unprefixed `/p/...`,
+    matching the four other builders in the codebase; the basename is the router''s
+    job.
+
+    - frontend/src/components/InAppLinks.test.tsx: new guard, four tests.
+
+
+    Audit result, so nobody re-does it: TaskList was the ONLY offender. Dashboard,
+    TaskDetail, DependencyGraph and App all already use `Link`. ProjectSwitcher has
+    no `Link` but navigates with `useNavigate()`, which applies the basename. The
+    remaining raw anchors point at `/docs`, which is FastAPI''s documentation, genuinely
+    outside the React app, and correctly left alone -- the guard has an explicit allowance
+    for it and a test asserting it stays unprefixed.
+
+
+    Why the existing tests missed it, which is the part worth carrying forward: every
+    component test renders inside a bare `<MemoryRouter>`, which has no basename.
+    Without a basename a `Link` and a raw anchor produce identical hrefs, so no existing
+    test could have distinguished them, and TaskList.test.tsx passes today against
+    the broken code. The new guard renders with `basename="/app"` and asserts no in-app
+    href escapes the prefix. It also asserts a non-zero link count so it cannot pass
+    vacuously if the links disappear.
+
+
+    Guard verified by reverting: with the raw anchor restored, two of the four tests
+    fail and the message names the exact escaped hrefs (`/p/inbox/tasks/task-001`,
+    `/p/inbox/tasks/task-002`). Restored, all four pass. A check I have not watched
+    fail is decoration.
+
+
+    Real-browser verification, on a server freshly started from this worktree on port
+    8899 serving this branch''s build (assets/index-2yVqyTin.js):
+
+    - The task rows render as /app/p/agentjobs/tasks/task-008 etc. Before the fix
+    they rendered as /p/agentjobs/tasks/....
+
+    - Clicking a row programmatically landed on /app/p/agentjobs/tasks/task-008, the
+    page had no cdn.tailwindcss.com script (so React, not Jinja), and the React task
+    detail for task-008 rendered with its title, critical priority, and current ask.
+
+    - ac-3 specifically: a sentinel set on `window` before the click was still present
+    after it, proving client-side routing rather than a document load. That sentinel
+    is the whole test -- a full page load destroys it.
+
+
+    Gate:
+
+    - Frontend `npm run check` exits 0: 13 test files, 52 tests, generated-client
+    check, lint, TypeScript, production build.
+
+    - `poetry run python scripts/check.py` exits 1 on 1227 passed / 1 failed. The
+    failure is again tests/test_task_corpus.py::test_agentjobs_context_paths_exist,
+    and the assertion names `task-002 has missing context path .agents/plugins/marketplace.json`
+    -- the same pre-existing, worktree-only failure documented in task-006, caused
+    by a git-excluded file that exists solely in the shared clone. This branch touches
+    no Python and no task files. ac-6 is satisfied by its own escape clause.
+
+
+    A note on my own process, since it nearly bit: the first `git worktree add ../aj-008`
+    created the worktree INSIDE the repository at frontend/aj-008, because the shell''s
+    working directory had drifted to frontend/src between commands. It was removed
+    and recreated with an absolute path. A worktree inside the clone would have been
+    picked up by the frontend build and lint. Use absolute paths for worktree creation.'
+  data:
+    operation:
+      id: 4c9a1e73-8b26-4d05-a719-63f8e0d2145b
+      kind: log_append
+      fingerprint: e5acf1c8f163fa69e1a31ad8bd221f59
+- id: 4
+  ts: '2026-08-17T22:50:04.068365Z'
+  actor: claude
+  type: handoff
+  body: Fix complete and verified in a real browser, including proof the click is
+    client-side routing. Ready for merge approval; a review server is running on 8899.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 6a0b8f52-1d94-4c37-b8e6-0f725ac31d98
+      kind: handoff
+      fingerprint: 986dd81392724553315278314dc5dcd6
