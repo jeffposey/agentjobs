@@ -2,7 +2,7 @@ schema: 2
 id: task-109-agentjobs-mcp-managed-interface
 title: Ship a managed AgentJobs MCP interface and direct-write guardrails
 created: '2026-08-14T19:18:45.666884Z'
-updated: '2026-08-17T06:54:27.364564Z'
+updated: '2026-08-17T07:12:08.742745Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -162,4 +162,32 @@ log:
 
     task-112 (read tools) and task-113 (mutation safety) both became eligible; taking
     task-112 first, then task-113, which task-114 needs.'
+  data: {}
+- id: 6
+  ts: '2026-08-17T07:12:08.742652Z'
+  actor: Jeff Posey
+  type: instruction
+  body: "Jeff delegated the per-child merge gate for this program, for this session,\
+    \ on\n2026-08-17. His words: the MCP surface is built for agents rather than humans,\
+    \ so the\nagent doing the work is the better judge of it; auto-approve and merge\
+    \ the children,\nand stop only when the whole epic is working, clean, documented\
+    \ and ready to ship.\n\nScope of the delegation, stated so a later reader does\
+    \ not over-read it:\n- It covers merging the children of task-109 into main during\
+    \ this session. It is not\n  a standing change to the merge gate in ENGINEERING.md,\
+    \ and it does not extend to\n  other programs or later sessions.\n- It does NOT\
+    \ authorise pushing to a remote. Pushing remains a separate act requiring\n  its\
+    \ own approval, per ENGINEERING.md.\n- It does not authorise absorbing work outside\
+    \ this task graph.\n- Closing the parent still ends with a human-visible summary;\
+    \ the delegation removes\n  the per-child wait, not the accountability.\n\nEach\
+    \ child is still reviewed before merge, by me, against the same bar: the complete\n\
+    repository gate, exercise the change the way a user would against a live service,\
+    \ and\na recorded decision for anything a reviewer would have questioned. Where\
+    \ I would have\nraised a question for Jeff, I now record the judgement call and\
+    \ its rejected\nalternative in the child's log instead, so the reasoning is auditable\
+    \ rather than\nlost.\n\nOpen question carried from task-110 (the Python 3.11/3.12\
+    \ packaging matrix) is\nanswered under this delegation: it is deferred to CI,\
+    \ recorded as a decision on\ntask-119. Only Python 3.13 is installed on this machine,\
+    \ the package declares\npython = \"^3.11\" and uses nothing version-specific,\
+    \ and installing an interpreter on\nJeff's machine while he is asleep is not a\
+    \ call the delegation covers.\n"
   data: {}
