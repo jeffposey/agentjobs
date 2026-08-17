@@ -433,10 +433,23 @@ class TaskClient:
         return serialised
 
     def _parse_task(self, data: Dict[str, Any]) -> Task:
-        # display_status is computed on the server and computed again here; the model
-        # rejects it as an input field.
-        data.pop("display_status", None)
-        return Task.model_validate(data)
+        """Parse the stored task out of a read response.
+
+        Read routes answer with the server's enriched read model -- the task plus
+        computed fields like ``display_status``, ``actionable`` and ``unmet_needs`` --
+        while ``Task`` forbids extras, because those are derived state that must never
+        be accepted as input. Only ``display_status`` used to be dropped, so every
+        other computed field raised a validation error and ``list_tasks`` failed
+        against a real server. The unit tests missed it by feeding hand-written
+        payloads that had no computed fields at all.
+
+        Filtering by the model's own declared fields rather than a list of names to
+        remove, so a computed field added to the read model later cannot reintroduce
+        this. Callers that want the computed values read them from the read surface
+        the domain tools expose, not from ``Task``.
+        """
+        declared = {key: value for key, value in data.items() if key in Task.model_fields}
+        return Task.model_validate(declared)
 
     def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         try:

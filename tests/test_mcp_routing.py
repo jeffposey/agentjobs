@@ -176,6 +176,27 @@ class TestDiscovery:
 # Scoped addressing and isolation
 # ----------------------------------------------------------------------------
 class TestScopedAddressing:
+    @pytest.mark.parametrize(
+        "call",
+        [
+            pytest.param(lambda c: c.list_tasks(), id="list_tasks"),
+            pytest.param(lambda c: c.get_task(SHARED_TASK_ID), id="get_task"),
+            pytest.param(lambda c: c.get_next_task(), id="get_next_task"),
+            pytest.param(lambda c: c.search_tasks("task"), id="search_tasks"),
+        ],
+    )
+    def test_every_read_route_parses_the_servers_enriched_response(self, two_projects, call):
+        """Read routes answer with the task plus computed fields; Task forbids extras.
+
+        Only display_status was being dropped, so list_tasks raised a five-error
+        ValidationError against a real server while the unit tests passed on
+        hand-written payloads that carried no computed fields at all. Parametrised
+        across the read surface because the next such field will land on all of them.
+        """
+        client, _ = two_projects
+
+        assert call(client.for_project("alpha")) is not None
+
     def test_a_scoped_client_addresses_its_own_project(self, two_projects):
         client, _ = two_projects
 
