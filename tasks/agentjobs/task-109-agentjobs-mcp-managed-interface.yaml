@@ -2,32 +2,9 @@ schema: 2
 id: task-109-agentjobs-mcp-managed-interface
 title: Ship a managed AgentJobs MCP interface and direct-write guardrails
 created: '2026-08-14T19:18:45.666884Z'
-updated: '2026-08-17T17:01:53.060330Z'
-lifecycle: ready
-ball: human
-ball_reason: review
-ball_prompt: "The MCP program is complete and merged to main. Nothing was pushed to\
-  \ any remote --\nthat is a separate act you have not authorised.\n\nTwo things need\
-  \ you, both requiring a Codex session and neither closable by an agent:\n\n1. Install\
-  \ plugins/agentjobs from a local marketplace entry, trust the hook, and start\n\
-  \   a fresh Codex CLI session and a fresh Codex desktop session. Confirm both expose\
-  \ the\n   AgentJobs skill and all thirteen tools from the one shared local configuration\n\
-  \   (task-116 ac-3).\n2. In that session, ask Codex to edit a task YAML file directly\
-  \ and confirm the denial\n   arrives before the file changes (task-117 ac-5).\n\n\
-  When those pass, mark task-116 ac-3 and task-117 ac-5 met and this task can be closed.\n\
-  \nTwo judgement calls I made under the delegation, both recorded in full on the\
-  \ relevant\ntask, both worth a second opinion:\n\n- task-118's `needs` edge on task-100\
-  \ was downgraded to `related`. The canonical cycle\n  implementation it was protecting\
-  \ already exists in TaskManager, and the validator\n  calls it rather than duplicating\
-  \ it, so the edge's purpose is met by construction.\n  task-100 remains open and\
-  \ untouched.\n- The Python 3.11/3.12 packaging matrix was deferred to CI. Only 3.13\
-  \ is installed\n  here, and installing an interpreter on your machine overnight\
-  \ was not something the\n  delegation covered.\n\nOne thing to be aware of but not\
-  \ to act on tonight: `agentjobs validate` reports 95\nfindings on this repository's\
-  \ own corpus -- 60 unknown-actor, 22 unknown-category, 13\nnon-canonical-serialization.\
-  \ Every one is drift in historical records; nothing written\nduring this program\
-  \ is flagged. It belongs to task-103 (corpus audit). The commit gate\nis opt-in,\
-  \ so nothing is broken today.\n"
+updated: '2026-08-17T20:34:57.971498Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -110,10 +87,17 @@ acceptance:
   verify: poetry run python scripts/check.py
   status: met
 - id: ac-5
-  text: A Codex CLI session and a Codex desktop-app session discover and use the same
-    configured AgentJobs MCP server; agent guidance prefers MCP whenever it is available
-    and documents direct YAML repair only as an explicit validated emergency path.
-  status: pending
+  text: Agent guidance prefers MCP whenever it is available and documents direct YAML
+    repair only as an explicit validated emergency path.
+  verify: poetry run pytest tests/test_codex_plugin.py tests/test_documentation_contract.py
+  status: met
+- id: ac-6
+  text: MOVED, NOT MET. Live Codex CLI and desktop sessions sharing one configured
+    MCP server. Transferred to task-124 by Jeff's scope decision on 2026-08-17; see
+    the decision entry in this log. task-116 ac-3 and task-117 ac-5 remain pending
+    on their own closed records and are closed by task-124's ac-3 and ac-4.
+  verify: Tracked on task-124-codex-plugin-install-and-verification.
+  status: dropped
 deliverables:
 - path: src/agentjobs/mcp
   note: Standalone MCP implementation.
@@ -127,7 +111,11 @@ deliverables:
 - path: docs/integration/mcp-release-evidence.md
   note: What was verified for release, and what was not.
   status: done
-dependencies: []
+dependencies:
+- task: task-124-codex-plugin-install-and-verification
+  type: related
+  note: Carries this program's remaining live-Codex verification, moved out by scope
+    decision rather than left pending here.
 links:
 - url: https://modelcontextprotocol.io/specification/2025-11-25/server/tools
   rel: design
@@ -370,3 +358,92 @@ log:
     test that fails if the phrasing returns. The Claude bundle is filed as task-122;
     task-109 keeps its original scope.'
   data: {}
+- id: 20
+  ts: '2026-08-17T20:34:24.042409Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, dependencies.
+  data:
+    fields:
+    - acceptance
+    - dependencies
+    operation:
+      id: f6d28a15-7b39-4e40-a261-0d758c9b7f6a
+      kind: update_content
+      fingerprint: e5fd8fe3d5a5acedae06f97f68fe6345
+- id: 21
+  ts: '2026-08-17T20:34:45.671274Z'
+  actor: claude
+  type: decision
+  body: "SCOPE DECISION BY JEFF, 2026-08-17: live-Codex verification leaves this program\
+    \ and\nbecomes its own epic, task-124, structured like task-122 was for Claude.\n\
+    \nHis reasoning, and I agree with it: this program shipped the MCP server and\
+    \ both\nclients' packaging, and that work is done and merged. What remains is\
+    \ not an unfinished\npart of the architecture -- it is one client's install and\
+    \ its live verification, which\nis a different kind of work with a different verification\
+    \ story. task-122 established\nthe shape for exactly that, and it earned its keep:\
+    \ a real install found a manifest\nschema I had invented and a guard table that\
+    \ silently allowed one tool spelling, both\nof which had passing tests. Codex\
+    \ has never had a real install by anyone, so it needs\nthe same epic, not a criterion\
+    \ dangling off a finished parent.\n\nWHAT CHANGED HERE. ac-5 previously bundled\
+    \ two unrelated claims: that agent guidance\nprefers MCP and documents YAML repair\
+    \ as emergency-only, and that live Codex CLI and\ndesktop sessions share one configuration.\
+    \ The first is verified and test-covered; the\nsecond needs a Codex session. Bundling\
+    \ them meant a verified claim could not be marked\nverified. ac-5 is now just\
+    \ the guidance claim and is met. The live-session claim is\nac-6, marked `dropped`\
+    \ with its destination named, because the criterion left this task\nrather than\
+    \ being satisfied by it.\n\nRejected alternative: mark ac-5 met on the strength\
+    \ of the half that was tested, and let\nthe wording carry the rest. That is how\
+    \ a task closes while quietly leaving something\nunverified, and it is the failure\
+    \ mode the acceptance list exists to prevent.\n\nWHAT DID NOT MOVE. task-116 ac-3\
+    \ and task-117 ac-5 are still pending on their own closed\nrecords. I did not\
+    \ reach into closed children to rewrite them -- task-124 ac-3 and ac-4\ninherit\
+    \ those criteria verbatim and name them, so closing task-124 closes them at their\n\
+    source. A future reader who opens task-116 will find a pending criterion and a\
+    \ pointer,\nwhich is accurate, rather than a met one and no evidence.\n\nTWO JUDGEMENT\
+    \ CALLS FROM THE OVERNIGHT DELEGATION, put to Jeff in the previous handoff\nand\
+    \ now answered by his approval of this closure:\n- task-118's `needs` edge on\
+    \ task-100 downgraded to `related`. Stands. task-100 remains\n  open and untouched.\n\
+    - The Python 3.11/3.12 packaging matrix deferred to CI. Stands. Only 3.13 is installed\n\
+    \  here; the package declares ^3.11 and uses nothing version-specific."
+  data:
+    operation:
+      id: 0a7e3c19-8b45-4d62-9e37-1c58a4e2d70b
+      kind: log_append
+      fingerprint: 82287f225b8454d200445eb6d0c25c44
+- id: 22
+  ts: '2026-08-17T20:34:57.971127Z'
+  actor: claude
+  type: transition
+  body: 'Closed on Jeff''s explicit approval, 2026-08-17.
+
+
+    Ten children shipped and merged: the standalone MCP STDIO server, project routing
+    and
+
+    actor attribution, read tools, idempotency and revision safety, validated mutation
+
+    verbs, protocol and agent evaluations, Codex packaging, the direct-write guard,
+
+    portable validation with write receipts, and the documentation set. Five of the
+    six
+
+    acceptance criteria are met with evidence in this log and in
+
+    docs/integration/mcp-release-evidence.md.
+
+
+    The sixth -- live Codex CLI and desktop verification -- moved to task-124 rather
+    than
+
+    being marked met, by Jeff''s scope decision recorded immediately above. Nothing
+    was
+
+    pushed to any remote at any point in this program.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 1b8f4d2a-9c56-4e73-a048-2d69b5f3e81c
+      kind: close
+      fingerprint: 3ec364ceb9e91e52bcf8dbe492d84306

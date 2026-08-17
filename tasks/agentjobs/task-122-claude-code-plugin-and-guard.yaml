@@ -2,46 +2,9 @@ schema: 2
 id: task-122-claude-code-plugin-and-guard
 title: Ship a Claude Code plugin, skill, and direct-write guard
 created: '2026-08-17T16:52:09.435545Z'
-updated: '2026-08-17T20:21:33.671541Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "MERGED, NOT CLOSED. Two acceptance criteria are left and both need one\
-  \ plugin install.\n\nMerge commit e79278f on main, --no-ff, approved by Jeff in\
-  \ session. Branch marked merged, worktree ../aj-122 removed. Gate re-run ON THE\
-  \ MERGE RESULT, not just the branch: 1208 pytest, 42 vitest, build, 1 Playwright.\
-  \ NOTHING PUSHED to any remote -- approval to merge was not approval to push, and\
-  \ none was asked for.\n\nWHAT IS LEFT, and it is one command plus one prompt:\n\n\
-  \  claude plugin marketplace add C:/projects/agentjobs\n  claude plugin install\
-  \ agentjobs@agentjobs\n  # then start a NEW session -- plugins are read at session\
-  \ start\n\nIn that new session:\n  ac-4   Ask it to Write C:/projects/agentjobs/tasks/agentjobs/task-999-hook-test.yaml\n\
-  \         containing `schema: 2`. Expect a refusal naming the file, the managed\n\
-  \         directory, and the AgentJobs MCP tools. If the file is CREATED instead,\
-  \ the\n         hook did not load -- delete it and that is a real finding.\n   \
-  \      Control: ask it to READ task-122's yaml and report lifecycle/ball. Must work.\n\
-  \  ac-1   Ask \"what should I work on in agentjobs?\" -- the skill should trigger.\n\
-  \nWHY THIS ROUTE AND NOT A settings.json HOOK ENTRY. Jeff caught the flaw in my\
-  \ first\nsuggestion and he was right. Wiring the hook by absolute path into\n.claude/settings.local.json\
-  \ would run the SCRIPT while bypassing plugin.json and\nhooks-claude.json entirely\
-  \ -- the two files that are supposed to make it automatic for\neveryone, and the\
-  \ two that nothing has exercised beyond asserting they exist. Closing\nac-4 that\
-  \ way would verify the adjacent path, not the delivered one. The install is the\n\
-  delivery mechanism a real user gets, so the install is what has to be tested.\n\n\
-  EXPECT ONE WART, already known, not a blocker for either criterion: the plugin's\n\
-  .mcp.json names bare `agentjobs`, which does not resolve from a Poetry clone (log\
-  \ entry\n3). That server may fail to start, and it may or may not collide with the\
-  \ project\n.mcp.json entry of the same name -- I do not know which, and said so\
-  \ rather than\nguessing. The HOOK is unaffected; it runs `python` against the plugin\
-  \ root, and `python`\nresolves to real Python 3.13.14 on this machine ahead of the\
-  \ Store stub. If the\ncollision turns out to be more than cosmetic, that is its\
-  \ own task, not a mid-test\npatch. `claude plugin uninstall agentjobs` is the one-command\
-  \ undo.\n\nSTILL OPEN, NOT ABSORBED\n- The CODEX install is in the state this one\
-  \ was in: .agents/plugins/marketplace.json is\n  UNTRACKED, so nobody but Jeff can\
-  \ install the Codex plugin either. task-116's surface.\n  Jeff was asked whether\
-  \ to file it and has not answered.\n- task-116 ac-3 and task-117 ac-5 need a live\
-  \ Codex session; task-109 waits on both.\n- React UI has no promote control; task_promote\
-  \ is MCP/REST only. Unfiled.\n- agentjobs validate: 95 findings on this corpus (task-103).\
-  \ task-100 open, untouched."
+updated: '2026-08-17T20:35:54.456834Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -52,7 +15,6 @@ tags:
 - agent-integration
 effort: 1-2 days
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: Give Claude Code the same three-part AgentJobs bundle Codex has -- MCP
@@ -112,10 +74,11 @@ acceptance:
   text: A Claude Code plugin provides the AgentJobs MCP server and skill; a fresh
     session exposes all 14 tools (13 plus task_promote from task-123) and triggers
     the skill on task work.
-  verify: 'PARTLY MET. Tool half verified 2026-08-17 from a fresh session: fourteen
-    tools including task_promote (log entry 10). Skill-trigger half still needs a
-    session with the plugin installed.'
-  status: pending
+  verify: 'MET. Tool half verified 2026-08-17 from a fresh session (log entry 10).
+    Skill half verified 2026-08-17 in an installed-plugin session: Jeff asked the
+    criterion''s exact question and the plugin-scoped skill triggered unprompted (log
+    entry 19).'
+  status: met
 - id: ac-2
   text: A PreToolUse guard denies Edit/Write/Bash attempts to write managed task YAML
     and never blocks reads, reusing the Codex guard's decision logic through a shared
@@ -130,10 +93,11 @@ acceptance:
 - id: ac-4
   text: A live Claude Code session reproduces a direct-write attempt and observes
     the denial before the file changes.
-  verify: Needs the plugin installed from a marketplace entry and a NEW session; plugins
-    are read at session start, so the session that installs it cannot also observe
-    it. Not substitutable by the subprocess evidence in log entry 12.
-  status: pending
+  verify: MET 2026-08-17 in an installed-plugin session. Write to tasks/agentjobs/task-999-hook-test.yaml
+    refused, no file created, message named the file, the managed directory and the
+    MCP tools. Read control passed. Confirmed again in a second session against git
+    restore. See log entry 20.
+  status: met
 - id: ac-5
   text: docs/mcp-clients.md and the cross-agent matrix in docs/mcp.md report Claude's
     actual protection, and the documentation contract tests are updated to match.
@@ -738,3 +702,82 @@ log:
       id: 6f2c1a84-9d3b-4e17-8a52-0c7b41d9e6f0
       kind: log_append
       fingerprint: 7da7f16a333875c80c5ebe514a2d601c
+- id: 20
+  ts: '2026-08-17T20:35:06.718644Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 2c905e3b-0d67-4f84-b159-3e70c6a4f92d
+      kind: update_content
+      fingerprint: 6342214fd245bca940ebc95038a58018
+- id: 21
+  ts: '2026-08-17T20:35:41.578825Z'
+  actor: claude
+  type: progress
+  body: "ac-4 MET. This is the entry ac-4's verify note points at (entry 21, not 20\
+    \ -- the\nacceptance edit landed first).\n\nJeff ran the test in a separate installed-plugin\
+    \ session and reported the result:\n\n  Write -> C:/projects/agentjobs/tasks/agentjobs/task-999-hook-test.yaml,\
+    \ `schema: 2`\n  -> REFUSED. No file created. The message named the file, named\
+    \ the managed directory\n     C:\\projects\\agentjobs\\tasks\\agentjobs, pointed\
+    \ at task_create_ready /\n     task_create_draft and the domain verbs, and stated\
+    \ that reads are still allowed.\n\nSo the delivered path works end to end: marketplace\
+    \ manifest -> `claude plugin install`\n-> `.claude-plugin/plugin.json` -> `hooks/hooks-claude.json`\
+    \ -> the Claude entry point ->\nthe shared decision -> a denial the session honoured\
+    \ before touching disk. Every link in\nthat chain was previously asserted by a\
+    \ test and unproven in a real client.\n\nSECOND, INDEPENDENT CONFIRMATION IN THIS\
+    \ SESSION, from a real workflow rather than a\nstaged test. Committing this task's\
+    \ own log update, I ran:\n\n  git restore <two task files> && git add <three task\
+    \ files> && git status\n\nand the guard denied it, naming all three paths. `restore`\
+    \ is in\nGIT_WRITE_SUBCOMMANDS; `add` and `commit` are not. Splitting them let\
+    \ the commit proceed\nnormally. That also answers the hook-discovery risk raised\
+    \ in entry 18: the explicit\n`\"hooks\": \"./hooks/hooks-claude.json\"` declaration\
+    \ IS honoured despite Codex occupying\nthe conventional `hooks/hooks.json` in\
+    \ the same directory. The layout decision in entry 8\nstands, now on evidence\
+    \ rather than on argument.\n\nA PRECISION LIMIT WORTH KNOWING, not a defect in\
+    \ anything this task shipped. The guard\nevaluates one shell command string as\
+    \ a unit: if it contains any writing git subcommand\nAND names any managed path,\
+    \ the whole command is denied, without checking whether the\nwriting subcommand\
+    \ is the part that touches the task file. So\n`git restore src/foo.py && git add\
+    \ tasks/agentjobs/task-045-*.yaml` denies, though\nneither half would alone. Chaining\
+    \ is the workaround and it is a one-line change to the\ncaller. Predicted in the\
+    \ false-denial warning in entry 9; observed on the second command\nof the first\
+    \ session that had the plugin installed, which suggests it will be met often\n\
+    enough to be worth a decision about. NOT filed as a task -- Jeff's call.\n\nAlso\
+    \ worth stating plainly, since the record should not overclaim: the guard is a\n\
+    usability rail, not a security boundary, exactly as docs/mcp.md#what-protects-what\
+    \ says.\nIt saw these calls because the client routed them through it."
+  data:
+    operation:
+      id: 3d016f4c-1e78-4095-c26a-4f81d7b5a03e
+      kind: log_append
+      fingerprint: 9e3f6c158e5acb5380984de9ca3c49c0
+- id: 22
+  ts: '2026-08-17T20:35:54.456654Z'
+  actor: claude
+  type: transition
+  body: "Closed on Jeff's explicit approval, 2026-08-17. All five acceptance criteria\
+    \ met, the\nlast two by real installed-plugin sessions rather than by tests.\n\
+    \nMerged as e79278f, with the manifest-schema fix in 4dfb9bd. Claude Code now\
+    \ gets the\nsame three-part bundle Codex has: the MCP server, the workflow skill,\
+    \ and a PreToolUse\nguard that refuses direct writes to managed task YAML -- built\
+    \ on one shared decision\nmodule rather than a forked copy.\n\nThe task earned\
+    \ its two live criteria. ac-4 caught an invented manifest schema on the\nfirst\
+    \ real install, and running the shared matrix against Claude for the first time\n\
+    caught a guard table that silently allowed every NotebookEdit write. Both had\
+    \ passing\ntests before that.\n\nNothing pushed to any remote.\n\nFollow-ups deliberately\
+    \ not absorbed, each with a home:\n- Codex install and live verification -> task-124,\
+    \ filed today.\n- Guard denies a whole chained shell command when any part writes\
+    \ and any part names a\n  managed path (log entry 21). Unfiled; Jeff's call.\n\
+    - React UI has no promote control. Unfiled.\n- 95 `agentjobs validate` findings\
+    \ on the corpus -> task-103."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 4e127a5d-2f89-41a6-b370-5a92c7e6b14f
+      kind: close
+      fingerprint: e957733c9e1a6a599e793f304a2fe235

@@ -2,7 +2,7 @@ schema: 2
 id: task-105-next-task-id-all-slugged-records
 title: Generate the next task number from all slugged task IDs
 created: '2026-08-13T22:03:07.061022Z'
-updated: '2026-08-13T22:03:07.061840Z'
+updated: '2026-08-17T20:34:03.611678Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -78,4 +78,34 @@ dependencies:
   note: The corpus audit converts the recorded defect into durable follow-up work.
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-17T20:34:03.611480Z'
+  actor: claude
+  type: progress
+  body: "REPRODUCED IN PRODUCTION, 2026-08-17. Not a hypothetical any more.\n\nCreating\
+    \ a new epic through the MCP `task_create_ready` tool with the `id` argument\n\
+    omitted returned **task-002**. The corpus high-water mark at that moment was task-123.\n\
+    \nThe generator evidently scans for ids matching a bare `task-NNN` shape, finds\
+    \ only\n`task-001` -- the last surviving non-slugged record in this repository\
+    \ -- and returns\nits successor. Every other record carries a slug (`task-123-draft-to-ready-promotion-verb`)\n\
+    and is invisible to it.\n\nSeverity is higher than the title suggests, and the\
+    \ reproduction is what shows it:\n\n- It is not a near-miss. It did not return\
+    \ 124 or 002 depending on timing; it returned a\n  number 122 below the true maximum,\
+    \ into a range densely occupied by closed historical\n  tasks.\n- It only failed\
+    \ loudly because task-002 happened to be free. The next generated id\n  would\
+    \ be task-003, and so on up the range -- so the natural progression of this bug\
+    \ is\n  a COLLISION with an existing record, and it is worth confirming what\n\
+    \  `task_create_ready` does on a collision before assuming it errors cleanly rather\
+    \ than\n  overwriting.\n- Nothing surfaced it. The create succeeded, returned\
+    \ a valid task, and reported no\n  warning. It was caught only because a human\
+    \ reading the response would notice the\n  number looked wrong.\n\nWorkaround\
+    \ in the meantime: pass `id` explicitly to `task_create_ready` /\n`task_create_draft`.\
+    \ That is what the recreated task-124 did.\n\nArtifacts: task-002 exists, closed\
+    \ `duplicate`, kept deliberately as the evidence.\ntask-124-codex-plugin-install-and-verification\
+    \ is the real record."
+  data:
+    operation:
+      id: e5c17f04-6a28-4d39-915a-9c647e8f8a6b
+      kind: log_append
+      fingerprint: 5e0b3e3f2c59755bf92e35cf02d84abc

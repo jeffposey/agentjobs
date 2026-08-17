@@ -1,0 +1,181 @@
+schema: 2
+id: task-002
+title: Finish and verify the Codex plugin install the way task-122 did for Claude
+created: '2026-08-17T20:32:57.072627Z'
+updated: '2026-08-17T20:33:53.097582Z'
+lifecycle: closed
+outcome: duplicate
+archived: false
+priority: high
+category: developer_experience
+tags:
+- mcp
+- codex
+- plugin
+- agent-integration
+effort: 1-2 days
+assignment:
+  eligible: []
+spec:
+  summary: The Codex bundle -- MCP wiring, skill, and direct-write guard -- is built
+    and merged, but its marketplace manifest is untracked, so nobody but Jeff can
+    install it and no live Codex session has ever exercised it. Make the install shippable,
+    then verify the skill, the tool list, and the write guard in real Codex CLI and
+    desktop sessions.
+  intent: The Codex bundle is the half of the MCP program that shipped without ever
+    being installed by anyone. task-109 closed on the strength of structural tests
+    for it; task-122 then demonstrated on the Claude side that structural tests written
+    from the same assumption as the code they check are decoration, and that a first
+    real install finds defects immediately. Codex deserves the same proof rather than
+    the benefit of the doubt.
+  description: "task-122 did this for Claude Code and found two real defects on the\
+    \ first real install:\na plugin manifest whose schema was invented rather than\
+    \ read from a published example,\nand a guard table that silently allowed one\
+    \ client's spelling of a tool name. Both had\npassing tests. The Codex bundle\
+    \ has never had that treatment -- every claim about it\nrests on unit tests and\
+    \ structural assertions, which is precisely the evidence task-122\nproved insufficient.\n\
+    \nThree things, in order.\n\n1. MAKE THE INSTALL EXIST FOR SOMEONE OTHER THAN\
+    \ JEFF.\n   `.agents/plugins/marketplace.json` is untracked (`git ls-files` shows\
+    \ nothing). It\n   works on this machine and ships to nobody, which is the exact\
+    \ state the Claude\n   marketplace file was in before task-122 log entry 15 fixed\
+    \ it. Track a Codex\n   marketplace manifest, with the schema read from a real\
+    \ published Codex marketplace\n   rather than inferred from the Claude one --\
+    \ the two clients have already been shown\n   to differ on manifest fields, `author`\
+    \ being the known case (string for Codex,\n   object for Claude). Add packaging\
+    \ tests that resolve the source path and assert it\n   is relative and machine-independent,\
+    \ mirroring tests/test_claude_plugin.py's\n   TestMarketplace.\n\n2. RESOLVE THE\
+    \ hooks.json FILENAME COLLISION, IF IT IS ONE.\n   Both clients now live in one\
+    \ plugin directory (task-122 log entry 8). Codex occupies\n   the conventional\
+    \ `hooks/hooks.json`; Claude declares `hooks/hooks-claude.json`\n   explicitly.\
+    \ Claude's install succeeded, so the explicit declaration is at least\n   accepted\
+    \ -- but whether Codex's hook still loads from the shared directory after the\n\
+    \   Claude packaging landed has not been observed. Find out before changing anything.\n\
+    \   If it is broken, task-122 log entry 18 records the intended remedy: Codex\
+    \ moves to\n   `hooks/hooks-codex.json` named by its own manifest, leaving the\
+    \ conventional\n   filename to Claude. Do not make that change speculatively.\n\
+    \n3. VERIFY IN LIVE CODEX SESSIONS. This is the part no agent can fake and the\
+    \ reason\n   this task exists rather than being folded into a docs pass. It inherits\
+    \ the two\n   criteria left pending on closed children of task-109: task-116 ac-3\
+    \ and\n   task-117 ac-5. Closing those criteria there is part of this task's work.\n\
+    \nNote the tool count moved: the server publishes fourteen tools since task-123\
+    \ added\ntask_promote. task-116 ac-3's wording says thirteen and is stale."
+  constraints: "- Read the Codex manifest and marketplace schemas from real published\
+    \ examples on this\n  machine, not from the Claude equivalents and not from memory.\
+    \ The clients have\n  already been shown to differ.\n- Do not fork the shared\
+    \ guard decision in plugins/agentjobs/hooks/task_write_guard.py.\n  Only the client-specific\
+    \ serialiser may differ, as it does today.\n- Do not change the Claude packaging\
+    \ to accommodate Codex without evidence that it is\n  actually broken; task-122's\
+    \ layout decision stands until new evidence contradicts it.\n- Installing a plugin\
+    \ writes persistent user-scope configuration on Jeff's machine. An\n  agent proposes\
+    \ the command; Jeff runs it.\n- No machine-specific absolute paths and no secrets\
+    \ in plugin artifacts."
+  out_of_scope: Public marketplace publication, Gemini or other client packaging,
+    remote MCP transport, changes to the MCP tool surface, and any change to the authoritative
+    manager write path.
+  context:
+  - path: plugins/agentjobs
+    why: One directory, two client manifests. Codex's .codex-plugin/plugin.json and
+      hooks/hooks.json live here.
+  - path: .agents/plugins/marketplace.json
+    why: The untracked file that makes the Codex install unshippable.
+  - path: tests/test_claude_plugin.py
+    why: TestMarketplace is the pattern the Codex packaging tests should follow.
+  - path: docs/mcp-clients.md
+    why: Carries the per-client install instructions that must become true for Codex.
+acceptance:
+- id: ac-1
+  text: A Codex marketplace manifest is tracked in git, its plugin source resolves
+    to a directory containing a real Codex plugin manifest, and the path is relative
+    with no machine-specific component.
+  verify: git ls-files on the marketplace path, plus packaging tests mirroring tests/test_claude_plugin.py::TestMarketplace
+  status: pending
+- id: ac-2
+  text: The documented Codex install command is run end to end from the tracked marketplace
+    entry and succeeds, or its failure is recorded and fixed and the install re-run.
+  verify: Jeff runs the install; the manifest validation errors, if any, are recorded
+    on this task as task-122 log entry 18 recorded Claude's.
+  status: pending
+- id: ac-3
+  text: A fresh Codex CLI session and a fresh Codex desktop session both expose the
+    AgentJobs skill and all fourteen MCP tools from the one shared local configuration,
+    without duplicate setup. Inherited from task-116 ac-3, whose wording says thirteen
+    and predates task_promote.
+  verify: Live sessions. Close task-116 ac-3 when this passes.
+  status: pending
+- id: ac-4
+  text: A live Codex session attempts a direct write to a managed task YAML file and
+    the denial arrives before the file changes; a read of the same file still succeeds.
+    Inherited from task-117 ac-5.
+  verify: Live session, both the deny and the read control. Close task-117 ac-5 when
+    this passes.
+  status: pending
+- id: ac-5
+  text: The Codex and Claude hooks are confirmed to coexist in the shared plugin directory,
+    or the filename collision is resolved with the change recorded as a decision.
+  verify: Both guards observed firing from their own client after the other is installed.
+  status: pending
+deliverables:
+- path: .agents/plugins/marketplace.json
+  note: Currently untracked. Must become a tracked, machine-independent manifest.
+  status: pending
+- path: tests/test_codex_plugin.py
+  note: Gains marketplace resolution tests mirroring the Claude ones.
+  status: pending
+- path: docs/mcp-clients.md
+  note: The Codex install section must carry a command that actually works from the
+    tracked marketplace.
+  status: pending
+dependencies:
+- task: task-116-codex-plugin-and-skill
+  type: related
+  note: Built the Codex plugin and skill; its ac-3 is inherited here as ac-3.
+- task: task-117-codex-direct-write-hook
+  type: related
+  note: Built the Codex guard; its ac-5 is inherited here as ac-4.
+- task: task-122-claude-code-plugin-and-guard
+  type: related
+  note: The Claude equivalent. Its log carries the manifest-schema and guard-table
+    defects a real install found, and the layout decision this task must not casually
+    overturn.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T20:32:57.072694Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: b2f84c71-3d95-4a06-c2e8-69314a5b5b37
+      kind: create
+      fingerprint: 27bdd7de9fe39fba63b66b867a1390e6
+- id: 2
+  ts: '2026-08-17T20:33:53.097262Z'
+  actor: claude
+  type: transition
+  body: 'Misnumbered by the id generator, not by intent. Superseded by
+
+    task-124-codex-plugin-install-and-verification, which carries identical content
+    under a
+
+    correct id. Nothing was ever worked here.
+
+
+    This record is left closed rather than deleted because it is the artifact of a
+    live
+
+    reproduction of task-105: asking for a generated id on 2026-08-17 returned `task-002`,
+
+    the successor to the only remaining non-slugged record in the corpus, while task-123
+    was
+
+    the actual high-water mark. Deleting it would erase the evidence.'
+  data:
+    lifecycle: closed
+    outcome: duplicate
+    operation:
+      id: d4b06e93-5f17-4c28-8049-8b536c7d7e59
+      kind: close
+      fingerprint: c7d167d3c7c50282848c3e3d610a493e
