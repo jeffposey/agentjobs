@@ -9,6 +9,12 @@ from typing import Iterator
 from agentjobs.api.dependencies import reset_dependency_cache
 from agentjobs.projects import HOME_ENV
 
+# The shared write-guard matrix holds assertions but is imported by the two hook test
+# modules rather than collected, so pytest would not rewrite them and a failure would
+# report a bare `assert False`. Registering it here, before anything imports it, keeps
+# the diagnostics.
+pytest.register_assert_rewrite("task_write_guard_matrix")
+
 
 @pytest.fixture(autouse=True)
 def isolate_project_registry(tmp_path_factory, monkeypatch) -> Iterator[None]:
