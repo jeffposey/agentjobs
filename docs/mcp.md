@@ -74,8 +74,11 @@ Add a STDIO server entry:
 }
 ```
 
-You get the same thirteen tools as Codex. You do **not** get the Codex pre-tool hook —
-it is a Codex plugin mechanism. See [what protects what](#what-protects-what).
+You get the same thirteen tools as Codex. You do **not** get a pre-tool hook: the one
+that ships is written against Codex's hook protocol, and no equivalent is packaged for
+other clients yet. Claude Code in particular *can* run one — it has `PreToolUse` hooks
+— so this is unbuilt work rather than a platform limit. See
+[what protects what](#what-protects-what).
 
 ### Verify
 
@@ -165,7 +168,7 @@ the difference is worth being precise about.
 | --- | --- | --- | --- | --- |
 | Codex with the plugin | yes | yes, once you trust the hook | yes, if installed | yes |
 | Codex, standalone MCP | yes | only if you install the hook separately | optional | yes |
-| Claude, Gemini, other MCP | yes | no — it is a Codex mechanism | yes, via the git hook | yes |
+| Claude, Gemini, other MCP | yes | not shipped yet (buildable — Claude Code has hooks) | yes, via the git hook | yes |
 | A text editor or a script | no | no | yes, at commit | yes |
 | CI, or a clean clone | no writes | no | receipts are not committed | yes |
 
@@ -173,7 +176,9 @@ the difference is worth being precise about.
 - **The Codex hook** refuses `apply_patch`, shell redirection, PowerShell and POSIX
   writers, and interpreter one-liners aimed at managed task YAML. It is a guardrail,
   not a security boundary: hosted tools it never sees, an untrusted or disabled hook,
-  obfuscation, and anything started outside Codex all get past it.
+  obfuscation, and anything started outside Codex all get past it. It is currently the
+  only pre-tool guard that ships; a Claude Code equivalent is possible and not yet
+  built.
 - **The receipt gate** (`agentjobs validate --staged`, installed with
   `agentjobs validate --install-hook`) refuses a commit whose staged task files do not
   match a recorded managed write. This is the only check that catches a *valid-looking*

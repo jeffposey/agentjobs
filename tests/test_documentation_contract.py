@@ -143,8 +143,20 @@ def test_the_mcp_guide_states_what_each_layer_does_not_prevent() -> None:
 def test_no_page_claims_non_codex_clients_get_the_codex_hook() -> None:
     """The single most tempting overclaim in this whole program."""
     text = flat(CLIENT_GUIDE.read_text(encoding="utf-8"))
-    assert "No pre-tool hook" in text
-    assert "it is a Codex plugin mechanism" in text.lower() or "Codex plugin mechanism" in text
+    assert "No pre-tool hook is shipped for Claude yet" in text
+    assert "nothing stops Claude writing task YAML" in text
+
+
+def test_the_docs_do_not_blame_the_client_for_work_we_have_not_done() -> None:
+    """The first draft said the missing Claude hook was "a Codex plugin mechanism",
+    which reads as a platform limit. Claude Code has PreToolUse hooks; the hook is
+    simply unbuilt. Overclaiming misleads a reader about their protection, and this
+    kind of understating misleads them about their options."""
+    for page in (MCP_GUIDE, CLIENT_GUIDE):
+        text = flat(page.read_text(encoding="utf-8"))
+        assert "Codex plugin mechanism" not in text, page.name
+        assert "Codex mechanism" not in text, page.name
+    assert "Claude Code has" in flat(CLIENT_GUIDE.read_text(encoding="utf-8"))
 
 
 def test_the_docs_do_not_present_unshipped_work_as_shipped() -> None:
