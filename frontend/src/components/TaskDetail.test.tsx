@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
-import type { TaskDetailResponse, TaskRead } from "../api/generated";
+import type { TaskDetailResponse, TaskRead } from "../api/types";
 import { TaskDetail } from "./TaskDetail";
 
 function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {

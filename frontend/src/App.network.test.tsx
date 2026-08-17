@@ -4,7 +4,7 @@ import { HttpResponse, http } from "msw";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
-import type { Task, TaskCreateRequest, TaskRead } from "./api/generated";
+import type { Task, TaskCreateRequest, TaskRead } from "./api/types";
 import { client } from "./api/generated/client.gen";
 import { App } from "./App";
 import { apiMockServer } from "./test/api-mock";
