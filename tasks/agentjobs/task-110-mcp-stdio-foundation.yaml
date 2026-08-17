@@ -2,10 +2,11 @@ schema: 2
 id: task-110-mcp-stdio-foundation
 title: Build the standalone AgentJobs MCP STDIO foundation
 created: '2026-08-14T19:18:47.191937Z'
-updated: '2026-08-15T22:34:23.962785Z'
-lifecycle: ready
+updated: '2026-08-17T05:36:12.785695Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: infrastructure
@@ -15,6 +16,7 @@ tags:
 - packaging
 effort: 1-2 days
 assignment:
+  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -88,5 +90,16 @@ links:
 - url: https://modelcontextprotocol.io/specification/2025-11-25/basic/transports
   rel: design
   title: MCP transport specification
-branches: []
-log: []
+branches:
+- name: feat/task-110-mcp-stdio-foundation
+  status: active
+log:
+- id: 1
+  ts: '2026-08-17T05:36:04.170645Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
