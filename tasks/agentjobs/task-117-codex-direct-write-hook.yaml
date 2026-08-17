@@ -2,10 +2,9 @@ schema: 2
 id: task-117-codex-direct-write-hook
 title: Block direct task YAML writes with the Codex pre-tool hook
 created: '2026-08-14T19:20:00.696519Z'
-updated: '2026-08-15T22:34:23.865140Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-17T08:33:02.029027Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -63,18 +62,18 @@ acceptance:
     and explicit script writes for relative, absolute, quoted, mixed-separator, and
     Windows case variants.
   verify: poetry run pytest tests/test_codex_task_write_hook.py
-  status: pending
+  status: met
 - id: ac-2
   text: Read-only task-file operations and AgentJobs MCP/CLI/API calls remain allowed.
-  status: pending
+  status: met
 - id: ac-3
   text: Denials name the managed project/path and direct the agent to the relevant
     AgentJobs tools.
-  status: pending
+  status: met
 - id: ac-4
   text: The plugin loads the reviewed/trusted hook and its docs explain trust, disable,
     bypass, and non-security-boundary limits.
-  status: pending
+  status: met
 - id: ac-5
   text: A live Codex behavior check reproduces the original direct-write attempt and
     observes denial before the file changes.
@@ -82,10 +81,10 @@ acceptance:
 deliverables:
 - path: plugins/agentjobs/hooks
   note: Plugin hook definition and guard implementation.
-  status: pending
+  status: done
 - path: tests/test_codex_task_write_hook.py
   note: Practical write-path coverage matrix.
-  status: pending
+  status: done
 dependencies:
 - task: task-116-codex-plugin-and-skill
   type: needs
@@ -95,4 +94,47 @@ links:
   rel: doc
   title: Current Codex hooks contract
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-17T08:33:01.460272Z'
+  actor: claude
+  type: progress
+  body: 'Built plugins/agentjobs/hooks/guard_task_yaml.py and hooks.json, registered
+    in the plugin manifest. 82 cases in tests/test_codex_task_write_hook.py cover
+    the file-write tools, apply_patch bodies, relative/absolute/backslash/dot-relative/Windows-case
+    path variants, shell redirection, eleven PowerShell writers and aliases, nine
+    POSIX writers, interpreter one-liners, compound commands, writing git subcommands,
+    and the hook''s stdin/stdout protocol including malformed input.
+
+
+    Writing the matrix found three real escapes in the first implementation: a path
+    inside a quoted interpreter argument, and a quoted Windows path, neither of which
+    ended in .yaml once tokenised. Both now caught by scanning the whole command with
+    a regex.
+
+
+    Reading is never blocked, and `agentjobs` commands are always allowed.'
+  data: {}
+- id: 2
+  ts: '2026-08-17T08:33:01.741282Z'
+  actor: claude
+  type: decision
+  body: 'Two deliberate asymmetries, both chosen against the obvious alternative.
+    An interpreter that explicitly names a managed task path is denied even though
+    it might only be reading it: a false denial costs one message that says exactly
+    how to proceed, while the other error is an unlogged write nobody notices. And
+    an internal error in the hook ALLOWS the call rather than failing closed: a guard
+    that blocks tool use whenever it meets an event shape it does not recognise would
+    break sessions for a class of accident that task-118''s validation and receipts
+    already catch.'
+  data: {}
+- id: 3
+  ts: '2026-08-17T08:33:02.028747Z'
+  actor: claude
+  type: transition
+  body: Merged to main as d890319 (--no-ff) under the session delegation. Four of
+    five acceptance criteria met; ac-5 (watching Codex deny a live direct-write attempt)
+    remains pending and needs a human with Codex.
+  data:
+    lifecycle: closed
+    outcome: completed

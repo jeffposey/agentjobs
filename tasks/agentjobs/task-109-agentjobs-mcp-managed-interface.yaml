@@ -2,7 +2,7 @@ schema: 2
 id: task-109-agentjobs-mcp-managed-interface
 title: Ship a managed AgentJobs MCP interface and direct-write guardrails
 created: '2026-08-14T19:18:45.666884Z'
-updated: '2026-08-17T08:22:48.300774Z'
+updated: '2026-08-17T08:33:02.615056Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -247,4 +247,23 @@ log:
     37a0c4c, closed with ac-3 pending for human verification in Codex. task-117 (direct-write
     hook) is next; the plugin README already names it as the missing enforcement layer
     rather than implying the guard is complete.
+  data: {}
+- id: 13
+  ts: '2026-08-17T08:33:02.310843Z'
+  actor: claude
+  type: question
+  body: 'Human verification outstanding, carried from task-117 and pairing with the
+    one from task-116: with the plugin installed and its hook trusted, ask a Codex
+    session to edit a task YAML file directly and confirm the denial arrives before
+    the file changes. The hook logic itself is covered by 82 cases; what needs a human
+    is that Codex routes the tool call through it.'
+  data: {}
+- id: 14
+  ts: '2026-08-17T08:33:02.614901Z'
+  actor: claude
+  type: progress
+  body: Child 8 of 10 complete. task-117 (direct-write hook) merged to main as d890319,
+    closed with ac-5 pending for human verification in Codex. task-118 (validation
+    and receipts) is next -- it is the portable backstop for everything the hook cannot
+    see, and the layer the hook's own docs point at.
   data: {}
