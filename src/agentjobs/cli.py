@@ -813,6 +813,60 @@ def show(task_id: str) -> None:
     typer.echo(json.dumps(task.model_dump(mode="json", by_alias=True), indent=2))
 
 
+def _resolve_actor(config: dict, actor: Optional[str]) -> str:
+    """Resolve who is acting, preferring an explicit --actor over the configured human.
+
+    An unattributed state change is worse than a refused one, so there is no
+    fallback to an OS username: either the caller says who they are or the
+    project has named a default_user, and otherwise the command stops.
+    """
+    if actor:
+        return actor
+    default_user = config.get("default_user")
+    if default_user:
+        return str(default_user)
+    typer.secho(
+        "No actor to attribute this to. Pass --actor, or set default_user in "
+        ".agentjobs/config.yaml.",
+        fg=typer.colors.RED,
+    )
+    raise typer.Exit(code=1)
+
+
+@app.command()
+def promote(
+    task_id: str,
+    actor: Optional[str] = typer.Option(
+        None, "--actor", help="Who is promoting. Defaults to the project's default_user."
+    ),
+    note: Optional[str] = typer.Option(
+        None,
+        "--note",
+        help="Optional log body. Omit it and the manager writes its own sentence.",
+    ),
+) -> None:
+    """Promote a draft to ready, making it claimable.
+
+    This is the only exit from draft. Whether the spec is finished is the caller's
+    judgement, not this command's -- `agentjobs validate` is where completeness is
+    argued about.
+    """
+    base_dir = Path.cwd()
+    config = _load_config(base_dir)
+    manager = _build_manager(base_dir)
+    resolved_actor = _resolve_actor(config, actor)
+
+    try:
+        task = manager.promote_task(task_id, actor=resolved_actor, body=note)
+    except ValueError as error:
+        # Covers both TaskNotFoundError and the refused transition. Neither is a
+        # bug, so neither should reach the user as a traceback.
+        typer.secho(str(error), fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    typer.echo(f"✅ Promoted {task.id}: {task.display_status}")
+
+
 @app.command()
 def migrate(
     source: str = typer.Argument(...),

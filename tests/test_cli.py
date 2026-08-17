@@ -321,6 +321,115 @@ def test_show_task_not_found(tmp_path: Path, monkeypatch) -> None:
     assert "Task 'non-existent-id' not found" in result.stdout
 
 
+def _init_project() -> None:
+    """Run init with the same answers the other tests in this file use."""
+    runner.invoke(app, ["init"], input="Test Project\ntasks\nprompts\n9000\njeff\n")
+
+
+def _only_task(tmp_path: Path) -> dict:
+    """Load the single task file back off disk, which is where the truth is."""
+    import yaml
+
+    task_file = next((tmp_path / "tasks").glob("*.yaml"))
+    return yaml.safe_load(task_file.read_text(encoding="utf-8"))
+
+
+def test_promote_moves_draft_to_ready(tmp_path: Path, monkeypatch) -> None:
+    """A draft promoted from the CLI becomes claimable, and the log says who did it."""
+    monkeypatch.chdir(tmp_path)
+    _init_project()
+    runner.invoke(app, ["create", "--title", "Draft Task"], input="\n")
+
+    task_id = next((tmp_path / "tasks").glob("*.yaml")).stem
+    assert _only_task(tmp_path)["lifecycle"] == "draft"
+
+    result = runner.invoke(app, ["promote", task_id], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    assert "Promoted" in result.stdout
+
+    content = _only_task(tmp_path)
+    assert content["lifecycle"] == "ready"
+    assert content["ball"] == "agent"
+    assert content["ball_reason"] == "available"
+    assert content.get("ball_prompt") is None
+
+    entry = content["log"][-1]
+    assert entry["type"] == "transition"
+    # jeff is the default_user written by init: the promotion is attributed
+    # without the caller having to name themselves.
+    assert entry["actor"] == "jeff"
+    assert entry["body"] == "Promoted by jeff; the spec is finished and it is claimable."
+
+
+def test_promote_uses_explicit_actor_and_note(tmp_path: Path, monkeypatch) -> None:
+    """--actor overrides default_user, and --note replaces the manager's sentence."""
+    monkeypatch.chdir(tmp_path)
+    _init_project()
+    runner.invoke(app, ["create", "--title", "Draft Task"], input="\n")
+    task_id = next((tmp_path / "tasks").glob("*.yaml")).stem
+
+    result = runner.invoke(
+        app,
+        ["promote", task_id, "--actor", "codex", "--note", "Spec reviewed and finished."],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    entry = _only_task(tmp_path)["log"][-1]
+    assert entry["actor"] == "codex"
+    assert entry["body"] == "Spec reviewed and finished."
+
+
+def test_promote_refuses_a_non_draft_without_a_traceback(tmp_path: Path, monkeypatch) -> None:
+    """Promoting an already-promoted task is an expected refusal, not a crash."""
+    monkeypatch.chdir(tmp_path)
+    _init_project()
+    runner.invoke(app, ["create", "--title", "Draft Task"], input="\n")
+    task_id = next((tmp_path / "tasks").glob("*.yaml")).stem
+
+    assert runner.invoke(app, ["promote", task_id]).exit_code == 0
+    log_length_before = len(_only_task(tmp_path)["log"])
+
+    result = runner.invoke(app, ["promote", task_id], catch_exceptions=False)
+
+    assert result.exit_code == 1
+    assert "is not a draft" in result.stdout
+    assert "Traceback" not in result.stdout
+    # The refused attempt left no trace: same lifecycle, no extra log entry.
+    after = _only_task(tmp_path)
+    assert after["lifecycle"] == "ready"
+    assert len(after["log"]) == log_length_before
+
+
+def test_promote_missing_task_reports_not_found(tmp_path: Path, monkeypatch) -> None:
+    """A bad task id reads the same as it does from `show`."""
+    monkeypatch.chdir(tmp_path)
+    _init_project()
+
+    result = runner.invoke(app, ["promote", "task-nope"], catch_exceptions=False)
+
+    assert result.exit_code == 1
+    assert "Task 'task-nope' not found" in result.stdout
+
+
+def test_promote_without_an_actor_refuses_rather_than_guessing(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """With no default_user and no --actor, refuse instead of writing an anonymous
+    transition -- an unattributed state change is worse than a refused one."""
+    monkeypatch.chdir(tmp_path)
+    # No init at all, so the default config applies and default_user is null.
+    runner.invoke(app, ["create", "--title", "Draft Task"], input="\n")
+    task_id = next((tmp_path / "tasks").glob("*.yaml")).stem
+
+    result = runner.invoke(app, ["promote", task_id], catch_exceptions=False)
+
+    assert result.exit_code == 1
+    assert "No actor" in result.stdout
+    assert _only_task(tmp_path)["lifecycle"] == "draft"
+
+
 def test_load_config_fallback(tmp_path: Path, monkeypatch) -> None:
     """Verify that commands work with default config if not initialized."""
     monkeypatch.chdir(tmp_path)
