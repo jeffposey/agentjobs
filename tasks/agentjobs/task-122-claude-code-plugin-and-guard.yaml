@@ -2,7 +2,7 @@ schema: 2
 id: task-122-claude-code-plugin-and-guard
 title: Ship a Claude Code plugin, skill, and direct-write guard
 created: '2026-08-17T16:52:09.435545Z'
-updated: '2026-08-17T19:26:57.339055Z'
+updated: '2026-08-17T19:43:44.475425Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -573,3 +573,53 @@ log:
       id: 7e1b95c4-2a63-4f80-b5d7-8c40e2917fa6
       kind: handoff
       fingerprint: e72b6414bb0de7a5f5b8b25bbdcd95a9
+- id: 15
+  ts: '2026-08-17T19:43:44.475240Z'
+  actor: claude
+  type: progress
+  body: "ac-4 WAS NOT ACTIONABLE AND I DID NOT NOTICE. Fixed in dcaf988.\n\nJeff went\
+    \ to install the plugin and found there was nothing to install. He was right and\n\
+    the handoff was wrong: it told him ac-4 needed \"the plugin installed from a marketplace\n\
+    entry\" without saying how, and the how did not exist.\n\nWHAT WAS ACTUALLY MISSING\n\
+    \nThere was no Claude marketplace manifest anywhere in the repository. `claude\
+    \ plugin\ninstall` resolves plugins out of a marketplace, and a marketplace is\
+    \ a directory with\n`.claude-plugin/marketplace.json` at its root. The repository\
+    \ had none, so there was no\ncommand that could have worked.\n\nThe only marketplace\
+    \ file present was `.agents/plugins/marketplace.json` \u2014 Codex's, a\ndifferent\
+    \ path and a different schema \u2014 and `git ls-files` shows it is UNTRACKED.\
+    \ It\nexists on one machine and ships to nobody, which means the Codex install\
+    \ instruction is\nin the same state this one was in. NOT fixed here: that is task-116's\
+    \ surface, and\nabsorbing it would hide when each piece landed. Flagged for Jeff\
+    \ to file or wave off.\n\nWHAT LANDED\n\n`.claude-plugin/marketplace.json` at\
+    \ the repository root, so the repo itself is the\nmarketplace. Schema taken from\
+    \ the official marketplace already on this machine at\n~/.claude/plugins/marketplaces/claude-plugins-official/.claude-plugin/marketplace.json\n\
+    rather than from memory: name, description, owner, plugins[] with a relative `source`\n\
+    string. Relative so it works identically from the remote and from a clone.\n\n\
+    The install path, verified from `claude plugin --help` rather than assumed \u2014\
+    \ there is a\nNON-INTERACTIVE CLI, which matters because `/plugin` is an interactive\
+    \ panel:\n\n  claude plugin marketplace add https://github.com/jeffposey/agentjobs\n\
+    \  claude plugin install agentjobs@agentjobs\n  # from a clone, point `marketplace\
+    \ add` at the checkout instead of the URL\n  claude plugin list / claude plugin\
+    \ details agentjobs / claude plugin marketplace list\n  # --scope user|project|local\
+    \ on both add and install\n\nBoth commands are now in plugins/agentjobs/README.md\
+    \ and docs/mcp-clients.md, replacing\n\"add the plugin from a local marketplace\
+    \ entry pointing at this directory\", which was\nthe exact kind of untestable\
+    \ sentence ENGINEERING.md's verification section warns about.\n\nFour tests in\
+    \ tests/test_claude_plugin.py::TestMarketplace pin it: the source path\nresolves\
+    \ to a directory that really contains a plugin manifest, the marketplace and\n\
+    plugin agree on the name, and the source is relative with no machine path. The\
+    \ failure\nmode they close is specific \u2014 a source that does not resolve fails\
+    \ at install time on\nthe user's machine while the repository looks perfectly\
+    \ fine from in here, which is\nprecisely how this got shipped.\n\nGate re-run\
+    \ after the change: 1208 pytest (up 4), 42 vitest, build, 1 Playwright.\n\nWHAT\
+    \ I DID NOT DO, DELIBERATELY\n\nI did not run `claude plugin marketplace add`\
+    \ or `claude plugin install` myself. Both\nwrite to Jeff's user-scope configuration,\
+    \ which is persistent config on his machine and\nhis call to make, not a side\
+    \ effect of a task. So the manifest is verified structurally\nagainst the official\
+    \ schema and by tests, and NOT verified by a real install. That\ndistinction is\
+    \ the whole remaining content of ac-4."
+  data:
+    operation:
+      id: 4f8c02d6-71a9-4e35-b8c7-1d63a95e2b70
+      kind: log_append
+      fingerprint: e7676850c059aa73a41589a3f50e5ac9
