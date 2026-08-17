@@ -18,7 +18,7 @@ with the official MCP client, against an AgentJobs service in a third process:
 
 - initialize returns `agentjobs` / the installed version / the tools capability, with
   the accepted instructions in the first 512 characters;
-- `tools/list` publishes exactly the thirteen tools, each with a description, a closed
+- `tools/list` publishes exactly the fourteen tools, each with a description, a closed
   input schema, an output schema, and annotations;
 - a call returns `structuredContent` and a text fallback;
 - an unknown project, malformed arguments, and an unknown tool each return
@@ -67,7 +67,7 @@ unloadable, no relationship points at nothing, and there is no dependency cycle.
 by an agent without one:
 
 - task-116 ac-3: the plugin loading in a fresh Codex CLI session and a fresh Codex
-  desktop session, both exposing the skill and all thirteen tools from one shared local
+  desktop session, both exposing the skill and all fourteen tools from one shared local
   configuration.
 - task-117 ac-5: Codex routing a live direct-write attempt through the hook and denying
   it before the file changes.

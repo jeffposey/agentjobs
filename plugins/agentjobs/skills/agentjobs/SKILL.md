@@ -47,6 +47,7 @@ context can pick the work up:
 | see the backlog | `tasks_list` (filter by `lifecycle`, `ball`, `priority`, `parent`) |
 | find a task by words | `tasks_search` |
 | find work to do | `task_next` (suggests; it does **not** claim) |
+| make a draft claimable | `task_promote` (the only exit from `draft`) |
 | take it | `task_claim` |
 | record what happened | `task_log_append` |
 | pass it on | `task_handoff` |

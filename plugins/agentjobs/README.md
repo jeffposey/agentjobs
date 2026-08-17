@@ -6,7 +6,7 @@ AgentJobs package, so the plugin and the standalone integration are the same ser
 and cannot drift apart.
 
 Other MCP clients — Claude, Gemini, IDEs — install the standalone server instead and
-get the same thirteen tools. See [docs/mcp-clients.md](../../docs/mcp-clients.md).
+get the same fourteen tools. See [docs/mcp-clients.md](../../docs/mcp-clients.md).
 
 ## What is in it
 
@@ -84,10 +84,11 @@ extension. Install once; all three pick it up on their next new session.
 In a new session, confirm the tools are present:
 
 - `projects_list` should return your projects with their configured actors.
-- The tool list should hold thirteen `agentjobs` tools: five read
-  (`projects_list`, `tasks_list`, `task_get`, `tasks_search`, `task_next`) and eight
-  mutation (`task_create_draft`, `task_create_ready`, `task_claim`, `task_release`,
-  `task_handoff`, `task_close`, `task_log_append`, `task_update_content`).
+- The tool list should hold fourteen `agentjobs` tools: five read
+  (`projects_list`, `tasks_list`, `task_get`, `tasks_search`, `task_next`) and nine
+  mutation (`task_create_draft`, `task_create_ready`, `task_promote`, `task_claim`,
+  `task_release`, `task_handoff`, `task_close`, `task_log_append`,
+  `task_update_content`).
 - Asking "what should I work on in <project>?" should trigger the AgentJobs skill.
 
 If the server fails to start, its message says why on stderr. The two common ones are

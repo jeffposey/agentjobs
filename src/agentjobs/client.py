@@ -668,6 +668,23 @@ class TaskOperations:
         """Bind the operations surface to one (possibly project-scoped) client."""
         self._client = client
 
+    def promote(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        operation_id: str,
+        expected_revision: datetime | str,
+        body: Optional[str] = None,
+    ) -> MutationResult:
+        """Declare a draft's spec finished, refusing a decision made against a stale read."""
+        return self._client._mutation(
+            f"/tasks/{task_id}/promote",
+            {"actor": actor, "body": body},
+            operation_id=operation_id,
+            expected_revision=expected_revision,
+        )
+
     def claim(self, task_id: str, *, actor: str, operation_id: str) -> MutationResult:
         """Claim a ready task, safely under retry."""
         return self._client._mutation(

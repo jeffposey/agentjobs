@@ -1345,6 +1345,58 @@
         "title": "ProjectRevisionResponse",
         "type": "object"
       },
+      "PromoteRequest": {
+        "description": "A draft's spec is finished; the task becomes claimable.",
+        "properties": {
+          "actor": {
+            "description": "Who is promoting the task.",
+            "title": "Actor",
+            "type": "string"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional log entry body.",
+            "title": "Body"
+          },
+          "expected_revision": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `updated` value from a prior read. When supplied, the request is refused if the task changed in the meantime, and the current task is returned so the caller can decide again.",
+            "title": "Expected Revision"
+          },
+          "operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.",
+            "title": "Operation Id"
+          }
+        },
+        "required": [
+          "actor"
+        ],
+        "title": "PromoteRequest",
+        "type": "object"
+      },
       "RejectActionRequest": {
         "description": "Reject task with reason.",
         "properties": {
@@ -4295,6 +4347,88 @@
         ]
       }
     },
+    "/api/projects/{project_id}/tasks/{task_id}/promote": {
+      "post": {
+        "description": "Declare a draft's spec finished: it becomes ready and claimable.",
+        "operationId": "promote_task_api_projects__project_id__tasks__task_id__promote_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+            "in": "query",
+            "name": "envelope",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+              "title": "Envelope",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MutationResult-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Task"
+                    }
+                  ],
+                  "title": "Response Promote Task Api Projects  Project Id  Tasks  Task Id  Promote Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Promote Task",
+        "tags": [
+          "status"
+        ]
+      }
+    },
     "/api/projects/{project_id}/tasks/{task_id}/reject": {
       "post": {
         "description": "Reject a task: closed as cancelled, archived, reason on the record.",
@@ -5727,6 +5861,79 @@
           }
         },
         "summary": "Post Progress Update",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/promote": {
+      "post": {
+        "description": "Declare a draft's spec finished: it becomes ready and claimable.",
+        "operationId": "promote_task_api_tasks__task_id__promote_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+            "in": "query",
+            "name": "envelope",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+              "title": "Envelope",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MutationResult-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Task"
+                    }
+                  ],
+                  "title": "Response Promote Task Api Tasks  Task Id  Promote Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Promote Task",
         "tags": [
           "status"
         ]

@@ -370,6 +370,13 @@ class ReleaseRequest(SafeMutationRequest):
     body: Optional[str] = Field(default=None, description="Optional log entry body.")
 
 
+class PromoteRequest(RevisionedRequest):
+    """A draft's spec is finished; the task becomes claimable."""
+
+    actor: str = Field(..., description="Who is promoting the task.")
+    body: Optional[str] = Field(default=None, description="Optional log entry body.")
+
+
 class CloseRequest(RevisionedRequest):
     """End the task with an outcome."""
 

@@ -286,6 +286,28 @@ def test_handoff_endpoint(api_client) -> None:
     assert response.status_code == 409
 
 
+def test_promote_endpoint(api_client) -> None:
+    client, manager = api_client
+    task = manager.create_task(
+        title="Promote", description="x", category="ops", lifecycle=Lifecycle.DRAFT
+    )
+
+    # A draft is not claimable, which is the whole reason promotion exists.
+    assert client.post(f"/api/tasks/{task.id}/claim", json={"agent": "codex"}).status_code == 409
+
+    response = client.post(f"/api/tasks/{task.id}/promote", json={"actor": "human"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["lifecycle"] == "ready"
+    assert body["ball"] == "agent"
+    assert body["ball_reason"] == "available"
+
+    assert client.post(f"/api/tasks/{task.id}/claim", json={"agent": "codex"}).status_code == 200
+
+    # Only a draft can be promoted; a second attempt is refused.
+    assert client.post(f"/api/tasks/{task.id}/promote", json={"actor": "human"}).status_code == 409
+
+
 def test_release_endpoint(api_client) -> None:
     client, manager = api_client
     task = manager.create_task(

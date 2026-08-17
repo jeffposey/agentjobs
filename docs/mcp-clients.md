@@ -1,7 +1,7 @@
 # Connecting a client
 
 Per-client setup for the [AgentJobs MCP server](mcp.md). Every client gets the same
-thirteen tools; they differ in packaging and in which extra protections apply.
+fourteen tools; they differ in packaging and in which extra protections apply.
 
 All of them need a running service first:
 
@@ -89,7 +89,7 @@ python -m venv /tmp/aj && /tmp/aj/bin/pip install agentjobs
 ```
 
 The last command should exit 0 having written only JSON-RPC to stdout, with
-`Serving 13 tool(s)` on stderr.
+`Serving 14 tool(s)` on stderr.
 
 ## A complete loop
 
