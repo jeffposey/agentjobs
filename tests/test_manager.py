@@ -330,6 +330,69 @@ def test_handoff_requires_prompt_for_non_available(tmp_path: Path) -> None:
         )
 
 
+def test_a_draft_cannot_be_claimed_until_it_is_promoted(tmp_path: Path) -> None:
+    """The gap this verb closes: a draft is unclaimable, and handoff does not fix it."""
+    manager = _manager(tmp_path)
+    manager.create_task(
+        id="task-035", title="Work", description="", category="misc", lifecycle=Lifecycle.DRAFT
+    )
+
+    with pytest.raises(ValueError, match="not available to claim"):
+        manager.claim_task("task-035", agent="codex")
+
+    # Moving the ball is not a promotion: the lifecycle is a separate axis.
+    manager.handoff(
+        "task-035",
+        actor="Ada",
+        ball=Ball.AGENT,
+        ball_reason=BallReason.WORK,
+        ball_prompt="Take this on.",
+    )
+    with pytest.raises(ValueError, match="not available to claim"):
+        manager.claim_task("task-035", agent="codex")
+
+    task = manager.promote_task("task-035", actor="Ada")
+    assert task.lifecycle is Lifecycle.READY
+    assert task.ball is Ball.AGENT
+    assert task.ball_reason is BallReason.AVAILABLE
+    assert task.ball_prompt is None
+    assert task.assignment.owner is None
+    assert task.log[-1].type is LogEntryType.TRANSITION
+    assert task.log[-1].actor == "Ada"
+    assert task.log[-1].data == {"lifecycle": "ready", "ball": "agent", "ball_reason": "available"}
+
+    assert manager.claim_task("task-035", agent="codex").lifecycle is Lifecycle.ACTIVE
+
+
+def test_promote_refuses_anything_that_is_not_a_draft(tmp_path: Path) -> None:
+    """Promotion is draft's exit, not a general way back to ready."""
+    manager = _manager(tmp_path)
+    manager.create_task(
+        id="task-036", title="Work", description="", category="misc", lifecycle=Lifecycle.READY
+    )
+
+    with pytest.raises(ValueError, match="not a draft"):
+        manager.promote_task("task-036", actor="Ada")
+
+    manager.claim_task("task-036", agent="codex")
+    with pytest.raises(ValueError, match="not a draft"):
+        manager.promote_task("task-036", actor="Ada")
+
+    manager.close_task("task-036", actor="codex", outcome=Outcome.COMPLETED)
+    with pytest.raises(ValueError, match="not a draft"):
+        manager.promote_task("task-036", actor="Ada")
+
+
+def test_promote_does_not_judge_whether_the_spec_is_finished(tmp_path: Path) -> None:
+    """Completeness is agentjobs validate's question; the verb records the claim only."""
+    manager = _manager(tmp_path)
+    manager.create_task(
+        id="task-037", title="Bare", description="", category="misc", lifecycle=Lifecycle.DRAFT
+    )
+
+    assert manager.promote_task("task-037", actor="Ada").lifecycle is Lifecycle.READY
+
+
 def test_release_returns_task_to_pool(tmp_path: Path) -> None:
     manager = _manager(tmp_path)
     manager.create_task(

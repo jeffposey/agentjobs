@@ -74,7 +74,7 @@ Add a STDIO server entry:
 }
 ```
 
-You get the same thirteen tools as Codex. You do **not** get a pre-tool hook: the one
+You get the same fourteen tools as Codex. You do **not** get a pre-tool hook: the one
 that ships is written against Codex's hook protocol, and no equivalent is packaged for
 other clients yet. Claude Code in particular *can* run one — it has `PreToolUse` hooks
 — so this is unbuilt work rather than a platform limit. See
@@ -86,13 +86,13 @@ other clients yet. Claude Code in particular *can* run one — it has `PreToolUs
 agentjobs mcp --base-url http://127.0.0.1:8765
 ```
 
-It should sit there speaking nothing on stdout and log `Serving 13 tool(s)` to stderr.
+It should sit there speaking nothing on stdout and log `Serving 14 tool(s)` to stderr.
 From a client, `projects_list` should return your projects with their configured
 actors.
 
 ## The tools
 
-Five read, eight mutation. Their schemas are published in `tools/list` and that is the
+Five read, nine mutation. Their schemas are published in `tools/list` and that is the
 authoritative reference — the fields, types and constraints live there, and a copy in
 this page would go stale.
 
@@ -105,6 +105,7 @@ this page would go stale.
 | `task_next` | Suggests claimable work, and explains an empty answer. Never claims. |
 | `task_create_draft` | New task, born `draft/human/spec`. |
 | `task_create_ready` | New task, born `ready/agent/available`. Not claimed. |
+| `task_promote` | The spec is finished: `draft` becomes `ready/agent/available`. The only exit from `draft`. |
 | `task_claim` | Take a ready task. |
 | `task_release` | Put a claimed task back in the pool. |
 | `task_handoff` | Move the ball, with the ask that travels with it. |

@@ -780,6 +780,53 @@ class TaskManager:
 
         return self._mutate(task_id, apply)
 
+    def promote_task(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        body: Optional[str] = None,
+        operation_id: Optional[str] = None,
+        expected_revision: Optional[Union[datetime, str]] = None,
+    ) -> Task:
+        """Declare a draft's spec finished: draft becomes ready, unclaimed and available.
+
+        This is the only exit from ``draft``. ``handoff`` moves the ball and deliberately
+        leaves the lifecycle alone, so without this verb a drafted task stays unclaimable
+        for good.
+
+        Completeness is not checked here. What counts as a finished spec is
+        ``agentjobs validate``'s question, and duplicating a weaker version of it in the
+        verb would refuse records their author considers ready.
+        """
+        operation = self._operation(operation_id, "promote", actor, {"body": body})
+
+        def apply(task: Task) -> Optional[Task]:
+            if replay_or_conflict(task, operation):
+                return None
+            check_revision(task, expected_revision)
+            if task.lifecycle is not Lifecycle.DRAFT:
+                raise ValueError(
+                    f"Task '{task_id}' is not a draft (it is {task.display_status.lower()}); "
+                    "only a draft can be promoted."
+                )
+            task.lifecycle = Lifecycle.READY
+            task.assignment.owner = None
+            task.ball = Ball.AGENT
+            task.ball_reason = BallReason.AVAILABLE
+            task.ball_prompt = None
+            self._append_entry(
+                task,
+                actor=actor,
+                type=LogEntryType.TRANSITION,
+                body=body or f"Promoted by {actor}; the spec is finished and it is claimable.",
+                data={"lifecycle": "ready", "ball": "agent", "ball_reason": "available"},
+                operation=operation,
+            )
+            return task
+
+        return self._mutate(task_id, apply)
+
     def close_task(
         self,
         task_id: str,

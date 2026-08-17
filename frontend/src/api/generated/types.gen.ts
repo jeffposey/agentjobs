@@ -923,6 +923,38 @@ export type ProjectRevisionResponse = {
 };
 
 /**
+ * PromoteRequest
+ *
+ * A draft's spec is finished; the task becomes claimable.
+ */
+export type PromoteRequest = {
+    /**
+     * Actor
+     *
+     * Who is promoting the task.
+     */
+    actor: string;
+    /**
+     * Body
+     *
+     * Optional log entry body.
+     */
+    body?: string | null;
+    /**
+     * Expected Revision
+     *
+     * The `updated` value from a prior read. When supplied, the request is refused if the task changed in the meantime, and the current task is returned so the caller can decide again.
+     */
+    expected_revision?: string | null;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
+     */
+    operation_id?: string | null;
+};
+
+/**
  * RejectActionRequest
  *
  * Reject task with reason.
@@ -3016,6 +3048,49 @@ export type PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostRespons
 
 export type PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostResponse = PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostResponses[keyof PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostResponses];
 
+export type PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostData = {
+    body: PromoteRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
+    url: '/api/projects/{project_id}/tasks/{task_id}/promote';
+};
+
+export type PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostError = PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostErrors[keyof PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostErrors];
+
+export type PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponses = {
+    /**
+     * Response Promote Task Api Projects  Project Id  Tasks  Task Id  Promote Post
+     *
+     * Successful Response
+     */
+    200: MutationResultOutput | Task;
+};
+
+export type PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponse = PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponses[keyof PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponses];
+
 export type RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostData = {
     body: RejectActionRequest;
     path: {
@@ -3851,6 +3926,45 @@ export type PostProgressUpdateApiTasksTaskIdProgressPostResponses = {
 };
 
 export type PostProgressUpdateApiTasksTaskIdProgressPostResponse = PostProgressUpdateApiTasksTaskIdProgressPostResponses[keyof PostProgressUpdateApiTasksTaskIdProgressPostResponses];
+
+export type PromoteTaskApiTasksTaskIdPromotePostData = {
+    body: PromoteRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
+    url: '/api/tasks/{task_id}/promote';
+};
+
+export type PromoteTaskApiTasksTaskIdPromotePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PromoteTaskApiTasksTaskIdPromotePostError = PromoteTaskApiTasksTaskIdPromotePostErrors[keyof PromoteTaskApiTasksTaskIdPromotePostErrors];
+
+export type PromoteTaskApiTasksTaskIdPromotePostResponses = {
+    /**
+     * Response Promote Task Api Tasks  Task Id  Promote Post
+     *
+     * Successful Response
+     */
+    200: MutationResultOutput | Task;
+};
+
+export type PromoteTaskApiTasksTaskIdPromotePostResponse = PromoteTaskApiTasksTaskIdPromotePostResponses[keyof PromoteTaskApiTasksTaskIdPromotePostResponses];
 
 export type RejectTaskApiTasksTaskIdRejectPostData = {
     body: RejectActionRequest;

@@ -455,6 +455,7 @@ class TestPackagedCommand:
             "task_next",
             "task_create_draft",
             "task_create_ready",
+            "task_promote",
             "task_claim",
             "task_release",
             "task_handoff",

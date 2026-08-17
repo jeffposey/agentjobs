@@ -1,4 +1,4 @@
-"""Contract and rejection coverage for the eight mutation MCP tools.
+"""Contract and rejection coverage for the nine mutation MCP tools.
 
 Driven against the real FastAPI application, so every success goes all the way to a
 YAML file and back and every refusal is the one the authoritative manager actually
@@ -40,6 +40,7 @@ ACTORS = [
 MUTATION_NAMES = [
     "task_create_draft",
     "task_create_ready",
+    "task_promote",
     "task_claim",
     "task_release",
     "task_handoff",
@@ -378,6 +379,42 @@ class TestStateVerbs:
         assert payload["task"]["lifecycle"] == "active"
         assert payload["task"]["assignment"]["owner"] == "bot"
         assert payload["replayed"] is False
+
+    def test_promote_is_the_only_exit_from_draft(self, service):
+        registry, manager, _ = service
+        manager.create_task(
+            id="task-001-work",
+            title="Work",
+            description="Do the thing.",
+            category="general",
+            lifecycle=Lifecycle.DRAFT,
+        )
+
+        drafted = call(registry, "task_get", {"project_id": "solo", "task_id": "task-001-work"})
+        payload = call(
+            registry,
+            "task_promote",
+            base(expected_revision=drafted["task"]["updated"], body="Spec is finished."),
+        )
+
+        assert payload["task"]["lifecycle"] == "ready"
+        assert payload["task"]["ball"] == "agent"
+        assert payload["task"]["ball_reason"] == "available"
+        assert payload["replayed"] is False
+        assert call(registry, "task_claim", base())["task"]["lifecycle"] == "active"
+
+    def test_promote_refuses_a_stale_revision(self, service):
+        registry, manager, _ = service
+        manager.create_task(
+            id="task-001-work",
+            title="Work",
+            description="Do the thing.",
+            category="general",
+            lifecycle=Lifecycle.DRAFT,
+        )
+
+        error = refuse(registry, "task_promote", base(expected_revision="2000-01-01T00:00:00Z"))
+        assert error.code is ErrorCode.REVISION_CONFLICT
 
     def test_release_returns_the_task_to_the_pool(self, service):
         registry, manager, _ = service

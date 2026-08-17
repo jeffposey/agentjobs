@@ -1,4 +1,4 @@
-"""The eight mutation MCP tools.
+"""The nine mutation MCP tools.
 
 Every one is a thin, typed domain verb over ``TaskClient``. None of them reimplements
 a lifecycle rule: the manager owns those, and a second copy here would eventually
@@ -356,6 +356,29 @@ def _build_create(client: TaskClient, *, ready: bool) -> Any:
 # ---------------------------------------------------------------------------
 # The state verbs
 # ---------------------------------------------------------------------------
+def _build_promote(client: TaskClient) -> Any:
+    async def handler(arguments: Mapping[str, Any]) -> Union[ToolOutput, types.CallToolResult]:
+        project_id = require_project_id(arguments)
+        project = resolve_project(client, project_id)
+        actor = require_actor(arguments, project)
+        task_id = _require(arguments, "task_id")
+        operation_id = _require(arguments, "operation_id")
+        revision = _require(arguments, "expected_revision")
+        try:
+            result = client.for_project(project_id).operations.promote(
+                task_id,
+                actor=actor,
+                operation_id=operation_id,
+                expected_revision=revision,
+                body=arguments.get("body"),
+            )
+        except TaskClientError as exc:
+            raise _service_error(exc, project_id=project_id, task_id=task_id) from exc
+        return success(_result_payload(result, project_id), _mutation_summary(result, "Promoted"))
+
+    return handler
+
+
 def _build_claim(client: TaskClient) -> Any:
     async def handler(arguments: Mapping[str, Any]) -> Union[ToolOutput, types.CallToolResult]:
         project_id = require_project_id(arguments)
@@ -594,6 +617,19 @@ def mutation_tool_definitions(client: TaskClient) -> List[ToolDefinition]:
             ),
             _CREATE_SCHEMA,
             _build_create(client, ready=True),
+        ),
+        _mutation_tool(
+            "task_promote",
+            "Promote a draft",
+            (
+                "Declare a draft's spec finished: draft becomes ready/agent/available "
+                "and claimable. This is the only exit from draft -- task_handoff moves "
+                "the ball and deliberately leaves the lifecycle alone, so a drafted "
+                "task stays unclaimable until this is called. Completeness is not "
+                "checked here; that is what agentjobs validate is for."
+            ),
+            _verb_schema(revision=True, extra={"body": {"type": "string"}}),
+            _build_promote(client),
         ),
         _mutation_tool(
             "task_claim",

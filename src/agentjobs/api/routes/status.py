@@ -1,6 +1,6 @@
 """State-transition and log endpoints for AgentJobs tasks (schema v2).
 
-Every arrow in the canonical loop -- claim, handoff, release, close -- is one
+Every arrow in the canonical loop -- promote, claim, handoff, release, close -- is one
 endpoint here, each one manager call, each appending one log entry (design doc
 section 5). There is no generic "set status" endpoint: the axes only move through
 verbs that record why.
@@ -40,6 +40,7 @@ from ..models import (
     LogAppendRequest,
     MutationResult,
     ProgressUpdateRequest,
+    PromoteRequest,
     ReleaseRequest,
     TaskRead,
 )
@@ -231,6 +232,31 @@ def _run(
         replayed=operation_id is not None and len(task.log) == before,
         task=_as_read(task),
         warnings=[],
+    )
+
+
+@router.post("/{task_id}/promote", response_model=MutationResponse, status_code=status.HTTP_200_OK)
+async def promote_task(
+    task_id: str,
+    payload: PromoteRequest,
+    envelope: bool = ENVELOPE_QUERY,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_acting_project),
+) -> Any:
+    """Declare a draft's spec finished: it becomes ready and claimable."""
+    actor = acting_actor(project, payload.actor)
+    return _run(
+        lambda: manager.promote_task(
+            task_id,
+            actor=actor,
+            body=payload.body,
+            operation_id=payload.operation_id,
+            expected_revision=payload.expected_revision,
+        ),
+        task_id=task_id,
+        project=project,
+        operation_id=payload.operation_id,
+        envelope=envelope,
     )
 
 
