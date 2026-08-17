@@ -200,6 +200,78 @@ class TaskClient:
         self.close()
 
     # ------------------------------------------------------------------
+    # Raw reads
+    #
+    # These return the service's response documents unparsed, because the read
+    # surface answers with the *enriched* read model -- the stored task plus computed
+    # fields like display_status, actionable and unmet_needs -- and `Task` forbids
+    # those as inputs. The typed reads below deliberately drop them; a caller that
+    # needs them, such as an MCP read tool building a summary, must see them.
+    # ------------------------------------------------------------------
+    def read_tasks(
+        self,
+        *,
+        lifecycle: Optional[Lifecycle | str] = None,
+        ball: Optional[Ball | str] = None,
+        priority: Optional[Priority | str] = None,
+        parent: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """List enriched task records, optionally filtered."""
+        params: Dict[str, str] = {}
+        if lifecycle is not None:
+            params["lifecycle"] = self._enum_to_str(lifecycle)
+        if ball is not None:
+            params["ball"] = self._enum_to_str(ball)
+        if priority is not None:
+            params["priority"] = self._enum_to_str(priority)
+        if parent is not None:
+            params["parent"] = parent
+        response = self._request("GET", self._path("/tasks"), params=params)
+        payload: List[Dict[str, Any]] = response.json()
+        return payload
+
+    def read_task_detail(self, task_id: str) -> Dict[str, Any]:
+        """Return one task's complete resumption record: task, parent, children, edges."""
+        response = self._request("GET", self._path(f"/tasks/{task_id}/detail"))
+        payload: Dict[str, Any] = response.json()
+        return payload
+
+    def read_broken_tasks(self) -> List[Dict[str, Any]]:
+        """Files in the tasks directory that exist but cannot be loaded.
+
+        Reported beside valid tasks rather than omitted. A broken file that vanishes
+        from listings reads as a task that was never created, which is how an invalid
+        record stayed invisible long enough to matter.
+        """
+        response = self._request("GET", self._path("/tasks/broken"))
+        payload: List[Dict[str, Any]] = response.json()
+        return payload
+
+    def read_search(self, query: str) -> List[Dict[str, Any]]:
+        """Search one project, returning stored task records."""
+        if not query.strip():
+            raise TaskClientError("Query must not be empty")
+        response = self._request("GET", self._path("/search"), params={"q": query})
+        payload: List[Dict[str, Any]] = response.json()
+        return payload
+
+    def read_next_task(
+        self,
+        *,
+        priority: Optional[Priority | str] = None,
+        agent: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Return the next claimable task record, or None. Never claims it."""
+        params: Dict[str, str] = {}
+        if priority is not None:
+            params["priority"] = self._enum_to_str(priority)
+        if agent is not None:
+            params["agent"] = agent
+        response = self._request("GET", self._path("/tasks/next"), params=params)
+        payload: Optional[Dict[str, Any]] = response.json()
+        return payload
+
+    # ------------------------------------------------------------------
     # Reads
     # ------------------------------------------------------------------
     def list_tasks(

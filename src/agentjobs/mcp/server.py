@@ -27,6 +27,7 @@ from .compat import ServiceInfo, StartupError, probe_service
 from .config import McpConfig
 from .errors import ErrorCode, ToolError
 from .instructions import SERVER_INSTRUCTIONS
+from .inventory import build_registry
 from .results import ToolOutput, failure
 from .tools import ToolRegistry
 
@@ -173,10 +174,8 @@ def run(config: Optional[McpConfig] = None) -> int:
         len(info.project_ids),
     )
 
-    # Empty until the domain children register their tools. An empty inventory is a
-    # working server with nothing to offer, which is the correct state for this
-    # layer and is what the protocol tests assert against.
-    registry = ToolRegistry()
+    registry = build_registry(client)
+    logger.info("Serving %d tool(s): %s.", len(registry), ", ".join(registry.names))
 
     try:
         with protocol_stdout() as stream:

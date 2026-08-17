@@ -444,7 +444,16 @@ class TestPackagedCommand:
         assert initialized.capabilities.tools is not None
         assert initialized.instructions is not None
         assert "task YAML is generated state" in initialized.instructions[:512]
-        assert listed.tools == []
+        # The inventory the packaged command actually publishes over the wire. Named
+        # rather than counted: a renamed tool breaks every client, and a count would
+        # not notice.
+        assert [tool.name for tool in listed.tools] == [
+            "projects_list",
+            "tasks_list",
+            "task_get",
+            "tasks_search",
+            "task_next",
+        ]
 
     def test_stdout_carries_only_json_rpc(self, running_service):
         """Every stdout line must parse as JSON-RPC.
