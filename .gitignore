@@ -56,3 +56,6 @@ Thumbs.db
 
 # AgentJobs runtime
 .agentjobs/
+
+# Build artifacts and evidence produced by a run, never sources.
+out/
