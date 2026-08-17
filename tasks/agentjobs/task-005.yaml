@@ -2,11 +2,9 @@ schema: 2
 id: task-005
 title: Add a promote command to the agentjobs CLI
 created: '2026-08-17T20:49:57.635022Z'
-updated: '2026-08-17T20:55:52.046138Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-17T21:12:43.912158Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: cli
@@ -16,7 +14,6 @@ tags:
 - schema-v2
 effort: small
 assignment:
-  owner: claude
   eligible: []
 parent: task-003
 spec:
@@ -66,32 +63,32 @@ acceptance:
   text: '`agentjobs promote <task-id>` promotes a draft to ready/agent/available and
     appends a promote log entry attributed to the acting actor.'
   verify: Run it against a real draft task, then read the record back.
-  status: pending
+  status: met
 - id: ac-2
   text: The command's arguments, actor resolution and error output match the existing
     claim/handoff/release/close commands rather than a new convention.
   verify: Side-by-side reading of the commands in cli.py, noted on the task.
-  status: pending
+  status: met
 - id: ac-3
   text: Promoting a non-draft prints a readable explanation and exits non-zero, with
     no traceback.
   verify: Run it against a ready task and paste the output.
-  status: pending
+  status: met
 - id: ac-4
   text: An audit records which manager verbs the CLI exposes and which it does not,
     so the next gap is found by reading rather than by tripping over it.
   verify: Findings logged on this task.
-  status: pending
+  status: met
 - id: ac-5
   text: poetry run python scripts/check.py passes.
   verify: Command output on the task.
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
 branches:
 - name: feat/task-005-cli-promote-command
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-17T20:49:57.635068Z'
@@ -199,3 +196,111 @@ log:
       id: c5b8e2a1-9f74-4d03-b16e-8a72c9d05f34
       kind: log_append
       fingerprint: de13e0f85e2a1bb39ab4016c291c1ec4
+- id: 5
+  ts: '2026-08-17T21:11:28.861526Z'
+  actor: claude
+  type: decision
+  body: "Two decisions the diff will not explain.\n\n1. WHAT THE COMMAND WAS MODELLED\
+    \ ON (ac-2). The spec said to copy claim/handoff/release/close. The audit above\
+    \ shows they do not exist. Rejected alternative: inventing a richer interface\
+    \ for promote alone (--operation-id, --expected-revision, an interactive confirm\
+    \ like `work` uses) \u2014 that would have made promote the most sophisticated\
+    \ command in a CLI whose other verbs are absent, i.e. exactly the \"new convention\
+    \ for this one verb\" the spec forbids. Chosen instead: `show` as the template,\
+    \ because it is the only other command that takes a positional task id and has\
+    \ to fail on a bad one. Concretely matched \u2014 positional TASK_ID argument\
+    \ (show:805); `typer.secho(..., fg=typer.colors.RED)` then `raise typer.Exit(code=1)`\
+    \ on failure (show:811-812); `Path.cwd()` + `_build_manager(base_dir)` (show:807-808);\
+    \ success line with the emoji prefix used by create/load-test-data. Neither operation_id\
+    \ nor expected_revision is exposed: no other CLI command exposes them, and a single-shot\
+    \ local process has no retry story that would use them. The manager generates\
+    \ its own operation_id.\n\n2. ACTOR RESOLUTION. `--actor`, falling back to the\
+    \ project's `default_user` from .agentjobs/config.yaml, and refusing with exit\
+    \ 1 if neither is present. Rejected alternative: falling back to `getpass.getuser()`\
+    \ the way `init` does for its prompt default. `init` is choosing a label for a\
+    \ config file a human is about to read; promote is writing an actor into an append-only\
+    \ log that nothing rewrites. An unattributed or wrongly-attributed state change\
+    \ is worse than a refused one, so the command stops and says what to do. `_resolve_actor`\
+    \ is a module-level helper rather than inline so the next state verb added to\
+    \ the CLI inherits the same rule."
+  data:
+    operation:
+      id: e94a7b16-3c85-4f20-a7d1-5b0e8f2c6a49
+      kind: log_append
+      fingerprint: 90b7c1dcdec42c02ec2d3f7f264e3624
+- id: 6
+  ts: '2026-08-17T21:11:49.035204Z'
+  actor: claude
+  type: progress
+  body: "Verification evidence. Implementation is `promote` and `_resolve_actor` in\
+    \ src/agentjobs/cli.py, with five tests in tests/test_cli.py. Merged to main as\
+    \ 8b5f31a (--no-ff) over commit 3267229.\n\nac-1 \u2014 REAL RUN, not just unit\
+    \ tests. Scratch project outside the repo, config written by hand rather than\
+    \ via `agentjobs init` so the machine's project registry was not polluted. `agentjobs\
+    \ create --title \"Real draft task\"` then `agentjobs promote task-001`:\n   \
+    \ \u2705 Promoted task-001: Ready\n    exit=0\n`agentjobs list` before: `[Needs\
+    \ spec, priority=medium]`; after: `[Ready, priority=medium]`. Read back off disk,\
+    \ task-001.yaml log entry 1: actor \"Jeff Posey\" (resolved from default_user,\
+    \ no --actor given), type transition, body \"Promoted by Jeff Posey; the spec\
+    \ is finished and it is claimable.\", data lifecycle: ready / ball: agent / ball_reason:\
+    \ available. So the manager's default body is used, not a duplicate in the CLI.\n\
+    \nSecond draft with both options, `agentjobs promote task-002 --actor claude --note\
+    \ \"Spec finished; handing it to the pool.\"` -> task-002.yaml log entry actor\
+    \ \"claude\", body \"Spec finished; handing it to the pool.\" Both attribution\
+    \ paths and both body paths confirmed against the file, not against stdout.\n\n\
+    ac-3 \u2014 REFUSALS, no traceback. Promoting the already-promoted task-001:\n\
+    \    Task 'task-001' is not a draft (it is ready); only a draft can be promoted.\n\
+    \    exit=1\nBad id:\n    Task 'task-999' not found.\n    exit=1\nBoth are ValueError\
+    \ subclasses from the manager (TaskNotFoundError subclasses ValueError), caught\
+    \ in one place and printed as the message alone. test_promote_refuses_a_non_draft_without_a_traceback\
+    \ also asserts the log length is unchanged, so a refused attempt leaves no trace.\n\
+    \nac-2, ac-4 \u2014 see the audit and decision entries above.\n\nac-5 \u2014 GATE.\
+    \ `poetry run python scripts/check.py` on main after the merge: 1227 passed pytest,\
+    \ 42 vitest tests across 11 files, API client check clean, tsc + vite build clean,\
+    \ 1 Playwright browser test passed. Fully green.\n\nONE THING WORTH KNOWING, unrelated\
+    \ to this task. In the worktree the gate failed on tests/test_task_corpus.py::test_agentjobs_context_paths_exist\
+    \ \u2014 \"task-002 has missing context path .agents/plugins/marketplace.json\"\
+    . Cause: `git check-ignore -v` shows `.agents/` is excluded by .git/info/exclude:7,\
+    \ a per-clone local exclude. The file therefore exists only in Jeff's main clone\
+    \ and cannot exist in any worktree, fresh clone, or CI checkout. The test passes\
+    \ in the main clone and fails everywhere else, so it is asserting on local machine\
+    \ state. This is pre-existing (my branch touched only cli.py and test_cli.py)\
+    \ and task-002 is already filed to make that install exist properly, so I did\
+    \ not act on it \u2014 but the test itself is a landmine for the next agent who\
+    \ takes a worktree and concludes they broke something.\n\nWorktree ../aj-005 removed\
+    \ and the branch deleted after merge."
+  data:
+    operation:
+      id: b71f0c58-4a26-4e93-8d5b-7c30e6a1f892
+      kind: log_append
+      fingerprint: 10cd1384a2f9a67f8373db0c60135f2a
+- id: 7
+  ts: '2026-08-17T21:12:35.316492Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: d02e5f37-9b41-4c68-a5e2-3f7098b1c6da
+      kind: update_content
+      fingerprint: 858688060ac24966d4936ae3ba6dc5f3
+- id: 8
+  ts: '2026-08-17T21:12:43.912024Z'
+  actor: claude
+  type: transition
+  body: All five acceptance criteria met. `agentjobs promote <task-id>` is merged
+    to main (8b5f31a), with --actor and --note options, default_user fallback, and
+    refusals that read as explanations. Verified by real CLI runs against real draft
+    tasks with the records read back off disk, plus five new tests, plus a fully green
+    scripts/check.py on main. Merged with Jeff's standing approval for this child,
+    given at kickoff on condition the tests passed.
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: f48c3a90-6d15-4e72-b8c3-1a9e05d7b264
+      kind: close
+      fingerprint: cf74f964ea0e0a55826fa68efa3dad2d
