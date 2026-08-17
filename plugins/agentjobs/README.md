@@ -14,12 +14,51 @@ get the same thirteen tools. See [docs/mcp-clients.md](../../docs/mcp-clients.md
 .codex-plugin/plugin.json   manifest; its version tracks the AgentJobs package
 .mcp.json                   launches the installed `agentjobs mcp` over STDIO
 skills/agentjobs/SKILL.md   the workflow: discovery, the loop, retries, refusals
+hooks/hooks.json            registers the guard on write-capable tools
+hooks/guard_task_yaml.py    denies direct writes to managed task YAML
 ```
 
-The `PreToolUse` direct-write hook is **not here yet** — it is task-117. Until it
-lands, this plugin makes the managed path the obvious one but does not prevent a
-shell or file editor from writing task YAML. Do not read its absence as enforcement
-that failed; read it as a layer not yet installed.
+## The direct-write guard
+
+`hooks/guard_task_yaml.py` is a synchronous `PreToolUse` hook. It resolves the task
+directories AgentJobs manages on this machine, then refuses a tool call that would
+write one of their `*.yaml` records — `apply_patch`, `Edit`, `Write`, shell
+redirection, PowerShell `Set-Content`/`Add-Content`/`Out-File`/`New-Item`/
+`Remove-Item`/`Move-Item`/`Copy-Item` and their aliases, POSIX `tee`/`sed -i`/`mv`/
+`cp`/`rm`, writing `git` subcommands, and an interpreter one-liner that names a
+managed path. The denial says which file, which project, and which AgentJobs tool to
+use instead.
+
+**Reading is never blocked.** `cat`, `Get-Content`, `rg`, `git diff` and every read
+tool pass through untouched, because reviewing a task means opening it.
+
+### What it is not
+
+**It is a guardrail, not a security boundary**, and the distinction is the point:
+
+- It only sees tool calls Codex routes through it. A hosted or specialised tool it
+  never observes gets past it.
+- Codex requires you to review and trust a plugin hook before it runs. Until you do —
+  and any time you disable it — there is no hook.
+- An obfuscated script, or a path assembled at runtime from variables, will not match.
+- Any process started outside Codex is entirely outside its view.
+
+It catches the realistic accident: an agent reaching for `apply_patch` because that is
+the tool it knows. It does not make direct writes impossible, and nothing here should
+be read as claiming it does. The layers that catch what slips through are
+`agentjobs validate` and the managed-write receipts (task-118).
+
+An internal error in the guard **allows** the call and says so on stderr. A guard that
+blocks tool use whenever it meets an event shape it does not recognise would be worse
+than the accident it prevents.
+
+### Trusting and disabling it
+
+Codex asks you to review and trust a plugin hook before it runs; read
+`hooks/guard_task_yaml.py` first — it is dependency-free and offline by design, so
+there is not much of it. To disable it, decline that prompt or remove the plugin from
+your Codex configuration, then start a new session. The MCP tools are unaffected
+either way.
 
 ## Install
 

@@ -14,5 +14,6 @@
   "mcpServers": ".mcp.json",
   "skills": [
     "skills/agentjobs"
-  ]
+  ],
+  "hooks": "hooks/hooks.json"
 }

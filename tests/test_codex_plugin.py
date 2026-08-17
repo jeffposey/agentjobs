@@ -58,6 +58,7 @@ class TestManifest:
         assert MANIFEST["name"] == "agentjobs"
         assert MANIFEST["mcpServers"] == ".mcp.json"
         assert MANIFEST["skills"] == ["skills/agentjobs"]
+        assert MANIFEST["hooks"] == "hooks/hooks.json"
 
     def test_the_plugin_version_tracks_the_package_version(self):
         """They ship from one release; a drift means somebody upgraded half of it."""
@@ -67,6 +68,7 @@ class TestManifest:
         assert (PLUGIN / MANIFEST["mcpServers"]).exists()
         for skill in MANIFEST["skills"]:
             assert (PLUGIN / skill / "SKILL.md").exists()
+        assert (PLUGIN / MANIFEST["hooks"]).exists()
 
 
 class TestMcpWiring:
@@ -175,9 +177,14 @@ class TestReadme:
     def test_it_states_that_one_config_serves_cli_desktop_and_ide(self):
         assert "desktop app, the CLI, and the IDE extension" in FLAT_README
 
-    def test_it_is_honest_that_the_direct_write_hook_is_not_here_yet(self):
-        """Claiming enforcement this plugin does not yet provide would be the worst
+    def test_it_is_honest_that_the_guard_is_not_a_security_boundary(self):
+        """Claiming enforcement this plugin does not provide would be the worst
         possible error in this file."""
-        assert "not here yet" in FLAT_README
-        assert "task-117" in FLAT_README
-        assert "does not prevent" in FLAT_README
+        assert "guardrail, not a security boundary" in FLAT_README
+        assert "does not make direct writes impossible" in FLAT_README
+        for bypass in ("hosted", "disable", "obfuscated"):
+            assert bypass in FLAT_README.lower(), bypass
+
+    def test_it_documents_trusting_and_disabling_the_hook(self):
+        assert "review and trust" in FLAT_README
+        assert "### Trusting and disabling it" in README
