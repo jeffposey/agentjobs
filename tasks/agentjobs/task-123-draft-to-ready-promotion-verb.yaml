@@ -2,7 +2,7 @@ schema: 2
 id: task-123-draft-to-ready-promotion-verb
 title: Add a draft-to-ready promotion verb
 created: '2026-08-17T17:50:47.885433Z'
-updated: '2026-08-17T18:34:37.741136Z'
+updated: '2026-08-17T18:36:55.968427Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -363,3 +363,37 @@ log:
       id: 2e5a8c17-4b93-4f06-a2d8-7c1b6e390f45
       kind: close
       fingerprint: c4f92f841e315a91c70a416a6d8c4d1a
+- id: 11
+  ts: '2026-08-17T18:36:55.968261Z'
+  actor: claude
+  type: progress
+  body: "Correcting the verification record on this closed task. Entry 8 said ac-6\
+    \ went through\nREST \"because the MCP tool is not callable in this session\"\
+    \ and stopped there. Jeff\npushed back: the MCP path was the one worth proving,\
+    \ and a session restart or an\nequivalent was always available. He was right --\
+    \ I verified the adjacent path and\ntreated an inconvenience as a boundary.\n\n\
+    `task_promote` has now been driven through the real MCP server over real STDIO:\
+    \ a\nsubprocess `agentjobs mcp --base-url http://127.0.0.1:8765`, spoken to with\
+    \ the\nofficial MCP client, against the live service on merged code. Script kept\
+    \ at\nscratchpad/mcp_promote_live.py.\n\n    server: agentjobs 0.1.0\n    tools:\
+    \ 14\n    task_promote published: True\n    created task-001: draft/human/spec\n\
+    \    claim while draft   -> isError: True  | invalid_transition\n    promote \
+    \            -> isError: False | now ready/agent/available\n       text content:\
+    \ \"Promoted: task-001 is now Ready.\"\n    claim after promote -> active, owner:\
+    \ claude\n    promote a non-draft -> isError: True  | invalid_transition\n\nSo\
+    \ the tool is published, callable, returns both structuredContent and a text fallback,\n\
+    and both refusal paths come back as structured `invalid_transition` errors rather\
+    \ than\nempty results. That is the evidence ac-6 should have carried.\n\nRun against\
+    \ a temporary `promo-live` project registered for the check and unregistered\n\
+    and deleted immediately after; the registry is back to five projects and nothing\
+    \ was\nwritten to this repository's corpus.\n\nOne thing still genuinely unproven,\
+    \ and it needs Jeff: whether *this Claude Code\nharness* picks the tool up on\
+    \ a fresh session. The MCP server process is spawned once\nat session start, so\
+    \ the running session's inventory is fixed at thirteen no matter\nwhat the service\
+    \ serves. That is the same check task-122 ac-1 asks for, so it should be\ndone\
+    \ once, at the start of the next session, and counted for both."
+  data:
+    operation:
+      id: 5f81a0c6-3e79-4b24-8d90-6a2c7f1b4e38
+      kind: log_append
+      fingerprint: 3ee4a7d64d18eff861a304daf83fa13f
