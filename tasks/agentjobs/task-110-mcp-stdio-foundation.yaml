@@ -2,24 +2,9 @@ schema: 2
 id: task-110-mcp-stdio-foundation
 title: Build the standalone AgentJobs MCP STDIO foundation
 created: '2026-08-14T19:18:47.191937Z'
-updated: '2026-08-17T06:21:23.477921Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Review and approve merging feat/task-110-mcp-stdio-foundation into main.\n\
-  \nWorth your attention, in order:\n1. The dependency bump. FastAPI 0.109 -> 0.119\
-  \ was forced by the official MCP SDK. It\n   is the largest blast radius in this\
-  \ branch and is why frontend/src/api/types.ts\n   exists. Commit 78418a3 explains\
-  \ the alias; the alternative (merging the OpenAPI\n   input/output schemas) was\
-  \ tried and reverted because it silently drops\n   display_status.\n2. The stdout\
-  \ guarantee in src/agentjobs/mcp/server.py: the real stdout is handed to\n   the\
-  \ transport and sys.stdout is repointed at stderr for the process lifetime. It is\n\
-  \   deliberately blunt -- a filter would only have covered our own prints.\n3. The\
-  \ 0.x version policy in compat.py: below 1.0 the check compares major AND minor,\n\
-  \   because semver promises nothing across 0.x minors.\n\nNothing here registers\
-  \ a tool yet; the inventory is empty by design and filled by\ntask-111 through task-114.\n\
-  \nApprove and I will rebase, merge --no-ff, close the task, and continue the task-109\n\
-  parent loop with task-111.\n"
+updated: '2026-08-17T06:23:41.628474Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: infrastructure
@@ -29,7 +14,6 @@ tags:
 - packaging
 effort: 1-2 days
 assignment:
-  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -105,7 +89,7 @@ links:
   title: MCP transport specification
 branches:
 - name: feat/task-110-mcp-stdio-foundation
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-17T05:36:04.170645Z'
@@ -189,3 +173,16 @@ log:
     ownership approach, and the 0.x major+minor version policy. Proceed: rebase onto
     main, merge --no-ff, close.'
   data: {}
+- id: 7
+  ts: '2026-08-17T06:23:41.628360Z'
+  actor: claude
+  type: transition
+  body: 'Merged to main as bc41820 (--no-ff) after explicit approval. Worktree removed.
+    All five acceptance criteria met, with one stated deviation: the clean-environment
+    wheel install and STDIO launch were proven on Python 3.13 rather than 3.11/3.12,
+    because 3.13 is the only interpreter installed on this machine. That question
+    is unanswered and has been carried to task-109 so it is not lost when this record
+    closes.'
+  data:
+    lifecycle: closed
+    outcome: completed

@@ -2,7 +2,7 @@ schema: 2
 id: task-109-agentjobs-mcp-managed-interface
 title: Ship a managed AgentJobs MCP interface and direct-write guardrails
 created: '2026-08-14T19:18:45.666884Z'
-updated: '2026-08-15T22:33:27.485083Z'
+updated: '2026-08-17T06:23:42.171752Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -124,4 +124,28 @@ log:
     then issue reporter (task-120), then explicit queue ordering (task-081). The existing
     updated-time queue was refreshed only as a temporary compatibility measure; task-081
     replaces that accidental behavior with schema-backed queue_position.'
+  data: {}
+- id: 3
+  ts: '2026-08-17T06:23:41.895300Z'
+  actor: claude
+  type: question
+  body: 'Carried forward from task-110, unanswered: the program''s packaging criteria
+    ask for a clean Python 3.11 or 3.12 environment, but only 3.13 is installed on
+    this machine, so the wheel install and `agentjobs mcp` launch were proven on 3.13.
+    The package declares python = "^3.11" and uses nothing version-specific. Decide
+    before the program closes whether a 3.11/3.12 interpreter is installed locally
+    for a one-off check, or whether the version matrix is deferred to CI that this
+    repository does not yet have. task-119 (docs and release) is the natural place
+    to settle it.'
+  data: {}
+- id: 4
+  ts: '2026-08-17T06:23:42.171652Z'
+  actor: claude
+  type: progress
+  body: 'Child 1 of 10 complete. task-110 (MCP STDIO foundation) merged to main as
+    bc41820 after review and explicit approval. Notable side effect for later children:
+    the official MCP SDK forced FastAPI 0.109 -> 0.119, which splits OpenAPI input/output
+    schemas; frontend/src/api/types.ts now aliases TaskReadOutput back to TaskRead.
+    Next eligible child is task-111 (projects and actors); its only dependency, task-110,
+    is satisfied.'
   data: {}
