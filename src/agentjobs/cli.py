@@ -12,6 +12,8 @@ import typer
 import yaml
 
 from .manager import TaskManager
+from .mcp.config import BASE_URL_ENV as MCP_BASE_URL_ENV
+from .mcp.config import TIMEOUT_ENV as MCP_TIMEOUT_ENV
 from .migration import migrate_tasks
 from .migration.reporter import MigrationReporter
 from .models_v2 import Ball, Lifecycle, Outcome, Priority
@@ -170,6 +172,40 @@ def serve(
         port=port,
         reload=reload,
     )
+
+
+@app.command("mcp")
+def mcp_server(
+    base_url: Optional[str] = typer.Option(
+        None,
+        "--base-url",
+        envvar=MCP_BASE_URL_ENV,
+        help="URL of the running AgentJobs service.",
+    ),
+    timeout: Optional[float] = typer.Option(
+        None,
+        "--timeout",
+        envvar=MCP_TIMEOUT_ENV,
+        help="Request timeout in seconds.",
+    ),
+) -> None:
+    """Serve the AgentJobs MCP tools over STDIO.
+
+    Speaks MCP on stdout and nothing else -- diagnostics go to stderr -- so it is safe
+    to launch directly from an MCP client configuration. It requires an AgentJobs
+    service to already be running and will not start one.
+    """
+    # The server module is imported here rather than at module scope so `agentjobs
+    # --help` and every other command stay free of the MCP SDK's import cost.
+    from .mcp.config import ConfigError, McpConfig
+    from .mcp.server import run as run_mcp
+
+    try:
+        config = McpConfig.resolve(base_url=base_url, timeout=timeout)
+    except ConfigError as exc:
+        typer.echo(f"agentjobs mcp: {exc}", err=True)
+        raise typer.Exit(2) from exc
+    raise typer.Exit(run_mcp(config))
 
 
 def _validated_bind_host(host: str) -> str:
