@@ -2,46 +2,9 @@ schema: 2
 id: task-004
 title: Make the review panel phase-aware so a draft can be promoted
 created: '2026-08-17T20:49:31.301524Z'
-updated: '2026-08-17T22:56:11.035977Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "REVIEW IT RUNNING: http://127.0.0.1:8901/app/p/_local/tasks/task-001\n\
-  \nPort 8901 (not 8876, not 8765), serving this branch from worktree ../aj-004 against\
-  \ a throwaway sandbox project \u2014 nothing you click there can touch the real\
-  \ backlog. Four seeded tasks:\n\n  task-001  DRAFT       the planning vocabulary;\
-  \ promote it with a note\n  task-002  DRAFT       promote with no note; log should\
-  \ show the manager's own sentence\n  task-003  PAST DRAFT  the review vocabulary,\
-  \ for side-by-side comparison\n  task-004  READY       ball is with an agent, so\
-  \ no panel at all\n\nStop it when done:  powershell -c 'Get-NetTCPConnection -LocalPort\
-  \ 8901 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force\
-  \ }'\n\nWHAT TO APPROVE: merging feat/task-004-react-promote-control, now 4 commits\
-  \ \u2014 dbad40e (refusal reader), eb1cf22 (first attempt), cbe5f98 (e2e), 8015624\
-  \ (the rebuild you asked for). Nothing is merged.\n\nTHE REBUILD. One panel, phase-aware.\
-  \ A draft shows Promote / Send feedback / Reject & Archive; anything else keeps\
-  \ Approve / Request Changes / Reject & Archive. Buttons two and three run the same\
-  \ code in both phases and call the same unchanged endpoints \u2014 only their words\
-  \ change. The primary button dispatches to promote on a draft and approve otherwise,\
-  \ and that dispatch is the one place the distinction lives; there is a test asserting\
-  \ a draft never reaches approve.\n\nWORTH A LOOK WHILE YOU ARE IN THERE: Send feedback\
-  \ on a draft turns out to be a genuinely useful planning move that was previously\
-  \ unreachable \u2014 it hands the draft back to the agent to revise the spec, keeping\
-  \ it a draft, and the page then reads \"Revising\". That fell out of your design,\
-  \ not mine.\n\nEVIDENCE: all eight acceptance criteria met, verified against a real\
-  \ server. Full gate green in the worktree \u2014 1227 pytest, 54 vitest, 6 Playwright,\
-  \ build clean. One honest caveat: the corpus test passes there only because I copied\
-  \ .agents/plugins/marketplace.json in to reproduce your clone's local state; that\
-  \ landmine is untouched.\n\nSTILL OPEN, YOUR CALL, unchanged from the last handoff:\n\
-  \n1. TaskList.tsx:169 uses a raw <a href> missing the /app basename, so clicking\
-  \ a task in the list drops you into the legacy Jinja page. It makes this panel unreachable\
-  \ by the obvious route. Want it filed?\n\n2. Same for the corpus-test landmine (.agents/\
-  \ is in .git/info/exclude, so the test can only pass in your clone).\n\n3. New:\
-  \ should the merge gate in ENGINEERING.md require a review server URL for frontend\
-  \ work? This handoff is the first one that had one, and only because you asked.\n\
-  \nOn approval: rebase onto main, merge --no-ff, re-run the gate on main, mark branch\
-  \ merged, close, remove the worktree, stop the review server, then close the task-003\
-  \ parent (its ac-3 wants one comparison of the CLI and UI promote log entries \u2014\
-  \ I will do that then)."
+updated: '2026-08-17T23:23:36.158790Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: frontend
@@ -52,7 +15,6 @@ tags:
 - schema-v2
 effort: small
 assignment:
-  owner: claude
   eligible: []
 parent: task-003
 spec:
@@ -180,7 +142,7 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-004-react-promote-control
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-17T20:49:31.301562Z'
@@ -628,3 +590,82 @@ log:
       id: f2b19c67-4a80-4d53-9e21-7c58a0e3b419
       kind: log_append
       fingerprint: a170661b0bd3badf214b09b6179ff7f4
+- id: 15
+  ts: '2026-08-17T23:05:02.054397Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 16
+  ts: '2026-08-17T23:23:15.237681Z'
+  actor: claude
+  type: progress
+  body: "Merged on Jeff's recorded approval (log entry 15, 23:05:02, through the web\
+    \ UI). Merge commit 81d65d3 on main.\n\nA NOTE ON HOW THAT APPROVAL REACHED ME,\
+    \ because it is the system's own premise being tested: the chat session Jeff approved\
+    \ from died immediately afterwards with repeated HTTP 500s and never produced\
+    \ a reply. He showed me a screenshot of it. I did not act on the screenshot \u2014\
+    \ I read task-004's record, found the approve transition attributed to Jeff Posey\
+    \ with ball moved to agent/work and the \"cleared to merge\" prompt, and acted\
+    \ on that. The approval was durable because it went through the UI into the record\
+    \ rather than living in a conversation. Had it only been said in chat, it would\
+    \ have been lost with the session.\n\nREBASED FIRST, and main had moved: task-008\
+    \ (the raw-anchor task-list bug) merged as d7dd9e2 while this branch sat in review,\
+    \ and task-011 was filed. Rebase was clean, four commits replayed: f7773e9, 2ef7c05,\
+    \ edd2f20, a9aeec9.\n\nONE COMMIT ADDED AFTER APPROVAL, disclosed rather than\
+    \ buried: bcd6136, test-only. The e2e helper openTask() looked task ids up over\
+    \ the API and navigated straight to the detail URL, purely to route around the\
+    \ task-008 bug; its docstring said so. With that bug fixed on main the workaround\
+    \ was both obsolete and actively misleading, and task-008's own record asked for\
+    \ it to come out on rebase. It now clicks the row in the task list the way a user\
+    \ does and additionally asserts the URL keeps the /app prefix \u2014 so these\
+    \ tests are now a second, higher-level guard against that regressing. Nothing\
+    \ in the reviewed behaviour changed. If Jeff would rather the merge had contained\
+    \ only what he saw, this one commit is a clean revert.\n\nGATE, run twice. On\
+    \ the rebased branch before merging: 1232 pytest, 64 vitest across 14 files, build\
+    \ clean, 6 Playwright. On main after merging: identical numbers. The vitest count\
+    \ jumped from 54/12 to 64/14 because the rebase brought in task-008's InAppLinks\
+    \ guard. The corpus-test landmine did not fire this time because main is the clone\
+    \ that has the locally-excluded file; task-010 still covers it.\n\nCLEANUP DONE:\
+    \ branch marked merged and deleted, worktree ../aj-004 removed, review server\
+    \ on 8901 stopped.\n\nWORTH KNOWING FOR NEXT TIME, and it cost a `--force`: running\
+    \ scripts/check.py rewrites every file under frontend/src/api/generated/ with\
+    \ LF line endings, which git reports as modified even though `git diff --numstat`\
+    \ is empty. It blocks `git worktree remove` and needs a `git restore frontend/src/api/generated/`\
+    \ after every gate run. Cosmetic, repeatable, and confusing the first time; a\
+    \ .gitattributes entry would end it."
+  data:
+    operation:
+      id: f8305ab2-6c94-4e17-b053-2d81970af6ce
+      kind: log_append
+      fingerprint: e34f194054299c1756018ca06adeb4bf
+- id: 17
+  ts: '2026-08-17T23:23:24.823011Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 0d6e2f91-73b8-4a05-9c14-58fb37e0a2d6
+      kind: update_content
+      fingerprint: 839ffbe678082a8ef34e56683dfea3db
+- id: 18
+  ts: '2026-08-17T23:23:36.158632Z'
+  actor: claude
+  type: transition
+  body: 'All eight acceptance criteria met and merged as 81d65d3 on Jeff''s UI-recorded
+    approval. The task detail action panel is now phase-aware: a draft offers Promote
+    / Send feedback / Reject & Archive, anything past draft keeps Approve / Request
+    Changes / Reject & Archive, and the same three endpoints sit behind both. Gate
+    green on main: 1232 pytest, 64 vitest, 6 Playwright, build clean.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 7c92e0b4-5f36-4d18-a027-9b415e386dc1
+      kind: close
+      fingerprint: da69a54eddd4a205142d7749fa49f383

@@ -2,10 +2,9 @@ schema: 2
 id: task-003
 title: Make the promote verb reachable from every human surface
 created: '2026-08-17T20:44:54.282010Z'
-updated: '2026-08-17T20:50:31.485498Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-17T23:24:25.382129Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: core
@@ -63,17 +62,17 @@ acceptance:
   text: 'task-004 is closed completed: a human can promote a draft from the React
     app.'
   verify: Child task record.
-  status: pending
+  status: met
 - id: ac-2
   text: 'task-005 is closed completed: a human can promote a draft from the CLI.'
   verify: Child task record.
-  status: pending
+  status: met
 - id: ac-3
   text: One end-to-end pass confirms both surfaces promote the same task type and
     produce equivalent log entries, so the two implementations have not drifted.
   verify: Promote one draft from each surface, compare the resulting log entries,
     record the comparison here.
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -107,3 +106,80 @@ log:
       id: e5a08c76-3d19-4b7f-92c4-6b0e7d5a83f1
       kind: update_content
       fingerprint: 3d384997ff6873a8418ee95109aa6ce0
+- id: 3
+  ts: '2026-08-17T23:24:02.391589Z'
+  actor: claude
+  type: progress
+  body: "Parent evaluation against durable child evidence. All three acceptance criteria\
+    \ met.\n\nac-1 MET. task-005 closed completed. `agentjobs promote <task-id>` is\
+    \ on main (merge 8b5f31a), with --actor and --note, default_user fallback, and\
+    \ refusals that print as explanations with exit 1.\n\nac-2 MET. task-004 closed\
+    \ completed. Merge 81d65d3, approved by Jeff through the web UI. It shipped differently\
+    \ from how it was specified: rather than a promote control beside the review panel,\
+    \ the review panel itself became phase-aware. A draft shows Promote / Send feedback\
+    \ / Reject & Archive; anything past draft keeps Approve / Request Changes / Reject\
+    \ & Archive. Jeff's call, recorded as a binding decision on task-004.\n\nac-3\
+    \ MET \u2014 the two surfaces produce equivalent entries. Both promoted a draft\
+    \ with no note, one through `agentjobs promote task-001` and one through the endpoint\
+    \ the UI calls with the UI's payload (actor from detail.identity, expected_revision\
+    \ from the loaded task):\n\n  CLI                                       UI\n \
+    \ actor: Jeff Posey                         actor: Jeff Posey\n  type: transition\
+    \                          type: transition\n  body: Promoted by Jeff Posey; the\
+    \ spec    body: Promoted by Jeff Posey; the spec\n        is finished and it is\
+    \ claimable.          is finished and it is claimable.\n  data: lifecycle: ready\
+    \                    data: lifecycle: ready\n        ball: agent             \
+    \                  ball: agent\n        ball_reason: available               \
+    \     ball_reason: available\n\nByte-identical apart from the timestamp. That\
+    \ is not a coincidence to be re-verified periodically \u2014 it is structural.\
+    \ Both surfaces call `manager.promote_task` and neither composes its own log body,\
+    \ so the sentence comes from one place. The two implementations cannot drift on\
+    \ the record's contents without the manager changing underneath both.\n\nWHERE\
+    \ THEY LEGITIMATELY DIFFER, so nobody reads the above as \"the surfaces are identical\"\
+    : the CLI does not send `expected_revision` or `operation_id` and the UI sends\
+    \ both. That is deliberate and recorded on task-005 \u2014 a single-shot local\
+    \ process has no retry story that would use them, while a browser page holding\
+    \ a loaded revision does. It affects when a promotion is REFUSED, never what a\
+    \ successful one writes.\n\nTHE LESSON THIS UMBRELLA WAS FILED TO MAKE, restated\
+    \ now that it has evidence: task-123 added `promote` to the manager, REST, MCP\
+    \ and the Python client, and closed. It had reached no surface a human uses. Two\
+    \ further tasks and an afternoon closed that gap. Reach across surfaces is part\
+    \ of a feature, not follow-up work \u2014 and the check is cheap: for any new\
+    \ verb, grep the CLI and the React app for it before calling the task done.\n\n\
+    A CONCRETE INSTANCE OF THAT LESSON, found while working task-005 and worth acting\
+    \ on separately: the CLI is missing far more than promote. It exposes three nouns\
+    \ (create/list/show) and one scripted flow (`work`), and has no standalone state\
+    \ verbs at all \u2014 no claim, handoff, release, archive, log, or close-with-an-outcome.\
+    \ The full audit is on task-005. task-063 and task-053 already cover this ground;\
+    \ whoever picks them up should read that audit first rather than redoing it."
+  data:
+    operation:
+      id: 3b8c15e7-9d40-4f26-a851-70e29c4b3f18
+      kind: log_append
+      fingerprint: 37242ff5c174edd932fcc7eefddaed4b
+- id: 4
+  ts: '2026-08-17T23:24:14.165160Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: e4a70b39-8c25-4f61-93d0-1b6a5827ce04
+      kind: update_content
+      fingerprint: 3fccd6e41f1011a0d658058525d92759
+- id: 5
+  ts: '2026-08-17T23:24:25.382008Z'
+  actor: claude
+  type: transition
+  body: "Promote now reaches both human surfaces. Both children closed completed \u2014\
+    \ task-005 (CLI, merge 8b5f31a) and task-004 (React, merge 81d65d3) \u2014 and\
+    \ the two produce byte-identical log entries because both go through manager.promote_task\
+    \ and neither writes its own body. task-123's unfinished reach is closed."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 8f1d64ca-2b07-45e3-9146-0c73e8b5a2d9
+      kind: close
+      fingerprint: 6cd5758274c17ea70983ebe3e9cfc95f
