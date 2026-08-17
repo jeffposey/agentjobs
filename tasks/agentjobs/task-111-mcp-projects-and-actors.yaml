@@ -2,11 +2,26 @@ schema: 2
 id: task-111-mcp-projects-and-actors
 title: Add MCP-safe project discovery and actor attribution
 created: '2026-08-14T19:18:48.672848Z'
-updated: '2026-08-17T06:25:19.975772Z'
+updated: '2026-08-17T06:43:49.896992Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Review and approve merging feat/task-111-mcp-projects-and-actors into\
+  \ main.\n\nThe one behaviour change that reaches beyond MCP: claim, handoff, release,\
+  \ close, log\nand progress now reject an actor the project does not configure. This\
+  \ is the point of\nthe task, but it is a real tightening of the REST API, so it\
+  \ is worth your explicit\nagreement rather than mine. A project with no configured\
+  \ actors still accepts any id,\nso a fresh `agentjobs init` is unaffected; a configured\
+  \ project -- including this one,\nwhich defines Jeff Posey, claude and codex --\
+  \ now refuses anything else. Any script of\nyours that posts under a different name\
+  \ will start getting a 400.\n\nAlso worth a look:\n- src/agentjobs/mcp/routing.py,\
+  \ which is where the \"never infer a project, never\n  derive an actor\" rules live.\
+  \ The actor check duplicates the REST authority on\n  purpose, so the error can\
+  \ name the configured actors before a write is attempted.\n- The _parse_task fix\
+  \ in client.py: list_tasks was broken against a real server and\n  the suite could\
+  \ not have caught it. Commit 4160696.\n\nApprove and I will rebase, merge --no-ff,\
+  \ close the task, and continue the task-109\nparent loop with task-112 (read tools)\
+  \ and task-113 (mutation safety), which both\nbecome eligible.\n"
 archived: false
 priority: high
 category: infrastructure
@@ -54,29 +69,32 @@ acceptance:
   text: TaskClient lists projects and addresses every supported task route by explicit
     project ID.
   verify: poetry run pytest tests/test_client.py tests/test_api_multiproject.py
-  status: pending
+  status: met
 - id: ac-2
   text: Project discovery returns actor IDs, kinds, display names, and default_user
     without choosing an agent actor.
-  status: pending
+  status: met
 - id: ac-3
   text: Unknown projects and actors fail before mutation with stable, useful errors
     that name valid choices.
-  status: pending
+  status: met
 - id: ac-4
   text: Two projects with the same task ID remain isolated under alternating MCP-adapter
     calls.
-  status: pending
+  status: met
 - id: ac-5
   text: Single-project `_local` behavior remains compatible.
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs/client.py
   note: Project-scoped client and discovery methods.
-  status: pending
+  status: done
 - path: src/agentjobs/api/routes/projects.py
   note: Actor-aware project discovery response.
-  status: pending
+  status: done
+- path: src/agentjobs/mcp/routing.py
+  note: Shared project/actor helpers for every MCP tool.
+  status: done
 dependencies:
 - task: task-110-mcp-stdio-foundation
   type: needs
@@ -95,3 +113,69 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 2
+  ts: '2026-08-17T06:43:49.070131Z'
+  actor: claude
+  type: progress
+  body: "Implemented project routing and actor attribution on\nfeat/task-111-mcp-projects-and-actors.\
+    \ Four commits, one logical change each.\n\nWhat was built\n- Project discovery\
+    \ (GET /api/projects) now reports each project's configured actors\n  with id/kind/display_name,\
+    \ plus default_user. default_user is for addressing a\n  person; nothing nominates\
+    \ an agent actor.\n- Actor validation added to claim, handoff, release, close,\
+    \ log and progress. Before\n  this, only the three human review routes validated\
+    \ an actor, so any other verb wrote\n  an unresolvable id straight into an append-only\
+    \ log.\n- TaskClient.for_project(id) returns a client scoped to one project; all\
+    \ thirteen task\n  call sites now build paths through one helper. Scoping returns\
+    \ a new object, never\n  mutating -- there is no settable current project anywhere.\n\
+    - TaskClient.projects() / get_project() return typed ProjectSummary records;\n\
+    \  get_project names the valid ids when one is unknown.\n- src/agentjobs/mcp/routing.py\
+    \ holds the shared helpers: require_project_id,\n  resolve_project, require_actor,\
+    \ scoped_client, project_payload, and the reusable\n  JSON Schema fragments.\n\
+    \nVerification\n- poetry run python scripts/check.py passes end to end.\n- 34\
+    \ new tests in tests/test_mcp_routing.py, driven against the real FastAPI app\n\
+    \  through the real dependency wiring, with two projects that share a task id\
+    \ and have\n  disjoint actor vocabularies.\n- Exercised against the live service\
+    \ on all five real registered projects: discovery\n  returned the right actors\
+    \ per project, an unknown project named the five valid ids,\n  an unknown actor\
+    \ was refused both by the MCP helper and by the REST layer on a real\n  log append,\
+    \ and scoped reads returned each project's own tasks.\n\nBugs found and fixed\
+    \ along the way\n1. TaskClient._parse_task dropped only display_status, so every\
+    \ read carrying the\n   server's other computed fields raised a five-error ValidationError.\
+    \ list_tasks was\n   simply broken against a real server. The unit tests missed\
+    \ it because they feed\n   hand-written payloads with no computed fields; found\
+    \ by pointing the client at the\n   running service. Now filters by the model's\
+    \ declared fields, with coverage\n   parametrised across the read surface.\n2.\
+    \ test_api.py's fixture overrode only the manager, so actor validation resolved\
+    \ the\n   default project -- this repository -- and those tests would have been\
+    \ checking\n   actor names against the real .agentjobs/config.yaml. The fixture\
+    \ now overrides the\n   acting project too.\n"
+  data: {}
+- id: 3
+  ts: '2026-08-17T06:43:49.343609Z'
+  actor: claude
+  type: decision
+  body: 'Actor validation was added to all six agent verbs, not only to the MCP layer.
+    The alternative -- validating in mcp/routing.py alone -- was rejected because
+    the REST API is the authority the design names, and a guard that only one client
+    honours is not a guard. The cost is stated: this tightens the public REST API,
+    so a caller using an unconfigured actor id on a configured project now gets a
+    400 where it previously succeeded.'
+  data: {}
+- id: 4
+  ts: '2026-08-17T06:43:49.621103Z'
+  actor: claude
+  type: decision
+  body: client.ProjectSummary mirrors the REST ProjectResponse rather than importing
+    it, so the client keeps no dependency on the server package. The duplication is
+    held honest by a contract test asserting both models declare the same fields;
+    the rejected alternative was importing the API model into client.py, which would
+    drag FastAPI into every client import.
+  data: {}
+- id: 5
+  ts: '2026-08-17T06:43:49.896906Z'
+  actor: claude
+  type: handoff
+  body: Branch complete and verified against the live service; at the merge gate.
+  data:
+    ball: human
+    ball_reason: review
