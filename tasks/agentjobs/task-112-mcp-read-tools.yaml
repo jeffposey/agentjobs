@@ -2,11 +2,24 @@ schema: 2
 id: task-112-mcp-read-tools
 title: Expose AgentJobs read and query tools over MCP
 created: '2026-08-14T19:18:50.196475Z'
-updated: '2026-08-17T06:55:05.632114Z'
+updated: '2026-08-17T07:11:08.700770Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Review and approve merging feat/task-112-mcp-read-tools into main.\n\
+  \nThis one is additive -- no existing behaviour changes, and nothing here can mutate\
+  \ a\ntask. Worth your attention:\n\n1. src/agentjobs/mcp/read_tools.py, specifically\
+  \ _explain_no_work. That is where I\n   spent judgement rather than following the\
+  \ design line by line: the design says\n   task_next must distinguish no work from\
+  \ broken, cyclic, and blocked work, and this\n   is my reading of what that should\
+  \ actually say to an agent. Tell me if the\n   explanations are the wrong shape.\n\
+  2. The TaskSummary field list in summaries.py. It is fixed by the design, but it\
+  \ is\n   also the thing every agent will see most often, so it is worth one look.\n\
+  3. TaskClient's new raw read methods sit beside the typed ones. Two ways to read\
+  \ a task\n   is a wart; the alternative was making Task tolerate computed fields,\
+  \ which would\n   have let derived state be passed back in as input. I took the\
+  \ wart.\n\nApprove and I will rebase, merge --no-ff, close the task, and continue\
+  \ the task-109\nparent loop with task-113 (mutation safety), which task-114 needs.\n"
 archived: false
 priority: high
 category: developer_experience
@@ -55,28 +68,28 @@ acceptance:
   text: tools/list publishes exactly the five accepted read tools with explicit input/output
     schemas and accurate annotations.
   verify: poetry run pytest tests/test_mcp_read_tools.py
-  status: pending
+  status: met
 - id: ac-2
   text: task_get returns a complete zero-context TaskDocument, dependency facts, and
     children for the addressed project.
-  status: pending
+  status: met
 - id: ac-3
   text: list and search report broken task files beside valid tasks and enforce deterministic
     result limits.
-  status: pending
+  status: met
 - id: ac-4
   text: task_next never claims and explains no-result states usefully.
-  status: pending
+  status: met
 - id: ac-5
   text: Colliding IDs across two projects return only the explicitly addressed record.
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs/mcp
   note: Read/query MCP handlers and typed results.
-  status: pending
+  status: done
 - path: tests/test_mcp_read_tools.py
   note: Read contract and behavior coverage.
-  status: pending
+  status: done
 dependencies:
 - task: task-110-mcp-stdio-foundation
   type: needs
@@ -101,3 +114,71 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 2
+  ts: '2026-08-17T07:11:07.865996Z'
+  actor: claude
+  type: progress
+  body: "Implemented the five read-only MCP tools on feat/task-112-mcp-read-tools.\n\
+    \nWhat was built\n- src/agentjobs/mcp/read_tools.py: projects_list, tasks_list,\
+    \ task_get, tasks_search,\n  task_next. Explicit input and output JSON Schemas,\
+    \ closed input schemas, read-only /\n  non-destructive / closed-world annotations,\
+    \ structuredContent plus a one-line text\n  fallback on every call.\n- src/agentjobs/mcp/summaries.py:\
+    \ TaskSummary and TaskDocument shaping with published\n  schemas, the 1-200 limit\
+    \ with an explicit `truncated` flag, and BrokenTask entries.\n- src/agentjobs/mcp/inventory.py:\
+    \ the one place that knows which tools exist; server.py\n  now builds its registry\
+    \ from it instead of serving an empty inventory.\n- TaskClient gained raw read\
+    \ methods (read_tasks, read_task_detail, read_broken_tasks,\n  read_search, read_next_task)\
+    \ returning the service's enriched records unparsed,\n  because `Task` forbids\
+    \ the computed fields a summary is built from.\n\nThree decisions visible in the\
+    \ output\n- Broken task files ride back beside valid tasks in `broken`, and task_get\
+    \ maps an\n  unloadable file to BROKEN_TASK, never TASK_NOT_FOUND. A repairable\
+    \ file that reads as\n  a missing task is how an invalid record stayed invisible\
+    \ long enough to start this\n  whole program.\n- task_get returns dependency facts\
+    \ separately from the stored document, so derived\n  values never look like fields\
+    \ a caller could set.\n- task_next explains an empty result rather than returning\
+    \ a bare null. An empty\n  backlog, fully blocked work, a dependency cycle, an\
+    \ unreadable file, and work already\n  claimed by someone else all produce \"\
+    nothing to claim\" and need different responses.\n  It costs one extra listing\
+    \ call, which is cheaper than an agent stopping on a wrong\n  conclusion.\n\n\
+    Verification\n- poetry run python scripts/check.py passes end to end.\n- 46 tests\
+    \ in tests/test_mcp_read_tools.py against the real FastAPI app: two projects\n\
+    \  sharing a task id, an umbrella with a child, a dependency-blocked task, and\
+    \ a\n  deliberately corrupt YAML file.\n- Driven through a real MCP client against\
+    \ the live service on the actual corpus:\n  five tools listed, five projects discovered,\
+    \ four human-ball tasks listed,\n  task-109 returned with its eight open children\
+    \ and dependency facts, search\n  truncating correctly, task_next correctly nominating\
+    \ task-113 without claiming it,\n  and unknown actor / unknown project / missing\
+    \ task each returning their own\n  structured error code with a suggested action.\n\
+    \nOne cosmetic defect found by that live run and fixed: tasks_search reported\n\
+    \"3 matchs\". The plural is now supplied at the call site.\n"
+  data: {}
+- id: 3
+  ts: '2026-08-17T07:11:08.141730Z'
+  actor: claude
+  type: decision
+  body: task_get returns the stored task document and the computed dependency facts
+    as two separate keys. The rejected alternative was returning the service's enriched
+    record as-is, which is less code but mixes derived state into the document --
+    exactly how display_status came to look like a field a caller could set. Keeping
+    them apart means a reader can always tell what AgentJobs stored from what it worked
+    out.
+  data: {}
+- id: 4
+  ts: '2026-08-17T07:11:08.424395Z'
+  actor: claude
+  type: decision
+  body: 'TaskClient now has a raw read surface (read_tasks, read_task_detail, read_broken_tasks,
+    read_search, read_next_task) beside the typed one. Two ways to read a task is
+    a wart, accepted deliberately: the read routes answer with the task plus computed
+    fields, and `Task` forbids extras. The rejected alternative was relaxing Task
+    to tolerate them, which would let derived state be passed back in as input --
+    the failure mode the whole managed-write program exists to close.'
+  data: {}
+- id: 5
+  ts: '2026-08-17T07:11:08.700655Z'
+  actor: claude
+  type: handoff
+  body: Branch complete, verified through a real MCP client; at the merge gate.
+  data:
+    ball: human
+    ball_reason: review
