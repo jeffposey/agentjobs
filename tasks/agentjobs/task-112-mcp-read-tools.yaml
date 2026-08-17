@@ -2,24 +2,9 @@ schema: 2
 id: task-112-mcp-read-tools
 title: Expose AgentJobs read and query tools over MCP
 created: '2026-08-14T19:18:50.196475Z'
-updated: '2026-08-17T07:11:08.700770Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Review and approve merging feat/task-112-mcp-read-tools into main.\n\
-  \nThis one is additive -- no existing behaviour changes, and nothing here can mutate\
-  \ a\ntask. Worth your attention:\n\n1. src/agentjobs/mcp/read_tools.py, specifically\
-  \ _explain_no_work. That is where I\n   spent judgement rather than following the\
-  \ design line by line: the design says\n   task_next must distinguish no work from\
-  \ broken, cyclic, and blocked work, and this\n   is my reading of what that should\
-  \ actually say to an agent. Tell me if the\n   explanations are the wrong shape.\n\
-  2. The TaskSummary field list in summaries.py. It is fixed by the design, but it\
-  \ is\n   also the thing every agent will see most often, so it is worth one look.\n\
-  3. TaskClient's new raw read methods sit beside the typed ones. Two ways to read\
-  \ a task\n   is a wart; the alternative was making Task tolerate computed fields,\
-  \ which would\n   have let derived state be passed back in as input. I took the\
-  \ wart.\n\nApprove and I will rebase, merge --no-ff, close the task, and continue\
-  \ the task-109\nparent loop with task-113 (mutation safety), which task-114 needs.\n"
+updated: '2026-08-17T07:14:48.138062Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -29,7 +14,6 @@ tags:
 - resumption
 effort: 1-2 days
 assignment:
-  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -103,7 +87,7 @@ links:
   title: MCP tool schemas and results
 branches:
 - name: feat/task-112-mcp-read-tools
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-17T06:55:03.448857Z'
@@ -182,3 +166,22 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 6
+  ts: '2026-08-17T07:14:47.564604Z'
+  actor: claude
+  type: decision
+  body: 'Approved for merge under the session delegation recorded on task-109. Review
+    performed before merging: read the full diff; confirmed the complete gate passes
+    after rebase, that every read tool is annotated read-only and closed-schema, that
+    no tool exposes a claim shortcut, and that the five tools answer correctly through
+    a real MCP client against the live corpus.'
+  data: {}
+- id: 7
+  ts: '2026-08-17T07:14:48.137958Z'
+  actor: claude
+  type: transition
+  body: Merged to main as 0485647 (--no-ff) under the session delegation. Worktree
+    removed, branch deleted. All acceptance criteria met.
+  data:
+    lifecycle: closed
+    outcome: completed
