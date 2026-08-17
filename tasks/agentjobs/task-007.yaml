@@ -1,0 +1,152 @@
+schema: 2
+id: task-007
+title: Stop the default route delivering the legacy Jinja UI
+created: '2026-08-17T21:49:53.889432Z'
+updated: '2026-08-17T21:49:53.890280Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- gui
+- routing
+- react-frontend
+effort: a few hours
+assignment:
+  eligible: []
+spec:
+  summary: Opening AgentJobs at its root address lands the user on the deprecated
+    server-rendered Jinja UI, which has no live updates, rather than the supported
+    React app at /app/. Redirect the root and the legacy project paths to their /app/
+    equivalents so reaching the product by address gets the supported UI.
+  intent: 'This cost real time on 2026-08-17. Jeff reported that AgentJobs had stopped
+    auto-updating on two devices, and it looked like a serious regression in a feature
+    that had been verified with physical-device proof four days earlier. It was investigated
+    as one: five hypotheses, two browsers, an instrumented run of the whole poll-invalidate-refetch
+    chain.
+
+
+    None of it was the problem. He was on the Jinja UI, which never had live updates.
+    The React app was healthy the entire time. See task-006 for the full investigation.
+
+
+    The user-visible defect is that the product''s front door hands people the deprecated
+    UI. That is not a bookmark mistake -- it is what the server does when you ask
+    for its root. Anyone who ever runs this, Jeff included, hits it by default, and
+    the failure is silent: the Jinja UI looks like AgentJobs, works like AgentJobs,
+    and just quietly never updates. The worst part is what it does to the merge gate,
+    which assumes a human watching a dashboard notices a review request.'
+  description: "## The current behaviour, verified 2026-08-17\n\n- `GET /` returns\
+    \ 307 to `/p/{project}`, which serves the Jinja UI (cdn.tailwindcss.com, alpinejs,\
+    \ marked)\n- `GET /app/p/{project}` serves React (one bundle, `/app/assets/index-*.js`,\
+    \ no CDN tags)\n\nThe routes live in `src/agentjobs/api/routes/web.py`: the root\
+    \ handler at line 184, the shared `_redirect_to_default` at 289, and the `legacy_*`\
+    \ redirect handlers below it.\n\nThe two addresses differ only by the `/app` prefix,\
+    \ which makes them near-indistinguishable in a browser bar, a bookmark, a shared\
+    \ link, or an installed app's `start_url`. The launcher at `C:/ai/shared/launchers/open-agentjobs.ps1`\
+    \ already opens `/app/` on both the tailnet and loopback URLs, so anything launched\
+    \ through it was always fine \u2014 which is precisely why this went unnoticed\
+    \ for days and then surfaced as a phantom regression.\n\n## What to do\n\nJeff\
+    \ chose the smallest change that removes the trap: redirect `/` and the legacy\
+    \ project paths to their `/app/` equivalents, so React is what you get by default.\
+    \ The Jinja UI stays reachable at an explicit legacy path for now \u2014 retiring\
+    \ it outright is a larger job and deliberately not this task.\n\nPreserve the\
+    \ deep link when redirecting. Someone landing on `/p/agentjobs/tasks/task-042`\
+    \ should arrive at `/app/p/agentjobs/tasks/task-042`, not be dumped at the dashboard;\
+    \ a redirect that loses the target is its own small betrayal and will be blamed\
+    \ on something else later.\n\nDecide and record which redirect status to use.\
+    \ A 307 preserves method and is non-cacheable, which is the safe default; a 301/308\
+    \ is permanent and will be cached by browsers, which is harder to walk back if\
+    \ the Jinja UI is ever restored to the root. Recommend 307 unless there is a reason\
+    \ otherwise.\n\n## Watch for\n\n- **The PWA.** The manifest's `start_url` and\
+    \ `id` decide what an installed app opens and what identity Chrome gives it. Task-086\
+    \ fought a long battle over exactly this (manifest id `/app/agentjobs`, a dedicated\
+    \ tagged Tailscale service host) \u2014 read its log entries 8 through 21 before\
+    \ touching manifest identity, and do not change `id`, because that is what keeps\
+    \ the AgentJobs and Job Search installs from colliding. If Jeff's tablet app was\
+    \ installed from the bare root, it may need reinstalling regardless of what this\
+    \ task does; say so explicitly rather than assuming the redirect fixes an already-installed\
+    \ app.\n- **Existing links.** Any `/p/...` URL in docs, READMEs, or the Jinja\
+    \ templates themselves should be checked, not just the server routes.\n- **The\
+    \ Jinja UI's own internal links.** If it stays reachable, its navigation should\
+    \ not silently bounce a user back into React mid-session, and it should not be\
+    \ possible to end up in a redirect loop between the two.\n\n## Not affected\n\n\
+    The job-search dashboard on 8766 serves React at its root (200, `assets/index-*.js`,\
+    \ no `/app` route) and has no Jinja UI, so it needs no equivalent change. Checked\
+    \ 2026-08-17."
+  constraints: '- Deep links survive the redirect: the path and any query below the
+    project segment are preserved.
+
+    - Do not change the PWA manifest `id`. It is what keeps AgentJobs and Job Search
+    installable as separate apps; task-086 established this the hard way.
+
+    - No redirect loop between the two UIs, in either direction, on any route.
+
+    - The legacy UI remains reachable by an explicit path. Deleting it is a separate
+    decision.
+
+    - Assert on the rendered result, not on the presence of a redirect: a test should
+    confirm the final response is the React shell, because a redirect that lands on
+    the wrong UI is exactly the bug being fixed.'
+  out_of_scope: Retiring or deleting the Jinja UI, which is a larger separate decision.
+    Adding live updates to the Jinja UI. Changing the launcher, which already opens
+    the right URL. Anything in the job-search project, which is unaffected.
+  context:
+  - path: src/agentjobs/api/routes/web.py
+    why: The root route (line 184), _redirect_to_default (line 289), and the legacy_*
+      handlers that currently send browsers to the Jinja UI.
+  - path: frontend/public/manifest.webmanifest
+    why: start_url and id decide what an installed PWA opens and whether Chrome treats
+      it as a separate app. Change start_url with care; do not change id.
+  - path: tasks/agentjobs/task-006.yaml
+    why: The investigation that found this, including why the symptom looked like
+      a live-update regression and the evidence that it was not.
+  - path: tasks/agentjobs/task-086-live-updates.yaml
+    why: 'Log entries 8 to 21 are the PWA identity battle: manifest id, service-worker
+      cache revisioning, and the dedicated tagged Tailscale host. Read before touching
+      installed-app identity.'
+acceptance:
+- id: ac-1
+  text: GET / on a running server ends at the React app, verified by the response
+    containing the React bundle and no CDN script tags
+  status: pending
+- id: ac-2
+  text: a deep legacy link such as /p/{project}/tasks/{task_id} redirects to the same
+    path under /app/, not to the dashboard
+  status: pending
+- id: ac-3
+  text: no redirect loop exists between the two UIs on any route, demonstrated by
+    following redirects to completion
+  status: pending
+- id: ac-4
+  text: the legacy Jinja UI is still reachable at an explicit path
+  status: pending
+- id: ac-5
+  text: the effect on an already-installed PWA is stated explicitly in the log --
+    whether it picks up the redirect or needs reinstalling -- rather than assumed
+  status: pending
+- id: ac-6
+  text: an automated test asserts the rendered destination of / is the React shell,
+    so a future routing change that reintroduces this fails the suite
+  status: pending
+- id: ac-7
+  text: poetry run python scripts/check.py passes
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T21:49:53.889503Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: a5c07d38-4e91-4b62-8f75-2d63e1904bcf
+      kind: create
+      fingerprint: 577d07f3b0bad4530163ae443f42f8b4

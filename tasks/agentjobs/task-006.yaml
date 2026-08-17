@@ -1,41 +1,11 @@
 schema: 2
 id: task-006
-title: 'Regression: the React app stopped auto-updating in desktop Chrome'
+title: 'Not a regression: live updates were absent because the default route serves
+  the legacy Jinja UI'
 created: '2026-08-17T20:58:33.455435Z'
-updated: '2026-08-17T21:40:24.186366Z'
-lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: "Two things need you, and the first takes ten seconds.\n\n1. IMMEDIATE\
-  \ FIX, no code required. You were on the legacy Jinja UI, not the React app. Open\
-  \ http://localhost:8876/app/p/agentjobs (note the /app prefix) and live updates\
-  \ work -- verified today in your own Chrome. On the tablet, the installed app must\
-  \ point at https://agentjobs.tailfed1df.ts.net/app/ ; if it was installed from the\
-  \ bare hostname it is pinned to the Jinja UI and needs reinstalling from the /app/\
-  \ URL. C:/ai/shared/launchers/open-agentjobs.ps1 already opens the right URL, so\
-  \ launching through it always lands correctly.\n\n2. THE DECISION, which is why\
-  \ the ball is yours. http://localhost:8876/ currently 307-redirects to /p/agentjobs,\
-  \ which is the deprecated Jinja UI. The supported React app is at /app/. So the\
-  \ product's default front door delivers the UI that ENGINEERING.md calls legacy\
-  \ and that lacks live updates, and the two URLs differ only by the /app prefix.\
-  \ This will keep happening -- to you, and to anyone else who ever runs this -- until\
-  \ the routing changes. Which do you want:\n  (a) Redirect / and /p/{project} to\
-  \ their /app/ equivalents, making React the default and leaving Jinja reachable\
-  \ only by an explicit legacy path. Smallest change that removes the trap. My recommendation.\n\
-  \  (b) Retire the Jinja UI entirely. Cleaner end state, larger job, needs its own\
-  \ task.\n  (c) Leave routing alone and treat this as a bookmark problem.\nWhichever\
-  \ you choose is new work and belongs in its own task; task-006 as filed was a React\
-  \ regression that does not exist.\n\n3. MERGE APPROVAL for what is on the branch.\
-  \ fix/task-006-live-updates-regression, commit 7939a2a, two files, no behaviour\
-  \ change: it exports the invalidation allowlist and adds a drift guard so a future\
-  \ project-scoped endpoint cannot silently fall outside live updates. That is ac-5,\
-  \ which stands on its own merits regardless of the misdiagnosis. Frontend gate passes\
-  \ fully (48 tests, lint, types, build). The Python suite has one failure, tests/test_task_corpus.py::test_agentjobs_context_paths_exist,\
-  \ which is pre-existing and fails in ANY worktree because task-002 references .agents/plugins/marketplace.json,\
-  \ a file git-excluded from everything but the main clone. Nothing in this branch\
-  \ touches Python or task files.\n\nAlso worth a decision, not filed because I was\
-  \ not authorised to widen scope: that corpus test fails for every agent that follows\
-  \ the mandatory worktree rule."
+updated: '2026-08-17T21:50:10.585472Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: bug
@@ -45,148 +15,160 @@ tags:
 - regression
 effort: half a day
 assignment:
-  owner: claude
   eligible: []
 spec:
-  summary: "The React frontend no longer refreshes itself while open in Chrome on\
-    \ Windows \u2014 task changes only appear after a manual F5. This worked when\
-    \ task-086 shipped live updates on 2026-08-13, so it is a regression, not missing\
-    \ functionality. Mobile PWA viewers may still be updating; that has not been checked."
-  intent: "Reported by Jeff on 2026-08-17 from ordinary use: the dashboard sat open\
-    \ in desktop Chrome while task records changed and went on showing the old state\
-    \ until the page was reloaded by hand.\n\nThis is the exact failure task-086 was\
-    \ built to eliminate, and it matters for the same reason it mattered then: the\
-    \ merge gate assumes a human sitting in front of an open dashboard notices a review\
-    \ request. A dashboard that silently goes stale turns every handoff into a notification\
-    \ nobody receives, and \u2014 worse than never having had the feature \u2014 it\
-    \ does so while the person watching believes live updates are working."
-  description: "## The report\n\n- **Environment**: Chrome on Windows, desktop. Served\
-    \ from the local server on 8876.\n- **Symptom**: an open page does not reflect\
-    \ task changes; F5 shows them immediately.\n- **Was working**: task-086 shipped\
-    \ and was verified on 2026-08-13, including a real-browser check that an external\
-    \ write appeared in an open dashboard with no reload.\n- **Unverified**: whether\
-    \ the installed mobile PWA (`https://agentjobs.tailfed1df.ts.net/app/`) still\
-    \ updates. Jeff suspects it might. Establishing that is diagnostic gold \u2014\
-    \ if mobile works and desktop does not, the fault is in something desktop-specific\
-    \ (cache, service worker, an extension, a stale bundle) rather than in the poller\
-    \ or the endpoint.\n\n## First: reproduce and localise\n\nReproduce before theorising,\
-    \ and do it against a **freshly started server** on a page you have hard-reloaded,\
-    \ so you are not diagnosing a stale process or a stale bundle.\n\nOpen the dashboard,\
-    \ then with DevTools Network open, change a task from the CLI or by writing a\
-    \ file and watch for:\n\n1. **Are `/api/projects/{id}/revision` requests happening\
-    \ at all, every ~15s?**\n   - No requests \u2192 the poller is not mounted, not\
-    \ running, or the effect is being torn down. Look at where `LiveUpdateStatus`\
-    \ is mounted and whether the route you are on is under it.\n   - Requests happening\
-    \ but failing \u2192 the catch path is swallowing them; after two misses you should\
-    \ see the \"Live updates are paused\" banner. If polls fail and no banner appears,\
-    \ that is a second bug.\n   - Requests succeeding but `revision` never changing\
-    \ \u2192 the fault is server-side in the revision digest, not in the client.\n\
-    \   - `revision` changing but no refetch of dashboard/task queries \u2192 the\
-    \ invalidation predicate is not matching, which is the most likely single cause\
-    \ (see below).\n\nRecord which of those five it is in the task log before changing\
-    \ any code. Everything after that follows from it.\n\n## Standing hypotheses,\
-    \ in rough order of suspicion\n\nStated as hypotheses. None has been confirmed;\
-    \ a first look at the code (2026-08-17) did **not** find an obvious break, which\
-    \ is itself information \u2014 this is probably not a one-line typo.\n\n1. **The\
-    \ invalidation allowlist has drifted from the generated client.** `PROJECT_TASK_QUERY_IDS`\
-    \ in `LiveUpdates.tsx` is a hardcoded set of seven generated query `_id` strings.\
-    \ A poll that detects a revision change invalidates only queries whose key matches\
-    \ that set. Spot-checked on 2026-08-17: all seven ids still exist in `@tanstack/react-query.gen.ts`,\
-    \ so the set is not stale in the obvious way. But it is an allowlist, so any read\
-    \ endpoint added since task-086 \u2014 or any view that switched to a different\
-    \ endpoint \u2014 silently falls outside it and never refetches. The poll succeeds,\
-    \ the revision advances, and nothing on screen moves. **This design is the standing\
-    \ hazard regardless of whether it is today's cause**, and the fix should include\
-    \ making drift impossible or loud rather than silent.\n2. **Something is caching\
-    \ the response.** The revision endpoint is polled with plain GETs. If it has acquired\
-    \ a cacheable response \u2014 or the service worker started serving it \u2014\
-    \ Chrome can answer every poll from cache with an unchanged revision while the\
-    \ server has moved on. Check the response headers and whether the request shows\
-    \ as `(from disk cache)` or `(ServiceWorker)`.\n3. **A stale service-worker shell\
-    \ in desktop Chrome.** Task-086 hashes shell asset contents into the cache name,\
-    \ so a serving mismatch is meant to be impossible; verify rather than assume,\
-    \ since a desktop tab that has been open across deploys is exactly the case that\
-    \ goes wrong. This one also predicts the mobile app is *fine* and only the long-lived\
-    \ desktop install is stale.\n4. **The effect is being remounted or torn down.**\
-    \ `LiveUpdateStatus` re-creates its poller whenever `projectId` or `queryClient`\
-    \ changes. If a parent now re-renders with a new `queryClient` identity, the poller\
-    \ is destroyed and rebuilt continuously, which can look like nothing polling.\
-    \ React Strict Mode double-mount was tested at the time; a new parent is not.\n\
-    5. **A server-side revision digest that no longer changes.** Least likely \u2014\
-    \ the digest hashes filenames and bytes \u2014 but cheap to rule out with two\
-    \ `curl`s around a file write.\n\n## What the fix has to include\n\nWhatever the\
-    \ cause, this regressed silently and was found by a human noticing staleness days\
-    \ later. A fix that only restores the behaviour leaves that intact.\n\n- A test\
-    \ that fails when the invalidation allowlist and the generated client drift apart,\
-    \ rather than one that asserts the current seven strings are the current seven\
-    \ strings.\n- Whatever check would have caught *this* instance. If the honest\
-    \ answer is that no automated check could have, say so in the log and explain\
-    \ why, rather than adding a test that proves nothing."
-  constraints: "- Reproduce and localise before changing code; record which of the\
-    \ five diagnostic branches applies in the task log.\n- Check the mobile PWA too.\
-    \ Whether it is affected is a load-bearing diagnostic, not a nice-to-have, and\
-    \ only the human can check it on the physical device.\n- Preserve every task-086\
-    \ constraint \u2014 they are binding and were expensive to establish: steady state\
-    \ is one small request; a failed refresh never blanks the last good view; one\
-    \ dropped request never reports unreachable; `navigator.onLine` never decides\
-    \ what is displayed; refresh fires on `visibilitychange`, not only `focus`.\n\
-    - No server-sent events and no websockets. Task-086 rejected both with reasoning;\
-    \ reopening either needs a measurement, not a preference.\n- Do not fix this by\
-    \ shortening the poll interval or by adding a blanket `invalidateQueries()`. Both\
-    \ hide the fault instead of finding it."
-  out_of_scope: "Rebuilding the live-update transport. Live updates for the legacy\
-    \ Jinja UI. Notifications outside the browser. Any broader refresh-architecture\
-    \ rework \u2014 if the investigation turns up one, file it separately rather than\
-    \ absorbing it here."
+  summary: Filed as a React live-update regression; it was not one. The failing browser
+    session was the legacy Jinja UI, which has no live updates and never did. GET
+    / redirects to /p/{project} (Jinja) while the React app lives at /app/, so reaching
+    AgentJobs by address rather than through the launcher lands on the deprecated
+    UI. The React app was verified healthy in two browsers. Closed with a drift guard
+    shipped; the routing fix is filed separately.
+  intent: 'Reported by Jeff on 2026-08-17 from ordinary use: task records changed
+    while the dashboard sat open and the page went on showing the old state until
+    reloaded by hand, on desktop Chrome and on the installed tablet app.
+
+
+    The report was accurate. The diagnosis in this task''s original spec was not:
+    it assumed the failing page was the React app and reasoned from there through
+    five hypotheses, all of which turned out to be irrelevant. Reading the failing
+    tab''s script tags settled it in seconds and should have been the first move.
+
+
+    Kept rather than cancelled because the investigation is the value here: it establishes
+    that the React live-update path is healthy, and it found a real product defect
+    underneath the false one.'
+  description: '## What was actually wrong
+
+
+    Nothing, in the React app. Jeff''s browser was on the legacy server-rendered Jinja
+    UI, which has no live-update mechanism -- task-086 listed "Live updates for the
+    Jinja UI" in its own out_of_scope.
+
+
+    The decisive evidence was the failing tab''s loaded scripts: cdn.tailwindcss.com,
+    alpinejs, and marked. The React app loads exactly one script, /app/assets/index-*.js,
+    and no CDN tags.
+
+
+    Verified by request:
+
+    - GET / returns 307 -> /p/{project}, which serves the Jinja UI
+
+    - GET /app/p/{project} serves React
+
+
+    The two addresses differ only by the /app prefix, so a typed hostname, an old
+    bookmark, or an app installed from the bare root all land on the deprecated UI.
+    The launcher at C:/ai/shared/launchers/open-agentjobs.ps1 opens /app/ correctly,
+    so anything launched through it was always fine.
+
+
+    This accounts for every symptom: both devices affected; F5 and pull-to-refresh
+    working, because a server-rendered page only updates on document reload; and foreground
+    return doing nothing, because that UI has no visibilitychange handler.
+
+
+    ## What was verified about the React app
+
+
+    Healthy, in two independent browsers including Jeff''s own Chrome: the 15-second
+    interval polls (4 polls in 54s and in 58s), a real task write moved the server
+    revision, the poller detected it, invalidated, and the dashboard and task list
+    refetched, with the rendered DOM confirmed current on a page never reloaded. LiveUpdates.tsx
+    and main.tsx are byte-identical to the revision that passed all six of task-086''s
+    criteria on 2026-08-13.
+
+
+    ## What shipped here
+
+
+    The ac-5 drift guard only. Live updates refetch a hardcoded allowlist of generated
+    query ids, and omitting an entry is invisible -- polls keep succeeding while the
+    view silently stops updating. Every project-scoped generated query must now be
+    classified as task data or explicitly exempt with a reason, and the predicate
+    is asserted against real generated key objects rather than strings.
+
+
+    ## What did not ship
+
+
+    The routing fix. Jeff chose to redirect / and /p/{project} to their /app/ equivalents;
+    that is filed as its own task.
+
+
+    ## Sibling app: not affected
+
+
+    The job-search dashboard on 8766 serves its React app at the root (200, assets/index-*.js,
+    no /app route) and has no Jinja UI, so it needs no equivalent redirect. Checked
+    2026-08-17.'
+  constraints: 'Historical, from the original filing, and retained because they still
+    bind anyone touching live updates:
+
+    - Steady state is one small request, not a full task list.
+
+    - A failed refresh never blanks the last successfully loaded view.
+
+    - One dropped request does not report the server as unreachable.
+
+    - navigator.onLine never decides what is displayed.
+
+    - Refresh fires on visibilitychange, not only focus.
+
+    - No server-sent events and no websockets: task-086 rejected both with reasoning,
+    and reopening either needs a measurement, not a preference.'
+  out_of_scope: Rebuilding the live-update transport. Adding live updates to the legacy
+    Jinja UI -- the answer there is to stop sending people to it, not to reimplement
+    the feature twice. Notifications outside the browser. The routing change itself,
+    which is separate work.
   context:
   - path: frontend/src/components/LiveUpdates.tsx
-    why: 'The whole client-side poller: the 15s interval, the focus/visibility/online
-      triggers, the miss counting, and the PROJECT_TASK_QUERY_IDS allowlist that decides
-      what gets refetched.'
-  - path: frontend/src/App.tsx
-    why: "LiveUpdateStatus is mounted once at line 191, inside ProjectApp \u2014 so\
-      \ it covers the /p/:projectId/* routes and nothing above them."
-  - path: frontend/src/api/generated/@tanstack/react-query.gen.ts
-    why: The generated query keys. Their _id strings are what the allowlist has to
-      match; drift between the two is silent.
-  - path: frontend/src/components/LiveUpdates.test.tsx
-    why: The existing fake-timer coverage. Worth asking what it would have caught
-      here, since it passes today.
-  - path: src/agentjobs/storage.py
-    why: Where the file-derived revision digest is computed, if the fault turns out
-      to be server-side.
+    why: The client-side poller and the invalidation allowlist. Verified healthy and
+      unchanged since task-086; now also carries the explicit exempt list the drift
+      guard checks.
+  - path: frontend/src/components/LiveUpdates.drift.test.tsx
+    why: The drift guard shipped by this task. Read it before adding a project-scoped
+      read endpoint, because it will fail until the new query is classified.
+  - path: src/agentjobs/api/routes/web.py
+    why: The root route and _redirect_to_default, which send a browser to the Jinja
+      UI rather than the React app -- the actual defect this task uncovered.
   - path: tasks/agentjobs/task-086-live-updates.yaml
-    why: 'The original feature: the rejected transports, the six acceptance criteria,
-      and the verification evidence this regression contradicts.'
+    why: 'The original live-update feature: rejected transports, six acceptance criteria,
+      and the verification this task re-confirmed rather than contradicted.'
 acceptance:
 - id: ac-1
   text: the cause is identified and recorded in the task log, with the evidence that
     distinguished it from the other hypotheses
-  status: pending
+  status: met
 - id: ac-2
   text: an open dashboard in desktop Chrome on Windows reflects a CLI or direct-file
     task change within roughly one poll interval, with no manual refresh, verified
     against a freshly started server
-  status: pending
+  status: met
 - id: ac-3
   text: the same is confirmed for the installed mobile PWA, and the pre-fix mobile
     behaviour is recorded either way
-  status: pending
+  status: met
 - id: ac-4
   text: all six task-086 acceptance criteria still hold after the fix, re-verified
     rather than assumed
-  status: pending
+  status: met
 - id: ac-5
   text: an automated check fails if the invalidation allowlist and the generated query
     keys drift apart, or the log explains why no such check is possible
-  status: pending
+  status: met
 - id: ac-6
-  text: poetry run python scripts/check.py passes
+  text: 'poetry run python scripts/check.py passes -- LEFT PENDING DELIBERATELY: the
+    frontend half passes fully, and the one Python failure (test_agentjobs_context_paths_exist)
+    is pre-existing, unrelated to this branch, and fails in any worktree because task-002
+    references a git-excluded file'
   status: pending
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-006-live-updates-regression
+  status: merged
 log:
 - id: 1
   ts: '2026-08-17T20:58:33.455488Z'
@@ -535,3 +517,87 @@ log:
       id: 3c9d6e40-71b5-4a28-b6f1-9e05c8a2d371
       kind: handoff
       fingerprint: 1e3d4696a55e6587ecf8af01d0e45d13
+- id: 10
+  ts: '2026-08-17T21:47:44.491986Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, spec, title.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - spec
+    - title
+    operation:
+      id: 5a2f9c73-8e14-4b06-a37d-6f92e0c85b1d
+      kind: update_content
+      fingerprint: ad0057c336a2c670a3a8a024745465ad
+- id: 11
+  ts: '2026-08-17T21:48:16.583367Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 7d18b2e5-0f43-4c97-a61e-3b5904ed7c28
+      kind: update_content
+      fingerprint: 713e39852ba01de0d27b77739710ef3e
+- id: 12
+  ts: '2026-08-17T21:49:09.203822Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 9e4a7f16-2c58-4d31-8b47-0a6f3e19d5c2
+      kind: update_content
+      fingerprint: c3b731b5f423953cfd7e4d98b2620aa9
+- id: 13
+  ts: '2026-08-17T21:50:10.585320Z'
+  actor: claude
+  type: transition
+  body: 'Closed after explicit approval from Jeff Posey for the merge.
+
+
+    Outcome is `completed` rather than `cancelled` on the reasoning that the task
+    delivered what a bug investigation is for: a confirmed root cause with evidence,
+    an exoneration of the component that was suspected, a durability guard that shipped
+    and merged, and a correctly scoped follow-up. `cancelled` would imply the work
+    was abandoned, and `duplicate` and `superseded` are both wrong. The counter-argument,
+    recorded because it is not silly: the defect as originally described did not exist,
+    so nothing was fixed. That is why the title and spec were rewritten to say so
+    plainly rather than leaving a completed record that claims a regression was repaired.
+
+
+    Merge: branch fix/task-006-live-updates-regression rebased onto main, frontend
+    gate re-run after the rebase and passing (12 files, 48 tests, generated-client
+    check, lint, TypeScript, build), merged --no-ff at 484b4c2. Branch marked merged;
+    worktree C:/projects/aj-006 removed.
+
+
+    Follow-up filed as task-007, covering the routing change Jeff chose: redirect
+    / and the legacy project paths to their /app/ equivalents, preserving deep links,
+    without touching the PWA manifest id.
+
+
+    Checked and not affected: the job-search dashboard on 8766 serves React at its
+    root and has no Jinja UI, so it needs no equivalent redirect.
+
+
+    Left undone deliberately, and not filed because widening scope was not authorised:
+    tests/test_task_corpus.py::test_agentjobs_context_paths_exist fails in every git
+    worktree, because task-002 names a context path that is git-excluded and therefore
+    exists only in the shared clone. Every agent following the mandatory worktree
+    rule will hit it and have to work out that it is not theirs. That is ac-6''s only
+    obstacle here and is worth a small task of its own.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: c3f60b81-9d47-4a25-8e13-72b0af5d94e6
+      kind: close
+      fingerprint: 1db37f4831c70e73f4b5b98f3cb49b52
