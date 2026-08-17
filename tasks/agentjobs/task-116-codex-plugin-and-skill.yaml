@@ -2,11 +2,9 @@ schema: 2
 id: task-116-codex-plugin-and-skill
 title: Package the AgentJobs MCP server as a Codex plugin and skill
 created: '2026-08-14T19:19:59.065290Z'
-updated: '2026-08-17T08:14:06.234959Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-17T08:22:47.736325Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -16,7 +14,6 @@ tags:
 - skill
 effort: 1 day
 assignment:
-  owner: claude
   eligible: []
 parent: task-109-agentjobs-mcp-managed-interface
 spec:
@@ -70,10 +67,10 @@ acceptance:
 - id: ac-1
   text: The plugin has a valid manifest, bundled MCP config, and AgentJobs skill and
     launches the installed server rather than a copy.
-  status: pending
+  status: met
 - id: ac-2
   text: Plugin/package version compatibility and upgrade behavior are tested and documented.
-  status: pending
+  status: met
 - id: ac-3
   text: One shared local MCP configuration is verified in fresh Codex CLI and Codex
     desktop-app sessions; both expose the AgentJobs skill and all 13 tools without
@@ -83,14 +80,14 @@ acceptance:
   text: Skill tests/examples drive projects_list -> task_get -> managed verb, prefer
     MCP whenever present, and never recommend direct YAML or generic state mutation
     as an ordinary fallback.
-  status: pending
+  status: met
 - id: ac-5
   text: Plugin artifacts contain no secrets or machine-specific paths.
-  status: pending
+  status: met
 deliverables:
 - path: plugins/agentjobs
   note: Codex plugin manifest, MCP wiring, and skill.
-  status: pending
+  status: done
 dependencies:
 - task: task-115-mcp-protocol-and-agent-evals
   type: needs
@@ -115,3 +112,42 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 2
+  ts: '2026-08-17T08:22:47.185852Z'
+  actor: claude
+  type: progress
+  body: 'Built plugins/agentjobs: .codex-plugin/plugin.json, .mcp.json launching the
+    installed `agentjobs mcp` command, skills/agentjobs/SKILL.md, and a README covering
+    install, verification, upgrade and rollback. 31 tests in tests/test_codex_plugin.py
+    cover manifest shape, plugin/package version alignment, no vendored server, no
+    machine-specific paths, no credential-shaped strings, and the skill''s content
+    contract.
+
+
+    Two real gaps the tests caught while being written: the skill never mentioned
+    tasks_list or tasks_search, and several prose assertions were sensitive to line
+    wrapping rather than wording. Both fixed.'
+  data: {}
+- id: 3
+  ts: '2026-08-17T08:22:47.458511Z'
+  actor: claude
+  type: decision
+  body: Closed with ac-3 left pending rather than marked met. ac-3 requires loading
+    the plugin in fresh Codex CLI and Codex desktop sessions and confirming the skill
+    and all thirteen tools appear. That needs Codex, which is not available to this
+    session, and marking it met on the strength of the artifacts being correct would
+    put a false claim in the one record a future reader trusts. The rejected alternative
+    was blocking the whole program on it; that would have stopped seven remaining
+    children over a check that takes a human two minutes. It is carried to task-109
+    so the program cannot close over it silently.
+  data: {}
+- id: 4
+  ts: '2026-08-17T08:22:47.736210Z'
+  actor: claude
+  type: transition
+  body: Merged to main as 37a0c4c (--no-ff) under the session delegation. Four of
+    five acceptance criteria met; ac-3 (fresh Codex CLI and desktop sessions) remains
+    pending and needs a human with Codex.
+  data:
+    lifecycle: closed
+    outcome: completed

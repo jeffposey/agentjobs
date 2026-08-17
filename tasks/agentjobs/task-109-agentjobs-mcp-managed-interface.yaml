@@ -2,7 +2,7 @@ schema: 2
 id: task-109-agentjobs-mcp-managed-interface
 title: Ship a managed AgentJobs MCP interface and direct-write guardrails
 created: '2026-08-14T19:18:45.666884Z'
-updated: '2026-08-17T08:13:40.288292Z'
+updated: '2026-08-17T08:22:48.300774Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -227,4 +227,24 @@ log:
     as 09c72f4. All ten design scenarios pass and write a versioned evidence artifact
     to out/mcp-evals/report.json (41 recorded calls). task-116 (Codex plugin and skill)
     is now eligible.
+  data: {}
+- id: 11
+  ts: '2026-08-17T08:22:48.012653Z'
+  actor: claude
+  type: question
+  body: 'Human verification outstanding, carried from task-116: install plugins/agentjobs
+    from a local marketplace entry, start a fresh Codex CLI session and a fresh Codex
+    desktop session, and confirm both expose the AgentJobs skill and all thirteen
+    tools from the one shared local MCP configuration, without duplicate setup. Everything
+    checkable without Codex is covered by tests/test_codex_plugin.py. This is the
+    only acceptance criterion in the program that an agent cannot close.'
+  data: {}
+- id: 12
+  ts: '2026-08-17T08:22:48.300628Z'
+  actor: claude
+  type: progress
+  body: Child 7 of 10 complete. task-116 (Codex plugin and skill) merged to main as
+    37a0c4c, closed with ac-3 pending for human verification in Codex. task-117 (direct-write
+    hook) is next; the plugin README already names it as the missing enforcement layer
+    rather than implying the guard is complete.
   data: {}
