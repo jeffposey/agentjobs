@@ -2,7 +2,7 @@ schema: 2
 id: task-111-mcp-projects-and-actors
 title: Add MCP-safe project discovery and actor attribution
 created: '2026-08-14T19:18:48.672848Z'
-updated: '2026-08-17T06:43:49.896992Z'
+updated: '2026-08-17T06:51:46.673880Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -179,3 +179,12 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 6
+  ts: '2026-08-17T06:51:46.673784Z'
+  actor: Jeff Posey
+  type: decision
+  body: 'Approved for merge, including the REST tightening it was raised for: claim,
+    handoff, release, close, log and progress now reject an actor the project does
+    not configure. Also reviewed mcp/routing.py and the _parse_task fix. Proceed:
+    rebase onto main, merge --no-ff, close.'
+  data: {}
