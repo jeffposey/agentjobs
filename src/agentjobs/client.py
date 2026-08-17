@@ -9,8 +9,40 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
 import httpx
+from pydantic import BaseModel, Field
 
 from .models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome, Priority, Task
+
+
+class ProjectActor(BaseModel):
+    """One actor a project's configuration defines."""
+
+    id: str
+    kind: str
+    display_name: str
+
+
+class ProjectSummary(BaseModel):
+    """A project as discovery reports it.
+
+    Mirrors the REST ``ProjectResponse``. Defining it here rather than importing the
+    API model keeps the client free of any dependency on the server package; a
+    contract test asserts the two carry the same fields, so the duplication cannot
+    drift silently.
+    """
+
+    id: str
+    name: str
+    root: str
+    tasks_directory: str
+    task_count: Optional[int] = None
+    actors: List[ProjectActor] = Field(default_factory=list)
+    default_user: Optional[str] = None
+
+    @property
+    def actor_ids(self) -> List[str]:
+        """Configured actor ids, for validating an actor and for naming the choices."""
+        return [actor.id for actor in self.actors]
 
 
 class TaskClientError(RuntimeError):
@@ -38,9 +70,16 @@ class TaskClient:
         timeout: float | httpx.Timeout = 30.0,
         transport: httpx.BaseTransport | None = None,
         client: httpx.Client | None = None,
+        project_id: Optional[str] = None,
     ) -> None:
-        """Initialise the client with the API base URL and timeout."""
+        """Initialise the client with the API base URL and timeout.
+
+        ``project_id`` addresses one project explicitly. Prefer
+        :meth:`for_project` over passing it here; the two are equivalent, but the
+        method reads as a scoping operation on an existing connection.
+        """
         self._base_url = base_url.rstrip("/") or "http://localhost:8765"
+        self._project_id = project_id
         self._owns_client = client is None
         if client is not None:
             self._client = client
@@ -55,6 +94,44 @@ class TaskClient:
     def base_url(self) -> str:
         """The service URL this client talks to, for diagnostics and error text."""
         return self._base_url
+
+    @property
+    def project_id(self) -> Optional[str]:
+        """The project this client addresses, or None for the default project."""
+        return self._project_id
+
+    # ------------------------------------------------------------------
+    # Project scoping
+    # ------------------------------------------------------------------
+    def for_project(self, project_id: str) -> "TaskClient":
+        """Return a client addressing one project by exact id.
+
+        Route construction lives here rather than in callers so no caller -- an MCP
+        tool least of all -- has to assemble ``/api/projects/<id>/...`` itself and get
+        the escaping right. The returned client shares this one's HTTP connection and
+        does not own it, so closing it does not close the parent.
+
+        Scoping is a new object, never a mutation of this one. A client with a
+        settable "current project" is exactly the hidden state that lets a session
+        which moved between repositories write to the wrong one.
+        """
+        if not project_id:
+            raise TaskClientError("A project id is required; it is never inferred.")
+        scoped = TaskClient(
+            self._base_url,
+            client=self._client,
+            project_id=project_id,
+        )
+        # The parent owns the connection. Sharing without transferring ownership is
+        # what makes scoping cheap enough to do per call.
+        scoped._owns_client = False
+        return scoped
+
+    def _path(self, suffix: str) -> str:
+        """Build a request path, project-scoped when this client is scoped."""
+        if self._project_id is None:
+            return f"/api{suffix}"
+        return f"/api/projects/{quote(self._project_id, safe='')}{suffix}"
 
     # ------------------------------------------------------------------
     # Service metadata
@@ -74,13 +151,34 @@ class TaskClient:
     def list_projects(self) -> List[Dict[str, Any]]:
         """List every project the service serves, as raw records.
 
-        Deliberately untyped at this layer. The typed, project-scoped surface the MCP
-        tools consume is built on top of this by the project/actor routing work; this
-        method exists so the MCP startup probe can prove the endpoint answers.
+        Kept untyped for the MCP startup probe, which checks that required fields are
+        *present* and so must see whatever the service actually sent. Callers that
+        want the parsed form should use :meth:`projects`.
         """
         response = self._request("GET", "/api/projects")
         payload: List[Dict[str, Any]] = response.json()
         return payload
+
+    def projects(self) -> List[ProjectSummary]:
+        """Every project the service serves, with its actor vocabulary."""
+        return [ProjectSummary.model_validate(item) for item in self.list_projects()]
+
+    def get_project(self, project_id: str) -> ProjectSummary:
+        """Return one project by exact id, naming the valid ids when it is unknown.
+
+        The registry has no single-project read route, so this filters the list. That
+        keeps the "unknown project" message able to name the alternatives, which a
+        bare 404 from a per-project route could not do.
+        """
+        available = self.projects()
+        for project in available:
+            if project.id == project_id:
+                return project
+        known = ", ".join(sorted(item.id for item in available)) or "(none registered)"
+        raise TaskClientError(
+            f"Unknown project {project_id!r}. Projects on this service: {known}.",
+            status_code=404,
+        )
 
     # ------------------------------------------------------------------
     # Context manager helpers
@@ -121,13 +219,13 @@ class TaskClient:
             params["ball"] = self._enum_to_str(ball)
         if priority is not None:
             params["priority"] = self._enum_to_str(priority)
-        response = self._request("GET", "/api/tasks", params=params)
+        response = self._request("GET", self._path("/tasks"), params=params)
         payload = response.json()
         return [self._parse_task(item) for item in payload]
 
     def get_task(self, task_id: str) -> Task:
         """Fetch a task by identifier."""
-        response = self._request("GET", f"/api/tasks/{task_id}")
+        response = self._request("GET", self._path(f"/tasks/{task_id}"))
         return self._parse_task(response.json())
 
     def get_next_task(
@@ -142,7 +240,7 @@ class TaskClient:
             params["priority"] = self._enum_to_str(priority)
         if agent is not None:
             params["agent"] = agent
-        response = self._request("GET", "/api/tasks/next", params=params)
+        response = self._request("GET", self._path("/tasks/next"), params=params)
         payload = response.json()
         if payload is None:
             return None
@@ -152,7 +250,7 @@ class TaskClient:
         """Search for tasks by query string."""
         if not query.strip():
             raise TaskClientError("Query must not be empty")
-        response = self._request("GET", "/api/search", params={"q": query})
+        response = self._request("GET", self._path("/search"), params={"q": query})
         return [self._parse_task(item) for item in response.json()]
 
     # ------------------------------------------------------------------
@@ -175,7 +273,7 @@ class TaskClient:
             "category": category,
         }
         payload.update(self._serialise_payload(kwargs))
-        response = self._request("POST", "/api/tasks", json=payload)
+        response = self._request("POST", self._path("/tasks"), json=payload)
         return self._parse_task(response.json())
 
     def update_task(self, task_id: str, **updates: Any) -> Task:
@@ -185,7 +283,7 @@ class TaskClient:
         payload = self._serialise_payload(updates)
         response = self._request(
             "PATCH",
-            f"/api/tasks/{task_id}",
+            self._path(f"/tasks/{task_id}"),
             json=payload,
         )
         return self._parse_task(response.json())
@@ -195,7 +293,7 @@ class TaskClient:
         encoded_path = quote(deliverable_path, safe="")
         response = self._request(
             "PATCH",
-            f"/api/tasks/{task_id}/deliverables/{encoded_path}",
+            self._path(f"/tasks/{task_id}/deliverables/{encoded_path}"),
         )
         return self._parse_task(response.json())
 
@@ -206,7 +304,7 @@ class TaskClient:
         """Claim a ready task. One winner; everyone else gets an error."""
         response = self._request(
             "POST",
-            f"/api/tasks/{task_id}/claim",
+            self._path(f"/tasks/{task_id}/claim"),
             json={"agent": agent},
         )
         return self._parse_task(response.json())
@@ -224,7 +322,7 @@ class TaskClient:
         """Move the ball, with its ask."""
         response = self._request(
             "POST",
-            f"/api/tasks/{task_id}/handoff",
+            self._path(f"/tasks/{task_id}/handoff"),
             json={
                 "actor": actor,
                 "ball": self._enum_to_str(ball),
@@ -239,7 +337,7 @@ class TaskClient:
         """Return a claimed task to the pool."""
         response = self._request(
             "POST",
-            f"/api/tasks/{task_id}/release",
+            self._path(f"/tasks/{task_id}/release"),
             json={"actor": actor, "body": body},
         )
         return self._parse_task(response.json())
@@ -256,7 +354,7 @@ class TaskClient:
         """End the task with an outcome."""
         response = self._request(
             "POST",
-            f"/api/tasks/{task_id}/close",
+            self._path(f"/tasks/{task_id}/close"),
             json={
                 "actor": actor,
                 "outcome": self._enum_to_str(outcome),
@@ -282,7 +380,7 @@ class TaskClient:
         """Append a note/progress/decision/question/answer/instruction entry."""
         response = self._request(
             "POST",
-            f"/api/tasks/{task_id}/log",
+            self._path(f"/tasks/{task_id}/log"),
             json={
                 "actor": actor,
                 "type": self._enum_to_str(type),
@@ -309,7 +407,7 @@ class TaskClient:
         }
         response = self._request(
             "POST",
-            f"/api/tasks/{task_id}/progress",
+            self._path(f"/tasks/{task_id}/progress"),
             json=payload,
         )
         return self._parse_task(response.json())
