@@ -10,7 +10,17 @@ Callers never write the axes directly.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
+
+from .operations import (
+    Operation,
+    OperationConflictError,
+    check_revision,
+    find_operation,
+    replay_or_conflict,
+    stamp,
+)
 
 from .models_v2 import (
     Ball,
@@ -346,6 +356,8 @@ class TaskManager:
         priority: Priority = Priority.MEDIUM,
         category: str = "general",
         lifecycle: Lifecycle = Lifecycle.DRAFT,
+        actor: Optional[str] = None,
+        operation_id: Optional[str] = None,
         **kwargs: Any,
     ) -> Task:
         """Create a new task, generating an identifier when omitted.
@@ -353,7 +365,87 @@ class TaskManager:
         Tasks are born ``draft`` (ball: human/spec) or ``ready`` (ball:
         agent/available). Any other starting state would skip the transitions the log
         exists to record.
+
+        With an ``operation_id``, creation is idempotent: the whole body runs under a
+        project-wide lock, and a retry finds the task the first attempt made instead of
+        producing a second one. That lock is what makes an auto-generated id safe --
+        two concurrent creates would otherwise both read the same next id, both find
+        nothing on disk, and one would overwrite the other.
         """
+        if operation_id is None:
+            return self._create_unlocked(
+                id=id,
+                title=title,
+                description=description,
+                summary=summary,
+                priority=priority,
+                category=category,
+                lifecycle=lifecycle,
+                actor=actor,
+                operation=None,
+                **kwargs,
+            )
+
+        operation = Operation(
+            id=operation_id,
+            kind="create",
+            actor=actor or "system",
+            payload={"id": id, "title": title, "lifecycle": Lifecycle(lifecycle).value},
+        )
+        with self.storage.creation_lock():
+            existing = self._find_created_by(operation)
+            if existing is not None:
+                return existing
+            return self._create_unlocked(
+                id=id,
+                title=title,
+                description=description,
+                summary=summary,
+                priority=priority,
+                category=category,
+                lifecycle=lifecycle,
+                actor=actor,
+                operation=operation,
+                **kwargs,
+            )
+
+    def _find_created_by(self, operation: Operation) -> Optional[Task]:
+        """Return the task a previous attempt at this creation produced, if any.
+
+        A linear scan of the corpus. Deliberate: the alternative is an index file,
+        which is a second thing that can disagree with the tasks it indexes, and this
+        runs only when a caller supplies an operation_id -- creation, not the hot path.
+        A project large enough for the scan to matter has outgrown YAML storage for
+        other reasons first.
+        """
+        for task in self.storage.list_tasks():
+            marker = find_operation(task, operation.id)
+            if marker is None:
+                continue
+            if marker.get("fingerprint") != operation.fingerprint:
+                raise OperationConflictError(
+                    f"Operation id {operation.id!r} already created task {task.id!r} "
+                    "with different arguments. Nothing was written. Use a new "
+                    "operation_id, or resend the original request exactly."
+                )
+            return task
+        return None
+
+    def _create_unlocked(
+        self,
+        *,
+        id: Optional[str],
+        title: str,
+        description: str,
+        summary: Optional[str],
+        priority: Priority,
+        category: str,
+        lifecycle: Lifecycle,
+        actor: Optional[str],
+        operation: Optional[Operation],
+        **kwargs: Any,
+    ) -> Task:
+        """Build and persist one task. Callers holding the creation lock stay serialised."""
         task_id = id or self.storage.generate_task_id()
         if self.storage.load_task(task_id):
             raise ValueError(f"Task '{task_id}' already exists.")
@@ -394,12 +486,47 @@ class TaskManager:
         task_kwargs.update(kwargs)
 
         task = Task.model_validate(task_kwargs)
+        if operation is not None:
+            # The creation entry exists to carry the operation marker, which is what a
+            # retry finds. Added only when an operation_id was supplied, so tasks
+            # created the old way still start with an empty log.
+            self._append_entry(
+                task,
+                actor=operation.actor,
+                type=LogEntryType.TRANSITION,
+                body=f"Created {lifecycle.value} by {operation.actor}.",
+                data={"lifecycle": lifecycle.value},
+                operation=operation,
+            )
         return self.storage.save_task(task)
 
-    def update_task(self, task_id: str, **updates: object) -> Task:
-        """Apply a partial update to a task."""
+    def update_task(
+        self,
+        task_id: str,
+        *,
+        operation_id: Optional[str] = None,
+        expected_revision: Optional[Union[datetime, str]] = None,
+        actor: Optional[str] = None,
+        **updates: object,
+    ) -> Task:
+        """Apply a partial update to a task.
 
-        def apply(existing: Task) -> Task:
+        With an ``expected_revision`` the update is refused if the task moved since the
+        caller read it, so an edit computed from stale content cannot silently discard
+        someone else's. Without one, behaviour is exactly as before -- last write wins
+        -- which keeps existing callers working.
+        """
+        operation = self._operation(
+            operation_id,
+            "update_content",
+            actor or "system",
+            {"updates": {key: value for key, value in sorted(updates.items())}},
+        )
+
+        def apply(existing: Task) -> Optional[Task]:
+            if replay_or_conflict(existing, operation):
+                return None
+            check_revision(existing, expected_revision)
             if "parent" in updates:
                 parent = updates["parent"]
                 self._validate_parent(existing.id, parent if isinstance(parent, str) else None)
@@ -407,7 +534,21 @@ class TaskManager:
             payload.update(updates)
             payload["id"] = existing.id
             payload["created"] = existing.created
-            return Task.model_validate(payload)
+            updated = Task.model_validate(payload)
+            if operation is not None:
+                # A content update writes no log entry of its own, so without this
+                # there would be nowhere to record the operation and a retry could not
+                # recognise itself. Appended only when an operation_id was supplied,
+                # so ordinary edits do not start filling the log with churn.
+                self._append_entry(
+                    updated,
+                    actor=operation.actor,
+                    type=LogEntryType.NOTE,
+                    body=f"Updated {', '.join(sorted(updates))}.",
+                    data={"fields": sorted(updates)},
+                    operation=operation,
+                )
+            return updated
 
         return self._mutate(task_id, apply)
 
@@ -459,7 +600,14 @@ class TaskManager:
         body: Optional[str] = None,
         re: Optional[int] = None,
         data: Optional[Dict[str, Any]] = None,
+        operation: Optional[Operation] = None,
     ) -> LogEntry:
+        """Append one entry, stamping the operation that produced it.
+
+        The marker rides in the entry rather than in a side table, so replay detection
+        is as durable as the task itself and survives a restart of every process
+        involved -- which is precisely when a client retries.
+        """
         entry = LogEntry(
             id=task.next_log_id(),
             ts=utcnow(),
@@ -467,17 +615,38 @@ class TaskManager:
             type=type,
             body=body,
             re=re,
-            data=data or {},
+            data=stamp(data, operation),
         )
         task.log.append(entry)
         return entry
 
-    def claim_task(self, task_id: str, *, agent: str) -> Task:
+    def _operation(
+        self,
+        operation_id: Optional[str],
+        kind: str,
+        actor: str,
+        payload: Dict[str, Any],
+    ) -> Optional[Operation]:
+        """Build the operation record for a mutation, when the caller supplied an id."""
+        if operation_id is None:
+            return None
+        return Operation(id=operation_id, kind=kind, actor=actor, payload=payload)
+
+    def claim_task(
+        self,
+        task_id: str,
+        *,
+        agent: str,
+        operation_id: Optional[str] = None,
+    ) -> Task:
         """Take ownership of a ready task, or refuse because someone else already did."""
         states = self._dependency_states()
         open_children = self._open_children()
+        operation = self._operation(operation_id, "claim", agent, {})
 
-        def apply(task: Task) -> Task:
+        def apply(task: Task) -> Optional[Task]:
+            if replay_or_conflict(task, operation):
+                return None
             if task.lifecycle is not Lifecycle.READY:
                 owner = task.assignment.owner
                 raise ValueError(
@@ -512,6 +681,7 @@ class TaskManager:
                 type=LogEntryType.TRANSITION,
                 body=f"Claimed by {agent}.",
                 data={"lifecycle": "active", "ball": "agent", "ball_reason": "work"},
+                operation=operation,
             )
             return task
 
@@ -526,10 +696,26 @@ class TaskManager:
         ball_reason: BallReason,
         ball_prompt: Optional[str] = None,
         body: Optional[str] = None,
+        operation_id: Optional[str] = None,
+        expected_revision: Optional[Union[datetime, str]] = None,
     ) -> Task:
         """Move the ball. The ask travels with it, by schema requirement."""
+        operation = self._operation(
+            operation_id,
+            "handoff",
+            actor,
+            {
+                "ball": Ball(ball).value,
+                "ball_reason": BallReason(ball_reason).value,
+                "ball_prompt": ball_prompt,
+                "body": body,
+            },
+        )
 
-        def apply(task: Task) -> Task:
+        def apply(task: Task) -> Optional[Task]:
+            if replay_or_conflict(task, operation):
+                return None
+            check_revision(task, expected_revision)
             if not task.is_open:
                 raise ValueError(f"Task '{task_id}' is closed; the ball cannot move.")
             task.ball = Ball(ball)
@@ -541,6 +727,7 @@ class TaskManager:
                 type=LogEntryType.HANDOFF,
                 body=body or ball_prompt,
                 data={"ball": task.ball.value, "ball_reason": task.ball_reason.value},
+                operation=operation,
             )
             return task
 
@@ -557,10 +744,20 @@ class TaskManager:
         )
         return task
 
-    def release_task(self, task_id: str, *, actor: str, body: Optional[str] = None) -> Task:
+    def release_task(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        body: Optional[str] = None,
+        operation_id: Optional[str] = None,
+    ) -> Task:
         """Bow out cleanly: active goes back to ready, unclaimed and available."""
+        operation = self._operation(operation_id, "release", actor, {"body": body})
 
-        def apply(task: Task) -> Task:
+        def apply(task: Task) -> Optional[Task]:
+            if replay_or_conflict(task, operation):
+                return None
             if task.lifecycle is not Lifecycle.ACTIVE:
                 raise ValueError(
                     f"Task '{task_id}' is not active (it is {task.display_status.lower()}); "
@@ -577,6 +774,7 @@ class TaskManager:
                 type=LogEntryType.TRANSITION,
                 body=body or f"Released by {actor}; back in the pool.",
                 data={"lifecycle": "ready", "ball": "agent", "ball_reason": "available"},
+                operation=operation,
             )
             return task
 
@@ -590,10 +788,21 @@ class TaskManager:
         outcome: Outcome,
         body: Optional[str] = None,
         archive: bool = False,
+        operation_id: Optional[str] = None,
+        expected_revision: Optional[Union[datetime, str]] = None,
     ) -> Task:
         """End the task with an outcome. How it ended is data, not a lifecycle fork."""
+        operation = self._operation(
+            operation_id,
+            "close",
+            actor,
+            {"outcome": Outcome(outcome).value, "body": body, "archive": archive},
+        )
 
-        def apply(task: Task) -> Task:
+        def apply(task: Task) -> Optional[Task]:
+            if replay_or_conflict(task, operation):
+                return None
+            check_revision(task, expected_revision)
             if not task.is_open:
                 raise ValueError(f"Task '{task_id}' is already closed.")
             task.lifecycle = Lifecycle.CLOSED
@@ -610,6 +819,7 @@ class TaskManager:
                 type=LogEntryType.TRANSITION,
                 body=body or f"Closed: {task.outcome.value}.",
                 data={"lifecycle": "closed", "outcome": task.outcome.value},
+                operation=operation,
             )
             return task
 
@@ -660,6 +870,7 @@ class TaskManager:
         body: Optional[str] = None,
         re: Optional[int] = None,
         data: Optional[Dict[str, Any]] = None,
+        operation_id: Optional[str] = None,
     ) -> Task:
         """Append one entry to the unified log."""
         entry_type = LogEntryType(type)
@@ -668,9 +879,25 @@ class TaskManager:
                 "transition entries are appended by the manager's state verbs, "
                 "not written directly (design doc section 3, rule 5)"
             )
+        operation = self._operation(
+            operation_id,
+            "log_append",
+            actor,
+            {"type": entry_type.value, "body": body, "re": re, "data": data},
+        )
 
-        def apply(task: Task) -> Task:
-            self._append_entry(task, actor=actor, type=entry_type, body=body, re=re, data=data)
+        def apply(task: Task) -> Optional[Task]:
+            if replay_or_conflict(task, operation):
+                return None
+            self._append_entry(
+                task,
+                actor=actor,
+                type=entry_type,
+                body=body,
+                re=re,
+                data=data,
+                operation=operation,
+            )
             return task
 
         task = self._mutate(task_id, apply)
@@ -685,10 +912,17 @@ class TaskManager:
         author: str,
         summary: str,
         details: Optional[str] = None,
+        operation_id: Optional[str] = None,
     ) -> Task:
         """Append a progress entry to the log."""
         body = f"{summary}\n\n{details}" if details else summary
-        return self.add_log_entry(task_id, actor=author, type=LogEntryType.PROGRESS, body=body)
+        return self.add_log_entry(
+            task_id,
+            actor=author,
+            type=LogEntryType.PROGRESS,
+            body=body,
+            operation_id=operation_id,
+        )
 
     # ------------------------------------------------------------------
     # Webhooks
