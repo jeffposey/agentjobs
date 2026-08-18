@@ -2,10 +2,9 @@ schema: 2
 id: task-136-performance-budgets
 title: Performance budgets in the suite
 created: '2026-08-18T00:06:43.380089Z'
-updated: '2026-08-18T00:06:43.380963Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-18T01:46:12.819947Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: performance
@@ -65,25 +64,25 @@ acceptance:
 - id: ac-1
   text: scripts/check.py fails when a budgeted surface regresses past its threshold.
   verify: demonstrate by deliberately reintroducing a regression, then reverting
-  status: pending
+  status: met
 - id: ac-2
   text: Primary assertions are on work done (files parsed, files read, corpus walks),
     not wall-clock alone.
   verify: the tests
-  status: pending
+  status: met
 - id: ac-3
   text: Budgets run against a generated synthetic corpus of fixed, stated size.
   verify: the tests
-  status: pending
+  status: met
 - id: ac-4
   text: The added runtime cost of scripts/check.py is stated and reasonable.
   verify: before/after timing of the gate, in the task log
-  status: pending
+  status: met
 - id: ac-5
   text: Final benchmark numbers against the real corpus are recorded, mapped to parent
     acceptance ac-2 through ac-5, with any missed target stated plainly.
   verify: task log
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-132-single-corpus-load-per-request
@@ -99,7 +98,9 @@ dependencies:
   type: needs
   note: Any browser-side budget depends on the front-end work being done.
 links: []
-branches: []
+branches:
+- name: feat/task-136-performance-budgets
+  status: merged
 log:
 - id: 1
   ts: '2026-08-18T00:06:43.380128Z'
@@ -112,3 +113,120 @@ log:
       id: 3f1c9a52-6b41-4e0a-9d77-0a1b2c3d4e56
       kind: create
       fingerprint: a66bc098f14c4ee4f8402a0ff7c19037
+- id: 2
+  ts: '2026-08-18T01:39:39.012003Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: cf708b12-3d65-4e87-cfa9-0123456789ab
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-18T01:45:46.504771Z'
+  actor: claude
+  type: progress
+  body: "**Done. Ten budgets, all asserting work done rather than elapsed time, run\
+    \ by `scripts/check.py` via pytest.**\n\n## What is budgeted (ac-2, ac-3)\n\n\
+    `tests/test_performance_budgets.py`, against a **generated 60-file corpus** built\
+    \ by `scripts/bench.py`'s own generator \u2014 so a budget and a benchmark run\
+    \ cannot drift apart, and the thresholds do not move as the real backlog grows.\n\
+    \n| Budget | Asserts |\n| --- | --- |\n| Six endpoints (`/tasks`, `/dashboard`,\
+    \ `/detail`, `/search`, `/next`, `/broken`) | each parses at most `CORPUS_SIZE`\
+    \ files \u2014 one walk, not four |\n| `GET /revision` | parses **zero** files\
+    \ |\n| Storage, inside a scope | ten whole-corpus reads parse each file once |\n\
+    | Storage, outside a scope | **nothing** is cached across scopes |\n| Whole-corpus\
+    \ load | under 5 s against a measured ~60 ms |\n\nThe fourth is the one worth\
+    \ pointing at. It asserts the *absence* of a process-wide cache, which is what\
+    \ would notice task-134's rejected design arriving by accident \u2014 a stale\
+    \ cache is the failure mode that epic warned about, and this is the check that\
+    \ says so out loud.\n\nOnly one wall-clock budget, deliberately 80x looser than\
+    \ the measurement. It exists to catch losing the libyaml loader (13x) or a per-file\
+    \ cost appearing in the read path, not a 20% drift. The constant's comment says\
+    \ not to tighten it and why: a performance test that fails on a busy laptop gets\
+    \ disabled, and a disabled test catches nothing.\n\n## Proof they fail (ac-1)\n\
+    \nReverted the corpus snapshot in `storage.py` and re-ran: **5 budgets failed**,\
+    \ reporting *\"Ten whole-corpus reads inside one scope parsed 600 files instead\
+    \ of 60\"* and the four endpoint budgets alongside. Restored; `git diff` on `storage.py`\
+    \ is empty.\n\n**A finding from the first attempt, which is worth more than the\
+    \ demonstration itself.** My first \"regression\" removed only the whole-corpus\
+    \ memo \u2014 and **all ten budgets still passed**. The reason: `_load_all_uncached()`\
+    \ reads through `load_task()`, which consults the per-task memo, so the parse\
+    \ count is preserved by the per-task memo alone. The whole-corpus memo is therefore\
+    \ **redundant for parse counting** and earns its place only by avoiding a re-glob\
+    \ and a rebuild of `LoadResult`. Two things follow:\n\n1. The budgets measure\
+    \ the real property, not an implementation detail \u2014 they did not fire for\
+    \ a change that did not actually cost any parses. That is correct behaviour, and\
+    \ I only learned it by trying to break them.\n2. There is a genuine simplification\
+    \ available in `storage.py` (collapse the two memos into one). Not taken here:\
+    \ it is out of this task's scope, the current code is merged and tested, and the\
+    \ win is a glob.\n\nHad I not tried to break the budgets, I would have reported\
+    \ them as verified on the strength of a regression that they do not, in fact,\
+    \ catch.\n\n## Cost (ac-4)\n\n- Budget module alone: **1.61 s**\n- Full `pytest`:\
+    \ **91.5 s** (1410 passed, 1 pre-existing failure)\n- `pytest` before this task:\
+    \ ~90 s\n\n**About 1.6 s added to a 91-second gate.** No new stage in `scripts/check.py`\
+    \ was needed \u2014 it runs pytest, so the budgets are in the gate by construction\
+    \ rather than by a wiring step someone can forget.\n\n## Final numbers against\
+    \ the real corpus (ac-5)\n\n`scripts/bench.py --compare benchmarks/baseline-2026-08-17-real.json`,\
+    \ saved as `benchmarks/after-2026-08-17-real.json`:\n\n| Surface | before | after\
+    \ | change | parses |\n| --- | --- | --- | --- | --- |\n| `GET /dashboard` | 7344\
+    \ ms | **152 ms** | **48.3x** | 952 -> 119 |\n| `GET /tasks/{id}/detail` | 3954\
+    \ ms | **150 ms** | **26.4x** | 478 -> 119 |\n| `GET /tasks` | 3659 ms | **170\
+    \ ms** | **21.6x** | 476 -> 119 |\n| `GET /api/projects` | 1009 ms | 145 ms |\
+    \ 7.0x | 119 -> 119 |\n| `GET /search?q=the` | 1020 ms | 158 ms | 6.5x | 119 ->\
+    \ 119 |\n| `GET /revision` | 18 ms | 19 ms | 0.97x | 0 -> 0 |\n| **click row ->\
+    \ detail rendered (warm)** | 9567 ms | **263 ms** | **36.4x** | - |\n| cold load\
+    \ -> detail rendered | 10931 ms | 1127 ms | 9.7x | - |\n| CLI `list --lifecycle\
+    \ ready` | 1668 ms | 828 ms | 2.0x | - |\n| CLI `next` | 787 ms | 772 ms | 1.02x\
+    \ | - |\n| CLI `show` | 717 ms | 699 ms | 1.03x | - |\n\n**Parent acceptance criteria:**\n\
+    \n- **ac-2** \u2014 click to rendered under 500 ms: **MET, 263 ms**\n- **ac-3**\
+    \ \u2014 `/tasks`, `/detail`, `/dashboard` each under 300 ms: **MET, 170 / 150\
+    \ / 152 ms**\n- **ac-4** \u2014 no request parses the same file more than once:\
+    \ **MET**, asserted by these budgets, not just measured\n- **ac-5** \u2014 CLI\
+    \ read commands under 1 s: **MET**, worst is 828 ms\n- **ac-6** \u2014 `scripts/check.py`\
+    \ fails on a budgeted regression: **MET**, demonstrated above\n\n**Nothing was\
+    \ missed.** The two figures not inside a target are `cold load` at 1127 ms and\
+    \ the CLI's ~700-800 ms floor, and neither has a target in this epic: cold load\
+    \ is a fresh navigation paying for a 337 KB bundle, and the CLI floor is Python\
+    \ interpreter startup, which no amount of storage work reaches.\n\n## Note on\
+    \ the corpus-drift warning\n\nThe comparison prints a warning because the baseline\
+    \ was 1,195,490 bytes and the final run 1,234,489 \u2014 the epic's own task records\
+    \ grew the corpus by 3.3% while it was being worked. Stated rather than hidden;\
+    \ it does not affect conclusions at this magnitude, and it is exactly why the\
+    \ tool warns."
+  data:
+    operation:
+      id: cf708b12-3d65-4e87-cfa9-0123456789ac
+      kind: log_append
+      fingerprint: cf665465ee611d145956bb6b8c794078
+- id: 4
+  ts: '2026-08-18T01:46:06.809417Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: cf708b12-3d65-4e87-cfa9-0123456789ad
+      kind: update_content
+      fingerprint: 7aab38b558ab6e8ed03b09e015dc2bb1
+- id: 5
+  ts: '2026-08-18T01:46:12.819816Z'
+  actor: claude
+  type: transition
+  body: Merged to main. Ten budgets asserting work done rather than elapsed time,
+    1.6s added to a 91s gate, demonstrated to fail on a reverted snapshot. All acceptance
+    criteria met.
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: cf708b12-3d65-4e87-cfa9-0123456789ae
+      kind: close
+      fingerprint: 251818e091c435a66a870660ed89f1df
