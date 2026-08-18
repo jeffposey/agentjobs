@@ -1,0 +1,149 @@
+schema: 2
+id: task-012
+title: Contain a render crash so one bad field cannot blank the whole app
+created: '2026-08-18T05:04:35.886899Z'
+updated: '2026-08-18T05:04:35.887838Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: reliability
+tags:
+- frontend
+- reliability
+- error-handling
+- dogfood
+effort: a focused implementation session
+assignment:
+  eligible: []
+spec:
+  summary: The React app has no error boundary anywhere, so a single exception during
+    render unmounts the entire tree and leaves a white page with no message. A stale
+    server that omitted one array field was enough to make the whole dashboard unusable
+    on 2026-08-17.
+  intent: Make a partial failure look like a partial failure. A section that cannot
+    render should say so and leave the rest of the page navigable, so the user can
+    still read the task, use the nav, and understand what broke.
+  description: "## What happened\n\nObserved 2026-08-17. Clicking any task from the\
+    \ dashboard produced a blank page. The\nserver log was clean, because nothing\
+    \ was wrong on the server's own terms: it answered\n`200` with a valid response.\n\
+    \nThe running `agentjobs serve` process had started at 20:37, and the `related`\
+    \ dependency\nedges were added to the detail endpoint at 21:30 in commit `059270c`.\
+    \ The process was\nholding pre-`related` code in memory. Meanwhile the frontend\
+    \ bundle had been rebuilt at\n23:25 against the newer generated client, where\
+    \ `TaskDetailResponse.related` is a\nrequired array.\n\nSo `detail.related` was\
+    \ `undefined`, and `TaskDetail.tsx:179` does:\n\n```\nif (detail.children.length\
+    \ === 0 && detail.needs.length === 0 && detail.blocks.length === 0 && detail.related.length\
+    \ === 0 && ...)\n```\n\n`TypeError: Cannot read properties of undefined (reading\
+    \ 'length')`.\n\nRestarting the server fixed the immediate symptom. That is not\
+    \ what this task is about.\n\n## The actual defect\n\n`grep -rn \"ErrorBoundary\\\
+    |componentDidCatch\\|getDerivedStateFromError\" frontend/src`\nreturns nothing.\
+    \ There is no boundary in the tree. React's documented behaviour when an\nerror\
+    \ escapes render with no boundary above it is to unmount the whole root \u2014\
+    \ so a fault\nin one collapsible dependency panel took down the nav, the task\
+    \ body, the log, and the\nreview panel along with it.\n\nThe failure mode this\
+    \ produces is unusually hostile:\n\n- The page is blank, not broken-looking. There\
+    \ is nothing to read and nothing to click.\n- The dashboard route does not touch\
+    \ `detail.related`, so it renders fine. The app only\n  dies once a detail query\
+    \ resolves. From the user's side this reads as \"it works if I\n  click fast enough\
+    \ and blanks a moment later\", which is a confusing thing to try to\n  report.\n\
+    - The only diagnosis path is the browser devtools console against a minified bundle\n\
+    \  built without sourcemaps.\n\n## What to build\n\nAdd error boundaries and give\
+    \ them something useful to say.\n\n1. **A route-level boundary** below the app\
+    \ shell, so a crashing route leaves the header\n   and navigation intact and the\
+    \ user can get back to a working page without touching\n   the URL bar.\n2. **Section-level\
+    \ boundaries** around the independently-failing regions of the task\n   detail\
+    \ page \u2014 at minimum the dependency/relations block, the log, and the review\n\
+    \   panel. A malformed log entry should cost the log, not the review buttons.\n\
+    3. **A fallback that names the failure.** The error message and component stack,\
+    \ a\n   \"reload\" affordance, and the task/route id. A boundary that renders\
+    \ a bare \"Something\n   went wrong\" only moves the dead end one level up.\n\n\
+    Boundaries catch render, lifecycle, and constructor errors only. Event handlers\
+    \ and\nasync rejections are not covered, which is fine here \u2014 the crash under\
+    \ investigation was\nin render \u2014 but do not describe the result as catching\
+    \ everything.\n\n## Why the boundary is the fix and not just the restart\n\nThe\
+    \ specific trigger will recur under a different name. This repo rebuilds a generated\n\
+    TypeScript client from the server's OpenAPI schema, and the server is a long-lived\n\
+    process that agents change underneath. Any window where the bundle is newer than\
+    \ the\nrunning interpreter reproduces exactly this class of bug, and the frontend\
+    \ currently has\nno way to survive one. `ENGINEERING.md` already documents the\
+    \ stale-server trap twice;\nit keeps being rediscovered because the symptom is\
+    \ unrecognisable as staleness.\n\nRelated, and deliberately out of scope below:\
+    \ the bundle ships without sourcemaps, so\nthe crash site was a column offset\
+    \ into one minified line."
+  constraints: "Do not paper over the schema mismatch by making every consumer defensive\
+    \ with `?.` and `?? []` \u2014 that trades a loud crash for silently wrong output,\
+    \ which is worse in a task tracker. The generated client says `related` is required;\
+    \ when it is absent the app should say something is wrong, not quietly render\
+    \ an empty dependency section as though the task genuinely has no edges.\n\nFollow\
+    \ the existing dark-theme component conventions in `frontend/src/components/`.\
+    \ The fallback is a real piece of UI, not a bare `<pre>`.\n\nCover this with Vitest\
+    \ component tests that render a child which throws, and assert both that the fallback\
+    \ appears and that sibling sections still render. Verify against a real server\
+    \ as well, per the ENGINEERING.md verification rules \u2014 a passing suite is\
+    \ not by itself evidence."
+  out_of_scope: "Enabling production sourcemaps. That would have made this crash far\
+    \ cheaper to diagnose and is worth doing, but it is a build-config change with\
+    \ its own bundle-size and disclosure tradeoffs \u2014 file it separately.\n\n\
+    Making the launcher's staleness check run continuously rather than only at launch.\
+    \ The check in `open-agentjobs.ps1` is correct; it simply never ran, because the\
+    \ server was already up and the browser tab was already open. That is a real gap\
+    \ and also its own task.\n\nAny change to the detail endpoint or to `TaskDetailResponse`.\
+    \ The server is fine; the running process was old."
+  context:
+  - path: frontend/src/components/TaskDetail.tsx
+    why: 'Line 179 is the crash site: reads detail.related.length with no guard. The
+      dependency, log, and review regions here are the ones that want their own boundaries.'
+  - path: frontend/src/main.tsx
+    why: "Where the React root is created \u2014 the outermost boundary goes here\
+      \ or just inside the app shell."
+  - path: frontend/src/App.tsx
+    why: Route definitions; the route-level boundary wraps these.
+  - path: frontend/src/api/generated/types.gen.ts
+    why: TaskDetailResponse declares related as a required array. Shows why the frontend
+      trusted the field and why trusting it was reasonable.
+  - path: ENGINEERING.md
+    why: The Verification section and the stale-server safety rail explain the recurring
+      conditions that produce this class of failure.
+acceptance:
+- id: a1
+  text: 'A component that throws during render is contained by a boundary: the surrounding
+    page still renders and the app root is not unmounted.'
+  verify: cd frontend && npm run test
+  status: pending
+- id: a2
+  text: "The task detail page survives a detail response missing a required array\
+    \ field \u2014 the affected section shows a fallback naming the error, and the\
+    \ task body, nav, and review panel remain usable."
+  verify: cd frontend && npm run test
+  status: pending
+- id: a3
+  text: The fallback shows the error message and offers a reload, rather than a generic
+    apology with no information.
+  status: pending
+- id: a4
+  text: 'Verified in a browser against a freshly started server: a task detail page
+    renders, and an induced render fault degrades one section instead of blanking
+    the page.'
+  status: pending
+- id: a5
+  text: Full gate passes.
+  verify: poetry run python scripts/check.py
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:04:35.886979Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7c3e1a94-6b2d-4f18-9a05-2e8d7b41c6f3
+      kind: create
+      fingerprint: 2ca12e3695db7b8c75876beb9c3f1773
