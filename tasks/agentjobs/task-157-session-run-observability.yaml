@@ -2,11 +2,62 @@ schema: 2
 id: task-157-session-run-observability
 title: Notice when a dispatched session ends, and let its output be read
 created: '2026-08-18T21:53:32.107442Z'
-updated: '2026-08-18T22:04:01.946003Z'
+updated: '2026-08-18T22:07:18.628255Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball_prompt: "# Pick this up in a fresh session. One commit exists, it is incomplete,\
+  \ and the remaining work is fully specified below.\n\nJeff asked for this task to\
+  \ be worked in a new session and it was started in an old one by mistake. Everything\
+  \ needed is here; do not go looking for the prior conversation, and do not trust\
+  \ any judgement from it that is not written down.\n\n## State\n\n- Branch `fix/task-157-session-run-observability`,\
+  \ worktree `C:/projects/aj-157`, `poetry install` already done there.\n- Task is\
+  \ claimed and `active`. One commit: `2c18b1a`.\n- **`src/agentjobs/dispatch/poller.py`\
+  \ exists, imports cleanly, and is otherwise unverified.** No scheduler calls it.\
+  \ No test covers it. Treat it as a proposal you are free to rewrite.\n\n## What\
+  \ is already decided, with reasoning (log entry 2)\n\n**The scheduler calls `DispatchRunner.poll_session`;\
+  \ it does not reimplement polling.** `poll_session` carries the ball-moved check,\
+  \ the staleness window, the parked-session handoff and the per-phase outcome and\
+  \ reap choices. Duplicating those in the ledger gives two implementations of this\
+  \ subsystem's subtlest judgement. The poller module follows this; keep it.\n\n**One\
+  \ correction to log entry 2, found while implementing:** that entry says `reconcile()`\
+  \ needs a phase check for sc-3. It does not. If the poller runs on an interval,\
+  \ a session that ended while AgentJobs was down is settled on the first tick after\
+  \ startup, and sc-3 falls out for free. Leave `reconcile()` alone -- less changed\
+  \ surface, one mechanism instead of two.\n\n## What remains\n\n1. **Schedule it.**\
+  \ `lifespan` in `api/main.py:92` already calls `_reconcile_dispatch_runs()`. Add\
+  \ an asyncio task that calls `poll_live_sessions(default_home())` on an interval\
+  \ and is cancelled on shutdown. `poll_live_sessions` blocks on subprocesses, so\
+  \ it belongs in a thread rather than on the event loop.\n\n   Note this knowingly\
+  \ reverses a documented position: `_reap_finished_sessions`' docstring argues against\
+  \ a scheduler. That reasoning was right for deleting worktrees and wrong for session\
+  \ state -- without a scheduler the primary dispatch mode never reports anything.\
+  \ **Record it as a `decision` entry when you do it.**\n\n2. **The live tail (sc-7/8/9)**\
+  \ -- Jeff's requirement, log entry 3, and the part most likely to be got wrong.\
+  \ Output must be readable *while* the run goes, in a collapsible section on the\
+  \ task page that also holds the finished output. `DispatchRunner.transcript()` (runner.py:746)\
+  \ reads a session's output; `readable_tail` bounds it. Session runs only -- a batch\
+  \ run's `stdout.log` genuinely is its output and must keep working unchanged. Do\
+  \ not let anything branch on transcript content; it is rendering, not parsing.\n\
+  \n3. **Verify the way that would have caught this.** The existing tests exercise\
+  \ `poll_session` directly and passed throughout, proving the decision logic while\
+  \ saying nothing about whether the decision is ever made. sc-6 wants an end-to-end\
+  \ run: dispatch a real session in the review sandbox, let it finish untouched, and\
+  \ confirm the run reaches a terminal state and the task gets a `dispatch_result`\
+  \ with nobody intervening.\n\n   Sandbox: `poetry -P C:/projects/agentjobs run python\
+  \ C:/ai/scratch/agentjobs-dispatch-review-sandbox.py`, port 8901, session-mode `claude-session`\
+  \ runner, `autonomous` posture, throwaway repo. `run_52c47791` in it is a real example\
+  \ of the bug -- session finished, run still reads `running`.\n\n## Traps\n\n- `dispatch_entry_id`\
+  \ must come off the run's meta. `_ball_moved` returns False without it, which would\
+  \ label every clean finish `finished_without_handoff` -- a wrong and alarming outcome\
+  \ on a task that did nothing wrong. The poller skips such runs rather than guessing;\
+  \ make sure that stays true.\n- `DispatchLedger.manager_for` resolves projects only\
+  \ through the registry, so a run stamped with the implicit `_local` id resolves\
+  \ to None. The poller reports that case loudly instead of skipping it. Keep that.\n\
+  - Do not merge without Jeff's approval. The autonomy grant on task-060 expired and\
+  \ has not been renewed.\n\n## Out of scope\n\ntask-158 (elapsed_seconds counting\
+  \ forever) and task-159 (a dispatched agent cannot log as itself) are separate children\
+  \ of task-060. Do not absorb them."
 archived: false
 priority: high
 category: reliability
@@ -443,3 +494,27 @@ log:
       id: 1574aa11-2b33-4c55-8d77-e9f0a1b2c157
       kind: claim
       fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 6
+  ts: '2026-08-18T22:07:18.628047Z'
+  actor: claude
+  type: handoff
+  body: 'Parking this for a fresh session, which is how Jeff asked for it to be worked.
+
+
+    One commit on the branch: a `poller.py` that finds live session runs and hands
+    each to `poll_session`. It imports and nothing more -- no scheduler, no tests,
+    unverified. The next session should treat it as a proposal.
+
+
+    The handoff prompt carries everything needed: the decision that the scheduler
+    must not reimplement poll_session, a correction to my earlier plan (reconcile
+    needs no change -- an interval poller settles down-time sessions for free), the
+    two traps worth knowing, and the end-to-end verification that would actually have
+    caught this.'
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 1575aa11-2b33-4c55-8d77-e9f0a1b2c157
+      kind: handoff
+      fingerprint: 653da0c46ae973b87aff924686ff440e
