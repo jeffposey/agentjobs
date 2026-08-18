@@ -2,7 +2,7 @@ schema: 2
 id: task-072-dispatch-ledger-cancel
 title: 'Dispatch: run ledger, cancellation, and startup reconciliation'
 created: '2026-08-11T00:21:32.495701Z'
-updated: '2026-08-11T04:37:06.807603Z'
+updated: '2026-08-18T04:35:00.513405Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -12,6 +12,7 @@ category: infrastructure
 tags:
 - dispatch
 - architecture
+effort: half a day
 assignment:
   eligible: []
 parent: task-060-agent-dispatch
@@ -58,7 +59,22 @@ spec:
     with nothing supervising it and no working kill switch -- the precise situation
     this subsystem exists to prevent. Losing a mid-flight run to a restart is a visible
     cost; an unsupervised orphan is not.'
-  context: []
+  constraints: '- Runs never outlive their supervisor.
+
+    - Anything found non-terminal at startup is reconciled into a task-visible `interrupted`
+    result. Silence after a crash is the failure mode to design against.
+
+    - The per-task run lock uses the same `O_CREAT|O_EXCL` primitive task-055 chose;
+    do not introduce a second locking convention.
+
+    - Cancellation on Windows needs its own path and an explicit test. It is the platform
+    this runs on.'
+  out_of_scope: The UI controls for cancel and output (task-073).
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: Section 9, 'Cancellation, and Windows' and 'Restart and reconciliation'.
+  - path: src/agentjobs/storage.py
+    why: The lock primitive from task-055 that the run lock should reuse.
 acceptance:
 - id: sc-1
   text: dispatch status lists live and recent runs with task, agent, pid, elapsed

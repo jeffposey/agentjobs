@@ -2,7 +2,7 @@ schema: 2
 id: task-076-dispatch-permission-posture
 title: Decide what a dispatched agent is allowed to do without a human present
 created: '2026-08-11T01:43:18.956698Z'
-updated: '2026-08-11T04:37:06.885919Z'
+updated: '2026-08-18T04:35:00.599739Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -13,6 +13,7 @@ tags:
 - dispatch
 - architecture
 - design
+effort: a decision session, then a documented posture
 assignment:
   eligible: []
 parent: task-060-agent-dispatch
@@ -87,7 +88,27 @@ spec:
 
     Authentication for the dashboard. Separate concern, and it becomes urgent only
     if the dashboard is exposed beyond localhost.'
-  context: []
+  constraints: '- **This is a decision task. Do not decide it alone.** Research the
+    options, write up the trade-offs with a recommendation, then `handoff` to `human`/`decision`
+    and stop. An agent running unattended answering this by default is the specific
+    failure this task exists to prevent.
+
+    - Record the outcome as a `decision` entry naming the rejected alternatives, and
+    amend docs/agent-dispatch-design.md so the document and the record agree.
+
+    - Write no implementation code.
+
+    - The real question is not what may *start* a run -- the design already has four
+    gates for that -- but what the run may *do* once started. A headless agent that
+    cannot run pytest satisfies no acceptance criterion; one that can run anything
+    is an unattended shell.'
+  out_of_scope: Implementing the posture. That belongs to task-070, which needs this
+    answered first.
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: 'Section 4, ''Permission posture: the gap this design left''.'
+  - path: .claude/settings.json
+    why: What an allowlist looks like in practice on this machine.
 acceptance:
 - id: sc-1
   text: A decision is recorded in docs/agent-dispatch-design.md section 4 with the

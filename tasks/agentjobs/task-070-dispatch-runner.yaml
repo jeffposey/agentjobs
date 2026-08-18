@@ -2,7 +2,7 @@ schema: 2
 id: task-070-dispatch-runner
 title: 'Dispatch: the runner and its supervisor process'
 created: '2026-08-11T00:21:32.484450Z'
-updated: '2026-08-11T04:37:06.776681Z'
+updated: '2026-08-18T04:35:00.476159Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -12,6 +12,7 @@ category: infrastructure
 tags:
 - dispatch
 - architecture
+effort: half a day
 assignment:
   eligible: []
 parent: task-060-agent-dispatch
@@ -58,7 +59,31 @@ spec:
     non-zero, one that hangs past the timeout, one that emits megabytes, and one that
     spawns a grandchild -- and assert a terminal log entry exists in every case. Windows
     is the reference platform, not the port.'
-  context: []
+  constraints: '- One blocking supervisor thread per run, **guaranteed** to write
+    a terminal `dispatch_result` on every exit path including its own exception.
+
+    - Explicitly not the detached-asyncio shape used by `WebhookManager._dispatch`.
+    A NameError in that shape stayed invisible for months (task-047). A supervisor
+    that dies silently is worse than none.
+
+    - The run directory and its meta file are written **before** Popen, so a supervisor
+    that dies mid-spawn still leaves a row someone can find.
+
+    - Output is streamed to disk, never buffered in memory.
+
+    - Exit 0 with an unmoved ball counts as a failure: the agent stopped without saying
+    what it needs.'
+  out_of_scope: The HTTP endpoint and its guards (task-071), the run ledger and cancellation
+    (task-072), and the UI (task-073). This task can be exercised from a Python call
+    or a test.
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: Section 9, process lifecycle -- supervisor, output, outcomes.
+  - path: src/agentjobs/webhooks.py
+    why: The shape to avoid. Read `_dispatch` and task-047 before choosing how the
+      supervisor runs.
+  - path: src/agentjobs/manager.py
+    why: Where the dispatch and dispatch_result entries get appended from.
 acceptance:
 - id: sc-1
   text: A run spawns the resolved argv in the project root and streams stdout and

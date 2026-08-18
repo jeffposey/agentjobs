@@ -3,7 +3,7 @@ id: task-077-dispatch-session-launcher
 title: 'Decide: should dispatch launch a remote-controllable session instead of a
   batch run?'
 created: '2026-08-11T01:56:16.465216Z'
-updated: '2026-08-11T06:05:20.487880Z'
+updated: '2026-08-18T04:35:00.621231Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -14,6 +14,7 @@ tags:
 - dispatch
 - architecture
 - design
+effort: a decision session
 assignment:
   eligible: []
 parent: task-060-agent-dispatch
@@ -112,7 +113,32 @@ spec:
 
 
     Implementing it. This is a decision task, like task-060 was.'
-  context: []
+  constraints: '- **This is a decision task. Do not decide it alone.** Research the
+    options, write up the trade-offs with a recommendation, then `handoff` to `human`/`decision`
+    and stop. An agent running unattended answering this by default is the specific
+    failure this task exists to prevent.
+
+    - Record the outcome as a `decision` entry naming the rejected alternatives, and
+    amend docs/agent-dispatch-design.md so the document and the record agree.
+
+    - Write no implementation code.
+
+    - Weigh it against the stated goal rather than in the abstract: the point of dispatch
+    is to stop routing work through a chat window. A batch run means clicking Dispatch
+    and reading the result afterwards; a steerable session keeps the ability to redirect
+    a run mid-flight, which is what a chat session actually provides today. Choosing
+    wrong replaces the tracking but not the conversation.
+
+    - Verify the CLI flags against the installed version rather than trusting the
+    summary written here in August.'
+  out_of_scope: Building either mechanism. task-070 and task-072 both wait on this.
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: 'Section 4, ''Open amendment: dispatch may be a session launcher, not a batch
+      runner''.'
+  - path: docs/agent-dispatch-design.md
+    why: Section 9, process lifecycle -- a steerable session changes what supervision
+      means.
 acceptance:
 - id: sc-1
   text: The four unverified questions are answered by actually running the CLI, with

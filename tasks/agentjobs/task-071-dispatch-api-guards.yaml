@@ -2,7 +2,7 @@ schema: 2
 id: task-071-dispatch-api-guards
 title: 'Dispatch: the API endpoint and the guard layer'
 created: '2026-08-11T00:21:32.489688Z'
-updated: '2026-08-11T04:37:06.792385Z'
+updated: '2026-08-18T04:35:00.494813Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -12,6 +12,7 @@ category: infrastructure
 tags:
 - dispatch
 - architecture
+effort: half a day
 assignment:
   eligible: []
 parent: task-060-agent-dispatch
@@ -62,7 +63,29 @@ spec:
 
     The per-task budget caps and cooldown -- those bind auto-dispatch only (decision
     D3) and belong to task-074.'
-  context: []
+  constraints: '- **The human-clocked rule (D4) is binding and is not a configuration
+    option.** A dispatch may only be caused by a log entry whose actor is a human.
+    An agent handoff never causes a dispatch, in any mode. That is what makes the
+    agent-finishes-agent-starts loop structurally impossible rather than merely capped.
+
+    - Claim before spawn, so losing a race costs a rejected HTTP request rather than
+    a wasted model call.
+
+    - The `DISPATCH_DISABLED` sentinel is checked immediately before every spawn,
+    not once at startup.
+
+    - A refused dispatch names the specific gate that refused it.'
+  out_of_scope: Auto-dispatch on approval (task-074) and the UI (task-073). Dispatch
+    stays a distinct action from Approve; do not merge them.
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: Sections 5 and 6 -- what starts a dispatch, and the four gates.
+  - path: src/agentjobs/api/routes/tasks.py
+    why: Where the endpoint belongs, and how the human review routes already validate
+      an acting user.
+  - path: src/agentjobs/actors.py
+    why: Resolving whether an actor is a human is what the human-clocked rule depends
+      on.
 acceptance:
 - id: sc-1
   text: A dispatch caused by a log entry whose actor is an agent is refused, with

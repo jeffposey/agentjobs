@@ -1,8 +1,8 @@
 schema: 2
 id: task-121-batch-issue-capture
-title: Add a persistent multi-issue capture tray and one-action task submission
+title: Collect a review's worth of findings and file them in one action
 created: '2026-08-15T22:29:34.692845Z'
-updated: '2026-08-15T22:34:23.769089Z'
+updated: '2026-08-18T04:35:49.613641Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -20,13 +20,28 @@ assignment:
   eligible: []
 parent: task-120-issue-reporter-workflow
 spec:
-  summary: Let a user collect a list of findings with optional pasted screenshot snippets,
-    keep collecting while navigating, then create all findings as normal tasks in
-    one action.
-  intent: Product review commonly produces a cluster of small findings. Reopening
-    and submitting a modal for every one interrupts the review and pushes observations
-    back into chat. A durable capture tray separates fast collection from task creation
-    while preserving evidence and context per issue.
+  summary: One pass through the React app turns up a dozen small problems at once.
+    Today each one costs opening and submitting a form, so most of them get said out
+    loud instead of filed. Collect findings as you go -- title, a note, a pasted screenshot
+    -- and file the whole batch as normal tasks in one click.
+  intent: 'The originating case, in the owner''s words on 2026-08-18: *"there are
+    a ton of problems with the React GUI and I''d like to have a good way to bulk
+    enter them."* That is one sitting, one pass through the product, and perhaps fifteen
+    findings.
+
+
+    Task-065 made filing one issue cheap. It did not make filing fifteen cheap, and
+    a review pass produces them in a burst: each finding individually too minor to
+    justify stopping, collectively the difference between a product that feels considered
+    and one that does not. Reopening a modal per item interrupts the review itself,
+    so the observations go back into chat -- which is the leak the whole epic exists
+    to close.
+
+
+    The measure of this task is not that many issues *can* be filed at once. It is
+    whether filing beats saying it out loud. That test was failed during task-067''s
+    own review: the reporter was open on screen and the finding still arrived by chat,
+    because typing it was faster than filing it.'
   description: 'Add a global issue-capture tray to the React application. A user can
     add multiple cards quickly; each card has a required title, optional details,
     captured page/project/task context, and zero or more pasted screenshots using

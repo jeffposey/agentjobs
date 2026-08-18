@@ -2,7 +2,7 @@ schema: 2
 id: task-074-auto-dispatch
 title: Auto-dispatch on human approval, opt-in per project
 created: '2026-08-11T00:21:32.508301Z'
-updated: '2026-08-11T04:37:06.839056Z'
+updated: '2026-08-18T04:35:00.550368Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -12,6 +12,7 @@ category: infrastructure
 tags:
 - dispatch
 - architecture
+effort: 2-3 hours
 assignment:
   eligible: []
 parent: task-060-agent-dispatch
@@ -52,7 +53,24 @@ spec:
 
     Do not start this until tasks 068-073 have been in real use long enough to be
     boring. That is a judgement call for the owner, not a schedule.'
-  context: []
+  constraints: '- Opt-in per project and off by default.
+
+    - **This is the only task where the budget caps bind**, because runaway needs
+    an autonomous cycle to run away in. Per task: 3 dispatches per day, 10 lifetime,
+    60s cooldown.
+
+    - Tripping a cap refuses the run, logs which specific limit refused it, and moves
+    the ball to the human. A task burning its daily cap is telling you something is
+    wrong with the task.
+
+    - Does not weaken D4: the approval that triggers it is still a human act.'
+  out_of_scope: Revisiting the human-clocked rule. If auto-dispatch feels too restrictive,
+    that is a decision to reopen deliberately, not to erode here.
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: Section 7, runaway protection -- the numbers, and what happens when one trips.
+  - path: docs/agent-dispatch-design.md
+    why: Section 2, the human-clocked rule this must not undermine.
 acceptance:
 - id: sc-1
   text: With auto_dispatch on, a human approval that hands the ball to an agent starts

@@ -2,7 +2,7 @@ schema: 2
 id: task-075-agent-worktree-isolation
 title: Give dispatched agents task-specific worktrees
 created: '2026-08-11T01:10:16.518759Z'
-updated: '2026-08-13T22:06:30.031644Z'
+updated: '2026-08-18T04:35:00.575354Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -13,6 +13,7 @@ tags:
 - workflow
 - agent-dx
 - correctness
+effort: half a day
 assignment:
   eligible: []
 parent: task-060-agent-dispatch
@@ -73,7 +74,23 @@ spec:
     \ -- would have prevented failure 3 entirely and costs almost\nnothing. Consider\
     \ it in scope; it is the cheapest fix to the most confusing symptom.\n\n## Out\
     \ of scope\n\nMulti-machine or multi-user coordination. One machine, several agents.\n"
-  context: []
+  constraints: '- Task metadata stays on `main`, always. A dispatched run must not
+    be able to hide a review request on a branch nobody has checked out -- that defeats
+    the merge gate, and it has already happened once (ENGINEERING.md).
+
+    - A worktree for a finished task is litter; removing it is part of the work, not
+    a follow-up.
+
+    - Do not change how interactive agents take worktrees today.'
+  out_of_scope: Changing the branch naming convention or the merge gate itself.
+  context:
+  - path: ALLAGENTS.md
+    why: '''Why you get your own worktree'' -- three failures that produced the rule,
+      all of which a dispatched agent can reproduce.'
+  - path: ENGINEERING.md
+    why: '''Task files live on main, always'' and ''Sharing a clone''.'
+  - path: docs/agent-dispatch-design.md
+    why: Section 8, concurrency.
 acceptance:
 - id: sc-1
   text: ENGINEERING.md's branch lifecycle requires a per-agent worktree and prohibits

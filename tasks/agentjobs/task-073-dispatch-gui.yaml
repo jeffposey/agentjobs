@@ -2,7 +2,7 @@ schema: 2
 id: task-073-dispatch-gui
 title: 'Dispatch in the web UI: the button, the run, and the toggle'
 created: '2026-08-11T00:21:32.502467Z'
-updated: '2026-08-13T22:10:49.324386Z'
+updated: '2026-08-18T04:35:00.532441Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -12,6 +12,7 @@ category: ux
 tags:
 - dispatch
 - architecture
+effort: half a day
 assignment:
   eligible: []
 parent: task-060-agent-dispatch
@@ -56,7 +57,27 @@ spec:
     Exercise it against a freshly started server, not just in tests. Assert on rendered
     values -- a test that finds `data-run-state=` while the template emits `RunState.RUNNING`
     passes and proves nothing.'
-  context: []
+  constraints: '- Dispatch is a **distinct control from Approve**, deliberately: approval
+    means ''I agree'', not ''spend money now''.
+
+    - Run status must be live while a run is in flight, not a page the user has to
+    reload.
+
+    - Any new project-scoped query must be classified in `LiveUpdates.tsx` (PROJECT_TASK_QUERY_IDS,
+    or NON_TASK_PROJECT_QUERY_IDS with its reason) or the drift test fails -- which
+    is that test doing its job.
+
+    - Assert on rendered values, not on markup being present.'
+  out_of_scope: Auto-dispatch on approval (task-074).
+  context:
+  - path: frontend/src/components/TaskDetail.tsx
+    why: Where Approve lives; the Dispatch action sits beside it and must not inherit
+      its meaning.
+  - path: frontend/src/components/LiveUpdates.tsx
+    why: The live-update allowlist and the drift test that fails when a new project-scoped
+      query is unclassified.
+  - path: docs/agent-dispatch-design.md
+    why: Section 5 -- the trigger, and why it is an explicit action.
 acceptance:
 - id: sc-1
   text: 'A task with ball: agent in an enabled project shows a Dispatch action separate

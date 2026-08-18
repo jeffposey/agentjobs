@@ -2,7 +2,7 @@ schema: 2
 id: task-068-dispatch-config
 title: 'Dispatch: machine-local configuration and runner resolution'
 created: '2026-08-11T00:21:32.473840Z'
-updated: '2026-08-11T04:37:06.742900Z'
+updated: '2026-08-18T04:35:00.435256Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -12,6 +12,7 @@ category: infrastructure
 tags:
 - dispatch
 - architecture
+effort: 2-3 hours
 assignment:
   eligible: []
 parent: task-060-agent-dispatch
@@ -61,7 +62,30 @@ spec:
     Every refusal path in the design is a config question. Getting the refusals right
     and tested before any process can start means the later tasks are adding capability
     to a system that already knows how to say no.'
-  context: []
+  constraints: '- The runner argv lives in `~/.agentjobs/dispatch.yaml` and **never**
+    in a project''s versioned config. Otherwise a clone of any repository carries
+    a ''run this command on Jeff''s machine'' payload that the project config legitimises.
+
+    - argv is a list. There is no shell anywhere in this design.
+
+    - The master switch is off until explicitly enabled, and per-project enablement
+    is separate from it. Each gate must be independently sufficient to stop a run.
+
+    - Config is read per call, not cached: a stale runner after editing the file is
+    the kind of failure that costs an hour to diagnose.'
+  out_of_scope: Spawning anything at all. The API endpoint (task-071), the supervisor
+    (task-070) and the UI (task-073) are separate. This task ends with config that
+    resolves to an argv nobody has run yet.
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: Section 3, 'Machine-local configuration' -- the file shape this implements;
+      section 6 for why each gate is separate.
+  - path: src/agentjobs/projects.py
+    why: The registry already knows where each project lives; dispatch resolves its
+      working directory from it rather than inventing one.
+  - path: src/agentjobs/api/dependencies.py
+    why: How project config is located and read today. Follow it rather than adding
+      a second convention.
 acceptance:
 - id: sc-1
   text: A dispatch configuration model loads ~/.agentjobs/dispatch.yaml, honours AGENTJOBS_HOME,

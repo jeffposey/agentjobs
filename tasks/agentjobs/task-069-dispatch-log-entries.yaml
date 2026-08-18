@@ -2,7 +2,7 @@ schema: 2
 id: task-069-dispatch-log-entries
 title: 'Schema: dispatch and dispatch_result log entries'
 created: '2026-08-11T00:21:32.478917Z'
-updated: '2026-08-11T04:37:06.759369Z'
+updated: '2026-08-18T04:35:00.455276Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -12,6 +12,7 @@ category: infrastructure
 tags:
 - dispatch
 - architecture
+effort: 1-2 hours
 assignment:
   eligible: []
 parent: task-060-agent-dispatch
@@ -49,7 +50,26 @@ spec:
     This project decided (schema-design section 9) to make schema changes cheap rather
     than route around them. Encoding dispatch as `type: note` with a magic `data`
     key would be exactly the ''documented but unenforced'' shape v2 was built to remove.'
-  context: []
+  constraints: '- Additive only. Old task files stay valid and no schema version bump
+    is involved (evolution policy, docs/schema-design.md section 9).
+
+    - Both entry types are manager-written, never postable by a caller -- the same
+    rule `transition` already has, for the same reason: an entry that does not accompany
+    a real event is a lie in an append-only record.
+
+    - The dispatch entry records what actually ran: authorising actor, resolved argv,
+    and the commit the working tree was on. A record that cannot answer ''what ran,
+    against what'' is not worth writing.'
+  out_of_scope: Writing either entry from a real run -- that is task-070. This task
+    defines the types, their payloads, and the manager methods that append them.
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: Section 3, 'The task-side record' -- the fields each entry carries.
+  - path: src/agentjobs/models_v2.py
+    why: 'LogEntryType and LogEntry. See how `attachments` was added additively in
+      task-067: Optional and absent, so existing files do not all change.'
+  - path: docs/task-schema.md
+    why: The log[] section, which this extends rather than contradicts.
 acceptance:
 - id: sc-1
   text: LogEntryType gains dispatch and dispatch_result; both round-trip through YAML

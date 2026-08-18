@@ -2,7 +2,7 @@ schema: 2
 id: task-080-dispatch-model-profiles
 title: Design dispatch profiles for model, reasoning, and task difficulty
 created: '2026-08-11T03:14:06.695530Z'
-updated: '2026-08-11T04:37:06.939007Z'
+updated: '2026-08-18T04:35:00.662740Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -15,7 +15,7 @@ tags:
 - model-selection
 - cost-control
 - agent-routing
-effort: one design session, then derive implementation tasks
+effort: a decision session
 assignment:
   eligible: []
 parent: task-060-agent-dispatch
@@ -82,33 +82,27 @@ spec:
     rather than silently expanding several tasks at once.
 
     '
-  constraints: '- Versioned task data may carry portable difficulty metadata, but
-    never executable argv, credentials, account details, or a machine-specific model
-    command.
+  constraints: '- **This is a decision task. Do not decide it alone.** Research the
+    options, write up the trade-offs with a recommendation, then `handoff` to `human`/`decision`
+    and stop. An agent running unattended answering this by default is the specific
+    failure this task exists to prevent.
 
-    - Concrete profiles and provider/model identifiers are machine-local capability
-    configuration for the same security reason runner definitions are machine-local.
+    - Record the outcome as a `decision` entry naming the rejected alternatives, and
+    amend docs/agent-dispatch-design.md so the document and the record agree.
 
-    - Missing or invalid mappings must produce a visible refusal or an explicitly
-    designed safe fallback; they must not silently select a more expensive model.
+    - Write no implementation code.
 
-    - Keep model and reasoning effort as separate resolved dimensions where a provider
-    supports both.
-
-    - Preserve the generic runner/capability abstraction chosen by task-077; Claude
-    may be the first implementation but must not be baked into task schema vocabulary.
-
-    - Difficulty is not priority, elapsed effort, risk, or a substitute for executable
-    acceptance criteria.'
-  out_of_scope: '- Automatically predicting difficulty from task prose.
-
-    - Live price shopping, quota scraping, or provider benchmarking.
-
-    - Hard-coding today''s commercial model catalog into the task schema.
-
-    - Implementing the full dispatcher, auto-dispatch, or agent-loop runtime in this
-    design task.'
-  context: []
+    - Note the id collision: a closed `task-080-attention-tiers` also exists. Address
+    this task by its full slug, never by the bare number. task-105 covers the generator
+    bug that produced the collision.'
+  out_of_scope: Implementing profile selection. This decides the shape.
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: Section 4, how an agent is invoked -- a profile is a variation on the argv
+      template.
+  - path: src/agentjobs/api/routes/status.py
+    why: Where an agent identity is validated today; a profile is chosen alongside
+      it.
 acceptance:
 - id: sc-1
   text: The design chooses and defines a structured, portable task difficulty vocabulary,

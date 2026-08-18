@@ -2,7 +2,7 @@ schema: 2
 id: task-060-agent-dispatch
 title: 'Close the loop: make a human decision actually start an agent (design pass)'
 created: '2026-08-10T07:40:19Z'
-updated: '2026-08-11T04:37:06.959274Z'
+updated: '2026-08-18T04:36:11.073300Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -502,3 +502,54 @@ log:
     edges. Those express ordering or association, but they do not let the UI or API
     present the work as one hierarchy.'
   data: {}
+- id: 10
+  ts: '2026-08-18T04:36:11.073160Z'
+  actor: claude
+  type: progress
+  body: "**Groomed all twelve open children for an unattended kickoff.** Jeff asked\
+    \ on 2026-08-18 for the dispatch backlog to be made ready to hand to an agent\
+    \ overnight, without starting the work itself.\n\n**What was missing, uniformly.**\
+    \ Every child had a good summary and description and **not one** had `constraints`,\
+    \ `out_of_scope`, `context` pointers or `effort`. That gap is invisible while\
+    \ a person is sitting beside the agent, because those are exactly the things a\
+    \ person supplies in conversation \u2014 read this first, don't touch that, stop\
+    \ when you get here. An unattended run has only the record. All four fields are\
+    \ now populated on all twelve, with the design document's relevant *section* named\
+    \ rather than the document as a whole.\n\n**The finding that would have cost a\
+    \ night's run.** Three of the twelve are decisions, not implementation \u2014\
+    \ task-076 (what a dispatched agent may do once running), task-077 (batch run\
+    \ versus steerable session), and task-080-dispatch-model-profiles \u2014 and all\
+    \ three sat `ball: agent/available`, i.e. claimable. An overnight agent would\
+    \ have claimed them and answered them by default. That is exactly the failure\
+    \ a 2026-08-11 grooming note on task-067 identified and refused to create: *\"\
+    Promoting it would put a real open design question into the claimable pool, where\
+    \ an agent would answer it by default rather than by decision.\"*\n\nThey are\
+    \ deliberately **left claimable** rather than parked with a human, because the\
+    \ research half is genuinely agent work and blocking them wastes the night. Instead\
+    \ each carries an explicit gate in `constraints`: research the options, write\
+    \ up the trade-offs with a recommendation, hand off to `human`/`decision`, stop,\
+    \ write no implementation code. So an unattended run does the useful half of all\
+    \ three and halts at the judgement.\n\n**Consequence for sequencing, stated plainly.**\
+    \ task-070 needs both 076 and 077. So an overnight run gets through 068, 069,\
+    \ 075 and 078, plus research on 076/077/080 \u2014 and then stops, because 070\
+    \ through 074 are all downstream of decisions Jeff has not made. **Answering 076\
+    \ and 077 before a run starts is worth more to that run's yield than anything\
+    \ else on this list.**\n\n**Two structural problems found, neither fixed here.**\n\
+    \n1. *This parent is closed while twelve children are open.* The Parent Task Loop\
+    \ in ALLAGENTS.md is written around an open umbrella \u2014 \"work task-NNN\"\
+    \ \u2014 and a closed parent cannot be claimed. A kickoff prompt therefore has\
+    \ to name the children or say \"the open children of task-060\". Left alone rather\
+    \ than restructured unilaterally: creating a new umbrella and re-parenting twelve\
+    \ records is a change Jeff should agree to, not one to discover afterwards.\n\n\
+    2. *Task numbers now collide in the real corpus.* Both `task-080` and `task-081`\
+    \ name two different tasks each. Full slug ids resolve correctly and nothing is\
+    \ broken; the bare number is simply ambiguous to a human, which matters when a\
+    \ kickoff prompt names one. This is task-105's `generate_task_id` bug \u2014 it\
+    \ splits on the first hyphen, so every slugged id is skipped and the sequence\
+    \ restarts from whatever unslugged files remain \u2014 having already fired twice.\
+    \ task-105 is priority `medium`, which now looks low."
+  data:
+    operation:
+      id: 3c9e5a80-71d4-4b62-8f39-e0a4c517d296
+      kind: log_append
+      fingerprint: 8ac7c3e050b98ac09d5713409f68b8b5
