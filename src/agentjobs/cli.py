@@ -22,6 +22,7 @@ from .dispatch.config import (
     set_project_enabled,
 )
 from .dispatch.guards import DispatchRequest, dispatch_task
+from .dispatch.ledger import DispatchLedger, LedgerError, list_runs, live_runs
 from .dispatch.runner import DispatchRunError
 from .manager import TaskManager
 from .mcp.config import BASE_URL_ENV as MCP_BASE_URL_ENV
@@ -30,7 +31,7 @@ from .migration import migrate_tasks
 from .migration.reporter import MigrationReporter
 from .models_v2 import Ball, Lifecycle, Outcome, Priority
 from .project_setup import DEFAULT_CONFIG, build_project_config, initialize_project
-from .projects import ProjectError, ProjectRegistry
+from .projects import ProjectError, ProjectRegistry, default_home
 from .storage import TaskStorage, corpus_snapshot
 
 
@@ -896,6 +897,76 @@ def dispatch_run(
     if handle.session_id:
         typer.echo(f"   Session {handle.session_id} — the CLI assigned that id, not us.")
     typer.echo(f"   Run directory: {handle.directory.path}")
+
+
+@dispatch_app.command("status")
+def dispatch_status(
+    limit: int = typer.Option(20, "--limit", help="How many recent runs to show."),
+    live_only: bool = typer.Option(False, "--live", help="Only runs nothing has ended."),
+) -> None:
+    """List live and recent agent runs."""
+    records = live_runs(default_home()) if live_only else list_runs(default_home())
+    if not records:
+        typer.echo("No runs recorded." if not live_only else "No live runs.")
+        return
+
+    typer.echo(f"{'RUN':14} {'TASK':34} {'MODE':8} {'STATE':10} {'ELAPSED':>9}  SESSION")
+    for record in records[:limit]:
+        elapsed = record.elapsed_seconds()
+        shown = f"{elapsed:,.0f}s" if elapsed is not None else "-"
+        state = record.outcome or record.status
+        typer.echo(
+            f"{record.run_id:14} {record.task_id[:34]:34} {record.mode:8} "
+            f"{state[:10]:10} {shown:>9}  {record.session_id or '-'}"
+        )
+
+
+@dispatch_app.command("cancel")
+def dispatch_cancel(
+    run_id: str = typer.Argument(..., help="Run id from 'agentjobs dispatch status'."),
+) -> None:
+    """Stop one run and record the outcome on its task."""
+    ledger = DispatchLedger(default_home())
+    try:
+        result = ledger.cancel(run_id)
+    except LedgerError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    marker = "✅" if result.stopped else "⚠️ "
+    typer.echo(f"{marker} {result.run_id}: {result.detail}")
+
+
+@dispatch_app.command("stop")
+def dispatch_stop_all() -> None:
+    """Panic button: refuse all new runs, then stop every live one.
+
+    One command, no arguments, on purpose. A kill switch you have to look up the syntax
+    for is not one.
+    """
+    ledger = DispatchLedger(default_home())
+    results = ledger.stop_everything()
+    typer.secho(f"⛔ {sentinel_path()} written; no new run will start.", fg=typer.colors.YELLOW)
+    if not results:
+        typer.echo("   No runs were live.")
+    for result in results:
+        typer.echo(f"   {result.run_id}: {result.detail}")
+    typer.echo("   Delete the sentinel file to re-enable dispatch.")
+
+
+@dispatch_app.command("reconcile")
+def dispatch_reconcile() -> None:
+    """Settle runs left behind by a previous process.
+
+    Batch runs do not outlive their supervisor, so a live one here means a crash and is
+    marked interrupted. Sessions do outlive it deliberately, so a live one is re-attached
+    and left running; only a session the manager no longer knows about is concluded.
+    """
+    results = DispatchLedger(default_home()).reconcile()
+    if not results:
+        typer.echo("Nothing to reconcile.")
+        return
+    for result in results:
+        typer.echo(f"{result.run_id}: {result.detail}")
 
 
 @dispatch_app.command("config")

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import time
-from typing import Any
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator
 
 from fastapi import Depends, FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -13,7 +14,7 @@ from starlette import status
 
 from agentjobs.__version__ import __version__
 from agentjobs.instrumentation import reset_task_parses, task_parse_count
-from agentjobs.projects import ProjectError
+from agentjobs.projects import ProjectError, default_home
 from agentjobs.storage import TaskLoadError, corpus_snapshot
 
 from .routes import (
@@ -31,7 +32,40 @@ DESCRIPTION = (
     "management, status tracking, prompt coordination, and search."
 )
 
+
+def _reconcile_dispatch_runs() -> None:
+    """Settle runs left behind by a previous process, at startup.
+
+    This is what makes "a crashed run does not disappear silently" true rather than
+    aspirational: a batch run still marked live means its supervisor died with the
+    process that owned it, and it becomes an ``interrupted`` entry on its task with the
+    ball handed to a human. A live *session* is deliberately the opposite -- it outlives
+    us on purpose, so it is re-attached and left alone.
+
+    Failures here are reported and never fatal. A server that refuses to start because
+    it could not tidy up is worse than one that starts with the tidying undone, and the
+    run directories are still on disk to reconcile next time.
+    """
+    from agentjobs.dispatch.ledger import DispatchLedger, LedgerError
+
+    try:
+        results = DispatchLedger(default_home()).reconcile()
+    except (LedgerError, OSError) as exc:  # pragma: no cover - defensive
+        print(f"Dispatch reconciliation skipped: {exc}", flush=True)
+        return
+    for result in results:
+        print(f"Dispatch reconcile {result.run_id}: {result.detail}", flush=True)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Run startup reconciliation once, before the first request is served."""
+    _reconcile_dispatch_runs()
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="AgentJobs API",
     description=DESCRIPTION,
     version=__version__,
