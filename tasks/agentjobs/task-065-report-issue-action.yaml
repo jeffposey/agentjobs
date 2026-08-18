@@ -2,10 +2,45 @@ schema: 2
 id: task-065-report-issue-action
 title: 'Report Issue: capture a problem from any page, as a task'
 created: '2026-08-10T22:57:38.570148Z'
-updated: '2026-08-15T22:34:23.806760Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-18T02:39:10.960201Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: "Review the Report Issue action on branch `feat/task-065-report-issue-action`\
+  \ (worktree `C:/projects/aj-065`), then approve or send it back.\n\n**A review server\
+  \ is running for you: http://127.0.0.1:8899/app/ \u2014 throwaway data, own port,\
+  \ nothing touches your real corpus.** Click anything, including the destructive\
+  \ controls. Say the word and I will stop it.\n\nWhat to look at, both states seeded:\n\
+  \n1. `/app/p/review-sandbox/tasks/task-001-dashboard-layout` \u2014 a task page.\
+  \ Hit **Report issue** (bottom right). The form pre-fills the route and offers to\
+  \ link the task; file one and follow the confirmation into the created record.\n\
+  2. Switch the destination to **No Human Configured** in the form's project select\
+  \ \u2014 the reporter refuses and explains, rather than filing an unattributable\
+  \ record.\n3. `/app/p/review-sandbox/tasks/task-002-log-timestamps` \u2014 an already-filed\
+  \ report, showing the `reported-issue` tag and the new **Related** panel linking\
+  \ back to the page it was noticed on. `task-003-ordinary-work` has no such panel,\
+  \ for comparison.\n4. `/app/not-found` and `/` \u2014 the reporter is present on\
+  \ pages with no project in scope. This is the deviation from the spec worth your\
+  \ eye: the spec said 'next to the project switcher', and that nav only exists on\
+  \ project routes, so it would have missed the picker that ac-1 names. Reasoning\
+  \ is in the decision log.\n\nThe judgement calls, all recorded as decisions above:\
+  \ the destination project is an explicit field defaulted to the one you are viewing\
+  \ (ac-5); the page is stored as prose in the description rather than in `links[]`,\
+  \ because the durable half of a URL is the route and not the host; and `related`\
+  \ dependencies now render on the task detail page, which is a small reach outside\
+  \ this task's stated surface \u2014 without it, ac-3's link existed only inside\
+  \ the YAML.\n\nOne thing to look at critically: the floating control can sit over\
+  \ page content. That is the first thing I would want a second opinion on.\n\nVerification:\
+  \ `poetry run python scripts/check.py` fully green \u2014 1418 pytest, 81 vitest,\
+  \ 8 Playwright including two new browser paths that file real issues against a real\
+  \ server and read back the stored record. Black/ruff/mypy clean on the changed files\
+  \ (the two pre-existing black failures in `tests/test_cli.py` and `tests/test_task_corpus.py`\
+  \ are on main and untouched).\n\nUnrelated, found while seeding the sandbox and\
+  \ already filed: `generate_task_id` ignores every slugged task id, so the sandbox\
+  \ generated `task-001` next to `task-001-dashboard-layout`. That is **task-105**,\
+  \ not a regression from this work.\n\nOn approval I will rebase onto main, merge\
+  \ --no-ff, close this, remove the worktree, rebuild the frontend bundle in the main\
+  \ clone, and continue task-120 with task-067."
 archived: false
 priority: high
 category: developer_experience
@@ -15,6 +50,7 @@ tags:
 - workflow
 effort: 2-3 hours
 assignment:
+  owner: claude
   eligible: []
 parent: task-120-issue-reporter-workflow
 spec:
@@ -106,7 +142,9 @@ dependencies:
   type: needs
   note: 'Attribution: a report filed by ''human'' has the defect 064 fixes.'
 links: []
-branches: []
+branches:
+- name: feat/task-065-report-issue-action
+  status: active
 log:
 - id: 1
   ts: '2026-08-13T22:10:49.247227Z'
@@ -116,3 +154,165 @@ log:
     with the packaged React component or shared Python logic that owns the current
     product surface. Historical design context remains unchanged.'
   data: {}
+- id: 2
+  ts: '2026-08-18T02:07:55.827066Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 3f2a1c9e-7b41-4d2e-9a63-5c8e0d1f4b72
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-18T02:38:07.671210Z'
+  actor: claude
+  type: decision
+  body: "**ac-5: a reported issue lands in an explicitly chosen project, defaulted\
+    \ to the one being viewed.** The form carries a \"File into project\" select,\
+    \ always visible, pre-set to the project whose page you were on (the first registered\
+    \ project when the page has none, such as the picker or a status card). Nothing\
+    \ is filed without that field being on screen.\n\n*Rejected: file silently into\
+    \ the project being viewed.* This is the failure the spec named \u2014 noticing\
+    \ an AgentJobs defect while reading another project is the common case, and that\
+    \ report belongs in AgentJobs.\n\n*Rejected: a `report_issue_project` key in config\
+    \ naming a fixed destination.* It answers the same question with a setting nobody\
+    \ will set, and it is wrong the first time a finding really is about the project\
+    \ you are reading. A visible field is not a silent default; a configured one is.\n\
+    \n*The residual cost, accepted:* one more control on a form whose whole point\
+    \ is low friction. It is a select with the right answer already chosen, so the\
+    \ fast path is still type-title, type-details, submit.\n\nFiling across projects\
+    \ has one consequence worth stating: the `related` dependency back to the task\
+    \ you were viewing is **omitted**, because a dependency resolves within one project's\
+    \ corpus and a cross-project edge would be permanently unmet and permanently red.\
+    \ The fact is written into the description in words instead, naming both the task\
+    \ and the project it belongs to, so nothing is lost \u2014 only the machine-readable\
+    \ form."
+  data:
+    operation:
+      id: a1d4c2b8-9e77-4f31-b6a2-0c5e7d918f40
+      kind: log_append
+      fingerprint: 7e013fd6f4fb65f58905fa0f8fb3e412
+- id: 4
+  ts: '2026-08-18T02:38:22.533798Z'
+  actor: claude
+  type: decision
+  body: "**Placement: a fixed control rendered beside the router, not a nav item next\
+    \ to the project switcher.** The spec asked for the latter; ac-1 asks for every\
+    \ page including the project picker, and those two cannot both be satisfied.\n\
+    \nThe nav lives inside `ProjectApp`, which only mounts on `/p/:projectId/*`. The\
+    \ picker (`/`), the not-found page, and every status card \u2014 \"no projects\
+    \ are registered\", \"the registry could not load\", \"unsupported task schema\"\
+    \ \u2014 render without it. Those are exactly the pages a finding about the picker\
+    \ would be made on, and a control that disappears there fails the criterion the\
+    \ spec's own placement sentence was serving.\n\nSo `App` renders `<IssueReporter\
+    \ />` as a sibling of `<Routes>`. One control, one behaviour, no page state it\
+    \ can vary with \u2014 which is the property the spec was protecting when it kept\
+    \ this out of the review panel.\n\n*Rejected: put it in the nav and duplicate\
+    \ a fallback on the status pages.* Two triggers is two things to keep in step,\
+    \ and the second one would be the one nobody tests.\n\n*Rejected: hoist the header\
+    \ out of `ProjectApp` so every route renders the shell.* A larger refactor of\
+    \ `App.tsx` that would restructure pages this task has no reason to touch, and\
+    \ it would still need the nav to degrade sensibly with no project in scope.\n\n\
+    *The residual cost, accepted:* a floating control can overlap page content \u2014\
+    \ worth Jeff's eye during review, and the first thing the sandbox shows.\n\nTask-121's\
+    \ capture tray wants a persistent global affordance for the same reason, so this\
+    \ is the placement that generalises."
+  data:
+    operation:
+      id: c7f2e015-3b8a-4d6c-9a11-2f84b0c37e59
+      kind: log_append
+      fingerprint: e25ae291b59a63d97ecc4d95bc9af920
+- id: 5
+  ts: '2026-08-18T02:38:40.186040Z'
+  actor: claude
+  type: decision
+  body: "**How \"where the reporter was\" is stored, and why the task detail page\
+    \ grew a Related panel.**\n\n*The page goes into the description as prose, not\
+    \ into `links[]`.* `Link.url` is an `HttpUrl`, so it demands an absolute URL \u2014\
+    \ and the absolute URL is `http://localhost:8876/...` on the desktop and a tailnet\
+    \ host on the phone. The host is the half that rots; the in-app route (`/p/agentjobs/tasks/task-052`)\
+    \ is the half that still means something in three weeks, which is the span the\
+    \ intent names. Writing the route into the description stores exactly the durable\
+    \ part, in the file, where this product's premise says a reader will find it.\n\
+    \n*Rejected: `links[]` with the absolute URL.* Structured, but the structure encodes\
+    \ a host that is wrong for whichever device did not file it, and nothing consumes\
+    \ `links[]` today anyway.\n\n*Rejected: `spec.context[]`.* That list is curated\
+    \ read-this-first repository paths. A URL is not a path, and diluting it would\
+    \ make the field mean two things.\n\n**And a scope call.** `related` dependencies\
+    \ were stored by the schema and rendered nowhere \u2014 they neither block nor\
+    \ are blocked, so `dependency_facts` never computed them and the detail page had\
+    \ no panel for them. Left alone, ac-3's \"links the task they were viewing\" would\
+    \ have been satisfied only inside the YAML: the edge would exist and no one using\
+    \ the product could follow it. Since rediscovery happens in the UI, `related`\
+    \ now reaches `TaskDetailResponse` and renders beside Needs and blocks.\n\n*Taken\
+    \ deliberately even though it touches a page outside this task's stated surface.*\
+    \ The alternative was to declare ac-3 met by a field nobody can see, which is\
+    \ the kind of pass that catches nothing. It is ~20 lines across the route, the\
+    \ response model and one component, with the generated client regenerated."
+  data:
+    operation:
+      id: 4b6e1a97-8d20-42f5-a3c8-71e9f0b25d3c
+      kind: log_append
+      fingerprint: fcbdb5c029c3a9426e4013d7e5f3eadd
+- id: 6
+  ts: '2026-08-18T02:38:52.500782Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: d8c30f16-5a41-4e29-b7d5-6c1928f4a0be
+      kind: update_content
+      fingerprint: aa7928b9afd6e337d762bb09e6a71b76
+- id: 7
+  ts: '2026-08-18T02:39:10.959984Z'
+  actor: claude
+  type: handoff
+  body: "Review the Report Issue action on branch `feat/task-065-report-issue-action`\
+    \ (worktree `C:/projects/aj-065`), then approve or send it back.\n\n**A review\
+    \ server is running for you: http://127.0.0.1:8899/app/ \u2014 throwaway data,\
+    \ own port, nothing touches your real corpus.** Click anything, including the\
+    \ destructive controls. Say the word and I will stop it.\n\nWhat to look at, both\
+    \ states seeded:\n\n1. `/app/p/review-sandbox/tasks/task-001-dashboard-layout`\
+    \ \u2014 a task page. Hit **Report issue** (bottom right). The form pre-fills\
+    \ the route and offers to link the task; file one and follow the confirmation\
+    \ into the created record.\n2. Switch the destination to **No Human Configured**\
+    \ in the form's project select \u2014 the reporter refuses and explains, rather\
+    \ than filing an unattributable record.\n3. `/app/p/review-sandbox/tasks/task-002-log-timestamps`\
+    \ \u2014 an already-filed report, showing the `reported-issue` tag and the new\
+    \ **Related** panel linking back to the page it was noticed on. `task-003-ordinary-work`\
+    \ has no such panel, for comparison.\n4. `/app/not-found` and `/` \u2014 the reporter\
+    \ is present on pages with no project in scope. This is the deviation from the\
+    \ spec worth your eye: the spec said 'next to the project switcher', and that\
+    \ nav only exists on project routes, so it would have missed the picker that ac-1\
+    \ names. Reasoning is in the decision log.\n\nThe judgement calls, all recorded\
+    \ as decisions above: the destination project is an explicit field defaulted to\
+    \ the one you are viewing (ac-5); the page is stored as prose in the description\
+    \ rather than in `links[]`, because the durable half of a URL is the route and\
+    \ not the host; and `related` dependencies now render on the task detail page,\
+    \ which is a small reach outside this task's stated surface \u2014 without it,\
+    \ ac-3's link existed only inside the YAML.\n\nOne thing to look at critically:\
+    \ the floating control can sit over page content. That is the first thing I would\
+    \ want a second opinion on.\n\nVerification: `poetry run python scripts/check.py`\
+    \ fully green \u2014 1418 pytest, 81 vitest, 8 Playwright including two new browser\
+    \ paths that file real issues against a real server and read back the stored record.\
+    \ Black/ruff/mypy clean on the changed files (the two pre-existing black failures\
+    \ in `tests/test_cli.py` and `tests/test_task_corpus.py` are on main and untouched).\n\
+    \nUnrelated, found while seeding the sandbox and already filed: `generate_task_id`\
+    \ ignores every slugged task id, so the sandbox generated `task-001` next to `task-001-dashboard-layout`.\
+    \ That is **task-105**, not a regression from this work.\n\nOn approval I will\
+    \ rebase onto main, merge --no-ff, close this, remove the worktree, rebuild the\
+    \ frontend bundle in the main clone, and continue task-120 with task-067."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 6e5b0c74-1f38-4a92-8d67-b3e2a145c908
+      kind: handoff
+      fingerprint: 4b15f93c0999f2f5d4f6d345029c98b2
