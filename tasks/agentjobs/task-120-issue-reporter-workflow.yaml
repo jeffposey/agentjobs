@@ -2,7 +2,7 @@ schema: 2
 id: task-120-issue-reporter-workflow
 title: 'Issue reporter: rapid screenshot-backed and batch task capture'
 created: '2026-08-15T22:29:32.639551Z'
-updated: '2026-08-15T22:33:15.275439Z'
+updated: '2026-08-18T04:00:44.845287Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -102,3 +102,34 @@ log:
     schema-backed queue_position that will encode this durably; internal child dependencies
     remain because those are real implementation prerequisites.
   data: {}
+- id: 3
+  ts: '2026-08-18T04:00:44.845169Z'
+  actor: claude
+  type: note
+  body: "**The epic demonstrated its own premise during its own review, and the argument\
+    \ is worth keeping.**\n\nReviewing task-067, Jeff opened the Report Issue form\
+    \ and said there was no way to attach a screenshot \u2014 while the sentence explaining\
+    \ how to attach one was on screen. It was a line of muted 12px text between two\
+    \ fields. The feature worked; the affordance did not exist as far as a person\
+    \ was concerned.\n\nHis framing, and the reason this is recorded at the epic rather\
+    \ than in the child: *this is a class of defect an agent does not get right on\
+    \ the first try, because the judgement being made is a human one \u2014 whether\
+    \ something reads as a control. That is fine, and it is exactly what this feature\
+    \ set is for: making the correction cheap enough to happen immediately.*\n\nTwo\
+    \ things follow for the remaining work.\n\n**It is evidence about value, not just\
+    \ a bug.** The case for task-121's capture tray is usually argued as convenience.\
+    \ The stronger argument is this: a review pass produces a burst of these small\
+    \ human-judgement findings at once, each individually too minor to justify stopping\
+    \ and authoring a task, and collectively the difference between a product that\
+    \ feels considered and one that does not. Batch capture is what makes the burst\
+    \ survivable.\n\n**The finding reached me through chat.** The reporter existed,\
+    \ was running, and was on screen \u2014 and the observation still went into the\
+    \ conversation, because typing it was faster than filing it in the middle of a\
+    \ review. That is the residual friction the epic has left to remove, and it is\
+    \ the thing to measure task-121 against: not whether many issues *can* be filed\
+    \ at once, but whether filing beats saying it out loud."
+  data:
+    operation:
+      id: 8f3c07a2-51b6-4e94-a7d8-b2c169e0d453
+      kind: log_append
+      fingerprint: 4aba70e764c8c35fa578a01bcfae7180

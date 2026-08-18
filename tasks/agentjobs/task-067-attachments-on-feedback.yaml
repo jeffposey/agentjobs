@@ -2,50 +2,32 @@ schema: 2
 id: task-067-attachments-on-feedback
 title: Attach images to feedback and issue reports, primarily by clipboard paste
 created: '2026-08-10T23:31:30.455098Z'
-updated: '2026-08-18T03:54:44.886617Z'
+updated: '2026-08-18T04:00:59.938421Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: "Review pasted-screenshot attachments on branch `feat/task-067-attachments-on-feedback`\
-  \ (worktree `C:/projects/aj-067`), then approve or send it back.\n\n**Review server\
-  \ running: http://127.0.0.1:8899/app/ \u2014 throwaway data, own port, nothing touches\
-  \ your real corpus.** Click anything. Say the word and I will stop it.\n\nThe fastest\
-  \ way to judge this is to take a screenshot and paste it. Both surfaces are seeded:\n\
-  \n1. `/app/p/review-sandbox/tasks/task-001-badge-shows-enum` \u2014 the ball is\
-  \ with you, so the **Request Changes** box is on screen. Screenshot something, click\
-  \ into the box, Ctrl+V. Submit, then look at the entry you just wrote: the image\
-  \ is shown inline where the entry is read.\n2. The same page already carries two\
-  \ stored images on earlier entries, so you can see the rendering without pasting\
-  \ anything.\n3. **Report issue** (bottom right, from any page) has the identical\
-  \ widget \u2014 same component, so they cannot drift.\n4. `task-002-no-image` is\
-  \ the same kind of entry without images, for comparison.\n5. Try pasting something\
-  \ over 5 MB: it is refused at the moment of the paste, with your typed prose untouched.\
-  \ That is ac-6, and the failure it exists to prevent.\n\n**What is stored.** Open\
-  \ a task file in the sandbox (`%TEMP%/agentjobs-review-067/review-sandbox/tasks/`).\
-  \ The YAML carries five metadata fields and no base64; the image is a real file\
-  \ at `attachments/<task-id>/<sha256>.png`. That is the storage decision you accepted\
-  \ on 2026-08-15, unchanged.\n\n**Worth your eye, in order:**\n\n- **The 5 MiB ceiling\
-  \ and PNG/JPEG/WebP only.** Both come from the accepted decision, but you have not\
-  \ yet met them in use. If a screenshot of your 4K display lands over the line, the\
-  \ limit is wrong, not the screenshot.\n- **The orphan report is reporting only.**\
-  \ `agentjobs attachments --orphans`, run from the project directory, lists stored\
-  \ files nothing references and deletes nothing. `task-003-orphan-demo` in the sandbox\
-  \ has one. I did not build cleanup: git keeps every blob anyway, so deleting the\
-  \ working file reclaims nothing while risking the thing an entry points at.\n- **The\
-  \ reject box deliberately has no paste target**, only Request Changes and Report\
-  \ Issue. Reasoning in the decision log; two lines to add if you disagree.\n\n**Verification.**\
-  \ `poetry run python scripts/check.py` fully green \u2014 1435 pytest, 91 vitest,\
-  \ 10 Playwright. Two of the browser tests are the ones that could not be faked:\
-  \ a real ClipboardEvent carrying a real image, base64 over the wire, a sidecar written\
-  \ to disk, and the browser fetching it back and decoding it to a non-zero width.\
-  \ Also checked by hand in the sandbox: both seeded images render at their true dimensions\
-  \ through the real server.\n\n**One thing I changed outside this task.** `create-task.spec.ts`\
-  \ reached the create form through the dashboard's empty-state call-to-action, so\
-  \ it silently depended on running before every other spec. My new spec file sorts\
-  \ ahead of it and broke that. Fixed to use the nav link, as `promote-draft.spec.ts`\
-  \ already did. It is a separate commit.\n\nOn approval I will rebase, merge --no-ff,\
-  \ close this, remove the worktree, rebuild the bundle in the main clone, and continue\
-  \ task-120 with task-121 (the capture tray), which is the last child."
+ball_prompt: "Second review round. Same server, no restart needed: http://127.0.0.1:8899/app/\
+  \ \u2014 it reads the bundle from disk, so the rebuild is already live and your\
+  \ sandbox data is intact.\n\n**Your finding:** opening Report Issue, there was no\
+  \ way to attach a screenshot. The affordance was on screen at the time \u2014 one\
+  \ line of muted 12px text between two fields \u2014 which is the same as not existing.\
+  \ You were right, and the fix is not an argument about whether the text was there.\n\
+  \n**Changed:**\n\n1. A bordered, button-shaped **\U0001F5BC Attach a screenshot**\
+  \ control at readable contrast, under the box in both surfaces.\n2. The shortcut\
+  \ sits beside it, with Ctrl and V as `<kbd>` rather than buried in a sentence.\n\
+  3. The paste hint is also the textarea's placeholder \u2014 where the cursor already\
+  \ is when someone has a screenshot to give.\n4. Restored a regression I introduced:\
+  \ the review panel's feedback placeholder (\"Explain what needs to change...\")\
+  \ was lost when its plain textarea became the shared picker.\n\nOpen Report Issue\
+  \ and confirm the control reads as one. Then the same on `/app/p/review-sandbox/tasks/task-001-badge-shows-enum`\
+  \ under Request Changes, since it is the same component.\n\nSuites still green after\
+  \ the change: 91 vitest, 10 Playwright.\n\nYour framing \u2014 that this is a class\
+  \ of defect an agent does not get right unaided, and that making the correction\
+  \ cheap is the point of the feature set \u2014 is recorded on task-120, together\
+  \ with what it implies for task-121: the measure is not whether many issues can\
+  \ be filed at once, but whether filing beats saying it out loud. This finding reached\
+  \ me through chat despite the reporter being open on screen, which is the friction\
+  \ still left."
 archived: false
 priority: high
 category: ux
@@ -394,3 +376,37 @@ log:
       id: c6019e73-2b4f-4d85-a17e-5f3b8d240ea1
       kind: handoff
       fingerprint: fbb27690f3c0e4098c1bb43a82829b9f
+- id: 10
+  ts: '2026-08-18T04:00:59.938254Z'
+  actor: claude
+  type: handoff
+  body: "Second review round. Same server, no restart needed: http://127.0.0.1:8899/app/\
+    \ \u2014 it reads the bundle from disk, so the rebuild is already live and your\
+    \ sandbox data is intact.\n\n**Your finding:** opening Report Issue, there was\
+    \ no way to attach a screenshot. The affordance was on screen at the time \u2014\
+    \ one line of muted 12px text between two fields \u2014 which is the same as not\
+    \ existing. You were right, and the fix is not an argument about whether the text\
+    \ was there.\n\n**Changed:**\n\n1. A bordered, button-shaped **\U0001F5BC Attach\
+    \ a screenshot** control at readable contrast, under the box in both surfaces.\n\
+    2. The shortcut sits beside it, with Ctrl and V as `<kbd>` rather than buried\
+    \ in a sentence.\n3. The paste hint is also the textarea's placeholder \u2014\
+    \ where the cursor already is when someone has a screenshot to give.\n4. Restored\
+    \ a regression I introduced: the review panel's feedback placeholder (\"Explain\
+    \ what needs to change...\") was lost when its plain textarea became the shared\
+    \ picker.\n\nOpen Report Issue and confirm the control reads as one. Then the\
+    \ same on `/app/p/review-sandbox/tasks/task-001-badge-shows-enum` under Request\
+    \ Changes, since it is the same component.\n\nSuites still green after the change:\
+    \ 91 vitest, 10 Playwright.\n\nYour framing \u2014 that this is a class of defect\
+    \ an agent does not get right unaided, and that making the correction cheap is\
+    \ the point of the feature set \u2014 is recorded on task-120, together with what\
+    \ it implies for task-121: the measure is not whether many issues can be filed\
+    \ at once, but whether filing beats saying it out loud. This finding reached me\
+    \ through chat despite the reporter being open on screen, which is the friction\
+    \ still left."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: b5d70c48-3e21-4a96-8f14-6d2e93a1c70b
+      kind: handoff
+      fingerprint: b4f0f77b0a187b958bdcf932f00deaf2
