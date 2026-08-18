@@ -467,6 +467,68 @@ export type DependencyRelation = {
 export type DependencyType = 'needs' | 'blocks' | 'related';
 
 /**
+ * DispatchCancelResult
+ *
+ * What cancelling asked for, and whether it happened.
+ */
+export type DispatchCancelResult = {
+    /**
+     * Detail
+     */
+    detail: string;
+    run: DispatchRunView;
+    /**
+     * Run Id
+     */
+    run_id: string;
+    /**
+     * Stopped
+     */
+    stopped: boolean;
+};
+
+/**
+ * DispatchEnableRequest
+ *
+ * Point a project at a runner this machine already defines, and turn it on.
+ *
+ * ``runner`` names an existing runner; it never creates one. Omitted, the project
+ * keeps the runner it already names, or takes the only one defined -- the same rule
+ * ``agentjobs dispatch enable`` follows, so the two surfaces cannot disagree.
+ */
+export type DispatchEnableRequest = {
+    /**
+     * Runner
+     */
+    runner?: string | null;
+};
+
+/**
+ * DispatchRefusalView
+ *
+ * The gate that currently refuses this project, in the API's own vocabulary.
+ *
+ * Carried on the state rather than raised as an error, because "you cannot dispatch,
+ * here is exactly why" is the normal answer for a project nobody has enabled -- not a
+ * failure. The GUI renders ``reason``-specific copy from it; ``message`` is the
+ * library's own sentence and is always safe to show.
+ */
+export type DispatchRefusalView = {
+    /**
+     * Message
+     *
+     * The refusal, in words.
+     */
+    message: string;
+    /**
+     * Reason
+     *
+     * Stable machine-readable code, e.g. 'disabled'.
+     */
+    reason: string;
+};
+
+/**
  * DispatchRequestBody
  *
  * Ask AgentJobs to start an agent on this task.
@@ -483,6 +545,74 @@ export type DispatchRequestBody = {
      * Log entry id authorising this dispatch. Defaults to the newest entry. Its actor must be a configured human.
      */
     caused_by?: number | null;
+};
+
+/**
+ * DispatchRunView
+ *
+ * One run, as the browser sees it.
+ */
+export type DispatchRunView = {
+    /**
+     * Caused By
+     *
+     * Log entry id this run was attributed to.
+     */
+    caused_by?: number | null;
+    /**
+     * Elapsed Seconds
+     *
+     * Seconds since start for a live run; total duration once it ended.
+     */
+    elapsed_seconds?: number | null;
+    /**
+     * Live
+     *
+     * Nothing has declared this run over.
+     */
+    live: boolean;
+    /**
+     * Mode
+     */
+    mode: string;
+    /**
+     * Outcome
+     */
+    outcome?: string | null;
+    /**
+     * Output Url
+     *
+     * Where this run's captured output is readable.
+     */
+    output_url: string;
+    /**
+     * Posture
+     */
+    posture: string;
+    /**
+     * Project Id
+     */
+    project_id: string;
+    /**
+     * Run Id
+     */
+    run_id: string;
+    /**
+     * Session Id
+     */
+    session_id?: string | null;
+    /**
+     * Started At
+     */
+    started_at?: string | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Task Id
+     */
+    task_id: string;
 };
 
 /**
@@ -527,6 +657,88 @@ export type DispatchStarted = {
      * The task the run is working.
      */
     task_id: string;
+};
+
+/**
+ * DispatchStateView
+ *
+ * Everything the GUI needs to decide what to offer, and what to explain.
+ */
+export type DispatchStateView = {
+    /**
+     * Auto Dispatch
+     *
+     * Auto-dispatch on approval (task-074).
+     */
+    auto_dispatch?: boolean;
+    /**
+     * Available Runners
+     *
+     * Runner names this machine defines. Read-only: the browser may point a project at one of these and can never create one.
+     */
+    available_runners?: Array<string>;
+    /**
+     * Can Dispatch
+     *
+     * Every gate is open right now.
+     */
+    can_dispatch: boolean;
+    /**
+     * Config Path
+     *
+     * Where a human edits any of this.
+     */
+    config_path: string;
+    /**
+     * Configured
+     *
+     * A dispatch.yaml exists on this machine.
+     */
+    configured: boolean;
+    /**
+     * Master Enabled
+     *
+     * The machine-wide 'enabled:' switch.
+     */
+    master_enabled: boolean;
+    /**
+     * Posture
+     *
+     * What a run here may do.
+     */
+    posture?: string | null;
+    /**
+     * Project Enabled
+     *
+     * This project is enabled for dispatch.
+     */
+    project_enabled: boolean;
+    /**
+     * Project Id
+     */
+    project_id: string;
+    /**
+     * Which gate refuses, when can_dispatch is false.
+     */
+    refusal?: DispatchRefusalView | null;
+    /**
+     * Runner
+     *
+     * Runner this project is pointed at.
+     */
+    runner?: string | null;
+    /**
+     * Sentinel Active
+     *
+     * DISPATCH_DISABLED exists; all runs refused.
+     */
+    sentinel_active: boolean;
+    /**
+     * Sentinel File
+     *
+     * Path of the kill-switch sentinel.
+     */
+    sentinel_file: string;
 };
 
 /**
@@ -2428,6 +2640,161 @@ export type GetDashboardApiDashboardGetResponses = {
 
 export type GetDashboardApiDashboardGetResponse = GetDashboardApiDashboardGetResponses[keyof GetDashboardApiDashboardGetResponses];
 
+export type GetDispatchStateApiDispatchGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/dispatch';
+};
+
+export type GetDispatchStateApiDispatchGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchStateView;
+};
+
+export type GetDispatchStateApiDispatchGetResponse = GetDispatchStateApiDispatchGetResponses[keyof GetDispatchStateApiDispatchGetResponses];
+
+export type DisableDispatchApiDispatchDisablePostData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/dispatch/disable';
+};
+
+export type DisableDispatchApiDispatchDisablePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchStateView;
+};
+
+export type DisableDispatchApiDispatchDisablePostResponse = DisableDispatchApiDispatchDisablePostResponses[keyof DisableDispatchApiDispatchDisablePostResponses];
+
+export type EnableDispatchApiDispatchEnablePostData = {
+    body?: DispatchEnableRequest;
+    path?: never;
+    query?: never;
+    url: '/api/dispatch/enable';
+};
+
+export type EnableDispatchApiDispatchEnablePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EnableDispatchApiDispatchEnablePostError = EnableDispatchApiDispatchEnablePostErrors[keyof EnableDispatchApiDispatchEnablePostErrors];
+
+export type EnableDispatchApiDispatchEnablePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchStateView;
+};
+
+export type EnableDispatchApiDispatchEnablePostResponse = EnableDispatchApiDispatchEnablePostResponses[keyof EnableDispatchApiDispatchEnablePostResponses];
+
+export type ListDispatchRunsApiDispatchRunsGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Task Id
+         *
+         * Only runs for this task. Omitted, every run in the project.
+         */
+        task_id?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/dispatch/runs';
+};
+
+export type ListDispatchRunsApiDispatchRunsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListDispatchRunsApiDispatchRunsGetError = ListDispatchRunsApiDispatchRunsGetErrors[keyof ListDispatchRunsApiDispatchRunsGetErrors];
+
+export type ListDispatchRunsApiDispatchRunsGetResponses = {
+    /**
+     * Response List Dispatch Runs Api Dispatch Runs Get
+     *
+     * Successful Response
+     */
+    200: Array<DispatchRunView>;
+};
+
+export type ListDispatchRunsApiDispatchRunsGetResponse = ListDispatchRunsApiDispatchRunsGetResponses[keyof ListDispatchRunsApiDispatchRunsGetResponses];
+
+export type CancelDispatchRunApiDispatchRunsRunIdCancelPostData = {
+    body?: never;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/api/dispatch/runs/{run_id}/cancel';
+};
+
+export type CancelDispatchRunApiDispatchRunsRunIdCancelPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CancelDispatchRunApiDispatchRunsRunIdCancelPostError = CancelDispatchRunApiDispatchRunsRunIdCancelPostErrors[keyof CancelDispatchRunApiDispatchRunsRunIdCancelPostErrors];
+
+export type CancelDispatchRunApiDispatchRunsRunIdCancelPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchCancelResult;
+};
+
+export type CancelDispatchRunApiDispatchRunsRunIdCancelPostResponse = CancelDispatchRunApiDispatchRunsRunIdCancelPostResponses[keyof CancelDispatchRunApiDispatchRunsRunIdCancelPostResponses];
+
+export type ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetData = {
+    body?: never;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/api/dispatch/runs/{run_id}/output';
+};
+
+export type ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetError = ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetErrors[keyof ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetErrors];
+
+export type ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: string;
+};
+
+export type ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetResponse = ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetResponses[keyof ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetResponses];
+
 export type ApiHealthCheckApiHealthGetData = {
     body?: never;
     path?: never;
@@ -2570,6 +2937,207 @@ export type GetDashboardApiProjectsProjectIdDashboardGetResponses = {
 };
 
 export type GetDashboardApiProjectsProjectIdDashboardGetResponse = GetDashboardApiProjectsProjectIdDashboardGetResponses[keyof GetDashboardApiProjectsProjectIdDashboardGetResponses];
+
+export type GetDispatchStateApiProjectsProjectIdDispatchGetData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/dispatch';
+};
+
+export type GetDispatchStateApiProjectsProjectIdDispatchGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDispatchStateApiProjectsProjectIdDispatchGetError = GetDispatchStateApiProjectsProjectIdDispatchGetErrors[keyof GetDispatchStateApiProjectsProjectIdDispatchGetErrors];
+
+export type GetDispatchStateApiProjectsProjectIdDispatchGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchStateView;
+};
+
+export type GetDispatchStateApiProjectsProjectIdDispatchGetResponse = GetDispatchStateApiProjectsProjectIdDispatchGetResponses[keyof GetDispatchStateApiProjectsProjectIdDispatchGetResponses];
+
+export type DisableDispatchApiProjectsProjectIdDispatchDisablePostData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/dispatch/disable';
+};
+
+export type DisableDispatchApiProjectsProjectIdDispatchDisablePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DisableDispatchApiProjectsProjectIdDispatchDisablePostError = DisableDispatchApiProjectsProjectIdDispatchDisablePostErrors[keyof DisableDispatchApiProjectsProjectIdDispatchDisablePostErrors];
+
+export type DisableDispatchApiProjectsProjectIdDispatchDisablePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchStateView;
+};
+
+export type DisableDispatchApiProjectsProjectIdDispatchDisablePostResponse = DisableDispatchApiProjectsProjectIdDispatchDisablePostResponses[keyof DisableDispatchApiProjectsProjectIdDispatchDisablePostResponses];
+
+export type EnableDispatchApiProjectsProjectIdDispatchEnablePostData = {
+    body?: DispatchEnableRequest;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/dispatch/enable';
+};
+
+export type EnableDispatchApiProjectsProjectIdDispatchEnablePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EnableDispatchApiProjectsProjectIdDispatchEnablePostError = EnableDispatchApiProjectsProjectIdDispatchEnablePostErrors[keyof EnableDispatchApiProjectsProjectIdDispatchEnablePostErrors];
+
+export type EnableDispatchApiProjectsProjectIdDispatchEnablePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchStateView;
+};
+
+export type EnableDispatchApiProjectsProjectIdDispatchEnablePostResponse = EnableDispatchApiProjectsProjectIdDispatchEnablePostResponses[keyof EnableDispatchApiProjectsProjectIdDispatchEnablePostResponses];
+
+export type ListDispatchRunsApiProjectsProjectIdDispatchRunsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: {
+        /**
+         * Task Id
+         *
+         * Only runs for this task. Omitted, every run in the project.
+         */
+        task_id?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/projects/{project_id}/dispatch/runs';
+};
+
+export type ListDispatchRunsApiProjectsProjectIdDispatchRunsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListDispatchRunsApiProjectsProjectIdDispatchRunsGetError = ListDispatchRunsApiProjectsProjectIdDispatchRunsGetErrors[keyof ListDispatchRunsApiProjectsProjectIdDispatchRunsGetErrors];
+
+export type ListDispatchRunsApiProjectsProjectIdDispatchRunsGetResponses = {
+    /**
+     * Response List Dispatch Runs Api Projects  Project Id  Dispatch Runs Get
+     *
+     * Successful Response
+     */
+    200: Array<DispatchRunView>;
+};
+
+export type ListDispatchRunsApiProjectsProjectIdDispatchRunsGetResponse = ListDispatchRunsApiProjectsProjectIdDispatchRunsGetResponses[keyof ListDispatchRunsApiProjectsProjectIdDispatchRunsGetResponses];
+
+export type CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostData = {
+    body?: never;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/dispatch/runs/{run_id}/cancel';
+};
+
+export type CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostError = CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostErrors[keyof CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostErrors];
+
+export type CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchCancelResult;
+};
+
+export type CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostResponse = CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostResponses[keyof CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostResponses];
+
+export type ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetData = {
+    body?: never;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/dispatch/runs/{run_id}/output';
+};
+
+export type ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetError = ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetErrors[keyof ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetErrors];
+
+export type ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: string;
+};
+
+export type ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetResponse = ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetResponses[keyof ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetResponses];
 
 export type GetProjectRevisionApiProjectsProjectIdRevisionGetData = {
     body?: never;

@@ -648,6 +648,74 @@
         "title": "DependencyType",
         "type": "string"
       },
+      "DispatchCancelResult": {
+        "description": "What cancelling asked for, and whether it happened.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "run": {
+            "$ref": "#/components/schemas/DispatchRunView"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "stopped": {
+            "title": "Stopped",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "run_id",
+          "stopped",
+          "detail",
+          "run"
+        ],
+        "title": "DispatchCancelResult",
+        "type": "object"
+      },
+      "DispatchEnableRequest": {
+        "description": "Point a project at a runner this machine already defines, and turn it on.\n\n``runner`` names an existing runner; it never creates one. Omitted, the project\nkeeps the runner it already names, or takes the only one defined -- the same rule\n``agentjobs dispatch enable`` follows, so the two surfaces cannot disagree.",
+        "properties": {
+          "runner": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runner"
+          }
+        },
+        "title": "DispatchEnableRequest",
+        "type": "object"
+      },
+      "DispatchRefusalView": {
+        "description": "The gate that currently refuses this project, in the API's own vocabulary.\n\nCarried on the state rather than raised as an error, because \"you cannot dispatch,\nhere is exactly why\" is the normal answer for a project nobody has enabled -- not a\nfailure. The GUI renders ``reason``-specific copy from it; ``message`` is the\nlibrary's own sentence and is always safe to show.",
+        "properties": {
+          "message": {
+            "description": "The refusal, in words.",
+            "title": "Message",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Stable machine-readable code, e.g. 'disabled'.",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "message"
+        ],
+        "title": "DispatchRefusalView",
+        "type": "object"
+      },
       "DispatchRequestBody": {
         "description": "Ask AgentJobs to start an agent on this task.\n\nThere is no ``actor`` field, and that absence is the design. The actor recorded on a\ndispatch is the author of the log entry that *caused* it, not whoever posted the\nrequest -- otherwise the human-clocked rule would be satisfied by a caller naming a\nhuman, which is not evidence of anything.",
         "properties": {
@@ -665,6 +733,114 @@
           }
         },
         "title": "DispatchRequestBody",
+        "type": "object"
+      },
+      "DispatchRunView": {
+        "description": "One run, as the browser sees it.",
+        "properties": {
+          "caused_by": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Log entry id this run was attributed to.",
+            "title": "Caused By"
+          },
+          "elapsed_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Seconds since start for a live run; total duration once it ended.",
+            "title": "Elapsed Seconds"
+          },
+          "live": {
+            "description": "Nothing has declared this run over.",
+            "title": "Live",
+            "type": "boolean"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "output_url": {
+            "description": "Where this run's captured output is readable.",
+            "title": "Output Url",
+            "type": "string"
+          },
+          "posture": {
+            "title": "Posture",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "task_id",
+          "project_id",
+          "mode",
+          "posture",
+          "status",
+          "live",
+          "output_url"
+        ],
+        "title": "DispatchRunView",
         "type": "object"
       },
       "DispatchStarted": {
@@ -716,6 +892,111 @@
           "caused_by"
         ],
         "title": "DispatchStarted",
+        "type": "object"
+      },
+      "DispatchStateView": {
+        "description": "Everything the GUI needs to decide what to offer, and what to explain.",
+        "properties": {
+          "auto_dispatch": {
+            "default": false,
+            "description": "Auto-dispatch on approval (task-074).",
+            "title": "Auto Dispatch",
+            "type": "boolean"
+          },
+          "available_runners": {
+            "description": "Runner names this machine defines. Read-only: the browser may point a project at one of these and can never create one.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Available Runners",
+            "type": "array"
+          },
+          "can_dispatch": {
+            "description": "Every gate is open right now.",
+            "title": "Can Dispatch",
+            "type": "boolean"
+          },
+          "config_path": {
+            "description": "Where a human edits any of this.",
+            "title": "Config Path",
+            "type": "string"
+          },
+          "configured": {
+            "description": "A dispatch.yaml exists on this machine.",
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "master_enabled": {
+            "description": "The machine-wide 'enabled:' switch.",
+            "title": "Master Enabled",
+            "type": "boolean"
+          },
+          "posture": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What a run here may do.",
+            "title": "Posture"
+          },
+          "project_enabled": {
+            "description": "This project is enabled for dispatch.",
+            "title": "Project Enabled",
+            "type": "boolean"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "refusal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DispatchRefusalView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which gate refuses, when can_dispatch is false."
+          },
+          "runner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Runner this project is pointed at.",
+            "title": "Runner"
+          },
+          "sentinel_active": {
+            "description": "DISPATCH_DISABLED exists; all runs refused.",
+            "title": "Sentinel Active",
+            "type": "boolean"
+          },
+          "sentinel_file": {
+            "description": "Path of the kill-switch sentinel.",
+            "title": "Sentinel File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "configured",
+          "master_enabled",
+          "sentinel_active",
+          "project_enabled",
+          "can_dispatch",
+          "config_path",
+          "sentinel_file"
+        ],
+        "title": "DispatchStateView",
         "type": "object"
       },
       "FeedbackActionRequest": {
@@ -3167,6 +3448,246 @@
         ]
       }
     },
+    "/api/dispatch": {
+      "get": {
+        "description": "Whether this project may dispatch right now, and which gate says otherwise.",
+        "operationId": "get_dispatch_state_api_dispatch_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchStateView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Dispatch State",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/dispatch/disable": {
+      "post": {
+        "description": "Stop dispatching for this project. Takes nothing, asks nothing.\n\nRefuses only when there is no config file at all, which is already a state in which\nnothing can dispatch -- so there is no reachable case where a human wants this off\nand cannot have it.",
+        "operationId": "disable_dispatch_api_dispatch_disable_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchStateView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Disable Dispatch",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/dispatch/enable": {
+      "post": {
+        "description": "Enable dispatch for this project against an already-defined runner.",
+        "operationId": "enable_dispatch_api_dispatch_enable_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DispatchEnableRequest",
+                "default": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchStateView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enable Dispatch",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/dispatch/runs": {
+      "get": {
+        "description": "Runs belonging to this project, newest first.\n\nFiltered by project rather than returning the machine's whole ledger: a run\ndirectory records which project it belongs to, and a page about one project has no\nbusiness showing another's.",
+        "operationId": "list_dispatch_runs_api_dispatch_runs_get",
+        "parameters": [
+          {
+            "description": "Only runs for this task. Omitted, every run in the project.",
+            "in": "query",
+            "name": "task_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only runs for this task. Omitted, every run in the project.",
+              "title": "Task Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DispatchRunView"
+                  },
+                  "title": "Response List Dispatch Runs Api Dispatch Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Dispatch Runs",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/dispatch/runs/{run_id}/cancel": {
+      "post": {
+        "description": "Stop one run and write its cancellation to the task record.",
+        "operationId": "cancel_dispatch_run_api_dispatch_runs__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchCancelResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Dispatch Run",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/dispatch/runs/{run_id}/output": {
+      "get": {
+        "description": "A run's captured output, as text a browser tab can show.\n\nText rather than JSON because this is the one dispatch response a human reads\ndirectly, and a transcript wrapped in a JSON string escape is unreadable.",
+        "operationId": "read_dispatch_run_output_api_dispatch_runs__run_id__output_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Dispatch Run Output",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
     "/api/health": {
       "get": {
         "description": "Simple health check endpoint for API consumers.",
@@ -3383,6 +3904,326 @@
         "summary": "Get Dashboard",
         "tags": [
           "dashboard"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/dispatch": {
+      "get": {
+        "description": "Whether this project may dispatch right now, and which gate says otherwise.",
+        "operationId": "get_dispatch_state_api_projects__project_id__dispatch_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchStateView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Dispatch State",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/dispatch/disable": {
+      "post": {
+        "description": "Stop dispatching for this project. Takes nothing, asks nothing.\n\nRefuses only when there is no config file at all, which is already a state in which\nnothing can dispatch -- so there is no reachable case where a human wants this off\nand cannot have it.",
+        "operationId": "disable_dispatch_api_projects__project_id__dispatch_disable_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchStateView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disable Dispatch",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/dispatch/enable": {
+      "post": {
+        "description": "Enable dispatch for this project against an already-defined runner.",
+        "operationId": "enable_dispatch_api_projects__project_id__dispatch_enable_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DispatchEnableRequest",
+                "default": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchStateView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enable Dispatch",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/dispatch/runs": {
+      "get": {
+        "description": "Runs belonging to this project, newest first.\n\nFiltered by project rather than returning the machine's whole ledger: a run\ndirectory records which project it belongs to, and a page about one project has no\nbusiness showing another's.",
+        "operationId": "list_dispatch_runs_api_projects__project_id__dispatch_runs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only runs for this task. Omitted, every run in the project.",
+            "in": "query",
+            "name": "task_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only runs for this task. Omitted, every run in the project.",
+              "title": "Task Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DispatchRunView"
+                  },
+                  "title": "Response List Dispatch Runs Api Projects  Project Id  Dispatch Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Dispatch Runs",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/dispatch/runs/{run_id}/cancel": {
+      "post": {
+        "description": "Stop one run and write its cancellation to the task record.",
+        "operationId": "cancel_dispatch_run_api_projects__project_id__dispatch_runs__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchCancelResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Dispatch Run",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/dispatch/runs/{run_id}/output": {
+      "get": {
+        "description": "A run's captured output, as text a browser tab can show.\n\nText rather than JSON because this is the one dispatch response a human reads\ndirectly, and a transcript wrapped in a JSON string escape is unreadable.",
+        "operationId": "read_dispatch_run_output_api_projects__project_id__dispatch_runs__run_id__output_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Dispatch Run Output",
+        "tags": [
+          "dispatch"
         ]
       }
     },

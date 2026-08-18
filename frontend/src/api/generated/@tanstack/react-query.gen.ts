@@ -3,8 +3,8 @@
 import { type DefaultError, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { apiHealthCheckApiHealthGet, apiVersionApiVersionGet, appendLogEntryApiProjectsProjectIdTasksTaskIdLogPost, appendLogEntryApiTasksTaskIdLogPost, approveTaskApiProjectsProjectIdTasksTaskIdApprovePost, approveTaskApiTasksTaskIdApprovePost, archiveTaskApiProjectsProjectIdTasksTaskIdDelete, archiveTaskApiTasksTaskIdDelete, claimTaskApiProjectsProjectIdTasksTaskIdClaimPost, claimTaskApiTasksTaskIdClaimPost, closeTaskApiProjectsProjectIdTasksTaskIdClosePost, closeTaskApiTasksTaskIdClosePost, createTaskApiProjectsProjectIdTasksPost, createTaskApiTasksPost, createWebhookApiProjectsProjectIdWebhooksPost, createWebhookApiWebhooksPost, deleteWebhookApiProjectsProjectIdWebhooksWebhookIdDelete, deleteWebhookApiWebhooksWebhookIdDelete, dispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPost, dispatchTaskEndpointApiTasksTaskIdDispatchPost, getAllTasksApiAllTasksGet, getAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGet, getAttachmentApiTasksTaskIdAttachmentsFilenameGet, getDashboardApiDashboardGet, getDashboardApiProjectsProjectIdDashboardGet, getNextTaskApiProjectsProjectIdTasksNextGet, getNextTaskApiTasksNextGet, getProjectRevisionApiProjectsProjectIdRevisionGet, getProjectRevisionApiRevisionGet, getProjectsApiProjectsGet, getTaskApiProjectsProjectIdTasksTaskIdGet, getTaskApiTasksTaskIdGet, getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGet, getTaskDetailApiTasksTaskIdDetailGet, getWebhookApiProjectsProjectIdWebhooksWebhookIdGet, getWebhookApiWebhooksWebhookIdGet, handoffTaskApiProjectsProjectIdTasksTaskIdHandoffPost, handoffTaskApiTasksTaskIdHandoffPost, initializeAndRegisterProjectApiProjectsInitPost, inspectProjectPathApiProjectsInspectPost, listBrokenTasksApiProjectsProjectIdTasksBrokenGet, listBrokenTasksApiTasksBrokenGet, listTasksApiProjectsProjectIdTasksGet, listTasksApiTasksGet, listWebhooksApiProjectsProjectIdWebhooksGet, listWebhooksApiWebhooksGet, markDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatch, markDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatch, type Options, postProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPost, postProgressUpdateApiTasksTaskIdProgressPost, promoteTaskApiProjectsProjectIdTasksTaskIdPromotePost, promoteTaskApiTasksTaskIdPromotePost, registerProjectApiProjectsPost, rejectTaskApiProjectsProjectIdTasksTaskIdRejectPost, rejectTaskApiTasksTaskIdRejectPost, releaseTaskApiProjectsProjectIdTasksTaskIdReleasePost, releaseTaskApiTasksTaskIdReleasePost, requestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPost, requestChangesApiTasksTaskIdRequestChangesPost, searchTasksApiProjectsProjectIdSearchGet, searchTasksApiSearchGet, testWebhookApiProjectsProjectIdWebhooksWebhookIdTestPost, testWebhookApiWebhooksWebhookIdTestPost, updateTaskApiProjectsProjectIdTasksTaskIdPatch, updateTaskApiTasksTaskIdPatch } from '../sdk.gen';
-import type { ApiHealthCheckApiHealthGetData, ApiHealthCheckApiHealthGetResponse, ApiVersionApiVersionGetData, ApiVersionApiVersionGetResponse, AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostData, AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostError, AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostResponse, AppendLogEntryApiTasksTaskIdLogPostData, AppendLogEntryApiTasksTaskIdLogPostError, AppendLogEntryApiTasksTaskIdLogPostResponse, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostData, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostError, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponse, ApproveTaskApiTasksTaskIdApprovePostData, ApproveTaskApiTasksTaskIdApprovePostError, ApproveTaskApiTasksTaskIdApprovePostResponse, ArchiveTaskApiProjectsProjectIdTasksTaskIdDeleteData, ArchiveTaskApiProjectsProjectIdTasksTaskIdDeleteError, ArchiveTaskApiProjectsProjectIdTasksTaskIdDeleteResponse, ArchiveTaskApiTasksTaskIdDeleteData, ArchiveTaskApiTasksTaskIdDeleteError, ArchiveTaskApiTasksTaskIdDeleteResponse, ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostData, ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostError, ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostResponse, ClaimTaskApiTasksTaskIdClaimPostData, ClaimTaskApiTasksTaskIdClaimPostError, ClaimTaskApiTasksTaskIdClaimPostResponse, CloseTaskApiProjectsProjectIdTasksTaskIdClosePostData, CloseTaskApiProjectsProjectIdTasksTaskIdClosePostError, CloseTaskApiProjectsProjectIdTasksTaskIdClosePostResponse, CloseTaskApiTasksTaskIdClosePostData, CloseTaskApiTasksTaskIdClosePostError, CloseTaskApiTasksTaskIdClosePostResponse, CreateTaskApiProjectsProjectIdTasksPostData, CreateTaskApiProjectsProjectIdTasksPostError, CreateTaskApiProjectsProjectIdTasksPostResponse, CreateTaskApiTasksPostData, CreateTaskApiTasksPostError, CreateTaskApiTasksPostResponse, CreateWebhookApiProjectsProjectIdWebhooksPostData, CreateWebhookApiProjectsProjectIdWebhooksPostError, CreateWebhookApiProjectsProjectIdWebhooksPostResponse, CreateWebhookApiWebhooksPostData, CreateWebhookApiWebhooksPostError, CreateWebhookApiWebhooksPostResponse, DeleteWebhookApiProjectsProjectIdWebhooksWebhookIdDeleteData, DeleteWebhookApiProjectsProjectIdWebhooksWebhookIdDeleteError, DeleteWebhookApiWebhooksWebhookIdDeleteData, DeleteWebhookApiWebhooksWebhookIdDeleteError, DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostData, DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostError, DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostResponse, DispatchTaskEndpointApiTasksTaskIdDispatchPostData, DispatchTaskEndpointApiTasksTaskIdDispatchPostError, DispatchTaskEndpointApiTasksTaskIdDispatchPostResponse, GetAllTasksApiAllTasksGetData, GetAllTasksApiAllTasksGetError, GetAllTasksApiAllTasksGetResponse, GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetData, GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetError, GetAttachmentApiTasksTaskIdAttachmentsFilenameGetData, GetAttachmentApiTasksTaskIdAttachmentsFilenameGetError, GetDashboardApiDashboardGetData, GetDashboardApiDashboardGetResponse, GetDashboardApiProjectsProjectIdDashboardGetData, GetDashboardApiProjectsProjectIdDashboardGetError, GetDashboardApiProjectsProjectIdDashboardGetResponse, GetNextTaskApiProjectsProjectIdTasksNextGetData, GetNextTaskApiProjectsProjectIdTasksNextGetError, GetNextTaskApiProjectsProjectIdTasksNextGetResponse, GetNextTaskApiTasksNextGetData, GetNextTaskApiTasksNextGetError, GetNextTaskApiTasksNextGetResponse, GetProjectRevisionApiProjectsProjectIdRevisionGetData, GetProjectRevisionApiProjectsProjectIdRevisionGetError, GetProjectRevisionApiProjectsProjectIdRevisionGetResponse, GetProjectRevisionApiRevisionGetData, GetProjectRevisionApiRevisionGetResponse, GetProjectsApiProjectsGetData, GetProjectsApiProjectsGetResponse, GetTaskApiProjectsProjectIdTasksTaskIdGetData, GetTaskApiProjectsProjectIdTasksTaskIdGetError, GetTaskApiProjectsProjectIdTasksTaskIdGetResponse, GetTaskApiTasksTaskIdGetData, GetTaskApiTasksTaskIdGetError, GetTaskApiTasksTaskIdGetResponse, GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetData, GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetError, GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetResponse, GetTaskDetailApiTasksTaskIdDetailGetData, GetTaskDetailApiTasksTaskIdDetailGetError, GetTaskDetailApiTasksTaskIdDetailGetResponse, GetWebhookApiProjectsProjectIdWebhooksWebhookIdGetData, GetWebhookApiProjectsProjectIdWebhooksWebhookIdGetError, GetWebhookApiProjectsProjectIdWebhooksWebhookIdGetResponse, GetWebhookApiWebhooksWebhookIdGetData, GetWebhookApiWebhooksWebhookIdGetError, GetWebhookApiWebhooksWebhookIdGetResponse, HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostData, HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostError, HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostResponse, HandoffTaskApiTasksTaskIdHandoffPostData, HandoffTaskApiTasksTaskIdHandoffPostError, HandoffTaskApiTasksTaskIdHandoffPostResponse, InitializeAndRegisterProjectApiProjectsInitPostData, InitializeAndRegisterProjectApiProjectsInitPostError, InitializeAndRegisterProjectApiProjectsInitPostResponse, InspectProjectPathApiProjectsInspectPostData, InspectProjectPathApiProjectsInspectPostError, InspectProjectPathApiProjectsInspectPostResponse, ListBrokenTasksApiProjectsProjectIdTasksBrokenGetData, ListBrokenTasksApiProjectsProjectIdTasksBrokenGetError, ListBrokenTasksApiProjectsProjectIdTasksBrokenGetResponse, ListBrokenTasksApiTasksBrokenGetData, ListBrokenTasksApiTasksBrokenGetResponse, ListTasksApiProjectsProjectIdTasksGetData, ListTasksApiProjectsProjectIdTasksGetError, ListTasksApiProjectsProjectIdTasksGetResponse, ListTasksApiTasksGetData, ListTasksApiTasksGetError, ListTasksApiTasksGetResponse, ListWebhooksApiProjectsProjectIdWebhooksGetData, ListWebhooksApiProjectsProjectIdWebhooksGetError, ListWebhooksApiProjectsProjectIdWebhooksGetResponse, ListWebhooksApiWebhooksGetData, ListWebhooksApiWebhooksGetResponse, MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchData, MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchError, MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchResponse, MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchData, MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchError, MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchResponse, PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostData, PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostError, PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostResponse, PostProgressUpdateApiTasksTaskIdProgressPostData, PostProgressUpdateApiTasksTaskIdProgressPostError, PostProgressUpdateApiTasksTaskIdProgressPostResponse, PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostData, PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostError, PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponse, PromoteTaskApiTasksTaskIdPromotePostData, PromoteTaskApiTasksTaskIdPromotePostError, PromoteTaskApiTasksTaskIdPromotePostResponse, RegisterProjectApiProjectsPostData, RegisterProjectApiProjectsPostError, RegisterProjectApiProjectsPostResponse, RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostData, RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostError, RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostResponse, RejectTaskApiTasksTaskIdRejectPostData, RejectTaskApiTasksTaskIdRejectPostError, RejectTaskApiTasksTaskIdRejectPostResponse, ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostData, ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostError, ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostResponse, ReleaseTaskApiTasksTaskIdReleasePostData, ReleaseTaskApiTasksTaskIdReleasePostError, ReleaseTaskApiTasksTaskIdReleasePostResponse, RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostData, RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostError, RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostResponse, RequestChangesApiTasksTaskIdRequestChangesPostData, RequestChangesApiTasksTaskIdRequestChangesPostError, RequestChangesApiTasksTaskIdRequestChangesPostResponse, SearchTasksApiProjectsProjectIdSearchGetData, SearchTasksApiProjectsProjectIdSearchGetError, SearchTasksApiProjectsProjectIdSearchGetResponse, SearchTasksApiSearchGetData, SearchTasksApiSearchGetError, SearchTasksApiSearchGetResponse, TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostData, TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostError, TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponse, TestWebhookApiWebhooksWebhookIdTestPostData, TestWebhookApiWebhooksWebhookIdTestPostError, TestWebhookApiWebhooksWebhookIdTestPostResponse, UpdateTaskApiProjectsProjectIdTasksTaskIdPatchData, UpdateTaskApiProjectsProjectIdTasksTaskIdPatchError, UpdateTaskApiProjectsProjectIdTasksTaskIdPatchResponse, UpdateTaskApiTasksTaskIdPatchData, UpdateTaskApiTasksTaskIdPatchError, UpdateTaskApiTasksTaskIdPatchResponse } from '../types.gen';
+import { apiHealthCheckApiHealthGet, apiVersionApiVersionGet, appendLogEntryApiProjectsProjectIdTasksTaskIdLogPost, appendLogEntryApiTasksTaskIdLogPost, approveTaskApiProjectsProjectIdTasksTaskIdApprovePost, approveTaskApiTasksTaskIdApprovePost, archiveTaskApiProjectsProjectIdTasksTaskIdDelete, archiveTaskApiTasksTaskIdDelete, cancelDispatchRunApiDispatchRunsRunIdCancelPost, cancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPost, claimTaskApiProjectsProjectIdTasksTaskIdClaimPost, claimTaskApiTasksTaskIdClaimPost, closeTaskApiProjectsProjectIdTasksTaskIdClosePost, closeTaskApiTasksTaskIdClosePost, createTaskApiProjectsProjectIdTasksPost, createTaskApiTasksPost, createWebhookApiProjectsProjectIdWebhooksPost, createWebhookApiWebhooksPost, deleteWebhookApiProjectsProjectIdWebhooksWebhookIdDelete, deleteWebhookApiWebhooksWebhookIdDelete, disableDispatchApiDispatchDisablePost, disableDispatchApiProjectsProjectIdDispatchDisablePost, dispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPost, dispatchTaskEndpointApiTasksTaskIdDispatchPost, enableDispatchApiDispatchEnablePost, enableDispatchApiProjectsProjectIdDispatchEnablePost, getAllTasksApiAllTasksGet, getAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGet, getAttachmentApiTasksTaskIdAttachmentsFilenameGet, getDashboardApiDashboardGet, getDashboardApiProjectsProjectIdDashboardGet, getDispatchStateApiDispatchGet, getDispatchStateApiProjectsProjectIdDispatchGet, getNextTaskApiProjectsProjectIdTasksNextGet, getNextTaskApiTasksNextGet, getProjectRevisionApiProjectsProjectIdRevisionGet, getProjectRevisionApiRevisionGet, getProjectsApiProjectsGet, getTaskApiProjectsProjectIdTasksTaskIdGet, getTaskApiTasksTaskIdGet, getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGet, getTaskDetailApiTasksTaskIdDetailGet, getWebhookApiProjectsProjectIdWebhooksWebhookIdGet, getWebhookApiWebhooksWebhookIdGet, handoffTaskApiProjectsProjectIdTasksTaskIdHandoffPost, handoffTaskApiTasksTaskIdHandoffPost, initializeAndRegisterProjectApiProjectsInitPost, inspectProjectPathApiProjectsInspectPost, listBrokenTasksApiProjectsProjectIdTasksBrokenGet, listBrokenTasksApiTasksBrokenGet, listDispatchRunsApiDispatchRunsGet, listDispatchRunsApiProjectsProjectIdDispatchRunsGet, listTasksApiProjectsProjectIdTasksGet, listTasksApiTasksGet, listWebhooksApiProjectsProjectIdWebhooksGet, listWebhooksApiWebhooksGet, markDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatch, markDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatch, type Options, postProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPost, postProgressUpdateApiTasksTaskIdProgressPost, promoteTaskApiProjectsProjectIdTasksTaskIdPromotePost, promoteTaskApiTasksTaskIdPromotePost, readDispatchRunOutputApiDispatchRunsRunIdOutputGet, readDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGet, registerProjectApiProjectsPost, rejectTaskApiProjectsProjectIdTasksTaskIdRejectPost, rejectTaskApiTasksTaskIdRejectPost, releaseTaskApiProjectsProjectIdTasksTaskIdReleasePost, releaseTaskApiTasksTaskIdReleasePost, requestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPost, requestChangesApiTasksTaskIdRequestChangesPost, searchTasksApiProjectsProjectIdSearchGet, searchTasksApiSearchGet, testWebhookApiProjectsProjectIdWebhooksWebhookIdTestPost, testWebhookApiWebhooksWebhookIdTestPost, updateTaskApiProjectsProjectIdTasksTaskIdPatch, updateTaskApiTasksTaskIdPatch } from '../sdk.gen';
+import type { ApiHealthCheckApiHealthGetData, ApiHealthCheckApiHealthGetResponse, ApiVersionApiVersionGetData, ApiVersionApiVersionGetResponse, AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostData, AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostError, AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostResponse, AppendLogEntryApiTasksTaskIdLogPostData, AppendLogEntryApiTasksTaskIdLogPostError, AppendLogEntryApiTasksTaskIdLogPostResponse, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostData, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostError, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponse, ApproveTaskApiTasksTaskIdApprovePostData, ApproveTaskApiTasksTaskIdApprovePostError, ApproveTaskApiTasksTaskIdApprovePostResponse, ArchiveTaskApiProjectsProjectIdTasksTaskIdDeleteData, ArchiveTaskApiProjectsProjectIdTasksTaskIdDeleteError, ArchiveTaskApiProjectsProjectIdTasksTaskIdDeleteResponse, ArchiveTaskApiTasksTaskIdDeleteData, ArchiveTaskApiTasksTaskIdDeleteError, ArchiveTaskApiTasksTaskIdDeleteResponse, CancelDispatchRunApiDispatchRunsRunIdCancelPostData, CancelDispatchRunApiDispatchRunsRunIdCancelPostError, CancelDispatchRunApiDispatchRunsRunIdCancelPostResponse, CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostData, CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostError, CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostResponse, ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostData, ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostError, ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostResponse, ClaimTaskApiTasksTaskIdClaimPostData, ClaimTaskApiTasksTaskIdClaimPostError, ClaimTaskApiTasksTaskIdClaimPostResponse, CloseTaskApiProjectsProjectIdTasksTaskIdClosePostData, CloseTaskApiProjectsProjectIdTasksTaskIdClosePostError, CloseTaskApiProjectsProjectIdTasksTaskIdClosePostResponse, CloseTaskApiTasksTaskIdClosePostData, CloseTaskApiTasksTaskIdClosePostError, CloseTaskApiTasksTaskIdClosePostResponse, CreateTaskApiProjectsProjectIdTasksPostData, CreateTaskApiProjectsProjectIdTasksPostError, CreateTaskApiProjectsProjectIdTasksPostResponse, CreateTaskApiTasksPostData, CreateTaskApiTasksPostError, CreateTaskApiTasksPostResponse, CreateWebhookApiProjectsProjectIdWebhooksPostData, CreateWebhookApiProjectsProjectIdWebhooksPostError, CreateWebhookApiProjectsProjectIdWebhooksPostResponse, CreateWebhookApiWebhooksPostData, CreateWebhookApiWebhooksPostError, CreateWebhookApiWebhooksPostResponse, DeleteWebhookApiProjectsProjectIdWebhooksWebhookIdDeleteData, DeleteWebhookApiProjectsProjectIdWebhooksWebhookIdDeleteError, DeleteWebhookApiWebhooksWebhookIdDeleteData, DeleteWebhookApiWebhooksWebhookIdDeleteError, DisableDispatchApiDispatchDisablePostData, DisableDispatchApiDispatchDisablePostResponse, DisableDispatchApiProjectsProjectIdDispatchDisablePostData, DisableDispatchApiProjectsProjectIdDispatchDisablePostError, DisableDispatchApiProjectsProjectIdDispatchDisablePostResponse, DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostData, DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostError, DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostResponse, DispatchTaskEndpointApiTasksTaskIdDispatchPostData, DispatchTaskEndpointApiTasksTaskIdDispatchPostError, DispatchTaskEndpointApiTasksTaskIdDispatchPostResponse, EnableDispatchApiDispatchEnablePostData, EnableDispatchApiDispatchEnablePostError, EnableDispatchApiDispatchEnablePostResponse, EnableDispatchApiProjectsProjectIdDispatchEnablePostData, EnableDispatchApiProjectsProjectIdDispatchEnablePostError, EnableDispatchApiProjectsProjectIdDispatchEnablePostResponse, GetAllTasksApiAllTasksGetData, GetAllTasksApiAllTasksGetError, GetAllTasksApiAllTasksGetResponse, GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetData, GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetError, GetAttachmentApiTasksTaskIdAttachmentsFilenameGetData, GetAttachmentApiTasksTaskIdAttachmentsFilenameGetError, GetDashboardApiDashboardGetData, GetDashboardApiDashboardGetResponse, GetDashboardApiProjectsProjectIdDashboardGetData, GetDashboardApiProjectsProjectIdDashboardGetError, GetDashboardApiProjectsProjectIdDashboardGetResponse, GetDispatchStateApiDispatchGetData, GetDispatchStateApiDispatchGetResponse, GetDispatchStateApiProjectsProjectIdDispatchGetData, GetDispatchStateApiProjectsProjectIdDispatchGetError, GetDispatchStateApiProjectsProjectIdDispatchGetResponse, GetNextTaskApiProjectsProjectIdTasksNextGetData, GetNextTaskApiProjectsProjectIdTasksNextGetError, GetNextTaskApiProjectsProjectIdTasksNextGetResponse, GetNextTaskApiTasksNextGetData, GetNextTaskApiTasksNextGetError, GetNextTaskApiTasksNextGetResponse, GetProjectRevisionApiProjectsProjectIdRevisionGetData, GetProjectRevisionApiProjectsProjectIdRevisionGetError, GetProjectRevisionApiProjectsProjectIdRevisionGetResponse, GetProjectRevisionApiRevisionGetData, GetProjectRevisionApiRevisionGetResponse, GetProjectsApiProjectsGetData, GetProjectsApiProjectsGetResponse, GetTaskApiProjectsProjectIdTasksTaskIdGetData, GetTaskApiProjectsProjectIdTasksTaskIdGetError, GetTaskApiProjectsProjectIdTasksTaskIdGetResponse, GetTaskApiTasksTaskIdGetData, GetTaskApiTasksTaskIdGetError, GetTaskApiTasksTaskIdGetResponse, GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetData, GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetError, GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetResponse, GetTaskDetailApiTasksTaskIdDetailGetData, GetTaskDetailApiTasksTaskIdDetailGetError, GetTaskDetailApiTasksTaskIdDetailGetResponse, GetWebhookApiProjectsProjectIdWebhooksWebhookIdGetData, GetWebhookApiProjectsProjectIdWebhooksWebhookIdGetError, GetWebhookApiProjectsProjectIdWebhooksWebhookIdGetResponse, GetWebhookApiWebhooksWebhookIdGetData, GetWebhookApiWebhooksWebhookIdGetError, GetWebhookApiWebhooksWebhookIdGetResponse, HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostData, HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostError, HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostResponse, HandoffTaskApiTasksTaskIdHandoffPostData, HandoffTaskApiTasksTaskIdHandoffPostError, HandoffTaskApiTasksTaskIdHandoffPostResponse, InitializeAndRegisterProjectApiProjectsInitPostData, InitializeAndRegisterProjectApiProjectsInitPostError, InitializeAndRegisterProjectApiProjectsInitPostResponse, InspectProjectPathApiProjectsInspectPostData, InspectProjectPathApiProjectsInspectPostError, InspectProjectPathApiProjectsInspectPostResponse, ListBrokenTasksApiProjectsProjectIdTasksBrokenGetData, ListBrokenTasksApiProjectsProjectIdTasksBrokenGetError, ListBrokenTasksApiProjectsProjectIdTasksBrokenGetResponse, ListBrokenTasksApiTasksBrokenGetData, ListBrokenTasksApiTasksBrokenGetResponse, ListDispatchRunsApiDispatchRunsGetData, ListDispatchRunsApiDispatchRunsGetError, ListDispatchRunsApiDispatchRunsGetResponse, ListDispatchRunsApiProjectsProjectIdDispatchRunsGetData, ListDispatchRunsApiProjectsProjectIdDispatchRunsGetError, ListDispatchRunsApiProjectsProjectIdDispatchRunsGetResponse, ListTasksApiProjectsProjectIdTasksGetData, ListTasksApiProjectsProjectIdTasksGetError, ListTasksApiProjectsProjectIdTasksGetResponse, ListTasksApiTasksGetData, ListTasksApiTasksGetError, ListTasksApiTasksGetResponse, ListWebhooksApiProjectsProjectIdWebhooksGetData, ListWebhooksApiProjectsProjectIdWebhooksGetError, ListWebhooksApiProjectsProjectIdWebhooksGetResponse, ListWebhooksApiWebhooksGetData, ListWebhooksApiWebhooksGetResponse, MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchData, MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchError, MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchResponse, MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchData, MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchError, MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchResponse, PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostData, PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostError, PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostResponse, PostProgressUpdateApiTasksTaskIdProgressPostData, PostProgressUpdateApiTasksTaskIdProgressPostError, PostProgressUpdateApiTasksTaskIdProgressPostResponse, PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostData, PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostError, PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponse, PromoteTaskApiTasksTaskIdPromotePostData, PromoteTaskApiTasksTaskIdPromotePostError, PromoteTaskApiTasksTaskIdPromotePostResponse, ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetData, ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetError, ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetResponse, ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetData, ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetError, ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetResponse, RegisterProjectApiProjectsPostData, RegisterProjectApiProjectsPostError, RegisterProjectApiProjectsPostResponse, RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostData, RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostError, RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostResponse, RejectTaskApiTasksTaskIdRejectPostData, RejectTaskApiTasksTaskIdRejectPostError, RejectTaskApiTasksTaskIdRejectPostResponse, ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostData, ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostError, ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostResponse, ReleaseTaskApiTasksTaskIdReleasePostData, ReleaseTaskApiTasksTaskIdReleasePostError, ReleaseTaskApiTasksTaskIdReleasePostResponse, RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostData, RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostError, RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostResponse, RequestChangesApiTasksTaskIdRequestChangesPostData, RequestChangesApiTasksTaskIdRequestChangesPostError, RequestChangesApiTasksTaskIdRequestChangesPostResponse, SearchTasksApiProjectsProjectIdSearchGetData, SearchTasksApiProjectsProjectIdSearchGetError, SearchTasksApiProjectsProjectIdSearchGetResponse, SearchTasksApiSearchGetData, SearchTasksApiSearchGetError, SearchTasksApiSearchGetResponse, TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostData, TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostError, TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponse, TestWebhookApiWebhooksWebhookIdTestPostData, TestWebhookApiWebhooksWebhookIdTestPostError, TestWebhookApiWebhooksWebhookIdTestPostResponse, UpdateTaskApiProjectsProjectIdTasksTaskIdPatchData, UpdateTaskApiProjectsProjectIdTasksTaskIdPatchError, UpdateTaskApiProjectsProjectIdTasksTaskIdPatchResponse, UpdateTaskApiTasksTaskIdPatchData, UpdateTaskApiTasksTaskIdPatchError, UpdateTaskApiTasksTaskIdPatchResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -84,6 +84,134 @@ export const getDashboardApiDashboardGetOptions = (options?: Options<GetDashboar
         return data;
     },
     queryKey: getDashboardApiDashboardGetQueryKey(options)
+});
+
+export const getDispatchStateApiDispatchGetQueryKey = (options?: Options<GetDispatchStateApiDispatchGetData>) => createQueryKey('getDispatchStateApiDispatchGet', options);
+
+/**
+ * Get Dispatch State
+ *
+ * Whether this project may dispatch right now, and which gate says otherwise.
+ */
+export const getDispatchStateApiDispatchGetOptions = (options?: Options<GetDispatchStateApiDispatchGetData>) => queryOptions<GetDispatchStateApiDispatchGetResponse, DefaultError, GetDispatchStateApiDispatchGetResponse, ReturnType<typeof getDispatchStateApiDispatchGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getDispatchStateApiDispatchGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getDispatchStateApiDispatchGetQueryKey(options)
+});
+
+/**
+ * Disable Dispatch
+ *
+ * Stop dispatching for this project. Takes nothing, asks nothing.
+ *
+ * Refuses only when there is no config file at all, which is already a state in which
+ * nothing can dispatch -- so there is no reachable case where a human wants this off
+ * and cannot have it.
+ */
+export const disableDispatchApiDispatchDisablePostMutation = (options?: Partial<Options<DisableDispatchApiDispatchDisablePostData>>): UseMutationOptions<DisableDispatchApiDispatchDisablePostResponse, DefaultError, Options<DisableDispatchApiDispatchDisablePostData>> => {
+    const mutationOptions: UseMutationOptions<DisableDispatchApiDispatchDisablePostResponse, DefaultError, Options<DisableDispatchApiDispatchDisablePostData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await disableDispatchApiDispatchDisablePost({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Enable Dispatch
+ *
+ * Enable dispatch for this project against an already-defined runner.
+ */
+export const enableDispatchApiDispatchEnablePostMutation = (options?: Partial<Options<EnableDispatchApiDispatchEnablePostData>>): UseMutationOptions<EnableDispatchApiDispatchEnablePostResponse, EnableDispatchApiDispatchEnablePostError, Options<EnableDispatchApiDispatchEnablePostData>> => {
+    const mutationOptions: UseMutationOptions<EnableDispatchApiDispatchEnablePostResponse, EnableDispatchApiDispatchEnablePostError, Options<EnableDispatchApiDispatchEnablePostData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await enableDispatchApiDispatchEnablePost({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listDispatchRunsApiDispatchRunsGetQueryKey = (options?: Options<ListDispatchRunsApiDispatchRunsGetData>) => createQueryKey('listDispatchRunsApiDispatchRunsGet', options);
+
+/**
+ * List Dispatch Runs
+ *
+ * Runs belonging to this project, newest first.
+ *
+ * Filtered by project rather than returning the machine's whole ledger: a run
+ * directory records which project it belongs to, and a page about one project has no
+ * business showing another's.
+ */
+export const listDispatchRunsApiDispatchRunsGetOptions = (options?: Options<ListDispatchRunsApiDispatchRunsGetData>) => queryOptions<ListDispatchRunsApiDispatchRunsGetResponse, ListDispatchRunsApiDispatchRunsGetError, ListDispatchRunsApiDispatchRunsGetResponse, ReturnType<typeof listDispatchRunsApiDispatchRunsGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listDispatchRunsApiDispatchRunsGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listDispatchRunsApiDispatchRunsGetQueryKey(options)
+});
+
+/**
+ * Cancel Dispatch Run
+ *
+ * Stop one run and write its cancellation to the task record.
+ */
+export const cancelDispatchRunApiDispatchRunsRunIdCancelPostMutation = (options?: Partial<Options<CancelDispatchRunApiDispatchRunsRunIdCancelPostData>>): UseMutationOptions<CancelDispatchRunApiDispatchRunsRunIdCancelPostResponse, CancelDispatchRunApiDispatchRunsRunIdCancelPostError, Options<CancelDispatchRunApiDispatchRunsRunIdCancelPostData>> => {
+    const mutationOptions: UseMutationOptions<CancelDispatchRunApiDispatchRunsRunIdCancelPostResponse, CancelDispatchRunApiDispatchRunsRunIdCancelPostError, Options<CancelDispatchRunApiDispatchRunsRunIdCancelPostData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await cancelDispatchRunApiDispatchRunsRunIdCancelPost({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const readDispatchRunOutputApiDispatchRunsRunIdOutputGetQueryKey = (options: Options<ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetData>) => createQueryKey('readDispatchRunOutputApiDispatchRunsRunIdOutputGet', options);
+
+/**
+ * Read Dispatch Run Output
+ *
+ * A run's captured output, as text a browser tab can show.
+ *
+ * Text rather than JSON because this is the one dispatch response a human reads
+ * directly, and a transcript wrapped in a JSON string escape is unreadable.
+ */
+export const readDispatchRunOutputApiDispatchRunsRunIdOutputGetOptions = (options: Options<ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetData>) => queryOptions<ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetResponse, ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetError, ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetResponse, ReturnType<typeof readDispatchRunOutputApiDispatchRunsRunIdOutputGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await readDispatchRunOutputApiDispatchRunsRunIdOutputGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: readDispatchRunOutputApiDispatchRunsRunIdOutputGetQueryKey(options)
 });
 
 export const apiHealthCheckApiHealthGetQueryKey = (options?: Options<ApiHealthCheckApiHealthGetData>) => createQueryKey('apiHealthCheckApiHealthGet', options);
@@ -205,6 +333,134 @@ export const getDashboardApiProjectsProjectIdDashboardGetOptions = (options: Opt
         return data;
     },
     queryKey: getDashboardApiProjectsProjectIdDashboardGetQueryKey(options)
+});
+
+export const getDispatchStateApiProjectsProjectIdDispatchGetQueryKey = (options: Options<GetDispatchStateApiProjectsProjectIdDispatchGetData>) => createQueryKey('getDispatchStateApiProjectsProjectIdDispatchGet', options);
+
+/**
+ * Get Dispatch State
+ *
+ * Whether this project may dispatch right now, and which gate says otherwise.
+ */
+export const getDispatchStateApiProjectsProjectIdDispatchGetOptions = (options: Options<GetDispatchStateApiProjectsProjectIdDispatchGetData>) => queryOptions<GetDispatchStateApiProjectsProjectIdDispatchGetResponse, GetDispatchStateApiProjectsProjectIdDispatchGetError, GetDispatchStateApiProjectsProjectIdDispatchGetResponse, ReturnType<typeof getDispatchStateApiProjectsProjectIdDispatchGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getDispatchStateApiProjectsProjectIdDispatchGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getDispatchStateApiProjectsProjectIdDispatchGetQueryKey(options)
+});
+
+/**
+ * Disable Dispatch
+ *
+ * Stop dispatching for this project. Takes nothing, asks nothing.
+ *
+ * Refuses only when there is no config file at all, which is already a state in which
+ * nothing can dispatch -- so there is no reachable case where a human wants this off
+ * and cannot have it.
+ */
+export const disableDispatchApiProjectsProjectIdDispatchDisablePostMutation = (options?: Partial<Options<DisableDispatchApiProjectsProjectIdDispatchDisablePostData>>): UseMutationOptions<DisableDispatchApiProjectsProjectIdDispatchDisablePostResponse, DisableDispatchApiProjectsProjectIdDispatchDisablePostError, Options<DisableDispatchApiProjectsProjectIdDispatchDisablePostData>> => {
+    const mutationOptions: UseMutationOptions<DisableDispatchApiProjectsProjectIdDispatchDisablePostResponse, DisableDispatchApiProjectsProjectIdDispatchDisablePostError, Options<DisableDispatchApiProjectsProjectIdDispatchDisablePostData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await disableDispatchApiProjectsProjectIdDispatchDisablePost({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Enable Dispatch
+ *
+ * Enable dispatch for this project against an already-defined runner.
+ */
+export const enableDispatchApiProjectsProjectIdDispatchEnablePostMutation = (options?: Partial<Options<EnableDispatchApiProjectsProjectIdDispatchEnablePostData>>): UseMutationOptions<EnableDispatchApiProjectsProjectIdDispatchEnablePostResponse, EnableDispatchApiProjectsProjectIdDispatchEnablePostError, Options<EnableDispatchApiProjectsProjectIdDispatchEnablePostData>> => {
+    const mutationOptions: UseMutationOptions<EnableDispatchApiProjectsProjectIdDispatchEnablePostResponse, EnableDispatchApiProjectsProjectIdDispatchEnablePostError, Options<EnableDispatchApiProjectsProjectIdDispatchEnablePostData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await enableDispatchApiProjectsProjectIdDispatchEnablePost({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listDispatchRunsApiProjectsProjectIdDispatchRunsGetQueryKey = (options: Options<ListDispatchRunsApiProjectsProjectIdDispatchRunsGetData>) => createQueryKey('listDispatchRunsApiProjectsProjectIdDispatchRunsGet', options);
+
+/**
+ * List Dispatch Runs
+ *
+ * Runs belonging to this project, newest first.
+ *
+ * Filtered by project rather than returning the machine's whole ledger: a run
+ * directory records which project it belongs to, and a page about one project has no
+ * business showing another's.
+ */
+export const listDispatchRunsApiProjectsProjectIdDispatchRunsGetOptions = (options: Options<ListDispatchRunsApiProjectsProjectIdDispatchRunsGetData>) => queryOptions<ListDispatchRunsApiProjectsProjectIdDispatchRunsGetResponse, ListDispatchRunsApiProjectsProjectIdDispatchRunsGetError, ListDispatchRunsApiProjectsProjectIdDispatchRunsGetResponse, ReturnType<typeof listDispatchRunsApiProjectsProjectIdDispatchRunsGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listDispatchRunsApiProjectsProjectIdDispatchRunsGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listDispatchRunsApiProjectsProjectIdDispatchRunsGetQueryKey(options)
+});
+
+/**
+ * Cancel Dispatch Run
+ *
+ * Stop one run and write its cancellation to the task record.
+ */
+export const cancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostMutation = (options?: Partial<Options<CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostData>>): UseMutationOptions<CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostResponse, CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostError, Options<CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostData>> => {
+    const mutationOptions: UseMutationOptions<CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostResponse, CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostError, Options<CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await cancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPost({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const readDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetQueryKey = (options: Options<ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetData>) => createQueryKey('readDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGet', options);
+
+/**
+ * Read Dispatch Run Output
+ *
+ * A run's captured output, as text a browser tab can show.
+ *
+ * Text rather than JSON because this is the one dispatch response a human reads
+ * directly, and a transcript wrapped in a JSON string escape is unreadable.
+ */
+export const readDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetOptions = (options: Options<ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetData>) => queryOptions<ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetResponse, ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetError, ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetResponse, ReturnType<typeof readDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await readDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: readDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetQueryKey(options)
 });
 
 export const getProjectRevisionApiProjectsProjectIdRevisionGetQueryKey = (options: Options<GetProjectRevisionApiProjectsProjectIdRevisionGetData>) => createQueryKey('getProjectRevisionApiProjectsProjectIdRevisionGet', options);
