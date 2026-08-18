@@ -1,0 +1,138 @@
+schema: 2
+id: task-016
+title: Make the review panel ball_reason-aware so it stops offering Approve on a question
+created: '2026-08-18T05:34:58.400603Z'
+updated: '2026-08-18T05:36:23.250617Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- frontend
+- ux
+- correctness
+effort: an hour or two
+assignment:
+  eligible: []
+spec:
+  summary: "The review panel picks its buttons from `lifecycle === \"draft\"` alone\
+    \ and never reads `ball_reason`, so a task waiting on a decision renders \"\u2713\
+    \ Approve \u2014 agent may merge\". On a decision task that sentence is false\
+    \ \u2014 there is no branch \u2014 and clicking it records an approval with no\
+    \ defined meaning."
+  intent: A human looking at a task should be offered verbs that are true of that
+    task.
+  description: "Found by Jeff on 2026-08-18, using the GUI to answer task-077-dispatch-session-launcher.\n\
+    \n## What happened\n\ntask-077 was handed off with `ball: human` / `ball_reason:\
+    \ decision` and a `ball_prompt` containing four numbered questions. The GUI rendered\
+    \ the standard review panel: **\u2713 Approve \u2014 agent may merge**, \u270E\
+    \ Request Changes, \u2715 Reject & Archive.\n\nHis reaction, verbatim: *\"so you\
+    \ are saying, when I click Approve on 077, I am somehow answering all of this?!?!\"\
+    *\n\nNo. Approve would have recorded an approval whose meaning was undefined,\
+    \ and the agent would have had to guess which of four questions he had said yes\
+    \ to.\n\n## The cause\n\n`ReviewPanel` in `frontend/src/components/TaskDetail.tsx`\
+    \ branches on exactly one thing:\n\n```ts\nconst planning = detail.task.lifecycle\
+    \ === \"draft\";\n```\n\nDraft gets the promote copy; **everything else** gets\
+    \ the merge-gate copy. `ball_reason` is in the payload and is never read. So `decision`,\
+    \ `input`, `approval` and a non-draft `spec` all render \"Approve \u2014 agent\
+    \ may merge\".\n\nOn a decision task that string is not merely unhelpful, it is\
+    \ false: there is no branch and nothing to merge. The panel asserts something\
+    \ untrue about the task in front of it, which is the same class of defect as ENGINEERING.md's\
+    \ rule about asserting on rendered values.\n\n## Scope\n\nKey the verb set off\
+    \ `ball_reason`:\n\n| `ball_reason` | Verbs |\n|---|---|\n| `review` | Approve\
+    \ \u2014 agent may merge / Request Changes / Reject & Archive (today's behaviour,\
+    \ correct) |\n| `approval` | Approve / Request Changes / Reject & Archive \u2014\
+    \ Approve genuinely means something here |\n| `decision`, `input` | **No Approve.**\
+    \ \"Answer Questions\" (the existing feedback path, renamed) / Reject & Archive\
+    \ |\n| `spec` | Existing draft/promote path already covers the common case; make\
+    \ sure a non-draft `spec` does not fall through to a merge verb |\n\nThe feedback\
+    \ path already exists and already writes a log entry \u2014 this is a copy and\
+    \ gating change, not new plumbing.\n\n## Deliberately not in this task\n\nStructured\
+    \ multiple-choice answering. Renaming Request Changes to \"Answer Questions\"\
+    \ fixes the *lie*, but a free-text box still means typing four paragraphs on a\
+    \ phone, which is where Jeff actually reads these. That is **task-017**, and it\
+    \ is the larger feature. This task is the cheap correctness fix and should not\
+    \ wait for it.\n\n## Verification\n\nPer ENGINEERING.md, assert on the rendered\
+    \ value, not the presence of markup. A test should set up a task at `human`/`decision`\
+    \ and assert the Approve button is **absent** and the secondary button reads \"\
+    Answer Questions\" \u2014 not merely that some button exists.\n\nExercise it against\
+    \ a real server too: hand a task off to `human`/`decision` and look at it, because\
+    \ that is the path that produced the bug."
+  constraints: "- Do not change what the feedback path writes to the log; this is\
+    \ gating and copy only.\n- Do not remove Reject & Archive from any reason \u2014\
+    \ it is the escape hatch for \"this whole task is wrong\", which is valid against\
+    \ a decision request too.\n- `ball_reason` is already on the payload. If it turns\
+    \ out not to be, that is a separate API change and should be raised rather than\
+    \ worked around in the component."
+  out_of_scope: "Structured question/option rendering \u2014 that is task-017. Also\
+    \ out: any change to the handoff API or the ball vocabulary itself."
+  context:
+  - path: frontend/src/components/TaskDetail.tsx
+    why: "ReviewPanel \u2014 the `planning` branch at the top of the component is\
+      \ the whole bug."
+  - path: frontend/src/components/TaskDetail.test.tsx
+    why: Where the per-ball_reason rendering tests belong.
+  - path: docs/task-schema.md
+    why: The full ball_reason vocabulary, so no reason is left falling through to
+      a default.
+acceptance:
+- id: sc-1
+  text: A task at human/decision renders no Approve button, and the secondary action
+    reads "Answer Questions"
+  status: pending
+- id: sc-2
+  text: "A task at human/review is unchanged and still offers \"Approve \u2014 agent\
+    \ may merge\""
+  status: pending
+- id: sc-3
+  text: human/input behaves as decision does; human/approval keeps Approve; a non-draft
+    human/spec does not render a merge verb
+  status: pending
+- id: sc-4
+  text: Tests assert on the rendered button text for each ball_reason, not on the
+    presence of markup
+  status: pending
+- id: sc-5
+  text: Verified against a running server on a task actually handed off to human/decision,
+    not only in jsdom
+  status: pending
+deliverables:
+- path: frontend/src/components/TaskDetail.tsx
+  note: Verb set keyed off ball_reason
+  status: pending
+- path: frontend/src/components/TaskDetail.test.tsx
+  note: Rendered-text assertions per ball_reason
+  status: pending
+dependencies:
+- task: task-017
+  type: related
+  note: The larger feature this one deliberately does not wait for. This ships first.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:34:58.400657Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 4e7a1b93-2c86-40d5-9f13-8a5c62e04b71
+      kind: create
+      fingerprint: d165d90861d7198a666493e981484864
+- id: 2
+  ts: '2026-08-18T05:36:23.250415Z'
+  actor: claude
+  type: note
+  body: Updated dependencies, spec.
+  data:
+    fields:
+    - dependencies
+    - spec
+    operation:
+      id: 5c8e30a7-1b46-4f92-a073-2d69e8b41c05
+      kind: update_content
+      fingerprint: 5c5deeb56676332093aa23475d65def0

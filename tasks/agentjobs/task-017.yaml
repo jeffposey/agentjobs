@@ -1,0 +1,147 @@
+schema: 2
+id: task-017
+title: Let an agent ask structured multiple-choice questions the human answers in
+  the GUI
+created: '2026-08-18T05:35:45.027948Z'
+updated: '2026-08-18T05:35:45.028703Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- frontend
+- schema
+- ux
+- agent-dx
+effort: a day, plus a schema change
+assignment:
+  eligible: []
+spec:
+  summary: When an agent needs a decision, it can only leave prose in `ball_prompt`
+    and hope for prose back. Jeff reads these on a phone, where four questions means
+    four paragraphs of typing. Let the agent pose questions with options and a recommendation,
+    and let the GUI render them as choices that write `answer` entries.
+  intent: Make a decision handoff answerable in seconds from a phone, rather than
+    a writing exercise.
+  description: "Asked for by Jeff on 2026-08-18, in his words: *\"I'm guessing we\
+    \ need the same list of multiple choice questions GUI that claude code has.\"\
+    *\n\n## Where this came from\n\ntask-076 and task-077 were both handed off at\
+    \ `ball: human` / `ball_reason: decision`, each with four substantive questions\
+    \ in the `ball_prompt` \u2014 one of which needed a numeric threshold. The GUI\
+    \ offered Approve / Request Changes / Reject. See task-016 for that defect, which\
+    \ is the cheap half of this problem and is being fixed separately.\n\nThe expensive\
+    \ half is that even a correctly-labelled \"Answer Questions\" free-text box would\
+    \ have meant typing four paragraphs on a phone. What actually unblocked him in-session\
+    \ was being asked the four questions with options and a recommendation pre-marked;\
+    \ he answered all four in seconds, and on one of them he **rejected all the options\
+    \ and supplied a better answer** \u2014 so free-text must survive as an escape\
+    \ hatch, not be replaced.\n\n## The shape, which the schema mostly already has\n\
+    \nSchema v2 already has `question` and `answer` log entry types with `re` threading,\
+    \ and an open question with no threaded answer is already queryable. That is the\
+    \ natural home. **`ball_prompt` stays prose** \u2014 it is the orientation, not\
+    \ the form.\n\nProposed: a `question` entry may carry structured options in its\
+    \ `data`, e.g.\n\n```yaml\ntype: question\nbody: Which permission posture, and\
+    \ what default?\ndata:\n  options:\n    - label: Three postures, default supervised\n\
+    \      description: ...\n      recommended: true\n    - label: Three postures,\
+    \ default read_only\n      description: ...\n  multi_select: false\n```\n\nThe\
+    \ GUI renders every open `question` on a task as answerable \u2014 options as\
+    \ buttons or radios, plus a free-text \"something else\" that is always available.\
+    \ Answering writes an `answer` entry with `re` pointing at the question. Nothing\
+    \ new is invented for storage, threading, or attribution.\n\n## Argue these before\
+    \ building\n\n1. **Does this need a new field at all, or is `data` on a `question`\
+    \ entry enough?** `data` is already a free-form object. Using it costs no schema\
+    \ change but also gets no validation, so a malformed option list fails at render\
+    \ time in front of the user. A typed model is the schema-first answer and this\
+    \ project's stated philosophy is that schema changes should be cheap rather than\
+    \ avoided.\n2. **What does the agent-side API look like?** An agent needs to pose\
+    \ N questions atomically alongside a handoff, or the human sees a half-populated\
+    \ form. Possibly `task_handoff` gains an optional `questions[]`, possibly it stays\
+    \ separate `task_log_append` calls and the GUI tolerates partial state.\n3. **What\
+    \ happens to an unanswered question when the ball moves back to the agent?** An\
+    \ open question thread outliving its handoff is either a useful backlog or a leak;\
+    \ pick one and say why.\n4. **Does answering move the ball automatically?** Answering\
+    \ the last open question is a plausible trigger for ball \u2192 agent, and an\
+    \ automatic ball move is exactly the kind of thing that should be argued rather\
+    \ than assumed.\n\n## Verification\n\nThe real test is the one that produced the\
+    \ request: a task with four questions, one of them numeric, answered on a phone-width\
+    \ viewport without a keyboard. Assert on rendered option text and on the resulting\
+    \ `answer` entries being correctly threaded by `re` \u2014 not on markup being\
+    \ present."
+  constraints: "- **Free text must always remain available**, on every question. Jeff\
+    \ rejected all supplied options on one of the four questions in the session that\
+    \ motivated this and gave a better answer; a form that cannot capture that is\
+    \ worse than the prose box it replaces.\n- `ball_prompt` stays prose and stays\
+    \ required. This adds structure beside it, it does not replace it.\n- Reuse the\
+    \ existing `question`/`answer` log entry types and `re` threading. Do not introduce\
+    \ a parallel storage mechanism for questions.\n- Answers are written through the\
+    \ manager verbs like every other log entry \u2014 no direct YAML writes.\n- Mobile\
+    \ is the primary target, not the desktop afterthought: this exists because answering\
+    \ on a phone is currently painful."
+  out_of_scope: "The ball_reason verb gating \u2014 that is task-016 and ships first.\
+    \ Also out: any change to how `ball_prompt` itself is authored or rendered."
+  context:
+  - path: docs/task-schema.md
+    why: The `question`/`answer` entry types and `re` threading this should build
+      on.
+  - path: src/agentjobs/models.py
+    why: Where a typed option model would live if option 1 in the description is chosen.
+  - path: frontend/src/components/TaskDetail.tsx
+    why: Where questions would render, alongside the ball_reason work in task-016.
+  - path: tasks/agentjobs/task-077-dispatch-session-launcher.yaml
+    why: 'Its handoff is the worked example: four questions, one numeric, one where
+      all options were rejected.'
+acceptance:
+- id: sc-1
+  text: A decision entry records whether structured options are typed in the schema
+    or carried untyped in a question entry's `data`, with the rejected option and
+    its reasoning
+  status: pending
+- id: sc-2
+  text: An agent can pose one or more questions with options and a recommended flag,
+    and they appear on the task record
+  status: pending
+- id: sc-3
+  text: The GUI renders open questions as selectable options with a free-text alternative
+    always present, and answering writes an `answer` entry threaded by `re` to its
+    question
+  status: pending
+- id: sc-4
+  text: The four questions from task-077's handoff are reproducible as a worked example
+    and answerable end to end
+  status: pending
+- id: sc-5
+  text: Verified on a phone-width viewport against a running server, since answering
+    on a phone is the reason this exists
+  status: pending
+- id: sc-6
+  text: Whether answering the final open question moves the ball is decided explicitly
+    and recorded, not left implicit
+  status: pending
+deliverables:
+- path: docs/task-schema.md
+  note: Structured question options, if typed
+  status: pending
+- path: frontend/src/components/TaskDetail.tsx
+  note: Question rendering and answering
+  status: pending
+dependencies:
+- task: task-016
+  type: related
+  note: Ships first and independently. That fixes the false verb; this adds the answering
+    mechanism.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:35:45.027996Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7b2f6c14-9d38-4e07-a625-3f81b0e94c72
+      kind: create
+      fingerprint: cc04c10e359be0081cae843bd5ffddbf

@@ -3,7 +3,7 @@ id: task-077-dispatch-session-launcher
 title: 'Decide: should dispatch launch a remote-controllable session instead of a
   batch run?'
 created: '2026-08-11T01:56:16.465216Z'
-updated: '2026-08-18T05:11:35.237342Z'
+updated: '2026-08-18T05:33:38.379261Z'
 lifecycle: active
 ball: human
 ball_reason: decision
@@ -534,3 +534,71 @@ log:
       id: 6d1b8c40-9e72-4a35-81f6-0c47b3e29d15
       kind: handoff
       fingerprint: 62ccc36231c048cbf6420ae36e8d3947
+- id: 8
+  ts: '2026-08-18T05:33:38.378998Z'
+  actor: Jeff Posey
+  type: decision
+  body: "**Decided by Jeff, 2026-08-18: dispatch drives `claude agents` in session\
+    \ mode, with batch retained as a second runner mode.**\n\nAnswers given against\
+    \ the four questions in the handoff (entry 7), after the research in entries 5\
+    \ and 6.\n\n## 1. Session mode primary, batch retained\n\nDispatch launches `--bg\
+    \ --remote-control -w <slug>`. Batch `-p` survives as a second **declared runner\
+    \ mode**, not merely a fallback for a CLI without a session manager: it is the\
+    \ right mode for bounded report runs, where a spend ceiling and structured `stream-json`\
+    \ output matter more than steerability.\n\nThis confirms and completes the 2026-08-11\
+    \ direction in entry 1. The runner declares which mode it is, so the abstraction\
+    \ stays fillable by a non-Claude CLI (which declares `batch` and gets the \xA7\
+    9 supervisor model).\n\n**Rejected: session-only, deleting batch.** Simpler \u2014\
+    \ one code path \u2014 but it discards the only hard spend ceiling (`--max-budget-usd`\
+    \ is `--print`-only) and the only structured output, and leaves no mode for a\
+    \ CLI without a session manager.\n\n**Rejected: batch-only, the original \xA7\
+    9 model.** It keeps the spend ceiling, stream-json, and exit-code-derived `failed`/`crashed`\
+    \ outcomes \u2014 all genuine. Rejected because it fails the stated goal outright:\
+    \ no mid-flight redirect, so dispatch would replace the tracking and leave the\
+    \ conversation in chat.\n\n## 2. \"Runs do not outlive their supervisor\" is reversed\
+    \ for session mode\n\n`claude stop <id>` is a working kill switch independent\
+    \ of AgentJobs, and a remote-controlled session is reachable from any device,\
+    \ so the orphan premise the rule was built on no longer holds. Killing live sessions\
+    \ because `agentjobs serve` restarted would destroy work for no safety gain. Startup\
+    \ reconciliation inverts from \"declare it `interrupted`\" to \"re-attach to whatever\
+    \ is still in the ledger.\"\n\n**Rejected: keep the rule.** Consistent with the\
+    \ original design, but costs a real run on every server restart including routine\
+    \ redeploys, and would kill a session Jeff was mid-conversation with on his phone.\n\
+    \n## 3. Staleness rule at 60 minutes, replacing the 1800s wall-clock kill\n\n\
+    A session sitting `idle`/`done` with an unmoved ball for **60 minutes** is treated\
+    \ as `finished_without_handoff` and the ball moves to human. **It does not kill\
+    \ the session** \u2014 the session remains attachable.\n\n**Rejected: 15 minutes**\
+    \ (chosen against \u2014 more false positives if agents pause mid-work). **Rejected:\
+    \ 4 hours** (only catches overnight stalls). **Rejected: keeping the 1800s hard\
+    \ kill** \u2014 wrong for a session intended to be picked up hours later; it would\
+    \ destroy the property that made session mode worth choosing.\n\n## 4. task-070\
+    \ and task-072 are rescoped, neither is closed\n\n- **task-070** shrinks to spawn\
+    \ / capture-id / poll. Its supervisor-thread and run-directory specs are retained\
+    \ but scoped to `batch` mode, along with its verification plan (non-zero exit,\
+    \ hang past timeout, megabytes of output, grandchild process). A session-mode\
+    \ verification equivalent still needs writing.\n- **task-072** survives more than\
+    \ its spec expected. `claude agents --json` is a ledger but not *our* ledger:\
+    \ no run-to-task mapping, no dispatch attribution, no history once `claude rm`\
+    \ runs. AgentJobs still needs its own ledger keyed by task; it stores a session\
+    \ id and delegates cancellation to `claude stop`.\n\n**Rejected: closing 072 as\
+    \ superseded** (loses run-to-task attribution and dispatch history, which is most\
+    \ of what a ledger is for). **Rejected: closing both and writing one new wrapper\
+    \ task** (loses 070's already-written verification plans, which still apply to\
+    \ batch mode).\n\n## Still outstanding\n\nQ2 from entry 5 \u2014 whether a backgrounded\
+    \ session actually surfaces on another device \u2014 remains evidenced but not\
+    \ end-to-end tested. Jeff to confirm by dispatching one session and opening the\
+    \ emitted `claude.ai/code` URL before code depends on it."
+  data:
+    decided_by: Jeff Posey
+    affects:
+    - sc-2
+    - sc-3
+    - sc-4
+    - sc-5
+    - task-070
+    - task-072
+    staleness_threshold_minutes: 60
+    operation:
+      id: f0a92d63-5c18-4b74-9e31-7a2c6b408e5f
+      kind: log_append
+      fingerprint: a207e94c11a52937a68317cee57fa2ae

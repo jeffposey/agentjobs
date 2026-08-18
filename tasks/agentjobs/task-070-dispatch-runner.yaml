@@ -2,7 +2,7 @@ schema: 2
 id: task-070-dispatch-runner
 title: 'Dispatch: the runner and its supervisor process'
 created: '2026-08-11T00:21:32.484450Z'
-updated: '2026-08-18T04:35:00.476159Z'
+updated: '2026-08-18T05:34:27.154117Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -165,3 +165,36 @@ log:
     I said so earlier'' is not one of the reasons. Sequencing belongs in `dependencies[]`,
     not in the ball.'
   data: {}
+- id: 2
+  ts: '2026-08-18T05:34:27.153991Z'
+  actor: Jeff Posey
+  type: instruction
+  body: "**How the overnight kickoff of the dispatch chain is to be sequenced. From\
+    \ Jeff, 2026-08-18.** Recorded here rather than left in chat because it is an\
+    \ ordering constraint on the parent loop, and ALLAGENTS requires a required order\
+    \ to be durable.\n\n## The instruction\n\nPosture stays `supervised` throughout\
+    \ (see task-076's decision entry). What varies is **dispatch order, not permissions**:\n\
+    \n> Front-load the children that are most likely to need supervision, while Jeff\
+    \ is still awake and reachable. Move on to the more autonomous-safe work later\
+    \ in the night.\n\nHe will be available for a while after kickoff. He **may or\
+    \ may not** signal before signing off.\n\n## The default when he goes unreachable\n\
+    \n**Parked runs stay parked.** The night is lost rather than the authorization.\n\
+    \nExplicitly rejected, and not to be built: an auto-escalation that promotes a\
+    \ parked run to `autonomous` after N minutes of no human response. That grants\
+    \ bypass permissions with no human present \u2014 the precise failure task-076\
+    \ exists to prevent \u2014 and it violates design \xA72, which requires every\
+    \ dispatch to trace to a human act. A timeout is not a human act.\n\n## The signal\
+    \ that changes it\n\nOne message from Jeff before sleeping \u2014 in substance,\
+    \ \"going down, autonomous from here\" \u2014 authorizes the remainder of the\
+    \ chain to run under the `autonomous` posture. That message *is* the human act,\
+    \ so \xA72 holds. Absent it, `supervised` stands and parking is the correct outcome.\n\
+    \n## Consequence to plan around\n\nA child that parks after Jeff is asleep contributes\
+    \ nothing until morning either way. So the value of this sequencing is entirely\
+    \ in the front-loading: the ordering choice is what buys the night, not the posture."
+  data:
+    decided_by: Jeff Posey
+    applies_to: overnight kickoff of the 070 -> 071/072 -> 073 chain
+    operation:
+      id: 9a4f2e81-6d73-4b05-98c2-3e1b7d5a0f46
+      kind: log_append
+      fingerprint: 99ed743673b3c76b6da7aa277632d3a8
