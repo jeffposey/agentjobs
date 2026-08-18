@@ -20,6 +20,7 @@ import {
   rejectTaskApiProjectsProjectIdTasksTaskIdRejectPostMutation,
   requestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostMutation,
 } from "./api/generated/@tanstack/react-query.gen";
+import type { DispatchRunView } from "./api/types";
 import { readRefusal } from "./api/mutation-error";
 import {
   requireSupportedTaskSchemas,
@@ -32,6 +33,7 @@ import {
   runsPollInterval,
   type DispatchRefusal,
 } from "./components/DispatchPanel";
+import { DispatchRunOutput } from "./components/DispatchOutput";
 import { TaskList } from "./components/TaskList";
 import { TaskDetail } from "./components/TaskDetail";
 import { TaskCreate } from "./components/TaskCreate";
@@ -164,6 +166,11 @@ function useTaskDispatch(projectId: string, taskId: string) {
   return {
     state: stateQuery.data ?? null,
     runs,
+    // Each run brings its own output panel, which reads and polls for itself. The runs
+    // list moves on the list's clock and a run's output on the poller's; tying them
+    // together would mean either re-reading transcripts every two seconds or watching
+    // an elapsed counter that updates five times slower than it should.
+    renderOutput: (run: DispatchRunView) => <DispatchRunOutput key={run.run_id} run={run} />,
     busy: start.isPending,
     cancellingRunId,
     dispatchRefusal: refusal,

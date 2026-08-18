@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import type { DispatchRunView, DispatchStateView } from "../api/types";
 
@@ -132,6 +132,14 @@ export type DispatchPanelProps = {
   dispatchRefusal?: DispatchRefusal | null;
   onDispatch: () => Promise<void> | void;
   onCancel: (runId: string) => Promise<void> | void;
+  /**
+   * The output panel for one run, supplied rather than imported.
+   *
+   * It reads from the API on its own clock, and this file is otherwise given everything
+   * it renders. Passing it in keeps that true, so the panel can still be rendered in a
+   * test without a query client to answer for a surface the test is not about.
+   */
+  renderOutput?: (run: DispatchRunView) => ReactNode;
 };
 
 /**
@@ -150,6 +158,7 @@ export function DispatchPanel({
   dispatchRefusal = null,
   onDispatch,
   onCancel,
+  renderOutput,
 }: DispatchPanelProps) {
   if (!taskIsDispatchable && runs.length === 0) return null;
   // Silent on a machine where dispatch was never set up. There is nothing to switch on
@@ -200,7 +209,12 @@ export function DispatchPanel({
       {taskIsDispatchable && gateRefusal && <RefusalNote refusal={gateRefusal} answered={false} />}
       {dispatchRefusal && <RefusalNote refusal={dispatchRefusal} />}
 
-      <DispatchRunList runs={runs} cancellingRunId={cancellingRunId} onCancel={onCancel} />
+      <DispatchRunList
+        runs={runs}
+        cancellingRunId={cancellingRunId}
+        onCancel={onCancel}
+        renderOutput={renderOutput}
+      />
     </section>
   );
 }
@@ -209,10 +223,12 @@ export function DispatchRunList({
   runs,
   cancellingRunId = null,
   onCancel,
+  renderOutput,
 }: {
   runs: Array<DispatchRunView>;
   cancellingRunId?: string | null;
   onCancel: (runId: string) => Promise<void> | void;
+  renderOutput?: (run: DispatchRunView) => ReactNode;
 }) {
   if (runs.length === 0) return null;
   return (
@@ -224,8 +240,9 @@ export function DispatchRunList({
             key={run.run_id}
             data-run-id={run.run_id}
             data-run-live={run.live ? "yes" : "no"}
-            className="flex flex-col gap-2 p-3 min-[820px]:flex-row min-[820px]:items-center min-[820px]:justify-between"
+            className="p-3"
           >
+            <div className="flex flex-col gap-2 min-[820px]:flex-row min-[820px]:items-center min-[820px]:justify-between">
             <div className="min-w-0 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <span
@@ -263,6 +280,8 @@ export function DispatchRunList({
                 </button>
               )}
             </div>
+            </div>
+            {renderOutput?.(run)}
           </li>
         ))}
       </ul>
