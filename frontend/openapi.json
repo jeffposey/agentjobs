@@ -648,6 +648,76 @@
         "title": "DependencyType",
         "type": "string"
       },
+      "DispatchRequestBody": {
+        "description": "Ask AgentJobs to start an agent on this task.\n\nThere is no ``actor`` field, and that absence is the design. The actor recorded on a\ndispatch is the author of the log entry that *caused* it, not whoever posted the\nrequest -- otherwise the human-clocked rule would be satisfied by a caller naming a\nhuman, which is not evidence of anything.",
+        "properties": {
+          "caused_by": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Log entry id authorising this dispatch. Defaults to the newest entry. Its actor must be a configured human.",
+            "title": "Caused By"
+          }
+        },
+        "title": "DispatchRequestBody",
+        "type": "object"
+      },
+      "DispatchStarted": {
+        "description": "What a successful dispatch reports back.",
+        "properties": {
+          "caused_by": {
+            "description": "The log entry this dispatch is attributed to.",
+            "title": "Caused By",
+            "type": "integer"
+          },
+          "mode": {
+            "description": "session or batch.",
+            "title": "Mode",
+            "type": "string"
+          },
+          "posture": {
+            "description": "What the run is permitted to do.",
+            "title": "Posture",
+            "type": "string"
+          },
+          "run_id": {
+            "description": "AgentJobs' identifier for this run.",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Session mode only, and assigned by the CLI rather than by us.",
+            "title": "Session Id"
+          },
+          "task_id": {
+            "description": "The task the run is working.",
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "mode",
+          "posture",
+          "task_id",
+          "caused_by"
+        ],
+        "title": "DispatchStarted",
+        "type": "object"
+      },
       "FeedbackActionRequest": {
         "description": "Request changes with feedback.",
         "properties": {
@@ -4287,6 +4357,68 @@
         ]
       }
     },
+    "/api/projects/{project_id}/tasks/{task_id}/dispatch": {
+      "post": {
+        "description": "Start an agent on this task.\n\nDeliberately **not** merged into any approval endpoint. Approving means \"I agree\";\ndispatching means \"spend money now\", and collapsing the two would turn every\napproval into an implicit purchase (design decision D1).\n\n202 rather than 200: the run has started, and how it ends arrives later as\n``dispatch_result`` entries on the task, not in this response.",
+        "operationId": "dispatch_task_endpoint_api_projects__project_id__tasks__task_id__dispatch_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DispatchRequestBody",
+                "default": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchStarted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dispatch Task Endpoint",
+        "tags": [
+          "status"
+        ]
+      }
+    },
     "/api/projects/{project_id}/tasks/{task_id}/handoff": {
       "post": {
         "description": "Move the ball, with its ask.",
@@ -5880,6 +6012,59 @@
         "summary": "Get Task Detail",
         "tags": [
           "tasks"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/dispatch": {
+      "post": {
+        "description": "Start an agent on this task.\n\nDeliberately **not** merged into any approval endpoint. Approving means \"I agree\";\ndispatching means \"spend money now\", and collapsing the two would turn every\napproval into an implicit purchase (design decision D1).\n\n202 rather than 200: the run has started, and how it ends arrives later as\n``dispatch_result`` entries on the task, not in this response.",
+        "operationId": "dispatch_task_endpoint_api_tasks__task_id__dispatch_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DispatchRequestBody",
+                "default": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchStarted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dispatch Task Endpoint",
+        "tags": [
+          "status"
         ]
       }
     },

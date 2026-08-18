@@ -441,3 +441,35 @@ class ProgressUpdateRequest(SafeMutationRequest):
     author: str
     summary: str
     details: Optional[str] = None
+
+
+class DispatchRequestBody(BaseModel):
+    """Ask AgentJobs to start an agent on this task.
+
+    There is no ``actor`` field, and that absence is the design. The actor recorded on a
+    dispatch is the author of the log entry that *caused* it, not whoever posted the
+    request -- otherwise the human-clocked rule would be satisfied by a caller naming a
+    human, which is not evidence of anything.
+    """
+
+    caused_by: Optional[int] = Field(
+        default=None,
+        description=(
+            "Log entry id authorising this dispatch. Defaults to the newest entry. Its "
+            "actor must be a configured human."
+        ),
+    )
+
+
+class DispatchStarted(BaseModel):
+    """What a successful dispatch reports back."""
+
+    run_id: str = Field(..., description="AgentJobs' identifier for this run.")
+    session_id: Optional[str] = Field(
+        default=None,
+        description="Session mode only, and assigned by the CLI rather than by us.",
+    )
+    mode: str = Field(..., description="session or batch.")
+    posture: str = Field(..., description="What the run is permitted to do.")
+    task_id: str = Field(..., description="The task the run is working.")
+    caused_by: int = Field(..., description="The log entry this dispatch is attributed to.")

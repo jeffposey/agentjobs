@@ -24,6 +24,9 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import JSONResponse
 
 from agentjobs.actors import UnknownActorError, validate_actor
+from agentjobs.dispatch.config import DispatchError
+from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
+from agentjobs.dispatch.runner import DispatchRunError
 from agentjobs.manager import TaskManager, TaskNotFoundError
 from agentjobs.models_v2 import Task
 from agentjobs.operations import OperationConflictError, RevisionConflictError
@@ -34,6 +37,8 @@ from ..dependencies import get_task_manager, project_config, request_project, st
 from ..models import (
     ClaimRequest,
     CloseRequest,
+    DispatchRequestBody,
+    DispatchStarted,
     ErrorBody,
     ErrorDetail,
     HandoffRequest,
@@ -404,6 +409,116 @@ async def post_progress_update(
         project=project,
         operation_id=payload.operation_id,
         envelope=envelope,
+    )
+
+
+#: HTTP status per dispatch refusal. Everything meaning "the state of the world is
+#: currently wrong" is a 409 that retrying could fix after a change; a rule that no
+#: amount of retrying satisfies is a 403.
+_DISPATCH_STATUS: dict = {
+    "not_configured": status.HTTP_409_CONFLICT,
+    "disabled": status.HTTP_409_CONFLICT,
+    "sentinel": status.HTTP_409_CONFLICT,
+    "project_not_enabled": status.HTTP_409_CONFLICT,
+    "unknown_runner": status.HTTP_409_CONFLICT,
+    "invalid_config": status.HTTP_500_INTERNAL_SERVER_ERROR,
+    "not_human_clocked": status.HTTP_403_FORBIDDEN,
+    "no_causing_entry": status.HTTP_409_CONFLICT,
+    "task_closed": status.HTTP_409_CONFLICT,
+    "live_run_exists": status.HTTP_409_CONFLICT,
+    "concurrency_limit": status.HTTP_409_CONFLICT,
+    "dirty_tree": status.HTTP_409_CONFLICT,
+    "claim_lost": status.HTTP_409_CONFLICT,
+    "owner_mismatch": status.HTTP_409_CONFLICT,
+}
+
+_DISPATCH_ACTION: dict = {
+    "not_configured": "Create ~/.agentjobs/dispatch.yaml and define a runner.",
+    "disabled": "Set 'enabled: true' in ~/.agentjobs/dispatch.yaml.",
+    "sentinel": "Delete ~/.agentjobs/DISPATCH_DISABLED to re-enable dispatch.",
+    "project_not_enabled": "Run 'agentjobs dispatch enable <project>'.",
+    "unknown_runner": "Point the project at a runner this machine defines.",
+    "not_human_clocked": (
+        "Act on the task yourself, then dispatch. This rule is not configurable."
+    ),
+    "no_causing_entry": "Write the note or handoff that authorises this run first.",
+    "task_closed": "Reopen the task before dispatching at it.",
+    "live_run_exists": "Wait for the run to finish, or cancel it.",
+    "concurrency_limit": "Wait for a run to finish, or raise max_concurrent_runs.",
+    "dirty_tree": "Commit or stash the working tree, then dispatch.",
+    "claim_lost": "Someone else took it. Re-read the task before deciding again.",
+    "owner_mismatch": "Release the task, or dispatch the runner that owns it.",
+}
+
+
+@router.post(
+    "/{task_id}/dispatch",
+    response_model=DispatchStarted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def dispatch_task_endpoint(
+    task_id: str,
+    payload: DispatchRequestBody = DispatchRequestBody(),
+    manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_acting_project),
+) -> DispatchStarted:
+    """Start an agent on this task.
+
+    Deliberately **not** merged into any approval endpoint. Approving means "I agree";
+    dispatching means "spend money now", and collapsing the two would turn every
+    approval into an implicit purchase (design decision D1).
+
+    202 rather than 200: the run has started, and how it ends arrives later as
+    ``dispatch_result`` entries on the task, not in this response.
+    """
+    try:
+        handle = dispatch_task(
+            manager=manager,
+            project=project,
+            project_config=project_config(project),
+            request=DispatchRequest(task_id=task_id, caused_by=payload.caused_by),
+        )
+    except DispatchRunError as exc:
+        raise _error(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "dispatch_failed",
+            str(exc),
+            task_id=task_id,
+            suggested_action="Check the runner's argv in ~/.agentjobs/dispatch.yaml.",
+        ) from exc
+    except DispatchError as exc:
+        raise _dispatch_error(exc, task_id) from exc
+
+    meta = handle.directory.read_meta()
+    return DispatchStarted(
+        run_id=handle.run_id,
+        session_id=handle.session_id,
+        mode=handle.mode.value,
+        posture=str(meta.get("posture") or ""),
+        task_id=task_id,
+        caused_by=_as_int(meta.get("caused_by")),
+    )
+
+
+def _as_int(value: object) -> int:
+    """Read an int out of run metadata, which is a YAML mapping of anything."""
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
+def _dispatch_error(exc: DispatchError, task_id: str) -> MutationError:
+    """Render a dispatch refusal under its own code, never as a generic 400.
+
+    Which gate refused is the only useful thing about one of these: "dispatch is off"
+    and "that was an agent's handoff" need completely different responses from whoever
+    asked, and a 400 saying "bad request" tells them neither.
+    """
+    reason = getattr(exc, "reason", "dispatch_refused")
+    return _error(
+        _DISPATCH_STATUS.get(reason, status.HTTP_409_CONFLICT),
+        reason,
+        str(exc),
+        task_id=task_id,
+        suggested_action=_DISPATCH_ACTION.get(reason),
     )
 
 
