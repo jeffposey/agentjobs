@@ -2,11 +2,9 @@ schema: 2
 id: task-071-dispatch-api-guards
 title: 'Dispatch: the API endpoint and the guard layer'
 created: '2026-08-11T00:21:32.489688Z'
-updated: '2026-08-18T08:20:25.098119Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-18T08:44:37.041717Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: infrastructure
@@ -15,7 +13,6 @@ tags:
 - architecture
 effort: half a day
 assignment:
-  owner: claude
   eligible: []
 parent: task-060-agent-dispatch
 spec:
@@ -92,33 +89,39 @@ acceptance:
 - id: sc-1
   text: A dispatch caused by a log entry whose actor is an agent is refused, with
     a test that constructs exactly that case
-  status: pending
+  status: met
 - id: sc-2
   text: Each precondition failure produces a distinct typed error that the API and
     CLI report specifically, not a generic 400
-  status: pending
+  status: met
 - id: sc-3
   text: A ready task is claimed under the storage lock before any process starts;
     a concurrent double dispatch starts exactly one process and the loser reports
     why
-  status: pending
+  status: met
 - id: sc-4
   text: A dirty working tree refuses dispatch by default, and git_head is recorded
     on the dispatch log entry
-  status: pending
+  status: met
 - id: sc-5
   text: Hitting the concurrency limit refuses immediately and does not enqueue anything
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs/dispatch/guards.py
-  note: The human-clocked rule and preconditions
-  status: pending
-- path: src/agentjobs/api/routes/
-  note: POST /api/tasks/{id}/dispatch
-  status: pending
+  note: The human-clocked rule and every precondition
+  status: done
+- path: src/agentjobs/api/routes/status.py
+  note: POST /api/tasks/{id}/dispatch and the refusal-code mapping
+  status: done
+- path: src/agentjobs/cli.py
+  note: agentjobs dispatch run
+  status: done
 - path: tests/test_dispatch_guards.py
-  note: One test per refusal path
-  status: pending
+  note: One test per refusal path, plus the concurrent double dispatch
+  status: done
+- path: tests/test_dispatch_api.py
+  note: The refusal codes as they survive the trip through HTTP
+  status: done
 dependencies:
 - task: task-070-dispatch-runner
   type: needs
@@ -129,7 +132,7 @@ links:
   title: Agent dispatch design pass (task-060)
 branches:
 - name: feat/task-071-dispatch-api-guards
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-11T01:43:19.040660Z'
@@ -195,3 +198,105 @@ log:
       id: 6f708192-a3b4-4fc0-d1e2-5d6e7f8091a2
       kind: update_content
       fingerprint: 357fa26345167c8b74629b71a891c4ba
+- id: 5
+  ts: '2026-08-18T08:44:01.014205Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 708192a3-b4c5-40d1-e2f3-6e7f8091a2b3
+      kind: update_content
+      fingerprint: dfd8bc817760da1d251a7a17586fda1c
+- id: 6
+  ts: '2026-08-18T08:44:28.036789Z'
+  actor: claude
+  type: progress
+  body: "Guard layer, endpoint and CLI built; the whole loop verified against a running\
+    \ server; merged to main.\n\nThree commits on `feat/task-071-dispatch-api-guards`,\
+    \ merged `--no-ff`. 30 new tests across `tests/test_dispatch_guards.py` and `tests/test_dispatch_api.py`,\
+    \ plus three in the CLI suite. Nothing pushed.\n\n## Verified live, over HTTP,\
+    \ against `agentjobs serve` on 8899\n\nA throwaway project, a runner that just\
+    \ prints. In order:\n\n1. Agent handoff as the newest entry \u2192 `POST .../dispatch`\
+    \ returns **403 `not_human_clocked`**, suggested action *\"Act on the task yourself,\
+    \ then dispatch. This rule is not configurable.\"*\n2. Human note appended \u2192\
+    \ same request returns **202**.\n3. The task's log afterwards, which is the whole\
+    \ feature in six lines: `4 note Jeff Posey` \u2192 `5 transition fake` (the claim,\
+    \ before anything spawned) \u2192 `6 dispatch Jeff Posey` carrying `git_head bb0f668`\
+    \ \u2192 `7 dispatch_result dispatcher finished_without_handoff` \u2192 `8 handoff\
+    \ dispatcher`, ball on `human`/`decision`.\n4. `touch DISPATCH_DISABLED` \u2192\
+    \ the next attempt returns **`sentinel`**.\n\nEntry 7 is worth pausing on: the\
+    \ fake runner exited 0 and never moved the ball, and that is correctly reported\
+    \ as a failure rather than a success. Sandbox and its registry entry removed afterwards.\n\
+    \n## Decisions\n\n**An unconfigured actor is refused rather than assumed human.**\
+    \ Stricter than `validate_actor`, which accepts any id on a project that has configured\
+    \ none. That leniency is right for writing a note on a fresh `agentjobs init`\
+    \ and wrong here: \"we do not know who this is\" must not be able to start a process\
+    \ on someone's machine. Rejected: reusing `validate_actor` unchanged, which would\
+    \ have made an unconfigured project's every actor implicitly authorised to dispatch.\n\
+    \n**The request body has no `actor` field.** The recorded actor is the author\
+    \ of the causing entry, never the poster. A caller naming a human would satisfy\
+    \ the rule by assertion, which is not evidence of anything. A test posts `{\"\
+    actor\": \"Jeff Posey\"}` on an agent-caused task and still gets 403.\n\n**403\
+    \ for the human-clocked rule, 409 for everything else.** No retry turns an agent's\
+    \ handoff into a human act; every other refusal describes a state of the world\
+    \ that could change. A caller that cannot tell those apart will retry the one\
+    \ that can never succeed.\n\n**The per-task run lock from design section 8 is\
+    \ not built here.** Claim-before-spawn already makes the ready-task race safe\
+    \ \u2014 verified with two threads on a barrier, exactly one run, the loser refused\
+    \ \u2014 and for an already-active task the live-run scan covers it. The `O_CREAT|O_EXCL`\
+    \ lockfile the design specifies is genuinely better, and it needs something that\
+    \ knows when a run *ends* to release it. That is the ledger, which is task-072.\
+    \ Recorded rather than silently skipped: if 072 does not add it, this stays a\
+    \ narrow window where two dispatches of the same active task could both pass the\
+    \ scan.\n\n## Two findings from the live run, neither in scope here\n\n1. **`require_clean_tree`\
+    \ will refuse dispatch on any project that has not gitignored AgentJobs' own runtime\
+    \ files.** Serving a project writes `.agentjobs/webhooks.yaml`; the manager writes\
+    \ `.agentjobs/write-receipts/` and the task YAML itself. This repository ignores\
+    \ all of them, so it is fine \u2014 but `agentjobs init`'s `_ensure_gitignore`\
+    \ only adds `.agentjobs/agentjobs.db`, so a newly initialised project will look\
+    \ permanently dirty and dispatch will refuse it with no obvious cause. Both test\
+    \ fixtures had to ignore these paths before anything could be dispatched, which\
+    \ is how it was found.\n\n2. **The runner's *name* doubles as the claiming agent\
+    \ id.** `_claim_or_verify` claims as `resolution.runner.name`, so a runner named\
+    \ `fake` produced `owner: fake` \u2014 an actor the project does not configure.\
+    \ It works because `claim_task` does not validate the owner, but it means a runner\
+    \ should be named for the agent it starts (`claude`, `codex`), and nothing currently\
+    \ says so or checks it. Worth a line in the config docs or a validation in task-068's\
+    \ loader.\n\nFull suite: 1608 passed, with the two pre-existing failures from\
+    \ task-068 log entry 6 unchanged. `npm run check` passes in full, including the\
+    \ generated-client cleanliness check and all 10 Playwright paths."
+  data:
+    operation:
+      id: 8192a3b4-c5d6-41e2-f304-7f8091a2b3c4
+      kind: log_append
+      fingerprint: 43e5e5b64b0a5acb3c7cf0578616cb3f
+- id: 7
+  ts: '2026-08-18T08:44:37.041557Z'
+  actor: claude
+  type: transition
+  body: 'All five acceptance criteria met, and the whole loop verified against a running
+    server rather than only TestClient. Branch merged --no-ff and marked merged; worktree
+    removed; sandbox project, its server and its registry entry all cleaned up. Nothing
+    pushed.
+
+
+    Merged without a separate review round under the autonomy grant on task-060 log
+    entry 11 (Jeff, 2026-08-18).
+
+
+    Unblocks task-072 (ledger, cancellation, startup reconciliation) and task-073
+    (the UI), and both should read this task''s progress entry first: the per-task
+    run lockfile from design section 8 was deliberately deferred to 072, and two real-world
+    findings about clean-tree and runner naming are recorded there.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 92a3b4c5-d6e7-42f3-0415-8091a2b3c4d5
+      kind: close
+      fingerprint: f018a1c6e043c419ec7a1d5d2f9ea1ec
