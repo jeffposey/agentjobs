@@ -969,6 +969,33 @@ def dispatch_reconcile() -> None:
         typer.echo(f"{result.run_id}: {result.detail}")
 
 
+@dispatch_app.command("reap")
+def dispatch_reap() -> None:
+    """Remove finished sessions and the task worktrees they still hold.
+
+    A worktree for a run that ended is litter, and it holds a pid in the session
+    manager's ledger besides. This is the command that clears both.
+
+    A reap that is **refused** is the useful outcome, not the failure: the session
+    manager will not delete a worktree with uncommitted changes in it, which means that
+    run produced work nobody has looked at. Reported rather than forced -- passing `-f`
+    here would delete exactly the thing worth keeping.
+    """
+    results = DispatchLedger(default_home()).reap_finished()
+    if not results:
+        typer.echo("Nothing to reap.")
+        return
+    kept = 0
+    for result in results:
+        if result.stopped:
+            typer.echo(f"🧹 {result.run_id}: {result.detail}")
+        else:
+            kept += 1
+            typer.secho(f"⚠️  {result.run_id}: {result.detail}", fg=typer.colors.YELLOW)
+    if kept:
+        typer.echo(f"\n{kept} worktree(s) kept. Look at what is in them before reaping again.")
+
+
 @dispatch_app.command("config")
 def dispatch_show_config(
     project_id: Optional[str] = typer.Option(

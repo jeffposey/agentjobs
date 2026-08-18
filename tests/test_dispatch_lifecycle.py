@@ -605,3 +605,78 @@ def test_write_status_merges_rather_than_replaces(home: Path) -> None:
     meta = yaml.safe_load((directory.path / "meta.yaml").read_text())
     assert meta["run_id"] == "run_x"
     assert meta["outcome"] == "cancelled"
+
+
+# ----- reaping at startup -----------------------------------------------------
+
+
+class TestStartupReaping:
+    """A worktree belonging to a finished run is litter, and startup is where it goes.
+
+    Nothing in AgentJobs schedules background work, so reaping happens at server
+    startup and on demand. These pin that the startup path actually calls it, that a
+    refusal is reported rather than swallowed, and that neither can take the server down.
+    """
+
+    def test_a_finished_session_worktree_is_removed_at_startup(
+        self, home: Path, task, fake_session_cli: Path, capsys
+    ) -> None:
+        from agentjobs.api.main import _reap_finished_sessions
+
+        seed_run(home, task.id, mode="session", session_id="s1", status="finished")
+
+        _reap_finished_sessions(ledger_with(home, fake_session_cli))
+
+        meta = yaml.safe_load((home / "runs" / "run_test0001" / "meta.yaml").read_text())
+        assert meta["reaped"] is True
+        assert "reaped run_test0001" in capsys.readouterr().out
+
+    def test_a_worktree_holding_uncommitted_work_is_kept_and_said_so(
+        self, home: Path, task, fake_session_cli: Path, capsys
+    ) -> None:
+        """The refusal is the signal: that run produced work nobody has looked at."""
+        from agentjobs.api.main import _reap_finished_sessions
+
+        (fake_session_cli.parent / "dirty").write_text("", encoding="utf-8")
+        seed_run(home, task.id, mode="session", session_id="s1", status="finished")
+
+        _reap_finished_sessions(ledger_with(home, fake_session_cli))
+
+        out = capsys.readouterr().out
+        assert "kept run_test0001" in out
+        assert "uncommitted" in out
+
+    def test_reconciliation_reaps_as_well_as_reconciles(
+        self, home: Path, task, monkeypatch, capsys
+    ) -> None:
+        """Wiring, asserted directly: deleting the call is otherwise invisible."""
+        from agentjobs.api import main as api_main
+
+        monkeypatch.setattr(api_main, "default_home", lambda: home)
+        called: List[object] = []
+        monkeypatch.setattr(
+            api_main, "_reap_finished_sessions", lambda ledger: called.append(ledger)
+        )
+        seed_run(home, task.id, mode="batch", status="finished")
+
+        api_main._reconcile_dispatch_runs()
+
+        assert len(called) == 1
+
+    def test_a_session_manager_that_cannot_be_run_does_not_take_the_server_down(
+        self, home: Path, task, capsys
+    ) -> None:
+        from agentjobs.api.main import _reap_finished_sessions
+
+        seed_run(home, task.id, mode="session", session_id="s1", status="finished")
+        ledger = DispatchLedger(
+            home,
+            registry=ProjectRegistry(home=home),
+            session_command=["definitely-not-a-real-binary"],
+        )
+
+        _reap_finished_sessions(ledger)
+
+        # Reported as kept, not raised: a server that refuses to start because it could
+        # not tidy up is worse than one that starts with the tidying undone.
+        assert "kept run_test0001" in capsys.readouterr().out
