@@ -2,25 +2,34 @@ schema: 2
 id: task-076-dispatch-permission-posture
 title: Decide what a dispatched agent is allowed to do without a human present
 created: '2026-08-11T01:43:18.956698Z'
-updated: '2026-08-18T05:37:00.387805Z'
+updated: '2026-08-18T06:09:22.582786Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: "Decision is made and recorded in log entry 6. Remaining work to close\
-  \ this task:\n\n1. **sc-1** \u2014 write the posture decision into docs/agent-dispatch-design.md\
-  \ section 4, in the style of the rest of that document, with the rejected options\
-  \ and their reasoning. While in there, correct the section's stale CLI facts: version\
-  \ is 2.1.228 not 2.1.220, `--bg` ignores `--session-id`, and the claim that a headless\
-  \ permission prompt is a silent denial is false for `--bg` (it parks at waiting/blocked;\
-  \ `dontAsk` is the mode that silently denies).\n2. **sc-3** \u2014 record in the\
-  \ design doc that task-075 layer 2 is dropped for dispatched runs in favour of the\
-  \ CLI's `-w`, and note on task-075 itself that sc-3 and sc-5 are answered by this\
-  \ decision.\n3. **sc-4** \u2014 update task-070's spec with the concrete flags its\
-  \ runner template must pass: `--permission-mode acceptEdits -w <task-slug>` plus\
-  \ the seed allow-list via `--settings` in `Tool(prefix:*)` form, and the read_only\
-  \ and autonomous variants.\n\nCoordinate with task-077, which is amending the same\
-  \ document (section 4 and section 9). Do them together or in sequence, not in parallel\
-  \ worktrees, or they will conflict."
+ball: human
+ball_reason: review
+ball_prompt: "All four acceptance criteria are met. Branch `docs/task-077-dispatch-design-amendments`\
+  \ (one branch covers both 076 and 077, since they amend the same section of the\
+  \ same file), commit ee414b5, worktree at C:/projects/aj-077-docs.\n\nWhat to review\
+  \ in docs/agent-dispatch-design.md:\n\n- **\xA74 \"Permission posture: what a run\
+  \ may do\"** \u2014 the three postures, the seed allow-list, the verified permission\
+  \ matrix, and the four rejected postures with their costs. It opens by flagging\
+  \ that the section's original premise (headless = silent denial) was false, rather\
+  \ than quietly rewriting around it.\n- **\xA74 containment** \u2014 task-075 layer\
+  \ 2 dropped for dispatched runs, with the \"a worktree is not a sandbox\" limit\
+  \ stated so it cannot later be read as justifying `autonomous` by default.\n- **\xA7\
+  4 \"No auto-escalation, ever\"** \u2014 your overnight instruction, generalised\
+  \ into a rule the design states rather than a note on one task.\n- **task-070**\
+  \ is rescoped and retitled with the concrete flags (sc-4), including a test requirement\
+  \ that emitted allow-list rules use the `Tool(prefix:*)` colon form \u2014 the syntax\
+  \ error that cost me an hour should fail a test, not a run.\n\nVerification: `poetry\
+  \ run pytest` \u2014 1446 passed, 1 failed. **The failure is pre-existing and not\
+  \ mine**: `test_agentjobs_context_paths_exist` fails because task-013 names `src/agentjobs/frontend_dist/assets`\
+  \ as a context path and that directory is gitignored build output, so the test passes\
+  \ only where someone has run `npm run build`. It fails in every fresh worktree.\
+  \ Flagged separately; say the word and I will file it as a task rather than leave\
+  \ it as a UI chip.\n\nI did **not** run the full `scripts/check.py` gate. This change\
+  \ is markdown only; the gate's npm build and Playwright pass would have exercised\
+  \ nothing it touches. Tell me if you want it run anyway before merge.\n\nDo not\
+  \ merge without saying so \u2014 the merge gate is yours."
 archived: false
 priority: high
 category: architecture
@@ -129,29 +138,31 @@ acceptance:
 - id: sc-1
   text: A decision is recorded in docs/agent-dispatch-design.md section 4 with the
     rejected options and their reasoning, in the style of the rest of that document
-  status: pending
+  status: met
 - id: sc-2
   text: The decision states explicitly whether a dispatched agent may run shell commands
     unattended, and if so which
-  status: pending
+  status: met
 - id: sc-3
   text: 'The interaction with task-075 is stated: what changes if runs are contained
     in a per-task worktree versus the shared checkout'
-  status: pending
+  status: met
 - id: sc-4
   text: task-070's spec is updated with the concrete flags its runner template must
     pass, so it is implementable without reopening this question
-  status: pending
+  status: met
 deliverables:
 - path: docs/agent-dispatch-design.md
   note: Permission posture decision in section 4
-  status: pending
+  status: done
 dependencies:
 - task: task-075-agent-worktree-isolation
   type: related
   note: Containment changes the answer. Decide together or 075 first.
 links: []
-branches: []
+branches:
+- name: docs/task-077-dispatch-design-amendments
+  status: active
 log:
 - id: 1
   ts: '2026-08-18T05:03:07.569228Z'
@@ -463,3 +474,30 @@ log:
       id: e2f74a08-5b19-4c63-90d7-6a83c1e2b954
       kind: handoff
       fingerprint: a02ae7c2119b243be4ba57fafa6e7301
+- id: 8
+  ts: '2026-08-18T06:08:28.874784Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 08bd5e37-91c4-4f26-a2e5-7c60d3419fa8
+      kind: update_content
+      fingerprint: 64dbabdfd7f132701a3ad3f8cae3b7e4
+- id: 9
+  ts: '2026-08-18T06:09:22.582637Z'
+  actor: claude
+  type: handoff
+  body: Design doc amended, task-070 rescoped with the concrete flags. All four criteria
+    met. Stopping at the merge gate.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 2e9c74b1-8305-4f6d-a712-63b8409df5e7
+      kind: handoff
+      fingerprint: 2c1cd8bac40d281fdc92605c1d58f416

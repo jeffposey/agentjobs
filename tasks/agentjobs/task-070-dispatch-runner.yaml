@@ -1,8 +1,8 @@
 schema: 2
 id: task-070-dispatch-runner
-title: 'Dispatch: the runner and its supervisor process'
+title: 'Dispatch: the runner, in two modes'
 created: '2026-08-11T00:21:32.484450Z'
-updated: '2026-08-18T05:34:27.154117Z'
+updated: '2026-08-18T06:05:36.050041Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -17,101 +17,143 @@ assignment:
   eligible: []
 parent: task-060-agent-dispatch
 spec:
-  summary: 'Actually start an agent: spawn the resolved argv in the project root,
-    stream output to a run directory, and supervise it from a dedicated blocking thread
-    that is guaranteed to write a terminal dispatch_result on every path -- including
-    when the supervisor itself raises. Explicitly not the detached asyncio shape that
-    hid the webhook NameError for months (task-047). Design section 9.'
-  description: 'Derived from docs/agent-dispatch-design.md section 9.
-
-
-    ## Scope
-
-
-    - Spawn with `subprocess.Popen`, cwd = project root, process group (`CREATE_NEW_PROCESS_GROUP`
-    on Windows, `start_new_session` on POSIX) so an agent that shells out to pytest
-    does not leave it behind.
-
-    - The three-line prompt stub from design section 4. **Compose nothing else** --
-    the resumption contract already guarantees the record is sufficient.
-
-    - Stream stdout/stderr to `~/.agentjobs/runs/<run_id>/`, to disk not memory: the
-    interesting case is a crash, and a buffer loses exactly that.
-
-    - One supervisor thread per run, blocking on `wait()`, whose body is wrapped so
-    a terminal `dispatch_result` is written on **every** exit path, with `outcome:
-    crashed` plus traceback if the supervisor itself raises.
-
-    - Write the run directory and meta.yaml (`status: starting`) **before** Popen,
-    so a supervisor that dies mid-spawn still leaves a row.
-
-    - The outcome vocabulary from design section 9, including `finished_without_handoff`:
-    exit 0 with an unmoved ball is a failure, because the agent stopped without stating
-    what it needs.
-
-    - Wall-clock timeout (default 1800s) terminating the process group.
-
-
-    ## Verification that matters
-
-
-    A passing suite is not evidence here. Test with a fake runner script that exits
-    non-zero, one that hangs past the timeout, one that emits megabytes, and one that
-    spawns a grandchild -- and assert a terminal log entry exists in every case. Windows
-    is the reference platform, not the port.'
-  constraints: '- One blocking supervisor thread per run, **guaranteed** to write
-    a terminal `dispatch_result` on every exit path including its own exception.
-
-    - Explicitly not the detached-asyncio shape used by `WebhookManager._dispatch`.
-    A NameError in that shape stayed invisible for months (task-047). A supervisor
-    that dies silently is worse than none.
-
-    - The run directory and its meta file are written **before** Popen, so a supervisor
-    that dies mid-spawn still leaves a row someone can find.
-
-    - Output is streamed to disk, never buffered in memory.
-
-    - Exit 0 with an unmoved ball counts as a failure: the agent stopped without saying
-    what it needs.'
+  summary: "Actually start an agent. Two modes: `session` spawns `claude --bg --remote-control\
+    \ -w <slug>`, captures the id the CLI assigns, and polls `claude agents --json`;\
+    \ `batch` spawns `-p` under the supervisor thread of design \xA79, which is retained\
+    \ in full for CLIs with no session manager. Rescoped 2026-08-18 by task-077 and\
+    \ task-076, both now decided."
+  description: "Derived from docs/agent-dispatch-design.md \xA74 and the rewritten\
+    \ \xA79.\n\n## Rescoped 2026-08-18 \u2014 read this before the scope below\n\n\
+    This task originally specified one thing: spawn `claude -p` and supervise it from\
+    \ a blocking thread. task-077 decided dispatch drives Claude Code's own session\
+    \ manager instead, with batch retained as a second declared runner mode. **Neither\
+    \ half was discarded.** The supervisor is now the `batch` path, and a new, smaller\
+    \ `session` path sits beside it.\n\ntask-076 decided what either mode may do.\
+    \ The flags below are settled; do not reopen them.\n\n## Scope \u2014 session\
+    \ mode (the primary path)\n\n- Spawn `claude --bg --remote-control -w <task-slug>`\
+    \ with the posture flags below, in the project root from the registry. `--bg`\
+    \ returns immediately.\n- **Capture the short id from stdout.** `--bg` ignores\
+    \ `--session-id` and warns that it manages the id itself, so a run id and a session\
+    \ id are different values and the run record stores both. This was verified; do\
+    \ not design around the old claim that the caller assigns the id.\n- Poll `claude\
+    \ agents --json --cwd <project-root>` for `status`/`state`. Observed pairs: `busy`/`working`,\
+    \ `waiting`/`blocked`, `idle`/`done`, `idle`/`blocked`, `stopped`.\n- **A `waiting`/`blocked`\
+    \ session is parked on a permission prompt.** Turn it into ball \u2192 `human`/`input`\
+    \ with the pending command quoted in the `ball_prompt`. This is the mechanism\
+    \ the `supervised` posture depends on; without it that posture is just a hang.\n\
+    - **Do not parse `claude logs`.** It is an ANSI pty scrape, not structured events.\
+    \ Link to it.\n- **Reap finished sessions.** A session at `idle`/`done` holds\
+    \ its pid until `claude stop` or `claude rm`. Nothing reclaims it otherwise.\n\
+    - Staleness, not a kill: `idle`/`done` with an unmoved ball for 3600s becomes\
+    \ `finished_without_handoff` and moves the ball. The session is left attachable.\n\
+    \n## Scope \u2014 batch mode (retained from the original spec)\n\n- Spawn with\
+    \ `subprocess.Popen`, cwd = project root, process group (`CREATE_NEW_PROCESS_GROUP`\
+    \ on Windows, `start_new_session` on POSIX) so an agent that shells out to pytest\
+    \ does not leave it behind.\n- Stream stdout/stderr to `~/.agentjobs/runs/<run_id>/`,\
+    \ to disk not memory: the interesting case is a crash, and a buffer loses exactly\
+    \ that.\n- One supervisor thread per run, blocking on `wait()`, whose body is\
+    \ wrapped so a terminal `dispatch_result` is written on **every** exit path, with\
+    \ `outcome: crashed` plus traceback if the supervisor itself raises. Explicitly\
+    \ not the detached-asyncio shape that hid the webhook NameError for months (task-047).\n\
+    - Write the run directory and meta.yaml (`status: starting`) **before** Popen,\
+    \ so a supervisor that dies mid-spawn still leaves a row.\n- Wall-clock timeout\
+    \ (default 1800s) terminating the process group. Batch only.\n- `--output-format=stream-json`\
+    \ and `--max-budget-usd` are available here and only here.\n\n## The permission\
+    \ flags, settled by task-076\n\nA runner declares a posture per project, machine-local\
+    \ in `~/.agentjobs/dispatch.yaml`:\n\n| Posture | Flags |\n|---|---|\n| `read_only`\
+    \ | `--tools \"Read,Glob,Grep,WebFetch\"` |\n| `supervised` (default) | `--permission-mode\
+    \ acceptEdits -w <task-slug>` plus the allow-list via `--settings` |\n| `autonomous`\
+    \ | `--permission-mode bypassPermissions -w <task-slug>` |\n\nSeed allow-list,\
+    \ passed as `--settings` JSON under `permissions.allow`: `poetry run pytest:*`,\
+    \ `poetry run ruff:*`, `poetry run black:*`, `poetry run mypy:*`, `npm run:*`,\
+    \ `git status:*`, `git diff:*`, `git add:*`, `git commit:*`.\n\n**The `Tool(prefix:*)`\
+    \ form is exact and the colon is mandatory.** A rule written without it silently\
+    \ matches nothing, which looks identical to the feature working until a run parks.\
+    \ This cost an hour on 2026-08-18; a test should assert the emitted rule strings\
+    \ contain the colon.\n\n## The prompt stub\n\nUnchanged. The three-line stub from\
+    \ \xA74. **Compose nothing else** \u2014 the resumption contract already guarantees\
+    \ the record is sufficient. Retain a test asserting the referenced guide file\
+    \ exists and links to the contract.\n\n## Undocumented CLI surface this depends\
+    \ on\n\nNot in `claude --help`'s command list, but present and stable on 2.1.228:\
+    \ `claude logs <id>`, `claude stop <id>`, `claude attach <id>`, `claude rm <id>`\
+    \ (refuses when the worktree holds uncommitted changes), and `claude agents --cwd\
+    \ <path>`. Since they are undocumented, **pin the observed behaviour in a test**\
+    \ so an upstream change surfaces as a failure rather than as a dispatcher that\
+    \ silently stops reaping.\n\n## Verification that matters\n\nA passing suite is\
+    \ not evidence here.\n\n- **Batch:** a fake runner that exits non-zero, one that\
+    \ hangs past the timeout, one that emits megabytes, and one that spawns a grandchild\
+    \ \u2014 assert a terminal log entry exists in every case, and that the grandchild\
+    \ is gone. Windows is the reference platform, not the port.\n- **Session:** a\
+    \ real `--bg` session that parks on a permission prompt, asserting the ball actually\
+    \ moves to `human`/`input` with the command quoted. That path is the whole reason\
+    \ session mode was chosen, and it cannot be faked convincingly."
+  constraints: "- The flags above are decided (task-076, task-077). Implement them;\
+    \ do not reopen them.\n- **Do not parse `claude logs` output.** It is a terminal\
+    \ rendering. Structured state comes from `claude agents --json` and from the task\
+    \ record.\n- Session ids are assigned by the CLI, never by us. Any code that passes\
+    \ `--session-id` alongside `--bg` is wrong.\n- Batch keeps the guarantee that\
+    \ a terminal `dispatch_result` is written on every exit path including the supervisor's\
+    \ own exception. Do not weaken it because session mode does not need it.\n- Explicitly\
+    \ not the detached-asyncio shape used by `WebhookManager._dispatch`; a supervisor\
+    \ that dies silently is worse than none.\n- Exit 0 with an unmoved ball counts\
+    \ as a failure: the agent stopped without saying what it needs.\n- A parked session\
+    \ is never escalated to a more permissive posture by a timeout. See \xA74; a timeout\
+    \ is not a human act."
   out_of_scope: The HTTP endpoint and its guards (task-071), the run ledger and cancellation
     (task-072), and the UI (task-073). This task can be exercised from a Python call
     or a test.
   context:
   - path: docs/agent-dispatch-design.md
-    why: Section 9, process lifecycle -- supervisor, output, outcomes.
+    why: "\xA74 for the two modes and the posture flags; the rewritten \xA79 for both\
+      \ lifecycles."
+  - path: tasks/agentjobs/task-077-dispatch-session-launcher.yaml
+    why: Log entry 5 has the verified CLI behaviour, entry 8 the decision. Read before
+      implementing.
+  - path: tasks/agentjobs/task-076-dispatch-permission-posture.yaml
+    why: Log entry 3 has the permission matrix; entry 6 the posture decision.
   - path: src/agentjobs/webhooks.py
     why: The shape to avoid. Read `_dispatch` and task-047 before choosing how the
-      supervisor runs.
+      batch supervisor runs.
   - path: src/agentjobs/manager.py
     why: Where the dispatch and dispatch_result entries get appended from.
 acceptance:
 - id: sc-1
-  text: A run spawns the resolved argv in the project root and streams stdout and
-    stderr to the run directory as it goes, not at exit
+  text: Session mode spawns a real background session, captures the CLI-assigned id
+    from stdout, and records both run id and session id on the task
   status: pending
 - id: sc-2
-  text: 'Every terminating path writes exactly one dispatch_result entry: exit 0,
-    non-zero exit, timeout, and an exception raised inside the supervisor itself (tested
-    by injecting one)'
+  text: A session that parks on a permission prompt is detected from `claude agents
+    --json` and moves the ball to human/input with the pending command quoted in the
+    ball_prompt
   status: pending
 - id: sc-3
-  text: Exit 0 with an unmoved ball produces outcome finished_without_handoff and
-    moves the ball to human, rather than being reported as success
+  text: A finished session is reaped rather than left holding a pid, and a session
+    idle past the staleness threshold with an unmoved ball becomes finished_without_handoff
+    without being killed
   status: pending
 - id: sc-4
-  text: The wall-clock timeout terminates the whole process group; a grandchild process
-    spawned by the fake runner is gone afterwards, verified on Windows
+  text: 'Batch mode writes exactly one dispatch_result on every terminating path:
+    exit 0, non-zero exit, timeout, and an exception injected into the supervisor
+    itself'
   status: pending
 - id: sc-5
+  text: The batch wall-clock timeout terminates the whole process group; a grandchild
+    spawned by the fake runner is gone afterwards, verified on Windows
+  status: pending
+- id: sc-6
+  text: Emitted allow-list rules are asserted to use the `Tool(prefix:*)` colon form,
+    so a silently-matching-nothing rule fails a test rather than a run
+  status: pending
+- id: sc-7
   text: No asyncio task, and no code path where an exception is logged and swallowed
     without a task-visible record -- the task-047 shape
   status: pending
 deliverables:
 - path: src/agentjobs/dispatch/runner.py
-  note: Spawn, stream, supervise, terminal entry
+  note: Session spawn/poll and batch spawn/supervise
   status: pending
 - path: tests/test_dispatch_runner.py
-  note: Fake runners covering every outcome
+  note: Fake runners for batch outcomes; a real parked session for the session path
   status: pending
 dependencies:
 - task: task-068-dispatch-config
@@ -198,3 +240,18 @@ log:
       id: 9a4f2e81-6d73-4b05-98c2-3e1b7d5a0f46
       kind: log_append
       fingerprint: 99ed743673b3c76b6da7aa277632d3a8
+- id: 3
+  ts: '2026-08-18T06:05:36.049786Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, deliverables, spec, title.
+  data:
+    fields:
+    - acceptance
+    - deliverables
+    - spec
+    - title
+    operation:
+      id: c1a83f65-04d2-4b79-8e37-5f9c2ba61d84
+      kind: update_content
+      fingerprint: 1aa9b546804933f63dc28396ce078d38

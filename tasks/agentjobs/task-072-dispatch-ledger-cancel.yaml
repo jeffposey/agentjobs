@@ -2,7 +2,7 @@ schema: 2
 id: task-072-dispatch-ledger-cancel
 title: 'Dispatch: run ledger, cancellation, and startup reconciliation'
 created: '2026-08-11T00:21:32.495701Z'
-updated: '2026-08-18T04:35:00.513405Z'
+updated: '2026-08-18T06:08:13.229676Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -17,95 +17,119 @@ assignment:
   eligible: []
 parent: task-060-agent-dispatch
 spec:
-  summary: 'Make a run observable and stoppable. The run directory layout, the per-task
-    run lock, cancel/stop/status commands, cancel-on-shutdown, and startup reconciliation
-    that turns a crashed run into a task-visible ''interrupted'' rather than silence.
-    Includes the panic button: dispatch stop writes the sentinel and kills everything.
-    Design sections 6, 8 and 9.'
-  description: 'Derived from docs/agent-dispatch-design.md sections 6, 8 and 9.
-
-
-    ## Scope
-
-
-    - Run directory layout `~/.agentjobs/runs/<run_id>/` with `meta.yaml`. **No shared
-    index file** -- each directory is written only by its own supervisor, so listing
-    is a scan and there is nothing contended to lock. Same reasoning as one YAML file
-    per task.
-
-    - The per-task run lock at `~/.agentjobs/runs/.locks/<task_id>.lock`, held for
-    the process lifetime, using the same `O_CREAT|O_EXCL` primitive task-055 chose
-    (atomic on Windows, no dependency, stale lock produces a timeout naming it rather
-    than a hang).
-
-    - `agentjobs dispatch status`, `dispatch cancel <run-id>`, `dispatch stop`.
-
-    - Cancellation: `CTRL_BREAK_EVENT` / `SIGTERM` to the group, 30s grace so an agent
-    can finish a `git commit`, then `taskkill /T /F` / `SIGKILL`.
-
-    - `dispatch stop` is the panic button: writes `DISPATCH_DISABLED` **and** cancels
-    every live run, one command, no arguments.
-
-    - **Runs do not outlive their supervisor.** Graceful shutdown of `agentjobs serve`
-    cancels live runs. Startup reconciliation declares any non-terminal run `interrupted`,
-    appends its dispatch_result, and hands the ball to a human.
-
-
-    ## The rejected alternative, restated because it will be suggested
-
-
-    Letting a child survive a server restart and re-adopting it by pid. Pid adoption
-    is unreliable, and it produces an orphaned autonomous agent editing a repository
-    with nothing supervising it and no working kill switch -- the precise situation
-    this subsystem exists to prevent. Losing a mid-flight run to a restart is a visible
-    cost; an unsupervised orphan is not.'
-  constraints: '- Runs never outlive their supervisor.
-
-    - Anything found non-terminal at startup is reconciled into a task-visible `interrupted`
-    result. Silence after a crash is the failure mode to design against.
-
-    - The per-task run lock uses the same `O_CREAT|O_EXCL` primitive task-055 chose;
-    do not introduce a second locking convention.
-
-    - Cancellation on Windows needs its own path and an explicit test. It is the platform
-    this runs on.'
-  out_of_scope: The UI controls for cancel and output (task-073).
+  summary: 'Make a run observable and stoppable. Rescoped 2026-08-18 by task-077:
+    `claude agents --json` is a ledger but not *our* ledger, so this task survives
+    rather than being superseded. What changes is that a session''s cancellation delegates
+    to `claude stop` and reconciliation re-attaches instead of declaring runs interrupted.
+    Batch runs keep the original model in full.'
+  description: "Derived from docs/agent-dispatch-design.md \xA76, \xA78 and the rewritten\
+    \ \xA79.\n\n## Rescoped 2026-08-18 \u2014 why this was not closed as superseded\n\
+    \ntask-077 asked whether this task should be closed once dispatch drives Claude\
+    \ Code's session manager. It was not, and the reason is worth stating because\
+    \ \"the CLI already has a ledger\" is the obvious objection and it is wrong:\n\
+    \n**`claude agents --json` has no run-to-task mapping.** It reports pid, cwd,\
+    \ kind, session id, name, status and state. It does not know which AgentJobs task\
+    \ a session belongs to, which dispatch caused it, who authorised that dispatch,\
+    \ or what happened on any previous run. And `claude rm` deletes its row entirely,\
+    \ so it carries no history.\n\nSo AgentJobs still needs its own ledger keyed by\
+    \ task. What the decision changes is what that ledger *stores* and who performs\
+    \ the killing.\n\n## Scope \u2014 what stays\n\n- Run directory layout `~/.agentjobs/runs/<run_id>/`\
+    \ with `meta.yaml`. **No shared index file** \u2014 each directory is written\
+    \ only by its own supervisor, so listing is a scan and there is nothing contended\
+    \ to lock. Same reasoning as one YAML file per task.\n- The per-task run lock\
+    \ at `~/.agentjobs/runs/.locks/<task_id>.lock`, held for the process lifetime,\
+    \ using the same `O_CREAT|O_EXCL` primitive task-055 chose (atomic on Windows,\
+    \ no dependency, stale lock produces a timeout naming it rather than a hang).\n\
+    - `agentjobs dispatch status`, `dispatch cancel <run-id>`, `dispatch stop`.\n\
+    - `dispatch stop` is the panic button: writes `DISPATCH_DISABLED` **and** stops\
+    \ every live run, one command, no arguments.\n\n## Scope \u2014 what changes for\
+    \ session runs\n\n- **The run record stores a session id as well as a run id**,\
+    \ because `--bg` assigns the session id itself and ignores `--session-id`. They\
+    \ are two different values and both are needed to correlate.\n- **Cancellation\
+    \ delegates.** `dispatch cancel` on a session run calls `claude stop <id>`, which\
+    \ stops the session and keeps its conversation. It does not manage process groups.\
+    \ Signals, grace periods and `taskkill` remain the batch path only.\n- **Reaping\
+    \ is new work.** A finished session sits at `idle`/`done` holding a pid until\
+    \ `claude stop` or `claude rm`. Nothing reclaims it otherwise, so the ledger has\
+    \ to. `claude rm` refuses when the worktree holds uncommitted changes \u2014 treat\
+    \ that refusal as a signal worth surfacing, not an error to force past.\n- **Startup\
+    \ reconciliation inverts.** Rather than declaring survivors `interrupted`, read\
+    \ `claude agents --json`, match against our ledger, and **re-attach**. A recorded\
+    \ session absent from the CLI's list is genuinely gone and gets a terminal entry;\
+    \ one that is present is still running and is left alone.\n\n## The rejected alternative,\
+    \ restated because it will be suggested again\n\nThe original spec rejected letting\
+    \ a child survive a server restart, on the grounds that pid adoption is unreliable\
+    \ and produces an orphaned autonomous agent with no kill switch. **That reasoning\
+    \ still holds for batch and has been reversed for sessions**, and the distinction\
+    \ is not arbitrary: a session is not adopted by pid, it is looked up by id in\
+    \ a manager that outlives us, and `claude stop` works whether or not AgentJobs\
+    \ is running. The thing that made an orphan dangerous was the absence of a kill\
+    \ switch, and that absence is what no longer applies.\n\nWhat is still rejected:\
+    \ pid adoption for batch runs, and killing live sessions on server shutdown."
+  constraints: "- Batch runs never outlive their supervisor. Session runs deliberately\
+    \ do \u2014 do not \"fix\" that by cancelling sessions on shutdown.\n- Anything\
+    \ found non-terminal and genuinely gone at startup is reconciled into a task-visible\
+    \ result. Silence after a crash is the failure mode to design against, in both\
+    \ modes.\n- The per-task run lock uses the same `O_CREAT|O_EXCL` primitive task-055\
+    \ chose; do not introduce a second locking convention.\n- Cancellation on Windows\
+    \ needs its own path and an explicit test for the batch mode. It is the platform\
+    \ this runs on.\n- Do not reimplement session cancellation with signals. `claude\
+    \ stop <id>` is the interface."
+  out_of_scope: The UI controls for cancel and output (task-073). Spawning and polling
+    itself (task-070).
   context:
   - path: docs/agent-dispatch-design.md
-    why: Section 9, 'Cancellation, and Windows' and 'Restart and reconciliation'.
+    why: "The rewritten \xA79 \u2014 both lifecycles, the outcome table's session\
+      \ caveat, and the reconciliation reversal."
+  - path: tasks/agentjobs/task-077-dispatch-session-launcher.yaml
+    why: Log entry 5 for the verified ledger fields and their limits; entry 8 for
+      the decision.
   - path: src/agentjobs/storage.py
     why: The lock primitive from task-055 that the run lock should reuse.
 acceptance:
 - id: sc-1
-  text: dispatch status lists live and recent runs with task, agent, pid, elapsed
-    time and outcome
+  text: dispatch status lists live and recent runs with task, agent, mode, run id,
+    session id where applicable, elapsed time and outcome
   status: pending
 - id: sc-2
-  text: Cancelling a run terminates the whole process group after the grace period
-    and writes outcome cancelled to the task
+  text: Cancelling a batch run terminates the whole process group after the grace
+    period and writes outcome cancelled to the task
   status: pending
 - id: sc-3
-  text: dispatch stop both writes the sentinel and kills live runs; a dispatch attempted
-    immediately afterwards is refused
+  text: Cancelling a session run calls claude stop and writes outcome cancelled, without
+    managing process groups itself
   status: pending
 - id: sc-4
-  text: A run killed without its supervisor (simulate a hard crash) is found at next
-    startup, marked interrupted on the task, and moves the ball to human -- it does
-    not disappear silently
+  text: dispatch stop both writes the sentinel and stops live runs in both modes;
+    a dispatch attempted immediately afterwards is refused
   status: pending
 - id: sc-5
+  text: A batch run killed without its supervisor (simulate a hard crash) is found
+    at next startup, marked interrupted on the task, and moves the ball to human --
+    it does not disappear silently
+  status: pending
+- id: sc-6
+  text: After a server restart, a still-live session is re-attached and left running
+    rather than cancelled or marked interrupted; a recorded session absent from claude
+    agents --json gets a terminal entry
+  status: pending
+- id: sc-7
+  text: A finished session is reaped, and a reap blocked by uncommitted changes in
+    its worktree surfaces that reason rather than being forced or silently skipped
+  status: pending
+- id: sc-8
   text: Two dispatches of the same task cannot both hold the run lock, and a stale
     lock produces a timeout error naming it rather than hanging
   status: pending
 deliverables:
 - path: src/agentjobs/dispatch/ledger.py
-  note: Run directories, locks, reconciliation
+  note: Run directories, locks, re-attach reconciliation, session reaping
   status: pending
 - path: src/agentjobs/cli.py
-  note: dispatch status|cancel|stop
+  note: dispatch status|cancel|stop across both modes
   status: pending
 - path: tests/test_dispatch_lifecycle.py
-  note: Cancel, crash, reconcile, lock contention
+  note: Cancel, crash, reconcile, re-attach, reap, lock contention
   status: pending
 dependencies:
 - task: task-070-dispatch-runner
@@ -152,3 +176,17 @@ log:
     I said so earlier'' is not one of the reasons. Sequencing belongs in `dependencies[]`,
     not in the ball.'
   data: {}
+- id: 2
+  ts: '2026-08-18T06:08:13.229473Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, deliverables, spec.
+  data:
+    fields:
+    - acceptance
+    - deliverables
+    - spec
+    operation:
+      id: f45b2078-6ce3-4a19-9d84-30c7e6182b95
+      kind: update_content
+      fingerprint: c0fb06f67607229cfd01091bbe9893ba

@@ -3,30 +3,37 @@ id: task-077-dispatch-session-launcher
 title: 'Decide: should dispatch launch a remote-controllable session instead of a
   batch run?'
 created: '2026-08-11T01:56:16.465216Z'
-updated: '2026-08-18T05:52:19.861881Z'
+updated: '2026-08-18T06:09:39.593713Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: "Decision is made and recorded in log entry 8. Remaining work to close\
-  \ this task:\n\n1. **sc-2** \u2014 resolve the open amendment in docs/agent-dispatch-design.md\
-  \ section 4: dispatch drives `claude agents` in session mode, with batch retained\
-  \ as a second declared runner mode, and the rejected option with its reasoning.\
-  \ Correct the section's stale CLI facts while there (2.1.220 -> 2.1.228; `--bg`\
-  \ ignores `--session-id`, so the run-id-equals-session-id claim is false; `--max-budget-usd`\
-  \ is `--print`-only, so session mode has no spend ceiling).\n2. **sc-3** \u2014\
-  \ rewrite section 9 for the two-mode world: supervisor thread and run directories\
-  \ retained for `batch` and gone for `session`; \"runs do not outlive their supervisor\"\
-  \ reversed for sessions with the reasoning in entry 8; startup reconciliation becomes\
-  \ re-attach; the 1800s wall-clock kill replaced by the 60-minute staleness rule.\
-  \ Note that `failed` and `crashed` have no ledger representation in session mode,\
-  \ so the outcome table needs a column or a caveat.\n3. **sc-5** \u2014 rescope task-070\
-  \ and task-072 per entry 8. Neither closes.\n\nAlso worth recording somewhere durable:\
-  \ the undocumented `claude attach|logs|stop|rm <id>` subcommands and `claude agents\
-  \ --cwd`, from entry 5. task-070 will need them.\n\nCoordinate with task-076, which\
-  \ is amending the same section 4. Do them together or in sequence, not in parallel\
-  \ worktrees, or they will conflict.\n\nStill unconfirmed and Jeff's to check: whether\
-  \ a backgrounded session actually surfaces on his phone. Do not build UI that depends\
-  \ on the Remote Control URL until he has opened one."
+ball: human
+ball_reason: review
+ball_prompt: "All five acceptance criteria are met. Same branch and commit as task-076\
+  \ \u2014 `docs/task-077-dispatch-design-amendments`, commit ee414b5, worktree at\
+  \ C:/projects/aj-077-docs \u2014 because both amend \xA74 of the same file and splitting\
+  \ them would have produced a conflict for no benefit.\n\nWhat to review:\n\n- **\xA7\
+  4 \"Dispatch is a session launcher, not a batch runner\"** \u2014 the decision,\
+  \ the two-mode table, and the rejected options. The August flag table is replaced\
+  \ with a re-verified one that marks the two rows that were wrong (`--session-id`,\
+  \ `--max-budget-usd`) rather than silently correcting them.\n- **\xA74 \"What this\
+  \ does not claim\"** \u2014 the honest limit: steering happens in Claude's surface,\
+  \ so dispatch demotes the chat window rather than removing it. Worth checking you\
+  \ still agree with that framing now it is written down as the design's own value\
+  \ argument.\n- **\xA79, rewritten** \u2014 split by mode, with the reconciliation\
+  \ reversal and its reasoning, a staleness rule at your 60 minutes, and an admonition\
+  \ stating plainly that `failed` and `crashed` have no representation in session\
+  \ mode. That last one is the design admitting a capability loss; check you want\
+  \ it that prominent.\n- **task-070** retitled and rescoped to two modes; **task-072**\
+  \ rescoped with an explicit \"why this was not closed as superseded\" section, since\
+  \ \"the CLI already has a ledger\" is the obvious objection and it is wrong.\n\n\
+  Four claims elsewhere in the document contradicted the rewrite and were reconciled:\
+  \ the config example, \xA76's kill switch (which promised killing `agentjobs serve`\
+  \ stops runs \u2014 no longer true for sessions), \xA77's limits table, and D3.\n\
+  \nVerification: `poetry run pytest` \u2014 1446 passed, 1 pre-existing failure unrelated\
+  \ to this change (task-013 names a gitignored build directory as a context path,\
+  \ so that test only passes where the frontend has been built). I did not run the\
+  \ full `scripts/check.py` gate; this is markdown only and its npm build and Playwright\
+  \ pass would exercise nothing here. Say if you want it anyway.\n\nDo not merge without\
+  \ saying so."
 archived: false
 priority: high
 category: architecture
@@ -168,12 +175,12 @@ acceptance:
 - id: sc-2
   text: 'A decision is recorded in docs/agent-dispatch-design.md: drive claude agents,
     or supervise our own processes, with the rejected option and its reasoning'
-  status: pending
+  status: met
 - id: sc-3
   text: 'If driving: design section 9 is rewritten to say what remains, and the ''runs
     do not outlive their supervisor'' decision is explicitly revisited -- a remote-controlled
     session is not an orphan'
-  status: pending
+  status: met
 - id: sc-4
   text: The vendor-lock tension with section 4's generic-runner argument is addressed
     rather than ignored
@@ -181,11 +188,11 @@ acceptance:
 - id: sc-5
   text: task-070 and task-072 are rescoped or closed as superseded, with the reason
     recorded on each
-  status: pending
+  status: met
 deliverables:
 - path: docs/agent-dispatch-design.md
-  note: Resolve the open amendment in section 4; rewrite section 9 if driving
-  status: pending
+  note: Section 4 amendment resolved; section 9 rewritten for two modes
+  status: done
 dependencies:
 - task: task-076-dispatch-permission-posture
   type: related
@@ -194,7 +201,9 @@ dependencies:
   type: related
   note: '`claude -w` may supply worktree isolation for dispatched runs for free.'
 links: []
-branches: []
+branches:
+- name: docs/task-077-dispatch-design-amendments
+  status: active
 log:
 - id: 1
   ts: '2026-08-11T02:09:04.914455Z'
@@ -621,3 +630,30 @@ log:
       id: a0e6c249-3b71-4d85-96f2-8c14e0b7523d
       kind: update_content
       fingerprint: 077821c3450f6c3b8e6daa408980fa16
+- id: 12
+  ts: '2026-08-18T06:08:58.260108Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 9f21c8a6-7b30-4e14-85df-2c7a09b3d641
+      kind: update_content
+      fingerprint: 3157920a495c21df94e0e56718d1225f
+- id: 13
+  ts: '2026-08-18T06:09:39.593551Z'
+  actor: claude
+  type: handoff
+  body: Section 4 resolved, section 9 rewritten for two modes, 070 and 072 rescoped.
+    All five criteria met. Stopping at the merge gate.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: bb5107c3-4e29-4d76-a038-91f2e6403875
+      kind: handoff
+      fingerprint: 31f00a38f0a969b01d7f9b8a2f1574da
