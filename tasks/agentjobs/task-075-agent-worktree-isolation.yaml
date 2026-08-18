@@ -2,10 +2,9 @@ schema: 2
 id: task-075-agent-worktree-isolation
 title: Give dispatched agents task-specific worktrees
 created: '2026-08-11T01:10:16.518759Z'
-updated: '2026-08-18T04:35:00.575354Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-18T11:30:34.938004Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -105,7 +104,7 @@ acceptance:
 - id: sc-3
   text: A decision entry records whether AgentJobs manages worktrees itself (layer
     2) or the convention is sufficient, with the reasoning and the rejected option
-  status: pending
+  status: met
 - id: sc-4
   text: GUI-backed task records stay on shared main, so review state cannot disappear
     when an implementation branch or worktree changes
@@ -114,7 +113,7 @@ acceptance:
   text: 'The dispatch design''s cwd choice is revisited in writing: a dispatched run
     gets an isolated worktree rather than the shared project root, or there is a recorded
     reason it does not'
-  status: pending
+  status: met
 deliverables:
 - path: ALLAGENTS.md
   note: Agent worktree mandate, cleanup requirement, and recovery guidance
@@ -123,8 +122,12 @@ deliverables:
   note: The end-to-end workflow
   status: done
 - path: docs/agent-dispatch-design.md
-  note: Amend the cwd decision (section 3/9)
-  status: pending
+  note: 'Section 8: cwd stays the project root; isolation comes from the runner''s
+    -w flag'
+  status: done
+- path: src/agentjobs/cli.py
+  note: '`agentjobs dispatch reap` -- remove finished sessions'' worktrees on demand'
+  status: done
 dependencies:
 - task: task-070-dispatch-runner
   type: related
@@ -137,6 +140,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-075-worktree-convention
+  status: merged
+- name: feat/task-075-dispatch-worktrees
   status: merged
 log:
 - id: 1
@@ -339,3 +344,140 @@ log:
     about AgentJobs-managed dispatch worktrees and the dispatch cwd amendment remain
     pending, so the task correctly stays ready.'
   data: {}
+- id: 9
+  ts: '2026-08-18T11:21:36.146617Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 1d2c3d4e-5f60-4a71-8b92-c0d1e2f30075
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 10
+  ts: '2026-08-18T11:21:53.942141Z'
+  actor: claude
+  type: decision
+  body: "# sc-3, answered: AgentJobs does not manage worktrees. The runner does, and\
+    \ it already is.\n\n**The decision.** No worktree pool, no `agentjobs worktree\
+    \ claim/release`, no registry ownership of worktree paths. A dispatched run gets\
+    \ its isolated worktree from the runner's own CLI, via a flag AgentJobs supplies.\n\
+    \n**What is already true, verified in the code rather than assumed.** `posture_flags()`\
+    \ in `src/agentjobs/dispatch/runner.py` passes `-w <task_id>` for both `supervised`\
+    \ and `autonomous`, and deliberately not for `read_only` \u2014 a run that cannot\
+    \ write anything has nothing to isolate. That is pinned by tests in `tests/test_dispatch_runner.py`\
+    \ (`test_read_only_gets_no_tools_and_no_worktree`, `test_supervised_gets_accept_edits_a_worktree_and_the_allow_list`).\
+    \ So layer 2 turns out to have been answered by task-076/077's implementation\
+    \ while this criterion was still open.\n\n**Why the pool was rejected**, stated\
+    \ properly because it was the recommended shape in this task's own spec:\n\n-\
+    \ It duplicates a thing the runner already does correctly, and duplicating it\
+    \ means AgentJobs owns `git worktree add`, `remove`, pruning, naming collisions,\
+    \ and the Windows path-length edge cases \u2014 for no behaviour the CLI does\
+    \ not already provide.\n- It would have to work for *every* runner, since the\
+    \ whole point of the argv-template design is that dispatch is not vendor-locked.\
+    \ A generic pool would then hand a path to a CLI that has its own opinion about\
+    \ where it works, and the two would fight.\n- The 2026-08-11 failures it was meant\
+    \ to prevent were caused by agents *not taking* a worktree. A dispatched run cannot\
+    \ fail to take one: the flag is supplied by AgentJobs, not by an agent remembering\
+    \ to.\n\n**What this decision costs, so nobody rediscovers it as a bug.** Isolation\
+    \ for dispatch is now a property of the runner, not of AgentJobs. A runner whose\
+    \ argv template drives a CLI with no worktree support gets no isolation and AgentJobs\
+    \ cannot give it any \u2014 it will run in the shared project root. That is a\
+    \ real limitation, it is acceptable while the shipped default is Claude Code,\
+    \ and it is the trigger to revisit this: *the first time a second runner is defined\
+    \ for a CLI that has no worktree flag.*\n\n**The reopen condition, concretely.**\
+    \ If two dispatched runs are ever observed writing to the same tree, this decision\
+    \ is wrong and the pool is the fix."
+  data:
+    operation:
+      id: 2d2c3d4e-5f60-4a71-8b92-c0d1e2f30075
+      kind: log_append
+      fingerprint: f5b1017a15c065ef186ee672707192b2
+- id: 11
+  ts: '2026-08-18T11:30:06.405858Z'
+  actor: claude
+  type: progress
+  body: "# The remaining two criteria closed, plus the cleanup gap the constraints\
+    \ named\n\nBranch `feat/task-075-dispatch-worktrees`, two commits.\n\n## sc-5:\
+    \ the cwd decision, in writing\n\n`docs/agent-dispatch-design.md` \xA78 gains\
+    \ **\"Working-tree isolation: cwd stays the project root, and that is not the\
+    \ same question\"**.\n\nThe short version: cwd and working tree are different\
+    \ things here. The runner is launched *from* the repository with `-w <task_id>`,\
+    \ so it creates and enters its own task-named worktree before writing anything.\
+    \ cwd is where the CLI starts; the worktree is where it works.\n\nSetting cwd\
+    \ to a worktree instead would be actively wrong on two counts \u2014 the worktree\
+    \ does not exist until the runner makes it (so AgentJobs would need the pool this\
+    \ task rejected), and it breaks `claude agents --json --cwd <project-root>`, which\
+    \ is how \xA79's poller scopes the session listing to one project.\n\nThe limitation\
+    \ is stated plainly rather than left to be rediscovered: a runner driving a CLI\
+    \ with no worktree flag gets no isolation, and AgentJobs cannot give it any. Two\
+    \ named reopen conditions.\n\n## The cleanup gap, which was a real hole\n\nThis\
+    \ task's constraints say *\"a worktree for a finished task is litter; removing\
+    \ it is part of the work, not a follow-up.\"* `DispatchLedger.reap_finished()`\
+    \ was implemented and tested by task-072 \u2014 and **nothing called it**, so\
+    \ worktrees accumulated for as long as the machine ran. Task-060's session handoff\
+    \ flagged this; it belongs here because reaping *is* the worktree removal for\
+    \ dispatched agents.\n\nNow: startup reconciliation reaps as well as reconciles,\
+    \ and `agentjobs dispatch reap` is the on-demand form. Deliberately **not** on\
+    \ a timer \u2014 nothing in AgentJobs schedules background work, and inventing\
+    \ a scheduler to delete directories would be the largest new moving part in the\
+    \ subsystem for the smallest reason.\n\nA **refused** reap is the useful outcome\
+    \ and is printed rather than swallowed: the session manager will not delete a\
+    \ worktree holding uncommitted changes, which means that run produced work nobody\
+    \ has looked at. `-f` would delete exactly the thing worth keeping, so it is not\
+    \ offered.\n\n## Verification\n\n- `poetry run pytest`: **1678 passed**, 2 failed\
+    \ \u2014 the same two pre-existing failures on `main`.\n- 7 new cases: 4 in `test_dispatch_lifecycle.py`\
+    \ (a finished worktree is removed at startup; an uncommitted-work refusal is reported\
+    \ by name; reconciliation actually calls the reaper, asserted directly because\
+    \ deleting the call is otherwise invisible; an unreachable session manager does\
+    \ not take the server down) and 3 in `test_dispatch_cli.py` for the command's\
+    \ own reporting.\n- `black`, `ruff` clean on everything this branch touched; `mypy\
+    \ src/agentjobs` shows only the pre-existing `storage.py:268` error.\n\n**Note\
+    \ on formatting:** running `black` across the repo also wanted to reformat `tests/test_cli.py`\
+    \ and `tests/test_task_corpus.py`, which are unformatted on `main` and untouched\
+    \ by this work. Reverted rather than swept into this branch \u2014 mechanical\
+    \ reformatting belongs in its own commit, and burying it under a feature is how\
+    \ a diff stops being reviewable."
+  data:
+    operation:
+      id: 3d2c3d4e-5f60-4a71-8b92-c0d1e2f30075
+      kind: log_append
+      fingerprint: 6c9cf2e3826d64ecbcc2b3c0ea99528b
+- id: 12
+  ts: '2026-08-18T11:30:17.746997Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 4d2c3d4e-5f60-4a71-8b92-c0d1e2f30075
+      kind: update_content
+      fingerprint: 82ab9ddf8b9cc5a64f48d036b36747ae
+- id: 13
+  ts: '2026-08-18T11:30:34.937811Z'
+  actor: claude
+  type: transition
+  body: "Merged `--no-ff` into `main` and closed. Branch marked merged, worktree removed,\
+    \ nothing pushed.\n\nAll five acceptance criteria met. This task had been open\
+    \ since 2026-08-11 with three criteria done and two waiting on decisions that\
+    \ other tasks had, in the end, already answered in code \u2014 sc-3 by `posture_flags()`\
+    \ passing `-w <task_id>`, sc-5 by the same. Both are now recorded in writing,\
+    \ with the rejected worktree pool and its reopen conditions.\n\nThe constraint\
+    \ that a finished worktree is litter was the one thing genuinely undone: `reap_finished()`\
+    \ existed and nothing called it. Startup reconciliation now reaps, and `agentjobs\
+    \ dispatch reap` is the on-demand form.\n\nMerged without human review under the\
+    \ autonomy grant on task-060 (entries 11 and 12)."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 5d2c3d4e-5f60-4a71-8b92-c0d1e2f30075
+      kind: close
+      fingerprint: 9232f4f8bc198fce17e2949409353ba3
