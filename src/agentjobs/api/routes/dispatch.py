@@ -176,9 +176,7 @@ def _run_view(record: RunRecord, project: Project) -> DispatchRunView:
         elapsed_seconds=record.elapsed_seconds(),
         live=record.is_live,
         caused_by=record.caused_by,
-        output_url=(
-            f"/api/projects/{project.id}/dispatch/runs/{record.run_id}/output"
-        ),
+        output_url=(f"/api/projects/{project.id}/dispatch/runs/{record.run_id}/output"),
     )
 
 
@@ -336,9 +334,7 @@ async def cancel_dispatch_run(
     try:
         result = ledger.cancel(run_id)
     except LedgerError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return DispatchCancelResult(
         run_id=result.run_id,
         stopped=result.stopped,

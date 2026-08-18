@@ -326,9 +326,12 @@ class TestDispatchToggle:
             "/api/projects/sandbox/dispatch/enable", json={"runner": "rm-rf-runner"}
         )
         assert invented.status_code == 409
-        detail = invented.json()["detail"]
-        assert detail["code"] == "unknown_runner"
-        assert "never by a project or the GUI" in detail["message"]
+        body = invented.json()
+        assert body["code"] == "unknown_runner"
+        assert "never by a project or the GUI" in body["message"]
+        # Same shape as every other refusal in this API, so one reader handles all of
+        # them rather than one endpoint needing its own special case.
+        assert body["detail"] == body["message"]
 
     def test_no_dispatch_request_body_accepts_a_command_to_run(self, served) -> None:
         """sc-3, asserted against the schema rather than against the current page.
@@ -348,9 +351,12 @@ class TestDispatchToggle:
         assert dispatch_models, "the dispatch schemas should be published"
         for name, model in dispatch_models.items():
             for field in model.get("properties", {}):
-                assert field not in {"argv", "env", "command", "executable"}, (
-                    f"{name}.{field} would let a browser widen what dispatch can run"
-                )
+                assert field not in {
+                    "argv",
+                    "env",
+                    "command",
+                    "executable",
+                }, f"{name}.{field} would let a browser widen what dispatch can run"
 
     def test_every_writable_dispatch_path_is_one_of_the_verbs_this_task_defines(
         self, served
@@ -359,9 +365,7 @@ class TestDispatchToggle:
         paths = client.get("/openapi.json").json()["paths"]
 
         writable = [
-            path
-            for path, methods in paths.items()
-            if "dispatch" in path and set(methods) - {"get"}
+            path for path, methods in paths.items() if "dispatch" in path and set(methods) - {"get"}
         ]
 
         assert writable
@@ -381,9 +385,7 @@ class TestDispatchRuns:
         assert started.status_code == 202, started.text
         run_id = started.json()["run_id"]
 
-        runs = client.get(
-            "/api/projects/sandbox/dispatch/runs", params={"task_id": task_id}
-        ).json()
+        runs = client.get("/api/projects/sandbox/dispatch/runs", params={"task_id": task_id}).json()
 
         assert [run["run_id"] for run in runs] == [run_id]
         assert runs[0]["mode"] == "batch"
@@ -408,9 +410,9 @@ class TestDispatchRuns:
 
         assert wait_for(finished), "the batch supervisor should conclude the run"
 
-        run = client.get(
-            "/api/projects/sandbox/dispatch/runs", params={"task_id": task_id}
-        ).json()[0]
+        run = client.get("/api/projects/sandbox/dispatch/runs", params={"task_id": task_id}).json()[
+            0
+        ]
         assert run["outcome"]
         output = client.get(f"/api/projects/sandbox/dispatch/runs/{run_id}/output")
         assert output.status_code == 200
