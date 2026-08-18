@@ -2,7 +2,7 @@ schema: 2
 id: task-157-session-run-observability
 title: Notice when a dispatched session ends, and let its output be read
 created: '2026-08-18T21:53:32.107442Z'
-updated: '2026-08-18T21:57:00.788357Z'
+updated: '2026-08-18T22:02:56.906731Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -176,6 +176,19 @@ acceptance:
     dispatch, let it finish untouched, and confirm the UI reaches a terminal state
     and shows the transcript'
   status: pending
+- id: sc-7
+  text: 'Output is readable while the run is still going: a collapsible section on
+    the task page tails the run and shows new output as it is written, without the
+    reader clicking through to another surface'
+  status: pending
+- id: sc-8
+  text: The same section holds the output after the run finishes -- one section whose
+    contents change, not two surfaces with a transition
+  status: pending
+- id: sc-9
+  text: The live tail is bounded in length and does not spawn a subprocess per browser
+    on a faster clock than the run poller; the interval chosen is stated in the code
+  status: pending
 deliverables:
 - path: src/agentjobs/api/main.py
   note: Scheduled session polling
@@ -332,3 +345,86 @@ log:
       id: 1571aa11-2b33-4c55-8d77-e9f0a1b2c157
       kind: log_append
       fingerprint: 33d02277aaf07dfea69a9e22f4b12b18
+- id: 3
+  ts: '2026-08-18T22:02:56.831621Z'
+  actor: Jeff Posey
+  type: instruction
+  body: '# Requirement added by Jeff, 2026-08-18: output must be readable *while*
+    the run is going.
+
+
+    In his words:
+
+
+    > don''t wait until the long ass task is done before we can see output... the
+    output should likely be within a collapsible dispatch section while it''s going
+    and after it''s done, and while it''s going, it should be a "tail" on it so you
+    see new output as it is written
+
+
+    ## What this changes about the task
+
+
+    The original framing treated output as something you go and fetch after the fact,
+    through a "View output" link. That is wrong for the actual experience: a session
+    can run for many minutes, and during all of it the only signal is a growing elapsed
+    counter. Watching a run is the normal case, not the exception.
+
+
+    So the output surface is **live, in place, and collapsible**, in both states:
+
+
+    - **While running:** a tail that updates as new output is written, inside a collapsible
+    section on the task page. The reader should see progress without clicking through
+    to anything.
+
+    - **After finishing:** the same section, same place, still collapsible, now showing
+    the completed output.
+
+
+    One section that changes contents, not two different surfaces with a transition
+    between them.
+
+
+    ## Consequences worth stating before implementation
+
+
+    - A session''s output comes from `<runner> logs <session_id>`, which is a subprocess
+    per read. A tail that re-runs it on a short interval is a process spawn per interval
+    per watching browser. Whatever polling interval the run-status poller uses is
+    probably the right one to reuse rather than introducing a second, faster clock.
+
+    - Tailing means the run-output route needs to serve an incremental or bounded
+    read, not the whole transcript every time. `readable_tail` already exists for
+    exactly this shape and is already used for parked-session prompts.
+
+    - Collapsed by default or expanded while running is a real UI choice. Expanded-while-running
+    matches the intent -- you should not have to ask to see a live run -- but it makes
+    the task page taller for every live run. Pick one and say why.
+
+    - This interacts with task-015: a long ball prompt already makes rows unreadable.
+    A live output pane on the same page has the same failure mode if it is unbounded.
+    Bound it.
+
+
+    Also settled in the same message: **do not dispatch this work through AgentJobs.**
+    Work it directly. Dispatch is not configured on the real machine (`~/.agentjobs/dispatch.yaml`
+    does not exist), which is why the Dispatch section is absent from the live dashboard
+    -- correct behaviour, not a stale build.'
+  data:
+    operation:
+      id: 1572aa11-2b33-4c55-8d77-e9f0a1b2c157
+      kind: log_append
+      fingerprint: babb228ab8084fb29ce5861e45a066d9
+- id: 4
+  ts: '2026-08-18T22:02:56.906585Z'
+  actor: system
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 1573aa11-2b33-4c55-8d77-e9f0a1b2c157
+      kind: update_content
+      fingerprint: 36a818cc0380aca83e5e328d620ce019
