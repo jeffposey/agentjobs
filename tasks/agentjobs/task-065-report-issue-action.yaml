@@ -2,45 +2,9 @@ schema: 2
 id: task-065-report-issue-action
 title: 'Report Issue: capture a problem from any page, as a task'
 created: '2026-08-10T22:57:38.570148Z'
-updated: '2026-08-18T02:39:10.960201Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Review the Report Issue action on branch `feat/task-065-report-issue-action`\
-  \ (worktree `C:/projects/aj-065`), then approve or send it back.\n\n**A review server\
-  \ is running for you: http://127.0.0.1:8899/app/ \u2014 throwaway data, own port,\
-  \ nothing touches your real corpus.** Click anything, including the destructive\
-  \ controls. Say the word and I will stop it.\n\nWhat to look at, both states seeded:\n\
-  \n1. `/app/p/review-sandbox/tasks/task-001-dashboard-layout` \u2014 a task page.\
-  \ Hit **Report issue** (bottom right). The form pre-fills the route and offers to\
-  \ link the task; file one and follow the confirmation into the created record.\n\
-  2. Switch the destination to **No Human Configured** in the form's project select\
-  \ \u2014 the reporter refuses and explains, rather than filing an unattributable\
-  \ record.\n3. `/app/p/review-sandbox/tasks/task-002-log-timestamps` \u2014 an already-filed\
-  \ report, showing the `reported-issue` tag and the new **Related** panel linking\
-  \ back to the page it was noticed on. `task-003-ordinary-work` has no such panel,\
-  \ for comparison.\n4. `/app/not-found` and `/` \u2014 the reporter is present on\
-  \ pages with no project in scope. This is the deviation from the spec worth your\
-  \ eye: the spec said 'next to the project switcher', and that nav only exists on\
-  \ project routes, so it would have missed the picker that ac-1 names. Reasoning\
-  \ is in the decision log.\n\nThe judgement calls, all recorded as decisions above:\
-  \ the destination project is an explicit field defaulted to the one you are viewing\
-  \ (ac-5); the page is stored as prose in the description rather than in `links[]`,\
-  \ because the durable half of a URL is the route and not the host; and `related`\
-  \ dependencies now render on the task detail page, which is a small reach outside\
-  \ this task's stated surface \u2014 without it, ac-3's link existed only inside\
-  \ the YAML.\n\nOne thing to look at critically: the floating control can sit over\
-  \ page content. That is the first thing I would want a second opinion on.\n\nVerification:\
-  \ `poetry run python scripts/check.py` fully green \u2014 1418 pytest, 81 vitest,\
-  \ 8 Playwright including two new browser paths that file real issues against a real\
-  \ server and read back the stored record. Black/ruff/mypy clean on the changed files\
-  \ (the two pre-existing black failures in `tests/test_cli.py` and `tests/test_task_corpus.py`\
-  \ are on main and untouched).\n\nUnrelated, found while seeding the sandbox and\
-  \ already filed: `generate_task_id` ignores every slugged task id, so the sandbox\
-  \ generated `task-001` next to `task-001-dashboard-layout`. That is **task-105**,\
-  \ not a regression from this work.\n\nOn approval I will rebase onto main, merge\
-  \ --no-ff, close this, remove the worktree, rebuild the frontend bundle in the main\
-  \ clone, and continue task-120 with task-067."
+updated: '2026-08-18T03:13:29.485474Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -50,7 +14,6 @@ tags:
 - workflow
 effort: 2-3 hours
 assignment:
-  owner: claude
   eligible: []
 parent: task-120-issue-reporter-workflow
 spec:
@@ -122,20 +85,20 @@ acceptance:
 - id: ac-1
   text: a Report Issue action is reachable from every page, including the project
     picker
-  status: pending
+  status: met
 - id: ac-2
   text: submitting it creates a real task, tagged, visible in the task list
-  status: pending
+  status: met
 - id: ac-3
   text: the created task records where the reporter was, and links the task they were
     viewing when there was one
-  status: pending
+  status: met
 - id: ac-4
   text: the reporter is recorded as the configured human actor, not 'human'
-  status: pending
+  status: met
 - id: ac-5
   text: which project a reported issue lands in is a recorded decision, not an accident
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-064-human-actor-identity
@@ -144,7 +107,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-065-report-issue-action
-  status: active
+  status: merged
+  merged_at: '2026-08-18T03:12:00Z'
 log:
 - id: 1
   ts: '2026-08-13T22:10:49.247227Z'
@@ -316,3 +280,63 @@ log:
       id: 6e5b0c74-1f38-4a92-8d67-b3e2a145c908
       kind: handoff
       fingerprint: 4b15f93c0999f2f5d4f6d345029c98b2
+- id: 8
+  ts: '2026-08-18T03:10:48.256615Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 9
+  ts: '2026-08-18T03:13:14.133758Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: b2731e46-0c85-4f9d-8a31-59d6ec7a4102
+      kind: update_content
+      fingerprint: 1b94e177cda9cdb37da7843d61c51cdb
+- id: 10
+  ts: '2026-08-18T03:13:29.485338Z'
+  actor: claude
+  type: transition
+  body: "Merged into main with --no-ff after approval in chat and through the web\
+    \ UI.\n\nA finding made while using AgentJobs now has somewhere to go. A **Report\
+    \ issue** control on every page files an ordinary task \u2014 tagged `reported-issue`,\
+    \ attributed to the configured human, carrying the route the reporter was on and\
+    \ a `related` edge to the task they were reading. No issue store, no second creation\
+    \ path; `buildIssueTaskRequest` is a separate module precisely so task-121's capture\
+    \ tray reuses it rather than inventing one.\n\nThree things had to change beneath\
+    \ it, none of which were obvious from the spec:\n\n1. **`TaskCreateRequest` had\
+    \ no `actor` field.** `create_task` accepted one but the HTTP boundary could not\
+    \ send it, so nothing created through the API could say who made it \u2014 the\
+    \ same anonymity task-064 fixed for review actions. The field now exists and is\
+    \ validated whenever supplied, and the manager writes its creation entry when\
+    \ an actor is named even without an `operation_id`; a caller that names an actor\
+    \ and gets no attribution has been silently ignored.\n2. **`related` dependencies\
+    \ rendered nowhere.** They block nothing, so `dependency_facts` never computed\
+    \ them and the detail page had no panel. ac-3's link would have existed only inside\
+    \ the YAML.\n3. **The spec's placement could not satisfy its own acceptance criterion.**\
+    \ \"Next to the project switcher\" puts the control inside `ProjectApp`, which\
+    \ never mounts on the project picker that ac-1 names. It is rendered beside the\
+    \ router instead \u2014 reasoning and the rejected alternatives are in the decision\
+    \ log.\n\nVerified against a real server, not only in tests: `scripts/check.py`\
+    \ fully green (1418 pytest, 81 vitest, 8 Playwright, two of them new browser paths\
+    \ that file real issues and read the stored record back), plus a sandbox instance\
+    \ on its own port with both a configured-human project and one without, so the\
+    \ refusal path was exercised by hand as well.\n\nFound while seeding that sandbox\
+    \ and **not** fixed here: `generate_task_id` splits on the first hyphen, so every\
+    \ slugged id is skipped and the sequence restarts from whatever unslugged files\
+    \ remain. Already filed as task-105."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 9a4c8e21-7d63-4b0f-95a8-c31e60b7f284
+      kind: close
+      fingerprint: 9baf894bef53c548823c126a7efce94f
