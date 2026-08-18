@@ -1,0 +1,113 @@
+schema: 2
+id: task-148-check-evaluator
+title: 'The check evaluator: run a task''s acceptance checks and report the vector'
+created: '2026-08-18T11:37:41.869021Z'
+updated: '2026-08-18T11:37:41.870649Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: infrastructure
+tags:
+- agent-loops
+- dispatch
+- correctness
+effort: half a day
+assignment:
+  eligible: []
+parent: task-078-agent-loops
+spec:
+  summary: Execute one task's `acceptance[].check` commands and turn their exit codes
+    into a result vector, behind the same four gates that guard dispatch. This is
+    the piece that makes a definition of done machine-readable; it has no loop in
+    it and is worth having on its own. Derived from docs/agent-loops-design.md, decisions
+    L3 and the execution table in section 3.
+  description: "Derived from [docs/agent-loops-design.md](../../docs/agent-loops-design.md)\
+    \ \xA73 and \xA74.\n\n## Scope\n\n`src/agentjobs/checks.py` (or `dispatch/checks.py`\
+    \ \u2014 argue it in the task): evaluate every criterion on one task that has\
+    \ a `check`, and return the vector task-147 defined.\n\n| | |\n|---|---|\n| cwd\
+    \ | The project root from the registry. Not a worktree: a check reports on the\
+    \ tree as it stands. |\n| env | Inherited plus `AGENTJOBS_TASK_ID`. No secrets\
+    \ injected. |\n| timeout | 300s per check, 900s for the pass |\n| exit 0 | `met`\
+    \ |\n| non-zero, timeout, or **cannot be started at all** | `failed` |\n| output\
+    \ | stdout and stderr captured, 40-line tail retained |\n\n**A check that cannot\
+    \ run is `failed`, never skipped.** A missing interpreter or a deleted test file\
+    \ means the criterion is not demonstrably met \u2014 and treating it as skipped\
+    \ would let a future loop converge by breaking its own oracle, which is the single\
+    \ most valuable thing to make impossible.\n\n## The gate\n\n`assert_dispatch_permitted(project_id)`\
+    \ must pass before anything executes (L3). The argument for reusing the dispatch\
+    \ gates rather than inventing a weaker one: enabling a project for dispatch already\
+    \ authorizes an autonomous agent with write access there, and a check is strictly\
+    \ less dangerous than that. A cloned repository on a machine that has not enabled\
+    \ it can run nothing, whatever its task files say.\n\n**Never as a side effect\
+    \ of a read.** Loading, listing, rendering, the API's normal request path \u2014\
+    \ none of these evaluate a check.\n\n## Verification\n\nReal subprocesses against\
+    \ a temporary project: a passing check, a failing one, one that times out, and\
+    \ one whose executable does not exist. Assert the gate refuses on an unenabled\
+    \ project by its own reason code. Assert no evaluation happens on any read path."
+  constraints: '- argv as a list, handed to subprocess as a list. No `shell=True`
+    anywhere.
+
+    - A check that cannot be started is `failed`. Never skipped, never ignored.
+
+    - Gated by `assert_dispatch_permitted`. A check must never run on a project that
+    has not been enabled for dispatch on this machine.
+
+    - Writes exactly one `check_result` entry per pass, through the evaluator, never
+    through `add_log_entry`.'
+  out_of_scope: The CLI and API triggers (task-149), chain authorization, and the
+    loop driver.
+  context:
+  - path: docs/agent-loops-design.md
+    why: Section 3's execution table and section 4's security argument, including
+      the rejected allow-list.
+  - path: src/agentjobs/dispatch/config.py
+    why: assert_dispatch_permitted -- the four gates this reuses rather than duplicating.
+  - path: src/agentjobs/dispatch/runner.py
+    why: The argv-not-shell discipline and the output-tail convention to match.
+acceptance:
+- id: sc-1
+  text: 'A task''s checks are executed and produce a result vector: exit 0 met, non-zero
+    failed, with exit code, duration and output tail on each'
+  status: pending
+- id: sc-2
+  text: A check that times out, and one whose executable does not exist, are both
+    reported failed with the cause named -- neither is skipped
+  status: pending
+- id: sc-3
+  text: Evaluation is refused on a project not enabled for dispatch, reporting the
+    specific gate
+  status: pending
+- id: sc-4
+  text: No read path evaluates a check, asserted rather than assumed
+  status: pending
+- id: sc-5
+  text: One check_result entry is written per pass, carrying every criterion and the
+    unchecked ids
+  status: pending
+deliverables:
+- path: src/agentjobs/dispatch/checks.py
+  note: The evaluator
+  status: pending
+- path: tests/test_acceptance_checks.py
+  note: Real subprocesses, the failure modes, and the gate
+  status: pending
+dependencies:
+- task: task-147-acceptance-check-schema
+  type: needs
+  note: Defines the field being executed and the entry type recording the result.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T11:37:41.869072Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: a1000000-0000-4000-8000-000000000148
+      kind: create
+      fingerprint: c788991c11f61dd610c2eaaa131e12e9

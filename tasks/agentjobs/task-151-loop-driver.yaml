@@ -1,0 +1,127 @@
+schema: 2
+id: task-151-loop-driver
+title: 'The loop driver: iterate, evaluate, and stop loudly'
+created: '2026-08-18T11:38:57.682731Z'
+updated: '2026-08-18T11:38:57.683471Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: infrastructure
+tags:
+- agent-loops
+- dispatch
+- architecture
+effort: a day
+assignment:
+  eligible: []
+parent: task-078-agent-loops
+spec:
+  summary: 'Run an authorized chain: dispatch, wait for the run to reach a terminal
+    state, evaluate the checks, compare against the previous vector, and decide whether
+    to go again. Thrash detection, regression guard and every ceiling, each stopping
+    with the ball on a human and the reason named.'
+  description: "Derived from [docs/agent-loops-design.md](../../docs/agent-loops-design.md)\
+    \ \xA77 and \xA78.\n\n## The iteration\n\n1. Check the chain is still authorized\
+    \ and not revoked; re-check the sentinel.\n2. Dispatch. **Wait for that run to\
+    \ reach a terminal state** \u2014 never start iteration *n+1* while *n* is live.\
+    \ An outer iteration is only worth starting when the inner loop has genuinely\
+    \ stopped (\xA71); re-dispatching while an inner loop could still progress is\
+    \ paying to forget.\n3. Evaluate the checks. Write one `check_result` entry carrying\
+    \ the whole vector.\n4. Compare and decide.\n\n## Deciding\n\n| Condition | Action\
+    \ |\n|---|---|\n| All checked criteria pass | Stop. Hand off `human`/`review`,\
+    \ naming which criteria the loop settled and which it never touched. **Never `outcome:\
+    \ completed`** \u2014 the prose criteria are exactly the judgement the loop cannot\
+    \ make (\xA77). |\n| A criterion regressed from met to failed | Stop **immediately,\
+    \ no retry**. Going backwards means the loop's model of what it is doing is wrong,\
+    \ and the specific case it catches is an agent breaking a passing check to make\
+    \ a failing one pass. |\n| Three consecutive identical result vectors | Stop.\
+    \ Thrash. Compare the *vector*, not the diff: an agent editing files busily while\
+    \ every check returns the same answer is thrashing, and the diff would call that\
+    \ progress. |\n| Iteration cap, chain wall-clock, or the check digest changed\
+    \ | Stop, naming which. |\n| Otherwise | Iterate. |\n\n**Every stop is loud**:\
+    \ `ball: human`, a `ball_reason`, and a `ball_prompt` naming the guardrail, the\
+    \ iteration, and the vector. A chain that stops silently is indistinguishable\
+    \ from one still running, which is the failure the whole dispatch subsystem is\
+    \ built against.\n\n## Budgets\n\nPer L7 and the amended \xA72a: the per-task-per-day\
+    \ cap counts **chains**, the lifetime cap keeps counting dispatches as a true\
+    \ backstop, and the cooldown does not apply within a chain. Getting this wrong\
+    \ makes the feature inert \u2014 a 5-iteration chain dies at iteration 4 against\
+    \ a cap meant for auto-dispatch.\n\n## Verification\n\nA real chain against a\
+    \ temporary project whose check passes on the third iteration, driven by a fake\
+    \ runner that edits a file. Then one that never converges, one that regresses,\
+    \ and one that thrashes -- asserting each stops for its own reason with the ball\
+    \ on a human."
+  constraints: '- **Do not start this task without Jeff''s explicit go-ahead on building
+    the outer loop.** Same gate as task-150. Hand off `human`/`decision` and stop
+    if you reach it without one.
+
+    - Iteration n+1 never starts while iteration n is live.
+
+    - Every stop hands the ball to a human with the guardrail named. There is no silent
+    exit.
+
+    - The loop never sets `outcome: completed` and never marks an unchecked criterion
+    met.
+
+    - No retry after a regression. None.'
+  out_of_scope: The GUI (task-152). Generator/critic chains and scheduled loops, both
+    explicitly not designed.
+  context:
+  - path: docs/agent-loops-design.md
+    why: Sections 7 and 8 -- the decision table, the numbers and why each was chosen,
+      and the budget resolution.
+  - path: src/agentjobs/dispatch/ledger.py
+    why: How a run reaches a terminal state, which is what an iteration waits on.
+  - path: src/agentjobs/dispatch/auto.py
+    why: The budget caps as they bind auto-dispatch; L7 changes how they count here.
+acceptance:
+- id: sc-1
+  text: A chain whose checks pass on the third iteration stops there and hands off
+    human/review, naming settled and untouched criteria
+  status: pending
+- id: sc-2
+  text: Three consecutive identical vectors stop the chain as thrash; two do not
+  status: pending
+- id: sc-3
+  text: A criterion regressing from met to failed stops the chain immediately, with
+    no retry
+  status: pending
+- id: sc-4
+  text: The iteration cap, the chain wall-clock and a changed check digest each stop
+    the chain under their own name
+  status: pending
+- id: sc-5
+  text: Iteration n+1 never begins while n is live, asserted against the ledger rather
+    than by timing
+  status: pending
+- id: sc-6
+  text: 'A five-iteration chain is not truncated by the per-day cap: chains are counted,
+    dispatches are not, and the cooldown does not apply within a chain'
+  status: pending
+deliverables:
+- path: src/agentjobs/dispatch/loop.py
+  note: The driver, guardrails, and the loud stops
+  status: pending
+- path: tests/test_agent_loops.py
+  note: Convergence, thrash, regression and every ceiling
+  status: pending
+dependencies:
+- task: task-150-chain-authorization
+  type: needs
+  note: The driver may not run without an authorization to resolve.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T11:38:57.682777Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: a1000000-0000-4000-8000-000000000151
+      kind: create
+      fingerprint: 1a53f38883968f54f449a784da48b11a

@@ -1,0 +1,103 @@
+schema: 2
+id: task-152-loops-gui
+title: Check results and chains in the web UI
+created: '2026-08-18T11:39:21.120131Z'
+updated: '2026-08-18T11:39:21.120891Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: ux
+tags:
+- agent-loops
+- ux
+effort: half a day
+assignment:
+  eligible: []
+parent: task-078-agent-loops
+spec:
+  summary: Show each acceptance criterion's latest check result on the task page,
+    let a human run the checks, and -- if the loop is built -- show a chain's iteration
+    history with revoke in one click.
+  description: "Derived from [docs/agent-loops-design.md](../../docs/agent-loops-design.md)\
+    \ \xA712, derived task 6.\n\n## Scope, in two independently shippable halves\n\
+    \n**Half one, which needs only tasks 147-149:** each criterion in the acceptance\
+    \ list shows its latest check result \u2014 met, failed, or never run \u2014 with\
+    \ the duration and, on a failure, the output tail behind a disclosure. A \"Run\
+    \ checks\" button evaluates them. This is worth shipping whether or not the loop\
+    \ exists.\n\n**Half two, which needs task-151:** a chain's iteration history,\
+    \ read from the `check_result` entries: which criteria passed at each iteration,\
+    \ so a human can see convergence or thrash at a glance. Revoke reachable in **one\
+    \ click**, per \xA79 \u2014 a kill switch you have to look up is not one.\n\n\
+    ## Constraints that have bitten this repository before\n\n- Assert on **rendered\
+    \ values**, not on markup. A test finding `data-check-status=` passes just as\
+    \ happily while the page emits `AcceptanceStatus.MET`.\n- Any new project-scoped\
+    \ query must be classified in `LiveUpdates.tsx`, or the drift test fails \u2014\
+    \ which is that test doing its job.\n- Stand it up on its own port with its own\
+    \ seeded data before asking for review, with both states present: a task whose\
+    \ checks pass and one whose checks fail."
+  constraints: '- Half one must not depend on the loop existing. Ship it against tasks
+    147-149 alone if the loop is never built.
+
+    - Revoke is one click, always available while a chain is live.
+
+    - Assert on rendered values, never on the presence of an attribute.
+
+    - Classify every new project-scoped query in LiveUpdates.tsx.'
+  out_of_scope: Editing a check from the browser. The browser may run checks and revoke
+    chains; it may never write a command, for the same reason it cannot write a runner
+    argv.
+  context:
+  - path: frontend/src/components/TaskDetail.tsx
+    why: Where the acceptance list renders today.
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: The pattern for a run-state panel with a live poll and a destructive control.
+  - path: docs/agent-loops-design.md
+    why: Section 12 for scope, section 9 for why revoke must be one click.
+acceptance:
+- id: sc-1
+  text: Each criterion shows its latest check result as a word a person reads, never
+    an enum's spelling, with never-run distinguished from failed
+  status: pending
+- id: sc-2
+  text: A Run checks button evaluates a task's checks and the page reflects the result
+    without a manual refresh
+  status: pending
+- id: sc-3
+  text: A failure shows its output tail on demand
+  status: pending
+- id: sc-4
+  text: The browser exposes no way to write or edit a check command, verified against
+    the endpoints the page can reach
+  status: pending
+- id: sc-5
+  text: 'If the loop exists: a chain''s iteration history is readable and revoke takes
+    one click'
+  status: pending
+- id: sc-6
+  text: Reviewed on a sandbox server on its own port, seeded with both a passing and
+    a failing task
+  status: pending
+deliverables:
+- path: frontend/src/components/
+  note: Check results on the acceptance list, and the chain panel
+  status: pending
+dependencies:
+- task: task-149-check-trigger
+  type: needs
+  note: Half one needs the check endpoint.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T11:39:21.120178Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: a1000000-0000-4000-8000-000000000152
+      kind: create
+      fingerprint: f3831b9708e811b8258009151ab757a6

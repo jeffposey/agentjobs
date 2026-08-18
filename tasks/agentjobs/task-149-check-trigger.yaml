@@ -1,0 +1,105 @@
+schema: 2
+id: task-149-check-trigger
+title: Evaluate a task's checks on demand, from the CLI and the API
+created: '2026-08-18T11:38:03.788302Z'
+updated: '2026-08-18T11:38:03.789089Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- agent-loops
+- cli
+- api
+effort: 2-3 hours
+assignment:
+  eligible: []
+parent: task-078-agent-loops
+spec:
+  summary: '`agentjobs check <task-id>` and `POST /api/projects/{id}/tasks/{task_id}/check`:
+    ask a task whether its own definition of done holds, and put the answer on the
+    record. This is the point at which executable acceptance criteria are useful to
+    a person, with no autonomy anywhere.'
+  description: "Derived from [docs/agent-loops-design.md](../../docs/agent-loops-design.md)\
+    \ \xA712, derived task 3.\n\n## Scope\n\nThe explicit human trigger for the evaluator.\
+    \ One command, one endpoint, one `check_result` entry per invocation.\n\n- `agentjobs\
+    \ check <task-id> [--project <id>]` prints the vector: criterion id, met/failed,\
+    \ duration, and the output tail on a failure. Exit non-zero when any check failed,\
+    \ so it composes.\n- `POST /api/projects/{id}/tasks/{task_id}/check` returns the\
+    \ same vector. Refusals render under the gate's own reason code, as the dispatch\
+    \ endpoints do.\n- Both refuse a task with no checks, saying so rather than reporting\
+    \ a vacuous pass. **Zero of zero checks passing is not a definition of done being\
+    \ met**, and a caller that cannot tell those apart will act on the wrong one.\n\
+    \n## Why this is worth shipping before any loop\n\nThe design's \xA712 names this\
+    \ as the natural stopping point if appetite runs out: executable acceptance criteria,\
+    \ evaluated when a person asks, with the results on the task. It carries the entire\
+    \ schema and security surface and none of the autonomy risk. A reviewer can ask\
+    \ a task whether it is done and get an answer that is evidence rather than an\
+    \ opinion.\n\n## Verification\n\nAgainst a freshly started server and a real project\
+    \ with a passing and a failing check. Read the resulting `check_result` entry\
+    \ back off the task file."
+  constraints: '- A task with no checks is refused with its own message, never reported
+    as passing.
+
+    - The CLI''s exit code reflects the vector, so it is usable in a script.
+
+    - No loop, no chain, no authorization record here. This is one evaluation, caused
+    by one human asking.'
+  out_of_scope: Chain authorization (task-150), the loop driver (task-151), and the
+    GUI (task-152).
+  context:
+  - path: docs/agent-loops-design.md
+    why: Section 12 -- why this is the natural stopping point, and what it must not
+      include.
+  - path: src/agentjobs/api/routes/dispatch.py
+    why: How a dispatch refusal renders under its own code; match it.
+  - path: src/agentjobs/cli.py
+    why: The dispatch command group's conventions.
+acceptance:
+- id: sc-1
+  text: '`agentjobs check <task-id>` prints each criterion''s result and exits non-zero
+    when any check failed'
+  status: pending
+- id: sc-2
+  text: The API endpoint returns the same vector and renders every refusal under its
+    specific reason code
+  status: pending
+- id: sc-3
+  text: A task with no checks is refused by both surfaces with a message saying so,
+    not reported as passing
+  status: pending
+- id: sc-4
+  text: Each invocation writes exactly one check_result entry, verified by reading
+    the task file back
+  status: pending
+- id: sc-5
+  text: Exercised against a freshly started server with one passing and one failing
+    check
+  status: pending
+deliverables:
+- path: src/agentjobs/cli.py
+  note: '`agentjobs check`'
+  status: pending
+- path: src/agentjobs/api/routes/
+  note: The check endpoint
+  status: pending
+dependencies:
+- task: task-148-check-evaluator
+  type: needs
+  note: This is the trigger for it.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T11:38:03.788348Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: a1000000-0000-4000-8000-000000000149
+      kind: create
+      fingerprint: 4915b61542e9f754b951f701d03b0084

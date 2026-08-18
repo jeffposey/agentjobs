@@ -1,0 +1,106 @@
+schema: 2
+id: task-147-acceptance-check-schema
+title: 'Schema: executable acceptance checks and the check_result log entry'
+created: '2026-08-18T11:37:16.518623Z'
+updated: '2026-08-18T11:37:16.519527Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: infrastructure
+tags:
+- schema
+- agent-loops
+- dispatch
+effort: half a day
+assignment:
+  eligible: []
+parent: task-078-agent-loops
+spec:
+  summary: 'Add `acceptance[].check` -- an argv list whose exit code decides whether
+    a criterion is met -- and the `check_result` log entry that records an evaluation
+    pass. Schema only: nothing in this task executes anything. Derived from docs/agent-loops-design.md,
+    decisions L1, L2, L4 and L5.'
+  description: "Derived from [docs/agent-loops-design.md](../../docs/agent-loops-design.md)\
+    \ \xA72, \xA73, \xA75 and \xA76.\n\n## Scope\n\n**`AcceptanceCriterion.check`**,\
+    \ optional, a non-empty list of strings.\n\n```yaml\nacceptance:\n  - id: sc-1\n\
+    \    text: The double-claim race is closed\n    verify: Two concurrent claims\
+    \ against one ready task; one wins, one is refused.\n    check: [\"poetry\", \"\
+    run\", \"pytest\", \"tests/test_concurrency.py\", \"-q\"]\n    status: pending\n\
+    ```\n\n- A **list**, never a string (L2). There is no shell in this subsystem,\
+    \ and a string parsed with `shlex` would make the parse the security boundary\
+    \ on a platform `shlex` does not describe.\n- `verify` is untouched and keeps\
+    \ its meaning (L1). It is prose about what a person should do; 132 values in the\
+    \ corpus rely on that, only ~36 of them command-shaped. The two coexist on one\
+    \ criterion.\n- Validation refuses an empty list, a non-string element, and an\
+    \ empty first element.\n\n**`LogEntryType.CHECK_RESULT`** with a validated payload\
+    \ carrying `chain_id`, `iteration`, a per-criterion `results` vector (`id`, `status`,\
+    \ `exit_code`, `duration_seconds`, optional `output_tail`) and the `unchecked`\
+    \ ids. One entry per evaluation pass, never one per criterion (L5).\n\n**`add_log_entry`\
+    \ refuses `check_result`**, exactly as it already refuses `transition`, and for\
+    \ the same reason: it is written by the evaluator as a side effect of a real evaluation,\
+    \ never by a caller. A fabricated result is one a loop would act on.\n\n**Changing\
+    \ a criterion's `check` resets its `status` to `pending`** (L4). A status established\
+    \ by a command that no longer exists is not evidence.\n\n## Verification\n\nRound-trip\
+    \ a task with checks through storage; assert the refusals fire with their own\
+    \ messages; assert the status reset happens on a check edit and not on a text\
+    \ edit. Update `docs/task-schema.md`'s `acceptance[]` row and the schema reference."
+  constraints: '- `check` is a list of strings. No shell, no string splitting, ever.
+
+    - Do not change the meaning of `verify` or migrate any existing value into `check`.
+    That mapping is a judgement per criterion, not a script.
+
+    - Nothing in this task runs a subprocess. Execution is task-148.'
+  out_of_scope: Executing checks, the loop, and any GUI.
+  context:
+  - path: docs/agent-loops-design.md
+    why: Sections 2, 3, 5 and 6 -- the field, its shape, the status reset, and the
+      log entry.
+  - path: src/agentjobs/models_v2.py
+    why: AcceptanceCriterion, LogEntryType, and the existing refusal of `transition`
+      in the manager.
+  - path: docs/task-schema.md
+    why: The acceptance[] contract that this changes.
+acceptance:
+- id: sc-1
+  text: A task can carry acceptance[].check as an argv list, round-trips through storage,
+    and invalid shapes are refused with messages naming what was wrong
+  status: pending
+- id: sc-2
+  text: verify keeps its current meaning and no existing corpus value changes
+  status: pending
+- id: sc-3
+  text: check_result exists as a validated log entry type and add_log_entry refuses
+    it, tested the same way the transition refusal is
+  status: pending
+- id: sc-4
+  text: Editing a criterion's check resets its status to pending; editing its text
+    does not
+  status: pending
+- id: sc-5
+  text: docs/task-schema.md and the generated schema reference describe both fields
+    and the difference between them
+  status: pending
+deliverables:
+- path: src/agentjobs/models_v2.py
+  note: check field, CHECK_RESULT entry type and payload
+  status: pending
+- path: docs/task-schema.md
+  note: acceptance[] contract updated
+  status: pending
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T11:37:16.518673Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: a1000000-0000-4000-8000-000000000147
+      kind: create
+      fingerprint: c555e9823a49c8e35dbcf1f71a417bf0

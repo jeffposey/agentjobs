@@ -1,0 +1,113 @@
+schema: 2
+id: task-150-chain-authorization
+title: 'Chain authorization: what a human approves before a loop may run'
+created: '2026-08-18T11:38:29.569027Z'
+updated: '2026-08-18T11:38:29.569758Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: architecture
+tags:
+- agent-loops
+- dispatch
+- architecture
+effort: half a day
+assignment:
+  eligible: []
+parent: task-078-agent-loops
+spec:
+  summary: 'The record a human writes to authorize a bounded chain of dispatches:
+    the task, the iteration cap, the wall-clock ceiling, and a digest freezing the
+    checks as they stood. Plus revocation. No driver yet -- this is the thing the
+    driver will not be allowed to run without.'
+  description: "Derived from [docs/agent-loops-design.md](../../docs/agent-loops-design.md)\
+    \ \xA75, \xA78 and \xA79, and dispatch design \xA72a (D5).\n\n## Scope\n\nA `chain_authorized`\
+    \ log entry whose actor is a human, carrying:\n\n- `chain_id`\n- `max_iterations`\
+    \ (default 5, ceiling 20)\n- `wall_clock_seconds` (default 4h, ceiling 12h)\n\
+    - `check_digest` \u2014 a digest over the criteria's `(id, check)` pairs at the\
+    \ moment of authorization\n\n**The digest is the load-bearing part** (L4). Anyone\
+    \ may write a check, including an agent \u2014 a rule forbidding that is pure\
+    \ friction on the useful case, since the agent writing a task usually knows the\
+    \ right test command. Freezing the set at authorization makes the dangerous case\
+    \ structurally ineffective instead: an agent that changes a check mid-chain to\
+    \ one that passes has moved the definition of done after a human agreed to it,\
+    \ and the chain stops.\n\n**Refusals, each with its own reason code:**\n\n| Condition\
+    \ | Why |\n|---|---|\n| No criterion has a check | A loop with no evaluable termination\
+    \ condition is an unbounded spend, refused rather than capped (\xA72a). |\n| Every\
+    \ check already passes | Nothing to converge on. The only thing such a loop can\
+    \ do is change something already correct. |\n| Bounds above the ceilings | The\
+    \ ceiling is the ceiling. |\n\nAuthorization is resolved **from the stored task**,\
+    \ never from a request body \u2014 dispatch \xA72's forgeability requirement applies\
+    \ unchanged.\n\n**Revocation** must be as blunt as `agentjobs dispatch stop`:\
+    \ one command, effective before the next iteration. `~/.agentjobs/DISPATCH_DISABLED`\
+    \ already stops every chain on the machine, because an iteration is a dispatch\
+    \ and the sentinel is re-checked immediately before every spawn \u2014 assert\
+    \ that rather than assuming it."
+  constraints: '- **Do not start this task without Jeff''s explicit go-ahead on building
+    the outer loop.** The design is complete and the go/no-go is not an agent''s call:
+    tasks 147-149 deliver executable acceptance criteria with no autonomy, and this
+    is where autonomy begins. If you reach this task without that decision, hand off
+    `human`/`decision` and stop.
+
+    - The authorizing entry is resolved from the stored task at every use, never from
+    a request.
+
+    - A chain whose checks all pass at authorization time is refused, not authorized-and-immediately-finished.
+
+    - No driver in this task. Nothing here starts a run.'
+  out_of_scope: The loop driver itself (task-151) and the GUI (task-152).
+  context:
+  - path: docs/agent-loops-design.md
+    why: Sections 5, 8 and 9 -- the digest, the numbers and their reasoning, and revocation.
+  - path: docs/agent-dispatch-design.md
+    why: Section 2a for D5, and section 2's forgeability requirement which applies
+      unchanged.
+  - path: src/agentjobs/dispatch/guards.py
+    why: resolve_causing_entry and assert_human_clocked -- the pattern for resolving
+      authority from the stored record.
+acceptance:
+- id: sc-1
+  text: A human can authorize a chain with an iteration cap and a wall-clock ceiling,
+    producing one chain_authorized entry carrying the check digest
+  status: pending
+- id: sc-2
+  text: A chain is refused when no criterion has a check, when every check already
+    passes, and when a bound exceeds its ceiling -- each under its own reason code
+  status: pending
+- id: sc-3
+  text: The authorization is resolved from the stored task; a request supplying its
+    own authorization is refused
+  status: pending
+- id: sc-4
+  text: Changing any criterion's check changes the digest, tested directly, since
+    that is what stops a chain later
+  status: pending
+- id: sc-5
+  text: Revocation takes one command and is effective before the next iteration; the
+    sentinel file stops every chain, asserted rather than assumed
+  status: pending
+deliverables:
+- path: src/agentjobs/dispatch/chains.py
+  note: Authorization, the digest, refusals and revocation
+  status: pending
+dependencies:
+- task: task-149-check-trigger
+  type: needs
+  note: Checks must be evaluable and triggerable before a chain can be authorized
+    against them.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T11:38:29.569074Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: a1000000-0000-4000-8000-000000000150
+      kind: create
+      fingerprint: ae572be73dad71a04f82b268e116cf6c
