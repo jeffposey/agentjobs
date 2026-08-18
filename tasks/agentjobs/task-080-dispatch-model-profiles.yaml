@@ -2,10 +2,86 @@ schema: 2
 id: task-080-dispatch-model-profiles
 title: Design dispatch profiles for model, reasoning, and task difficulty
 created: '2026-08-11T03:14:06.695530Z'
-updated: '2026-08-18T04:35:00.662740Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-18T11:48:12.076487Z'
+lifecycle: active
+ball: human
+ball_reason: decision
+ball_prompt: "# Four decisions, with a recommendation for each. Nothing is implemented\
+  \ and nothing is decided.\n\nThe research is in log entry 2 \u2014 the two CLI surfaces,\
+  \ verified against the installed `claude` v2.1.228 and the `openai/codex` source.\
+  \ **It changed the recommendation**, so read that entry first if any of the reasoning\
+  \ below looks unmotivated.\n\nThe headline from it: **Codex already has named profiles**\
+  \ (`-p`, backed by a `ConfigProfile` in `config.toml` carrying model, provider,\
+  \ reasoning effort, verbosity, sandbox mode). Claude Code has no profile concept\
+  \ at all \u2014 just `--model` and `--effort`. And their effort vocabularies do\
+  \ not align: Claude Code has 5 levels, Codex has 8 plus a `Custom(String)` escape\
+  \ hatch. A shared AgentJobs effort enum is therefore either a lowest common denominator\
+  \ or an unvalidatable string.\n\n---\n\n## Decision 1 \u2014 Does a task carry a\
+  \ difficulty at all? *(Recommend: yes)*\n\nThis is the durable half and the only\
+  \ part I would build without hesitation. It is provider-neutral, it belongs in the\
+  \ task record, and it is useful **before** any routing exists \u2014 it tells a\
+  \ human what to expect and it is filterable.\n\nHow it differs from what already\
+  \ exists, which the task asked for explicitly:\n\n| Field | Answers |\n|---|---|\n\
+  | `priority` | *How much does it matter that this happens?* |\n| `effort` (free\
+  \ text) | *How long will it take?* |\n| **`difficulty`** | *How much capability\
+  \ does doing it well require?* |\n\nThose come apart routinely. A one-line fix to\
+  \ a race condition is `critical` priority, tiny effort, and genuinely hard. A large\
+  \ mechanical rename is low priority, large effort, and easy.\n\n**Sub-question for\
+  \ you:** the vocabulary. I would use **three levels, not five** \u2014 `routine`\
+  \ / `standard` / `hard` \u2014 because I do not believe anyone can honestly distinguish\
+  \ five, and a five-level scale that people use three levels of is a scale with two\
+  \ dead values. T-shirt sizes are the obvious alternative and read as *effort*, which\
+  \ is the field it must not be confused with.\n\n**Absent difficulty must be legal\
+  \ and must mean something specific:** treat it as `standard`, and record in the\
+  \ audit trail that it was defaulted rather than declared. Requiring it would make\
+  \ every existing task in the corpus invalid.\n\n## Decision 2 \u2014 Does AgentJobs\
+  \ own a model/effort policy layer? *(Recommend: no)*\n\nThis is where the research\
+  \ pushes back hardest on the task's original shape.\n\n**Recommended instead: a\
+  \ profile maps difficulty \u2192 an existing runner.** Runners already exist, already\
+  \ carry argv, and argv already is the security boundary. So:\n\n```yaml\nprofiles:\n\
+  \  balanced:\n    routine:  claude-sonnet\n    standard: claude-opus\n    hard:\
+  \     claude-opus-max\n```\n\nwhere each of those names an ordinary runner whose\
+  \ argv already says `--model opus --effort max`. AgentJobs never learns what a model\
+  \ is, never maintains an effort vocabulary, and never fights Codex's `-p`.\n\n-\
+  \ **Cost:** combinatorial. Three difficulties \xD7 two providers is six runner definitions\
+  \ with near-identical argv, and AgentJobs can only explain a choice as *\"difficulty\
+  \ hard \u2192 profile balanced \u2192 runner claude-opus-max\"* \u2014 it cannot\
+  \ say \"model opus at effort max\" without parsing argv, which it must not do.\n\
+  - **The alternative I am rejecting:** `{model}` and `{effort}` placeholders in argv\
+  \ plus a difficulty \u2192 (model, effort) table. Better explanations, one runner\
+  \ per provider \u2014 and it needs a per-runner effort vocabulary anyway, because\
+  \ the two CLIs' vocabularies differ. At that point it is the same thing with more\
+  \ moving parts and a new vocabulary to keep current as models change.\n\n**Your\
+  \ call, and it is a genuine trade:** is *\"it chose runner claude-opus-max\"* an\
+  \ adequate explanation, or do you want the launch plan to name the model and effort\
+  \ as structured data?\n\n## Decision 3 \u2014 Precedence, when there are several\
+  \ sources *(Recommend: most specific wins, and every level is recorded)*\n\nProposed\
+  \ order, narrowest first: **one-run override \u2192 profile named on this dispatch\
+  \ \u2192 project default profile \u2192 machine default profile \u2192 the project's\
+  \ plain `runner`** (today's behaviour, and the fallback when no profile matches).\n\
+  \nAn unmatched difficulty falls back to the project's plain runner and **says so**\
+  \ rather than refusing. A dispatch that refuses because a config table has a hole\
+  \ is a worse failure than one that runs with the ordinary runner and records that\
+  \ it did.\n\n## Decision 4 \u2014 Do we build this now, or record it and stop? *(Recommend:\
+  \ difficulty now, profiles later)*\n\nDecision 1 is cheap, useful immediately, and\
+  \ carries no risk. Decision 2 is a config-schema change plus a resolver plus CLI\
+  \ and GUI surfaces, and its value is entirely proportional to how often you actually\
+  \ dispatch \u2014 which, as of today, is not yet at all.\n\nSo my recommendation\
+  \ is to land `difficulty` on the task schema, and hold the profile layer until dispatch\
+  \ has been used enough to know whether the runner-per-difficulty shape is the right\
+  \ one. **That is deliberately the same reasoning task-074's spec applied to auto-dispatch**,\
+  \ and I flag it because you may well disagree given you raised this task on 2026-08-10\
+  \ specifically wanting the spend control.\n\n---\n\n## What I need from you\n\n\
+  1. Difficulty on the task: yes/no, and three levels or five.\n2. Profiles select\
+  \ a **runner** (recommended) or a **model + effort pair**.\n3. The precedence order\
+  \ above: agree or amend.\n4. Build the profile layer now, or land difficulty alone\
+  \ and wait.\n\nOnce you answer, the next session records your decision with its\
+  \ rejected alternatives, amends `docs/agent-dispatch-design.md` \xA74 so the document\
+  \ and the record agree, and derives narrowly scoped implementation tasks \u2014\
+  \ rather than silently widening the five dispatch tasks this one is related to.\n\
+  \n**Nothing has been written to the codebase for this task.** No branch, no code,\
+  \ no doc change \u2014 the design amendment is the outcome of your decision, not\
+  \ an input to it."
 archived: false
 priority: high
 category: architecture
@@ -17,6 +93,7 @@ tags:
 - agent-routing
 effort: a decision session
 assignment:
+  owner: claude
   eligible: []
 parent: task-060-agent-dispatch
 spec:
@@ -123,7 +200,9 @@ acceptance:
   text: Current Claude Code and Codex model/reasoning controls are verified from their
     actual installed CLI or primary documentation, with capability differences recorded
     rather than guessed
-  status: pending
+  verify: 'Log entry 2: claude v2.1.228 help read directly; Codex flags and ConfigProfile
+    read from openai/codex source.'
+  status: met
 - id: sc-5
   text: 'The security boundary is explicit and tested in the design: a cloned repository
     or task may declare difficulty but cannot introduce a command, provider credential,
@@ -165,4 +244,114 @@ links:
   rel: design
   title: Agent dispatch design
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-18T11:43:24.599611Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 1f2c3d4e-5f60-4a71-8b92-c0d1e2f30080
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 2
+  ts: '2026-08-18T11:47:18.676194Z'
+  actor: claude
+  type: progress
+  body: "# sc-4: the two CLI surfaces, verified rather than guessed\n\nThis is the\
+    \ research half. It is reported separately from the recommendation because it\
+    \ changed the recommendation, and because a later reader should be able to check\
+    \ the evidence without taking the conclusion on trust.\n\n## Claude Code \u2014\
+    \ verified against the installed binary, v2.1.228\n\n`claude --help`, read directly:\n\
+    \n| Flag | Values |\n|---|---|\n| `--model <model>` | An alias for the latest\
+    \ model (`fable`, `opus`, `sonnet`) **or** a full name (`claude-fable-5`) |\n\
+    | `--effort <level>` | `low`, `medium`, `high`, `xhigh`, `max` |\n| `--fallback-model\
+    \ <model>` | Comma-separated list, tried in order when the default is overloaded\
+    \ or unavailable |\n\n**There is no profile flag.** `claude --help` is 238 lines\
+    \ and contains no occurrence of \"profile\". Model and effort are per-invocation\
+    \ flags and nothing else.\n\n## Codex \u2014 not installed on this machine, so\
+    \ read from the source\n\n`codex` is not on PATH here, so the CLI could not be\
+    \ interrogated. Evidence is from the `openai/codex` repository instead, which\
+    \ is primary rather than a cheat-sheet blog.\n\n`codex-rs/utils/cli/src/shared_options.rs`:\n\
+    \n| Flag | |\n|---|---|\n| `-m, --model <model>` | |\n| `-p, --profile <name>`\
+    \ | **A named profile** |\n| `-c key=value` | Arbitrary config override |\n\n\
+    `codex-rs/config/src/profile_toml.rs` \u2014 `struct ConfigProfile`, the shape\
+    \ of a named profile in `~/.codex/config.toml`:\n\n```\nmodel, service_tier, model_provider,\
+    \ approval_policy, approvals_reviewer,\nsandbox_mode, model_reasoning_effort,\
+    \ plan_mode_reasoning_effort,\nmodel_reasoning_summary, model_verbosity, model_catalog_json,\
+    \ personality, \u2026\n```\n\n`codex-rs/protocol/src/openai_models.rs` \u2014\
+    \ `enum ReasoningEffort`:\n\n```\nNone, Minimal, Low, Medium, High, XHigh, Max,\
+    \ Ultra, Custom(String)\n```\n\n## The four differences that matter\n\n1. **Both\
+    \ have a model knob and an effort knob.** So a two-axis abstraction is genuinely\
+    \ portable in principle. That much of the task's premise holds.\n\n2. **The effort\
+    \ vocabularies do not align.** Claude Code offers five levels; Codex offers eight\
+    \ plus `Custom(String)` \u2014 an explicit escape hatch for values its own client\
+    \ does not yet know. They overlap on low/medium/high/xhigh/max; Codex adds none/minimal/ultra.\
+    \ A shared AgentJobs enum would be a lowest common denominator that cannot express\
+    \ `minimal` or `ultra`; a pass-through string would be unvalidatable, which is\
+    \ exactly the \"lowest-common-denominator string bag\" the task's question 7 warns\
+    \ against. **Neither horn is good, and that is a finding, not a detail.**\n\n\
+    3. **Codex already has profiles, and they are richer than the ones this task proposes.**\
+    \ `ConfigProfile` carries model, provider, two separate reasoning-effort settings,\
+    \ verbosity, sandbox mode and approval policy \u2014 selectable with `-p`. An\
+    \ AgentJobs profile layer would be a *second* profile system for Codex users,\
+    \ with `-p` and AgentJobs' own profile competing to set the same keys, and no\
+    \ way for AgentJobs to know which won.\n\n4. **Each has capabilities the other\
+    \ lacks entirely.** Claude Code has `--fallback-model`; Codex has `model_provider`,\
+    \ `service_tier` and `oss_provider`. Any abstraction covering both either drops\
+    \ these or grows provider-specific escape hatches \u2014 which is the thing the\
+    \ task explicitly does not want the generic runner interface to become.\n\n##\
+    \ What this rules out, before any preference is expressed\n\nAn AgentJobs-owned\
+    \ `(model, reasoning_effort)` policy layer with a shared vocabulary is not portable\
+    \ in the way the task assumed. It can be made to work, but only by carrying a\
+    \ per-runner vocabulary \u2014 at which point the \"portable\" abstraction is\
+    \ per-provider tables wearing a portable name.\n\nThe trade-offs and a recommendation\
+    \ follow in the next entry.\n\n*Sources: the installed `claude` v2.1.228 CLI help;\
+    \ [openai/codex `shared_options.rs`](https://github.com/openai/codex/blob/main/codex-rs/utils/cli/src/shared_options.rs),\
+    \ [`profile_toml.rs`](https://github.com/openai/codex/blob/main/codex-rs/config/src/profile_toml.rs),\
+    \ [`openai_models.rs`](https://github.com/openai/codex/blob/main/codex-rs/protocol/src/openai_models.rs).*"
+  data:
+    operation:
+      id: 2f2c3d4e-5f60-4a71-8b92-c0d1e2f30080
+      kind: log_append
+      fingerprint: ed7c57de684f81b9653de281848a35e5
+- id: 3
+  ts: '2026-08-18T11:48:00.113503Z'
+  actor: claude
+  type: handoff
+  body: "Research complete, four decisions written up with a recommendation each,\
+    \ handing off per this task's own constraint that it must not be decided alone.\n\
+    \nsc-4 is met \u2014 the CLI surfaces are verified in log entry 2 against the\
+    \ installed `claude` v2.1.228 and the `openai/codex` source, not assumed. The\
+    \ other six criteria stay pending because each depends on a choice that is Jeff's.\n\
+    \nThe research materially changed what I would recommend: Codex already ships\
+    \ named profiles richer than the ones this task proposes, and the two CLIs' reasoning-effort\
+    \ vocabularies do not align, so an AgentJobs-owned model/effort policy layer is\
+    \ not portable in the way the task assumed. That argues for profiles selecting\
+    \ a *runner* rather than a model and effort \u2014 with the cost of that choice\
+    \ stated plainly.\n\nNothing written to the codebase: no branch, no code, no doc\
+    \ change. The design amendment is the outcome of the decision, not an input to\
+    \ it."
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: 3f2c3d4e-5f60-4a71-8b92-c0d1e2f30080
+      kind: handoff
+      fingerprint: dd77ce5fb358e00476f14826e9f06c54
+- id: 4
+  ts: '2026-08-18T11:48:12.076344Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 4f2c3d4e-5f60-4a71-8b92-c0d1e2f30080
+      kind: update_content
+      fingerprint: 33f74231ae3657a459afcc019cc57562
