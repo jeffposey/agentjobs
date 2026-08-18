@@ -2,10 +2,9 @@ schema: 2
 id: task-133-libyaml-loader
 title: Parse YAML with libyaml
 created: '2026-08-18T00:05:17.686231Z'
-updated: '2026-08-18T00:05:17.687032Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-18T01:23:25.943361Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: performance
@@ -62,33 +61,35 @@ acceptance:
 - id: ac-1
   text: CSafeLoader is used when available, with a working pure-Python fallback.
   verify: test forcing both paths
-  status: pending
+  status: met
 - id: ac-2
   text: Which loader is in use is discoverable at runtime and is stated in the benchmark
     report.
   verify: run output
-  status: pending
+  status: met
 - id: ac-3
   text: A parity test shows every file in the real corpus loads identically under
     both loaders.
   verify: pytest
-  status: pending
+  status: met
 - id: ac-4
   text: Before/after numbers from task-131's benchmark are recorded in a progress
     log entry.
   verify: task log
-  status: pending
+  status: met
 - id: ac-5
   text: scripts/check.py passes.
   verify: poetry run python scripts/check.py
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-131-benchmark-harness
   type: needs
   note: Before/after numbers must come from the benchmark tool.
 links: []
-branches: []
+branches:
+- name: feat/task-133-libyaml-loader
+  status: merged
 log:
 - id: 1
   ts: '2026-08-18T00:05:17.686282Z'
@@ -101,3 +102,137 @@ log:
       id: 3f1c9a52-6b41-4e0a-9d77-0a1b2c3d4e53
       kind: create
       fingerprint: afcb09ba8d58ebb2c426f3b8f52bb0ce
+- id: 2
+  ts: '2026-08-18T01:10:58.992673Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 9c4d6e8f-0a32-4b54-9c76-d8e9f0123456
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-18T01:22:31.008873Z'
+  actor: claude
+  type: decision
+  body: "**The loader changes; the dumper does not. Measured, not assumed.**\n\nThe\
+    \ spec said to apply the same treatment to dumping \"if task files are written\
+    \ through PyYAML \u2014 but check rather than assume\". Checked, over all 119\
+    \ real task files:\n\n- **Load parity: perfect.** 0 of 119 files parse differently\
+    \ under `CSafeLoader` vs `SafeLoader`.\n- **Dump parity: broken.** **79 of 119**\
+    \ files serialise differently under `CSafeDumper`, mostly in how long strings\
+    \ are folded, wrapped and escaped.\n\n**Why that rules the dumper out, and it\
+    \ is not a cosmetic argument.** `TaskStorage.canonical_bytes()` exists so the\
+    \ validator can compare a stored file against the form AgentJobs would have produced,\
+    \ and `ReceiptStore` hashes exactly those bytes. Changing the dumper would therefore:\n\
+    \n1. make roughly two thirds of the existing corpus register as hand-shaped/non-canonical\
+    \ until each file was rewritten;\n2. push a pure-formatting diff through every\
+    \ task file the next time anything touched it, in a git-backed product whose whole\
+    \ value proposition is readable diffs;\n3. do all that for approximately nothing\
+    \ \u2014 writes serialise **one** file, reads parse **all** of them, so essentially\
+    \ the entire measured cost is on the read path.\n\n**Rejected alternative:** switch\
+    \ both, and accept a one-off reformatting of the corpus. Rejected because the\
+    \ benefit is unmeasurable and the cost is a large, confusing diff plus a window\
+    \ where the validator disagrees with reality. This is a clear case of a small\
+    \ optimisation carrying more risk than it is worth.\n\n**Also rejected:** `CLoader`\
+    \ rather than `CSafeLoader`. Marginally faster and able to construct arbitrary\
+    \ Python objects from a task file. Trading a security property for a performance\
+    \ one is not a trade worth making on files that arrive from a shared repository;\
+    \ a test asserts the loader still refuses `!!python/object/apply`."
+  data:
+    operation:
+      id: 9c4d6e8f-0a32-4b54-9c76-d8e9f0123457
+      kind: log_append
+      fingerprint: bbf951cfbefdc3022a65f392d606dec6
+- id: 4
+  ts: '2026-08-18T01:22:58.608494Z'
+  actor: claude
+  type: progress
+  body: "**Done. 13x on parsing, and it multiplies with task-132 exactly as the epic\
+    \ predicted.**\n\n## Isolated effect of this change (against the post-132 state,\
+    \ 10 iterations)\n\n| Surface | before (132 merged) | after | change |\n| ---\
+    \ | --- | --- | --- |\n| `GET /tasks/{id}/detail` | 1017 ms | **147 ms** | 6.94x\
+    \ |\n| `GET /api/projects` | 998 ms | 146 ms | 6.82x |\n| `GET /dashboard` | 1038\
+    \ ms | 153 ms | 6.78x |\n| `GET /search?q=the` | 1021 ms | 165 ms | 6.17x |\n\
+    | `GET /tasks` | 1026 ms | 167 ms | 6.16x |\n| CLI `list --lifecycle ready` |\
+    \ 1612 ms | 872 ms | 1.85x |\n\nRaw parser timing over the corpus: `SafeLoader`\
+    \ 0.859 s, `CSafeLoader` 0.065 s \u2014 **13.2x**, better than the 10x the epic\
+    \ estimated.\n\n## Cumulative, against task-131's committed baseline (132 + 133\
+    \ together)\n\n| Surface | baseline | now | change | parses |\n| --- | --- | ---\
+    \ | --- | --- |\n| `GET /dashboard` | 7344 ms | **174 ms** | **42.3x** | 952 ->\
+    \ 119 |\n| `GET /tasks/{id}/detail` | 3954 ms | **162 ms** | **24.4x** | 478 ->\
+    \ 119 |\n| `GET /tasks` | 3659 ms | **181 ms** | **20.2x** | 476 -> 119 |\n| `GET\
+    \ /api/projects` | 1009 ms | 163 ms | 6.2x | 119 -> 119 |\n| `GET /search?q=the`\
+    \ | 1020 ms | 164 ms | 6.2x | 119 -> 119 |\n| `GET /revision` | 18 ms | 19 ms\
+    \ | 0.96x | 0 -> 0 |\n| Browser: click row -> rendered (warm) | 9567 ms | **885\
+    \ ms** | **10.8x** | - |\n| Browser: cold load -> rendered | 10931 ms | 1140 ms\
+    \ | 9.6x | - |\n| CLI `list --lifecycle ready` | 1668 ms | 882 ms | 1.9x | - |\n\
+    | CLI `next` | 787 ms | 870 ms | 0.90x | - |\n| CLI `show <task>` | 717 ms | 743\
+    \ ms | 0.97x | - |\n\n**Parent acceptance criteria, checked against these numbers:**\n\
+    \n- **ac-3 (all three endpoints under 300 ms): MET.** Worst is `/tasks` at 181\
+    \ ms.\n- **ac-5 (CLI read commands under 1 s including interpreter startup): MET.**\
+    \ Worst is `list` at 882 ms.\n- **ac-2 (click to rendered under 500 ms): NOT YET.**\
+    \ 885 ms. Still task-135's job, and now clearly a front-end problem rather than\
+    \ a server one \u2014 the detail endpoint answers in 162 ms, so roughly 700 ms\
+    \ of that 885 is spent somewhere other than waiting for the server.\n\n`next`\
+    \ and `show` came out 3-10% *slower*. That is run-to-run noise on commands dominated\
+    \ by interpreter startup, not a regression \u2014 both parse the corpus once either\
+    \ way, and the measured spread on this machine is around 10%.\n\n## What was built\n\
+    \n- `storage.load_yaml()` \u2014 a drop-in for `yaml.safe_load` using `CSafeLoader`\
+    \ when importable, `SafeLoader` when not.\n- The fallback logs a warning naming\
+    \ itself as the likely cause of a slow install, and `/api/version` now reports\
+    \ `yaml_loader`, so it is diagnosable at runtime rather than only from a benchmark\
+    \ someone has to run.\n- The dumper deliberately unchanged \u2014 see the decision\
+    \ entry above; that is the substantive finding of this task.\n\n## Verification\n\
+    \n- `tests/test_yaml_loader.py` \u2014 **141 tests**. The load-bearing one is\
+    \ parameterised over every file in the real corpus (119 of them) asserting identical\
+    \ parse under both loaders. Plus pinned cases: unicode, emoji, folded and literal\
+    \ blocks, timestamps, date-only, null forms, octal/underscored/exponent numbers,\
+    \ quoted numerics, escaped quotes, tabs, CRLF, and the empty document.\n- The\
+    \ fallback path is tested by forcing the `ImportError` and reloading the module\
+    \ \u2014 it must both work and log.\n- A test asserts the loader still refuses\
+    \ `!!python/object/apply`, so the safety property is not quietly traded away.\n\
+    - `poetry run python -m pytest`: 1400 passed, 1 failed \u2014 the known pre-existing\
+    \ worktree-only `test_agentjobs_context_paths_exist`.\n- `npm run check`: green,\
+    \ 6/6 e2e.\n\n**One test outside this change needed updating**, recorded because\
+    \ it is a contract change rather than a fix: `test_mcp_server.py::test_version_endpoint_reports_package_and_schema`\
+    \ asserted whole-payload equality on `/api/version`, so adding the diagnostic\
+    \ field broke it. Loosened to assert the two fields the startup probe actually\
+    \ negotiates on. A client that breaks when a service adds a field is a worse compatibility\
+    \ story than the one that probe exists to provide."
+  data:
+    operation:
+      id: 9c4d6e8f-0a32-4b54-9c76-d8e9f0123458
+      kind: log_append
+      fingerprint: 25e170b5feb89174d5e2e87c34022aab
+- id: 5
+  ts: '2026-08-18T01:23:17.964649Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 9c4d6e8f-0a32-4b54-9c76-d8e9f0123459
+      kind: update_content
+      fingerprint: 509bf413d91ac64c2b99e9db4928c5d9
+- id: 6
+  ts: '2026-08-18T01:23:25.943235Z'
+  actor: claude
+  type: transition
+  body: "Merged to main. 13.2x on parsing; cumulative with task-132 the dashboard\
+    \ is 42x and task detail 24x faster than the baseline. Dumper deliberately unchanged\
+    \ \u2014 see the decision entry. All acceptance criteria met."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 9c4d6e8f-0a32-4b54-9c76-d8e9f012345a
+      kind: close
+      fingerprint: b111faa07fa44754760bd6d602898392
