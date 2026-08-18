@@ -1015,7 +1015,9 @@
           "decision",
           "question",
           "answer",
-          "instruction"
+          "instruction",
+          "dispatch",
+          "dispatch_result"
         ],
         "title": "LogEntryType",
         "type": "string"

@@ -377,7 +377,9 @@
                 "decision",
                 "question",
                 "answer",
-                "instruction"
+                "instruction",
+                "dispatch",
+                "dispatch_result"
             ],
             "title": "LogEntryType",
             "type": "string"
@@ -430,8 +432,11 @@
                     "type": "string"
                 },
                 "intent": {
-                    "description": "WHY this task exists. Markdown.",
-                    "type": "string"
+                    "description": "WHY this task exists. Markdown. Optional, decided during the v1 migration (task-051): the 31 tasks in the corpus predate the split and have no separable intent, and a required field satisfied by a placeholder is worse than an empty one -- it reads as answered when it is not. New tasks should fill it, but the schema does not force an invention.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 },
                 "out_of_scope": {
                     "description": "Explicit non-goals, so agents do not wander. Markdown. Note: this is the field that would have prevented task-048's own scope drift.",
@@ -447,7 +452,6 @@
             },
             "required": [
                 "summary",
-                "intent",
                 "description"
             ],
             "title": "Spec",
@@ -511,11 +515,53 @@
                         },
                         "properties": {
                             "ball": {},
-                            "ball_prompt": {},
                             "outcome": {}
                         },
                         "required": [
-                            "ball",
+                            "ball"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "not": {
+                            "anyOf": [
+                                {
+                                    "properties": {
+                                        "ball_reason": {
+                                            "const": "available"
+                                        }
+                                    },
+                                    "required": [
+                                        "ball_reason"
+                                    ]
+                                }
+                            ]
+                        },
+                        "properties": {
+                            "lifecycle": {
+                                "anyOf": [
+                                    {
+                                        "const": "draft"
+                                    },
+                                    {
+                                        "const": "ready"
+                                    },
+                                    {
+                                        "const": "active"
+                                    }
+                                ]
+                            }
+                        },
+                        "required": [
+                            "lifecycle"
+                        ]
+                    },
+                    "then": {
+                        "properties": {
+                            "ball_prompt": {}
+                        },
+                        "required": [
                             "ball_prompt"
                         ]
                     }
@@ -855,11 +901,53 @@
                 },
                 "properties": {
                     "ball": {},
-                    "ball_prompt": {},
                     "outcome": {}
                 },
                 "required": [
-                    "ball",
+                    "ball"
+                ]
+            }
+        },
+        {
+            "if": {
+                "not": {
+                    "anyOf": [
+                        {
+                            "properties": {
+                                "ball_reason": {
+                                    "const": "available"
+                                }
+                            },
+                            "required": [
+                                "ball_reason"
+                            ]
+                        }
+                    ]
+                },
+                "properties": {
+                    "lifecycle": {
+                        "anyOf": [
+                            {
+                                "const": "draft"
+                            },
+                            {
+                                "const": "ready"
+                            },
+                            {
+                                "const": "active"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "lifecycle"
+                ]
+            },
+            "then": {
+                "properties": {
+                    "ball_prompt": {}
+                },
+                "required": [
                     "ball_prompt"
                 ]
             }
