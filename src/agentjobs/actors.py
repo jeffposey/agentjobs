@@ -21,6 +21,16 @@ from typing import Any, Dict, List, Optional
 HUMAN = "human"
 AGENT = "agent"
 
+DISPATCHER = "dispatcher"
+"""The actor id the dispatcher writes as.
+
+Design section 9 requires every *forced* ball move -- a run that ended without handing
+off, a session parked on a permission prompt, a budget cap that refused a run -- to be
+attributed to the dispatcher rather than to the agent, because the agent did not do it.
+Reserved rather than left to each project's ``actors:``: a project that had not added it
+would see dispatch fail at exactly the moment it was trying to report a failure.
+"""
+
 
 @dataclass(frozen=True)
 class Actor:
@@ -149,14 +159,34 @@ def default_user(config: Dict[str, Any]) -> Optional[str]:
     return human_identity(config).user
 
 
+RESERVED = {
+    DISPATCHER: Actor(id=DISPATCHER, kind=AGENT, display_name="AgentJobs dispatcher"),
+}
+"""Actor ids AgentJobs itself writes as, valid in every project without configuration.
+
+Kept out of ``load_actors`` on purpose, for two reasons. Merging them in would mean the
+configured vocabulary is never empty, which silently removes the "a fresh init accepts
+any id" allowance below and would reject every real actor on an unconfigured project.
+And a reserved id is not a choice: it should not appear in a picker of who is acting,
+because nobody may act as it.
+"""
+
+
+def reserved_actors() -> Dict[str, Actor]:
+    """The reserved ids, for a UI that needs to resolve one's kind for display."""
+    return dict(RESERVED)
+
+
 def validate_actor(config: Dict[str, Any], actor_id: str) -> str:
-    """Return the id if config defines it, else raise UnknownActorError.
+    """Return the id if config defines it or AgentJobs reserves it, else raise.
 
     When config defines no actors at all -- a fresh ``agentjobs init`` that has not been
     edited -- any id is accepted. Validating against an empty vocabulary would reject
     everything and make the product unusable before it is configured, which is a worse
     failure than a typo'd actor on a project that has not decided who its actors are.
     """
+    if actor_id in RESERVED:
+        return actor_id
     known = load_actors(config)
     if not known:
         return actor_id
