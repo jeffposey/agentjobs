@@ -50,6 +50,7 @@ from agentjobs.dispatch.runner import (
     STDERR_FILENAME,
     STDOUT_FILENAME,
     TRANSCRIPT_FILENAME,
+    drop_repainted_lines,
     readable_tail,
     strip_ansi,
 )
@@ -257,9 +258,14 @@ def _run_output(record: RunRecord) -> Tuple[str, str, Optional[float]]:
     if record.is_session and transcript.is_file():
         text = _read(transcript)
         if text.strip():
-            # Stripped here rather than at capture: the stored copy stays what the
-            # terminal actually showed, and this is the rendering of it.
-            return "session-transcript", strip_ansi(text), transcript.stat().st_mtime
+            # Rendered here rather than at capture: the stored copy stays what the
+            # terminal actually showed, and this is the rendering of it -- escape
+            # sequences off, and the repainted copies of each screen collapsed.
+            return (
+                "session-transcript",
+                drop_repainted_lines(strip_ansi(text)),
+                transcript.stat().st_mtime,
+            )
 
     sections: List[str] = []
     latest: Optional[float] = None

@@ -45,6 +45,7 @@ from agentjobs.dispatch.runner import (
     allow_rules,
     classify_session,
     compose_argv,
+    drop_repainted_lines,
     posture_flags,
     readable_tail,
     resolve_executable,
@@ -891,3 +892,28 @@ class TestShapesRefused:
         # All that is done with `logs` output is hand it back for a human to read.
         assert "json.loads" not in body
         assert "classify" not in body
+
+
+class TestRepaintCollapsing:
+    """A TUI repaints its whole screen, so its pty capture holds the same frame many
+    times. Forty lines of a real session were thirteen distinct lines painted three
+    times over, with the newest work pushed off the end by copies of itself."""
+
+    def test_a_repainted_screen_is_shown_once(self) -> None:
+        frame = "> reading the task record\n  running tests\n"
+
+        collapsed = drop_repainted_lines(frame * 3)
+
+        assert collapsed.splitlines() == ["> reading the task record", "  running tests"]
+
+    def test_the_newest_copy_is_the_one_kept(self) -> None:
+        """Order has to follow the newest frame; keeping the first copy would show the
+        opening screen and drop everything that happened after it."""
+        collapsed = drop_repainted_lines("opened\nstep one\nopened\nstep one\nstep two\n")
+
+        assert collapsed.splitlines() == ["opened", "step one", "step two"]
+
+    def test_nothing_is_lost_when_a_transcript_never_repeats(self) -> None:
+        text = "one\ntwo\nthree"
+
+        assert drop_repainted_lines(text) == text

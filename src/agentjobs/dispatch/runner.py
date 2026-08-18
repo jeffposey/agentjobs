@@ -250,6 +250,30 @@ def readable_tail(text: str, lines: int) -> str:
     return "\n".join(kept[-lines:])
 
 
+def drop_repainted_lines(text: str) -> str:
+    """Collapse a terminal scrape's repeated screens, keeping the last of each line.
+
+    ``<runner> logs`` returns the session's pty stream, and a full-screen TUI repaints
+    its whole screen on every update. So the capture holds the same frame over and over:
+    forty lines of a real session were thirteen distinct lines painted three times, with
+    the newest work pushed off the end by copies of itself.
+
+    Rendering, and only rendering. Nothing decides anything on this, it is applied to a
+    session transcript alone -- a batch run that legitimately prints the same line twice
+    is showing two things happening, and its output is passed through untouched.
+    """
+    seen: set[str] = set()
+    kept: List[str] = []
+    for line in reversed(text.splitlines()):
+        stripped = line.strip()
+        if stripped:
+            if stripped in seen:
+                continue
+            seen.add(stripped)
+        kept.append(line)
+    return "\n".join(reversed(kept))
+
+
 def working_tree_clean(project_root: Path) -> bool:
     """True when a project's working tree has nothing uncommitted.
 
