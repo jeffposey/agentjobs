@@ -240,6 +240,42 @@ def readable_tail(text: str, lines: int) -> str:
     return "\n".join(kept[-lines:])
 
 
+def working_tree_clean(project_root: Path) -> bool:
+    """True when a project's working tree has nothing uncommitted.
+
+    A failed or missing git is reported as *not* clean. Dispatch's default is to refuse
+    on a dirty tree, and "we could not tell" must fall on the refusing side of that.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(project_root), "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0 and not (result.stdout or "").strip()
+
+
+def git_head(project_root: Path) -> str:
+    """The commit a project is on, so the diff a run produced stays attributable."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(project_root), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    return (result.stdout or "").strip() or "unknown"
+
+
 def resolve_executable(name: str) -> str:
     """Turn a program name into a path ``subprocess`` can actually start.
 
@@ -477,33 +513,11 @@ class DispatchRunner:
 
     def _tree_is_clean(self) -> bool:
         """True when the project's working tree has nothing uncommitted."""
-        try:
-            result = subprocess.run(
-                ["git", "-C", str(self.project_root), "status", "--porcelain"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=30,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return False
-        return result.returncode == 0 and not (result.stdout or "").strip()
+        return working_tree_clean(self.project_root)
 
     def _git_head(self) -> str:
         """The commit the working tree is on, so a run's diff stays attributable."""
-        try:
-            result = subprocess.run(
-                ["git", "-C", str(self.project_root), "rev-parse", "--short", "HEAD"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=30,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return "unknown"
-        return (result.stdout or "").strip() or "unknown"
+        return git_head(self.project_root)
 
     def _record_dispatch(
         self,
@@ -578,6 +592,7 @@ class DispatchRunner:
                 "posture": self.resolution.settings.posture.value,
                 "status": "starting",
                 "started_at": self.clock().isoformat(),
+                "caused_by": caused_by,
                 "argv": argv,
             },
         )
@@ -960,6 +975,7 @@ class DispatchRunner:
                 "posture": self.resolution.settings.posture.value,
                 "status": "starting",
                 "started_at": self.clock().isoformat(),
+                "caused_by": caused_by,
                 "argv": argv,
             },
         )
