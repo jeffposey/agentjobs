@@ -254,7 +254,16 @@ URI: [aj:class/Task](https://github.com/jeffposey/agentjobs/schema/v2/class/Task
 
 | Rule Applied | Preconditions | Postconditions | Elseconditions |
 |--------------|---------------|----------------|----------------|
-| slot_conditions |```{'lifecycle': {'any_of': [{'equals_string': 'draft'}, {'equals_string': 'ready'}, {'equals_string': 'active'}]}}``` |```{'ball': {'value_presence': 'PRESENT'}, 'ball_prompt': {'value_presence': 'PRESENT'}, 'outcome': {'value_presence': 'ABSENT'}}``` | |
+| slot_conditions |```{'lifecycle': {'any_of': [{'equals_string': 'draft'}, {'equals_string': 'ready'}, {'equals_string': 'active'}]}}``` |```{'ball': {'value_presence': 'PRESENT'}, 'outcome': {'value_presence': 'ABSENT'}}``` | |
+
+
+
+### open_tasks_state_their_ask
+
+| Rule Applied | Preconditions | Postconditions | Elseconditions |
+|--------------|---------------|----------------|----------------|
+| none_of |```[{'slot_conditions': {'ball_reason': {'equals_string': 'available'}}}]``` | | |
+| slot_conditions |```{'lifecycle': {'any_of': [{'equals_string': 'draft'}, {'equals_string': 'ready'}, {'equals_string': 'active'}]}}``` |```{'ball_prompt': {'value_presence': 'PRESENT'}}``` | |
 
 
 
@@ -594,15 +603,35 @@ rules:
       ball:
         name: ball
         value_presence: PRESENT
-      ball_prompt:
-        name: ball_prompt
-        value_presence: PRESENT
       outcome:
         name: outcome
         value_presence: ABSENT
   description: Any open task must name who acts next and state the ask, and must not
     carry an outcome.
   title: open_names_who_acts_next_and_the_ask
+- preconditions:
+    none_of:
+    - slot_conditions:
+        ball_reason:
+          name: ball_reason
+          equals_string: available
+    slot_conditions:
+      lifecycle:
+        name: lifecycle
+        any_of:
+        - equals_string: draft
+        - equals_string: ready
+        - equals_string: active
+  postconditions:
+    slot_conditions:
+      ball_prompt:
+        name: ball_prompt
+        value_presence: PRESENT
+  description: 'Rule 4 (tenet 3): a handoff without its payload is a notification
+    with no content. Split from the rule above so the one documented exception can
+    be expressed -- agent/available may omit it, because an unclaimed ready task''s
+    ask is its spec.'
+  title: open_tasks_state_their_ask
 - preconditions:
     slot_conditions:
       ball:
@@ -963,15 +992,35 @@ rules:
       ball:
         name: ball
         value_presence: PRESENT
-      ball_prompt:
-        name: ball_prompt
-        value_presence: PRESENT
       outcome:
         name: outcome
         value_presence: ABSENT
   description: Any open task must name who acts next and state the ask, and must not
     carry an outcome.
   title: open_names_who_acts_next_and_the_ask
+- preconditions:
+    none_of:
+    - slot_conditions:
+        ball_reason:
+          name: ball_reason
+          equals_string: available
+    slot_conditions:
+      lifecycle:
+        name: lifecycle
+        any_of:
+        - equals_string: draft
+        - equals_string: ready
+        - equals_string: active
+  postconditions:
+    slot_conditions:
+      ball_prompt:
+        name: ball_prompt
+        value_presence: PRESENT
+  description: 'Rule 4 (tenet 3): a handoff without its payload is a notification
+    with no content. Split from the rule above so the one documented exception can
+    be expressed -- agent/available may omit it, because an unclaimed ready task''s
+    ask is its spec.'
+  title: open_tasks_state_their_ask
 - preconditions:
     slot_conditions:
       ball:

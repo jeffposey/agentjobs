@@ -58,7 +58,7 @@ URI: [aj:class/Spec](https://github.com/jeffposey/agentjobs/schema/v2/class/Spec
 | Name | Cardinality and Range | Description | Inheritance |
 | ---  | --- | --- | --- |
 | [summary](../slots/summary.md) | 1 <br/> [String](../types/String.md) | One to two sentences | direct |
-| [intent](../slots/intent.md) | 1 <br/> [String](../types/String.md) | WHY this task exists | direct |
+| [intent](../slots/intent.md) | 0..1 <br/> [String](../types/String.md) | WHY this task exists | direct |
 | [description](../slots/description.md) | 1 <br/> [String](../types/String.md) | WHAT to do -- the working spec | direct |
 | [constraints](../slots/constraints.md) | 0..1 <br/> [String](../types/String.md) | Hard requirements and prohibitions | direct |
 | [out_of_scope](../slots/out_of_scope.md) | 0..1 <br/> [String](../types/String.md) | Explicit non-goals, so agents do not wander | direct |
@@ -135,12 +135,15 @@ attributes:
     required: true
   intent:
     name: intent
-    description: WHY this task exists. Markdown.
+    description: 'WHY this task exists. Markdown. Optional, decided during the v1
+      migration (task-051): the 31 tasks in the corpus predate the split and have
+      no separable intent, and a required field satisfied by a placeholder is worse
+      than an empty one -- it reads as answered when it is not. New tasks should fill
+      it, but the schema does not force an invention.'
     from_schema: https://github.com/jeffposey/agentjobs/schema/v2
     rank: 1000
     domain_of:
     - Spec
-    required: true
   description:
     name: description
     description: WHAT to do -- the working spec. Markdown.
@@ -200,14 +203,17 @@ attributes:
     required: true
   intent:
     name: intent
-    description: WHY this task exists. Markdown.
+    description: 'WHY this task exists. Markdown. Optional, decided during the v1
+      migration (task-051): the 31 tasks in the corpus predate the split and have
+      no separable intent, and a required field satisfied by a placeholder is worse
+      than an empty one -- it reads as answered when it is not. New tasks should fill
+      it, but the schema does not force an invention.'
     from_schema: https://github.com/jeffposey/agentjobs/schema/v2
     rank: 1000
     owner: Spec
     domain_of:
     - Spec
     range: string
-    required: true
   description:
     name: description
     description: WHAT to do -- the working spec. Markdown.

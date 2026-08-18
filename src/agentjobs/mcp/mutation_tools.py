@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 from mcp import types
 
 from ..client import MutationResult, TaskClient, TaskClientError
+from ..models_v2 import MANAGER_WRITTEN_LOG_TYPES, LogEntryType
 from .errors import ErrorCode, FieldError, ToolError
 from .results import ToolOutput, mutation_annotations, success
 from .routing import (
@@ -76,10 +77,16 @@ MUTATION_RESULT_SCHEMA: Dict[str, Any] = {
     },
 }
 
-#: Log entry types a caller may author. `transition` and `handoff` are absent because
-#: the manager writes those itself; letting a tool forge one would put a state change
-#: in the record that never happened.
-AUTHORED_LOG_TYPES = ["note", "progress", "decision", "question", "answer", "instruction"]
+#: Log entry types a caller may author. `handoff` is absent because the manager writes it
+#: from the handoff verb; `transition`, `dispatch` and `dispatch_result` are absent
+#: because they are manager-written (`MANAGER_WRITTEN_LOG_TYPES`) -- letting a tool forge
+#: one would put an event in the record that never happened. Derived from the model
+#: rather than restated, so a type added there cannot quietly become postable here.
+AUTHORED_LOG_TYPES = [
+    entry_type.value
+    for entry_type in LogEntryType
+    if entry_type not in MANAGER_WRITTEN_LOG_TYPES and entry_type is not LogEntryType.HANDOFF
+]
 
 #: The only fields a content patch may touch. Everything else -- the state axes, the
 #: log, identity, timestamps -- is absent from the schema rather than rejected by a

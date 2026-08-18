@@ -24,11 +24,18 @@ from .operations import (
 
 from .attachments import AttachmentPayload
 from .models_v2 import (
+    MANAGER_WRITTEN_LOG_TYPES,
     Attachment,
     Ball,
     BallReason,
     DeliverableStatus,
     DependencyType,
+    DispatchData,
+    DispatchMode,
+    DispatchOutcome,
+    DispatchPosture,
+    DispatchResultData,
+    DispatchTrigger,
     Lifecycle,
     LogEntry,
     LogEntryType,
@@ -963,9 +970,9 @@ class TaskManager:
     ) -> Task:
         """Append one entry to the unified log."""
         entry_type = LogEntryType(type)
-        if entry_type is LogEntryType.TRANSITION:
+        if entry_type in MANAGER_WRITTEN_LOG_TYPES:
             raise ValueError(
-                "transition entries are appended by the manager's state verbs, "
+                f"{entry_type.value} entries are appended by the manager's own verbs, "
                 "not written directly (design doc section 3, rule 5)"
             )
         operation = self._operation(
@@ -1012,6 +1019,123 @@ class TaskManager:
             body=body,
             operation_id=operation_id,
         )
+
+    # ------------------------------------------------------------------
+    # Dispatch
+    #
+    # The two entry types below are refused by add_log_entry, so these are the only
+    # ways to write one. That is deliberate: an entry asserting that a process started
+    # or ended must accompany a process actually starting or ending.
+    # ------------------------------------------------------------------
+
+    def record_dispatch(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        run_id: str,
+        agent: str,
+        runner: str,
+        mode: DispatchMode,
+        posture: DispatchPosture,
+        trigger: DispatchTrigger,
+        caused_by: int,
+        argv: List[str],
+        cwd: str,
+        git_head: str,
+        session_id: Optional[str] = None,
+        body: Optional[str] = None,
+        operation_id: Optional[str] = None,
+    ) -> Task:
+        """Record that a run was started against this task.
+
+        ``actor`` is the human who authorised it, never the agent that is about to run:
+        the loop is human-clocked (D4), and this entry plus ``caused_by`` are the
+        evidence. ``argv`` is stored verbatim, so a runner must keep secrets in ``env``.
+        """
+        payload = DispatchData(
+            run_id=run_id,
+            agent=agent,
+            runner=runner,
+            mode=mode,
+            posture=posture,
+            trigger=trigger,
+            caused_by=caused_by,
+            argv=list(argv),
+            cwd=cwd,
+            git_head=git_head,
+            session_id=session_id,
+        )
+        operation = self._operation(
+            operation_id, "dispatch", actor, {"run_id": run_id, "argv": list(argv)}
+        )
+
+        def apply(task: Task) -> Optional[Task]:
+            if replay_or_conflict(task, operation):
+                return None
+            self._append_entry(
+                task,
+                actor=actor,
+                type=LogEntryType.DISPATCH,
+                body=body or f"Dispatched {agent} to work this task.",
+                data=payload.model_dump(mode="json", exclude_none=True),
+                operation=operation,
+            )
+            return task
+
+        return self._mutate(task_id, apply)
+
+    def record_dispatch_result(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        run_id: str,
+        outcome: DispatchOutcome,
+        re: Optional[int] = None,
+        exit_code: Optional[int] = None,
+        duration_seconds: Optional[float] = None,
+        log_path: Optional[str] = None,
+        body: Optional[str] = None,
+        operation_id: Optional[str] = None,
+    ) -> Task:
+        """Record how a run ended.
+
+        ``re`` threads this back to the ``dispatch`` entry it concludes. On a successful
+        run the body stays empty -- the agent's own progress and handoff entries carry
+        the substance, and duplicating a transcript tail into git would be noise. On any
+        other outcome the caller is expected to inline the tail of the run's output, so
+        the git-tracked record still says something once the machine-local logs are gone.
+        """
+        payload = DispatchResultData(
+            run_id=run_id,
+            outcome=outcome,
+            exit_code=exit_code,
+            duration_seconds=duration_seconds,
+            log_path=log_path,
+        )
+        operation = self._operation(
+            operation_id,
+            "dispatch_result",
+            actor,
+            {"run_id": run_id, "outcome": outcome.value},
+        )
+
+        def apply(task: Task) -> Optional[Task]:
+            if replay_or_conflict(task, operation):
+                return None
+            self._append_entry(
+                task,
+                actor=actor,
+                type=LogEntryType.DISPATCH_RESULT,
+                body=body,
+                re=re,
+                data=payload.model_dump(mode="json", exclude_none=True),
+                operation=operation,
+            )
+            return task
+
+        return self._mutate(task_id, apply)
 
     # ------------------------------------------------------------------
     # Webhooks

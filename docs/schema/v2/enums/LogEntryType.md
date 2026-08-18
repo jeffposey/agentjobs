@@ -28,6 +28,8 @@ URI: [aj:enum/LogEntryType](https://github.com/jeffposey/agentjobs/schema/v2/enu
 | question | None | An explicit open thread |
 | answer | None | Resolves a `question`, via `re` |
 | instruction | None | A directive to the working agent |
+| dispatch | None | A run was started against this task |
+| dispatch_result | None | How a run ended |
 
 
 
@@ -92,6 +94,17 @@ permissible_values:
   instruction:
     text: instruction
     description: A directive to the working agent. Replaces v1 followup prompts.
+  dispatch:
+    text: dispatch
+    description: A run was started against this task. `data` carries run_id, agent,
+      runner, mode, posture, trigger, caused_by, argv, cwd and git_head -- enough
+      to answer "what ran, against what" once the machine-local run directory is gone.
+      Written by the dispatcher, never trusted to callers.
+  dispatch_result:
+    text: dispatch_result
+    description: How a run ended. `re` threads it back to its `dispatch` entry; `data`
+      carries run_id and outcome, plus exit_code, duration_seconds and log_path where
+      the runner mode has them. Written by the dispatcher, never trusted to callers.
 
 ```
 </details>

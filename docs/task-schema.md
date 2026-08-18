@@ -195,15 +195,69 @@ One append-only typed log replaces v1's `status_updates`, `comments` and
 `prompts.followups`.
 
 Types: `note` · `progress` · `transition` · `handoff` · `decision` · `question` ·
-`answer` · `instruction`.
+`answer` · `instruction` · `dispatch` · `dispatch_result`.
 
 Integrity rules, enforced: ids are unique and ascending, and `re:` must reference an
 **earlier** entry that exists. An open `question` is one with no `answer` threaded to
 it, which makes unresolved threads queryable (`Task.open_questions()`).
 
-`transition` entries are written by the manager, never by a caller — the API rejects an
-attempt to post one directly, because a transition that does not accompany a real state
-change is a lie in the record.
+`transition`, `dispatch` and `dispatch_result` are written by the manager, never by a
+caller — the API rejects an attempt to post one directly, because an entry that does not
+accompany a real event is a lie in an append-only record. They are the model's
+`MANAGER_WRITTEN_LOG_TYPES`, and every write path consults that set rather than listing
+types of its own.
+
+### `dispatch` and `dispatch_result`
+
+That an agent was launched against a task is a durable, `git blame`-able fact, so it
+lives in the task file beside the work it produced. Run directories under
+`~/.agentjobs/runs/` are machine-local and disposable; these two entries are the part
+that survives. See [agent-dispatch-design.md](agent-dispatch-design.md).
+
+```yaml
+- id: 7
+  actor: Jeff Posey            # the human who authorized — never the agent
+  type: dispatch
+  data:
+    run_id: run_a1b2c3d4
+    agent: claude
+    runner: claude
+    mode: session              # session | batch
+    posture: supervised        # read_only | supervised | autonomous
+    trigger: manual            # manual | auto
+    caused_by: 6               # log entry whose actor authorises this dispatch
+    argv: ["claude", "--bg", "--remote-control", "-p", "..."]
+    cwd: C:/projects/agentjobs
+    git_head: 4887b74
+- id: 8
+  actor: claude
+  type: dispatch_result
+  re: 7
+  data:
+    run_id: run_a1b2c3d4
+    outcome: completed         # completed | finished_without_handoff | failed |
+                               # timeout | cancelled | crashed | interrupted
+    exit_code: 0               # batch only; a session reports none
+    duration_seconds: 1049
+    log_path: ~/.agentjobs/runs/run_a1b2c3d4/
+```
+
+Both payloads are **validated**, not merely documented: an entry of either type whose
+`data` does not match its model is rejected on load. An entry that cannot say what ran is
+worse than no entry, because it looks like evidence.
+
+`argv` is recorded verbatim, so **a runner must never put a secret in its argv** —
+secrets belong in the runner's `env`, which is never logged. The recording is the safety
+feature; weakening it to hide a token would be the wrong fix.
+
+**The dispatch count is derived, never stored.** `Task.dispatch_count` counts `dispatch`
+entries and `Task.dispatches_since(ts)` counts recent ones, so the number cannot drift
+from the evidence for it and no migration was needed to introduce it.
+
+`dispatcher` is a **reserved actor id**, valid in every project without appearing in its
+`actors:`. Design section 9 attributes every forced ball move — a run that ended without
+handing off, a session parked on a permission prompt — to the dispatcher rather than to
+the agent, because the agent did not do it.
 
 ### `attachments[]` on an entry
 
@@ -266,6 +320,8 @@ each of which appends its own `transition` or `handoff` log entry:
 | `release_task(id, actor=…)` | active → ready, clears owner (agent bows out) |
 | `close_task(id, actor=…, outcome=…)` | ends the task |
 | `add_log_entry(id, actor=…, type=…, body=…)` | note/progress/decision/question/answer/instruction |
+| `record_dispatch(id, actor=…, run_id=…, argv=…, …)` | appends the `dispatch` entry for a started run |
+| `record_dispatch_result(id, actor=…, run_id=…, outcome=…)` | appends the terminal `dispatch_result` |
 
 `update_task()` edits content fields (title, spec, acceptance, tags…) and deliberately
 cannot touch the axes.

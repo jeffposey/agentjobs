@@ -6,7 +6,7 @@ search:
 # Slot: intent 
 
 
-_WHY this task exists. Markdown._
+_WHY this task exists. Markdown. Optional, decided during the v1 migration (task-051): the 31 tasks in the corpus predate the split and have no separable intent, and a required field satisfied by a placeholder is worse than an empty one -- it reads as answered when it is not. New tasks should fill it, but the schema does not force an invention._
 
 
 
@@ -45,7 +45,6 @@ URI: [aj:slot/intent](https://github.com/jeffposey/agentjobs/schema/v2/slot/inte
 
 | Property | Value |
 | --- | --- |
-| Required | Yes |
 ### Slot Characteristics
 
 | Property | Value |
@@ -92,14 +91,17 @@ URI: [aj:slot/intent](https://github.com/jeffposey/agentjobs/schema/v2/slot/inte
 <details>
 ```yaml
 name: intent
-description: WHY this task exists. Markdown.
+description: 'WHY this task exists. Markdown. Optional, decided during the v1 migration
+  (task-051): the 31 tasks in the corpus predate the split and have no separable intent,
+  and a required field satisfied by a placeholder is worse than an empty one -- it
+  reads as answered when it is not. New tasks should fill it, but the schema does
+  not force an invention.'
 from_schema: https://github.com/jeffposey/agentjobs/schema/v2
 rank: 1000
 owner: Spec
 domain_of:
 - Spec
 range: string
-required: true
 
 ```
 </details></div>

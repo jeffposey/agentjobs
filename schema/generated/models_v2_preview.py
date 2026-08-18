@@ -317,6 +317,14 @@ class LogEntryType(str, Enum):
     """
     A directive to the working agent. Replaces v1 followup prompts.
     """
+    dispatch = "dispatch"
+    """
+    A run was started against this task. `data` carries run_id, agent, runner, mode, posture, trigger, caused_by, argv, cwd and git_head -- enough to answer "what ran, against what" once the machine-local run directory is gone. Written by the dispatcher, never trusted to callers.
+    """
+    dispatch_result = "dispatch_result"
+    """
+    How a run ended. `re` threads it back to its `dispatch` entry; `data` carries run_id and outcome, plus exit_code, duration_seconds and log_path where the runner mode has them. Written by the dispatcher, never trusted to callers.
+    """
 
 
 
@@ -341,8 +349,6 @@ class Task(ConfiguredBaseModel):
                                    'the ask, and must not carry an outcome.',
                     'postconditions': {'slot_conditions': {'ball': {'name': 'ball',
                                                                     'value_presence': 'PRESENT'},
-                                                           'ball_prompt': {'name': 'ball_prompt',
-                                                                           'value_presence': 'PRESENT'},
                                                            'outcome': {'name': 'outcome',
                                                                        'value_presence': 'ABSENT'}}},
                     'preconditions': {'slot_conditions': {'lifecycle': {'any_of': [{'equals_string': 'draft'},
@@ -350,6 +356,20 @@ class Task(ConfiguredBaseModel):
                                                                                    {'equals_string': 'active'}],
                                                                         'name': 'lifecycle'}}},
                     'title': 'open_names_who_acts_next_and_the_ask'},
+                   {'description': 'Rule 4 (tenet 3): a handoff without its payload is '
+                                   'a notification with no content. Split from the '
+                                   'rule above so the one documented exception can be '
+                                   'expressed -- agent/available may omit it, because '
+                                   "an unclaimed ready task's ask is its spec.",
+                    'postconditions': {'slot_conditions': {'ball_prompt': {'name': 'ball_prompt',
+                                                                           'value_presence': 'PRESENT'}}},
+                    'preconditions': {'none_of': [{'slot_conditions': {'ball_reason': {'equals_string': 'available',
+                                                                                       'name': 'ball_reason'}}}],
+                                      'slot_conditions': {'lifecycle': {'any_of': [{'equals_string': 'draft'},
+                                                                                   {'equals_string': 'ready'},
+                                                                                   {'equals_string': 'active'}],
+                                                                        'name': 'lifecycle'}}},
+                    'title': 'open_tasks_state_their_ask'},
                    {'description': 'Rule 2, agent side: available | work | revise.',
                     'postconditions': {'slot_conditions': {'ball_reason': {'any_of': [{'equals_string': 'available'},
                                                                                       {'equals_string': 'work'},
@@ -432,7 +452,7 @@ class Spec(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://github.com/jeffposey/agentjobs/schema/v2'})
 
     summary: str = Field(default=..., description="""One to two sentences. The only summary, for every audience -- v1's human_summary split by length rather than by content.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Spec']} })
-    intent: str = Field(default=..., description="""WHY this task exists. Markdown.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Spec']} })
+    intent: Optional[str] = Field(default=None, description="""WHY this task exists. Markdown. Optional, decided during the v1 migration (task-051): the 31 tasks in the corpus predate the split and have no separable intent, and a required field satisfied by a placeholder is worse than an empty one -- it reads as answered when it is not. New tasks should fill it, but the schema does not force an invention.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Spec']} })
     description: str = Field(default=..., description="""WHAT to do -- the working spec. Markdown.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Spec']} })
     constraints: Optional[str] = Field(default=None, description="""Hard requirements and prohibitions. Markdown.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Spec']} })
     out_of_scope: Optional[str] = Field(default=None, description="""Explicit non-goals, so agents do not wander. Markdown. Note: this is the field that would have prevented task-048's own scope drift.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Spec']} })

@@ -203,6 +203,65 @@ class LogEntryType(ValueEnum):
     QUESTION = "question"
     ANSWER = "answer"
     INSTRUCTION = "instruction"
+    DISPATCH = "dispatch"
+    DISPATCH_RESULT = "dispatch_result"
+
+
+MANAGER_WRITTEN_LOG_TYPES = frozenset(
+    {LogEntryType.TRANSITION, LogEntryType.DISPATCH, LogEntryType.DISPATCH_RESULT}
+)
+"""Entry types only the manager may append (design doc section 3, rule 5).
+
+An entry of one of these types asserts that something *happened* -- a state axis moved,
+a process was started, a process ended. Letting a caller post one would put a claim in an
+append-only record with no event behind it, which is a lie the log can never retract.
+Every write path is expected to refuse these by consulting this set rather than by
+listing types of its own, so a type added here cannot be forgotten at one of them.
+"""
+
+
+class DispatchTrigger(ValueEnum):
+    """What caused a dispatch (design doc section 5)."""
+
+    MANUAL = "manual"
+    AUTO = "auto"
+
+
+class DispatchMode(ValueEnum):
+    """Which process lifecycle a run had (design doc section 4, task-077)."""
+
+    SESSION = "session"
+    BATCH = "batch"
+
+
+class DispatchPosture(ValueEnum):
+    """What the run was permitted to do (design doc section 4, task-076)."""
+
+    READ_ONLY = "read_only"
+    SUPERVISED = "supervised"
+    AUTONOMOUS = "autonomous"
+
+
+class DispatchOutcome(ValueEnum):
+    """How a run ended (design doc section 9).
+
+    ``finished_without_handoff`` is the one that has to be argued for: a run that ends
+    without moving the ball is a failure even on a clean exit, because the agent stopped
+    without saying what it needs. Calling that success would reproduce, at the process
+    level, exactly the limbo the ball model exists to make unrepresentable.
+
+    ``failed`` and ``crashed`` are reachable only from batch runs. A session that errors
+    internally still reports ``idle``/``done`` to ``claude agents --json``, which carries
+    no exit code -- that gap is the price of session mode and the reason batch was kept.
+    """
+
+    COMPLETED = "completed"
+    FINISHED_WITHOUT_HANDOFF = "finished_without_handoff"
+    FAILED = "failed"
+    TIMEOUT = "timeout"
+    CANCELLED = "cancelled"
+    CRASHED = "crashed"
+    INTERRUPTED = "interrupted"
 
 
 # ---------------------------------------------------------------------------
@@ -345,6 +404,81 @@ class Attachment(StrictModel):
     label: str = Field(..., description="Accessible label; alt text where it renders.")
 
 
+class DispatchData(StrictModel):
+    """Payload of a ``dispatch`` entry: what was started, by whose authority, against what.
+
+    This is the durable, git-tracked half of a dispatch. Run directories under
+    ``~/.agentjobs/runs/`` are machine-local and disposable; this entry is the part that
+    survives, so it has to answer "what ran, against what" on its own.
+
+    ``argv`` is recorded verbatim, which means **a runner must never put a secret in its
+    argv** -- secrets go in the runner's ``env``, which is never logged. Stated here
+    because the recording is the safety feature: weakening it to hide a token would be
+    the wrong fix for the wrong problem.
+    """
+
+    run_id: str = Field(..., description="Machine-local run identifier.")
+    agent: str = Field(..., description="Actor id the run acts as.")
+    runner: str = Field(..., description="Runner name from ~/.agentjobs/dispatch.yaml.")
+    mode: DispatchMode = Field(..., description="Session or batch (task-077).")
+    posture: DispatchPosture = Field(..., description="What the run may do (task-076).")
+    trigger: DispatchTrigger = Field(..., description="Manual click or auto-dispatch.")
+    caused_by: int = Field(
+        ...,
+        ge=1,
+        description=(
+            "Id of the log entry whose actor authorises this dispatch. The loop is "
+            "human-clocked (D4), and this is the evidence for that claim."
+        ),
+    )
+    argv: List[str] = Field(..., min_length=1, description="Resolved argv, verbatim.")
+    cwd: str = Field(..., description="Working directory the process was started in.")
+    git_head: str = Field(
+        ...,
+        description="Commit the working tree was on, so a run's diff stays attributable.",
+    )
+    session_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Session mode only, and never assigned by us: `--bg` manages the id itself "
+            "and the dispatcher captures it afterwards, so it can be absent."
+        ),
+    )
+
+
+class DispatchResultData(StrictModel):
+    """Payload of a ``dispatch_result`` entry: how a run ended.
+
+    Written on every exit path, including the supervisor's own exception. A run with no
+    terminal entry is indistinguishable from a run still going, which is the failure
+    mode that hid a webhook bug for months (task-047).
+    """
+
+    run_id: str = Field(..., description="The run this concludes.")
+    outcome: DispatchOutcome = Field(..., description="How it ended (design section 9).")
+    exit_code: Optional[int] = Field(
+        default=None,
+        description="Batch only. A session reports no exit code, so this stays absent.",
+    )
+    duration_seconds: Optional[float] = Field(
+        default=None, ge=0, description="Wall-clock duration of the run."
+    )
+    log_path: Optional[str] = Field(
+        default=None, description="Machine-local run directory, while it still exists."
+    )
+
+
+DISPATCH_PAYLOADS: Dict[LogEntryType, type[StrictModel]] = {
+    LogEntryType.DISPATCH: DispatchData,
+    LogEntryType.DISPATCH_RESULT: DispatchResultData,
+}
+"""Typed ``data`` payloads, enforced on the entry rather than only at the write path.
+
+v2's tenet is that semantics are enforced, not documented. A dispatch entry whose payload
+cannot say what ran is worse than no entry: it looks like evidence.
+"""
+
+
 class LogEntry(StrictModel):
     """One entry in the unified append-only log (design doc section 4).
 
@@ -371,6 +505,26 @@ class LogEntry(StrictModel):
         default=None,
         description="Images evidencing this entry, stored as sidecar files.",
     )
+
+    @model_validator(mode="after")
+    def _check_typed_payload(self) -> "LogEntry":
+        """Validate ``data`` against the payload model its type declares, where one exists.
+
+        Only the dispatch types have one so far. The alternative -- validating in the
+        manager method that writes them -- was rejected because it leaves a hand-edited
+        or hand-migrated file free to carry a dispatch entry with nothing in it, and the
+        one thing this entry exists to do is be trustworthy after the machine-local run
+        directory is gone.
+        """
+        payload_model = DISPATCH_PAYLOADS.get(self.type)
+        if payload_model is not None:
+            # The idempotency marker rides in `data` on every manager-written entry. It
+            # is infrastructure, not part of any entry's payload, so it is excluded here
+            # rather than declared on each payload model.
+            payload_model.model_validate(
+                {key: value for key, value in self.data.items() if key != "operation"}
+            )
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -587,6 +741,37 @@ class Task(StrictModel):
     def is_open(self) -> bool:
         """True while the task is not closed."""
         return self.lifecycle is not Lifecycle.CLOSED
+
+    @property
+    def dispatch_count(self) -> int:
+        """How many times this task has been dispatched, counted from the log.
+
+        Derived rather than stored. A counter field would be a second copy of a fact the
+        log already carries, so it could disagree with the evidence for it -- and it
+        would need a migration on every existing file to introduce. Runaway protection
+        (design section 7) reads this, so a count that can drift is a limit that can be
+        wrong in the direction that costs money.
+
+        Deliberately a plain property, not a ``computed_field``: unlike
+        ``display_status`` it is not something an API response should carry by default,
+        and it would then also have to be excluded on write.
+        """
+        return sum(1 for entry in self.log if entry.type is LogEntryType.DISPATCH)
+
+    def dispatches_since(self, since: datetime) -> int:
+        """Dispatches recorded at or after ``since``, for the per-day budget cap.
+
+        Naive timestamps are read as UTC, matching how the rest of the model normalises
+        them: a cap that silently counts nothing because two datetimes were not
+        comparable is worse than one that is wrong out loud.
+        """
+        cutoff = since if since.tzinfo else since.replace(tzinfo=timezone.utc)
+        return sum(
+            1
+            for entry in self.log
+            if entry.type is LogEntryType.DISPATCH
+            and (entry.ts if entry.ts.tzinfo else entry.ts.replace(tzinfo=timezone.utc)) >= cutoff
+        )
 
     def next_log_id(self) -> int:
         """The id the next appended log entry should carry."""
