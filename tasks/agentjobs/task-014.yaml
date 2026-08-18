@@ -1,0 +1,168 @@
+schema: 2
+id: task-014
+title: Detect a bundle talking to a server it was not built against
+created: '2026-08-18T05:08:57.664522Z'
+updated: '2026-08-18T05:08:57.665257Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: reliability
+tags:
+- frontend
+- api
+- reliability
+- developer_experience
+- dogfood
+effort: a focused session, with one design decision to settle first
+assignment:
+  eligible: []
+spec:
+  summary: A long-running server holds imported Python in memory, so a rebuilt frontend
+    can end up calling an older API than the one its generated client was built from.
+    The app has no way to notice, so the mismatch surfaces as an unrelated-looking
+    runtime crash instead of a clear "these two are out of step".
+  intent: Make version skew self-announcing. When the served bundle and the running
+    server disagree about the API contract, the app should say so and name the remedy,
+    rather than failing somewhere far away and leaving the user to work backwards.
+  description: "## The failure this prevents\n\n`agentjobs serve` is a long-lived\
+    \ process that imports the application at startup and\nholds it. Development changes\
+    \ the code underneath it. Anyone who does not restart is\nrunning an old API from\
+    \ a working tree that says otherwise, and `ENGINEERING.md`\ndocuments this trap\
+    \ twice precisely because it keeps being rediscovered.\n\nConcretely, on 2026-08-17:\
+    \ a server process started at 20:37, the `related` field was\nadded to the task\
+    \ detail response at 21:30 (`059270c`), and the frontend bundle was\nrebuilt at\
+    \ 23:25 against the regenerated client where `TaskDetailResponse.related` is a\n\
+    required array. The server answered `200` with the older shape. The client trusted\
+    \ its\nown generated types, read `.length` on a missing array, and the app went\
+    \ blank.\n\nNothing in that chain was wrong in isolation. The server was serving\
+    \ valid responses for\nthe code it had; the bundle was correct for the code it\
+    \ was built from; the type\ndeclaration was accurate. The system had no place\
+    \ to notice they were not the same code.\n\n## Why the obvious check does not\
+    \ work\n\nThere is already `GET /api/version`, added so the MCP server could refuse\
+    \ to serve tools\nagainst a service it cannot understand \u2014 the right instinct,\
+    \ and the precedent to follow.\nBut it currently returns:\n\n```json\n{\"version\"\
+    : \"0.1.0\", \"schema_version\": 2, \"yaml_loader\": \"libyaml (yaml.CSafeLoader)\"\
+    }\n```\n\n`version` is the static package version and `schema_version` is the\
+    \ task-file schema.\n**Neither changed between 20:37 and 23:25**, so comparing\
+    \ them would have reported\nagreement while the API shape had in fact changed\
+    \ underneath. Any implementation that\njust diffs these two fields will pass its\
+    \ tests and still miss the real incident. This is\nthe trap in the task; do not\
+    \ fall into it.\n\nWhat actually differed was the shape of the HTTP contract \u2014\
+    \ exactly what the generated\nclient is derived from.\n\n## What to build\n\n\
+    **Recommended approach: stamp a build identifier derived from the OpenAPI schema.**\n\
+    \nAt client-generation time, hash the `openapi.json` the TypeScript client was\
+    \ generated\nfrom and bake that digest into the bundle. Have the server compute\
+    \ the same digest over\nits live schema and expose it on `/api/version` as something\
+    \ like `api_digest`. On app\nload, compare. They match when the bundle and the\
+    \ process were built from the same\ncontract, and they differ the moment either\
+    \ moves \u2014 which is the actual property worth\ntesting, and the one that would\
+    \ have caught this incident.\n\nThe alternative is stamping the git commit into\
+    \ both. Rejected as the primary mechanism:\nit flags skew on every commit that\
+    \ does not touch the API, so it cries wolf constantly\nand gets ignored, which\
+    \ is the failure mode of a warning nobody believes. A digest over\nthe schema\
+    \ changes when and only when the contract changes.\n\nWhen skew is detected the\
+    \ app should show a persistent, dismissible banner \u2014 not a\nblocking modal,\
+    \ since a stale server is usually still mostly usable and locking the user\nout\
+    \ of a tracker to tell them about a version mismatch trades one problem for a\
+    \ worse\none. The banner must name the remedy in the words that fix it: restart\
+    \ the server, and\nrebuild the frontend if the bundle is the stale half. Note\
+    \ that `frontend_dist/` is\ngitignored, so pulling and restarting is not sufficient\
+    \ on its own \u2014 a merge can leave a\nrunning server handing out a pre-merge\
+    \ bundle.\n\nAlso consider whether `scripts/check.py` should fail when the checked-in\
+    \ generated client\ndoes not match the current schema. The gate already verifies\
+    \ the generated client; if\nthat check can be extended to cover the digest, the\
+    \ mismatch gets caught before anyone\nruns a server at all, which is strictly\
+    \ better than detecting it at runtime.\n\n## Scope note\n\nThe operational half\
+    \ of this \u2014 noticing that a server needs restarting before a user\nclicks\
+    \ anything \u2014 is a launcher and workflow concern that lives outside this repository\n\
+    and is not in scope here. This task is about the application detecting and reporting\
+    \ its\nown skew, which is the part that helps every install rather than one machine."
+  constraints: 'The check must not become a startup dependency: if `/api/version`
+    is unreachable, slow, or missing the new field (an older server), the app renders
+    normally. A skew detector that breaks the app when it cannot determine skew is
+    worse than no detector.
+
+
+    Do not block rendering on the comparison. Fetch it alongside normal startup and
+    surface the result when it arrives.
+
+
+    Test the case that actually matters: a server whose package `version` and `schema_version`
+    are identical to the client''s but whose API shape differs. A test that only covers
+    a bumped package version proves nothing about the incident this task exists for.'
+  out_of_scope: 'Automatically restarting the server, reloading the page, or otherwise
+    self-healing. Detect and report; the human decides.
+
+
+    Watching source files for changes and hot-reloading the server. `--reload` is
+    a separate discussion about how the server is run day to day.
+
+
+    Anything about how a particular machine launches or supervises the server. This
+    task ends at the application knowing and saying that it is out of step.
+
+
+    Versioning the API itself, negotiating content types, or supporting multiple concurrent
+    API versions.'
+  context:
+  - path: src/agentjobs/api/routes/health.py
+    why: "The existing /api/version endpoint and the docstring explaining why it exists\
+      \ \u2014 the MCP startup probe is the precedent this extends."
+  - path: frontend/src/api/generated/types.gen.ts
+    why: The generated client. Whatever digest is stamped needs to be produced by
+      the same generation step that writes this.
+  - path: scripts/check.py
+    why: Already verifies the generated frontend client; the natural place to also
+      catch a stale digest before runtime.
+  - path: frontend/src/App.tsx
+    why: "App shell \u2014 where a persistent skew banner would live."
+  - path: ENGINEERING.md
+    why: The stale-server safety rail and the note that frontend_dist is gitignored,
+      which is why a pull-and-restart can still leave a stale bundle.
+acceptance:
+- id: a1
+  text: /api/version reports an identifier derived from the live API contract, which
+    changes when the contract changes and does not change on unrelated commits.
+  status: pending
+- id: a2
+  text: A bundle built against a different contract than the running server shows
+    a banner naming the mismatch and the remedy, with the rest of the app still usable.
+  verify: cd frontend && npm run test
+  status: pending
+- id: a3
+  text: 'Reproduces the real incident: a server whose package version and schema_version
+    match the client exactly, but whose response shape differs, is still reported
+    as skewed.'
+  verify: cd frontend && npm run test
+  status: pending
+- id: a4
+  text: An unreachable, slow, or older /api/version leaves the app rendering normally
+    with no banner and no crash.
+  verify: cd frontend && npm run test
+  status: pending
+- id: a5
+  text: 'Verified by hand against a real server: start a server, change the API, rebuild
+    the client, and confirm the running app reports skew.'
+  status: pending
+- id: a6
+  text: Full gate passes.
+  verify: poetry run python scripts/check.py
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:08:57.664567Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: e21a7f65-9d84-4b30-a6c2-1f7c58e390db
+      kind: create
+      fingerprint: 2d0c58c66e9e1cbc74f30ca95d5d6b11

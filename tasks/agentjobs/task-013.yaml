@@ -1,0 +1,115 @@
+schema: 2
+id: task-013
+title: Ship sourcemaps so a production stack trace names a source line
+created: '2026-08-18T05:08:09.391408Z'
+updated: '2026-08-18T05:08:09.392342Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: developer_experience
+tags:
+- frontend
+- build
+- debuggability
+- dogfood
+effort: a short session
+assignment:
+  eligible: []
+spec:
+  summary: The React bundle is built without sourcemaps, so a runtime error in the
+    served app reports a column offset into one minified line. Diagnosing a crash
+    currently means grepping the source for the suspected pattern rather than reading
+    the stack.
+  intent: Make a browser stack trace point at a file and line in the repository, so
+    diagnosing a frontend crash starts from evidence instead of a guess.
+  description: "## The problem\n\n`frontend/vite.config.ts` sets `build.outDir` and\
+    \ `build.emptyOutDir` and nothing else.\n`build.sourcemap` defaults to `false`,\
+    \ so `src/agentjobs/frontend_dist/assets/` contains\na single ~350KB minified\
+    \ `index-*.js` and no `.map`.\n\nThe cost showed up on 2026-08-17 while diagnosing\
+    \ a blank task detail page. The only\nthing the browser could report was:\n\n\
+    ```\nTypeError: Cannot read properties of undefined (reading 'length')\n    at\
+    \ .../app/assets/index-BAAi_6Le.js:8:121527\n```\n\n`8:121527` is a column offset\
+    \ into a minified line. It names no component, no prop, and\nno file. The crash\
+    \ was eventually located by grepping `TaskDetail.tsx` for `.length` and\nreasoning\
+    \ about which of the six candidate accesses lacked a guard \u2014 which worked,\
+    \ but\nonly because the surface area happened to be small and the component happened\
+    \ to be the\nobvious suspect. That does not generalise to a crash inside a dependency,\
+    \ a hook, or any\ncomponent that is not already top of mind.\n\n## What to build\n\
+    \nEnable sourcemaps for the production build and confirm they resolve against\
+    \ the served\nbundle.\n\nThe main decision is which mode, and it is a real tradeoff:\n\
+    \n- `sourcemap: true` emits `.map` files and appends a `//# sourceMappingURL=`\
+    \ comment.\n  Devtools resolve traces automatically with no further steps. The\
+    \ maps are served to\n  anyone who opens the app.\n- `sourcemap: \"hidden\"` emits\
+    \ the same maps but omits the comment. Traces do not resolve\n  in the browser\
+    \ by themselves; the map has to be fed to devtools or a symbolicator by\n  hand.\n\
+    \n**Recommendation: `true`.** This is a self-hosted task tracker whose source\
+    \ is public, so\nthere is no meaningful disclosure argument for withholding the\
+    \ maps, and `hidden` would\nhave given no benefit in the incident above \u2014\
+    \ nobody hand-symbolicates a map at the\nmoment they are trying to find out why\
+    \ a page went blank. Choose `hidden` only if the\npackaged wheel's size turns\
+    \ out to matter more than debuggability, which should be\nmeasured rather than\
+    \ assumed.\n\nCheck whether the emitted `.map` files need anything from the FastAPI\
+    \ static mount to be\nserved correctly at `/app/assets/`, and whether they should\
+    \ ship inside the Python\npackage at all \u2014 a map that is built but not served\
+    \ is worse than none, because it looks\nlike the problem is solved.\n\n## Why\
+    \ it is worth doing now\n\nTwo other tasks in flight (`task-012`, and the version-skew\
+    \ work) exist because a\nfrontend failure was hard to attribute. Neither of them\
+    \ makes the next unfamiliar crash\nreadable. This does, once, for every crash\
+    \ after it."
+  constraints: 'Measure the effect on the built package before and after, and record
+    the numbers in the task log. "Sourcemaps make the wheel bigger" is the obvious
+    objection and it deserves an actual figure rather than a shrug in either direction.
+
+
+    Do not enable sourcemaps for the Vitest/jsdom path or change the dev-server behaviour;
+    this is about the production build that lands in `src/agentjobs/frontend_dist/`.'
+  out_of_scope: 'Error reporting, telemetry, or any service that collects stack traces.
+    This task ends at "a trace opened in devtools names a source line".
+
+
+    Retaining sourcemaps for older builds, or any build-artifact versioning scheme.'
+  context:
+  - path: frontend/vite.config.ts
+    why: The build block to change. Currently sets only outDir and emptyOutDir, so
+      sourcemap falls back to the false default.
+  - path: src/agentjobs/frontend_dist/assets/
+    why: Build output. Confirm .map files land here and are actually served at /app/assets/.
+  - path: pyproject.toml
+    why: "Packaging config \u2014 determines whether the maps are included in the\
+      \ wheel, and where the size figure comes from."
+acceptance:
+- id: a1
+  text: The production build emits sourcemaps alongside the bundle in src/agentjobs/frontend_dist/assets/.
+  verify: cd frontend && npm run build
+  status: pending
+- id: a2
+  text: An error thrown from a known component in the served app produces a devtools
+    stack trace naming the source file and line, not a column offset into the minified
+    bundle. Verified in a browser against a freshly started server.
+  status: pending
+- id: a3
+  text: Before/after size figures for the built package are recorded in the task log,
+    with the chosen sourcemap mode justified against them.
+  status: pending
+- id: a4
+  text: Full gate passes.
+  verify: poetry run python scripts/check.py
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:08:09.391475Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: b8f42d17-3c56-4e09-8d71-5a9f0e6b2c84
+      kind: create
+      fingerprint: 2332a00812a9259842962027eddd20be
