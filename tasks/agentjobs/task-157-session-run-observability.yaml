@@ -2,62 +2,66 @@ schema: 2
 id: task-157-session-run-observability
 title: Notice when a dispatched session ends, and let its output be read
 created: '2026-08-18T21:53:32.107442Z'
-updated: '2026-08-18T22:07:18.628255Z'
+updated: '2026-08-18T22:55:26.851225Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: "# Pick this up in a fresh session. One commit exists, it is incomplete,\
-  \ and the remaining work is fully specified below.\n\nJeff asked for this task to\
-  \ be worked in a new session and it was started in an old one by mistake. Everything\
-  \ needed is here; do not go looking for the prior conversation, and do not trust\
-  \ any judgement from it that is not written down.\n\n## State\n\n- Branch `fix/task-157-session-run-observability`,\
-  \ worktree `C:/projects/aj-157`, `poetry install` already done there.\n- Task is\
-  \ claimed and `active`. One commit: `2c18b1a`.\n- **`src/agentjobs/dispatch/poller.py`\
-  \ exists, imports cleanly, and is otherwise unverified.** No scheduler calls it.\
-  \ No test covers it. Treat it as a proposal you are free to rewrite.\n\n## What\
-  \ is already decided, with reasoning (log entry 2)\n\n**The scheduler calls `DispatchRunner.poll_session`;\
-  \ it does not reimplement polling.** `poll_session` carries the ball-moved check,\
-  \ the staleness window, the parked-session handoff and the per-phase outcome and\
-  \ reap choices. Duplicating those in the ledger gives two implementations of this\
-  \ subsystem's subtlest judgement. The poller module follows this; keep it.\n\n**One\
-  \ correction to log entry 2, found while implementing:** that entry says `reconcile()`\
-  \ needs a phase check for sc-3. It does not. If the poller runs on an interval,\
-  \ a session that ended while AgentJobs was down is settled on the first tick after\
-  \ startup, and sc-3 falls out for free. Leave `reconcile()` alone -- less changed\
-  \ surface, one mechanism instead of two.\n\n## What remains\n\n1. **Schedule it.**\
-  \ `lifespan` in `api/main.py:92` already calls `_reconcile_dispatch_runs()`. Add\
-  \ an asyncio task that calls `poll_live_sessions(default_home())` on an interval\
-  \ and is cancelled on shutdown. `poll_live_sessions` blocks on subprocesses, so\
-  \ it belongs in a thread rather than on the event loop.\n\n   Note this knowingly\
-  \ reverses a documented position: `_reap_finished_sessions`' docstring argues against\
-  \ a scheduler. That reasoning was right for deleting worktrees and wrong for session\
-  \ state -- without a scheduler the primary dispatch mode never reports anything.\
-  \ **Record it as a `decision` entry when you do it.**\n\n2. **The live tail (sc-7/8/9)**\
-  \ -- Jeff's requirement, log entry 3, and the part most likely to be got wrong.\
-  \ Output must be readable *while* the run goes, in a collapsible section on the\
-  \ task page that also holds the finished output. `DispatchRunner.transcript()` (runner.py:746)\
-  \ reads a session's output; `readable_tail` bounds it. Session runs only -- a batch\
-  \ run's `stdout.log` genuinely is its output and must keep working unchanged. Do\
-  \ not let anything branch on transcript content; it is rendering, not parsing.\n\
-  \n3. **Verify the way that would have caught this.** The existing tests exercise\
-  \ `poll_session` directly and passed throughout, proving the decision logic while\
-  \ saying nothing about whether the decision is ever made. sc-6 wants an end-to-end\
-  \ run: dispatch a real session in the review sandbox, let it finish untouched, and\
-  \ confirm the run reaches a terminal state and the task gets a `dispatch_result`\
-  \ with nobody intervening.\n\n   Sandbox: `poetry -P C:/projects/agentjobs run python\
-  \ C:/ai/scratch/agentjobs-dispatch-review-sandbox.py`, port 8901, session-mode `claude-session`\
-  \ runner, `autonomous` posture, throwaway repo. `run_52c47791` in it is a real example\
-  \ of the bug -- session finished, run still reads `running`.\n\n## Traps\n\n- `dispatch_entry_id`\
-  \ must come off the run's meta. `_ball_moved` returns False without it, which would\
-  \ label every clean finish `finished_without_handoff` -- a wrong and alarming outcome\
-  \ on a task that did nothing wrong. The poller skips such runs rather than guessing;\
-  \ make sure that stays true.\n- `DispatchLedger.manager_for` resolves projects only\
-  \ through the registry, so a run stamped with the implicit `_local` id resolves\
-  \ to None. The poller reports that case loudly instead of skipping it. Keep that.\n\
-  - Do not merge without Jeff's approval. The autonomy grant on task-060 expired and\
-  \ has not been renewed.\n\n## Out of scope\n\ntask-158 (elapsed_seconds counting\
-  \ forever) and task-159 (a dispatched agent cannot log as itself) are separate children\
-  \ of task-060. Do not absorb them."
+ball: human
+ball_reason: review
+ball_prompt: "# Ready for review. Five commits on `fix/task-157-session-run-observability`,\
+  \ verified end to end against a real dispatched session. Not merged, not pushed.\n\
+  \n## Look at it running first -- it is standing up now\n\n**http://127.0.0.1:8902/app/p/review-project**\
+  \ -- a review sandbox on its own port, own\nAgentJobs home, own throwaway repo,\
+  \ serving this branch. Your 8901 sandbox was left alone\n(it still runs `main`'s\
+  \ code; stopping a process is not permitted from my session).\n\n- **task-001**\
+  \ has a real finished session run. Open its **Output** panel: 284,785 bytes\n  of\
+  \ the session's actual terminal. The same run's `stdout.log` is 263 bytes of launcher\n\
+  \  banner, which is everything \"View output\" could ever have shown before.\n-\
+  \ **task-003** has a batch run in the same panel, showing `--- stdout.log ---` unchanged.\n\
+  \  That is the other side: session and batch differ on purpose.\n- **To see it live**,\
+  \ press Dispatch on task-002. The panel is expanded by default while\n  a run is\
+  \ live and tails it every 10 seconds. That spends tokens, so it is your call\n \
+  \ rather than something I left running.\n\nStop it by killing the process on port\
+  \ 8902. Reset it by deleting\n`C:/Users/jpose/AppData/Local/Temp/agentjobs-157-review`.\n\
+  \n## What changed\n\n1. **The scheduler** (`04e26bd`). `lifespan` runs `poll_live_sessions`\
+  \ every 10 seconds\n   in a thread, cancelled on shutdown. It polls before it first\
+  \ sleeps, which settles a\n   session that ended while AgentJobs was down -- so\
+  \ `reconcile()` is untouched, as your\n   handoff prompt's correction called for.\
+  \ Reversing the \"no scheduler\" position in\n   `_reap_finished_sessions` is recorded\
+  \ as a decision entry, and that docstring now says\n   so instead of contradicting\
+  \ the code.\n2. **Transcript capture** (`e7e52bb`). `poll_session` copies the session's\
+  \ output into\n   `<run>/transcript.log` *before* it acts. This is the part not\
+  \ in the plan and it is\n   load-bearing: settling a clean finish reaps the session,\
+  \ and a reaped session's logs\n   read empty, so fetching on demand would have shown\
+  \ nothing for exactly the runs worth\n   reading.\n3. **The output route serves\
+  \ it** (`eb7ddd9`), plus a bounded\n   `GET /dispatch/runs/{id}/tail`. Neither spawns\
+  \ a subprocess -- both read the file the\n   poller wrote, so fifty people watching\
+  \ costs what nobody watching costs.\n4. **The collapsible panel** (`c594ea5`) on\
+  \ each run row, expanded while live, staying\n   expanded when that run finishes,\
+  \ collapsed for runs already over on page load.\n5. **Repaint collapsing** (`3b9787f`),\
+  \ found by looking at the real thing: a TUI repaints\n   its whole screen, so 40\
+  \ lines of tail were 13 distinct lines painted three times.\n   Rendering only,\
+  \ session transcripts only. Also a decision entry.\n\n## What needs your judgement\n\
+  \n- **The `_local` trap stayed a loud report, as instructed.** `run_52c47791` in\
+  \ your 8901\n  sandbox is stamped `_local`, which the registry does not hold, so\
+  \ this poller will\n  print that it cannot follow it and will leave it live rather\
+  \ than guess. Your original\n  sandbox's stuck run therefore stays stuck. That is\
+  \ the decided behaviour, not an\n  oversight -- but it means the *most common* sandbox\
+  \ case is still unobservable, and if\n  you want implicit projects resolved that\
+  \ is its own task.\n- **Two acceptance criteria are unit-verified rather than live**:\
+  \ sc-3 (ended while\n  AgentJobs was down) and sc-2 (a parked session). Both would\
+  \ cost a second real session\n  to reproduce, sc-2 also needs the posture switched\
+  \ to `supervised`. Reasoning in the\n  progress entry above; say the word and I\
+  \ will do either.\n- **10 seconds** is the poll interval and the browser's tail\
+  \ interval. Stated in both\n  places with reasoning. Change it if you want a snappier\
+  \ tail -- the cost is one\n  subprocess per project per tick.\n- **Expanded-while-live**\
+  \ is the collapse default. It makes a task page taller for a live\n  run, which\
+  \ is the trade you asked for when you said you should not have to ask to see\n \
+  \ a live run.\n\n## State of the tree\n\n`pytest`: 1732 passed, 2 failed -- both\
+  \ already red on `main` (`test_agentjobs_context_paths_exist`,\nthe absolute-path\
+  \ assertion in `test_validate.py`). `frontend/` `npm run check` passes in\nfull,\
+  \ including the generated-client check and the 11 Playwright specs. `mypy` reports\n\
+  one pre-existing error in `storage.py`.\n\n**Not merged and not pushed.** The autonomy\
+  \ grant on task-060 has expired, so this stops\nhere. Worktree `C:/projects/aj-157`\
+  \ is clean; nothing on `main` but this task record."
 archived: false
 priority: high
 category: reliability
@@ -252,7 +256,9 @@ dependencies:
   note: Closed. Its scope named the scheduler poll_session refers to; the scheduler
     was never built.
 links: []
-branches: []
+branches:
+- name: fix/task-157-session-run-observability
+  status: active
 log:
 - id: 1
   ts: '2026-08-18T21:53:32.107487Z'
@@ -518,3 +524,300 @@ log:
       id: 1575aa11-2b33-4c55-8d77-e9f0a1b2c157
       kind: handoff
       fingerprint: 653da0c46ae973b87aff924686ff440e
+- id: 7
+  ts: '2026-08-18T22:15:58.773664Z'
+  actor: claude
+  type: progress
+  body: "# Picked up in a fresh session. Plan settled after reading the code; one\
+    \ change to the plan in the handoff, stated below.\n\nRead `poller.py` (the one\
+    \ commit), `poll_session`/`transcript`/`_finish_session` in\n`runner.py`, `reconcile()`\
+    \ in `ledger.py`, the `lifespan` hook, the run output route,\nand the React dispatch\
+    \ panel. The handoff's plan holds. What I am building:\n\n1. **A scheduler in\
+    \ `lifespan`.** `poll_live_sessions(default_home())` on an interval,\n   run in\
+    \ a thread (it blocks on subprocesses), cancelled on shutdown. Polls once at\n\
+    \   startup and then on the interval, so a session that ended while AgentJobs\
+    \ was down is\n   settled immediately rather than one interval later -- that is\
+    \ sc-3, and it is why\n   `reconcile()` still needs no change.\n\n2. **The poller\
+    \ writes the transcript to the run directory each tick.** This is the one\n  \
+    \ design choice not already in the handoff, and it is what makes the live tail\n\
+    \   affordable. A session's output can only be read by shelling out to `<runner>\
+    \ logs\n   <id>`; if the browser's tail did that, every watching tab would spawn\
+    \ a process on the\n   browser's clock. Instead the poller -- which is already\
+    \ spawning subprocesses on its\n   own clock -- writes what it read into `transcript.log`\
+    \ beside `meta.yaml`, and both\n   the tail and the output route just read that\
+    \ file. Consequences, stated: the tail is\n   as stale as the poll interval, and\
+    \ a run started before this change has no\n   `transcript.log` until it is polled\
+    \ once.\n\n   It also fixes something the handoff did not name: `_finish_session`\
+    \ reaps a completed\n   session, and `claude logs` on a reaped session returns\
+    \ nothing. Capturing on every\n   poll means the last capture before the reap\
+    \ is kept, so a finished run still has its\n   output. Fetching on demand after\
+    \ the fact would have shown an empty transcript for\n   every completed run --\
+    \ the exact failure this task is about, moved one step later.\n\n3. **`/output`\
+    \ serves `transcript.log` for a session run**, falling back to the captured\n\
+    \   stdout when there is none; batch runs are untouched. A new bounded\n   `/dispatch/runs/{id}/tail`\
+    \ serves the same file as JSON for the collapsible section.\n\n4. **A collapsible\
+    \ dispatch output section on the task page** (sc-7/8/9), expanded while\n   the\
+    \ run is live and collapsed once it is not, tailing on the same clock as the runs\n\
+    \   list. No subprocess is involved in serving it, so watching costs a file read.\n\
+    \nVerification will be the sandbox end-to-end run sc-6 asks for, not just unit\
+    \ tests."
+  data: {}
+- id: 8
+  ts: '2026-08-18T22:30:59.027350Z'
+  actor: claude
+  type: decision
+  body: '# Decision: AgentJobs now schedules background work. `_reap_finished_sessions`''
+    docstring argued it should not; that reasoning does not survive session state.
+
+
+    The reversed position, verbatim from that docstring: *"Startup is where this happens
+
+    because nothing in AgentJobs schedules background work, and inventing a scheduler
+    to
+
+    delete directories would be the largest new moving part in this subsystem for
+    the
+
+    smallest reason."*
+
+
+    **That reasoning was right about what it was written about and wrong about this.**
+    A
+
+    worktree that is not deleted is litter; it costs disk and nothing else, and `agentjobs
+
+    dispatch reap` clears it on demand. Session state is not like that. Without a
+    scheduler
+
+    the primary dispatch mode never reports anything at all: the run says `running`
+    for ever,
+
+    the task never receives a `dispatch_result`, and the UI offers Cancel on a process
+    that
+
+    ended an hour ago. The cost of no scheduler is not litter, it is that dispatch
+    cannot be
+
+    observed -- and the rejected alternative below is worse than the moving part.
+
+
+    **What was rejected: settling sessions only at startup, or only on demand.** It
+    would
+
+    have needed no new machinery, which was its whole appeal. It fails because a session
+
+    finishing is not correlated with anything a human does: the observation has to
+    happen
+
+    while nobody is watching, or the record is only correct for people who thought
+    to
+
+    restart the server. A "refresh runs" button would put the burden of noticing on
+    the
+
+    person the record exists to inform.
+
+
+    **Also rejected: giving `reconcile()` a phase check** (which log entry 2 called
+    for, and
+
+    the handoff prompt already corrected). With an interval poller that polls before
+    it
+
+    first sleeps, a session that ended while AgentJobs was down is settled on the
+    first tick
+
+    after startup. Adding the check would be a second mechanism for the same outcome,
+    and the
+
+    one that only runs at startup is the one that would rot.
+
+
+    **Scope of the reversal, stated so it is not read as wider than it is.** Reaping
+    stays at
+
+    startup. The poller reaps each session as it settles it, so the startup pass now
+    only
+
+    ever finds what a dead process left behind; putting a second sweep on the interval
+    would
+
+    spawn processes to look for litter that has already been collected. The docstring
+    has
+
+    been rewritten to say this rather than left to contradict the code.'
+  data: {}
+- id: 9
+  ts: '2026-08-18T22:48:21.525077Z'
+  actor: claude
+  type: progress
+  body: "# Built and unit-verified. End-to-end run in progress against a real Claude\
+    \ session.\n\n## What is on the branch now (5 commits after the inherited one)\n\
+    \n1. `e7e52bb` **capture the transcript into the run directory.** `poll_session`\
+    \ copies\n   `<runner> logs <id>` into `<run>/transcript.log` before it acts on\
+    \ the phase.\n   Ordering matters: settling a clean finish reaps the session,\
+    \ and a reaped session's\n   logs read empty, so capturing afterwards would leave\
+    \ every completed run blank. An\n   empty read leaves the previous capture alone.\n\
+    2. `04e26bd` **the scheduler.** `lifespan` starts `poll_sessions_forever(default_home())`\n\
+    \   as an asyncio task, cancelled and awaited on shutdown; each tick runs\n  \
+    \ `poll_live_sessions` in a thread. Interval `SESSION_POLL_SECONDS = 10.0`, stated\
+    \ in\n   code with its reasoning. It polls before it first sleeps, which is what\
+    \ settles a\n   session that ended while AgentJobs was down -- `reconcile()` is\
+    \ untouched. Only\n   changes are reported, so a running run says so once rather\
+    \ than every ten seconds.\n3. `eb7ddd9` **the output route serves the transcript**\
+    \ for session runs, escape\n   sequences stripped, falling back to captured stdout\
+    \ when there is none. Batch\n   untouched. New `GET /dispatch/runs/{id}/tail`\
+    \ serves a bounded tail as JSON.\n4. `c594ea5` **the collapsible output panel**\
+    \ on the task page, expanded while live and\n   collapsed for runs that were already\
+    \ over, polling at 10s -- the same clock as the\n   poller, never faster, because\
+    \ the bytes come from a file the poller writes.\n5. `3b9787f` **repaint collapsing**\
+    \ -- see the separate note below; found by looking at\n   the real thing rather\
+    \ than at a fixture.\n\n## Tests\n\n`poetry run pytest`: 1729 passed, 2 failed\
+    \ -- `test_agentjobs_context_paths_exist` and\nthe absolute-path assertion in\
+    \ `test_validate.py`, both already red on `main` and\nuntouched by this work.\
+    \ `npm run check` in `frontend/` passes in full: generated client\ncurrent, lint,\
+    \ 124 vitest tests, build, and 11 Playwright specs including the dispatch\none\
+    \ that starts a real process.\n\nNew tests worth naming, because the existing\
+    \ ones passed throughout this defect:\n`TestTheServerStartsIt::test_serving_turns_the_crank_without_anyone_asking`\
+    \ asserts a\nrunning server polls with nobody asking, and **fails when the lifespan\
+    \ wiring is\nremoved** -- checked by removing it. Everything else about the poller\
+    \ is about the\ncalling, not the decision: the decision already had tests and\
+    \ they proved nothing about\nwhether it was ever reached.\n\n## End to end (sc-6),\
+    \ in progress\n\nJeff's sandbox on 8901 is running `main`'s code and killing a\
+    \ process is not permitted\nhere, so this is a sibling on **port 8902** with its\
+    \ own AgentJobs home and its own\nthrowaway repository -- `C:/ai/scratch/agentjobs-157-review-sandbox.py`,\
+    \ which imports\nthe original and only moves it out of the way. `session_stale_seconds`\
+    \ is set to 180 in\nthat sandbox so the \"finished without handing off\" path\
+    \ does not take an hour to observe.\n\n`task-001` was dispatched at 22:44Z as\
+    \ `run_b70718b9`, session `cb993d5c`, and has been\nleft alone since. Already\
+    \ confirmed while it runs: the server prints `Dispatch poll\nrun_b70718b9: running`\
+    \ once, and the tail endpoint answers `source:\nsession-transcript`, `live: true`,\
+    \ with the session's actual terminal in it -- which is\nthe thing that was structurally\
+    \ impossible before, since a session run's `stdout.log` is\nthe launcher's banner.\
+    \ Remaining to confirm: the terminal state and the\n`dispatch_result` when it\
+    \ ends, with nobody intervening."
+  data: {}
+- id: 10
+  ts: '2026-08-18T22:48:40.483543Z'
+  actor: claude
+  type: decision
+  body: '# Decision: collapse a session transcript''s repainted screens when rendering
+    it. Found by reading a real session''s tail rather than a fixture''s.
+
+
+    `<runner> logs` returns the session''s raw pty stream. Claude Code is a full-screen
+    TUI
+
+    that repaints its entire screen on every update, so the stream holds the same
+    frame over
+
+    and over. The first live tail of a real dispatched session showed it plainly:
+    forty
+
+    lines of tail were thirteen distinct lines painted three times, and the newest
+    work was
+
+    pushed off the end of the window by copies of itself.
+
+
+    A bounded tail is the feature, so a bound spent on repaints is the feature not
+    working.
+
+    `drop_repainted_lines` keeps the last occurrence of each line and drops the earlier
+
+    copies.
+
+
+    **Rejected: leaving it raw** on the reasoning that the transcript is what the
+    terminal
+
+    showed and should not be edited. It is what the terminal showed *over time*, and
+    a
+
+    terminal is a display, not a log -- painting a screen three times is not the agent
+    doing
+
+    something three times. Rendering it verbatim is faithful to the byte stream and
+
+    misleading about the run.
+
+
+    **Rejected: applying it to batch output too.** A batch run that prints the same
+    line
+
+    twice is showing two things happening, and collapsing them would hide real repetition.
+
+    The transformation is applied to session transcripts only, which is also where
+    the
+
+    justification for it holds.
+
+
+    It stays rendering, and nothing branches on it -- the constraint in the spec,
+    and it
+
+    still binds. State comes from the ledger.'
+  data: {}
+- id: 11
+  ts: '2026-08-18T22:54:28.026478Z'
+  actor: claude
+  type: progress
+  body: "# Verified end to end against a real dispatched session. sc-6 evidence, in\
+    \ full.\n\n## The run\n\nReview sandbox on **port 8902**, serving this branch\
+    \ (`C:/ai/scratch/agentjobs-157-review-sandbox.py`,\nown AgentJobs home under\
+    \ `Temp/agentjobs-157-review`, own throwaway repo). Jeff's sandbox\non 8901 was\
+    \ left alone -- it is still running `main`'s code, and stopping a process is\n\
+    not permitted from this session.\n\n`task-001` dispatched 2026-08-18 22:44Z as\
+    \ `run_b70718b9`, session `cb993d5c`, then **not\ntouched again**. The session\
+    \ claimed the task, worked, wrote a progress entry, handed off\nto a human, and\
+    \ ended.\n\n## What happened with nobody intervening\n\n- Run meta reached `status:\
+    \ finished`, `outcome: completed`, `live: false`.\n- The task received **`dispatch_result`\
+    \ #6 from `dispatcher`**, `duration_seconds:\n  172.99`, `re: #3` (the dispatch\
+    \ entry).\n- The server printed exactly two lines for the whole run: `Dispatch\
+    \ poll run_b70718b9:\n  running`, then `Dispatch poll run_b70718b9: finished`.\
+    \ That is the change-only\n  reporting doing its job -- 18 polls, 2 lines.\n\n\
+    Before this branch, that same run would still read `running`, would still offer\
+    \ Cancel,\nand its task would have no terminal entry at all. That is the observed\
+    \ 2026-08-18 defect,\nreproduced and then not reproduced.\n\n## Output, sc-4 and\
+    \ sc-7/8/9\n\n- `transcript.log`: **284,785 bytes** of the session's real terminal,\
+    \ captured across the\n  run and surviving the reap that ended it.\n- `stdout.log`:\
+    \ **263 bytes** -- the launcher's backgrounding banner. That is the entire\n \
+    \ content the old \"View output\" could ever have shown, and it is why this task\
+    \ exists.\n- The tail endpoint answered `source: session-transcript` **while the\
+    \ run was live**,\n  with the session's actual work in it, and answers the same\
+    \ after it finished -- one\n  surface, contents changed.\n- In the browser at\
+    \ `/app/p/review-project/tasks/task-001`: the run row carries a\n  collapsible\
+    \ **Output** panel, bounded to 40 lines in a scrolling box, footnoted \"The\n\
+    \  session's own transcript. Last 40 lines.\" `task-003`'s batch run in the same\
+    \ UI shows\n  `--- stdout.log ---` and \"What the run wrote to stdout and stderr\"\
+    \ -- unchanged, which\n  is the other side of the same screen.\n- Repaint collapsing\
+    \ measured on this transcript: a 40-line tail held **26 distinct lines\n  before\
+    \ and 40 after**.\n\n## What was not verified with a second real session, and\
+    \ why\n\n**sc-3** (a session that ended while AgentJobs was down) is covered by\n\
+    `TestTheScheduler::test_it_polls_before_it_first_sleeps`, which is that scenario\
+    \ exactly:\nthe session is already finished when the poller starts, and the first\
+    \ tick settles it\nbefore the first sleep. Reproducing it with a second real Claude\
+    \ session would exercise\nthe same code path and spend tokens to do it. The sandbox\
+    \ was restarted mid-review and\ncame up clean, which exercises the startup path\
+    \ itself.\n\n**sc-2** (a parked session becoming a `human`/`input` handoff) is\
+    \ covered by the poller\ntest against the fake CLI. Producing it live needs the\
+    \ `supervised` posture and a command\noutside the allow-list; the sandbox runs\
+    \ `autonomous` by Jeff's authorisation, which is\nthe posture that never parks.\
+    \ Say the word and it is a config change plus one dispatch.\n\n## Suite\n\n`pytest`:\
+    \ 1732 passed, 2 failed -- `test_agentjobs_context_paths_exist` and the\nabsolute-path\
+    \ assertion in `test_validate.py`, both already red on `main`. `mypy src`\nreports\
+    \ one pre-existing error in `storage.py:268`, untouched. `frontend/` `npm run\n\
+    check` passes in full, and `check:api` confirms the generated client is current."
+  data: {}
+- id: 12
+  ts: '2026-08-18T22:55:07.882747Z'
+  actor: claude
+  type: handoff
+  body: 'Scheduler, transcript capture, the output route and the live tail are built,
+    and a real dispatched session ran to completion untouched: the run settled to
+    completed and the task got its dispatch_result with nobody intervening. A review
+    sandbox is up on 8902 with both the session and batch output cases seeded. Not
+    merged, not pushed.'
+  data:
+    ball: human
+    ball_reason: review
