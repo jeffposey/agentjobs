@@ -313,9 +313,18 @@ class DispatchLedger:
         *,
         registry: Optional[ProjectRegistry] = None,
         session_command: Optional[List[str]] = None,
+        managers: Optional[Dict[str, TaskManager]] = None,
     ) -> None:
         self.home = Path(home)
         self.registry = registry or ProjectRegistry(home=self.home)
+        #: Managers supplied by a caller that has already resolved the project, keyed by
+        #: project id. Consulted before the registry, because the registry is not the
+        #: only way a project exists: a server started with AGENTJOBS_PROJECT_ROOT serves
+        #: an implicit project the registry has never heard of. Resolving through the
+        #: registry alone meant a cancellation there had nowhere to write its result, so
+        #: the run ended and the task record never learnt of it -- exactly the silence
+        #: this subsystem is built to prevent. Found by the browser path, 2026-08-18.
+        self.managers = dict(managers or {})
         #: How to reach the session manager. Overridable so tests can stand in a fake,
         #: and so a runner that is not Claude Code can be driven by the same code.
         self.session_command = session_command or ["claude"]
@@ -324,6 +333,9 @@ class DispatchLedger:
 
     def manager_for(self, record: RunRecord) -> Optional[TaskManager]:
         """The TaskManager owning this run's task, or None when it cannot be resolved."""
+        supplied = self.managers.get(record.project_id)
+        if supplied is not None:
+            return supplied
         try:
             project: Project = self.registry.get(record.project_id)
         except ProjectError:
@@ -378,7 +390,15 @@ class DispatchLedger:
         return result
 
     def _stop(self, record: RunRecord) -> StopResult:
-        """Ask a run to stop. Session mode delegates; batch mode signals."""
+        """Ask a run to stop. Session mode delegates; batch mode signals.
+
+        The flag goes down **before** anything is killed, and that order is the whole
+        point. A batch run's supervisor is blocked in ``wait()`` until the kill, so it
+        cannot reach its own terminal write before the flag exists -- and when it wakes
+        to a non-zero exit it defers instead of overwriting this cancellation with
+        ``failed``. Writing the flag afterwards would leave exactly the race it removes.
+        """
+        write_status(record, cancel_requested=True)
         if record.is_session:
             return self._stop_session(record)
         return self._stop_batch(record)

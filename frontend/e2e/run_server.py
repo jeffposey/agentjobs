@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -10,6 +11,38 @@ import uvicorn
 import yaml
 
 from agentjobs.project_setup import build_project_config
+
+
+def write_dispatch_config(home: Path) -> None:
+    """Define one runner this machine will admit to, and enable nothing.
+
+    The master switch is on and the project is deliberately *off*, so the browser path
+    starts where a real machine starts: dispatch installed, this project not yet
+    trusted with it. Turning it on is the first thing the spec does, which is the only
+    way to prove the toggle actually writes this file.
+
+    The runner sleeps rather than exiting, so a run is still live when the page renders
+    and the cancel button has something real to stop. ``require_clean_tree`` is off
+    because the temporary project is not a git repository at all -- the clean-tree gate
+    has its own tests, and standing up a repo here would only test git.
+    """
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "dispatch.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "enabled": True,
+                "runners": {
+                    "e2e-sleeper": {
+                        "argv": [sys.executable, "-c", "import time; time.sleep(120)"],
+                    },
+                },
+                "projects": {"_local": {"enabled": False, "require_clean_tree": False}},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
 
 
 def main() -> None:
@@ -30,6 +63,7 @@ def main() -> None:
             ),
             encoding="utf-8",
         )
+        write_dispatch_config(root / ".agentjobs-home")
         uvicorn.run(
             "agentjobs.api.main:app",
             host="127.0.0.1",

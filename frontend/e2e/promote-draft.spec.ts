@@ -111,7 +111,10 @@ test("a task changed underneath the open page is refused, reloaded and re-offere
   await expect(page.getByRole("alert")).toContainText("changed while the page was open");
   const log = page.getByRole("region", { name: "Task log" });
   await expect(log).toContainText("Promoted from another surface.");
-  await expect(log.getByRole("article")).toHaveCount(1);
+  // Exactly one promotion, not two. Counted by what the entries say rather than by how
+  // many there are: a created task also carries a creation entry naming its author, so
+  // a bare count would move every time anything else is recorded at creation.
+  await expect(log.getByRole("article").filter({ hasText: "Promoted" })).toHaveCount(1);
 });
 
 test("send feedback and reject still work on a draft, unchanged", async ({ page, request }) => {

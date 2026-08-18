@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .health import router as health_router
 from .dashboard import router as dashboard_router
+from .dispatch import router as dispatch_router
 from .projects import router as projects_router
 from .revision import router as revision_router
 from .search import router as search_router
@@ -15,6 +16,7 @@ from .webhooks import router as webhooks_router
 
 PROJECT_SCOPED_ROUTERS = (
     dashboard_router,
+    dispatch_router,
     tasks_router,
     status_router,
     search_router,
@@ -32,6 +34,7 @@ scoped and unscoped surfaces from drifting apart.
 __all__ = [
     "PROJECT_SCOPED_ROUTERS",
     "dashboard_router",
+    "dispatch_router",
     "health_router",
     "projects_router",
     "revision_router",
