@@ -1,0 +1,108 @@
+schema: 2
+id: task-132-single-corpus-load-per-request
+title: Load the task corpus once per request
+created: '2026-08-18T00:04:59.374130Z'
+updated: '2026-08-18T00:04:59.374885Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+category: performance
+tags:
+- performance
+- api
+- storage
+effort: 1-2 days
+assignment:
+  eligible: []
+parent: task-130-performance-and-responsiveness
+spec:
+  summary: A single API request currently walks and re-parses the entire task corpus
+    about four times. Introduce a request-scoped corpus snapshot so list_tasks, dependency_facts,
+    _dependency_states and _open_children share one parse.
+  intent: 'This is the largest single multiplier behind the reported 5-10 second task
+    open. It is a structural fix and it compounds with task-133: cutting four parses
+    to one and making each parse ten times faster are independent wins that multiply.'
+  description: "# One parse per request\n\n## The defect\n\n`TaskStorage.list_tasks()`\
+    \ calls `load_all()`, which globs and re-parses every YAML\nfile in the project.\
+    \ Nothing caches it. One `GET /tasks` walks the whole corpus about\nfour times,\
+    \ via these call sites (line numbers as of task-130's analysis, 2026-08-17):\n\
+    \n- `TaskManager.list_tasks()` -> `storage.list_tasks()` \u2014 `src/agentjobs/manager.py:94`\n\
+    - `_read_tasks()` -> `dependency_facts()` -> `storage.list_tasks()` \u2014 `manager.py:214`\n\
+    - `dependency_facts()` -> `_dependency_states()` -> `storage.load_all()` \u2014\
+    \ `manager.py:128`\n- `dependency_facts()` -> `_open_children()` -> `storage.list_tasks()`\
+    \ \u2014 `manager.py:272`\n\nThe dashboard is worse, which is why it is both the\
+    \ slowest page and the landing page.\n\n## The fix\n\nA request-scoped snapshot\
+    \ of the corpus: load once, pass it down, and have the\ndependency computations\
+    \ read from it rather than going back to storage. The exact\nseam is an implementation\
+    \ decision \u2014 a context object threaded through the manager, a\nFastAPI dependency\
+    \ yielding a snapshot per request, or a scoped cache on the storage\nlayer \u2014\
+    \ but the observable contract is that a single request parses each task file at\n\
+    most once.\n\nChoose the seam so the CLI benefits too where it naturally can:\
+    \ a CLI invocation is a\nsingle logical operation and should also parse once.\n\
+    \n## Verifying it\n\nThe wall-clock number is the goal, but the durable check\
+    \ is the parse count. Add a\ntest that counts task-file parses during one request\
+    \ and asserts each file is parsed\nonce. That is the assertion that will still\
+    \ catch a regression in a year, when the\nmachine is different and the wall-clock\
+    \ threshold has drifted; a timing test alone\nwould not.\n\nRecord before/after\
+    \ from task-131's tool in a `progress` entry before merging."
+  constraints: "- Correctness is not negotiable for speed. Broken task files must\
+    \ still be reported by filename \u2014 the existing `load_all()` error-collection\
+    \ behaviour is a feature, not incidental.\n- A snapshot is request-scoped, not\
+    \ process-scoped. Cross-request caching is task-134 and carries invalidation obligations\
+    \ this task deliberately does not take on.\n- The API is not the only writer.\
+    \ A snapshot must not outlive the request and let a CLI or hand edit go unseen."
+  out_of_scope: "- Any cross-request or process-level cache \u2014 task-134.\n- Swapping\
+    \ the YAML loader \u2014 task-133.\n- Front-end changes \u2014 task-135."
+  context:
+  - path: src/agentjobs/manager.py
+    why: The four call sites that each re-read the corpus. This is the main multiplier.
+  - path: src/agentjobs/storage.py
+    why: load_all/load_task do the globbing and parsing; the snapshot is built from
+      these.
+  - path: src/agentjobs/api/routes/tasks.py
+    why: _read_tasks calls dependency_facts on every request, which triggers the repeated
+      loads.
+acceptance:
+- id: ac-1
+  text: A test asserts that one API request parses each task file at most once.
+  verify: the test, and that it fails against the pre-change code
+  status: pending
+- id: ac-2
+  text: Before/after numbers from task-131's benchmark are recorded in a progress
+    log entry for /tasks, /tasks/{id}/detail and /dashboard.
+  verify: task log
+  status: pending
+- id: ac-3
+  text: Broken task files are still reported by filename, with a test covering it.
+  verify: pytest
+  status: pending
+- id: ac-4
+  text: A write made by the CLI or by hand between two requests is visible to the
+    second request.
+  verify: test or demonstrated manually against a running server
+  status: pending
+- id: ac-5
+  text: scripts/check.py passes.
+  verify: poetry run python scripts/check.py
+  status: pending
+deliverables: []
+dependencies:
+- task: task-131-benchmark-harness
+  type: needs
+  note: Before/after numbers must come from the benchmark tool.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T00:04:59.374172Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3f1c9a52-6b41-4e0a-9d77-0a1b2c3d4e52
+      kind: create
+      fingerprint: 8199a87e96183949df8a288bd34ae7f3

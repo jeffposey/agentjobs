@@ -1,0 +1,107 @@
+schema: 2
+id: task-135-instant-task-open-in-react
+title: Make opening a task feel instant in the React app
+created: '2026-08-18T00:05:39.686677Z'
+updated: '2026-08-18T00:05:39.687420Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+category: performance
+tags:
+- performance
+- react-frontend
+effort: 1-2 days
+assignment:
+  eligible: []
+parent: task-130-performance-and-responsiveness
+spec:
+  summary: "Clicking a task row is the interaction Jeff reported as taking 5-10 seconds.\
+    \ Measure what the React app actually fetches on that click, then make it render\
+    \ immediately \u2014 target under 500 ms from click to rendered detail."
+  intent: The server-side children reduce the cost of each request, but the felt latency
+    is a property of the interaction, not of any single endpoint. Even with a fast
+    API, a click that waits on a cold sequential fetch before painting anything will
+    still feel slow. This is the child that acceptance criterion ac-2 of the parent
+    is written against.
+  description: "# Click to rendered detail, under 500 ms\n\n## Measure first\n\nBefore\
+    \ changing anything, record what the app actually does when a task row is\nclicked:\
+    \ which requests fire, in what order, whether any are sequential that could be\n\
+    parallel, whether the list is refetched, and what the component renders while\n\
+    waiting. Put that trace in a `progress` entry \u2014 it is the evidence that the\
+    \ fixes\nchosen were the right ones, and a later reader cannot recover it from\
+    \ the diff.\n\n## Likely fixes, to be confirmed by the measurement\n\n- **Seed\
+    \ the detail view from the list row already in cache.** The list response\n  already\
+    \ contains title, status, priority and more. Rendering that instantly and\n  filling\
+    \ in the rest when the detail arrives converts a blank wait into a progressive\n\
+    \  one.\n- **Prefetch on hover or pointer-down.** TanStack Query supports prefetching;\
+    \ a row\n  the pointer is over is a strong signal.\n- **Make sure the 15-second\
+    \ revision poll never blocks or invalidates an in-flight\n  interaction.** A poll\
+    \ that triggers a refetch mid-click would produce exactly the\n  reported symptom.\n\
+    \n## Target\n\nUnder 500 ms from click to rendered detail on the real 112-file\
+    \ corpus, measured by\ntask-131's browser timing. State the before and after in\
+    \ a `progress` entry.\n\nNote the interaction with the server-side children: if\
+    \ this task lands after\ntask-132/133/134, its \"before\" number will already\
+    \ include their wins. Say which\nserver-side changes were in place when each number\
+    \ was taken, so the numbers remain\ninterpretable."
+  constraints: '- Optimistic or seeded rendering must never show stale content as
+    if it were fresh. A partially-rendered task that then fills in is fine; a task
+    whose detail silently disagrees with the server is not.
+
+    - No regression to the revision-poll behaviour that keeps the app current when
+    another agent or the CLI writes a task.
+
+    - Measured with the React app served the way a user gets it (`/app/`), not a dev
+    server, unless the difference is stated.'
+  out_of_scope: "- Server-side parsing and caching work \u2014 task-132, 133, 134.\n\
+    - The legacy Jinja UI.\n- Redesigning the task detail layout. This is latency\
+    \ work, not a visual change."
+  context:
+  - path: frontend/
+    why: The React 19 + TanStack Query app; the list-to-detail interaction under measurement.
+  - path: src/agentjobs/api/routes/tasks.py
+    why: The detail and list endpoints the interaction depends on.
+acceptance:
+- id: ac-1
+  text: A trace of what the app fetches on a task-row click is recorded in the task
+    log before any fix is made.
+  verify: progress entry
+  status: pending
+- id: ac-2
+  text: Click to rendered task detail is under 500 ms on the real corpus.
+  verify: task-131 browser timing, before and after, in the task log
+  status: pending
+- id: ac-3
+  text: The log states which server-side children were merged when each number was
+    taken.
+  verify: task log
+  status: pending
+- id: ac-4
+  text: The revision poll still picks up an external write, and does not disrupt an
+    in-flight interaction.
+  verify: demonstrated against a running server
+  status: pending
+- id: ac-5
+  text: scripts/check.py passes, including the Vitest and Playwright stages.
+  verify: poetry run python scripts/check.py
+  status: pending
+deliverables: []
+dependencies:
+- task: task-131-benchmark-harness
+  type: needs
+  note: The browser click-to-rendered timing comes from the benchmark tool.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T00:05:39.686717Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3f1c9a52-6b41-4e0a-9d77-0a1b2c3d4e55
+      kind: create
+      fingerprint: 0cca03bf6e1a3b0273d31a491ee2af6d

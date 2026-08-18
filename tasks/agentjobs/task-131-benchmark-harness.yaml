@@ -1,0 +1,127 @@
+schema: 2
+id: task-131-benchmark-harness
+title: 'Measure it: a benchmark for API, CLI, and the browser'
+created: '2026-08-18T00:04:30.243862Z'
+updated: '2026-08-18T00:04:30.244580Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+category: performance
+tags:
+- performance
+- tooling
+- api
+- cli
+- react-frontend
+effort: 1 day
+assignment:
+  eligible: []
+parent: task-130-performance-and-responsiveness
+spec:
+  summary: Build a repeatable benchmark covering the API endpoints, the common CLI
+    read commands, and the browser click-to-rendered-task interaction, so every other
+    child of task-130 can state before/after numbers instead of a feeling.
+  intent: This is the gate for the whole performance epic. The parent's decision log
+    relaxes the per-child human review gate in exchange for recorded before/after
+    numbers; those numbers have to come from somewhere trustworthy and identical between
+    runs. Without this tool the relaxed gate has no evidence behind it and the epic
+    degrades into guessing.
+  description: "# A repeatable benchmark\n\nDeliver a script (suggested `scripts/bench.py`)\
+    \ that measures the surfaces named in\ntask-130's measurement table and prints\
+    \ results in a form two runs can be diffed.\n\n## What it must measure\n\n**API**\
+    \ \u2014 against a freshly started server, warmed with one discarded request per\n\
+    endpoint, then N timed iterations reporting p50 and p95:\n\n- `GET /api/projects`\n\
+    - `GET /api/projects/{p}/dashboard`\n- `GET /api/projects/{p}/tasks`\n- `GET /api/projects/{p}/tasks/{id}/detail`\n\
+    - `GET /api/projects/{p}/search?q=...`\n- `GET /api/projects/{p}/revision`\n\n\
+    **CLI** \u2014 cold process, including interpreter startup, since that is what\
+    \ a user\nfeels: at minimum `agentjobs list --lifecycle ready`, plus `show` and\
+    \ `next`.\n\n**Browser** \u2014 a Playwright-driven click on a task row in the\
+    \ React list, timed from\nclick to the detail content being rendered. This is\
+    \ the number acceptance criterion\nac-2 of the parent is written against, so it\
+    \ must measure the rendered result, not\nthe network response.\n\n## Requirements\n\
+    \n- **Print the corpus size** (file count and total bytes) in the report header.\
+    \ Two\n  runs are only comparable if the corpus is stated; the real backlog grows.\n\
+    - Accept a target corpus: the real `tasks/` directory, or a generated synthetic\
+    \ one\n  of stated size. task-136 will need the synthetic mode for stable budgets,\
+    \ so build\n  the seam now rather than retrofitting it.\n- Output both human-readable\
+    \ text and a machine-readable form (JSON) so a later run\n  can be diffed against\
+    \ a stored baseline.\n- Be runnable on demand and NOT part of `scripts/check.py`\
+    \ yet \u2014 budgets land in\n  task-136. This task delivers measurement, not\
+    \ enforcement.\n\n## Server-side attribution\n\nAlso add per-request server-side\
+    \ timing so a slow request can be attributed without\nattaching a profiler: a\
+    \ response header (e.g. `X-Response-Time-Ms`) or a structured\nlog line per request,\
+    \ whichever fits the existing FastAPI middleware layout. Where it\nis cheap to\
+    \ do so, include a count of task files parsed during the request \u2014 that\n\
+    count is the signal task-132 and task-136 are really about, and it is stable across\n\
+    machines in a way wall-clock is not.\n\n## Documentation\n\nA short section in\
+    \ the repo docs saying how to run it, what the numbers mean, and how\nto produce\
+    \ a before/after pair. The other five children will follow it."
+  constraints: '- The benchmark must not mutate the real task corpus. Read-only against
+    `tasks/`, or operating on a generated copy.
+
+    - Start its own server on its own port; never assume or reuse the running instance
+    on 8876, whose state and warmth are not controlled by the run.
+
+    - Numbers must be reproducible on the same machine: fixed iteration counts, explicit
+    warmup, no dependence on which test ran first.'
+  out_of_scope: "- Fixing any of the measured slowness. That is task-132 through task-135.\n\
+    - Adding budgets or failing a build on a threshold \u2014 task-136.\n- Cross-machine\
+    \ comparability of wall-clock numbers. Stated corpus size plus same-machine reproducibility\
+    \ is enough for this epic."
+  context:
+  - path: scripts/check.py
+    why: The existing repository gate, and the model for how a repo script is structured
+      and invoked.
+  - path: src/agentjobs/api/routes/tasks.py
+    why: The endpoints under measurement; also where per-request timing/attribution
+      middleware would attach.
+  - path: tests/
+    why: Existing Playwright usage in the suite is the pattern to follow for the browser
+      timing.
+acceptance:
+- id: ac-1
+  text: A single command produces a report covering all six API endpoints, the CLI
+    read commands, and the browser click-to-rendered-task timing, with p50 and p95.
+  verify: run it and paste the report into the task log
+  status: pending
+- id: ac-2
+  text: The report header states the corpus file count and total bytes.
+  verify: report output
+  status: pending
+- id: ac-3
+  text: The benchmark can run against either the real corpus or a generated synthetic
+    corpus of specified size.
+  verify: both invocations demonstrated in the log
+  status: pending
+- id: ac-4
+  text: Machine-readable output exists so before/after runs can be compared mechanically.
+  verify: JSON output sample in the log
+  status: pending
+- id: ac-5
+  text: A slow request can be attributed server-side without a profiler, via response
+    header or structured log, including files parsed where feasible.
+  verify: demonstrate on GET /dashboard
+  status: pending
+- id: ac-6
+  text: How to run it and how to produce a before/after pair is documented in the
+    repo.
+  verify: docs diff
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T00:04:30.243905Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3f1c9a52-6b41-4e0a-9d77-0a1b2c3d4e51
+      kind: create
+      fingerprint: d177883d81c7c71b4e2fba14c7210eb7

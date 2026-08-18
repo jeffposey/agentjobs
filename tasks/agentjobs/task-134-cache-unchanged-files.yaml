@@ -1,0 +1,129 @@
+schema: 2
+id: task-134-cache-unchanged-files
+title: Stop re-reading files that have not changed
+created: '2026-08-18T00:06:13.455058Z'
+updated: '2026-08-18T00:06:13.455786Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: performance
+tags:
+- performance
+- storage
+- api
+effort: 1-2 days
+assignment:
+  eligible: []
+parent: task-130-performance-and-responsiveness
+spec:
+  summary: "A process-level cache keyed on file identity, so requests stop re-parsing\
+    \ task files that have not changed on disk \u2014 and so the 15-second revision\
+    \ poll stops re-reading 1.1 MB per client to answer \"has anything changed\"."
+  intent: 'task-132 makes one request parse each file once; this makes the second
+    request parse almost nothing. It also fixes the poll: project_revision() currently
+    hashes the full contents of every task file, and the React app calls it every
+    15 seconds per client, so an idle app with two devices open re-reads the whole
+    corpus continuously.'
+  description: "# Cache on file identity\n\n## Two problems, one mechanism\n\n**Repeated\
+    \ parses across requests.** After task-132, one request parses the corpus\nonce.\
+    \ It still parses it again on the next request, even though almost nothing\nchanged.\
+    \ A process-level cache keyed on file identity \u2014 path plus mtime plus size,\
+    \ or\nwhatever proves reliable here \u2014 turns a re-read into a stat.\n\n**The\
+    \ revision poll reads every byte.** `TaskStorage.project_revision()`\n(`src/agentjobs/storage.py:95`)\
+    \ hashes the full contents of every task file. Measured\nat 0.23 s, polled every\
+    \ 15 seconds by every connected client. The question it answers\nis only \"has\
+    \ anything changed\", which does not require reading contents.\n\n## The hard\
+    \ part is invalidation, not caching\n\n**The API is not the only writer.** The\
+    \ CLI writes task files. Git checkouts rewrite\nthem wholesale \u2014 that is\
+    \ a normal event in this repository, and it is exactly the case\nwhere mtime granularity\
+    \ can betray you, since a checkout can produce many files with\nnear-identical\
+    \ timestamps. People hand-edit YAML. A cache that misses any of these\nserves\
+    \ a stale task record, which is a worse bug than a slow app.\n\nDecide and record,\
+    \ as a `decision` entry with its rejected alternative:\n\n- what identity key\
+    \ is used, and why it is trusted\n- the filesystem timestamp granularity actually\
+    \ observed on this platform, measured\n  rather than assumed\n- what happens on\
+    \ a file that is deleted, added, or renamed\n- whether the cache is bounded, and\
+    \ what evicts\n\nPrefer a key that cannot silently collide. If mtime resolution\
+    \ turns out to be too\ncoarse to distinguish two writes within the same tick,\
+    \ say so and pick something that\nsurvives it.\n\n## Verification that would actually\
+    \ catch the bug\n\nTests that write a file behind the cache's back \u2014 through\
+    \ the CLI, and by direct file\nwrite \u2014 and assert the next read sees the\
+    \ new content. A test that only exercises the\ncache through the API cannot catch\
+    \ the multi-writer failure, which is the whole risk\nof this task.\n\nRecord before/after\
+    \ from task-131's tool, including the revision endpoint, before\nmerging."
+  constraints: '- A stale cache must never serve a task record that has changed on
+    disk. This outranks every performance goal in this task.
+
+    - The revision signal must still notice writes made by the CLI, by git, and by
+    hand editing.
+
+    - Broken task files must still be reported by filename.
+
+    - Do not build a persistent on-disk index or a database. The one-file-per-task
+    git-friendly design is the product (see task-130 out_of_scope); this is an in-process
+    cache only.'
+  out_of_scope: "- Replacing YAML with a database or derived index.\n- Watching the\
+    \ filesystem with a native watcher, unless the decision log explains why polling\
+    \ identity is insufficient.\n- Front-end caching \u2014 task-135."
+  context:
+  - path: src/agentjobs/storage.py
+    why: load_all/load_task are the read path; project_revision at ~line 95 hashes
+      every byte on every poll.
+  - path: src/agentjobs/manager.py
+    why: The consumers of the read path, and where a snapshot from task-132 will source
+      its data.
+acceptance:
+- id: ac-1
+  text: Repeat requests over an unchanged corpus do not re-parse task files.
+  verify: parse-count test across two successive requests
+  status: pending
+- id: ac-2
+  text: A write by the CLI, by git checkout, and by direct file edit are each seen
+    by the next read.
+  verify: tests covering all three paths
+  status: pending
+- id: ac-3
+  text: project_revision() no longer reads the full contents of every file, and still
+    changes when any file changes, is added, deleted or renamed.
+  verify: test plus before/after benchmark of GET /revision
+  status: pending
+- id: ac-4
+  text: A decision entry records the identity key, the measured filesystem timestamp
+    granularity, eviction, and the rejected alternative.
+  verify: task log
+  status: pending
+- id: ac-5
+  text: Before/after numbers from task-131's benchmark are recorded in a progress
+    log entry.
+  verify: task log
+  status: pending
+- id: ac-6
+  text: scripts/check.py passes.
+  verify: poetry run python scripts/check.py
+  status: pending
+deliverables: []
+dependencies:
+- task: task-132-single-corpus-load-per-request
+  type: needs
+  note: Caching layers onto the single-load seam; building it first would mean building
+    it twice.
+- task: task-133-libyaml-loader
+  type: needs
+  note: Parse cost should be measured post-libyaml so the cache is sized against real
+    remaining cost.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T00:06:13.455101Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3f1c9a52-6b41-4e0a-9d77-0a1b2c3d4e54
+      kind: create
+      fingerprint: 3195f9dc87d1325c62137df3354a0342

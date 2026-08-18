@@ -1,0 +1,103 @@
+schema: 2
+id: task-133-libyaml-loader
+title: Parse YAML with libyaml
+created: '2026-08-18T00:05:17.686231Z'
+updated: '2026-08-18T00:05:17.687032Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: performance
+tags:
+- performance
+- storage
+effort: hours
+assignment:
+  eligible: []
+parent: task-130-performance-and-responsiveness
+spec:
+  summary: storage.load_task uses PyYAML's pure-Python loader. Switching to the libyaml-backed
+    CSafeLoader, with a visible fallback when the C extension is absent, is a measured
+    ~10x parsing win for a near-one-line change.
+  intent: 'Small, low-risk, and near-independent of task-132: one cuts the number
+    of parses, this one cuts the cost of each parse, and the two multiply. Measured
+    over the real 112-file corpus before this task was written: 0.81 s with the pure-Python
+    loader, 0.075 s with libyaml.'
+  description: "# Use CSafeLoader\n\n`TaskStorage.load_task()` calls `yaml.safe_load`\
+    \ (`src/agentjobs/storage.py:155`),\nwhich is PyYAML's pure-Python parser. libyaml\
+    \ is already installed and importable in\nthis environment.\n\nMeasured over the\
+    \ real corpus (2026-08-17):\n\n| Loader | Time |\n| --- | --- |\n| `yaml.safe_load`\
+    \ (pure Python) | 0.81 s |\n| `yaml.load(..., Loader=CSafeLoader)` | 0.075 s |\n\
+    \n## The change\n\nUse `CSafeLoader` when it imports, fall back to `SafeLoader`\
+    \ when it does not, and\napply the same treatment to dumping (`CSafeDumper`) if\
+    \ task files are written through\nPyYAML \u2014 a faster read path with an unchanged\
+    \ write path is fine, but check rather\nthan assume.\n\n**Make the fallback visible.**\
+    \ A silent fallback turns a 10x regression into a\nmystery: an install without\
+    \ the C extension would simply be slow, with nothing\nanywhere saying why. Surface\
+    \ it once at startup or expose it in whatever\ndiagnostics/version output already\
+    \ exists, and have the benchmark report which loader\nis in use so a before/after\
+    \ pair cannot be accidentally compared across loaders.\n\n## Round-tripping\n\n\
+    Confirm the C loader parses the existing corpus identically: same values, same\
+    \ types,\nand unchanged behaviour on timestamps, unicode, multi-line strings and\
+    \ the empty\ndocument. A parity test over the real corpus (every file loads to\
+    \ the same structure\nunder both loaders) is cheap and is the check that matters\
+    \ here.\n\nRecord before/after from task-131's tool before merging."
+  constraints: '- The pure-Python fallback must keep working; the C extension is not
+    guaranteed on every install.
+
+    - The fallback must not be silent.
+
+    - No behavioural change to what is parsed. If the two loaders disagree anywhere
+    in the real corpus, that disagreement is the finding and must be logged before
+    proceeding.'
+  out_of_scope: "- Reducing how often files are parsed \u2014 task-132.\n- Caching\
+    \ parsed results across requests \u2014 task-134.\n- Changing the YAML schema\
+    \ or the on-disk format."
+  context:
+  - path: src/agentjobs/storage.py
+    why: load_task calls yaml.safe_load at roughly line 155; the dump path lives here
+      too.
+acceptance:
+- id: ac-1
+  text: CSafeLoader is used when available, with a working pure-Python fallback.
+  verify: test forcing both paths
+  status: pending
+- id: ac-2
+  text: Which loader is in use is discoverable at runtime and is stated in the benchmark
+    report.
+  verify: run output
+  status: pending
+- id: ac-3
+  text: A parity test shows every file in the real corpus loads identically under
+    both loaders.
+  verify: pytest
+  status: pending
+- id: ac-4
+  text: Before/after numbers from task-131's benchmark are recorded in a progress
+    log entry.
+  verify: task log
+  status: pending
+- id: ac-5
+  text: scripts/check.py passes.
+  verify: poetry run python scripts/check.py
+  status: pending
+deliverables: []
+dependencies:
+- task: task-131-benchmark-harness
+  type: needs
+  note: Before/after numbers must come from the benchmark tool.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T00:05:17.686282Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3f1c9a52-6b41-4e0a-9d77-0a1b2c3d4e53
+      kind: create
+      fingerprint: afcb09ba8d58ebb2c426f3b8f52bb0ce
