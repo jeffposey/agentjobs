@@ -45,6 +45,12 @@ export const NON_TASK_PROJECT_QUERY_IDS = new Map([
     "getWebhookApiProjectsProjectIdWebhooksWebhookIdGet",
     "Same as the webhook list: configuration, unaffected by task writes.",
   ],
+  [
+    "getAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGet",
+    "An attachment is content-addressed -- its filename is the hash of its bytes -- so "
+      + "the response for a given URL can never change. It is also rendered by the "
+      + "browser as an <img> rather than fetched through the query client.",
+  ],
 ]);
 
 type GeneratedQueryKey = {

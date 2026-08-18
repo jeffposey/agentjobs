@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
-import type { TaskDetailResponse, TaskRead } from "../api/types";
+import type { AttachmentUpload, TaskDetailResponse, TaskRead } from "../api/types";
 import { TaskDetail } from "./TaskDetail";
 
 function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {
@@ -54,7 +54,11 @@ const detail: TaskDetailResponse = {
 function renderDetail(value = detail, extra: { promoteError?: string | null; promoteBusy?: boolean } = {}) {
   const actions = {
     onApprove: vi.fn(async () => undefined),
-    onRequestChanges: vi.fn(async () => undefined),
+    // Typed with its parameters so a test can read back what the panel sent, not just
+    // that it was called.
+    onRequestChanges: vi.fn(
+      async (_feedback: string, _attachments: Array<AttachmentUpload>) => undefined,
+    ),
     onReject: vi.fn(async () => undefined),
     onPromote: vi.fn(async () => undefined),
   };
@@ -133,7 +137,7 @@ describe("TaskDetail resumption contract", () => {
     fireEvent.click(screen.getByRole("button", { name: /Request Changes/ }));
     fireEvent.change(screen.getByLabelText("Feedback or questions"), { target: { value: "Tighten the layout." } });
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
-    await waitFor(() => expect(actions.onRequestChanges).toHaveBeenCalledWith("Tighten the layout."));
+    await waitFor(() => expect(actions.onRequestChanges).toHaveBeenCalledWith("Tighten the layout.", []));
   });
 
   it("blocks every review action when identity is unclear", () => {
@@ -201,13 +205,74 @@ describe("TaskDetail action panel speaks the phase it is in", () => {
     expect(actions.onApprove).not.toHaveBeenCalled();
   });
 
+  it("sends a pasted screenshot along with the feedback it evidences", async () => {
+    const actions = renderDetail();
+
+    fireEvent.click(screen.getByRole("button", { name: /Request Changes/ }));
+    const box = screen.getByRole("textbox", { name: "Feedback or questions" });
+    fireEvent.change(box, { target: { value: "The badge shows the enum name." } });
+    // No file picker in this path: a screenshot arrives as a blob on the paste event.
+    fireEvent.paste(box, {
+      clipboardData: {
+        items: [
+          {
+            kind: "file",
+            getAsFile: () => new File([new Uint8Array(8)], "badge.png", { type: "image/png" }),
+          },
+        ],
+        files: [],
+      },
+    });
+
+    await screen.findByRole("list", { name: "Attached images" });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await waitFor(() => expect(actions.onRequestChanges).toHaveBeenCalled());
+    const call = actions.onRequestChanges.mock.calls[0]!;
+    expect(call[0]).toBe("The badge shows the enum name.");
+    expect(call[1]).toHaveLength(1);
+    expect(call[1][0]?.label).toBe("badge.png");
+  });
+
+  it("shows an entry's images where the entry is read, not as bare links", () => {
+    renderDetail({
+      ...detail,
+      task: task("task-detail", {
+        parent: "task-parent",
+        log: [
+          {
+            id: 1,
+            ts: "2026-08-17T09:00:00Z",
+            actor: "Jeff Posey",
+            type: "handoff",
+            body: "Changes requested: the badge shows the enum name.",
+            attachments: [
+              {
+                path: "attachments/task-detail/abc123.png",
+                media_type: "image/png",
+                sha256: "abc123",
+                size_bytes: 2048,
+                label: "The badge",
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    const image = screen.getByRole("img", { name: "The badge" });
+    expect(image).toHaveAttribute(
+      "src",
+      "/api/projects/inbox/tasks/task-detail/attachments/abc123.png",
+    );
+  });
+
   it("still sends feedback and rejections through the unchanged actions on a draft", async () => {
     const actions = renderDetail(draftDetail);
 
     fireEvent.click(screen.getByRole("button", { name: /Send feedback/ }));
     fireEvent.change(screen.getByLabelText("Feedback on the spec"), { target: { value: "Acceptance is vague." } });
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
-    await waitFor(() => expect(actions.onRequestChanges).toHaveBeenCalledWith("Acceptance is vague."));
+    await waitFor(() => expect(actions.onRequestChanges).toHaveBeenCalledWith("Acceptance is vague.", []));
 
     fireEvent.click(screen.getByRole("button", { name: /Reject & Archive/ }));
     fireEvent.change(screen.getByLabelText("Reason for rejection"), { target: { value: "Superseded." } });
