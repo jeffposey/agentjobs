@@ -2,32 +2,9 @@ schema: 2
 id: task-067-attachments-on-feedback
 title: Attach images to feedback and issue reports, primarily by clipboard paste
 created: '2026-08-10T23:31:30.455098Z'
-updated: '2026-08-18T04:00:59.938421Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Second review round. Same server, no restart needed: http://127.0.0.1:8899/app/\
-  \ \u2014 it reads the bundle from disk, so the rebuild is already live and your\
-  \ sandbox data is intact.\n\n**Your finding:** opening Report Issue, there was no\
-  \ way to attach a screenshot. The affordance was on screen at the time \u2014 one\
-  \ line of muted 12px text between two fields \u2014 which is the same as not existing.\
-  \ You were right, and the fix is not an argument about whether the text was there.\n\
-  \n**Changed:**\n\n1. A bordered, button-shaped **\U0001F5BC Attach a screenshot**\
-  \ control at readable contrast, under the box in both surfaces.\n2. The shortcut\
-  \ sits beside it, with Ctrl and V as `<kbd>` rather than buried in a sentence.\n\
-  3. The paste hint is also the textarea's placeholder \u2014 where the cursor already\
-  \ is when someone has a screenshot to give.\n4. Restored a regression I introduced:\
-  \ the review panel's feedback placeholder (\"Explain what needs to change...\")\
-  \ was lost when its plain textarea became the shared picker.\n\nOpen Report Issue\
-  \ and confirm the control reads as one. Then the same on `/app/p/review-sandbox/tasks/task-001-badge-shows-enum`\
-  \ under Request Changes, since it is the same component.\n\nSuites still green after\
-  \ the change: 91 vitest, 10 Playwright.\n\nYour framing \u2014 that this is a class\
-  \ of defect an agent does not get right unaided, and that making the correction\
-  \ cheap is the point of the feature set \u2014 is recorded on task-120, together\
-  \ with what it implies for task-121: the measure is not whether many issues can\
-  \ be filed at once, but whether filing beats saying it out loud. This finding reached\
-  \ me through chat despite the reporter being open on screen, which is the friction\
-  \ still left."
+updated: '2026-08-18T04:26:12.368416Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: ux
@@ -39,7 +16,6 @@ tags:
 - workflow
 effort: half a day
 assignment:
-  owner: claude
   eligible: []
 parent: task-120-issue-reporter-workflow
 spec:
@@ -166,7 +142,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-067-attachments-on-feedback
-  status: active
+  status: merged
+  merged_at: '2026-08-18T04:30:00Z'
 log:
 - id: 1
   ts: '2026-08-11T06:05:20.530167Z'
@@ -410,3 +387,56 @@ log:
       id: b5d70c48-3e21-4a96-8f14-6d2e93a1c70b
       kind: handoff
       fingerprint: b4f0f77b0a187b958bdcf932f00deaf2
+- id: 11
+  ts: '2026-08-18T04:25:55.261127Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 1e4b90d7-52c8-4a63-b6f1-3c07a5e29d81
+      kind: update_content
+      fingerprint: 26dbae072d741576a42a20df9c2ed0d4
+- id: 12
+  ts: '2026-08-18T04:26:12.368262Z'
+  actor: claude
+  type: transition
+  body: "Merged into main with --no-ff after explicit approval from Jeff.\n\nA screenshot\
+    \ pasted into feedback or an issue report is stored as a sidecar image beside\
+    \ the tasks and rendered where the entry that cites it is read. The task file\
+    \ keeps five metadata fields and no base64, which is the property the storage\
+    \ decision existed to protect.\n\n**Verified by Jeff, by hand, on the real path.**\
+    \ He filed an issue in the sandbox with a pasted screenshot, opened the created\
+    \ task, and saw the image. Then he opened Request Changes on a second task and\
+    \ confirmed the paste worked there too. That covers the chain no test fully vouches\
+    \ for \u2014 clipboard through base64 through a sidecar file and back out as rendered\
+    \ pixels \u2014 and it is the verification that decided this task, not the suite.\n\
+    \n**One review round, and it was the right one.** He opened the Report Issue form\
+    \ and said there was no way to attach a screenshot, while the sentence explaining\
+    \ how to attach one was on screen. It was a line of muted 12px text between two\
+    \ fields. The feature worked and the affordance did not exist, which are not the\
+    \ same claim; the fix was a bordered, button-shaped control at readable contrast,\
+    \ the shortcut in `<kbd>` beside it, and the paste hint moved into the textarea\
+    \ placeholder where the cursor already is. That round also caught a regression\
+    \ I had introduced: the review panel lost its feedback placeholder when its plain\
+    \ textarea became the shared picker.\n\nRecorded on task-120, because it says\
+    \ something about the epic rather than this task: the judgement being made \u2014\
+    \ whether something reads as a control \u2014 is one an agent will not reliably\
+    \ make unaided, and the value of this feature set is that correcting it costs\
+    \ almost nothing. The finding itself still arrived through chat with the reporter\
+    \ open on screen, which is the friction task-121 has left to remove.\n\nAlso fixed,\
+    \ in its own commit: `create-task.spec.ts` reached the create form through the\
+    \ dashboard's empty-state call-to-action, so it silently required running before\
+    \ every other spec. A new spec file sorting ahead of it broke that assumption.\n\
+    \nLeft deliberately undone, with reasoning in the decision log: no paste target\
+    \ on the rejection box, and orphaned sidecars are reported by `agentjobs attachments\
+    \ --orphans` but never deleted."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 0b8d3f47-6a92-4e15-b73c-91f2c0a6e58d
+      kind: close
+      fingerprint: 94491d0429f80c70167e79ca072acbd8
