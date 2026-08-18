@@ -8,6 +8,7 @@ the reachable execution surface exactly as wide as that hand-written file says.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -126,3 +127,90 @@ class TestDispatchCli:
 
         assert result.exit_code == 0, result.output
         assert SENTINEL_FILENAME in result.output
+
+
+class TestDispatchRun:
+    """`agentjobs dispatch run` reports the specific gate, not a generic failure.
+
+    The guard chain itself is tested in test_dispatch_guards.py; what matters here is
+    that the CLI surfaces *which* gate refused, because "dispatch is off" and "that was
+    an agent's handoff" need different things done about them.
+    """
+
+    def test_refuses_and_names_the_gate_when_nothing_is_configured(self, tmp_path: Path) -> None:
+        root = self.make_project(tmp_path, "alpha")
+        task_id = self.seed(root)
+
+        result = runner.invoke(app, ["dispatch", "run", task_id, "--project", "alpha"])
+
+        assert result.exit_code == 1
+        assert "not_configured" in result.output
+
+    def test_refuses_an_agent_caused_dispatch_by_name(self, tmp_path: Path) -> None:
+        root = self.make_project(tmp_path, "alpha")
+        task_id = self.seed(root, last_actor="claude")
+        write_config(
+            runners={"fake": {"argv": [sys.executable, "-c", "print(1)", "{prompt}"]}},
+            projects={"alpha": {"enabled": True, "runner": "fake"}},
+        )
+
+        result = runner.invoke(app, ["dispatch", "run", task_id, "--project", "alpha"])
+
+        assert result.exit_code == 1
+        assert "not_human_clocked" in result.output
+
+    def test_an_unknown_project_is_refused_before_anything_else(self, tmp_path: Path) -> None:
+        result = runner.invoke(app, ["dispatch", "run", "task-001", "--project", "nope"])
+
+        assert result.exit_code == 1
+        assert "Unknown project" in result.output
+
+    # ----- helpers -----
+
+    def make_project(self, tmp_path: Path, project_id: str) -> Path:
+        """A registered project with the actor vocabulary the rule reads."""
+        root = tmp_path / project_id
+        (root / ".agentjobs").mkdir(parents=True, exist_ok=True)
+        (root / ".agentjobs" / "config.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "project_name": project_id,
+                    "tasks_directory": "tasks",
+                    "actors": [
+                        {"name": "Jeff Posey", "kind": "human"},
+                        {"name": "claude", "kind": "agent"},
+                    ],
+                    "default_user": "Jeff Posey",
+                }
+            ),
+            encoding="utf-8",
+        )
+        ProjectRegistry(home=home()).add(root, project_id=project_id)
+        return root
+
+    def seed(self, root: Path, *, last_actor: str = "Jeff Posey") -> str:
+        """A ready task whose newest entry belongs to ``last_actor``."""
+        from agentjobs.manager import TaskManager
+        from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType
+        from agentjobs.storage import TaskStorage
+
+        manager = TaskManager(TaskStorage(root / "tasks"))
+        task = manager.create_task(
+            title="Dispatchable",
+            category="general",
+            summary="s",
+            description="d",
+            lifecycle=Lifecycle.READY,
+            actor="Jeff Posey",
+        )
+        if last_actor == "Jeff Posey":
+            manager.add_log_entry(task.id, actor=last_actor, type=LogEntryType.NOTE, body="Go.")
+        else:
+            manager.handoff(
+                task.id,
+                actor=last_actor,
+                ball=Ball.HUMAN,
+                ball_reason=BallReason.REVIEW,
+                ball_prompt="Review please.",
+            )
+        return task.id

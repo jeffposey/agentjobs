@@ -21,6 +21,8 @@ from .dispatch.config import (
     sentinel_path,
     set_project_enabled,
 )
+from .dispatch.guards import DispatchRequest, dispatch_task
+from .dispatch.runner import DispatchRunError
 from .manager import TaskManager
 from .mcp.config import BASE_URL_ENV as MCP_BASE_URL_ENV
 from .mcp.config import TIMEOUT_ENV as MCP_TIMEOUT_ENV
@@ -855,6 +857,45 @@ def dispatch_disable(
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
     typer.echo(f"✅ Dispatch disabled for '{project_id}'.")
+
+
+@dispatch_app.command("run")
+def dispatch_run(
+    task_id: str = typer.Argument(..., help="Task to start an agent on."),
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Registered project id. Defaults to the one you are in."
+    ),
+    caused_by: Optional[int] = typer.Option(
+        None,
+        "--caused-by",
+        help="Log entry authorising this run. Defaults to the newest; must be a human's.",
+    ),
+) -> None:
+    """Start an agent on a task, if every gate permits it."""
+    registry = ProjectRegistry()
+    try:
+        project = registry.get(project_id) if project_id else registry.resolve_default()
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    manager = TaskManager(TaskStorage(project.tasks_dir()))
+    try:
+        handle = dispatch_task(
+            manager=manager,
+            project=project,
+            project_config=project.load_config(),
+            request=DispatchRequest(task_id=task_id, caused_by=caused_by),
+        )
+    except (DispatchError, DispatchRunError) as exc:
+        reason = getattr(exc, "reason", "dispatch_failed")
+        typer.secho(f"Refused ({reason}): {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(f"✅ Dispatched {task_id} as run {handle.run_id} ({handle.mode.value}).")
+    if handle.session_id:
+        typer.echo(f"   Session {handle.session_id} — the CLI assigned that id, not us.")
+    typer.echo(f"   Run directory: {handle.directory.path}")
 
 
 @dispatch_app.command("config")
