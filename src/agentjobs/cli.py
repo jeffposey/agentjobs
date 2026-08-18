@@ -19,7 +19,7 @@ from .migration.reporter import MigrationReporter
 from .models_v2 import Ball, Lifecycle, Outcome, Priority
 from .project_setup import DEFAULT_CONFIG, build_project_config, initialize_project
 from .projects import ProjectError, ProjectRegistry
-from .storage import TaskStorage
+from .storage import TaskStorage, corpus_snapshot
 
 
 def _make_output_encoding_safe() -> None:
@@ -57,6 +57,28 @@ app = typer.Typer(
 
 CONFIG_DIR = Path(".agentjobs")
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
+
+
+@app.callback()
+def _scope_one_invocation(ctx: typer.Context) -> None:
+    """Parse each task file at most once per CLI invocation.
+
+    A command like ``list`` used to walk the corpus several times for one answer, for
+    the same reason the API did: the dependency computations each went back to storage
+    independently. One invocation is one logical read, so it gets one scope.
+
+    Entered here and closed through Click's ``call_on_close`` rather than wrapping the
+    console-script entry point, so it applies identically however the app is invoked --
+    the installed ``agentjobs`` command, ``python -m agentjobs.cli``, and the test
+    runner's CliRunner, which calls ``app()`` directly and would otherwise never
+    exercise this path.
+
+    Writes drop the snapshot, so a command that mutates and then reads sees its own
+    write.
+    """
+    scope = corpus_snapshot()
+    scope.__enter__()
+    ctx.call_on_close(lambda: scope.__exit__(None, None, None))
 
 
 def _load_config(base_dir: Path) -> dict:

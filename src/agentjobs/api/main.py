@@ -14,7 +14,7 @@ from starlette import status
 from agentjobs.__version__ import __version__
 from agentjobs.instrumentation import reset_task_parses, task_parse_count
 from agentjobs.projects import ProjectError
-from agentjobs.storage import TaskLoadError
+from agentjobs.storage import TaskLoadError, corpus_snapshot
 
 from .routes import (
     PROJECT_SCOPED_ROUTERS,
@@ -62,7 +62,12 @@ async def measure_request(request: Any, call_next: Any) -> Any:
     """
     reset_task_parses()
     started = time.perf_counter()
-    response = await call_next(request)
+    # One parse of the corpus per request. The scope is entered here, around the whole
+    # request, because that is the widest window in which the answer has to be
+    # self-consistent and the narrowest one that fixes the repeated walks -- see
+    # storage.corpus_snapshot for why it is not process-wide.
+    with corpus_snapshot():
+        response = await call_next(request)
     elapsed_ms = (time.perf_counter() - started) * 1000
     response.headers[MEASUREMENT_HEADER] = f"{elapsed_ms:.1f}"
     response.headers[PARSE_COUNT_HEADER] = str(task_parse_count())
