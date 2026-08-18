@@ -378,7 +378,15 @@ class DispatchLedger:
         return result
 
     def _stop(self, record: RunRecord) -> StopResult:
-        """Ask a run to stop. Session mode delegates; batch mode signals."""
+        """Ask a run to stop. Session mode delegates; batch mode signals.
+
+        The flag goes down **before** anything is killed, and that order is the whole
+        point. A batch run's supervisor is blocked in ``wait()`` until the kill, so it
+        cannot reach its own terminal write before the flag exists -- and when it wakes
+        to a non-zero exit it defers instead of overwriting this cancellation with
+        ``failed``. Writing the flag afterwards would leave exactly the race it removes.
+        """
+        write_status(record, cancel_requested=True)
         if record.is_session:
             return self._stop_session(record)
         return self._stop_batch(record)

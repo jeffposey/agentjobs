@@ -1141,8 +1141,26 @@ class DispatchRunner:
         Guarded so the supervisor cannot write two: if this raises, the run is left
         marked running and startup reconciliation will call it ``interrupted``, which is
         wrong but recoverable. Writing two contradictory terminal entries would not be.
+
+        ``cancel_requested`` is checked separately from the terminal statuses because it
+        settles a race the status alone cannot. Killing a batch run wakes this
+        supervisor, which sees a non-zero exit and quite reasonably calls it ``failed``;
+        the ledger meanwhile writes ``cancelled``. Both are read-modify-writes of the
+        same meta file and either can land last, so a run the human cancelled was
+        reported as failed roughly half the time -- observed while building the GUI's
+        cancel button, which shows that word to a human who has just pressed Cancel.
+        The ledger sets the flag **before** it kills, and this supervisor is blocked in
+        ``wait()`` until then, so the flag is always visible here by the time it matters.
         """
-        if handle.directory.read_meta().get("status") in {"finished", "cancelled", "failed"}:
+        meta = handle.directory.read_meta()
+        if meta.get("cancel_requested"):
+            # Someone asked for this to stop and owns the terminal entry. Release the
+            # lock anyway: the run is over either way, and a lock left behind refuses
+            # every future dispatch at this task with "a run is already live".
+            handle.release_lock()
+            return
+        if meta.get("status") in {"finished", "cancelled", "failed"}:
+            handle.release_lock()
             return
 
         duration = None
