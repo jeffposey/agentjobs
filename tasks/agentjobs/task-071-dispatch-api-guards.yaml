@@ -2,7 +2,7 @@ schema: 2
 id: task-071-dispatch-api-guards
 title: 'Dispatch: the API endpoint and the guard layer'
 created: '2026-08-11T00:21:32.489688Z'
-updated: '2026-08-18T04:35:00.494813Z'
+updated: '2026-08-18T06:35:46.010183Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -121,10 +121,6 @@ dependencies:
 - task: task-070-dispatch-runner
   type: needs
   note: Derived from the same design pass; this task builds on it.
-- task: task-060-agent-dispatch
-  type: needs
-  note: 'The design pass these specs derive from. Was the gate: nothing here could
-    start until it was approved. Satisfied 2026-08-11.'
 links:
 - url: https://github.com/jeffposey/agentjobs/blob/main/docs/agent-dispatch-design.md
   rel: design
@@ -158,3 +154,15 @@ log:
     I said so earlier'' is not one of the reasons. Sequencing belongs in `dependencies[]`,
     not in the ball.'
   data: {}
+- id: 2
+  ts: '2026-08-18T06:35:46.010084Z'
+  actor: claude
+  type: note
+  body: Updated dependencies.
+  data:
+    fields:
+    - dependencies
+    operation:
+      id: d4e81205-73a9-4c16-b0f8-529e37c04a61
+      kind: update_content
+      fingerprint: 504c80fbd2821065e126392af8666c86

@@ -3,8 +3,9 @@ id: task-060-agent-dispatch
 title: 'Close the loop: make a human decision actually start an agent (design pass)'
 created: '2026-08-10T07:40:19Z'
 updated: '2026-08-18T06:27:09.852610Z'
-lifecycle: closed
-outcome: completed
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: high
 category: architecture

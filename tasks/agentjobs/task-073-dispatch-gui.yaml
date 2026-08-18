@@ -2,7 +2,7 @@ schema: 2
 id: task-073-dispatch-gui
 title: 'Dispatch in the web UI: the button, the run, and the toggle'
 created: '2026-08-11T00:21:32.502467Z'
-updated: '2026-08-18T04:35:00.532441Z'
+updated: '2026-08-18T06:36:00.316483Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -115,10 +115,6 @@ dependencies:
 - task: task-072-dispatch-ledger-cancel
   type: needs
   note: Derived from the same design pass; this task builds on it.
-- task: task-060-agent-dispatch
-  type: needs
-  note: 'The design pass these specs derive from. Was the gate: nothing here could
-    start until it was approved. Satisfied 2026-08-11.'
 links:
 - url: https://github.com/jeffposey/agentjobs/blob/main/docs/agent-dispatch-design.md
   rel: design
@@ -160,3 +156,15 @@ log:
     with the packaged React component or shared Python logic that owns the current
     product surface. Historical design context remains unchanged.'
   data: {}
+- id: 3
+  ts: '2026-08-18T06:36:00.316369Z'
+  actor: claude
+  type: note
+  body: Updated dependencies.
+  data:
+    fields:
+    - dependencies
+    operation:
+      id: 0b93f157-4e26-48ac-b31d-7f60a2549c83
+      kind: update_content
+      fingerprint: 44deec74129ac2aa5d4ec7c98d667b13
