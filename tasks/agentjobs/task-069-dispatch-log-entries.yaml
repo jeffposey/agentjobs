@@ -2,11 +2,9 @@ schema: 2
 id: task-069-dispatch-log-entries
 title: 'Schema: dispatch and dispatch_result log entries'
 created: '2026-08-11T00:21:32.478917Z'
-updated: '2026-08-18T07:08:25.278924Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-18T07:38:54.725870Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: infrastructure
@@ -15,7 +13,6 @@ tags:
 - architecture
 effort: 1-2 hours
 assignment:
-  owner: claude
   eligible: []
 parent: task-060-agent-dispatch
 spec:
@@ -76,29 +73,41 @@ acceptance:
 - id: sc-1
   text: LogEntryType gains dispatch and dispatch_result; both round-trip through YAML
     and validate with their documented data payloads
-  status: pending
+  status: met
 - id: sc-2
   text: validate_actor accepts 'dispatcher' without it being listed in a project's
     actors:, and the reservation is tested against a project config that defines other
     actors
-  status: pending
+  status: met
 - id: sc-3
   text: Task.dispatch_count is derived from the log with no stored field, and a task
     with three dispatch entries reports three
-  status: pending
+  status: met
 - id: sc-4
   text: schema/ and docs/task-schema.md regenerated; the corpus still validates
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs/models_v2.py
-  note: Two log entry types, derived count
-  status: pending
+  note: Two log entry types, validated payloads, derived count
+  status: done
 - path: src/agentjobs/actors.py
   note: Reserved dispatcher actor
-  status: pending
+  status: done
+- path: src/agentjobs/manager.py
+  note: record_dispatch and record_dispatch_result; the manager-written guard
+  status: done
 - path: schema/agentjobs-v2.yaml
   note: Kept in step with the models
-  status: pending
+  status: done
+- path: docs/task-schema.md
+  note: The two entry types, their payloads, and the reserved actor
+  status: done
+- path: scripts/regen-schema-docs.sh
+  note: Corpus validated against v2, so sc-4 means something
+  status: done
+- path: tests/test_dispatch_log_entries.py
+  note: Payload validation, the reservation, the derived count, the write guard
+  status: done
 dependencies: []
 links:
 - url: https://github.com/jeffposey/agentjobs/blob/main/docs/agent-dispatch-design.md
@@ -106,7 +115,7 @@ links:
   title: Agent dispatch design pass (task-060)
 branches:
 - name: feat/task-069-dispatch-log-entries
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-11T01:43:18.967734Z'
@@ -193,3 +202,103 @@ log:
       id: c28b7092-53a4-4b07-fe4d-7e8f90a1b2c6
       kind: update_content
       fingerprint: 6a35861b95c0342641236eb021c010f3
+- id: 6
+  ts: '2026-08-18T07:38:20.845031Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: d39c81a3-64b5-4c18-af5e-8f90a1b2c3d7
+      kind: update_content
+      fingerprint: f92e87ba20c3e17d0ddcd965b26bb333
+- id: 7
+  ts: '2026-08-18T07:38:46.615051Z'
+  actor: claude
+  type: progress
+  body: "Two log entry types, validated payloads, reserved dispatcher actor, derived\
+    \ count. Merged to main.\n\n**Shipped.** Three commits on `feat/task-069-dispatch-log-entries`,\
+    \ merged `--no-ff`: the regen-script fix, the schema change, and the regenerated\
+    \ artifacts in their own commit. 25 new tests in `tests/test_dispatch_log_entries.py`.\
+    \ Nothing pushed.\n\n**Verified against a real server, not only the suite.** A\
+    \ sandbox server on port 8899 over a throwaway tasks directory: `POST /api/tasks/<id>/log`\
+    \ with `type: dispatch` and with `type: dispatch_result` both return **409 invalid_transition**\
+    \ naming the rule. `record_dispatch` then wrote a real entry whose argv contained\
+    \ `read the record; rm -rf /`, and the YAML on disk keeps it as exactly one list\
+    \ element. `dispatcher` was accepted as the actor on `dispatch_result` in a project\
+    \ whose config lists only `Jeff Posey` and `claude`. `GET /api/tasks/<id>` serves\
+    \ all three entries with their types intact. Server stopped afterwards.\n\n**sc-4\
+    \ now means something.** `scripts/regen-schema-docs.sh` validated the live corpus\
+    \ against `agentjobs-v1.yaml` while every task file carries `schema: 2` \u2014\
+    \ it reported \"143 passed\" against a schema none of them claim, so it could\
+    \ not have failed. Pointed at `$V2` (log entry 1 called this out on 2026-08-11);\
+    \ the corpus validates 143/143 against v2, and that number is now load-bearing.\n\
+    \n**Four decisions.**\n\n1. *The payloads are validated, not merely documented.*\
+    \ `DispatchData` and `DispatchResultData` are strict models checked by a validator\
+    \ on `LogEntry` itself, so a hand-edited or hand-migrated file cannot carry a\
+    \ dispatch entry with nothing in it. Rejected: validating only inside the manager\
+    \ methods that write them. That is the lighter change and it leaves the record's\
+    \ one job \u2014 being trustworthy after the machine-local run directory is gone\
+    \ \u2014 resting on the write path having been the only one. An entry that cannot\
+    \ say what ran is worse than no entry, because it looks like evidence.\n\n2. *`MANAGER_WRITTEN_LOG_TYPES`\
+    \ replaces two hand-maintained lists.* The manager checked `is LogEntryType.TRANSITION`;\
+    \ the MCP layer carried a literal list of postable types. Both would have needed\
+    \ editing here, independently, and one of them would eventually not be. `AUTHORED_LOG_TYPES`\
+    \ is now derived from the model. Rejected: adding two more literals, which is\
+    \ smaller and reintroduces the drift the constraint was written to prevent.\n\n\
+    3. *`dispatcher` is reserved but deliberately kept out of `load_actors`.* Merging\
+    \ it into the configured vocabulary looked cleaner and would have broken an unconfigured\
+    \ project outright: `validate_actor` accepts any id when config defines no actors\
+    \ at all, and a vocabulary that always contains `dispatcher` is never empty, so\
+    \ a fresh `agentjobs init` would have rejected every real actor. `reserved_actors()`\
+    \ exposes the record for a UI that needs to resolve its kind. A reserved id is\
+    \ also not a choice \u2014 nobody may act as it \u2014 so it should not appear\
+    \ in a picker. A test pins the unconfigured-project case, since that is the failure\
+    \ that would have shipped.\n\n4. *Three fields beyond the design's section 3 sample*:\
+    \ `mode` and `posture` on the dispatch payload (task-077 and task-076, both decided\
+    \ after that sample was written) and `session_id`, optional because `--bg` assigns\
+    \ the id itself and the dispatcher captures it after spawning. Without `mode`\
+    \ and `posture` the record cannot say what the run was allowed to do, which is\
+    \ the question the entry exists to answer.\n\n**Note for task-070.** The manager\
+    \ methods are `record_dispatch(...)` and `record_dispatch_result(...)`; both take\
+    \ an `operation_id` and replay idempotently, so a supervisor that retries after\
+    \ a timeout cannot double-count a dispatch. `exclude_none=True` on the payload\
+    \ dump means an absent optional is absent from the YAML rather than present and\
+    \ null.\n\n**Pre-existing failures unchanged**, both red on `main` before this\
+    \ branch: `test_agentjobs_context_paths_exist` and the corpus `absolute-path`\
+    \ finding in `test_the_tolerated_drift_is_only_taxonomy_and_serialization`. Detail\
+    \ is in task-068 log entry 6. Everything else green: 1531 passed, and `npm run\
+    \ check` passes in full including the generated-client cleanliness check and all\
+    \ 10 Playwright paths."
+  data:
+    operation:
+      id: "e4ad9\uFF12b4-75c6-4d29-b06f-90a1b2c3d4e8"
+      kind: log_append
+      fingerprint: 80936d2352aceb5839ff857da1c967f1
+- id: 8
+  ts: '2026-08-18T07:38:54.725680Z'
+  actor: claude
+  type: transition
+  body: 'All four acceptance criteria met, and verified against a running server as
+    well as the suite. Branch feat/task-069-dispatch-log-entries merged --no-ff into
+    main and marked merged; worktree removed. Nothing pushed.
+
+
+    Merged without a separate review round under the autonomy grant on task-060 log
+    entry 11 (Jeff, 2026-08-18).
+
+
+    Unblocks task-070 alongside task-068: the config layer resolves what to run, and
+    these two entries are how a run is recorded. Neither is postable over HTTP --
+    the manager verbs record_dispatch and record_dispatch_result are the only writers.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: f5be0ac5-86d7-4e3a-c17f-a1b2c3d4e5f9
+      kind: close
+      fingerprint: 66ca496b9a195ee134490a31c6d761c6
