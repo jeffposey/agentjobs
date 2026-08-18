@@ -127,6 +127,7 @@ function ReviewPanel({
                 <AttachmentPicker
                   label={copy.feedbackLabel}
                   hint="Paste a screenshot of what you are describing; it is stored with this entry."
+                  placeholder={copy.feedbackPlaceholder}
                   value={feedback}
                   onChange={setFeedback}
                   attachments={attachments}

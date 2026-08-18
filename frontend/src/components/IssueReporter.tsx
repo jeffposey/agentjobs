@@ -198,6 +198,7 @@ function IssueReporterDialog({ onClose }: { onClose: () => void }) {
             <AttachmentPicker
               label="What happened"
               hint="Enough for someone who was not here. The page you were on is recorded for you."
+              placeholder="What went wrong? Paste a screenshot here with Ctrl+V."
               value={details}
               onChange={setDetails}
               attachments={attachments}

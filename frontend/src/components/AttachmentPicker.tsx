@@ -29,6 +29,7 @@ type AttachmentPickerProps = {
   attachments: Array<PendingAttachment>;
   onAttachmentsChange: (attachments: Array<PendingAttachment>) => void;
   textareaClassName: string;
+  placeholder?: string;
   name?: string;
   required?: boolean;
   autoFocus?: boolean;
@@ -42,6 +43,7 @@ export function AttachmentPicker({
   attachments,
   onAttachmentsChange,
   textareaClassName,
+  placeholder,
   name,
   required,
   autoFocus,
@@ -79,6 +81,7 @@ export function AttachmentPicker({
           // absorbing the hint and the paste instructions wrapped in the same element.
           aria-label={label}
           name={name}
+          placeholder={placeholder}
           required={required}
           autoFocus={autoFocus}
           value={value}
@@ -102,13 +105,26 @@ export function AttachmentPicker({
         />
       </label>
 
-      <p className="text-xs text-dark-muted">
-        Paste a screenshot with Ctrl+V, drop one here, or{" "}
-        <label htmlFor={fileInputId} className="cursor-pointer text-blue-300 hover:underline">
-          choose a file
+      {/* A control, not a caption. This started life as one line of muted 12px text
+          under the box, and the first person to review it said there was no way to
+          attach anything -- with the sentence explaining how to attach on screen.
+          Something that looks like a button is the affordance; the keyboard shortcut
+          beside it is the faster path for whoever notices it. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <label
+          htmlFor={fileInputId}
+          className="touch-target cursor-pointer rounded-lg border border-dark-border bg-dark-bg px-3 text-sm font-semibold text-blue-300 hover:border-blue-500 hover:bg-dark-border"
+        >
+          <span aria-hidden="true" className="mr-2">
+            🖼
+          </span>
+          Attach a screenshot
         </label>
-        .
-      </p>
+        <span className="text-xs text-dark-muted">
+          or paste one into the box with <kbd className="rounded border border-dark-border bg-dark-bg px-1">Ctrl</kbd>
+          +<kbd className="rounded border border-dark-border bg-dark-bg px-1">V</kbd>, or drop it there
+        </span>
+      </div>
       <input
         id={fileInputId}
         type="file"
