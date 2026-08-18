@@ -538,6 +538,15 @@ it is gated behind everything in §6 and §7 — which is exactly why it should 
 the same breath as the machinery that protects it. Deferring it costs nothing; shipping
 it early means no period during which the manual path was watched behaving.
 
+*Built by task-074, in `src/agentjobs/dispatch/auto.py`, and still off everywhere.* The
+paragraph above stands unchanged: the switch now exists, nothing has flipped it, and it
+lives in machine-local `~/.agentjobs/dispatch.yaml`, which no browser can write. Two
+human actions arm it — approving, and requesting changes, both of which hand the ball to
+an agent with instructions attached. The generic `POST .../handoff` deliberately does
+not: it is the agent-facing verb, so hooking it would put the trigger on the very
+transition §2 forbids and leave safety resting on a filter — the same objection that
+rejected the webhook trigger below.
+
 Even with auto-dispatch on, §2 holds without exception: the approval is a human act, so
 it may cause one dispatch. The handoff that ends the resulting run is an agent act, so
 it causes nothing.
