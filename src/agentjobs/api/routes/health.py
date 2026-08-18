@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from agentjobs.__version__ import __version__
 from agentjobs.models_v2 import SCHEMA_VERSION
+from agentjobs.storage import yaml_loader_name
 
 router = APIRouter(prefix="/api", tags=["system"])
 
@@ -22,6 +23,13 @@ class VersionResponse(BaseModel):
 
     version: str = Field(description="Installed AgentJobs package version.")
     schema_version: int = Field(description="Task record schema version served.")
+    yaml_loader: str = Field(
+        description=(
+            "Which YAML parser reads task files. The pure-Python fallback is about "
+            "thirteen times slower than libyaml and is the usual explanation for a "
+            "sluggish install, so it is reported rather than left to be guessed at."
+        )
+    )
 
 
 @router.get("/health")
@@ -38,4 +46,8 @@ async def api_version() -> VersionResponse:
     service it cannot understand. The version is already in ``/openapi.json``, but
     reading it there makes every client parse a large document to learn two fields.
     """
-    return VersionResponse(version=__version__, schema_version=SCHEMA_VERSION)
+    return VersionResponse(
+        version=__version__,
+        schema_version=SCHEMA_VERSION,
+        yaml_loader=yaml_loader_name(),
+    )

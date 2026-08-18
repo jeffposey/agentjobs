@@ -122,7 +122,13 @@ class _ClientWithoutVersionRoute(TaskClient):
 class TestStartupProbe:
     def test_version_endpoint_reports_package_and_schema(self, live_client):
         payload = live_client.service_version()
-        assert payload == {"version": __version__, "schema_version": SCHEMA_VERSION}
+        # The two fields the probe negotiates on, asserted by name rather than by
+        # whole-payload equality: /api/version also carries diagnostics such as which
+        # YAML loader is in use, and a client that broke when the service added a
+        # field would be a worse compatibility story than the one this probe exists
+        # to provide.
+        assert payload["version"] == __version__
+        assert payload["schema_version"] == SCHEMA_VERSION
 
     def test_probe_succeeds_against_the_real_service(self, live_client):
         info = compat.probe_service(
