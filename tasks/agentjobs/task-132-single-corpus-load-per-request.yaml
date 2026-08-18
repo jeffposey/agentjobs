@@ -2,10 +2,9 @@ schema: 2
 id: task-132-single-corpus-load-per-request
 title: Load the task corpus once per request
 created: '2026-08-18T00:04:59.374130Z'
-updated: '2026-08-18T00:04:59.374885Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-18T01:10:09.292092Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: performance
@@ -68,32 +67,34 @@ acceptance:
 - id: ac-1
   text: A test asserts that one API request parses each task file at most once.
   verify: the test, and that it fails against the pre-change code
-  status: pending
+  status: met
 - id: ac-2
   text: Before/after numbers from task-131's benchmark are recorded in a progress
     log entry for /tasks, /tasks/{id}/detail and /dashboard.
   verify: task log
-  status: pending
+  status: met
 - id: ac-3
   text: Broken task files are still reported by filename, with a test covering it.
   verify: pytest
-  status: pending
+  status: met
 - id: ac-4
   text: A write made by the CLI or by hand between two requests is visible to the
     second request.
   verify: test or demonstrated manually against a running server
-  status: pending
+  status: met
 - id: ac-5
   text: scripts/check.py passes.
   verify: poetry run python scripts/check.py
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-131-benchmark-harness
   type: needs
   note: Before/after numbers must come from the benchmark tool.
 links: []
-branches: []
+branches:
+- name: feat/task-132-single-corpus-load
+  status: merged
 log:
 - id: 1
   ts: '2026-08-18T00:04:59.374172Z'
@@ -106,3 +107,109 @@ log:
       id: 3f1c9a52-6b41-4e0a-9d77-0a1b2c3d4e52
       kind: create
       fingerprint: 8199a87e96183949df8a288bd34ae7f3
+- id: 2
+  ts: '2026-08-18T00:57:19.085868Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 8b3c5d7e-9f21-4a43-8b65-c7d8e9f01234
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-18T01:09:26.968198Z'
+  actor: claude
+  type: progress
+  body: "**Done. Every endpoint now parses each task file exactly once. The dashboard\
+    \ is 7.1x faster.**\n\n## Before / after (real corpus, 10 iterations, `scripts/bench.py\
+    \ --compare`)\n\n| Surface | before | after | change | parses |\n| --- | --- |\
+    \ --- | --- | --- |\n| `GET /dashboard` | 7344 ms | **1038 ms** | **7.08x** |\
+    \ 952 -> 119 |\n| `GET /tasks/{id}/detail` | 3954 ms | **1017 ms** | **3.89x**\
+    \ | 478 -> 119 |\n| `GET /tasks` | 3659 ms | **1026 ms** | **3.57x** | 476 ->\
+    \ 119 |\n| `GET /api/projects` | 1009 ms | 998 ms | 1.01x | 119 -> 119 |\n| `GET\
+    \ /search?q=the` | 1020 ms | 1021 ms | 1.00x | 119 -> 119 |\n| `GET /revision`\
+    \ | 18 ms | 19 ms | 0.97x | 0 -> 0 |\n| CLI `list --lifecycle ready` | 1668 ms\
+    \ | 1612 ms | 1.03x | - |\n\n**119 is the corpus size.** Every endpoint is now\
+    \ at exactly one pass, which is the floor for this task \u2014 the remaining ~1\
+    \ s is the cost of parsing 119 files once, and that is task-133's target.\n\n\
+    The comparison printed a corpus-drift warning: the baseline was 1,195,490 bytes\
+    \ and the current corpus is 1,202,919 bytes, because task files were written during\
+    \ the epic. That is 0.6% and does not affect conclusions of this size, but it\
+    \ is why the tool warned and it is worth stating rather than hiding.\n\n**Honest\
+    \ read of the CLI number: this task did almost nothing for it (1.03x).** `agentjobs\
+    \ list` was not doing four passes; most of its 1.6 s is interpreter startup plus\
+    \ one corpus parse. The scope is still correct to have (it applies to commands\
+    \ that do compute dependency facts), but anyone expecting the CLI to get faster\
+    \ here should look to task-133.\n\n## How it was done\n\nMemoised at `TaskStorage.load_all()`,\
+    \ which is the funnel all four call sites pass through \u2014 so `list_tasks`,\
+    \ `dependency_facts`, `_dependency_states` and `_open_children` were all fixed\
+    \ without editing a single one of them.\n\n- `storage.corpus_snapshot()` \u2014\
+    \ a context manager scoping one parse of the corpus.\n- Entered per request in\
+    \ the API middleware, and per invocation in the CLI via a Typer callback plus\
+    \ Click's `call_on_close`.\n- A per-scope memo for single-task reads sits alongside\
+    \ the whole-corpus memo, because requests arrive in both orders: the detail route\
+    \ reads its own task first and the corpus afterwards. Without it that one file\
+    \ was parsed twice and the count came out at 13 for a 12-file corpus. Caught by\
+    \ the test, not by inspection.\n\n**Why the CLI hook is a Typer callback and not\
+    \ a wrapper around the console-script entry point:** the tests invoke `app()`\
+    \ directly through CliRunner, so an entry-point wrapper would have left every\
+    \ CLI test running the unscoped path \u2014 the code would have shipped with its\
+    \ main consumer untested.\n\n## Two correctness points, both deliberate\n\n1.\
+    \ **Writes drop the snapshot** (`_write_task`, `delete_task`). A read after a\
+    \ write in the same scope sees the write. Dropping it is cheaper to reason about\
+    \ than patching the written task into the cached result, and much easier to be\
+    \ sure is right.\n\n2. **`mutate_task` reads through `_load_task_uncached`, bypassing\
+    \ the snapshot entirely.** This is the subtle one. `mutate_task` re-reads its\
+    \ task *inside* the lock precisely so a decision is never made on a copy that\
+    \ went stale while waiting; serving that read from a snapshot taken earlier in\
+    \ the same request would have silently undone the concurrency guarantee the lock\
+    \ exists for. `tests/test_concurrency.py` passes, but it would likely have passed\
+    \ anyway \u2014 this was reasoned about rather than caught, so it is recorded\
+    \ here.\n\n## Verification\n\n- `tests/test_corpus_snapshot.py` \u2014 9 new tests.\
+    \ The load-bearing one asserts over the real API that `/tasks`, `/dashboard` and\
+    \ `/tasks/{id}/detail` each parse at most `CORPUS_SIZE` files. It fails against\
+    \ the pre-change code (that is how the 13-vs-12 defect above was found).\n- Others\
+    \ cover: the unscoped behaviour still reparsing (so the fix is visibly a change),\
+    \ write-then-read inside a scope, delete-then-read, **a scope not outliving itself\
+    \ when another process writes**, two projects each getting their own snapshot,\
+    \ and broken files still being reported by filename from a cached result.\n- `poetry\
+    \ run python -m pytest`: 1259 passed, 1 failed \u2014 the pre-existing `test_agentjobs_context_paths_exist`,\
+    \ which fails in any worktree because `.agents/` is excluded via `.git/info/exclude`.\
+    \ Unrelated to this change; documented in task-131's log.\n- `npm run check`:\
+    \ green, 6/6 e2e.\n- Side effect worth noting: **the Python suite went from 198\
+    \ s to 104 s.** The tests were paying the same repeated-parse tax as the product."
+  data:
+    operation:
+      id: 8b3c5d7e-9f21-4a43-8b65-c7d8e9f01235
+      kind: log_append
+      fingerprint: ff1f70e7bdb39eb496baaa5a2f4d4f29
+- id: 4
+  ts: '2026-08-18T01:10:01.088561Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 8b3c5d7e-9f21-4a43-8b65-c7d8e9f01236
+      kind: update_content
+      fingerprint: 7ff94089cfb46e0445c19db2d2122367
+- id: 5
+  ts: '2026-08-18T01:10:09.291965Z'
+  actor: claude
+  type: transition
+  body: Merged to main. Dashboard 7.1x, detail 3.9x, tasks 3.6x; every endpoint now
+    parses each file exactly once (119 of 119). All acceptance criteria met.
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 8b3c5d7e-9f21-4a43-8b65-c7d8e9f01237
+      kind: close
+      fingerprint: 7b487d9d80724b66f192ff4c155f695d
