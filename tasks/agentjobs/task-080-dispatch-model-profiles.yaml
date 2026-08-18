@@ -2,42 +2,9 @@ schema: 2
 id: task-080-dispatch-model-profiles
 title: Design dispatch profiles for model, reasoning, and task difficulty
 created: '2026-08-11T03:14:06.695530Z'
-updated: '2026-08-18T21:49:59.670013Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "# Design amendment ready to review on `docs/task-080-model-profiles-decision`.\
-  \ Nothing merged.\n\nYour five numbered instructions from log entry 5 are all done.\
-  \ What needs your eye is the design section and two judgement calls I made inside\
-  \ it.\n\n## What to look at\n\n**`docs/agent-dispatch-design.md` section 4, new\
-  \ subsection 'Model policy: task difficulty and dispatch profiles'** -- one commit,\
-  \ `15bb49f`, docs only, no code. Worktree `C:/projects/aj-080`.\n\n## Two calls\
-  \ I made that you did not explicitly make\n\n1. **I recorded the strict-mode/unattended\
-  \ interaction as an OPEN question inside the design, not as decided.** You added\
-  \ strict mode; I raised that a strict refusal inside auto-dispatch or a bounded\
-  \ loop is a silent stall unless it hands the ball back, and you did not answer it.\
-  \ Rather than quietly deciding it for you or dropping it, the design carries a marked\
-  \ block saying it is open and who raised it. Same text is a `question` entry on\
-  \ this task. **If you would rather it were decided now, say which way.**\n\n2. **I\
-  \ did not mark sc-3, sc-6 and sc-7 met**, and the reason is in each criterion's\
-  \ `verify`. sc-7 you named yourself. sc-3 is the interesting one: it asks for a\
-  \ launch plan containing provider/model/reasoning effort as structured data, which\
-  \ is *precisely the option D2 rejected* -- so the criterion as written presumes\
-  \ the rejected design. Marking it met would have buried a decision inside a green\
-  \ tick. sc-6 is split the same way: difficulty's own audit rule is specified, the\
-  \ profile resolver's payload is not, because the resolver is deferred.\n\n   Three\
-  \ criteria left pending on a task you are about to close is either honest bookkeeping\
-  \ or a sign the criteria need rewriting to match the decision. **Your call which.**\n\
-  \n## Everything else\n\n- Decision entry recorded with every rejected alternative\
-  \ named, including your correction to my difficulty justification -- that it earns\
-  \ its place on human orientation, not on a routing consumer it will not have.\n\
-  - `task-156-task-difficulty-field` derived, scoped to the field and list filtering\
-  \ only, with `needs` on this task so it cannot start before the design merges.\n\
-  - task-068/069/073/077/078 each carry a pointer note. **Scope unchanged on all five**\
-  \ -- the note says so explicitly.\n- No implementation code, per `out_of_scope`.\n\
-  \n## To merge\n\nRebase onto `main`, `--no-ff`, mark the branch merged, close this\
-  \ task, `git worktree remove C:/projects/aj-080`. I have not done any of it and\
-  \ will not without your word."
+updated: '2026-08-18T22:21:50.853086Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: architecture
@@ -49,7 +16,6 @@ tags:
 - agent-routing
 effort: a decision session
 assignment:
-  owner: claude
   eligible: []
 parent: task-060-agent-dispatch
 spec:
@@ -545,3 +511,43 @@ log:
       id: 0802aa11-2b33-4c55-8d77-e9f0a1b2c080
       kind: handoff
       fingerprint: 1bb9dfc15527396e6873cebe4ceef8c7
+- id: 10
+  ts: '2026-08-18T22:19:28.700240Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 11
+  ts: '2026-08-18T22:21:50.852846Z'
+  actor: claude
+  type: transition
+  body: 'Merged --no-ff to main after Jeff approved. Design amendment is in docs/agent-dispatch-design.md
+    section 4, "Model policy: task difficulty and dispatch profiles".
+
+
+    Closed with sc-3, sc-6 and sc-7 still pending, deliberately. Those three presume
+    the shape D2 rejected -- a launch plan carrying provider/model/reasoning effort
+    as structured data -- and the profile selection and preview surfaces D4 deferred.
+    Marking them met would have hidden a decision inside a green tick; leaving them
+    pending keeps the deferral visible to anyone auditing this task later. Jeff approved
+    the closure on those terms.
+
+
+    One question remains open and is recorded on this task and in the design: what
+    a strict profile refusal does when the caller is unattended, where returning an
+    error is a silent stall. Not blocking, because nothing implements strict mode
+    yet. Reopen trigger 3 -- unattended dispatch beginning -- is when it will matter.
+
+
+    Implementation follows in task-156-task-difficulty-field, which has a needs dependency
+    on this task and is now unblocked. The profile layer is not being built; its reopen
+    triggers are in the design.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 0804aa11-2b33-4c55-8d77-e9f0a1b2c080
+      kind: close
+      fingerprint: b47f0a1c06204132a8d96e30d9f8fb21
