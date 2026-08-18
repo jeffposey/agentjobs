@@ -332,6 +332,22 @@ export function DispatchSettings({
           />
         </dl>
 
+        {/* Read-only, and deliberately not a toggle. Auto-dispatch is the one setting
+            that lets a click start a run with no further click, so it is changed by
+            editing the machine-local file and nowhere else. Shown here because a human
+            is entitled to know from the browser whether it is armed. */}
+        <p className="mt-4 text-sm" data-auto-dispatch={state.auto_dispatch ? "on" : "off"}>
+          <span className="text-dark-muted">Auto-dispatch on approval: </span>
+          <strong className={state.auto_dispatch ? "text-orange-300" : "text-dark-text"}>
+            {state.auto_dispatch ? "on" : "off"}
+          </strong>
+          <span className="text-dark-muted">
+            {state.auto_dispatch
+              ? " — approving a task here starts an agent immediately. Change it in the config file."
+              : " — approving records the approval and starts nothing. Change it in the config file."}
+          </span>
+        </p>
+
         {state.refusal && (
           <div className="mt-4">
             <RefusalNote

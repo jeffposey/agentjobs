@@ -344,6 +344,22 @@ describe("the project toggle", () => {
     expect(screen.getByText(/DISPATCH_DISABLED exists/)).toBeInTheDocument();
   });
 
+  it("says whether auto-dispatch is armed, and offers no control for it", () => {
+    renderSettings(state({ auto_dispatch: true }));
+
+    expect(screen.getByText(/starts an agent immediately/i)).toBeInTheDocument();
+    // No switch here on purpose: this is the one setting that turns a click into an
+    // unattended run, so it moves only by editing the machine-local file.
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: /auto-dispatch/i })).toBeNull();
+  });
+
+  it("says auto-dispatch is off when it is, in the same place", () => {
+    renderSettings(state({ auto_dispatch: false }));
+
+    expect(screen.getByText(/records the approval and starts nothing/i)).toBeInTheDocument();
+  });
+
   it("says it is still reading rather than rendering an empty page", () => {
     renderSettings(null);
 
