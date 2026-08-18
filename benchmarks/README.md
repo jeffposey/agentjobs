@@ -12,6 +12,7 @@ poetry run python scripts/bench.py --json after.json --compare benchmarks/baseli
 | File | What it captured |
 | --- | --- |
 | `baseline-2026-08-17-real.json` | The state of the product before any of the task-130 performance work. Real corpus, 119 files, 1,195,490 bytes. |
+| `after-2026-08-17-real.json` | The same machine after task-132, 133 and 135 merged. Dashboard 48x, task detail 26x, click-to-rendered 36x. |
 
 ## Two cautions
 
