@@ -205,6 +205,32 @@ it, which makes unresolved threads queryable (`Task.open_questions()`).
 attempt to post one directly, because a transition that does not accompany a real state
 change is a lie in the record.
 
+### `attachments[]` on an entry
+
+An entry may carry images evidencing it — a screenshot of the thing being objected to.
+The field is additive and **absent** unless the entry has images, so no existing file
+gains a line for a field it does not use, and no schema version bump is involved.
+
+The bytes are **not** in the YAML. They live in sidecar files under the tasks directory
+at `attachments/<task-id>/<sha256><ext>`, and the entry carries only metadata:
+
+| field | meaning |
+|---|---|
+| `path` | Sidecar path, relative to the tasks directory. |
+| `media_type` | `image/png`, `image/jpeg` or `image/webp`, read from the bytes. |
+| `sha256` | Content hash. Also the filename, and checked on every read. |
+| `size_bytes` | Size of the stored file. |
+| `label` | Accessible label; the alt text where it renders. |
+
+That split is the point: a task file stays something a person reads in a text editor and
+git diffs line by line, which a base64 blob would end. Images only, 5 MiB each, and the
+type is derived from the magic number rather than taken from the caller's claim.
+
+Two consequences are deliberate. The same image pasted twice is stored once, because the
+name *is* the hash. And a file whose bytes no longer hash to its name is refused rather
+than rendered. Git keeps every blob forever, so unreferenced files are **reported, never
+deleted** — `AttachmentStore.orphans()` lists them for a person to decide about.
+
 ## `display_status`
 
 Computed on read, never stored — `Needs review`, `In progress (claude)`,

@@ -78,6 +78,74 @@
         "title": "Assignment",
         "type": "object"
       },
+      "Attachment": {
+        "additionalProperties": false,
+        "description": "One image stored beside the tasks, referenced from the entry it illustrates.\n\nThe blob lives in a sidecar file; only this metadata is in the YAML. That is the\nwhole point of the storage decision: a task file stays something a person can read\nin a text editor and git can diff line by line, which a base64 blob would end.\n\n``path`` is relative to the project's tasks directory, not to the repository root,\nbecause that is the directory storage already owns and resolves safely. ``sha256``\nis both the file's name and its integrity check: a read that does not hash to this\nis refused rather than rendered.",
+        "properties": {
+          "label": {
+            "description": "Accessible label; alt text where it renders.",
+            "title": "Label",
+            "type": "string"
+          },
+          "media_type": {
+            "description": "Image media type, derived from the bytes.",
+            "title": "Media Type",
+            "type": "string"
+          },
+          "path": {
+            "description": "Sidecar path relative to the tasks directory.",
+            "examples": [
+              "attachments/task-042/6f4b...c1.png"
+            ],
+            "title": "Path",
+            "type": "string"
+          },
+          "sha256": {
+            "description": "Content hash.",
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "description": "Size of the stored file.",
+            "minimum": 1.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "media_type",
+          "sha256",
+          "size_bytes",
+          "label"
+        ],
+        "title": "Attachment",
+        "type": "object"
+      },
+      "AttachmentUpload": {
+        "description": "One pasted image, on its way to a sidecar file.\n\nBase64 in the request body, never in the stored record: the transport needs the\nbytes inline and the YAML must stay readable, and those are different problems with\ndifferent right answers. ``media_type`` is deliberately absent -- the server reads\nthe type from the bytes, because a declared type is a claim and the magic number is\nthe blob.",
+        "properties": {
+          "data_base64": {
+            "description": "Base64-encoded image bytes (PNG, JPEG or WebP).",
+            "minLength": 1,
+            "title": "Data Base64",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "description": "Accessible label used as alt text where the image renders.",
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data_base64"
+        ],
+        "title": "AttachmentUpload",
+        "type": "object"
+      },
       "Ball": {
         "description": "Who acts next. Required while a task is open; null only when closed.",
         "enum": [
@@ -583,6 +651,14 @@
       "FeedbackActionRequest": {
         "description": "Request changes with feedback.",
         "properties": {
+          "attachments": {
+            "description": "Images evidencing the feedback, stored as sidecar files.",
+            "items": {
+              "$ref": "#/components/schemas/AttachmentUpload"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
           "feedback": {
             "description": "Feedback text",
             "examples": [
@@ -856,6 +932,21 @@
             "description": "Actor id. A bare reference; kind is resolved from config (D4).",
             "title": "Actor",
             "type": "string"
+          },
+          "attachments": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Attachment"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Images evidencing this entry, stored as sidecar files.",
+            "title": "Attachments"
           },
           "body": {
             "anyOf": [
@@ -1838,6 +1929,14 @@
             ],
             "description": "Configured actor id to record as the creator. Written to the creation log entry, so a task can say who filed it. Refused when the project does not define the id.",
             "title": "Actor"
+          },
+          "attachments": {
+            "description": "Images evidencing the report, stored as sidecar files.",
+            "items": {
+              "$ref": "#/components/schemas/AttachmentUpload"
+            },
+            "title": "Attachments",
+            "type": "array"
           },
           "branches": {
             "description": "Git branches associated with the task lifecycle.",
@@ -3850,6 +3949,65 @@
         ]
       }
     },
+    "/api/projects/{project_id}/tasks/{task_id}/attachments/{filename}": {
+      "get": {
+        "description": "Serve one image a log entry references.\n\nResolved through the task's own record rather than straight off the filesystem, so\nthe only files this can ever return are ones an entry actually points at. That also\nsupplies the recorded hash, which is checked before the bytes are handed back: a\nfile edited or corrupted since it was stored is refused rather than rendered.",
+        "operationId": "get_attachment_api_projects__project_id__tasks__task_id__attachments__filename__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "title": "Filename",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Attachment",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
     "/api/projects/{project_id}/tasks/{task_id}/claim": {
       "post": {
         "description": "Claim a ready task: one winner, everyone else gets a 409.",
@@ -5427,6 +5585,56 @@
           }
         },
         "summary": "Approve Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/attachments/{filename}": {
+      "get": {
+        "description": "Serve one image a log entry references.\n\nResolved through the task's own record rather than straight off the filesystem, so\nthe only files this can ever return are ones an entry actually points at. That also\nsupplies the recorded hash, which is checked before the bytes are handed back: a\nfile edited or corrupted since it was stored is refused rather than rendered.",
+        "operationId": "get_attachment_api_tasks__task_id__attachments__filename__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "title": "Filename",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Attachment",
         "tags": [
           "tasks"
         ]

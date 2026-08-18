@@ -183,6 +183,27 @@ class RevisionedRequest(SafeMutationRequest):
     )
 
 
+class AttachmentUpload(BaseModel):
+    """One pasted image, on its way to a sidecar file.
+
+    Base64 in the request body, never in the stored record: the transport needs the
+    bytes inline and the YAML must stay readable, and those are different problems with
+    different right answers. ``media_type`` is deliberately absent -- the server reads
+    the type from the bytes, because a declared type is a claim and the magic number is
+    the blob.
+    """
+
+    data_base64: str = Field(
+        ...,
+        min_length=1,
+        description="Base64-encoded image bytes (PNG, JPEG or WebP).",
+    )
+    label: str = Field(
+        default="",
+        description="Accessible label used as alt text where the image renders.",
+    )
+
+
 class TaskCreateRequest(SafeMutationRequest):
     """Payload for creating a new task."""
 
@@ -256,10 +277,14 @@ class TaskCreateRequest(SafeMutationRequest):
         default_factory=list,
         description="Git branches associated with the task lifecycle.",
     )
+    attachments: List[AttachmentUpload] = Field(
+        default_factory=list,
+        description="Images evidencing the report, stored as sidecar files.",
+    )
 
     def manager_kwargs(self) -> Dict[str, Any]:
         """Reshape the flat request into TaskManager.create_task keyword arguments."""
-        payload = self.model_dump(exclude_none=True, exclude={"eligible"})
+        payload = self.model_dump(exclude_none=True, exclude={"eligible", "attachments"})
         spec = {
             key: payload.pop(key)
             for key in ("intent", "constraints", "out_of_scope", "context")

@@ -589,6 +589,39 @@ def list_tasks(
         )
 
 
+@app.command("attachments")
+def attachments_command(
+    orphans: bool = typer.Option(
+        False, "--orphans", help="List stored images no task references any more."
+    ),
+) -> None:
+    """Report on the sidecar images stored beside this project's tasks.
+
+    Reporting only, deliberately. Git keeps every blob it has ever seen, so a file that
+    looks unreferenced today may still be referenced by an older revision or by a branch
+    that is not checked out -- deleting on this evidence would destroy the thing an
+    entry points at. What to do about an orphan is a person's call.
+    """
+    manager = _build_manager(Path.cwd())
+    store = manager.storage.attachments
+    tasks = manager.storage.list_tasks()
+    referenced = store.referenced_paths(tasks)
+
+    if not orphans:
+        typer.echo(f"{len(referenced)} attachment(s) referenced by {len(tasks)} task(s).")
+        typer.echo("Run with --orphans to list stored files nothing references.")
+        return
+
+    unreferenced = store.orphans(tasks)
+    if not unreferenced:
+        typer.echo("No orphaned attachments: every stored image is referenced.")
+        return
+    typer.secho(f"{len(unreferenced)} orphaned attachment(s):", fg=typer.colors.YELLOW)
+    for path in unreferenced:
+        typer.echo(f"  {path}")
+    typer.echo("Nothing was deleted. Remove them yourself if you are sure.")
+
+
 @app.command()
 def load_test_data(
     storage_dir: str = typer.Option(

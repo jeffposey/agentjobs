@@ -321,6 +321,30 @@ class Branch(StrictModel):
     merged_at: Optional[datetime] = Field(default=None)
 
 
+class Attachment(StrictModel):
+    """One image stored beside the tasks, referenced from the entry it illustrates.
+
+    The blob lives in a sidecar file; only this metadata is in the YAML. That is the
+    whole point of the storage decision: a task file stays something a person can read
+    in a text editor and git can diff line by line, which a base64 blob would end.
+
+    ``path`` is relative to the project's tasks directory, not to the repository root,
+    because that is the directory storage already owns and resolves safely. ``sha256``
+    is both the file's name and its integrity check: a read that does not hash to this
+    is refused rather than rendered.
+    """
+
+    path: str = Field(
+        ...,
+        description="Sidecar path relative to the tasks directory.",
+        examples=["attachments/task-042/6f4b...c1.png"],
+    )
+    media_type: str = Field(..., description="Image media type, derived from the bytes.")
+    sha256: str = Field(..., min_length=64, max_length=64, description="Content hash.")
+    size_bytes: int = Field(..., ge=1, description="Size of the stored file.")
+    label: str = Field(..., description="Accessible label; alt text where it renders.")
+
+
 class LogEntry(StrictModel):
     """One entry in the unified append-only log (design doc section 4).
 
@@ -342,6 +366,10 @@ class LogEntry(StrictModel):
     data: Dict[str, Any] = Field(
         default_factory=dict,
         description="Optional structured payload, typed per entry type.",
+    )
+    attachments: Optional[List[Attachment]] = Field(
+        default=None,
+        description="Images evidencing this entry, stored as sidecar files.",
     )
 
 
