@@ -17,12 +17,24 @@ from typing import Any, Callable, Dict, Iterator, List, Optional
 import yaml
 from pydantic import ValidationError
 
+from .instrumentation import record_task_parse
 from .models_v2 import SchemaVersionError, Task
 from .receipts import ReceiptStore
 from .models_v2 import load_task as _validate_v2
 from .projects import contained_path
 
 logger = logging.getLogger(__name__)
+
+
+#: Which PyYAML loader `load_task` uses. Reported by the benchmark so a before/after
+#: pair cannot be compared across loaders without noticing -- the C and pure-Python
+#: parsers differ by roughly a factor of ten, which would swamp any change under test.
+YAML_LOADER = "pure-python (yaml.safe_load)"
+
+
+def yaml_loader_name() -> str:
+    """The YAML loader currently in use, for the benchmark report."""
+    return YAML_LOADER
 
 
 def _describe_validation_error(exc: ValidationError) -> str:
@@ -150,6 +162,9 @@ class TaskStorage:
         if not path.exists():
             return None
 
+        # Counted in `finally` rather than on the happy path: a file whose YAML is
+        # invalid still cost a read and a parse attempt, and the counter is a measure
+        # of work done, not of work that succeeded.
         try:
             content = path.read_text(encoding="utf-8")
             data = yaml.safe_load(content) or {}
@@ -157,6 +172,8 @@ class TaskStorage:
             raise TaskLoadError(path, f"invalid YAML: {exc}") from exc
         except OSError as exc:
             raise TaskLoadError(path, f"could not read the file: {exc}") from exc
+        finally:
+            record_task_parse()
 
         if not data:
             raise TaskLoadError(path, "the file is empty")

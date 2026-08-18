@@ -68,6 +68,7 @@ nav:
       - MCP integration design: mcp-integration-design.md
       - Task schema reference (v1 + v2): task-schema.md
       - API reference: api-reference.md
+      - Measuring performance: performance.md
       - Webhooks: webhooks.md
       - Quickstart: quickstart.md
       - Installation: installation.md
