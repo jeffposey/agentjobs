@@ -2,7 +2,7 @@ schema: 2
 id: task-060-agent-dispatch
 title: 'Close the loop: make a human decision actually start an agent (design pass)'
 created: '2026-08-10T07:40:19Z'
-updated: '2026-08-18T06:27:09.852610Z'
+updated: '2026-08-18T10:08:48.868901Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -612,3 +612,72 @@ log:
       id: e17c3a95-4b28-4f60-9d31-8a25c07e4b13
       kind: log_append
       fingerprint: 81d615adc567374b0a9267edab9fcffd
+- id: 12
+  ts: '2026-08-18T10:08:48.868700Z'
+  actor: claude
+  type: progress
+  body: "# Session handoff, 2026-08-18 \u2014 five children done, five open\n\nRead\
+    \ this before picking up any remaining child. Everything below is the state a\
+    \ fresh session needs; the per-task detail is in each child's own log.\n\n## Closed\
+    \ this session, all merged `--no-ff` to `main`, nothing pushed\n\n| Task | What\
+    \ landed |\n|---|---|\n| **068** | `~/.agentjobs/dispatch.yaml`, the four gates,\
+    \ `assert_dispatch_permitted`, `dispatch enable\\|disable\\|config` |\n| **069**\
+    \ | `dispatch` / `dispatch_result` log entries with **validated** payloads, reserved\
+    \ `dispatcher` actor, derived `Task.dispatch_count` |\n| **070** | `DispatchRunner`\
+    \ \u2014 session mode (`--bg --remote-control`) and batch mode (supervisor thread)\
+    \ |\n| **071** | `POST /api/tasks/{id}/dispatch`, `agentjobs dispatch run`, the\
+    \ guard layer and the human-clocked rule |\n| **072** | `DispatchLedger` \u2014\
+    \ run directories, per-task `O_CREAT\\|O_EXCL` run lock, cancel, reaping, startup\
+    \ reconciliation from the server's lifespan hook |\n\n**Dispatch works end to\
+    \ end.** Verified against a live Claude Code 2.1.228 session that genuinely parked\
+    \ on a permission prompt and produced a `human`/`input` handoff carrying its Remote\
+    \ Control URL; and against a real `agentjobs serve` that found an orphaned batch\
+    \ run at startup and wrote `interrupted` to its task.\n\n## Still open\n\n**task-073**\
+    \ (React UI), **task-074** (auto-dispatch), **task-075** (agent worktree isolation),\
+    \ **task-078** (agent loops), **task-080-dispatch-model-profiles** (a decision\
+    \ \u2014 research and hand off, do not answer it alone).\n\n`get_next_task()`\
+    \ will not offer this parent while children are open, so a kickoff names the children\
+    \ or this parent explicitly.\n\n## Jeff's instruction, 2026-08-18, recorded because\
+    \ it escalates log entry 11\n\n> \"keep working the 060 sub tasks like I asked\
+    \ and merge them and don't stop again\"\n\nThat is the escalation entry 11 anticipated.\
+    \ For the remaining children: **merge without waiting for review, and do not stop\
+    \ at each one to report.** Everything else in entry 11 stands unchanged and is\
+    \ not optional \u2014 tests green before every commit, worktree before work, `--no-ff`,\
+    \ task records committed to `main`, **no `git push`**, no history rewriting.\n\
+    \nTwo things it does *not* override:\n\n- **task-080 is a decision task.** Research\
+    \ it, write up the trade-offs with a recommendation, hand off `human`/`decision`,\
+    \ stop. Do not answer it by default.\n- **task-073 is a UI change**, so Jeff's\
+    \ standing rule applies: stand it up on its own port with its own throwaway data,\
+    \ seed both states of whatever changed, give him a URL, and say how to stop it.\
+    \ A passing suite is not a review request for a UI change.\n\n## Two test failures\
+    \ that are not yours\n\nBoth red on `main` before any of this work. Do not chase\
+    \ them, and do not let them read as a regression:\n\n1. `tests/test_task_corpus.py::test_agentjobs_context_paths_exist`\
+    \ \u2014 task-013 names `src/agentjobs/frontend_dist/assets`, a gitignored build\
+    \ artifact absent from every worktree. **Consequence: `scripts/check.py` cannot\
+    \ pass in a worktree at all**, which is awkward for a chain whose workflow requires\
+    \ one. Run `poetry run pytest` and `npm run check` in `frontend/` separately and\
+    \ compare failures against `main`.\n2. `tests/test_validate.py::TestRealCorpus::test_the_tolerated_drift_is_only_taxonomy_and_serialization`\
+    \ \u2014 `task-146-embed-reference-integration.yaml` carries a `C:`-rooted path,\
+    \ tripping an `absolute-path` finding the tolerated set does not include.\n\n\
+    Everything else is green: 1642 passed, and `npm run check` passes in full including\
+    \ the generated-client cleanliness check and all 10 Playwright paths.\n\n## Practical\
+    \ notes that will otherwise cost an hour\n\n- **A fresh worktree has no venv and\
+    \ no `frontend/node_modules`.** Run `poetry install` in it, and `npm ci` in `frontend/`\
+    \ if the change touches the API surface or the generated client.\n- **Changing\
+    \ the API means regenerating the client**: `npm run generate:api` in `frontend/`,\
+    \ and **commit the result** \u2014 `check:api-client` compares against the committed\
+    \ copy, not the working tree.\n- **`require_clean_tree` refuses dispatch on any\
+    \ project that has not gitignored AgentJobs' own runtime files** (`tasks/`, `.agentjobs/write-receipts/`,\
+    \ `.agentjobs/webhooks.yaml`). This repo is fine; a freshly `agentjobs init`'d\
+    \ project is not, because `_ensure_gitignore` only adds `.agentjobs/agentjobs.db`.\
+    \ Test fixtures have to ignore them before anything can be dispatched.\n- **Session\
+    \ reaping exists but nothing schedules it.** `DispatchLedger.reap_finished()`\
+    \ is implemented and tested; whatever adds a polling loop should call it, or finished\
+    \ sessions accumulate pids.\n- **`DispatchLedger` and the runner both take an\
+    \ injectable session command**, which is how the whole session half is tested\
+    \ without a real Claude Code install."
+  data:
+    operation:
+      id: f8091a2b-3c4d-4859-6a7b-e6f708192a3b
+      kind: log_append
+      fingerprint: ef395c90f53fc180240858e930f35d7b
