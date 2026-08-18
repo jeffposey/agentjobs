@@ -2,10 +2,30 @@ schema: 2
 id: task-130-performance-and-responsiveness
 title: Make AgentJobs feel instant
 created: '2026-08-17T23:51:43.310915Z'
-updated: '2026-08-18T00:00:22.377833Z'
+updated: '2026-08-18T01:47:28.030585Z'
 lifecycle: ready
-ball: agent
-ball_reason: available
+ball: human
+ball_reason: approval
+ball_prompt: "All six children are closed and merged to main; every acceptance criterion\
+  \ including your device check (ac-7) is marked met. This is waiting on your signoff\
+  \ to close the epic \u2014 you said you wanted to review before signoff.\n\nWhat\
+  \ to look at, in the order that matters:\n\n1. **The two judgement calls, not the\
+  \ code.** task-134 was CANCELLED rather than built \u2014 the mtime+size cache key\
+  \ is unsafe here (28 of 40 same-size rewrites left st_mtime_ns unchanged), and the\
+  \ win was 124 ms on interactions already inside target. Its decision log has the\
+  \ full reasoning and the trigger for reopening (~350 files). task-133 kept the pure-Python\
+  \ dumper because 79 of 119 task files serialise differently under CSafeDumper, which\
+  \ would have broken canonical_bytes() and churned every file. If you disagree with\
+  \ either, say so and I will reopen.\n\n2. **The headline numbers**, in this task's\
+  \ newest progress entry: click-to-open 9567 ms -> 263 ms, dashboard 48x, and every\
+  \ endpoint now parses the corpus exactly once instead of 4-8 times.\n\n3. **One\
+  \ operational thing worth knowing for next time:** src/agentjobs/frontend_dist/\
+  \ is gitignored, so merging a front-end fix to main does NOT update the bundle your\
+  \ server serves. It needs `npm run build` in the main clone plus a restart, which\
+  \ is why it still looked slow to you after everything had merged.\n\nNothing is\
+  \ blocked on you technically \u2014 main is green and the live server is running\
+  \ the new code. Close this when you are satisfied, or hand it back with what you\
+  \ want changed."
 archived: false
 priority: critical
 category: performance
@@ -199,34 +219,34 @@ acceptance:
   text: A repeatable benchmark exists and is documented, covering API endpoints, CLI
     commands, and the browser click-to-rendered-task interaction.
   verify: task-131 closed completed
-  status: pending
+  status: met
 - id: ac-2
   text: Opening a task in the React app is under 500 ms from click to rendered detail,
     on the real 112-file corpus.
   verify: before/after numbers recorded in task-135
-  status: pending
+  status: met
 - id: ac-3
   text: GET /tasks, /tasks/{id}/detail and /dashboard are each under 300 ms on the
     real corpus.
   verify: benchmark output in the task-132/133/134 logs
-  status: pending
+  status: met
 - id: ac-4
   text: No request parses the same task file more than once.
   verify: test asserting parse count per request
-  status: pending
+  status: met
 - id: ac-5
   text: The CLI's common read commands return in under 1 s including interpreter startup.
   verify: benchmark output
-  status: pending
+  status: met
 - id: ac-6
   text: scripts/check.py fails if any budgeted surface regresses past its threshold.
   verify: poetry run python scripts/check.py
-  status: pending
+  status: met
 - id: ac-7
   text: Jeff has confirmed in a browser, on desktop and on a device, that the app
     feels responsive.
   verify: human review at the end of the epic
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -349,3 +369,133 @@ log:
       id: 682f1eb5-da96-4b47-bcb8-a84c5dab33b3
       kind: log_append
       fingerprint: df76656e3a064df4f2530fc7b95eb088
+- id: 4
+  ts: '2026-08-18T01:47:02.571062Z'
+  actor: claude
+  type: progress
+  body: "**Epic complete. Opening a task went from 9.6 s to 263 ms. Jeff has confirmed\
+    \ it on desktop and on the tablet.**\n\n## Final numbers, real corpus, `scripts/bench.py\
+    \ --compare`\n\n| Surface | before | after | change | task files parsed |\n| ---\
+    \ | --- | --- | --- | --- |\n| **click task row -> detail rendered** | 9567 ms\
+    \ | **263 ms** | **36.4x** | - |\n| `GET /dashboard` | 7344 ms | **152 ms** |\
+    \ **48.3x** | 952 -> 119 |\n| `GET /tasks/{id}/detail` | 3954 ms | **150 ms**\
+    \ | **26.4x** | 478 -> 119 |\n| `GET /tasks` | 3659 ms | **170 ms** | **21.6x**\
+    \ | 476 -> 119 |\n| `GET /api/projects` | 1009 ms | 145 ms | 7.0x | 119 -> 119\
+    \ |\n| `GET /search?q=the` | 1020 ms | 158 ms | 6.5x | 119 -> 119 |\n| `GET /revision`\
+    \ | 18 ms | 19 ms | 0.97x | 0 -> 0 |\n| cold load -> detail rendered | 10931 ms\
+    \ | 1127 ms | 9.7x | - |\n| CLI `list --lifecycle ready` | 1668 ms | 828 ms |\
+    \ 2.0x | - |\n\nBaseline and final runs are committed as `benchmarks/baseline-2026-08-17-real.json`\
+    \ and `benchmarks/after-2026-08-17-real.json`.\n\n## Acceptance criteria\n\n-\
+    \ **ac-1** benchmark exists, covering API, CLI and browser \u2014 **met** (task-131)\n\
+    - **ac-2** opening a task under 500 ms \u2014 **met at 263 ms** (task-135)\n-\
+    \ **ac-3** `/tasks`, `/detail`, `/dashboard` each under 300 ms \u2014 **met at\
+    \ 170 / 150 / 152 ms**\n- **ac-4** no request parses the same file more than once\
+    \ \u2014 **met**, and now asserted by budgets rather than merely measured\n- **ac-5**\
+    \ CLI read commands under 1 s \u2014 **met**, worst 828 ms\n- **ac-6** `scripts/check.py`\
+    \ fails on a budgeted regression \u2014 **met**, demonstrated by reverting the\
+    \ snapshot (5 budgets fail)\n- **ac-7** Jeff confirms in a browser, desktop and\
+    \ device \u2014 **met**: \"WAY BETTER!\" on desktop and \"confirmed fast from\
+    \ tablet also\", 2026-08-17\n\n## Children\n\n| Task | Outcome |\n| --- | ---\
+    \ |\n| task-131 benchmark | completed |\n| task-132 one corpus load per request\
+    \ | completed |\n| task-133 libyaml loader | completed |\n| **task-134 file-identity\
+    \ cache** | **cancelled** \u2014 see below |\n| task-135 instant task open | completed\
+    \ |\n| task-136 performance budgets | completed |\n\n## What actually caused the\
+    \ slowness, versus what the epic guessed\n\nThe epic's two multipliers were both\
+    \ real and both confirmed as counts rather than inferences \u2014 but the sizes\
+    \ were off, and a third cause was not in the epic at all.\n\n1. **Repeated corpus\
+    \ walks.** Predicted \"about four times\"; measured 476 parses of a 119-file corpus\
+    \ for `/tasks`, and **952 for the dashboard, which is 8x, not 4x** \u2014 and\
+    \ the dashboard is the landing page.\n2. **Pure-Python YAML.** Predicted ~10x;\
+    \ measured **13.2x** (0.859 s -> 0.065 s).\n3. **Not in the epic: the front end\
+    \ refetched everything on every navigation.** TanStack Query's default `staleTime:\
+    \ 0` meant returning to the list refetched it, and the next click's detail request\
+    \ queued behind those refetches on a single-worker server \u2014 a 138 ms request\
+    \ taking 403 ms. This was the largest remaining cause once the server was fixed,\
+    \ and it was found only by tracing the browser rather than reasoning about the\
+    \ code.\n\n**One epic premise was wrong.** `GET /revision` was recorded at 0.23\
+    \ s; it measures at **18 ms**. That removed most of the motivation for half of\
+    \ task-134.\n\n## Three things deliberately not built\n\nRecorded here because\
+    \ the diffs cannot show them, and because each was rejected on a measurement rather\
+    \ than a preference:\n\n1. **A cross-request file-identity cache (task-134, cancelled).**\
+    \ The proposed mtime+size key is unsafe on this filesystem: **28 of 40 same-size\
+    \ rewrites left `st_mtime_ns` unchanged** (~1 ms effective resolution), and same-size\
+    \ writes are routine here because `updated:` is a fixed-width timestamp. The safe\
+    \ alternative (content hash) needs to read every file anyway, halving the win\
+    \ while keeping every invalidation obligation. The win was 124 ms on interactions\
+    \ already inside target by 2x. **Reopen when the corpus passes ~350 files; the\
+    \ new budgets will say so.**\n2. **`CSafeDumper` (task-133).** 79 of 119 task\
+    \ files serialise differently under it, which would make most of the corpus register\
+    \ as non-canonical against `canonical_bytes()` and push a formatting diff through\
+    \ every file. Reads are the hot path; writes serialise one file.\n3. **Detail-view\
+    \ seeding and hover prefetch (task-135).** ~130 ms and ~100 ms respectively, against\
+    \ a 500 ms target already met at 263 ms, in exchange for stale-render surface\
+    \ and (for hover) dead code on the tablet and phone.\n\n## One operational lesson\
+    \ worth keeping\n\n**Merging did not make the running server faster, and for a\
+    \ while it looked like nothing had worked.** Two reasons, both worth knowing:\n\
+    \n- The long-running server on 8876 holds imported Python in memory. ENGINEERING.md\
+    \ warns about this; it still caught us.\n- **`src/agentjobs/frontend_dist/` is\
+    \ gitignored**, so merging the front-end fix to `main` did *not* update the bundle\
+    \ being served. The main clone needs `npm run build` after any frontend merge,\
+    \ not just a restart.\n\nThe fix was `npm run build` in the main clone followed\
+    \ by `C:/ai/shared/launchers/open-agentjobs.ps1 -NoOpen`. Verified afterwards\
+    \ on the live server: `/api/version` reports `libyaml (yaml.CSafeLoader)`, every\
+    \ endpoint reports `X-Task-Parses: 119`, and click-to-rendered measured 187-216\
+    \ ms in a real browser against the live 125-file corpus.\n\n## Left open, with\
+    \ no target in this epic\n\n- **Cold load, 1127 ms** \u2014 a fresh navigation\
+    \ paying for a 337 KB bundle plus four parallel API calls.\n- **The CLI floor,\
+    \ ~700-800 ms** \u2014 Python interpreter startup, which no storage work reaches.\n\
+    - **A pre-existing test failure**, unrelated to this epic: `tests/test_task_corpus.py::test_agentjobs_context_paths_exist`\
+    \ fails in any worktree and in any fresh clone, because task-002 names a context\
+    \ path under `.agents/`, which is excluded via `.git/info/exclude` and exists\
+    \ only in Jeff's main clone.\n- **A small simplification in `storage.py`**: the\
+    \ whole-corpus memo turns out to be redundant with the per-task memo for parse-counting\
+    \ purposes, earning its place only by avoiding a re-glob. Discovered while trying\
+    \ to break the budgets."
+  data:
+    operation:
+      id: d0819c23-4e76-4f98-d0ba-123456789abc
+      kind: log_append
+      fingerprint: 6162c7c82a0cba17a2fff75bcae43b4f
+- id: 5
+  ts: '2026-08-18T01:47:12.664172Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: d0819c23-4e76-4f98-d0ba-123456789abd
+      kind: update_content
+      fingerprint: 09ce7a6dd2910eb560c3917294b57770
+- id: 6
+  ts: '2026-08-18T01:47:28.030369Z'
+  actor: claude
+  type: handoff
+  body: "All six children are closed and merged to main; every acceptance criterion\
+    \ including your device check (ac-7) is marked met. This is waiting on your signoff\
+    \ to close the epic \u2014 you said you wanted to review before signoff.\n\nWhat\
+    \ to look at, in the order that matters:\n\n1. **The two judgement calls, not\
+    \ the code.** task-134 was CANCELLED rather than built \u2014 the mtime+size cache\
+    \ key is unsafe here (28 of 40 same-size rewrites left st_mtime_ns unchanged),\
+    \ and the win was 124 ms on interactions already inside target. Its decision log\
+    \ has the full reasoning and the trigger for reopening (~350 files). task-133\
+    \ kept the pure-Python dumper because 79 of 119 task files serialise differently\
+    \ under CSafeDumper, which would have broken canonical_bytes() and churned every\
+    \ file. If you disagree with either, say so and I will reopen.\n\n2. **The headline\
+    \ numbers**, in this task's newest progress entry: click-to-open 9567 ms -> 263\
+    \ ms, dashboard 48x, and every endpoint now parses the corpus exactly once instead\
+    \ of 4-8 times.\n\n3. **One operational thing worth knowing for next time:** src/agentjobs/frontend_dist/\
+    \ is gitignored, so merging a front-end fix to main does NOT update the bundle\
+    \ your server serves. It needs `npm run build` in the main clone plus a restart,\
+    \ which is why it still looked slow to you after everything had merged.\n\nNothing\
+    \ is blocked on you technically \u2014 main is green and the live server is running\
+    \ the new code. Close this when you are satisfied, or hand it back with what you\
+    \ want changed."
+  data:
+    ball: human
+    ball_reason: approval
+    operation:
+      id: d0819c23-4e76-4f98-d0ba-123456789abe
+      kind: handoff
+      fingerprint: 87da2dfacd6078fe80ecd7c299f66ff7
