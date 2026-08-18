@@ -2,10 +2,50 @@ schema: 2
 id: task-067-attachments-on-feedback
 title: Attach images to feedback and issue reports, primarily by clipboard paste
 created: '2026-08-10T23:31:30.455098Z'
-updated: '2026-08-15T22:34:23.788153Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-18T03:54:44.886617Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: "Review pasted-screenshot attachments on branch `feat/task-067-attachments-on-feedback`\
+  \ (worktree `C:/projects/aj-067`), then approve or send it back.\n\n**Review server\
+  \ running: http://127.0.0.1:8899/app/ \u2014 throwaway data, own port, nothing touches\
+  \ your real corpus.** Click anything. Say the word and I will stop it.\n\nThe fastest\
+  \ way to judge this is to take a screenshot and paste it. Both surfaces are seeded:\n\
+  \n1. `/app/p/review-sandbox/tasks/task-001-badge-shows-enum` \u2014 the ball is\
+  \ with you, so the **Request Changes** box is on screen. Screenshot something, click\
+  \ into the box, Ctrl+V. Submit, then look at the entry you just wrote: the image\
+  \ is shown inline where the entry is read.\n2. The same page already carries two\
+  \ stored images on earlier entries, so you can see the rendering without pasting\
+  \ anything.\n3. **Report issue** (bottom right, from any page) has the identical\
+  \ widget \u2014 same component, so they cannot drift.\n4. `task-002-no-image` is\
+  \ the same kind of entry without images, for comparison.\n5. Try pasting something\
+  \ over 5 MB: it is refused at the moment of the paste, with your typed prose untouched.\
+  \ That is ac-6, and the failure it exists to prevent.\n\n**What is stored.** Open\
+  \ a task file in the sandbox (`%TEMP%/agentjobs-review-067/review-sandbox/tasks/`).\
+  \ The YAML carries five metadata fields and no base64; the image is a real file\
+  \ at `attachments/<task-id>/<sha256>.png`. That is the storage decision you accepted\
+  \ on 2026-08-15, unchanged.\n\n**Worth your eye, in order:**\n\n- **The 5 MiB ceiling\
+  \ and PNG/JPEG/WebP only.** Both come from the accepted decision, but you have not\
+  \ yet met them in use. If a screenshot of your 4K display lands over the line, the\
+  \ limit is wrong, not the screenshot.\n- **The orphan report is reporting only.**\
+  \ `agentjobs attachments --orphans`, run from the project directory, lists stored\
+  \ files nothing references and deletes nothing. `task-003-orphan-demo` in the sandbox\
+  \ has one. I did not build cleanup: git keeps every blob anyway, so deleting the\
+  \ working file reclaims nothing while risking the thing an entry points at.\n- **The\
+  \ reject box deliberately has no paste target**, only Request Changes and Report\
+  \ Issue. Reasoning in the decision log; two lines to add if you disagree.\n\n**Verification.**\
+  \ `poetry run python scripts/check.py` fully green \u2014 1435 pytest, 91 vitest,\
+  \ 10 Playwright. Two of the browser tests are the ones that could not be faked:\
+  \ a real ClipboardEvent carrying a real image, base64 over the wire, a sidecar written\
+  \ to disk, and the browser fetching it back and decoding it to a non-zero width.\
+  \ Also checked by hand in the sandbox: both seeded images render at their true dimensions\
+  \ through the real server.\n\n**One thing I changed outside this task.** `create-task.spec.ts`\
+  \ reached the create form through the dashboard's empty-state call-to-action, so\
+  \ it silently depended on running before every other spec. My new spec file sorts\
+  \ ahead of it and broke that. Fixed to use the nav link, as `promote-draft.spec.ts`\
+  \ already did. It is a separate commit.\n\nOn approval I will rebase, merge --no-ff,\
+  \ close this, remove the worktree, rebuild the bundle in the main clone, and continue\
+  \ task-120 with task-121 (the capture tray), which is the last child."
 archived: false
 priority: high
 category: ux
@@ -17,6 +57,7 @@ tags:
 - workflow
 effort: half a day
 assignment:
+  owner: claude
   eligible: []
 parent: task-120-issue-reporter-workflow
 spec:
@@ -118,22 +159,22 @@ acceptance:
 - id: ac-1
   text: the storage model for binaries is decided and recorded, with the rejected
     alternatives and the repository-growth consequence
-  status: pending
+  status: met
 - id: ac-2
   text: pasting an image into the Request Changes box attaches it, with no file picker
-  status: pending
+  status: met
 - id: ac-3
   text: the same works in the Report Issue form
-  status: pending
+  status: met
 - id: ac-4
   text: attachments render inline where the entry is read, not as bare links
-  status: pending
+  status: met
 - id: ac-5
   text: task YAML remains readable and diffable in a text editor
-  status: pending
+  status: met
 - id: ac-6
   text: an oversized paste fails clearly and does not lose the prose already typed
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-065-report-issue-action
@@ -141,7 +182,9 @@ dependencies:
   note: Build the shared report surface first, then add the common attachment widget
     and storage path.
 links: []
-branches: []
+branches:
+- name: feat/task-067-attachments-on-feedback
+  status: active
 log:
 - id: 1
   ts: '2026-08-11T06:05:20.530167Z'
@@ -202,3 +245,152 @@ log:
   data:
     ball: agent
     ball_reason: available
+- id: 5
+  ts: '2026-08-18T03:14:36.377923Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 5c81f3a0-4e27-4b9d-8f62-a09d3c7be514
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 6
+  ts: '2026-08-18T03:54:00.042565Z'
+  actor: claude
+  type: decision
+  body: "**Implementation decisions inside the accepted storage model.** The storage\
+    \ question was settled on 2026-08-15 and is not reopened here; these are the calls\
+    \ that decision left open.\n\n**1. The media type is read from the bytes, never\
+    \ from the caller.** `sniff_media_type` matches the PNG/JPEG/WebP magic numbers\
+    \ and the declared `Content-Type` is not consulted at all \u2014 the upload model\
+    \ has no `media_type` field to send. A declared type is a claim about a blob;\
+    \ the magic number *is* the blob. Taking the claim would let a mislabelled file\
+    \ be stored with an extension and a served `Content-Type` that disagree with what\
+    \ a browser does with it. *Rejected: trust the client and validate the extension*\
+    \ \u2014 that validates the label, not the thing.\n\n**2. `attachments` is `Optional[...]\
+    \ = None`, not a list defaulting to empty.** `_write_task` dumps with `exclude_none=True`,\
+    \ so an entry without images carries no key at all. With `[]` every log entry\
+    \ in all 120 existing task files would gain a line on its next write, for a field\
+    \ none of them use \u2014 an \"additive\" change that rewrites the corpus is not\
+    \ additive in the sense section 9 means. The cost is `entry.attachments or []`\
+    \ at read sites, which is cheap and local. Asserted directly: a task written with\
+    \ no images contains no `attachments` anywhere in its text.\n\n**3. Blobs are\
+    \ written inside the manager verb, not at the API boundary.** `handoff` and `create_task`\
+    \ take `AttachmentPayload` (raw bytes) and call storage themselves, so the file\
+    \ and the entry citing it are produced by one call and an `AttachmentError` aborts\
+    \ the whole verb. *Rejected: have the route write the file and pass finished metadata\
+    \ into the manager* \u2014 one line shorter, and it admits two states the decision\
+    \ explicitly rules out: a stored file no entry references, and an entry pointing\
+    \ at a file that was never written. On creation the write happens after the id\
+    \ is allocated, which is why the payload rather than the metadata has to reach\
+    \ that far in.\n\n**4. Base64 in the request body, never in the record.** The\
+    \ transport needs the bytes inline; the YAML must stay readable. Those are different\
+    \ problems and they get different answers, which is worth stating because \"no\
+    \ base64\" was the rejected option in the original decision and this is not that.\n\
+    \n**5. Serving resolves through the task record.** `GET /tasks/{id}/attachments/{filename}`\
+    \ looks the file up among the attachments the task's own log entries reference,\
+    \ and 404s otherwise. The route therefore cannot be turned into a general file\
+    \ server even if the containment check were wrong, and looking the record up is\
+    \ also what supplies the hash it verifies before returning bytes."
+  data:
+    operation:
+      id: e94b2170-6c38-4a5d-b1f2-73d0ac859e16
+      kind: log_append
+      fingerprint: ce3f8373a9b69719a8f9afc08d0c2b05
+- id: 7
+  ts: '2026-08-18T03:54:13.013219Z'
+  actor: claude
+  type: decision
+  body: "**Two scope calls, both deliberate.**\n\n**The rejection box gets no paste\
+    \ target; Request Changes does.** The spec names \"the review panel's Request\
+    \ Changes box, and the Report Issue form\" as the two surfaces, and reject is\
+    \ neither. It is also a different act: rejecting closes a task as cancelled, and\
+    \ evidence for *why something should stop existing* is a weaker case than evidence\
+    \ for *what is wrong with it*. Adding it would have been two lines, which is exactly\
+    \ why it is worth saying no on purpose rather than by omission. Trivial to add\
+    \ if it turns out to be wanted.\n\n**A test outside this task's surface had to\
+    \ be fixed, and it was a real latent bug.** `create-task.spec.ts` reached the\
+    \ create form through the dashboard's \"Create task\" call-to-action, which renders\
+    \ only while the dashboard is empty. That silently required the file to run before\
+    \ every other spec, an ordering nothing enforced. Adding `attach-screenshot.spec.ts`\
+    \ \u2014 which sorts alphabetically ahead of it \u2014 broke that assumption,\
+    \ and the failure looked like my change breaking task creation rather than a pre-existing\
+    \ dependency finally being tripped.\n\nFixed by using the nav link, as `promote-draft.spec.ts`\
+    \ already did and had already written the reason for. The entry point is incidental\
+    \ to what that test covers (create \u2192 API \u2192 list). *Rejected: rename\
+    \ my spec so it sorts last* \u2014 that hides the landmine for whoever adds the\
+    \ next spec file, and the diagnosis would have to be made again from scratch."
+  data:
+    operation:
+      id: 7a1f5c62-9d84-4e07-b3a5-0e26d8f19b34
+      kind: log_append
+      fingerprint: 97fcd82d5bb82c9f8c602b2bccc2bc0f
+- id: 8
+  ts: '2026-08-18T03:54:22.310085Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 2d5a8b31-4f76-4c19-90e3-a8b74e02c65f
+      kind: update_content
+      fingerprint: 3530836eac2079fda2805e955f75d405
+- id: 9
+  ts: '2026-08-18T03:54:44.886480Z'
+  actor: claude
+  type: handoff
+  body: "Review pasted-screenshot attachments on branch `feat/task-067-attachments-on-feedback`\
+    \ (worktree `C:/projects/aj-067`), then approve or send it back.\n\n**Review server\
+    \ running: http://127.0.0.1:8899/app/ \u2014 throwaway data, own port, nothing\
+    \ touches your real corpus.** Click anything. Say the word and I will stop it.\n\
+    \nThe fastest way to judge this is to take a screenshot and paste it. Both surfaces\
+    \ are seeded:\n\n1. `/app/p/review-sandbox/tasks/task-001-badge-shows-enum` \u2014\
+    \ the ball is with you, so the **Request Changes** box is on screen. Screenshot\
+    \ something, click into the box, Ctrl+V. Submit, then look at the entry you just\
+    \ wrote: the image is shown inline where the entry is read.\n2. The same page\
+    \ already carries two stored images on earlier entries, so you can see the rendering\
+    \ without pasting anything.\n3. **Report issue** (bottom right, from any page)\
+    \ has the identical widget \u2014 same component, so they cannot drift.\n4. `task-002-no-image`\
+    \ is the same kind of entry without images, for comparison.\n5. Try pasting something\
+    \ over 5 MB: it is refused at the moment of the paste, with your typed prose untouched.\
+    \ That is ac-6, and the failure it exists to prevent.\n\n**What is stored.** Open\
+    \ a task file in the sandbox (`%TEMP%/agentjobs-review-067/review-sandbox/tasks/`).\
+    \ The YAML carries five metadata fields and no base64; the image is a real file\
+    \ at `attachments/<task-id>/<sha256>.png`. That is the storage decision you accepted\
+    \ on 2026-08-15, unchanged.\n\n**Worth your eye, in order:**\n\n- **The 5 MiB\
+    \ ceiling and PNG/JPEG/WebP only.** Both come from the accepted decision, but\
+    \ you have not yet met them in use. If a screenshot of your 4K display lands over\
+    \ the line, the limit is wrong, not the screenshot.\n- **The orphan report is\
+    \ reporting only.** `agentjobs attachments --orphans`, run from the project directory,\
+    \ lists stored files nothing references and deletes nothing. `task-003-orphan-demo`\
+    \ in the sandbox has one. I did not build cleanup: git keeps every blob anyway,\
+    \ so deleting the working file reclaims nothing while risking the thing an entry\
+    \ points at.\n- **The reject box deliberately has no paste target**, only Request\
+    \ Changes and Report Issue. Reasoning in the decision log; two lines to add if\
+    \ you disagree.\n\n**Verification.** `poetry run python scripts/check.py` fully\
+    \ green \u2014 1435 pytest, 91 vitest, 10 Playwright. Two of the browser tests\
+    \ are the ones that could not be faked: a real ClipboardEvent carrying a real\
+    \ image, base64 over the wire, a sidecar written to disk, and the browser fetching\
+    \ it back and decoding it to a non-zero width. Also checked by hand in the sandbox:\
+    \ both seeded images render at their true dimensions through the real server.\n\
+    \n**One thing I changed outside this task.** `create-task.spec.ts` reached the\
+    \ create form through the dashboard's empty-state call-to-action, so it silently\
+    \ depended on running before every other spec. My new spec file sorts ahead of\
+    \ it and broke that. Fixed to use the nav link, as `promote-draft.spec.ts` already\
+    \ did. It is a separate commit.\n\nOn approval I will rebase, merge --no-ff, close\
+    \ this, remove the worktree, rebuild the bundle in the main clone, and continue\
+    \ task-120 with task-121 (the capture tray), which is the last child."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: c6019e73-2b4f-4d85-a17e-5f3b8d240ea1
+      kind: handoff
+      fingerprint: fbb27690f3c0e4098c1bb43a82829b9f
