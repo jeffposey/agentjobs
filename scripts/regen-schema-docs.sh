@@ -120,16 +120,20 @@ for ex in schema/examples/*.yaml; do
 done
 
 echo
-echo "== Validate the live corpus against v1 =="
+# Every task file carries `schema: 2`, so validating them against $V1 reported success
+# against a schema none of them claim -- a check that could never have failed. Corrected
+# 2026-08-18 as part of task-069, whose sc-4 ("the corpus still validates") was
+# meaningless while this loop pointed at v1.
+echo "== Validate the live corpus against v2 =="
 pass=0
 fail=0
 for f in tasks/agentjobs/*.yaml tasks/test-data/*.yaml; do
-  if poetry run linkml-validate -s "$V1" --target-class Task "$f" 2>&1 | grep -q "No issues found"; then
+  if poetry run linkml-validate -s "$V2" --target-class Task "$f" 2>&1 | grep -q "No issues found"; then
     pass=$((pass + 1))
   else
     fail=$((fail + 1))
     echo "FAIL: $f"
-    poetry run linkml-validate -s "$V1" --target-class Task "$f" 2>&1 | head -5
+    poetry run linkml-validate -s "$V2" --target-class Task "$f" 2>&1 | head -5
   fi
 done
 echo "corpus: $pass passed, $fail failed"
