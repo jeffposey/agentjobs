@@ -2,10 +2,11 @@ schema: 2
 id: task-069-dispatch-log-entries
 title: 'Schema: dispatch and dispatch_result log entries'
 created: '2026-08-11T00:21:32.478917Z'
-updated: '2026-08-18T06:35:12.261150Z'
-lifecycle: ready
+updated: '2026-08-18T07:08:25.278924Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: infrastructure
@@ -14,6 +15,7 @@ tags:
 - architecture
 effort: 1-2 hours
 assignment:
+  owner: claude
   eligible: []
 parent: task-060-agent-dispatch
 spec:
@@ -102,7 +104,9 @@ links:
 - url: https://github.com/jeffposey/agentjobs/blob/main/docs/agent-dispatch-design.md
   rel: design
   title: Agent dispatch design pass (task-060)
-branches: []
+branches:
+- name: feat/task-069-dispatch-log-entries
+  status: active
 log:
 - id: 1
   ts: '2026-08-11T01:43:18.967734Z'
@@ -164,3 +168,28 @@ log:
       id: b7205e93-1c48-4d06-9a72-3f84e5170dc2
       kind: update_content
       fingerprint: fea9ab90212f02cb29fbf022e3c5e0ee
+- id: 4
+  ts: '2026-08-18T07:08:19.971567Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: b17a6f81-4293-4fa6-ed3c-6d7e8f90a1b5
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 5
+  ts: '2026-08-18T07:08:25.278810Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: c28b7092-53a4-4b07-fe4d-7e8f90a1b2c6
+      kind: update_content
+      fingerprint: 6a35861b95c0342641236eb021c010f3
