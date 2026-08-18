@@ -46,6 +46,7 @@ const detail: TaskDetailResponse = {
   children: [task("task-child", { ball: "agent", ball_reason: "available", ball_prompt: null, lifecycle: "ready", title: "Child title", display_status: "Ready" })],
   needs: [{ task_id: "task-needed", title: "Required task", exists: true, state: "open", note: "Required first.", reason: "Needs task-needed; it is still open." }],
   blocks: [{ task_id: "task-child", title: "Child title", exists: true, state: "open", note: null, reason: "task-child needs this task." }],
+  related: [{ task_id: "task-noticed-on", title: "The page it was noticed on", exists: true, state: "open", note: "Reported while viewing this task.", reason: "Related to task-noticed-on." }],
   child_dependency_edges: [{ source: "task-missing", target: "task-child", note: "External gate.", source_exists: false, target_exists: true, source_contained: false, target_contained: true }],
   identity: { ok: true, user: "Jeff Posey", problem: null, detail: "" },
 };
@@ -85,6 +86,11 @@ describe("TaskDetail resumption contract", () => {
     expect(screen.getByRole("link", { name: "task-needed" })).toHaveAttribute("href", "/p/inbox/tasks/task-needed");
     expect(screen.getByText("Needs task-needed; it is still open.")).toBeVisible();
     expect(screen.getByText("task-child needs this task.")).toBeVisible();
+    // A `related` edge blocks nothing, so it never appears in the work state. It is
+    // still the trail a reported issue leaves back to the page it was noticed on, so
+    // it has to be followable.
+    expect(screen.getByRole("link", { name: "task-noticed-on" })).toHaveAttribute("href", "/p/inbox/tasks/task-noticed-on");
+    expect(screen.getByText("Reported while viewing this task.")).toBeVisible();
     expect(screen.getByRole("region", { name: "Umbrella dependency graph" })).toHaveTextContent("task-missing (missing)");
     expect(screen.getByRole("region", { name: "Dependency state" })).toHaveTextContent("Waiting for review");
   });

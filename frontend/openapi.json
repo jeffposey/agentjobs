@@ -1827,6 +1827,18 @@
             "title": "Acceptance",
             "type": "array"
           },
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Configured actor id to record as the creator. Written to the creation log entry, so a task can say who filed it. Refused when the project does not define the id.",
+            "title": "Actor"
+          },
           "branches": {
             "description": "Git branches associated with the task lifecycle.",
             "items": {
@@ -2057,6 +2069,13 @@
               }
             ]
           },
+          "related": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyRelation"
+            },
+            "title": "Related",
+            "type": "array"
+          },
           "task": {
             "$ref": "#/components/schemas/TaskRead-Output"
           }
@@ -2067,6 +2086,7 @@
           "children",
           "needs",
           "blocks",
+          "related",
           "child_dependency_edges",
           "identity"
         ],

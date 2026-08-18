@@ -1243,6 +1243,12 @@ export type TaskCreateRequest = {
      */
     acceptance?: Array<AcceptanceCriterion>;
     /**
+     * Actor
+     *
+     * Configured actor id to record as the creator. Written to the creation log entry, so a task can say who filed it. Refused when the project does not define the id.
+     */
+    actor?: string | null;
+    /**
      * Branches
      *
      * Git branches associated with the task lifecycle.
@@ -1384,6 +1390,10 @@ export type TaskDetailResponse = {
      */
     needs: Array<DependencyRelation>;
     parent_task: TaskReadOutput | null;
+    /**
+     * Related
+     */
+    related: Array<DependencyRelation>;
     task: TaskReadOutput;
 };
 
@@ -2071,6 +2081,10 @@ export type TaskDetailResponseWritable = {
      */
     needs: Array<DependencyRelation>;
     parent_task: TaskReadOutputWritable | null;
+    /**
+     * Related
+     */
+    related: Array<DependencyRelation>;
     task: TaskReadOutputWritable;
 };
 

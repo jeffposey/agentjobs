@@ -486,15 +486,18 @@ class TaskManager:
         task_kwargs.update(kwargs)
 
         task = Task.model_validate(task_kwargs)
-        if operation is not None:
-            # The creation entry exists to carry the operation marker, which is what a
-            # retry finds. Added only when an operation_id was supplied, so tasks
-            # created the old way still start with an empty log.
+        creator = actor or (operation.actor if operation is not None else None)
+        if creator is not None:
+            # The creation entry carries two things: the operation marker a retry
+            # finds, and who created the task. Either one on its own is reason enough
+            # to write it -- a caller that names an actor and gets no attribution has
+            # been silently ignored, which is the failure actors.py exists to prevent.
+            # A create that names neither still starts with an empty log, as before.
             self._append_entry(
                 task,
-                actor=operation.actor,
+                actor=creator,
                 type=LogEntryType.TRANSITION,
-                body=f"Created {lifecycle.value} by {operation.actor}.",
+                body=f"Created {lifecycle.value} by {creator}.",
                 data={"lifecycle": lifecycle.value},
                 operation=operation,
             )
