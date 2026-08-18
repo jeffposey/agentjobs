@@ -96,11 +96,21 @@ export function runStateLabel(run: DispatchRunView): string {
   }
 }
 
-function RefusalNote({ refusal }: { refusal: DispatchRefusal }) {
+/**
+ * A refusal, with what to do about it.
+ *
+ * `answered` distinguishes the two kinds, and it is not decoration. A gate that was
+ * already closed before anyone touched anything is *status*: it describes the world.
+ * A refusal that came back from a button the human just pressed is an *alert*: it
+ * describes their action. Announcing the first as an alert makes a screen reader
+ * interrupt on every task page, and makes `getByRole("alert")` on any other page
+ * ambiguous -- which is how this was found.
+ */
+function RefusalNote({ refusal, answered = true }: { refusal: DispatchRefusal; answered?: boolean }) {
   const action = refusal.suggestedAction || REFUSAL_ACTIONS[refusal.reason];
   return (
     <div
-      role="alert"
+      role={answered ? "alert" : "status"}
       data-refusal-reason={refusal.reason}
       className="rounded-lg border border-orange-600/50 bg-orange-950/30 p-3 text-sm text-orange-100"
     >
@@ -142,6 +152,11 @@ export function DispatchPanel({
   onCancel,
 }: DispatchPanelProps) {
   if (!taskIsDispatchable && runs.length === 0) return null;
+  // Silent on a machine where dispatch was never set up. There is nothing to switch on
+  // and nothing to explain: putting a box on every task about a feature the owner has
+  // not configured is clutter on every page, forever. Once a dispatch.yaml exists, a
+  // closed gate is worth naming, because then it is a thing the reader can act on.
+  if (!state?.configured && runs.length === 0) return null;
 
   const gateRefusal: DispatchRefusal | null =
     state && !state.can_dispatch && state.refusal
@@ -182,7 +197,7 @@ export function DispatchPanel({
         </div>
       )}
 
-      {taskIsDispatchable && gateRefusal && <RefusalNote refusal={gateRefusal} />}
+      {taskIsDispatchable && gateRefusal && <RefusalNote refusal={gateRefusal} answered={false} />}
       {dispatchRefusal && <RefusalNote refusal={dispatchRefusal} />}
 
       <DispatchRunList runs={runs} cancellingRunId={cancellingRunId} onCancel={onCancel} />
@@ -319,7 +334,10 @@ export function DispatchSettings({
 
         {state.refusal && (
           <div className="mt-4">
-            <RefusalNote refusal={{ reason: state.refusal.reason, message: state.refusal.message }} />
+            <RefusalNote
+              refusal={{ reason: state.refusal.reason, message: state.refusal.message }}
+              answered={false}
+            />
           </div>
         )}
 

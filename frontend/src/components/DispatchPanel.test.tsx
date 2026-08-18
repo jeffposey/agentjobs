@@ -128,11 +128,27 @@ describe("refusals", () => {
       }),
     });
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
+    // A gate that was already closed is status, not an alert: nobody pressed anything.
+    expect(screen.getByRole("status")).toHaveTextContent(
       "Project 'sandbox' is not enabled for dispatch.",
     );
-    expect(screen.getByRole("alert")).toHaveTextContent(/not enabled for dispatch\. Turn it on/i);
+    expect(screen.getByRole("status")).toHaveTextContent(/not enabled for dispatch\. Turn it on/i);
     expect(screen.queryByRole("button", { name: /dispatch/i })).toBeNull();
+  });
+
+  it("says nothing at all on a machine where dispatch was never configured", () => {
+    renderPanel({
+      state: state({
+        configured: false,
+        master_enabled: false,
+        project_enabled: false,
+        can_dispatch: false,
+        available_runners: [],
+        refusal: { reason: "not_configured", message: "Dispatch is not configured." },
+      }),
+    });
+
+    expect(screen.queryByRole("region", { name: "Dispatch" })).toBeNull();
   });
 
   it("renders the human-clocked rule in the words that explain why retrying will not help", () => {
@@ -310,7 +326,7 @@ describe("the project toggle", () => {
     expect(machineGate).toHaveTextContent("Closed");
     const projectGate = screen.getByText("This project").closest("div");
     expect(projectGate).toHaveTextContent("Open");
-    expect(screen.getByRole("alert")).toHaveTextContent(/set 'enabled: true'/i);
+    expect(screen.getByRole("status")).toHaveTextContent(/set 'enabled: true'/i);
   });
 
   it("names the sentinel file when the kill switch is what is stopping runs", () => {
