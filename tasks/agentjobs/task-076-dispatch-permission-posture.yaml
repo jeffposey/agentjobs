@@ -2,59 +2,25 @@ schema: 2
 id: task-076-dispatch-permission-posture
 title: Decide what a dispatched agent is allowed to do without a human present
 created: '2026-08-11T01:43:18.956698Z'
-updated: '2026-08-18T05:34:06.814346Z'
+updated: '2026-08-18T05:37:00.387805Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: 'Choose the permission posture for dispatched runs. Research and a recommendation
-  are in log entries 2-4; entry 3 corrects an error in entry 2, read it before entry
-  2.
-
-
-  Recommended: three named postures selected per project, defaulting to `supervised`
-  = `--permission-mode acceptEdits -w <task-slug>` plus a project allow-list passed
-  via `--settings` in `Tool(prefix:*)` form. Commands on the list run unattended;
-  anything else parks the session at `waiting`/`blocked`, which AgentJobs polls and
-  turns into ball -> human/input, answerable from your phone. `read_only` (`--tools
-  "Read,Glob,Grep,WebFetch"`, verified enforceable) and `autonomous` (`bypassPermissions`,
-  opt-in, never default) are the other two.
-
-
-  Rejected, with costs: read-only-only (cannot run the suite, so satisfies no acceptance
-  criterion in 068-075); `dontAsk` as default (never parks, but silently denies and
-  the agent then produces untested work and hands back anyway - a visible stall traded
-  for an invisible half-finished result); `bypassPermissions` as default (unattended
-  shell, and the worktree that would justify it is a blast-radius reducer, not a boundary);
-  a bespoke AgentJobs allow-list (duplicates a mechanism that already enforces).
-
-
-  What I need from you:
-
-
-  1. Pick a posture set and a default.
-
-  2. Confirm the seed allow-list: `poetry run pytest:*`, `poetry run ruff:*`, `poetry
-  run black:*`, `poetry run mypy:*`, `npm run:*`, `git status:*`, `git diff:*`, `git
-  add:*`, `git commit:*`.
-
-  3. Decide sc-3: whether task-075 layer 2 is dropped for dispatched runs in favour
-  of the CLI''s own `-w` worktree (recommended - it is git-locked with a lock reason
-  naming the session, and `claude rm` refuses to discard uncommitted work).
-
-
-  Note for the overnight-kickoff plan specifically: under `supervised`, the first
-  dispatched run parks the first time it meets a command outside the allow-list. That
-  is recoverable from your phone but it is not zero-touch. If you want a genuinely
-  unattended overnight chain, that is the `autonomous` posture and you should say
-  so explicitly - I have not assumed it.
-
-
-  This decision depends on task-077-dispatch-session-launcher going the session way.
-  Decide 077 alongside it. Once you decide, I will write the `decision` entry with
-  the rejected alternatives, amend docs/agent-dispatch-design.md section 4 (which
-  also needs its CLI version corrected from 2.1.220 to 2.1.228 and its `--session-id`
-  claim corrected - see task-077''s log), and update task-070''s spec with the concrete
-  flags (sc-4). Nothing has been written to the design doc or to 070 yet.'
+ball: agent
+ball_reason: work
+ball_prompt: "Decision is made and recorded in log entry 6. Remaining work to close\
+  \ this task:\n\n1. **sc-1** \u2014 write the posture decision into docs/agent-dispatch-design.md\
+  \ section 4, in the style of the rest of that document, with the rejected options\
+  \ and their reasoning. While in there, correct the section's stale CLI facts: version\
+  \ is 2.1.228 not 2.1.220, `--bg` ignores `--session-id`, and the claim that a headless\
+  \ permission prompt is a silent denial is false for `--bg` (it parks at waiting/blocked;\
+  \ `dontAsk` is the mode that silently denies).\n2. **sc-3** \u2014 record in the\
+  \ design doc that task-075 layer 2 is dropped for dispatched runs in favour of the\
+  \ CLI's `-w`, and note on task-075 itself that sc-3 and sc-5 are answered by this\
+  \ decision.\n3. **sc-4** \u2014 update task-070's spec with the concrete flags its\
+  \ runner template must pass: `--permission-mode acceptEdits -w <task-slug>` plus\
+  \ the seed allow-list via `--settings` in `Tool(prefix:*)` form, and the read_only\
+  \ and autonomous variants.\n\nCoordinate with task-077, which is amending the same\
+  \ document (section 4 and section 9). Do them together or in sequence, not in parallel\
+  \ worktrees, or they will conflict."
 archived: false
 priority: high
 category: architecture
@@ -484,3 +450,16 @@ log:
       id: 1c5d8b74-3f92-4e06-a851-9b2f47c30d68
       kind: log_append
       fingerprint: 7a19456aed8684f8b5e26eaa433a8184
+- id: 7
+  ts: '2026-08-18T05:37:00.387677Z'
+  actor: claude
+  type: handoff
+  body: Jeff decided; ball returns to the agent for the documentation work that closes
+    the task.
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: e2f74a08-5b19-4c63-90d7-6a83c1e2b954
+      kind: handoff
+      fingerprint: a02ae7c2119b243be4ba57fafa6e7301

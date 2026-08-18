@@ -3,72 +3,30 @@ id: task-077-dispatch-session-launcher
 title: 'Decide: should dispatch launch a remote-controllable session instead of a
   batch run?'
 created: '2026-08-11T01:56:16.465216Z'
-updated: '2026-08-18T05:33:38.379261Z'
+updated: '2026-08-18T05:37:14.574449Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: 'Decide whether dispatch launches a session or supervises a batch. Evidence
-  for sc-1 is log entry 5 (entry 4 is a void placeholder, ignore it); the recommendation
-  is entry 6.
-
-
-  Recommended: drive `claude agents` in session mode as the primary path (`--bg --remote-control
-  -w <slug>`), and keep batch `-p` as a second declared runner mode. The split is
-  by purpose, not vendor: `session` for work you might redirect, `batch` for bounded
-  reports where a spend ceiling and structured output matter more than steerability.
-  That satisfies your 2026-08-11 direction and keeps the runner abstraction fillable
-  by a CLI with no session manager.
-
-
-  Against your stated goal, stated honestly: session mode does not remove the chat
-  window, it demotes it. There is no CLI verb to send a message into a running background
-  session - steering happens at claude.ai/code or via `claude attach`. AgentJobs starts
-  the run, records it, and links to it. So AgentJobs becomes where work is tracked
-  and decided, and chat becomes where one run is steered, hanging off a task record
-  instead of floating free. Batch mode fails the goal outright.
-
-
-  The costs I would be asking you to accept, none of which were known in August: output
-  becomes an ANSI screen scrape rather than stream-json; `failed` and `crashed` have
-  no representation in the ledger because there is no exit code; and **`--max-budget-usd`
-  is `--print`-only, so session mode has no per-run spend ceiling at all**. That last
-  one is the strongest argument for the rejected option and you should weigh it before
-  agreeing.
-
-
-  What I need from you:
-
-
-  1. Session mode primary, or batch? If session, confirm the two-mode runner abstraction
-  rather than deleting batch.
-
-  2. sc-3: agree that ''runs do not outlive their supervisor'' is reversed for session
-  mode. `claude stop <id>` is a working kill switch independent of AgentJobs, so the
-  orphan premise no longer holds, and killing live sessions on an `agentjobs serve`
-  restart would destroy work for no safety gain.
-
-  3. sc-3: replace the 1800s wall-clock kill with a staleness rule for sessions -
-  `idle`/`done` past a threshold with an unmoved ball becomes `finished_without_handoff`.
-  Your call on the threshold.
-
-  4. sc-5: I recommend rescoping task-070 and task-072 rather than closing either.
-  072 in particular survives more than its spec expected - `claude agents --json`
-  has no run-to-task mapping, so AgentJobs still needs its own ledger.
-
-
-  Decide this alongside task-076-dispatch-permission-posture, which is also on your
-  ball and depends on this going the session way.
-
-
-  One thing to confirm yourself before code depends on it: I read the Remote Control
-  URL out of a backgrounded session''s transcript but did not open it on a device.
-  Dispatch one session and open the link - thirty seconds.
-
-
-  Once you decide I will write the `decision` entry, amend design section 4 and rewrite
-  section 9, correct the doc''s stale CLI facts (version 2.1.220 -> 2.1.228, and the
-  `--session-id` claim, which is false for `--bg`), and rescope 070 and 072. Nothing
-  has been written to the design doc or to those tasks yet.'
+ball: agent
+ball_reason: work
+ball_prompt: "Decision is made and recorded in log entry 8. Remaining work to close\
+  \ this task:\n\n1. **sc-2** \u2014 resolve the open amendment in docs/agent-dispatch-design.md\
+  \ section 4: dispatch drives `claude agents` in session mode, with batch retained\
+  \ as a second declared runner mode, and the rejected option with its reasoning.\
+  \ Correct the section's stale CLI facts while there (2.1.220 -> 2.1.228; `--bg`\
+  \ ignores `--session-id`, so the run-id-equals-session-id claim is false; `--max-budget-usd`\
+  \ is `--print`-only, so session mode has no spend ceiling).\n2. **sc-3** \u2014\
+  \ rewrite section 9 for the two-mode world: supervisor thread and run directories\
+  \ retained for `batch` and gone for `session`; \"runs do not outlive their supervisor\"\
+  \ reversed for sessions with the reasoning in entry 8; startup reconciliation becomes\
+  \ re-attach; the 1800s wall-clock kill replaced by the 60-minute staleness rule.\
+  \ Note that `failed` and `crashed` have no ledger representation in session mode,\
+  \ so the outcome table needs a column or a caveat.\n3. **sc-5** \u2014 rescope task-070\
+  \ and task-072 per entry 8. Neither closes.\n\nAlso worth recording somewhere durable:\
+  \ the undocumented `claude attach|logs|stop|rm <id>` subcommands and `claude agents\
+  \ --cwd`, from entry 5. task-070 will need them.\n\nCoordinate with task-076, which\
+  \ is amending the same section 4. Do them together or in sequence, not in parallel\
+  \ worktrees, or they will conflict.\n\nStill unconfirmed and Jeff's to check: whether\
+  \ a backgrounded session actually surfaces on his phone. Do not build UI that depends\
+  \ on the Remote Control URL until he has opened one."
 archived: false
 priority: high
 category: architecture
@@ -602,3 +560,16 @@ log:
       id: f0a92d63-5c18-4b74-9e31-7a2c6b408e5f
       kind: log_append
       fingerprint: a207e94c11a52937a68317cee57fa2ae
+- id: 9
+  ts: '2026-08-18T05:37:14.574238Z'
+  actor: claude
+  type: handoff
+  body: Jeff decided; ball returns to the agent for the design-doc work and the 070/072
+    rescope that close the task.
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: b6039f2d-8c47-4e51-a92b-70d3e5c1846f
+      kind: handoff
+      fingerprint: af5396888bfe2051b1f08d8d6423debb
