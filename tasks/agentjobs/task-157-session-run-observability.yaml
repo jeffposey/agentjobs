@@ -2,10 +2,11 @@ schema: 2
 id: task-157-session-run-observability
 title: Notice when a dispatched session ends, and let its output be read
 created: '2026-08-18T21:53:32.107442Z'
-updated: '2026-08-18T22:02:56.906731Z'
-lifecycle: ready
+updated: '2026-08-18T22:04:01.946003Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: reliability
@@ -15,6 +16,7 @@ tags:
 - reliability
 effort: medium
 assignment:
+  owner: claude
   eligible: []
 parent: task-060-agent-dispatch
 spec:
@@ -428,3 +430,16 @@ log:
       id: 1573aa11-2b33-4c55-8d77-e9f0a1b2c157
       kind: update_content
       fingerprint: 36a818cc0380aca83e5e328d620ce019
+- id: 5
+  ts: '2026-08-18T22:04:01.945863Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 1574aa11-2b33-4c55-8d77-e9f0a1b2c157
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
