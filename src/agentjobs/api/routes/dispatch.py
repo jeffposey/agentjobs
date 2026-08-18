@@ -45,9 +45,12 @@ from agentjobs.dispatch.ledger import (
     list_runs,
 )
 from agentjobs.dispatch.runner import STDERR_FILENAME, STDOUT_FILENAME
+from agentjobs.manager import TaskManager
 from agentjobs.projects import Project, default_home
 
-from ..dependencies import request_project
+from ..dependencies import get_task_manager, request_project
+from ..models import ErrorBody
+from .status import MutationError
 
 router = APIRouter(prefix="/dispatch", tags=["dispatch"])
 
@@ -222,12 +225,33 @@ def _state(project: Project) -> DispatchStateView:
     )
 
 
-def _refusal_error(exc: DispatchError) -> HTTPException:
-    """Render a toggle refusal under the gate's own code, never as a bare 400."""
-    return HTTPException(
-        status_code=status.HTTP_409_CONFLICT,
-        detail={"code": getattr(exc, "reason", "dispatch_error"), "message": str(exc)},
+def _refusal_error(exc: DispatchError) -> MutationError:
+    """Render a toggle refusal under the gate's own code, never as a bare 400.
+
+    A ``MutationError`` rather than an ``HTTPException`` so the body has the same shape
+    every other refusal in this API has -- ``code`` and ``message`` at the top level, not
+    buried under FastAPI's ``detail``. The browser reads all refusals through one
+    function, and one endpoint answering in a different shape is how that function
+    silently starts returning null.
+    """
+    reason = getattr(exc, "reason", "dispatch_error")
+    return MutationError(
+        status.HTTP_409_CONFLICT,
+        ErrorBody(
+            code=reason,
+            message=str(exc),
+            detail=str(exc),
+            retryable=False,
+            suggested_action=_TOGGLE_ACTION.get(reason),
+        ),
     )
+
+
+_TOGGLE_ACTION = {
+    "not_configured": "Create ~/.agentjobs/dispatch.yaml and define a runner first.",
+    "unknown_runner": "Pick a runner this machine already defines, or add one by hand.",
+    "invalid_config": "Fix the YAML in ~/.agentjobs/dispatch.yaml, then try again.",
+}
 
 
 # ----- endpoints --------------------------------------------------------------
@@ -289,11 +313,17 @@ async def list_dispatch_runs(
 
 @router.post("/runs/{run_id}/cancel", response_model=DispatchCancelResult)
 async def cancel_dispatch_run(
-    run_id: str, project: Project = Depends(request_project)
+    run_id: str,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(request_project),
 ) -> DispatchCancelResult:
     """Stop one run and write its cancellation to the task record."""
     home = _home()
-    ledger = DispatchLedger(home)
+    # The manager is handed in rather than looked up. This request already resolved the
+    # project, and a server serving an implicit project -- AGENTJOBS_PROJECT_ROOT, no
+    # registry entry -- would otherwise stop the run and have nowhere to write what
+    # happened to it.
+    ledger = DispatchLedger(home, managers={project.id: manager})
     try:
         record = find_run(home, run_id)
     except LedgerError as exc:
