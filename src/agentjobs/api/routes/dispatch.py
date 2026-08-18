@@ -20,8 +20,9 @@ reach is not one.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import PlainTextResponse
@@ -44,7 +45,14 @@ from agentjobs.dispatch.ledger import (
     find_run,
     list_runs,
 )
-from agentjobs.dispatch.runner import STDERR_FILENAME, STDOUT_FILENAME
+from agentjobs.dispatch.runner import (
+    OUTPUT_TAIL_LINES,
+    STDERR_FILENAME,
+    STDOUT_FILENAME,
+    TRANSCRIPT_FILENAME,
+    readable_tail,
+    strip_ansi,
+)
 from agentjobs.manager import TaskManager
 from agentjobs.projects import Project, default_home
 
@@ -128,6 +136,30 @@ class DispatchRunView(BaseModel):
     output_url: str = Field(..., description="Where this run's captured output is readable.")
 
 
+class DispatchRunTailView(BaseModel):
+    """The end of a run's output, for a page that is watching it happen.
+
+    Bounded on purpose. A session transcript grows for as long as the session does, and a
+    pane on the task page that renders all of it turns the page a reader came to for the
+    task record into a terminal emulator with a task record somewhere above it.
+    """
+
+    run_id: str
+    live: bool = Field(..., description="Nothing has declared this run over.")
+    source: str = Field(
+        ...,
+        description=(
+            "Where the text came from: 'session-transcript' (the session's own output), "
+            "'captured-output' (what the process wrote to stdout/stderr), or 'none'."
+        ),
+    )
+    lines: int = Field(..., description="How many lines this tail is bounded to.")
+    text: str = Field(..., description="The tail itself, escape sequences already removed.")
+    updated_at: Optional[str] = Field(
+        default=None, description="When the file behind this text last changed."
+    )
+
+
 class DispatchCancelResult(BaseModel):
     """What cancelling asked for, and whether it happened."""
 
@@ -178,6 +210,77 @@ def _run_view(record: RunRecord, project: Project) -> DispatchRunView:
         caused_by=record.caused_by,
         output_url=(f"/api/projects/{project.id}/dispatch/runs/{record.run_id}/output"),
     )
+
+
+def _owned_run(run_id: str, project: Project) -> RunRecord:
+    """One run of this project, or a 404 that does not admit runs of another exist.
+
+    A run belonging to a different project is reported as absent rather than forbidden:
+    the page asking is scoped to one project, and "you may not read that one" would tell
+    it about runs it has no business knowing are there.
+    """
+    try:
+        record = find_run(_home(), run_id)
+    except LedgerError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if record.project_id and record.project_id != project.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run {run_id!r} does not belong to project {project.id!r}.",
+        )
+    return record
+
+
+def _read(path: Path) -> str:
+    """A file's text, or a sentence saying why not. Never raises at a reader."""
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:  # pragma: no cover - unreadable mid-write
+        return f"(could not be read: {exc})"
+
+
+def _run_output(record: RunRecord) -> Tuple[str, str, Optional[float]]:
+    """This run's output as a human should read it: (source, text, when it last changed).
+
+    The two modes genuinely differ and are not unified here. A **batch** run's
+    ``stdout.log`` is its output. A **session** run's is the launcher's backgrounding
+    banner, and always will be, however long the session lives -- its own output is the
+    transcript the poller copies in beside it. Serving one from the other's file is how
+    "View output" came to show 249 bytes of banner for a run that had been working for
+    seven minutes.
+
+    A session run with no transcript yet falls back to what was captured rather than
+    reporting nothing: before the first poll the banner is all there is, and it is at
+    least true.
+    """
+    transcript = record.path / TRANSCRIPT_FILENAME
+    if record.is_session and transcript.is_file():
+        text = _read(transcript)
+        if text.strip():
+            # Stripped here rather than at capture: the stored copy stays what the
+            # terminal actually showed, and this is the rendering of it.
+            return "session-transcript", strip_ansi(text), transcript.stat().st_mtime
+
+    sections: List[str] = []
+    latest: Optional[float] = None
+    for name in (STDOUT_FILENAME, STDERR_FILENAME):
+        candidate = record.path / name
+        if not candidate.is_file():
+            continue
+        text = _read(candidate)
+        if text.strip():
+            sections.append(f"--- {name} ---\n{text}")
+            latest = max(latest or 0.0, candidate.stat().st_mtime)
+    if not sections:
+        return "none", "", None
+    return "captured-output", "\n\n".join(sections), latest
+
+
+def _moment(mtime: Optional[float]) -> Optional[str]:
+    """A file modification time as the browser reads timestamps everywhere else."""
+    if mtime is None:
+        return None
+    return datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
 
 
 def _state(project: Project) -> DispatchStateView:
@@ -322,15 +425,7 @@ async def cancel_dispatch_run(
     # registry entry -- would otherwise stop the run and have nowhere to write what
     # happened to it.
     ledger = DispatchLedger(home, managers={project.id: manager})
-    try:
-        record = find_run(home, run_id)
-    except LedgerError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    if record.project_id and record.project_id != project.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Run {run_id!r} does not belong to project {project.id!r}.",
-        )
+    _owned_run(run_id, project)
     try:
         result = ledger.cancel(run_id)
     except LedgerError as exc:
@@ -351,35 +446,44 @@ async def cancel_dispatch_run(
 async def read_dispatch_run_output(
     run_id: str, project: Project = Depends(request_project)
 ) -> PlainTextResponse:
-    """A run's captured output, as text a browser tab can show.
+    """A run's output in full, as text a browser tab can show.
 
     Text rather than JSON because this is the one dispatch response a human reads
     directly, and a transcript wrapped in a JSON string escape is unreadable.
     """
-    home = _home()
-    try:
-        record = find_run(home, run_id)
-    except LedgerError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    if record.project_id and record.project_id != project.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Run {run_id!r} does not belong to project {project.id!r}.",
-        )
-
-    sections: List[str] = []
-    for name in (STDOUT_FILENAME, STDERR_FILENAME):
-        candidate = record.path / name
-        if not candidate.is_file():
-            continue
-        try:
-            text = candidate.read_text(encoding="utf-8", errors="replace")
-        except OSError as exc:  # pragma: no cover - unreadable mid-write
-            text = f"(could not be read: {exc})"
-        if text.strip():
-            sections.append(f"--- {name} ---\n{text}")
-
-    body = "\n\n".join(sections) or f"No output captured for run {run_id}."
+    record = _owned_run(run_id, project)
+    _, text, _ = _run_output(record)
+    body = text or f"No output captured for run {run_id}."
     if len(body) > OUTPUT_BYTE_LIMIT:
         body = "(earlier output omitted)\n" + body[-OUTPUT_BYTE_LIMIT:]
     return PlainTextResponse(body)
+
+
+@router.get("/runs/{run_id}/tail", response_model=DispatchRunTailView)
+async def read_dispatch_run_tail(
+    run_id: str,
+    lines: int = Query(default=OUTPUT_TAIL_LINES, ge=1, le=200),
+    project: Project = Depends(request_project),
+) -> DispatchRunTailView:
+    """The end of a run's output, for a page watching it while it happens.
+
+    A separate endpoint from ``/output`` rather than a parameter on it, because the two
+    are read by different things: ``/output`` is a link a human opens, so it answers in
+    text and gives them everything, while this is polled by a page and answers in the
+    shape the generated client already understands.
+
+    **No subprocess is involved.** The text comes from a file the session poller wrote,
+    so a hundred people watching one run costs a hundred file reads and no more processes
+    than nobody watching it -- and the tail can never be fresher than the poller's own
+    interval, which is the point rather than a limitation.
+    """
+    record = _owned_run(run_id, project)
+    source, text, mtime = _run_output(record)
+    return DispatchRunTailView(
+        run_id=record.run_id,
+        live=record.is_live,
+        source=source,
+        lines=lines,
+        text=readable_tail(text, lines),
+        updated_at=_moment(mtime),
+    )
