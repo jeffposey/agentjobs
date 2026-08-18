@@ -528,6 +528,119 @@ operator's own auth. This strengthens (b)'s rejection above: the SDK would have 
 AgentJobs hold credentials that, under (c), it never sees. It also means §7's limits
 govern a **usage window, not a per-token bill** — worth knowing when choosing the numbers.
 
+### Model policy: task difficulty and dispatch profiles (decided 2026-08-18)
+
+Raised because easy work and hard architecture work should not automatically consume the
+same model. Decided by Jeff on `task-080-dispatch-model-profiles` after the two CLI
+surfaces were read rather than assumed. **Only the first part below is being built.**
+
+#### What the CLIs actually offer, since it changed the answer
+
+Verified against the installed `claude` v2.1.228 and the `openai/codex` source:
+
+| | Claude Code | Codex |
+|---|---|---|
+| Model | `--model` | `-m, --model` |
+| Reasoning effort | `--effort`: 5 levels | `model_reasoning_effort`: 8 levels **plus `Custom(String)`** |
+| Named profiles | **none** | `-p, --profile`, backed by a `ConfigProfile` |
+| Unique to it | `--fallback-model` | `model_provider`, `service_tier`, `oss_provider` |
+
+Two findings drive everything after this. **The effort vocabularies do not align** — a
+shared AgentJobs enum is either a lowest common denominator that cannot express Codex's
+`minimal` or `ultra`, or an unvalidatable pass-through string. And **Codex already has
+profiles richer than the ones this design proposed**, so an AgentJobs profile layer would
+be a second profile system racing `-p` to set the same keys, with no way to know which
+won.
+
+#### Task difficulty — building now
+
+A task may declare `difficulty`: **`routine` | `standard` | `hard`**.
+
+It answers a question no existing field does. `priority` is *how much does it matter that
+this happens*; free-text `effort` is *how long will it take*; `difficulty` is *how much
+capability does doing it well require*. Those come apart routinely — a one-line fix to a
+race condition is critical, tiny, and genuinely hard.
+
+**Absent is legal and means `standard`**, with the audit trail recording that it was
+*defaulted* rather than *declared*. Requiring it would invalidate every existing task.
+
+**It ships with no automated consumer, and that is not a defect.** Given the deferral
+below, nothing routes on it. It earns its place on human orientation and filtering —
+*"which of my ready tasks is hard enough that I should drive it myself rather than hand
+it to an agent"*. Stated explicitly so a later reader does not mistake an unconsumed
+field for a broken one.
+
+*Rejected: five levels* — a five-level scale people honestly use three levels of is a
+scale with two dead values. *Rejected: t-shirt sizes* — they read as *effort*, the one
+field difficulty must not be confused with.
+
+#### Dispatch profiles — decided, deliberately unbuilt
+
+A profile maps difficulty to **an existing runner**:
+
+```yaml
+profiles:
+  balanced:
+    routine:  claude-sonnet
+    standard: claude-opus
+    hard:     claude-opus-max
+```
+
+Each value names an ordinary runner whose argv already says what it says. AgentJobs never
+learns what a model is, never maintains an effort vocabulary, and never fights Codex's
+`-p`. **Argv remains the only thing that launches.**
+
+A runner may additionally declare optional descriptive `model` and `effort` **labels**.
+These are authored metadata for display and audit only: **never parsed out of argv, never
+used to construct a command, never validated against a provider vocabulary.** They buy
+back the explanation that runner-only selection gives up — `difficulty hard → profile
+balanced → runner claude-opus-max (labels: opus / max)` — at an accepted cost: *a label
+can drift from the argv beside it.* That is a documentation defect, not a dispatch
+defect, and any UI must present labels as the runner author's claim, not as something
+AgentJobs verified.
+
+*Rejected: `{model}`/`{effort}` placeholders plus a difficulty → (model, effort) table.*
+It needs a per-runner effort vocabulary anyway, because the two CLIs disagree — which is
+per-provider tables wearing a portable name, plus a vocabulary to keep current as models
+change. *Rejected: runner-only with no labels.* The saving is zero and it leaves the
+audit trail unable to answer "why did this run cost that much" in the terms the question
+is asked in.
+
+**Precedence, narrowest first:** one-run override → profile named on this dispatch →
+project default profile → machine default profile → the project's plain `runner` (today's
+behaviour, and the fallback). Every level that participated is recorded, including which
+won.
+
+An unmatched difficulty, or a hole in the table, **falls back to the plain runner and
+says so** rather than refusing — a dispatch that dies because a config table has a gap is
+the worse failure. A per-profile **`strict`** setting inverts that: refuse instead of
+falling back, naming the profile, the difficulty and the missing rule. Strict is opt-in
+and off by default, because deliberate spend is the whole point of the feature and
+someone who chose a conservative profile and silently got a frontier model was failed
+quietly.
+
+> **Open, not decided:** what a strict refusal does when the caller is *unattended* —
+> auto-dispatch or a bounded loop. A refusal that only returns an error is a silent stall
+> there; it likely has to move the ball to `human`/`decision`. Raised by claude
+> 2026-08-18, not yet answered.
+
+#### Why this is written down but not built
+
+`difficulty` is cheap, useful immediately, and carries no risk. The profile layer is a
+config-schema change plus a resolver plus CLI and GUI surfaces, and its value is
+proportional to how often dispatch is actually used — which, as of this decision, is
+barely at all. The shape above is **accepted, not merely discussed**: it is recorded here
+so the next session does not re-derive it.
+
+**Reopen when any one of these is true:**
+
+1. 20 real dispatches have run; or
+2. a dispatch is first observed consuming a materially wrong-cost model for the work, in
+   either direction; or
+3. auto-dispatch or bounded loops (`task-078-agent-loops`) begin dispatching unattended —
+   an unattended loop with no cost policy is a different risk class than a manual
+   dispatch, and it should not be the thing that discovers this.
+
 ---
 
 ## 5. What starts a dispatch
