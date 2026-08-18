@@ -2,7 +2,7 @@ schema: 2
 id: task-060-agent-dispatch
 title: 'Close the loop: make a human decision actually start an agent (design pass)'
 created: '2026-08-10T07:40:19Z'
-updated: '2026-08-18T10:08:48.868901Z'
+updated: '2026-08-18T11:50:20.599196Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -681,3 +681,71 @@ log:
       id: f8091a2b-3c4d-4859-6a7b-e6f708192a3b
       kind: log_append
       fingerprint: ef395c90f53fc180240858e930f35d7b
+- id: 13
+  ts: '2026-08-18T11:50:20.599015Z'
+  actor: claude
+  type: progress
+  body: "# Session two, 2026-08-18 \u2014 the last five children. Four closed, one\
+    \ waiting on you.\n\nContinues entry 12. Everything below merged `--no-ff` to\
+    \ `main` under the autonomy grant in entries 11 and 12. **Nothing pushed.**\n\n\
+    ## Closed\n\n| Task | What landed |\n|---|---|\n| **073** | Dispatch in the React\
+    \ app: the button, live run status with cancel and an output link, the per-project\
+    \ toggle page, and a Playwright path that starts a real process from a click and\
+    \ cancels it |\n| **074** | Auto-dispatch on a human handoff \u2014 opt-in, off\
+    \ everywhere, budget caps binding only here |\n| **075** | The cwd/worktree decision\
+    \ recorded, and finished worktrees actually reaped |\n| **078** | Agent-loops\
+    \ design pass, six implementation tasks derived (**task-147** \u2026 **task-152**)\
+    \ |\n\n**task-080-dispatch-model-profiles is the one left**, deliberately: it\
+    \ is a decision task, so it holds `human`/`decision` with the research done and\
+    \ four questions to answer. Its `ball_prompt` is self-contained.\n\n## Six bugs\
+    \ found by building, all fixed\n\nFive surfaced during 073 and one during 075.\
+    \ Two of them were the kind only a real end-to-end path finds:\n\n1. **A cancelled\
+    \ batch run reported itself `failed`, about half the time.** The kill wakes the\
+    \ supervisor, which sees a non-zero exit; the ledger writes `cancelled`; both\
+    \ are read-modify-writes of one `meta.yaml`. The ledger now raises `cancel_requested`\
+    \ *before* killing \u2014 the supervisor is blocked in `wait()` until then \u2014\
+    \ and the supervisor defers.\n2. **The run lock leaked** on the supervisor's early-return\
+    \ paths, then refused every later dispatch at that task with \"a run is already\
+    \ live\".\n3. **`DispatchLedger` resolved projects only through the registry**,\
+    \ so on a server serving an implicit project a cancellation stopped the process\
+    \ and had nowhere to write the result \u2014 the exact silence this subsystem\
+    \ exists to prevent.\n4. **Every task created in the React app had an empty log**,\
+    \ because the create form never sent an actor. No record of who filed it \u2014\
+    \ and since a dispatch must trace to a human's log entry, *a browser-created task\
+    \ could never be dispatched*. This one would have made the whole feature look\
+    \ broken.\n5. A closed dispatch gate was announced as an ARIA `alert`, putting\
+    \ an orange box on every task of a machine with no dispatch config.\n6. **`reap_finished()`\
+    \ existed, was tested, and nothing called it** \u2014 so worktrees accumulated\
+    \ for as long as the machine ran. Startup reconciliation now reaps; `agentjobs\
+    \ dispatch reap` is the on-demand form.\n\n## Two corrections to published design\n\
+    \nBoth recorded as decisions on their tasks, because a diff would not carry them:\n\
+    \n- **task-078:** its own constraint said `verify` was unused. It is not \u2014\
+    \ 132 values in the corpus, ~96 of them prose describing what a *person* should\
+    \ do. So `check` is a new field; executing `verify` would have reinterpreted ninety-six\
+    \ prose strings as commands.\n- **task-078 \u2192 dispatch \xA72a:** as published,\
+    \ \"\xA77's caps now bind here\u2026 every iteration after the first\" would kill\
+    \ any chain authorized for more than three iterations, because the per-day cap\
+    \ is 3. \xA72a is amended: per-day counts *chains*, the lifetime cap keeps counting\
+    \ dispatches as a backstop, the cooldown does not apply within a chain.\n\n##\
+    \ Verification\n\n`poetry run pytest` at each merge: **1656 \u2192 1671 \u2192\
+    \ 1678 passed**, with only the two failures already red on `main` and named in\
+    \ entry 12 (`test_agentjobs_context_paths_exist`, and the `absolute-path` tolerated-drift\
+    \ assertion). `npm run check` green in full at every front-end merge, now **11\
+    \ Playwright paths**. `black`/`ruff` clean on everything touched; `mypy src/agentjobs`\
+    \ shows only the pre-existing `storage.py:268`.\n\n## State on this machine after\
+    \ all of it\n\n**Unchanged in every way that spends money.** Dispatch is not enabled\
+    \ for any real project, `auto_dispatch` defaults to false, and both live only\
+    \ in machine-local `~/.agentjobs/dispatch.yaml`, which no browser can write.\n\
+    \nThe frontend bundle in `src/agentjobs/frontend_dist/` was rebuilt on `main`\
+    \ after the merges, per ENGINEERING.md \u2014 a merged React change does not otherwise\
+    \ reach a running server.\n\n## For the next session\n\n- **task-080-dispatch-model-profiles**\
+    \ needs four answers; the prompt is on the task.\n- **task-147 \u2026 task-149**\
+    \ are claimable and carry no autonomy: executable acceptance criteria a person\
+    \ can evaluate on demand.\n- **task-150 and task-151** carry an explicit constraint\
+    \ that they must not be started without Jeff's go-ahead on building the outer\
+    \ loop at all."
+  data:
+    operation:
+      id: 6a2c3d4e-5f60-4a71-8b92-c0d1e2f30060
+      kind: log_append
+      fingerprint: fac599e413edb59ad54795a1352f0714
