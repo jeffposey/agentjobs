@@ -110,9 +110,16 @@ Guardrails on top, all of which fail loudly to `ball: human` with the reason nam
 - **Thrash detection.** If N consecutive iterations leave the check results unchanged,
   stop. A loop that is not converging is not working, and iteration count alone will not
   notice.
-- **§7's caps now bind here.** They were scoped to auto-dispatch (D3) because a human
-  clicking is a decision; a loop is not clicking, so the per-task counts and cooldown
-  apply to every iteration after the first.
+- **§7's caps now bind here, counting chains rather than iterations.** They were scoped
+  to auto-dispatch (D3) because a human clicking is a decision; a loop is not clicking.
+  *Amended 2026-08-18 by task-078 (decision L7), because as first written this clause
+  made the feature inert:* the per-task-per-day cap is 3, so a chain a human authorized
+  for 5 iterations would have been refused at iteration 4 by a limit meant for a
+  different mechanism. So **per-day counts authorized chains**, the **lifetime cap keeps
+  counting dispatches** — it is the backstop against a bug in the loop driver itself, and
+  a backstop redefined to accommodate what it guards is not one — and the **cooldown does
+  not apply within a chain**, since iteration *n+1* begins only after iteration *n* has
+  reached a terminal state, which is the condition the cooldown exists to guarantee.
 - **Regression guard.** A criterion that was `met` and becomes unmet stops the chain. An
   agent that breaks a passing check to make a failing one pass is going backwards.
 - **The authorization is the human act.** §2's forgeability requirement (below) applies
@@ -125,8 +132,11 @@ distinction that makes loops safe is the same one that makes them worth running 
 pay off exactly where a cheap objective oracle exists (tests, lint, typecheck) and not
 where "good" requires taste.
 
-Mechanism designed in **task-078**, including the `acceptance[].check` schema change
-this rule depends on. Nothing here is implemented.
+Mechanism designed in **task-078** — see
+[agent-loops-design.md](agent-loops-design.md), which specifies the
+`acceptance[].check` schema change this rule depends on, answers where a check may run
+and who may set one, and picks the numbers behind every bound above. Nothing here is
+implemented.
 
 ### The rule is only as good as the evidence it reads (added 2026-08-11)
 
