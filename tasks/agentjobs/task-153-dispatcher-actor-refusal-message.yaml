@@ -1,0 +1,187 @@
+schema: 2
+id: task-153-dispatcher-actor-refusal-message
+title: Stop the dispatch refusal telling you to configure the dispatcher as a human
+created: '2026-08-18T21:02:17.186936Z'
+updated: '2026-08-18T21:02:17.187800Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: reliability
+tags:
+- dispatch
+- security
+- error-messages
+- guards
+effort: small
+assignment:
+  eligible: []
+spec:
+  summary: 'Dispatching a task a second time refuses with not_human_clocked and advises
+    adding the reserved ''dispatcher'' actor to the project''s actors: with kind:
+    human. Following that advice would clock dispatcher-written entries as human and
+    defeat the agent-starts-agent prohibition the guard exists to enforce.'
+  intent: The human-clocked rule is the property that makes an agent-starts-agent
+    loop impossible rather than merely capped. Its own refusal message should not
+    contain a working recipe for switching it off.
+  description: 'Found 2026-08-18 while investigating why dispatch appeared to do nothing
+    in the review sandbox. The dispatch itself was fine; this turned up on the second
+    dispatch of the same task.
+
+
+    ## Reproduce
+
+
+    Dispatch any task, let the run finish, then dispatch it again. The dispatcher
+    has by then appended `dispatch` and `dispatch_result` entries, so the newest entry
+    -- which `resolve_causing_entry` defaults to -- was written by `dispatcher`. Observed
+    against the sandbox:
+
+
+    ```
+
+    HTTP 403 not_human_clocked
+
+    Log entry 6 was written by ''dispatcher'', which this project does not configure
+
+    as an actor. A dispatch must be caused by a known human, and an unknown actor
+
+    cannot be shown to be one. Add them to ''actors:'' in .agentjobs/config.yaml
+
+    with ''kind: human''.
+
+    ```
+
+
+    ## Why the wrong branch is taken
+
+
+    `assert_human_clocked` in `src/agentjobs/dispatch/guards.py` has two refusal branches:
+    actor unknown, and actor known-but-not-human. It resolves the actor with `actor_kind()`,
+    which reads `load_actors(config)` -- the project''s configured vocabulary.
+
+
+    `dispatcher` is a **reserved** actor. `src/agentjobs/actors.py:162` defines `RESERVED
+    = {DISPATCHER: Actor(id=DISPATCHER, kind=AGENT, ...)}` and its docstring says
+    reserved ids are deliberately kept *out* of `load_actors`, for a good reason that
+    is not in dispute: merging them would make the configured vocabulary never-empty
+    and break the "a fresh init accepts any id" allowance.
+
+
+    The consequence is that `assert_human_clocked` cannot see `dispatcher`, gets `None`,
+    and takes the **unknown-actor** branch. So the most predictable actor in the system
+    -- the one AgentJobs itself writes as -- is reported as an unrecognised stranger,
+    with the boilerplate remedy for a stranger attached.
+
+
+    ## Why the advice is dangerous rather than merely wrong
+
+
+    The remedy is actionable and it works. Adding `dispatcher: {kind: human}` to a
+    project''s `actors:` would make `assert_human_clocked` return an `is_human` actor
+    for every dispatcher-written entry. Each dispatch would then clock the previous
+    dispatch''s own log entry as a human act, and dispatch could drive itself in a
+    loop with no human in it at any point.
+
+
+    That is precisely what the guard''s docstring says is not on offer: *"The rule,
+    and not a configuration option. An agent handoff never causes a dispatch, in any
+    mode."*
+
+
+    ## Scope of exposure
+
+
+    The React UI is **not** affected and needs no change. `frontend/src/components/DispatchPanel.tsx:43`
+    overrides this refusal with its own correct copy: "The newest log entry was written
+    by an agent. A dispatch may only follow a human''s entry, and that rule is not
+    configurable -- act on the task yourself first."
+
+
+    Exposed surfaces are the HTTP API response, the CLI, and anything else reading
+    `detail` / `suggested_action` off the refusal. The fix belongs in `guards.py`
+    so every consumer gets it, not in another per-surface override.
+
+
+    ## Note on the second-dispatch behaviour itself
+
+
+    Refusing a re-dispatch whose newest entry is the dispatcher''s is **correct and
+    in scope to keep**. A human writing any entry -- a note, a claim, a comment --
+    re-arms it. Do not "fix" that by making dispatcher entries skippable when choosing
+    the causing entry; that would quietly reintroduce the loop from the other end.
+    This task is about the message and the branch it takes, not the rule.'
+  constraints: '- Do not add `dispatcher` to `load_actors`. The reserved-set docstring
+    in `actors.py` explains why that breaks fresh-init projects, and that reasoning
+    stands.
+
+    - Do not make `resolve_causing_entry` skip dispatcher entries to find an older
+    human one. That defeats the rule from the other direction and is explicitly not
+    wanted.
+
+    - Do not fix this with another per-surface message override. `DispatchPanel.tsx`
+    already has one; a second would leave the API still shipping the dangerous text.
+
+    - The corrected message must still tell the user what to actually do -- act on
+    the task themselves, then dispatch -- not merely refuse.'
+  out_of_scope: Changing the human-clocked rule, the choice of causing entry, or the
+    reserved-actor design. Any broader audit of refusal copy across other guards.
+  context:
+  - path: src/agentjobs/dispatch/guards.py
+    why: assert_human_clocked -- the two refusal branches and the actor_kind() lookup
+      that routes to the wrong one.
+  - path: src/agentjobs/actors.py
+    why: RESERVED at line 162 and its docstring explaining why reserved ids stay out
+      of load_actors.
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: Line 43 already carries correct copy for this refusal; shows the browser
+      is unaffected and why the fix must be server-side.
+acceptance:
+- id: sc-1
+  text: 'A dispatch refused because the causing entry was written by a reserved actor
+    reports it as an agent''s entry, and its suggested remedy is to act on the task
+    first -- never to add the actor to actors: as a human'
+  status: pending
+- id: sc-2
+  text: The unknown-actor branch still produces its existing advice for genuinely
+    unknown actor ids, which remains correct for that case
+  status: pending
+- id: sc-3
+  text: A test dispatches a task whose newest log entry is dispatcher-written and
+    asserts the refusal text contains no instruction to configure an actor as human
+  status: pending
+- id: sc-4
+  text: The fix is in guards.py and reaches the HTTP API and CLI without a new per-surface
+    override; DispatchPanel.tsx needs no change
+  status: pending
+- id: sc-5
+  text: Re-dispatch is still refused after a completed run, and still re-armed by
+    any human-written log entry -- verified, not assumed
+  status: pending
+deliverables:
+- path: src/agentjobs/dispatch/guards.py
+  note: Reserved actors routed to the agent refusal branch
+  status: pending
+dependencies:
+- task: task-071-dispatch-api-guards
+  type: related
+  note: Closed. Introduced assert_human_clocked and the refusal vocabulary this corrects.
+- task: task-069-dispatch-log-entries
+  type: related
+  note: Closed. Established the reserved dispatcher actor whose entries trigger the
+    wrong branch.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T21:02:17.186993Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: 1530aa11-2b33-4c55-8d77-e9f0a1b2c153
+      kind: create
+      fingerprint: 171a137471f45a0946832981e43fef5f
