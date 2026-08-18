@@ -2,30 +2,9 @@ schema: 2
 id: task-130-performance-and-responsiveness
 title: Make AgentJobs feel instant
 created: '2026-08-17T23:51:43.310915Z'
-updated: '2026-08-18T01:47:28.030585Z'
-lifecycle: ready
-ball: human
-ball_reason: approval
-ball_prompt: "All six children are closed and merged to main; every acceptance criterion\
-  \ including your device check (ac-7) is marked met. This is waiting on your signoff\
-  \ to close the epic \u2014 you said you wanted to review before signoff.\n\nWhat\
-  \ to look at, in the order that matters:\n\n1. **The two judgement calls, not the\
-  \ code.** task-134 was CANCELLED rather than built \u2014 the mtime+size cache key\
-  \ is unsafe here (28 of 40 same-size rewrites left st_mtime_ns unchanged), and the\
-  \ win was 124 ms on interactions already inside target. Its decision log has the\
-  \ full reasoning and the trigger for reopening (~350 files). task-133 kept the pure-Python\
-  \ dumper because 79 of 119 task files serialise differently under CSafeDumper, which\
-  \ would have broken canonical_bytes() and churned every file. If you disagree with\
-  \ either, say so and I will reopen.\n\n2. **The headline numbers**, in this task's\
-  \ newest progress entry: click-to-open 9567 ms -> 263 ms, dashboard 48x, and every\
-  \ endpoint now parses the corpus exactly once instead of 4-8 times.\n\n3. **One\
-  \ operational thing worth knowing for next time:** src/agentjobs/frontend_dist/\
-  \ is gitignored, so merging a front-end fix to main does NOT update the bundle your\
-  \ server serves. It needs `npm run build` in the main clone plus a restart, which\
-  \ is why it still looked slow to you after everything had merged.\n\nNothing is\
-  \ blocked on you technically \u2014 main is green and the live server is running\
-  \ the new code. Close this when you are satisfied, or hand it back with what you\
-  \ want changed."
+updated: '2026-08-18T01:52:52.072961Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: performance
@@ -499,3 +478,29 @@ log:
       id: d0819c23-4e76-4f98-d0ba-123456789abe
       kind: handoff
       fingerprint: 87da2dfacd6078fe80ecd7c299f66ff7
+- id: 7
+  ts: '2026-08-18T01:51:53.060910Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 8
+  ts: '2026-08-18T01:52:52.072836Z'
+  actor: claude
+  type: transition
+  body: "Approved by Jeff, 2026-08-17, after confirming on desktop and tablet. Both\
+    \ judgement calls stand as recorded: task-134 cancelled, and the pure-Python YAML\
+    \ dumper kept.\n\nNote on the approval prompt: it asked for a rebase and --no-ff\
+    \ merge, which does not apply here. task-130 is an umbrella with no branch of\
+    \ its own \u2014 all code shipped on the six children's branches, each already\
+    \ merged --no-ff and deleted. Nothing was left unmerged. Opening a task went from\
+    \ 9567 ms to 263 ms; all seven acceptance criteria met."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: e192ad34-5f87-4a09-e1cb-23456789abce
+      kind: close
+      fingerprint: 0afeebad43a41937f47368f5e213461a
