@@ -3,7 +3,7 @@ id: task-077-dispatch-session-launcher
 title: 'Decide: should dispatch launch a remote-controllable session instead of a
   batch run?'
 created: '2026-08-11T01:56:16.465216Z'
-updated: '2026-08-18T05:37:14.574449Z'
+updated: '2026-08-18T05:52:19.861881Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -164,7 +164,7 @@ acceptance:
 - id: sc-1
   text: The four unverified questions are answered by actually running the CLI, with
     the commands and their output recorded in the task log
-  status: pending
+  status: met
 - id: sc-2
   text: 'A decision is recorded in docs/agent-dispatch-design.md: drive claude agents,
     or supervise our own processes, with the rejected option and its reasoning'
@@ -177,7 +177,7 @@ acceptance:
 - id: sc-4
   text: The vendor-lock tension with section 4's generic-runner argument is addressed
     rather than ignored
-  status: pending
+  status: met
 - id: sc-5
   text: task-070 and task-072 are rescoped or closed as superseded, with the reason
     recorded on each
@@ -573,3 +573,51 @@ log:
       id: b6039f2d-8c47-4e51-a92b-70d3e5c1846f
       kind: handoff
       fingerprint: af5396888bfe2051b1f08d8d6423debb
+- id: 10
+  ts: '2026-08-18T05:52:11.126665Z'
+  actor: Jeff Posey
+  type: progress
+  body: "**Q2 is now verified end to end, by Jeff, on his phone, 2026-08-18.** This\
+    \ closes the one gap entry 5 explicitly refused to claim and entry 8 listed as\
+    \ still outstanding.\n\n## What was tested\n\nA background session was started\
+    \ with no TTY:\n\n```\nclaude --bg --remote-control --permission-mode acceptEdits\
+    \ -n \"aj-phone-test\" \"<prompt>\"\n\u2192 backgrounded \xB7 62c67a51 \xB7 aj-phone-test\n\
+    ```\n\nIts Remote Control URL was read out of `claude logs 62c67a51`:\n\n```\n\
+    https://claude.ai/code/session_01FqaowaJA9SUB8ZUzfUdG5z\n```\n\nThe session was\
+    \ left at `status: idle`, `state: blocked` \u2014 finished its first turn, awaiting\
+    \ input.\n\nJeff opened that URL on his phone and **sent it a message. It answered\
+    \ him.**\n\n## Why this was the right test\n\nNot \"does the session appear on\
+    \ another device\" but \"can it be **steered** from one\". Appearing read-only\
+    \ would have confirmed visibility while leaving the actual claim \u2014 mid-flight\
+    \ redirect \u2014 unproven, and would have materially weakened the case for session\
+    \ mode. It answered, so the claim holds in full.\n\nThis is precisely what dispatch\
+    \ hands the human under the task-077 decision: a run that is reachable and redirectable\
+    \ from wherever they are. The premise of the decision recorded in entry 8 is confirmed\
+    \ rather than assumed.\n\n## Still true, and unchanged by this\n\nThe Remote Control\
+    \ URL exists **only in the `claude logs` ANSI transcript**. It is not a field\
+    \ in `claude agents --json`. Surfacing \"continue on your phone\" in the AgentJobs\
+    \ UI therefore requires scraping it or reconstructing it from the session id,\
+    \ and neither is verified. That fragility stands as a known cost of session mode\
+    \ and is on task-070's plate.\n\nTest session cleaned up; throwaway repo at `C:/ai/scratch/aj-rc-phone`\
+    \ removed."
+  re: 5
+  data:
+    verified_by: Jeff Posey
+    answers: sc-1 Q2
+    session_id: 62c67a51
+    operation:
+      id: 3d8c05b2-7e41-4a96-b8f3-51c07a2e96d4
+      kind: log_append
+      fingerprint: e95771623950aec052cf9754e47bafa7
+- id: 11
+  ts: '2026-08-18T05:52:19.861677Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: a0e6c249-3b71-4d85-96f2-8c14e0b7523d
+      kind: update_content
+      fingerprint: 077821c3450f6c3b8e6daa408980fa16
