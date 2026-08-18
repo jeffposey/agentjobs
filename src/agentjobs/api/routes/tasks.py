@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.attachments import AttachmentError, AttachmentPayload
+from agentjobs.dispatch.auto import maybe_auto_dispatch
 from agentjobs.operations import OperationConflictError, RevisionConflictError
 from agentjobs.projects import Project
 from agentjobs.manager import TaskManager, TaskNotFoundError
@@ -479,6 +480,29 @@ class RejectActionRequest(HumanActionRequest):
     )
 
 
+def after_human_handoff(manager: TaskManager, project: Project, task: Task) -> Task:
+    """Start an agent if this project opted into auto-dispatch, and never fail.
+
+    Called after a human action that has already been written, so the task's newest log
+    entry is that human act -- which is what makes the human-clocked check in
+    ``maybe_auto_dispatch`` mean something rather than being circular.
+
+    The approval succeeded before this ran, so nothing here may turn it into an error.
+    Auto-dispatch reports its own refusals onto the task record and returns rather than
+    raising; the task is re-read afterwards so the caller answers with what is now on
+    disk, including a run that just started or a cap that just parked it.
+    """
+    outcome = maybe_auto_dispatch(
+        manager=manager,
+        project=project,
+        project_config=project_config(project),
+        task=task,
+    )
+    if not outcome.considered:
+        return task
+    return manager.get_task(task.id) or task
+
+
 @router.post("/{task_id}/approve", response_model=HumanActionResponse)
 async def approve_task(
     task_id: str,
@@ -508,7 +532,7 @@ async def approve_task(
             ),
             body=f"Approved by {user} through the web UI.",
         )
-        return HumanActionResponse(task=task)
+        return HumanActionResponse(task=after_human_handoff(manager, project, task))
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -540,7 +564,10 @@ async def request_changes(
             body=f"Changes requested by {user}:\n\n{payload.feedback}",
             attachments=attachments,
         )
-        return HumanActionResponse(task=task)
+        # Requesting changes is a human act that moves the ball to an agent, exactly as
+        # approving is. Covering only Approve would mean the one handoff that always
+        # comes with instructions attached is the one that needs a second click.
+        return HumanActionResponse(task=after_human_handoff(manager, project, task))
     except AttachmentError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except ValueError as exc:
