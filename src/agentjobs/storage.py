@@ -8,6 +8,7 @@ import logging
 import os
 import time
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from datetime import datetime, timezone
@@ -35,6 +36,60 @@ YAML_LOADER = "pure-python (yaml.safe_load)"
 def yaml_loader_name() -> str:
     """The YAML loader currently in use, for the benchmark report."""
     return YAML_LOADER
+
+
+#: One parse of the corpus, shared for the duration of a scope.
+#:
+#: The map is keyed by tasks directory, so a request that touches two projects gets one
+#: parse of each rather than one of the first. It lives in a ContextVar holding a
+#: *mutable dict* rather than an immutable value, because FastAPI runs synchronous
+#: routes in a worker thread with a copied context: a value assigned inside the route
+#: updates the copy and is invisible to the caller, while a dict reached through the
+#: copy is the same dict. The same subtlety bit the parse counter in task-131.
+@dataclass
+class _Snapshot:
+    """What one scope has already parsed for one corpus.
+
+    ``tasks`` memoises individual reads and ``result`` memoises the whole-corpus read.
+    Both exist because requests arrive in both orders: the task-detail route reads its
+    own task first and the corpus afterwards, and without the per-task memo that one
+    file would be parsed twice -- once alone, once again as part of the corpus walk.
+    """
+
+    tasks: Dict[str, Any] = dc_field(default_factory=dict)
+    result: Optional["LoadResult"] = None
+
+
+_corpus_snapshot: ContextVar[Optional[Dict[str, _Snapshot]]] = ContextVar(
+    "agentjobs_corpus_snapshot", default=None
+)
+
+
+@contextmanager
+def corpus_snapshot() -> Iterator[None]:
+    """Parse each task file at most once for the duration of the block.
+
+    A single request used to walk the whole corpus about four times, because
+    ``list_tasks``, ``dependency_facts``, ``_dependency_states`` and ``_open_children``
+    each went back to storage independently. Memoising at ``load_all`` fixes all four
+    at once without changing a single call site: it is the funnel they all pass
+    through.
+
+    **Scoped, deliberately, not process-wide.** AgentJobs is written for several
+    writers -- the CLI, agents, git checkouts, a person editing YAML -- and a snapshot
+    that outlived its request would serve a task record that had already changed on
+    disk. Entering a scope per request keeps the window to the length of one request,
+    within which the answer must be self-consistent anyway. Caching *across* requests
+    is task-134, and it has to earn that with an invalidation story this does not need.
+
+    Writes inside the scope drop the snapshot, so a read after a write in the same
+    request sees the write rather than the state from before it.
+    """
+    token = _corpus_snapshot.set({})
+    try:
+        yield
+    finally:
+        _corpus_snapshot.reset(token)
 
 
 def _describe_validation_error(exc: ValidationError) -> str:
@@ -157,6 +212,36 @@ class TaskStorage:
         listing with nothing but a log line as evidence. A task that silently vanishes
         is the worst available failure mode, because the data it described is invisible
         precisely when someone needs to notice it is wrong.
+        """
+        snapshot = self._snapshot()
+        if snapshot is None:
+            return self._load_task_uncached(task_id)
+
+        key = self._normalised_id(task_id)
+        if key in snapshot.tasks:
+            found = snapshot.tasks[key]
+            if isinstance(found, TaskLoadError):
+                raise found
+            return found
+
+        try:
+            task = self._load_task_uncached(task_id)
+        except TaskLoadError as exc:
+            snapshot.tasks[key] = exc
+            raise
+        if task is not None:
+            snapshot.tasks[key] = task
+        # A miss is not memoised as "absent": guessing "no such task" from a cache is
+        # the kind of shortcut that turns into a bug report, and the miss costs one stat.
+        return task
+
+    def _load_task_uncached(self, task_id: str) -> Optional[Task]:
+        """Read one task straight from disk, ignoring any snapshot.
+
+        The write path must use this. ``mutate_task`` re-reads the task *inside* its
+        lock precisely so a decision is never made on a copy that went stale while
+        waiting, and serving that read from a snapshot taken earlier in the same
+        request would quietly undo the concurrency guarantee that lock exists for.
         """
         path = self._task_path(task_id)
         if not path.exists():
@@ -288,7 +373,7 @@ class TaskStorage:
         caller check a precondition under the lock and decline.
         """
         with self.locked(task_id):
-            current = self.load_task(task_id)
+            current = self._load_task_uncached(task_id)
             if current is None:
                 raise ValueError(f"Task '{task_id}' not found.")
             updated = mutator(current)
@@ -334,6 +419,10 @@ class TaskStorage:
         self.receipts.record(
             task_id=task.id, path=path, data=yaml_text.encode("utf-8"), operation="write"
         )
+        # A read later in the same scope must see this write, not the corpus as it was
+        # before it. Dropping the snapshot here rather than trying to patch the written
+        # task into it keeps the invalidation trivially correct: the next read reparses.
+        self._invalidate_snapshot()
         return task
 
     def canonical_bytes(self, task: Task) -> bytes:
@@ -350,8 +439,45 @@ class TaskStorage:
         )
         return yaml.safe_dump(task_dict, sort_keys=False, allow_unicode=False).encode("utf-8")
 
+    @staticmethod
+    def _normalised_id(task_id: str) -> str:
+        """Task ids reach storage with and without the .yaml suffix; index by stem."""
+        return task_id[: -len(".yaml")] if task_id.endswith(".yaml") else task_id
+
+    def _snapshot_key(self) -> str:
+        """This storage's identity within a corpus snapshot."""
+        return str(self.tasks_dir)
+
+    def _snapshot(self) -> Optional[_Snapshot]:
+        """This corpus's scratchpad for the current scope, or None outside a scope."""
+        cache = _corpus_snapshot.get()
+        if cache is None:
+            return None
+        return cache.setdefault(self._snapshot_key(), _Snapshot())
+
+    def _invalidate_snapshot(self) -> None:
+        """Drop any snapshot of this corpus, because it has just been written to."""
+        cache = _corpus_snapshot.get()
+        if cache is not None:
+            cache.pop(self._snapshot_key(), None)
+
     def load_all(self) -> "LoadResult":
         """Load every task, keeping the broken ones instead of dropping them.
+
+        Inside a ``corpus_snapshot()`` scope the first call does the work and the rest
+        reuse it, which is what takes a request from four passes over the corpus to
+        one. Outside a scope it behaves exactly as it always did.
+        """
+        snapshot = self._snapshot()
+        if snapshot is None:
+            return self._load_all_uncached()
+        if snapshot.result is not None:
+            return snapshot.result
+        snapshot.result = self._load_all_uncached()
+        return snapshot.result
+
+    def _load_all_uncached(self) -> "LoadResult":
+        """Read and parse every task file.
 
         One unreadable file must not take down the listing of the other thirty-seven,
         so errors are collected rather than raised. They are *returned* rather than
@@ -360,6 +486,8 @@ class TaskStorage:
         """
         result = LoadResult()
         for path in sorted(self.tasks_dir.glob("*.yaml")):
+            # Through load_task, so a file this scope has already read is reused rather
+            # than parsed a second time.
             try:
                 task = self.load_task(path.stem)
             except TaskLoadError as exc:
@@ -392,6 +520,7 @@ class TaskStorage:
         if not path.exists():
             return False
         path.unlink()
+        self._invalidate_snapshot()
         return True
 
     def search_tasks(self, query: str) -> List[Task]:
