@@ -24,6 +24,7 @@ import { ConnectionUnavailable } from "./components/ConnectionUnavailable";
 import { TaskList } from "./components/TaskList";
 import { TaskDetail } from "./components/TaskDetail";
 import { TaskCreate } from "./components/TaskCreate";
+import { IssueReporter } from "./components/IssueReporter";
 import { LiveUpdateStatus } from "./components/LiveUpdates";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
 
@@ -250,11 +251,16 @@ function StatusCard({ title, children }: { title: string; children: React.ReactN
 
 export function App() {
   return (
-    <Routes>
-      <Route index element={<ProjectRedirect />} />
-      <Route path="p/:projectId/*" element={<ProjectApp />} />
-      <Route path="not-found" element={<StatusCard title="Page not found"><Link to="/">Return to AgentJobs</Link></StatusCard>} />
-      <Route path="*" element={<Navigate to="/not-found" replace />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route index element={<ProjectRedirect />} />
+        <Route path="p/:projectId/*" element={<ProjectApp />} />
+        <Route path="not-found" element={<StatusCard title="Page not found"><Link to="/">Return to AgentJobs</Link></StatusCard>} />
+        <Route path="*" element={<Navigate to="/not-found" replace />} />
+      </Routes>
+      {/* Outside the routes on purpose: a finding is noticed on whatever page you are
+          on, including the ones that render while no project has resolved yet. */}
+      <IssueReporter />
+    </>
   );
 }
