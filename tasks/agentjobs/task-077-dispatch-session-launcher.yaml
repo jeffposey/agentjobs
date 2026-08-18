@@ -3,37 +3,9 @@ id: task-077-dispatch-session-launcher
 title: 'Decide: should dispatch launch a remote-controllable session instead of a
   batch run?'
 created: '2026-08-11T01:56:16.465216Z'
-updated: '2026-08-18T06:09:39.593713Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "All five acceptance criteria are met. Same branch and commit as task-076\
-  \ \u2014 `docs/task-077-dispatch-design-amendments`, commit ee414b5, worktree at\
-  \ C:/projects/aj-077-docs \u2014 because both amend \xA74 of the same file and splitting\
-  \ them would have produced a conflict for no benefit.\n\nWhat to review:\n\n- **\xA7\
-  4 \"Dispatch is a session launcher, not a batch runner\"** \u2014 the decision,\
-  \ the two-mode table, and the rejected options. The August flag table is replaced\
-  \ with a re-verified one that marks the two rows that were wrong (`--session-id`,\
-  \ `--max-budget-usd`) rather than silently correcting them.\n- **\xA74 \"What this\
-  \ does not claim\"** \u2014 the honest limit: steering happens in Claude's surface,\
-  \ so dispatch demotes the chat window rather than removing it. Worth checking you\
-  \ still agree with that framing now it is written down as the design's own value\
-  \ argument.\n- **\xA79, rewritten** \u2014 split by mode, with the reconciliation\
-  \ reversal and its reasoning, a staleness rule at your 60 minutes, and an admonition\
-  \ stating plainly that `failed` and `crashed` have no representation in session\
-  \ mode. That last one is the design admitting a capability loss; check you want\
-  \ it that prominent.\n- **task-070** retitled and rescoped to two modes; **task-072**\
-  \ rescoped with an explicit \"why this was not closed as superseded\" section, since\
-  \ \"the CLI already has a ledger\" is the obvious objection and it is wrong.\n\n\
-  Four claims elsewhere in the document contradicted the rewrite and were reconciled:\
-  \ the config example, \xA76's kill switch (which promised killing `agentjobs serve`\
-  \ stops runs \u2014 no longer true for sessions), \xA77's limits table, and D3.\n\
-  \nVerification: `poetry run pytest` \u2014 1446 passed, 1 pre-existing failure unrelated\
-  \ to this change (task-013 names a gitignored build directory as a context path,\
-  \ so that test only passes where the frontend has been built). I did not run the\
-  \ full `scripts/check.py` gate; this is markdown only and its npm build and Playwright\
-  \ pass would exercise nothing here. Say if you want it anyway.\n\nDo not merge without\
-  \ saying so."
+updated: '2026-08-18T06:17:33.281724Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: architecture
@@ -43,7 +15,6 @@ tags:
 - design
 effort: a decision session
 assignment:
-  owner: claude
   eligible: []
 parent: task-060-agent-dispatch
 spec:
@@ -203,7 +174,7 @@ dependencies:
 links: []
 branches:
 - name: docs/task-077-dispatch-design-amendments
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-11T02:09:04.914455Z'
@@ -657,3 +628,42 @@ log:
       id: bb5107c3-4e29-4d76-a038-91f2e6403875
       kind: handoff
       fingerprint: 31f00a38f0a969b01d7f9b8a2f1574da
+- id: 14
+  ts: '2026-08-18T06:12:20.669741Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 15
+  ts: '2026-08-18T06:17:24.019225Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 4c8a7b06-1e39-4d52-b7f1-90a6e2d3854c
+      kind: update_content
+      fingerprint: 6f287d8e1403acc3dbd33e15eb4966db
+- id: 16
+  ts: '2026-08-18T06:17:33.281501Z'
+  actor: claude
+  type: transition
+  body: "Approved by Jeff 2026-08-18, merged to main as 574f4fc (--no-ff). Branch\
+    \ marked merged, worktree removed, local branch deleted.\n\nAll five criteria\
+    \ met. \xA74's open amendment is resolved, \xA79 is rewritten around the two lifecycles,\
+    \ and 070 and 072 are rescoped rather than superseded.\n\n**For whoever implements\
+    \ this:** the gate that remains before the 070\u2192073 chain can run is that\
+    \ dispatch does not exist yet. 068 and 069 are still open and both feed 070. Nothing\
+    \ in this decision built anything \u2014 it made the chain implementable, not\
+    \ runnable."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 5d9e1c48-70a3-4f26-b8e1-3c07924fa5b0
+      kind: close
+      fingerprint: e10624f8cf24980edeef177f302c4606
