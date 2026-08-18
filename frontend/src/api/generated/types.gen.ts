@@ -1761,6 +1761,12 @@ export type VersionResponse = {
      * Installed AgentJobs package version.
      */
     version: string;
+    /**
+     * Yaml Loader
+     *
+     * Which YAML parser reads task files. The pure-Python fallback is about thirteen times slower than libyaml and is the usual explanation for a sluggish install, so it is reported rather than left to be guessed at.
+     */
+    yaml_loader: string;
 };
 
 /**

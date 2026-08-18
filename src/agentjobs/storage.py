@@ -27,15 +27,54 @@ from .projects import contained_path
 logger = logging.getLogger(__name__)
 
 
-#: Which PyYAML loader `load_task` uses. Reported by the benchmark so a before/after
-#: pair cannot be compared across loaders without noticing -- the C and pure-Python
-#: parsers differ by roughly a factor of ten, which would swamp any change under test.
-YAML_LOADER = "pure-python (yaml.safe_load)"
+#: The safe YAML loader task files are read with.
+#:
+#: libyaml is roughly thirteen times faster than PyYAML's pure-Python parser over this
+#: project's corpus (0.859s -> 0.065s, 119 files, measured 2026-08-17), and reading is
+#: the hot path: a listing parses every file, while a write serialises one.
+#:
+#: **Only the loader changes. Dumping stays on the pure-Python SafeDumper**, because
+#: the two dumpers do not agree: 79 of 119 real task files serialise differently under
+#: CSafeDumper, mostly in how long strings are folded and escaped. That is not a
+#: cosmetic difference here. `canonical_bytes` exists so the validator can compare a
+#: stored file against the form AgentJobs would have produced, and the receipt store
+#: hashes those bytes -- so swapping the dumper would make most of the existing corpus
+#: look hand-shaped until rewritten, and would put a formatting churn diff through
+#: every task file on its next write. The read win is available without paying that.
+try:
+    from yaml import CSafeLoader as _SafeLoader
+
+    YAML_LOADER = "libyaml (yaml.CSafeLoader)"
+except ImportError:  # pragma: no cover - exercised by forcing the fallback in tests
+    from yaml import SafeLoader as _SafeLoader  # type: ignore[assignment]
+
+    YAML_LOADER = "pure-python (yaml.SafeLoader) -- libyaml not available"
+    logger.warning(
+        "libyaml is not available, so task files are parsed by PyYAML's pure-Python "
+        "loader. This is around thirteen times slower and is the usual cause of a "
+        "sluggish AgentJobs. Install a PyYAML wheel built with the C extension to fix "
+        "it."
+    )
 
 
 def yaml_loader_name() -> str:
-    """The YAML loader currently in use, for the benchmark report."""
+    """The YAML loader currently in use.
+
+    Surfaced on ``/api/version`` and printed by ``scripts/bench.py`` so a before/after
+    pair cannot be accidentally compared across loaders -- a thirteenfold difference
+    would swamp whatever change was actually under test.
+    """
     return YAML_LOADER
+
+
+def load_yaml(content: str) -> Any:
+    """Parse YAML with the fastest safe loader available.
+
+    A drop-in for ``yaml.safe_load``: same safety guarantees, same result. The parity
+    is not assumed -- ``tests/test_yaml_loader.py`` asserts that every file in the real
+    corpus loads identically under both.
+    """
+    return yaml.load(content, Loader=_SafeLoader)
 
 
 #: One parse of the corpus, shared for the duration of a scope.
@@ -252,7 +291,7 @@ class TaskStorage:
         # of work done, not of work that succeeded.
         try:
             content = path.read_text(encoding="utf-8")
-            data = yaml.safe_load(content) or {}
+            data = load_yaml(content) or {}
         except yaml.YAMLError as exc:
             raise TaskLoadError(path, f"invalid YAML: {exc}") from exc
         except OSError as exc:

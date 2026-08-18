@@ -2739,11 +2739,17 @@
             "description": "Installed AgentJobs package version.",
             "title": "Version",
             "type": "string"
+          },
+          "yaml_loader": {
+            "description": "Which YAML parser reads task files. The pure-Python fallback is about thirteen times slower than libyaml and is the usual explanation for a sluggish install, so it is reported rather than left to be guessed at.",
+            "title": "Yaml Loader",
+            "type": "string"
           }
         },
         "required": [
           "version",
-          "schema_version"
+          "schema_version",
+          "yaml_loader"
         ],
         "title": "VersionResponse",
         "type": "object"
