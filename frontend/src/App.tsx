@@ -310,6 +310,12 @@ function TaskCreatePage({ projectId }: { projectId: string }) {
   const tasksQuery = useQuery(
     listTasksApiProjectsProjectIdTasksGetOptions({ path: { project_id: projectId } }),
   );
+  // Who is filing this. The manager writes a creation log entry only when a creator is
+  // named, so a create that omits it produces a task with an empty log -- no record of
+  // who asked for it, and, since a dispatch must trace to a human's entry, a task that
+  // can never be dispatched. Every task made in this browser had that shape until now.
+  const projectsQuery = useQuery(getProjectsApiProjectsGetOptions());
+  const author = projectsQuery.data?.find((entry) => entry.id === projectId)?.default_user ?? null;
   const create = useMutation(createTaskApiProjectsProjectIdTasksPostMutation());
 
   return (
@@ -319,7 +325,7 @@ function TaskCreatePage({ projectId }: { projectId: string }) {
       onCreate={async (request) => {
         const task = await create.mutateAsync({
           path: { project_id: projectId },
-          body: request,
+          body: { ...request, actor: author },
         });
         await queryClient.invalidateQueries();
         navigate(`/p/${encodeURIComponent(projectId)}/tasks?status=all`);
