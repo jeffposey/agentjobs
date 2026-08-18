@@ -2,10 +2,9 @@ schema: 2
 id: task-134-cache-unchanged-files
 title: Stop re-reading files that have not changed
 created: '2026-08-18T00:06:13.455058Z'
-updated: '2026-08-18T00:06:13.455786Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-18T01:38:40.187842Z'
+lifecycle: closed
+outcome: cancelled
 archived: false
 priority: high
 category: performance
@@ -127,3 +126,105 @@ log:
       id: 3f1c9a52-6b41-4e0a-9d77-0a1b2c3d4e54
       kind: create
       fingerprint: 3195f9dc87d1325c62137df3354a0342
+- id: 2
+  ts: '2026-08-18T01:35:37.893079Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: be6f8a01-2c54-4d76-be98-f0123456789a
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-18T01:36:09.043425Z'
+  actor: claude
+  type: decision
+  body: "**Not building this. The identity key this task assumed is demonstrably unsafe\
+    \ on this filesystem, and the remaining win is one nobody is waiting on.**\n\n\
+    This task's own spec told me to measure the timestamp granularity rather than\
+    \ assume it, and to say so if mtime turned out to be too coarse. It is. That measurement\
+    \ is the reason this is being closed rather than implemented.\n\n## 1. The obvious\
+    \ cache key does not work here\n\nThe proposed key was path + mtime + size. Tested\
+    \ with 40 back-to-back same-size rewrites of one file on this machine (NTFS, Windows\
+    \ 11):\n\n| | |\n| --- | --- |\n| attempts | 40 |\n| **`st_mtime_ns` unchanged\
+    \ after the content changed** | **28 (70%)** |\n| smallest observed tick | 1,000,700\
+    \ ns (~1 ms) |\n\nEffective mtime resolution is about **1 millisecond**, not the\
+    \ 100 ns the `st_mtime_ns` field implies. A cache keyed on mtime + size would\
+    \ have served stale content in 70% of those cases.\n\n**And same-size writes are\
+    \ not a contrived case in this product \u2014 they are the normal case.** Every\
+    \ task write updates `updated:` to a fixed-width ISO timestamp, so a write that\
+    \ changes only the timestamp, or that swaps one enum value for another of equal\
+    \ length, produces a file of identical size. Combine that with agents performing\
+    \ `claim` then `log_append` in quick succession, or a git checkout rewriting many\
+    \ files in a burst, and the 1 ms window is genuinely reachable. This is exactly\
+    \ the failure the epic's constraints call out as unacceptable: *\"a stale cache\
+    \ must never serve a task record that has changed on disk.\"*\n\nThe safe alternative\
+    \ is a content hash. But hashing requires reading every file, and reading is already\
+    \ 11 ms of the 127 ms \u2014 so a hash-keyed cache saves the parse and validation\
+    \ (66 ms) rather than the whole 124 ms, while still carrying every invalidation,\
+    \ eviction and multi-writer obligation. Half the benefit, all of the risk.\n\n\
+    ## 2. The win is real but nobody is waiting on it\n\n| | |\n| --- | --- |\n| `load_all()`\
+    \ today | 127.5 ms |\n| a perfect cache's check (glob + stat) | 3.5 ms |\n| **theoretical\
+    \ maximum saving** | **124 ms per request** |\n\nThat would take endpoints from\
+    \ ~150 ms to ~30 ms. In relative terms that is a 5x; in absolute terms it is 124\
+    \ ms that no human perceives, on an interaction that already completes in 267\
+    \ ms.\n\n**Every acceptance criterion of the parent epic is already met without\
+    \ this task:**\n\n- ac-2, click to rendered detail under 500 ms \u2014 **met at\
+    \ 267 ms**\n- ac-3, `/tasks`, `/detail`, `/dashboard` each under 300 ms \u2014\
+    \ **met at 155/136/141 ms**\n- ac-5, CLI read commands under 1 s \u2014 **met\
+    \ at 882 ms**\n\n## 3. Half of this task was based on a number that measurement\
+    \ disproved\n\nThe premise for the `project_revision()` work was that the poll\
+    \ costs 0.23 s and runs every 15 seconds per client. **Measured, it is 18 ms**\
+    \ \u2014 recorded in task-131's log. Making an 18 ms endpoint cheaper, at the\
+    \ cost of replacing a whole-content hash (which is *correct by construction* against\
+    \ every writer) with something weaker, would trade a real correctness property\
+    \ for an imperceptible saving. `project_revision()` reading every byte is the\
+    \ reason it cannot miss a CLI write, a git checkout or a hand edit. That is a\
+    \ feature.\n\n## Decision\n\n**Closed as cancelled.** Building an in-process cache\
+    \ whose only trustworthy key requires reading the files anyway, in a multi-writer\
+    \ system, to remove 124 ms from an interaction already inside its target by a\
+    \ factor of two, is a bad trade. Jeff's standing instruction on this epic was\
+    \ to reject optimisations whose risk exceeds their value; this is one.\n\n**Rejected\
+    \ alternative: build it with a content-hash key.** Genuinely safe, and would still\
+    \ save ~66 ms. Rejected because the saving is imperceptible today, and because\
+    \ a process-level cache is a permanent maintenance obligation \u2014 every future\
+    \ write path has to remember it exists. Not worth taking on for a benefit no user\
+    \ can feel.\n\n**Rejected alternative: build it with mtime + size and accept the\
+    \ window.** Rejected on the measurement above: 70% stale on same-size writes within\
+    \ 1 ms, in a product where same-size writes are routine.\n\n## When to reopen\
+    \ this\n\nThe argument above is entirely about the corpus being 119 files. It\
+    \ does not hold as the backlog grows, because `load_all()` scales linearly:\n\n\
+    - **~350 files** \u2014 `load_all()` around 375 ms, which puts endpoints past\
+    \ the 300 ms budget in ac-3.\n- That is the trigger. **task-136's budgets are\
+    \ the mechanism that will detect it**, which is the right way for this to come\
+    \ back: as a failing check with a number attached, not as a hunch.\n\nIf it is\
+    \ reopened, start from the content-hash key, not mtime \u2014 the measurement\
+    \ above is the reason, and it is recorded here so nobody has to rediscover it."
+  data:
+    operation:
+      id: be6f8a01-2c54-4d76-be98-f0123456789b
+      kind: log_append
+      fingerprint: ade62b229ab82100364b1c13a1f7c861
+- id: 4
+  ts: '2026-08-18T01:38:40.187656Z'
+  actor: claude
+  type: transition
+  body: "Cancelled, not deferred silently \u2014 the reasoning and the measurements\
+    \ are in the decision entry above. Short version: the mtime+size identity key\
+    \ this task assumed is unsafe here (70% of same-size rewrites within 1 ms left\
+    \ st_mtime_ns unchanged), the safe alternative saves half as much for all the\
+    \ same risk, the 124 ms on offer is imperceptible against targets already met\
+    \ with 2x headroom, and the revision-poll half rested on a 0.23 s figure that\
+    \ measured at 18 ms. Reopen when the corpus grows past roughly 350 files, which\
+    \ task-136's budgets will detect; start from a content hash, not mtime."
+  data:
+    lifecycle: closed
+    outcome: cancelled
+    operation:
+      id: be6f8a01-2c54-4d76-be98-f0123456789c
+      kind: close
+      fingerprint: becdb994a2a5a60440301bd831075afe
