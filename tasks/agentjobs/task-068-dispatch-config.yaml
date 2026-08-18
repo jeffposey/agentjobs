@@ -2,7 +2,7 @@ schema: 2
 id: task-068-dispatch-config
 title: 'Dispatch: machine-local configuration and runner resolution'
 created: '2026-08-11T00:21:32.473840Z'
-updated: '2026-08-18T07:06:28.507324Z'
+updated: '2026-08-18T21:49:17.685863Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -292,3 +292,23 @@ log:
       id: a06f5e70-3182-4e95-dc2b-5c6d7e8f90a4
       kind: close
       fingerprint: ac95f1347c9509429ce793d062448cbd
+- id: 8
+  ts: '2026-08-18T21:49:17.685657Z'
+  actor: claude
+  type: note
+  body: 'Pointer, not a scope change. `task-080-dispatch-model-profiles` was decided
+    by Jeff on 2026-08-18: tasks gain an optional `difficulty` (routine/standard/hard),
+    and dispatch profiles map difficulty to an existing *runner* plus inert descriptive
+    labels -- decided but deliberately unbuilt, with written reopen triggers. See
+    `docs/agent-dispatch-design.md` section 4, ''Model policy: task difficulty and
+    dispatch profiles'', and that task''s decision log entry.
+
+
+    **This task''s scope is unchanged.** The pointer exists so whoever works it can
+    see the shape that is coming rather than discovering it mid-flight. Only `task-156-task-difficulty-field`
+    implements anything from that decision.'
+  data:
+    operation:
+      id: 080p95744712-2b33-4c55-8d77-e9f0a1b2c080
+      kind: log_append
+      fingerprint: 41b8054361b4ca2ebf356d5060167fe4

@@ -1,0 +1,174 @@
+schema: 2
+id: task-156-task-difficulty-field
+title: Add a difficulty field to the task schema, with list filtering
+created: '2026-08-18T21:49:01.024256Z'
+updated: '2026-08-18T21:49:01.024981Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: architecture
+tags:
+- schema
+- dispatch
+- cli
+- frontend
+effort: small
+assignment:
+  eligible: []
+parent: task-080-dispatch-model-profiles
+spec:
+  summary: Add an optional task-level difficulty of routine, standard or hard, defaulting
+    to standard when absent while recording that it was defaulted rather than declared,
+    and expose it for filtering in the CLI and the React list surfaces.
+  intent: Give a human a way to see, before claiming anything, which ready tasks need
+    capability rather than time -- and give the deferred dispatch profile layer a
+    field to consume when it is eventually built.
+  description: 'Derived from the decision on `task-080-dispatch-model-profiles`, recorded
+    in that task''s log and in `docs/agent-dispatch-design.md` section 4 under ''Model
+    policy: task difficulty and dispatch profiles''. **Read the design section before
+    starting; it is the specification and it names what was rejected.**
+
+
+    ## The field
+
+
+    `difficulty`, optional, one of `routine` | `standard` | `hard`.
+
+
+    It answers a question no existing field answers:
+
+
+    | Field | Answers |
+
+    |---|---|
+
+    | `priority` | How much does it matter that this happens? |
+
+    | `effort` (free text) | How long will it take? |
+
+    | **`difficulty`** | How much capability does doing it well require? |
+
+
+    Those come apart routinely. A one-line fix to a race condition is critical priority,
+    tiny effort, genuinely hard. A large mechanical rename is low priority, large
+    effort, easy.
+
+
+    ## Absent must mean something specific
+
+
+    Absent is legal and reads as `standard`. **The audit trail must distinguish defaulted
+    from declared** -- a task nobody assessed and a task somebody assessed as ordinary
+    are different facts, and a later profile layer routing on the field will care.
+    Requiring the field would invalidate every task in the corpus, which is not on
+    the table.
+
+
+    ## It has no automated consumer, and that is the design
+
+
+    Nothing routes on difficulty. The profile layer that would consume it is deliberately
+    deferred -- see the reopen triggers in the design section. This field ships to
+    be *read by a person*, which is why list filtering is in scope and why it is the
+    whole of the scope.
+
+
+    Stated here because an unconsumed field looks like an unfinished one. It is not.
+
+
+    ## Surfaces
+
+
+    - Schema and storage: the field, its validation, and round-tripping without reordering
+    or dropping unrelated keys.
+
+    - CLI: settable on create and update; filterable on list.
+
+    - React: filterable in the task list, and visible on the task detail page. Follow
+    the existing priority filter''s shape rather than inventing a new control.
+
+    - The generated API client must be regenerated and committed; `check:api-client`
+    compares against the committed copy.'
+  constraints: '- Three levels. Not five, not t-shirt sizes. Both were considered
+    and rejected on the parent; do not relitigate.
+
+    - Absent stays legal, forever. Any migration that writes an explicit `standard`
+    into existing task files defeats the defaulted-versus-declared distinction and
+    is not wanted.
+
+    - **Build no part of the profile layer.** No profiles, no resolver, no precedence,
+    no launch-plan preview, no strict mode. Those are decided and deliberately unbuilt;
+    adding them here reopens a deferral the parent closed.
+
+    - Do not widen task-068/069/073/077/078. They carry pointers to the parent decision
+    so their authors can see what is coming; their scope is unchanged.
+
+    - Task files are YAML in this repository, so a schema addition touches the real
+    corpus. Verify the full corpus still loads and that `scripts/check.py`''s validation
+    is no worse than it was.'
+  out_of_scope: The dispatch profile layer in every form. Routing, model selection,
+    or any behaviour conditional on difficulty. Backfilling difficulty onto existing
+    tasks.
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: 'Section 4, ''Model policy: task difficulty and dispatch profiles'' -- the
+      specification, including what was rejected and why the field has no consumer.'
+  - path: docs/task-schema.md
+    why: The schema reference this field must be documented in.
+  - path: src/agentjobs/models_v2.py
+    why: Where the task model and its enums live.
+  - path: frontend/src/components/TaskList.tsx
+    why: The list surface that gains the filter; follow the existing priority filter's
+      shape.
+acceptance:
+- id: sc-1
+  text: A task may declare difficulty as routine, standard or hard; an invalid value
+    is rejected with a message naming the legal values
+  status: pending
+- id: sc-2
+  text: Absent difficulty is legal and reads as standard, and a reader can tell defaulted
+    from explicitly declared without inspecting the YAML by hand
+  status: pending
+- id: sc-3
+  text: The CLI can set difficulty on create and update, and filter a task list by
+    it
+  status: pending
+- id: sc-4
+  text: The React task list filters by difficulty and the detail page shows it; the
+    generated API client is regenerated and committed
+  status: pending
+- id: sc-5
+  text: The existing task corpus loads unchanged, no task file is rewritten to add
+    an explicit default, and scripts/check.py is no worse than before the change
+  status: pending
+- id: sc-6
+  text: docs/task-schema.md documents the field, its three values, and the absent-means-standard
+    rule
+  status: pending
+deliverables:
+- path: src/agentjobs/models_v2.py
+  note: difficulty field and enum
+  status: pending
+- path: docs/task-schema.md
+  note: Schema documentation for difficulty
+  status: pending
+dependencies:
+- task: task-080-dispatch-model-profiles
+  type: needs
+  note: The decision this implements. Its design amendment must be merged first.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T21:49:01.024301Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: 1560aa11-2b33-4c55-8d77-e9f0a1b2c156
+      kind: create
+      fingerprint: b1c5df9eceab4abc1b4af418a4944ecf

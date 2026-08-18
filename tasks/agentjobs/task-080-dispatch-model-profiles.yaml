@@ -2,86 +2,42 @@ schema: 2
 id: task-080-dispatch-model-profiles
 title: Design dispatch profiles for model, reasoning, and task difficulty
 created: '2026-08-11T03:14:06.695530Z'
-updated: '2026-08-18T11:48:12.076487Z'
+updated: '2026-08-18T21:49:59.670013Z'
 lifecycle: active
 ball: human
-ball_reason: decision
-ball_prompt: "# Four decisions, with a recommendation for each. Nothing is implemented\
-  \ and nothing is decided.\n\nThe research is in log entry 2 \u2014 the two CLI surfaces,\
-  \ verified against the installed `claude` v2.1.228 and the `openai/codex` source.\
-  \ **It changed the recommendation**, so read that entry first if any of the reasoning\
-  \ below looks unmotivated.\n\nThe headline from it: **Codex already has named profiles**\
-  \ (`-p`, backed by a `ConfigProfile` in `config.toml` carrying model, provider,\
-  \ reasoning effort, verbosity, sandbox mode). Claude Code has no profile concept\
-  \ at all \u2014 just `--model` and `--effort`. And their effort vocabularies do\
-  \ not align: Claude Code has 5 levels, Codex has 8 plus a `Custom(String)` escape\
-  \ hatch. A shared AgentJobs effort enum is therefore either a lowest common denominator\
-  \ or an unvalidatable string.\n\n---\n\n## Decision 1 \u2014 Does a task carry a\
-  \ difficulty at all? *(Recommend: yes)*\n\nThis is the durable half and the only\
-  \ part I would build without hesitation. It is provider-neutral, it belongs in the\
-  \ task record, and it is useful **before** any routing exists \u2014 it tells a\
-  \ human what to expect and it is filterable.\n\nHow it differs from what already\
-  \ exists, which the task asked for explicitly:\n\n| Field | Answers |\n|---|---|\n\
-  | `priority` | *How much does it matter that this happens?* |\n| `effort` (free\
-  \ text) | *How long will it take?* |\n| **`difficulty`** | *How much capability\
-  \ does doing it well require?* |\n\nThose come apart routinely. A one-line fix to\
-  \ a race condition is `critical` priority, tiny effort, and genuinely hard. A large\
-  \ mechanical rename is low priority, large effort, and easy.\n\n**Sub-question for\
-  \ you:** the vocabulary. I would use **three levels, not five** \u2014 `routine`\
-  \ / `standard` / `hard` \u2014 because I do not believe anyone can honestly distinguish\
-  \ five, and a five-level scale that people use three levels of is a scale with two\
-  \ dead values. T-shirt sizes are the obvious alternative and read as *effort*, which\
-  \ is the field it must not be confused with.\n\n**Absent difficulty must be legal\
-  \ and must mean something specific:** treat it as `standard`, and record in the\
-  \ audit trail that it was defaulted rather than declared. Requiring it would make\
-  \ every existing task in the corpus invalid.\n\n## Decision 2 \u2014 Does AgentJobs\
-  \ own a model/effort policy layer? *(Recommend: no)*\n\nThis is where the research\
-  \ pushes back hardest on the task's original shape.\n\n**Recommended instead: a\
-  \ profile maps difficulty \u2192 an existing runner.** Runners already exist, already\
-  \ carry argv, and argv already is the security boundary. So:\n\n```yaml\nprofiles:\n\
-  \  balanced:\n    routine:  claude-sonnet\n    standard: claude-opus\n    hard:\
-  \     claude-opus-max\n```\n\nwhere each of those names an ordinary runner whose\
-  \ argv already says `--model opus --effort max`. AgentJobs never learns what a model\
-  \ is, never maintains an effort vocabulary, and never fights Codex's `-p`.\n\n-\
-  \ **Cost:** combinatorial. Three difficulties \xD7 two providers is six runner definitions\
-  \ with near-identical argv, and AgentJobs can only explain a choice as *\"difficulty\
-  \ hard \u2192 profile balanced \u2192 runner claude-opus-max\"* \u2014 it cannot\
-  \ say \"model opus at effort max\" without parsing argv, which it must not do.\n\
-  - **The alternative I am rejecting:** `{model}` and `{effort}` placeholders in argv\
-  \ plus a difficulty \u2192 (model, effort) table. Better explanations, one runner\
-  \ per provider \u2014 and it needs a per-runner effort vocabulary anyway, because\
-  \ the two CLIs' vocabularies differ. At that point it is the same thing with more\
-  \ moving parts and a new vocabulary to keep current as models change.\n\n**Your\
-  \ call, and it is a genuine trade:** is *\"it chose runner claude-opus-max\"* an\
-  \ adequate explanation, or do you want the launch plan to name the model and effort\
-  \ as structured data?\n\n## Decision 3 \u2014 Precedence, when there are several\
-  \ sources *(Recommend: most specific wins, and every level is recorded)*\n\nProposed\
-  \ order, narrowest first: **one-run override \u2192 profile named on this dispatch\
-  \ \u2192 project default profile \u2192 machine default profile \u2192 the project's\
-  \ plain `runner`** (today's behaviour, and the fallback when no profile matches).\n\
-  \nAn unmatched difficulty falls back to the project's plain runner and **says so**\
-  \ rather than refusing. A dispatch that refuses because a config table has a hole\
-  \ is a worse failure than one that runs with the ordinary runner and records that\
-  \ it did.\n\n## Decision 4 \u2014 Do we build this now, or record it and stop? *(Recommend:\
-  \ difficulty now, profiles later)*\n\nDecision 1 is cheap, useful immediately, and\
-  \ carries no risk. Decision 2 is a config-schema change plus a resolver plus CLI\
-  \ and GUI surfaces, and its value is entirely proportional to how often you actually\
-  \ dispatch \u2014 which, as of today, is not yet at all.\n\nSo my recommendation\
-  \ is to land `difficulty` on the task schema, and hold the profile layer until dispatch\
-  \ has been used enough to know whether the runner-per-difficulty shape is the right\
-  \ one. **That is deliberately the same reasoning task-074's spec applied to auto-dispatch**,\
-  \ and I flag it because you may well disagree given you raised this task on 2026-08-10\
-  \ specifically wanting the spend control.\n\n---\n\n## What I need from you\n\n\
-  1. Difficulty on the task: yes/no, and three levels or five.\n2. Profiles select\
-  \ a **runner** (recommended) or a **model + effort pair**.\n3. The precedence order\
-  \ above: agree or amend.\n4. Build the profile layer now, or land difficulty alone\
-  \ and wait.\n\nOnce you answer, the next session records your decision with its\
-  \ rejected alternatives, amends `docs/agent-dispatch-design.md` \xA74 so the document\
-  \ and the record agree, and derives narrowly scoped implementation tasks \u2014\
-  \ rather than silently widening the five dispatch tasks this one is related to.\n\
-  \n**Nothing has been written to the codebase for this task.** No branch, no code,\
-  \ no doc change \u2014 the design amendment is the outcome of your decision, not\
-  \ an input to it."
+ball_reason: review
+ball_prompt: "# Design amendment ready to review on `docs/task-080-model-profiles-decision`.\
+  \ Nothing merged.\n\nYour five numbered instructions from log entry 5 are all done.\
+  \ What needs your eye is the design section and two judgement calls I made inside\
+  \ it.\n\n## What to look at\n\n**`docs/agent-dispatch-design.md` section 4, new\
+  \ subsection 'Model policy: task difficulty and dispatch profiles'** -- one commit,\
+  \ `15bb49f`, docs only, no code. Worktree `C:/projects/aj-080`.\n\n## Two calls\
+  \ I made that you did not explicitly make\n\n1. **I recorded the strict-mode/unattended\
+  \ interaction as an OPEN question inside the design, not as decided.** You added\
+  \ strict mode; I raised that a strict refusal inside auto-dispatch or a bounded\
+  \ loop is a silent stall unless it hands the ball back, and you did not answer it.\
+  \ Rather than quietly deciding it for you or dropping it, the design carries a marked\
+  \ block saying it is open and who raised it. Same text is a `question` entry on\
+  \ this task. **If you would rather it were decided now, say which way.**\n\n2. **I\
+  \ did not mark sc-3, sc-6 and sc-7 met**, and the reason is in each criterion's\
+  \ `verify`. sc-7 you named yourself. sc-3 is the interesting one: it asks for a\
+  \ launch plan containing provider/model/reasoning effort as structured data, which\
+  \ is *precisely the option D2 rejected* -- so the criterion as written presumes\
+  \ the rejected design. Marking it met would have buried a decision inside a green\
+  \ tick. sc-6 is split the same way: difficulty's own audit rule is specified, the\
+  \ profile resolver's payload is not, because the resolver is deferred.\n\n   Three\
+  \ criteria left pending on a task you are about to close is either honest bookkeeping\
+  \ or a sign the criteria need rewriting to match the decision. **Your call which.**\n\
+  \n## Everything else\n\n- Decision entry recorded with every rejected alternative\
+  \ named, including your correction to my difficulty justification -- that it earns\
+  \ its place on human orientation, not on a routing consumer it will not have.\n\
+  - `task-156-task-difficulty-field` derived, scoped to the field and list filtering\
+  \ only, with `needs` on this task so it cannot start before the design merges.\n\
+  - task-068/069/073/077/078 each carry a pointer note. **Scope unchanged on all five**\
+  \ -- the note says so explicitly.\n- No implementation code, per `out_of_scope`.\n\
+  \n## To merge\n\nRebase onto `main`, `--no-ff`, mark the branch merged, close this\
+  \ task, `git worktree remove C:/projects/aj-080`. I have not done any of it and\
+  \ will not without your word."
 archived: false
 priority: high
 category: architecture
@@ -185,38 +141,64 @@ acceptance:
   text: The design chooses and defines a structured, portable task difficulty vocabulary,
     including assignment ownership, absent/unknown behavior, and its distinction from
     priority and effort
-  status: pending
+  verify: 'docs/agent-dispatch-design.md 4, ''Task difficulty -- building now'': routine/standard/hard,
+    absent is legal and means standard with defaulted-vs-declared recorded, and a
+    table separating it from priority and effort.'
+  status: met
 - id: sc-2
   text: A machine-local named-profile schema and explicit precedence rules cover machine
     and project defaults, per-dispatch selection, one-run overrides, and incomplete
     mappings
-  status: pending
+  verify: 'docs/agent-dispatch-design.md 4, ''Dispatch profiles'': the profiles mapping,
+    the five-level precedence order, fallback on an incomplete mapping, and opt-in
+    strict refusal.'
+  status: met
 - id: sc-3
   text: A deterministic resolution algorithm produces an explainable launch plan containing
     runner, provider/model, and reasoning effort; refusal and fallback behavior are
     specified
+  verify: 'PARTIAL, and the gap is deliberate. Refusal and fallback are fully specified.
+    The launch plan is NOT specified to contain provider/model/reasoning effort as
+    structured data: D2 rejected that in favour of runner selection plus inert descriptive
+    labels, so this criterion as written presumes the rejected option. Not marked
+    met, because marking it met would bury a decision.'
   status: pending
 - id: sc-4
   text: Current Claude Code and Codex model/reasoning controls are verified from their
     actual installed CLI or primary documentation, with capability differences recorded
     rather than guessed
   verify: 'Log entry 2: claude v2.1.228 help read directly; Codex flags and ConfigProfile
-    read from openai/codex source.'
+    read from openai/codex source. Summarised as a table in the design amendment.'
   status: met
 - id: sc-5
   text: 'The security boundary is explicit and tested in the design: a cloned repository
     or task may declare difficulty but cannot introduce a command, provider credential,
     or unapproved machine-local model target'
-  status: pending
+  verify: docs/agent-dispatch-design.md 4 states argv remains the only thing that
+    launches, and that labels are never parsed, never used to construct a command,
+    and never validated. A task declares only difficulty, which selects among machine-local
+    runners a human already wrote. No executable test exists because no code was written;
+    test evidence belongs to the implementation task.
+  status: met
 - id: sc-6
   text: Dispatch audit data records declared difficulty, selected profile, matched
     rule, resolved model/reasoning settings, and override provenance so the choice
     can be reconstructed later
+  verify: PARTIAL. Difficulty's own audit requirement is specified -- defaulted versus
+    declared must be distinguishable -- and the design requires every participating
+    precedence level to be recorded including which won. The concrete payload shape
+    for profile resolution is not specified, because D4 defers the resolver that would
+    produce it. Belongs to the profile layer when it is built.
   status: pending
 - id: sc-7
   text: CLI and GUI flows allow choosing and previewing profiles, and existing dispatch
     tasks are amended or follow-up tasks are created to provide a reviewable implementation
     path
+  verify: 'PARTIAL, split deliberately. The follow-up half is done: task-156-task-difficulty-field
+    derived, and task-068/069/073/077/078 each carry a pointer to this decision with
+    their scope left alone. The profile selection and launch-plan preview flows are
+    NOT specified, because D4 defers the layer they would surface. Jeff named this
+    criterion specifically as one not to mark met.'
   status: pending
 deliverables:
 - path: docs/agent-dispatch-design.md
@@ -355,3 +337,211 @@ log:
       id: 4f2c3d4e-5f60-4a71-8b92-c0d1e2f30080
       kind: update_content
       fingerprint: 33f74231ae3657a459afcc019cc57562
+- id: 5
+  ts: '2026-08-18T20:47:39.631968Z'
+  actor: Jeff Posey
+  type: handoff
+  body: "Changes requested by Jeff Posey:\n\n# Decisions on all four questions\n\n\
+    Answering as `task-080-dispatch-model-profiles` (never the bare number \u2014\
+    \ the closed\n`task-080-attention-tiers` shares it).\n\n## D1 \u2014 Difficulty\
+    \ on the task: yes, three levels\n\n`routine` / `standard` / `hard`.\n\n- **Absent\
+    \ is legal**, means `standard`, and the audit trail records that it was\n  *defaulted*\
+    \ rather than *declared*. Requiring it would invalidate the corpus.\n- **Rejected:**\
+    \ five levels \u2014 a five-level scale that people honestly use three levels\n\
+    \  of is a scale with two dead values. **Rejected:** T-shirt sizes \u2014 they\
+    \ read as\n  *effort*, which is the one field difficulty must not be confused\
+    \ with.\n- **Correction to the justification in the handoff.** Do not record difficulty\
+    \ as\n  earning its place because routing will consume it later. Given D4, it\
+    \ ships with no\n  automated consumer at all. It justifies itself on human orientation\
+    \ and filtering \u2014\n  *\"which of my ready tasks is hard enough that I should\
+    \ drive it myself rather than\n  hand it to an agent\"* \u2014 and the design\
+    \ should say so plainly, so a later reader does\n  not mistake an unconsumed field\
+    \ for a broken one.\n\n## D2 \u2014 A profile selects a runner, plus declared\
+    \ labels\n\nTake the recommended shape (difficulty \u2192 an existing runner),\
+    \ with one amendment:\n**a runner may declare optional descriptive `model` and\
+    \ `effort` labels.**\n\n- Labels are authored metadata for display and audit only.\
+    \ They are **never parsed out\n  of argv, never used to construct a command, never\
+    \ validated against a provider\n  vocabulary.** AgentJobs still does not learn\
+    \ what a model is, and the security\n  boundary is untouched \u2014 argv remains\
+    \ the only thing that launches.\n- This buys back the explanation runner-only\
+    \ gives up:\n  `difficulty hard \u2192 profile balanced \u2192 runner claude-opus-max\
+    \ (labels: opus / max)`.\n- **Cost, accepted:** a label can drift from the argv\
+    \ beside it. That is a\n  documentation defect, not a dispatch defect. The design\
+    \ must state this, and the GUI\n  must not present labels as though AgentJobs\
+    \ verified them \u2014 they are the runner\n  author's claim, shown as such.\n\
+    - **Rejected:** `{model}`/`{effort}` placeholders in argv with a\n  difficulty\
+    \ \u2192 (model, effort) table. Log entry 2 settles it: Claude Code has five\n\
+    \  effort levels, Codex has eight plus `Custom(String)`. That option needs a per-runner\n\
+    \  vocabulary, which is per-provider tables wearing a portable name, plus a vocabulary\n\
+    \  to keep current as models change.\n- **Rejected:** runner-only with no labels.\
+    \ The saving is zero and it leaves the audit\n  trail unable to answer \"why did\
+    \ this run cost that much\" in the terms the question is\n  asked in.\n\n## D3\
+    \ \u2014 Precedence as proposed, plus an opt-in strict mode\n\nOrder stands, narrowest\
+    \ first: **one-run override \u2192 profile named on this dispatch \u2192\nproject\
+    \ default profile \u2192 machine default profile \u2192 the project's plain runner.**\
+    \ Every\nlevel that participated is recorded, including which one won and why.\n\
+    \n- **Default on an unmatched difficulty or a hole in the table:** fall back to\
+    \ the plain\n  runner and *say so*. Do not refuse. A dispatch that dies because\
+    \ a config table has a\n  hole is the worse failure.\n- **New: a per-profile `strict`\
+    \ setting that refuses instead of falling back.** The\n  permissive default is\
+    \ right for availability, but deliberate spend is the entire\n  point of the feature\
+    \ \u2014 someone who selected a conservative profile and silently got a\n  frontier\
+    \ model because a rule was missing was failed quietly. Strict turns that into\
+    \ a\n  loud, chosen failure.\n- Strict is **opt-in and off by default**. A strict\
+    \ refusal must name the profile, the\n  difficulty, and the rule that was missing\
+    \ \u2014 enough to fix the config without a\n  debugger.\n\n## D4 \u2014 Land\
+    \ difficulty now; defer the profile layer against a written trigger\n\n- **Build\
+    \ now:** the `difficulty` field, its default-and-record behaviour, and filtering\n\
+    \  in the list surfaces (CLI and GUI).\n- **Defer:** profiles, the resolver, precedence,\
+    \ launch-plan preview, strict mode.\n- **Write the deferred design down anyway.**\
+    \ The profile shape above is *decided*, not\n  merely discussed. `docs/agent-dispatch-design.md`\
+    \ \xA74 records it as accepted-but-unbuilt\n  so the next session does not re-derive\
+    \ it.\n- **Reopen trigger \u2014 whichever comes first, recorded in the doc so\
+    \ this is a deferral\n  and not a dropped idea:**\n  1. 20 real dispatches have\
+    \ run; or\n  2. a dispatch is first observed consuming a materially wrong-cost\
+    \ model for the work,\n     in either direction; or\n  3. auto-dispatch or bounded\
+    \ loops (`task-078-agent-loops`) begin dispatching\n     unattended \u2014 an\
+    \ unattended loop with no cost policy is a different risk class than\n     a manual\
+    \ dispatch, and it should not be the thing that discovers this.\n\n---\n\n## What\
+    \ the next session does\n\n1. Record the above as a `decision` entry, naming each\
+    \ rejected alternative.\n2. Amend `docs/agent-dispatch-design.md` \xA74: the difficulty\
+    \ vocabulary, profile \u2192\n   runner + declared labels, precedence with strict\
+    \ mode, and the deferral trigger.\n   Mark the profile layer accepted-but-unbuilt.\n\
+    3. Update acceptance honestly. Criteria the amended design genuinely satisfies\
+    \ get\n   `met`; where the deferral means a criterion cannot be satisfied \u2014\
+    \ sc-7's profile\n   selection and launch-plan preview flows in particular \u2014\
+    \ say that in the record\n   rather than marking it met.\n4. Derive **one** narrowly\
+    \ scoped implementation task for the difficulty field (schema,\n   storage, CLI,\
+    \ GUI filter). Do not widen task-068 / 069 / 073 / 077 / 078; add a\n   pointer\
+    \ to this decision on each so their authors can see the shape that is coming,\n\
+    \   and leave their scope alone.\n5. Write no implementation code under this task\
+    \ \u2014 `out_of_scope` still holds."
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 6
+  ts: '2026-08-18T21:47:09.955842Z'
+  actor: claude
+  type: decision
+  body: "# Model policy decided by Jeff, 2026-08-18. Recorded with rejected alternatives.\n\
+    \nJeff's answers are verbatim in log entry 5. This entry is the durable decision\
+    \ record required by this task's own constraints, and names what was rejected\
+    \ so a later reader cannot mistake a settled trade for an oversight.\n\n## D1\
+    \ -- `difficulty` on the task: yes, three levels\n\n`routine` / `standard` / `hard`.\
+    \ Absent is legal, means `standard`, and the audit trail records that it was *defaulted*\
+    \ rather than *declared*.\n\n- **Rejected: five levels.** A five-level scale people\
+    \ honestly use three levels of is a scale with two dead values.\n- **Rejected:\
+    \ t-shirt sizes.** They read as *effort*, which is the one field difficulty must\
+    \ not be confused with.\n- **Rejected: requiring it.** Would invalidate every\
+    \ task in the corpus.\n\n**Jeff corrected the justification I offered, and the\
+    \ correction is the point.** I had argued difficulty earns its place because routing\
+    \ will consume it later. Given D4 it ships with *no automated consumer at all*,\
+    \ so it justifies itself on human orientation and filtering instead -- \"which\
+    \ of my ready tasks is hard enough that I should drive it myself rather than hand\
+    \ it to an agent\". The design now says so explicitly, so an unconsumed field\
+    \ is not later read as a broken one.\n\n## D2 -- a profile selects a runner, plus\
+    \ declared labels\n\nThe recommended shape, with Jeff's amendment: a runner may\
+    \ declare optional descriptive `model` and `effort` labels, which are display\
+    \ and audit metadata only -- never parsed out of argv, never used to construct\
+    \ a command, never validated against a provider vocabulary.\n\n- **Rejected: `{model}`/`{effort}`\
+    \ placeholders plus a difficulty \u2192 (model, effort) table.** Log entry 2 settles\
+    \ it: Claude Code has five effort levels, Codex has eight plus `Custom(String)`.\
+    \ That option needs a per-runner vocabulary, which is per-provider tables wearing\
+    \ a portable name, plus a vocabulary to keep current as models change.\n- **Rejected:\
+    \ runner-only with no labels.** The saving is zero and it leaves the audit trail\
+    \ unable to answer \"why did this run cost that much\" in the terms the question\
+    \ is asked in.\n- **Accepted cost, stated so it is not later filed as a bug:**\
+    \ a label can drift from the argv beside it. That is a documentation defect, not\
+    \ a dispatch defect. Any UI must present labels as the runner author's claim,\
+    \ not as something AgentJobs verified.\n\n## D3 -- precedence as proposed, plus\
+    \ opt-in strict mode\n\nNarrowest first: one-run override \u2192 profile named\
+    \ on this dispatch \u2192 project default profile \u2192 machine default profile\
+    \ \u2192 the project's plain runner. Every participating level is recorded, including\
+    \ which won.\n\nDefault on an unmatched difficulty or a hole in the table: fall\
+    \ back to the plain runner and say so. **Rejected: refusing by default** -- a\
+    \ dispatch that dies because a config table has a gap is the worse failure.\n\n\
+    New from Jeff: a per-profile `strict` setting that refuses instead of falling\
+    \ back, opt-in and off by default, its refusal naming the profile, the difficulty\
+    \ and the missing rule.\n\n## D4 -- difficulty now, profile layer deferred against\
+    \ a written trigger\n\nBuild: the `difficulty` field, its default-and-record behaviour,\
+    \ and filtering in CLI and GUI list surfaces. Defer: profiles, resolver, precedence,\
+    \ launch-plan preview, strict mode.\n\n**Rejected: building the profile layer\
+    \ now.** Its value is proportional to how often dispatch is actually used, which\
+    \ as of today is barely at all. **Rejected: deferring without writing it down**\
+    \ -- the shape is accepted, not merely discussed, and re-deriving it later is\
+    \ waste. Reopen triggers are recorded in the design and in this task.\n\n## What\
+    \ this changed in the repository\n\n`docs/agent-dispatch-design.md` section 4\
+    \ gains \"Model policy: task difficulty and dispatch profiles\", on branch `docs/task-080-model-profiles-decision`.\
+    \ No implementation code, per `out_of_scope`."
+  data:
+    operation:
+      id: 0800aa11-2b33-4c55-8d77-e9f0a1b2c080
+      kind: log_append
+      fingerprint: efa9853cbed54cb40412383715e922f4
+- id: 7
+  ts: '2026-08-18T21:49:01.084670Z'
+  actor: system
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 0801aa11-2b33-4c55-8d77-e9f0a1b2c080
+      kind: update_content
+      fingerprint: ec424534a3ced6f21bbf8afd004e52bc
+- id: 8
+  ts: '2026-08-18T21:49:59.577704Z'
+  actor: claude
+  type: question
+  body: 'What does a **strict** profile refusal do when the caller is unattended --
+    auto-dispatch, or a bounded loop from task-078-agent-loops?
+
+
+    D3 makes strict mode refuse rather than fall back, and requires the refusal to
+    name the profile, the difficulty and the missing rule. That is right for a human
+    at a keyboard, who reads the message and fixes the config.
+
+
+    An unattended caller has nobody to read it. A refusal that only returns an error
+    there is a silent stall: the loop stops, the task still reads agent/work, and
+    nothing indicates why. It likely has to move the ball to human/decision carrying
+    the same text -- but that is a behaviour change to the loop, not just to the resolver,
+    so it should be decided rather than assumed.
+
+
+    Raised while writing the design amendment. Recorded in docs/agent-dispatch-design.md
+    section 4 as an explicitly open block rather than answered by default. Not blocking:
+    the profile layer is deferred, so nothing implements strict mode yet. It should
+    be answered before it is built, and reopen trigger 3 -- unattended dispatch beginning
+    -- is exactly when it will matter.'
+  data:
+    operation:
+      id: 0803aa11-2b33-4c55-8d77-e9f0a1b2c080
+      kind: log_append
+      fingerprint: a8aae721539ea0f16e07cf41b0932d85
+- id: 9
+  ts: '2026-08-18T21:49:59.669868Z'
+  actor: claude
+  type: handoff
+  body: 'Design amendment written and committed to a branch; decision, acceptance
+    and derived task recorded on main. Stopping at the merge gate.
+
+
+    The amendment states the difficulty vocabulary, the profile-selects-a-runner shape
+    with inert labels, precedence with opt-in strict mode, and the deferral with its
+    three reopen triggers -- marked accepted-but-unbuilt so it is a deferral rather
+    than a dropped idea.
+
+
+    Two things deliberately not smoothed over: the strict-mode/unattended interaction
+    is recorded as open rather than decided, and three acceptance criteria are left
+    pending because the decision rejected the shape they presume. Both are called
+    out in the prompt rather than left for you to notice.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 0802aa11-2b33-4c55-8d77-e9f0a1b2c080
+      kind: handoff
+      fingerprint: 1bb9dfc15527396e6873cebe4ceef8c7

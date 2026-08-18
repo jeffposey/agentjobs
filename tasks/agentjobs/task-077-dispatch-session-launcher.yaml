@@ -3,7 +3,7 @@ id: task-077-dispatch-session-launcher
 title: 'Decide: should dispatch launch a remote-controllable session instead of a
   batch run?'
 created: '2026-08-11T01:56:16.465216Z'
-updated: '2026-08-18T06:17:33.281724Z'
+updated: '2026-08-18T21:49:18.220973Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -667,3 +667,23 @@ log:
       id: 5d9e1c48-70a3-4f26-b8e1-3c07924fa5b0
       kind: close
       fingerprint: e10624f8cf24980edeef177f302c4606
+- id: 17
+  ts: '2026-08-18T21:49:18.220731Z'
+  actor: claude
+  type: note
+  body: 'Pointer, not a scope change. `task-080-dispatch-model-profiles` was decided
+    by Jeff on 2026-08-18: tasks gain an optional `difficulty` (routine/standard/hard),
+    and dispatch profiles map difficulty to an existing *runner* plus inert descriptive
+    labels -- decided but deliberately unbuilt, with written reopen triggers. See
+    `docs/agent-dispatch-design.md` section 4, ''Model policy: task difficulty and
+    dispatch profiles'', and that task''s decision log entry.
+
+
+    **This task''s scope is unchanged.** The pointer exists so whoever works it can
+    see the shape that is coming rather than discovering it mid-flight. Only `task-156-task-difficulty-field`
+    implements anything from that decision.'
+  data:
+    operation:
+      id: 080p38688432-2b33-4c55-8d77-e9f0a1b2c080
+      kind: log_append
+      fingerprint: 41b8054361b4ca2ebf356d5060167fe4

@@ -2,7 +2,7 @@ schema: 2
 id: task-078-agent-loops
 title: 'Agent loops: make acceptance criteria executable so a loop can stop itself'
 created: '2026-08-11T02:29:29.362319Z'
-updated: '2026-08-18T11:42:55.673663Z'
+updated: '2026-08-18T21:49:18.419940Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -301,3 +301,23 @@ log:
       id: 5e2c3d4e-5f60-4a71-8b92-c0d1e2f30078
       kind: close
       fingerprint: b9e885fe0473f6c3072d469eedbb1207
+- id: 6
+  ts: '2026-08-18T21:49:18.419732Z'
+  actor: claude
+  type: note
+  body: 'Pointer, not a scope change. `task-080-dispatch-model-profiles` was decided
+    by Jeff on 2026-08-18: tasks gain an optional `difficulty` (routine/standard/hard),
+    and dispatch profiles map difficulty to an existing *runner* plus inert descriptive
+    labels -- decided but deliberately unbuilt, with written reopen triggers. See
+    `docs/agent-dispatch-design.md` section 4, ''Model policy: task difficulty and
+    dispatch profiles'', and that task''s decision log entry.
+
+
+    **This task''s scope is unchanged.** The pointer exists so whoever works it can
+    see the shape that is coming rather than discovering it mid-flight. Only `task-156-task-difficulty-field`
+    implements anything from that decision.'
+  data:
+    operation:
+      id: 080p81933408-2b33-4c55-8d77-e9f0a1b2c080
+      kind: log_append
+      fingerprint: 41b8054361b4ca2ebf356d5060167fe4
