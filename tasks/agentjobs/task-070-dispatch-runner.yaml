@@ -2,10 +2,9 @@ schema: 2
 id: task-070-dispatch-runner
 title: 'Dispatch: the runner, in two modes'
 created: '2026-08-11T00:21:32.484450Z'
-updated: '2026-08-18T06:35:38.188828Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-18T08:19:51.416522Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: infrastructure
@@ -120,41 +119,42 @@ acceptance:
 - id: sc-1
   text: Session mode spawns a real background session, captures the CLI-assigned id
     from stdout, and records both run id and session id on the task
-  status: pending
+  status: met
 - id: sc-2
   text: A session that parks on a permission prompt is detected from `claude agents
     --json` and moves the ball to human/input with the pending command quoted in the
     ball_prompt
-  status: pending
+  status: met
 - id: sc-3
   text: A finished session is reaped rather than left holding a pid, and a session
     idle past the staleness threshold with an unmoved ball becomes finished_without_handoff
     without being killed
-  status: pending
+  status: met
 - id: sc-4
   text: 'Batch mode writes exactly one dispatch_result on every terminating path:
     exit 0, non-zero exit, timeout, and an exception injected into the supervisor
     itself'
-  status: pending
+  status: met
 - id: sc-5
   text: The batch wall-clock timeout terminates the whole process group; a grandchild
     spawned by the fake runner is gone afterwards, verified on Windows
-  status: pending
+  status: met
 - id: sc-6
   text: Emitted allow-list rules are asserted to use the `Tool(prefix:*)` colon form,
     so a silently-matching-nothing rule fails a test rather than a run
-  status: pending
+  status: met
 - id: sc-7
   text: No asyncio task, and no code path where an exception is logged and swallowed
     without a task-visible record -- the task-047 shape
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs/dispatch/runner.py
   note: Session spawn/poll and batch spawn/supervise
-  status: pending
+  status: done
 - path: tests/test_dispatch_runner.py
-  note: Fake runners for batch outcomes; a real parked session for the session path
-  status: pending
+  note: Real-process batch outcomes; a fake session ledger; the live parked session
+    verified separately
+  status: done
 dependencies:
 - task: task-068-dispatch-config
   type: needs
@@ -174,7 +174,9 @@ links:
 - url: https://github.com/jeffposey/agentjobs/blob/main/docs/agent-dispatch-design.md
   rel: design
   title: Agent dispatch design pass (task-060)
-branches: []
+branches:
+- name: feat/task-070-dispatch-runner
+  status: merged
 log:
 - id: 1
   ts: '2026-08-11T01:43:19.022663Z'
@@ -263,3 +265,129 @@ log:
       id: c9d3406f-2b58-41e7-95a0-8e2137d64b0a
       kind: update_content
       fingerprint: 06af44dcac4237004fb0fe2b5b29d242
+- id: 5
+  ts: '2026-08-18T07:48:07.637832Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 6
+  ts: '2026-08-18T08:19:09.398385Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 2b3c4d5e-6f70-4b8c-9dae-1f2a3b4c5d6e
+      kind: update_content
+      fingerprint: e31f4304135c9b8d123b66d07af21115
+- id: 7
+  ts: '2026-08-18T08:19:42.004393Z'
+  actor: claude
+  type: progress
+  body: "Both modes built, verified against a **live** Claude Code session, merged\
+    \ to main.\n\n`src/agentjobs/dispatch/runner.py` + 47 tests. One commit, merged\
+    \ `--no-ff`. Nothing pushed.\n\n## The live verification, because a passing suite\
+    \ is not evidence here\n\nThrowaway git repo under `C:/ai/scratch`, throwaway\
+    \ AgentJobs home, real `claude` 2.1.228, driven through the shipped `DispatchRunner`\
+    \ rather than a reimplementation. The session was started `--bg --remote-control`\
+    \ under `supervised`, given a command deliberately outside the allow-list (`npx\
+    \ --yes cowsay hello`), and **it parked**. Polling classified it `parked` from\
+    \ `claude agents --json`, and the ball moved to `human`/`input` written by `dispatcher`,\
+    \ with this prompt:\n\n> Dispatched session `9f8876fe` is parked on a permission\
+    \ prompt and will wait indefinitely. Answer it at https://claude.ai/code/session_01H5EK\u2026\
+    \ \u2014 that link works from a phone. Or attach locally with `claude attach 9f8876fe`.\n\
+    \nfollowed by the readable transcript tail showing the actual dialog: *\"This\
+    \ command requires approval / Do you want to proceed? / 1. Yes / 2. Yes, and don't\
+    \ ask again for: npx * / 3. No\"*. Log ended `[transition claude, dispatch Jeff\
+    \ Posey, handoff dispatcher]`. Sessions stopped and `claude rm`'d, sandbox deleted,\
+    \ `claude agents --json --all` reports nothing left behind.\n\n## Three bugs that\
+    \ only the live run could find\n\nEvery one of them passed 39 unit tests first.\
+    \ Worth stating plainly, because it is the argument for the acceptance criteria\
+    \ being written the way they were.\n\n1. **`Popen([\"claude\", ...])` fails on\
+    \ Windows with `WinError 2`.** `claude` is a `.CMD` shim, and without a shell\
+    \ nothing resolves PATHEXT. The obvious fix is `shell=True`, which is exactly\
+    \ what this subsystem refuses \u2014 it would turn a prompt full of quotes and\
+    \ semicolons into a command string. So `resolve_executable()` does the PATHEXT\
+    \ lookup explicitly and argv stays a list all the way to `CreateProcess`. Unit\
+    \ tests never caught it because fake runners spawn as `sys.executable`, an absolute\
+    \ path.\n\n2. **`text=True` decodes with the locale codepage**, cp1252 here, and\
+    \ a real transcript is full of box-drawing. The `UnicodeDecodeError` is raised\
+    \ *inside subprocess's reader thread*, where it does not propagate \u2014 it surfaces\
+    \ as `stdout` being `None` several frames away. Every subprocess call now passes\
+    \ `encoding=\"utf-8\", errors=\"replace\"`.\n\n3. **The first working handoff\
+    \ was correct and useless.** It carried the raw ANSI dump: escape codes, a splash\
+    \ screen, release notes, and the permission dialog nowhere in the last 40 lines.\
+    \ `readable_tail()` strips escapes and frame-only lines, and the prompt now leads\
+    \ with the Remote Control URL \u2014 the one thing a person holding a phone can\
+    \ act on.\n\n## Decisions\n\n**The operator's argv owns the executable and the\
+    \ mode flags; AgentJobs owns the posture flags.** Design section 4 says posture\
+    \ is not the operator's business, and mode flags plainly are (a non-Claude CLI\
+    \ needs different ones). So `compose_argv` splices posture flags in immediately\
+    \ before the prompt element. Rejected: putting posture in the config file, which\
+    \ is where a reader would look for it and precisely where section 4 says it must\
+    \ not be, because it then gets chosen by whoever copies the example first.\n\n\
+    **The Remote Control URL is extracted from the transcript with a regex, which\
+    \ is a knowing exception to \"do not parse `claude logs`.\"** The constraint exists\
+    \ so that *state* is never inferred from a terminal rendering, and it is not:\
+    \ every phase decision reads the ledger. But the URL appears only in the transcript\
+    \ \u2014 the design flagged this and left it to this task \u2014 and without it\
+    \ a parked session hands someone a problem with no way to reach it from the device\
+    \ they are on. One self-describing URL, no control flow depends on the match.\
+    \ Rejected: linking to `claude attach` alone, which is correct and only works\
+    \ at the keyboard, defeating the reason session mode was chosen.\n\n**A stale\
+    \ session is reported but not stopped; a completed one is reaped.** Section 9\
+    \ says both \u2014 \"reaping is AgentJobs' job\", and a stale session \"is not\
+    \ killed and remains attachable\". Those pull opposite ways, resolved by outcome:\
+    \ `completed` (the ball moved, the work concluded) reaps; `finished_without_handoff`\
+    \ does not, and the pid leak is the accepted price of leaving it attachable.\n\
+    \n**`idle`/`blocked` is finished, not parked.** It is a session that ended after\
+    \ a denial. Reading it as parked would hand a human a question nobody is waiting\
+    \ on an answer to.\n\n**An unrecognised `status`/`state` pair means running.**\
+    \ Declaring a live run finished writes a terminal entry for a session that then\
+    \ keeps working, which is worse than polling one that has stopped.\n\n## What\
+    \ this task did not build, on purpose\n\nStartup reconciliation (design section\
+    \ 9: batch survivors become `interrupted`, sessions re-attach) reads the run ledger,\
+    \ and the ledger is task-072. `poll_session` decides but does not loop \u2014\
+    \ whatever schedules polling belongs with 072 as well. The HTTP endpoint and its\
+    \ guards are 071.\n\n**One caveat for 072/073:** `RunHandle` is in-memory. A restart\
+    \ loses the handles but not the runs \u2014 every fact needed to rebuild one is\
+    \ in `~/.agentjobs/runs/<run_id>/meta.yaml` (task id, session id, dispatch entry\
+    \ id, argv, started_at). Reconstructing handles from those files is what reconciliation\
+    \ will be.\n\nFull suite: 1578 passed. The two pre-existing failures described\
+    \ in task-068 log entry 6 are unchanged."
+  data:
+    operation:
+      id: 3c4d5e6f-7081-4c9d-aebf-2a3b4c5d6e7f
+      kind: log_append
+      fingerprint: 9b2512b8197631deed4579ca100d1e60
+- id: 8
+  ts: '2026-08-18T08:19:51.416361Z'
+  actor: claude
+  type: transition
+  body: "All seven acceptance criteria met. sc-2 verified against a real Claude Code\
+    \ 2.1.228 session that genuinely parked, not against a fake. Branch merged --no-ff\
+    \ and marked merged; worktree removed; sandbox repo and its sessions deleted.\
+    \ Nothing pushed.\n\nMerged without a separate review round under the autonomy\
+    \ grant on task-060 log entry 11 (Jeff, 2026-08-18).\n\nUnblocks task-071 (the\
+    \ HTTP endpoint: call assert_dispatch_permitted, then DispatchRunner.start) and\
+    \ task-072 (the ledger, cancellation, polling schedule, and startup reconciliation\
+    \ \u2014 note RunHandle is in-memory and rebuildable from each run's meta.yaml)."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 4d5e6f70-8192-4dae-bfc0-3b4c5d6e7f80
+      kind: close
+      fingerprint: 67e473105c54a61ebe628dc94c10f50e
