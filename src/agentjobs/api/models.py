@@ -140,6 +140,7 @@ class TaskDetailResponse(BaseModel):
     children: List[TaskRead]
     needs: List[DependencyRelation]
     blocks: List[DependencyRelation]
+    related: List[DependencyRelation]
     child_dependency_edges: List[ScopedDependencyEdge]
     identity: ReviewIdentity
 
@@ -188,6 +189,14 @@ class TaskCreateRequest(SafeMutationRequest):
     id: Optional[str] = Field(
         default=None,
         description="Optional explicit task identifier (e.g., task-042).",
+    )
+    actor: Optional[str] = Field(
+        default=None,
+        description=(
+            "Configured actor id to record as the creator. Written to the creation "
+            "log entry, so a task can say who filed it. Refused when the project does "
+            "not define the id."
+        ),
     )
     title: str = Field(..., description="Task title summarising the work to be done.")
     description: str = Field(..., description="Markdown working spec (spec.description).")

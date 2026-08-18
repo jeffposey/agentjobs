@@ -189,6 +189,24 @@ async def get_task_detail(
         for dependency in task.dependencies
         if dependency.type is DependencyType.BLOCKS
     )
+    # `related` neither blocks nor is blocked, so it never reaches dependency_facts.
+    # It is still the edge a reader follows -- a reported issue points this way at the
+    # page it was noticed on -- and an edge the product stores but never shows is one
+    # nobody can act on.
+    related = [
+        _relation(
+            dependency.task,
+            by_id=by_id,
+            note=dependency.note,
+            reason=(
+                f"Related to {dependency.task}; it is not a task in this project."
+                if dependency.task not in by_id
+                else f"Related to {dependency.task}."
+            ),
+        )
+        for dependency in task.dependencies
+        if dependency.type is DependencyType.RELATED
+    ]
     child_dependency_edges = []
     for child in children:
         for dependency in child.dependencies:
@@ -219,6 +237,7 @@ async def get_task_detail(
         children=[TaskRead.from_task(child, facts[child.id]) for child in children],
         needs=needs,
         blocks=blocks,
+        related=related,
         child_dependency_edges=child_dependency_edges,
         identity=ReviewIdentity(
             ok=identity.ok,
@@ -256,7 +275,10 @@ async def create_task(
     kwargs = payload.manager_kwargs()
     kwargs.pop("operation_id", None)
     actor = kwargs.pop("actor", None)
-    if payload.operation_id is not None and actor is not None:
+    if actor is not None:
+        # Validated whenever it is supplied, not only alongside an operation_id: the
+        # id is written into an append-only log either way, and an attribution nobody
+        # can resolve later is worse than a refused request (D2).
         actor = acting_actor(project, str(actor))
     try:
         return manager.create_task(

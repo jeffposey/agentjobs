@@ -157,7 +157,7 @@ function PromoteError({ promoteError }: TaskDetailProps) {
 }
 
 function Relationships({ detail, projectId }: { detail: TaskDetailResponse; projectId: string }) {
-  if (detail.children.length === 0 && detail.needs.length === 0 && detail.blocks.length === 0 && !detail.task.parent) return null;
+  if (detail.children.length === 0 && detail.needs.length === 0 && detail.blocks.length === 0 && detail.related.length === 0 && !detail.task.parent) return null;
   return (
     <section className="grid gap-4 min-[820px]:grid-cols-2" aria-label="Task relationships">
       {(detail.task.parent || detail.children.length > 0) && (
@@ -167,6 +167,12 @@ function Relationships({ detail, projectId }: { detail: TaskDetailResponse; proj
             {detail.task.parent && <div className="p-4 text-sm">Parent: <Link className="touch-target inline-flex text-blue-300 hover:underline" to={taskPath(projectId, detail.task.parent)}>{detail.parent_task?.title ?? detail.task.parent} <span className="font-mono text-xs">({detail.task.parent})</span></Link></div>}
             {detail.children.map((child) => <div className="flex flex-col gap-1 p-4 min-[820px]:flex-row min-[820px]:items-center min-[820px]:justify-between" key={child.id}><Link className="touch-target block text-blue-300 hover:underline" to={taskPath(projectId, child.id)}><span className="block font-medium">{child.title}</span><span className="font-mono text-xs text-dark-muted">{child.id}</span></Link><span className="text-xs text-dark-muted">{child.display_status}</span></div>)}
           </div>
+        </div>
+      )}
+      {detail.related.length > 0 && (
+        <div className="rounded-lg border border-dark-border bg-dark-surface">
+          <h2 className="border-b border-dark-border p-4 font-semibold">Related</h2>
+          <ul className="space-y-3 p-4">{detail.related.map((relation, index) => <li className="text-sm" key={`${relation.task_id}-${index}`}>{relation.exists ? <Link className="touch-target font-mono text-blue-300 hover:underline" to={taskPath(projectId, relation.task_id)}>{relation.task_id}</Link> : <span className="font-mono text-red-300">{relation.task_id} (missing)</span>}{relation.note && <p className="text-dark-muted">{relation.note}</p>}</li>)}</ul>
         </div>
       )}
       {(detail.needs.length > 0 || detail.blocks.length > 0) && (
