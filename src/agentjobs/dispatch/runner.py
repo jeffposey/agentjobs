@@ -72,6 +72,16 @@ RUNS_DIRNAME = "runs"
 META_FILENAME = "meta.yaml"
 STDOUT_FILENAME = "stdout.log"
 STDERR_FILENAME = "stderr.log"
+TRANSCRIPT_FILENAME = "transcript.log"
+"""Where a session run's own output is kept, beside the launcher's ``stdout.log``.
+
+A session's work is not in ``stdout.log`` and structurally cannot be: under ``--bg`` the
+launcher prints a backgrounding banner and exits, and the session's transcript lives in
+the runner's own store. That store is also transient -- reaping a finished session
+discards it -- so the transcript is copied here while the session is alive, by whatever
+polls it. A run directory is then a complete account of the run on its own, which is
+what every other reader of these directories already assumes.
+"""
 
 GUIDE_PATH = "docs/agent-workflow.md"
 """The operational guide the prompt stub points at.
@@ -767,6 +777,32 @@ class DispatchRunner:
             return ""
         return completed.stdout or ""
 
+    def capture_transcript(self, handle: RunHandle) -> str:
+        """Copy the session's current output into its run directory. Returns what it read.
+
+        Called on every poll rather than on demand, for two reasons that both come from
+        the transcript living somewhere AgentJobs does not own:
+
+        - **A finished session's transcript does not survive being reaped.** Fetching it
+          when a human clicks would show nothing for exactly the runs worth reading.
+        - **Reading it costs a subprocess.** Serving a browser from this file means the
+          only clock that spawns processes is the poller's, however many people watch.
+
+        Nothing here decides anything -- an empty read leaves the previous capture in
+        place, because "the transcript could not be read right now" is not evidence that
+        the session produced nothing.
+        """
+        if not handle.session_id:
+            return ""
+        text = self.transcript(handle.session_id)
+        if not text.strip():
+            return ""
+        try:
+            (handle.directory.path / TRANSCRIPT_FILENAME).write_text(text, encoding="utf-8")
+        except OSError:  # pragma: no cover - the run directory went away underneath us
+            pass
+        return text
+
     def stop_session(self, session_id: str) -> bool:
         """Reap a session, which otherwise holds its pid indefinitely.
 
@@ -814,6 +850,10 @@ class DispatchRunner:
             str(row.get("status")) if row.get("status") is not None else None,
             str(row.get("state")) if row.get("state") is not None else None,
         )
+
+        # Before acting, not after: settling a finished session reaps it, and a reaped
+        # session has no transcript left to read.
+        self.capture_transcript(handle)
 
         if phase is SessionPhase.PARKED:
             self._park_session(handle)

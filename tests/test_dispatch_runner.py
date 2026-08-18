@@ -38,6 +38,7 @@ from agentjobs.dispatch.config import (
 from agentjobs.dispatch.runner import (
     GUIDE_PATH,
     REMOTE_CONTROL_URL,
+    TRANSCRIPT_FILENAME,
     DispatchRunner,
     DispatchRunError,
     SessionPhase,
@@ -707,6 +708,65 @@ class TestSessionMode:
 
         assert "--cwd" in argv_seen
         assert str(workspace / "project") in argv_seen
+
+
+class TestTranscriptCapture:
+    """The run directory has to hold the session's output, because nothing else will.
+
+    ``stdout.log`` for a session run is the launcher's backgrounding banner and can never
+    be anything else, and the session's own transcript lives in a store AgentJobs does
+    not own and does not outlive the reap.
+    """
+
+    def test_a_capture_writes_the_transcript_beside_the_run_metadata(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        runner = build(workspace, manager, session_resolution(fake_cli))
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        runner.capture_transcript(handle)
+
+        written = (handle.directory.path / TRANSCRIPT_FILENAME).read_text(encoding="utf-8")
+        assert "poetry run alembic upgrade head" in written
+        # Raw, escape sequences and all. Stripping happens where it is rendered, so the
+        # stored copy stays the thing the terminal actually showed.
+        assert "\x1b[" in written
+
+    def test_an_unreadable_transcript_does_not_erase_the_last_good_one(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """ "Could not read it just now" is not evidence the session produced nothing."""
+        runner = build(workspace, manager, session_resolution(fake_cli))
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        runner.capture_transcript(handle)
+        original = (handle.directory.path / TRANSCRIPT_FILENAME).read_text(encoding="utf-8")
+
+        runner.transcript = lambda session_id: ""  # type: ignore[method-assign]
+        runner.capture_transcript(handle)
+
+        assert (handle.directory.path / TRANSCRIPT_FILENAME).read_text(encoding="utf-8") == original
+
+    def test_polling_captures_before_it_settles_and_reaps(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """Ordering is the whole point: `claude logs` on a reaped session reads nothing,
+        so capturing after settling would leave every completed run blank."""
+        runner = build(workspace, manager, session_resolution(fake_cli))
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        manager.handoff(
+            task.id,
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Done, please look.",
+        )
+        set_ledger(fake_cli, [{"id": "b55b35ad", "status": "idle", "state": "done"}])
+
+        runner.poll_session(handle)
+
+        assert json.loads((fake_cli.parent / "ledger.json").read_text()) == [], "not reaped"
+        kept = (handle.directory.path / TRANSCRIPT_FILENAME).read_text(encoding="utf-8")
+        assert "poetry run alembic upgrade head" in kept
 
 
 class TestTranscriptRendering:
