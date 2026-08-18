@@ -11,6 +11,16 @@ from typing import Optional
 import typer
 import yaml
 
+from .dispatch.config import (
+    DispatchConfig,
+    DispatchError,
+    assert_dispatch_permitted,
+    dispatch_config_path,
+    load_dispatch_config,
+    sentinel_active,
+    sentinel_path,
+    set_project_enabled,
+)
 from .manager import TaskManager
 from .mcp.config import BASE_URL_ENV as MCP_BASE_URL_ENV
 from .mcp.config import TIMEOUT_ENV as MCP_TIMEOUT_ENV
@@ -796,6 +806,120 @@ def project_remove(
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
     typer.echo(f"✅ Unregistered '{project_id}'. No files were deleted.")
+
+
+dispatch_app = typer.Typer(
+    name="dispatch",
+    help="Control whether this machine may launch agents from AgentJobs.",
+)
+app.add_typer(dispatch_app)
+
+
+@dispatch_app.command("enable")
+def dispatch_enable(
+    project_id: str = typer.Argument(..., help="Registered project id to enable."),
+    runner: Optional[str] = typer.Option(
+        None, "--runner", help="Runner name from ~/.agentjobs/dispatch.yaml."
+    ),
+) -> None:
+    """Allow dispatch for one project, using a runner this machine already defines."""
+    try:
+        ProjectRegistry().get(project_id)
+        settings = set_project_enabled(project_id, True, runner=runner)
+    except (ProjectError, DispatchError) as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(f"✅ Dispatch enabled for '{project_id}' using runner '{settings.runner}'.")
+    if not (load_dispatch_config() or DispatchConfig()).enabled:
+        typer.secho(
+            "⚠️  The master switch is still off; nothing will dispatch until "
+            "'enabled: true' is set in ~/.agentjobs/dispatch.yaml.",
+            fg=typer.colors.YELLOW,
+        )
+    if sentinel_active():
+        typer.secho(
+            f"⚠️  {sentinel_path()} exists; all dispatch is refused until it is removed.",
+            fg=typer.colors.YELLOW,
+        )
+
+
+@dispatch_app.command("disable")
+def dispatch_disable(
+    project_id: str = typer.Argument(..., help="Project id to stop dispatching for."),
+) -> None:
+    """Refuse dispatch for one project. Always available, and never asks anything."""
+    try:
+        set_project_enabled(project_id, False)
+    except DispatchError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"✅ Dispatch disabled for '{project_id}'.")
+
+
+@dispatch_app.command("config")
+def dispatch_show_config(
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Also report whether this project may dispatch right now."
+    ),
+) -> None:
+    """Show the resolved dispatch configuration and every gate's current state."""
+    path = dispatch_config_path()
+    try:
+        config = load_dispatch_config()
+    except DispatchError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(f"Config file:    {path}{'' if config else '  (absent - dispatch is off)'}")
+    typer.echo(f"Master switch:  {'on' if config and config.enabled else 'off'}")
+    typer.echo(
+        f"Sentinel:       {sentinel_path()} "
+        f"{'PRESENT - all dispatch refused' if sentinel_active() else '(absent)'}"
+    )
+
+    if config is None:
+        return
+
+    typer.echo("\nRunners:")
+    if not config.runners:
+        typer.echo("  none defined")
+    for name, runner in sorted(config.runners.items()):
+        typer.echo(f"  {name:12} {runner.mode.value:8} {runner.argv}")
+
+    typer.echo("\nProjects:")
+    if not config.projects:
+        typer.echo("  none configured")
+    for pid, settings in sorted(config.projects.items()):
+        state = "enabled " if settings.enabled else "disabled"
+        typer.echo(
+            f"  {pid:20} {state}  runner={settings.runner or '-'}  "
+            f"posture={settings.posture.value}  "
+            f"clean_tree={settings.require_clean_tree}  auto={settings.auto_dispatch}"
+        )
+
+    limits = config.limits
+    typer.echo(
+        f"\nLimits:         max_concurrent_runs={limits.max_concurrent_runs}  "
+        f"run_timeout_seconds={limits.run_timeout_seconds}  "
+        f"session_stale_seconds={limits.session_stale_seconds}"
+    )
+    typer.echo(
+        f"Auto-dispatch:  per_task_per_day={limits.auto.per_task_per_day}  "
+        f"per_task_lifetime={limits.auto.per_task_lifetime}  "
+        f"cooldown_seconds={limits.auto.cooldown_seconds}"
+    )
+
+    if project_id:
+        try:
+            resolution = assert_dispatch_permitted(project_id)
+        except DispatchError as exc:
+            typer.secho(f"\n{project_id}: refused ({exc.reason}) - {exc}", fg=typer.colors.YELLOW)
+        else:
+            typer.echo(
+                f"\n{project_id}: permitted - runner '{resolution.runner.name}' "
+                f"({resolution.runner.mode.value}), posture {resolution.settings.posture.value}"
+            )
 
 
 @app.command("migrate-schema")
