@@ -17,9 +17,10 @@ that spawned it, and needs nothing from here.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from agentjobs.dispatch.config import DispatchError, assert_dispatch_permitted
 from agentjobs.dispatch.ledger import RunRecord, live_runs
@@ -34,6 +35,17 @@ from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import DispatchMode
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
 from agentjobs.storage import TaskStorage
+
+SESSION_POLL_SECONDS = 10.0
+"""How often live sessions are asked how they are getting on.
+
+Every tick costs one ``<runner> agents --json`` per project with a live session run, plus
+one ``<runner> logs`` per run to refresh its transcript. Ten seconds keeps that
+negligible while bounding how long a finished session can sit unreported, and it is the
+**only** clock in this subsystem that spawns a process: the browser's live tail reads the
+transcript this poller writes, so watching a run costs a file read no matter how many
+people are watching (task-157, sc-9).
+"""
 
 
 @dataclass(frozen=True)
@@ -146,9 +158,7 @@ def poll_live_sessions(
             # Dispatch being switched off must not orphan runs it already started.
             # Following a live run is not starting one, so this is reported and the run
             # is left live rather than concluded on a gate that says nothing about it.
-            results.append(
-                PollResult(record.run_id, None, f"dispatch no longer permitted: {exc}")
-            )
+            results.append(PollResult(record.run_id, None, f"dispatch no longer permitted: {exc}"))
             continue
 
         runner = DispatchRunner(
@@ -165,3 +175,48 @@ def poll_live_sessions(
         results.append(PollResult(record.run_id, phase, phase.value))
 
     return results
+
+
+def _print_report(line: str) -> None:
+    print(line, flush=True)
+
+
+async def poll_sessions_forever(
+    home: Path,
+    *,
+    interval: float = SESSION_POLL_SECONDS,
+    report: Callable[[str], None] = _print_report,
+) -> None:
+    """Poll live sessions until cancelled. The loop `poll_session` was written to expect.
+
+    Two details are deliberate:
+
+    - **The first poll happens before the first sleep.** A session that ended while
+      AgentJobs was down is then settled at startup rather than an interval later, which
+      is what makes restarting clear it (task-157, sc-3) without `reconcile()` needing to
+      learn about session phases.
+    - **The work runs in a thread.** `poll_live_sessions` blocks on subprocesses, and on
+      the event loop that would stall every request for as long as the runner takes to
+      answer.
+
+    Only *changes* are reported. A run that is still running says so once, not every ten
+    seconds forever, so the server's output stays readable enough that the lines which do
+    appear are worth reading.
+    """
+    seen: Dict[str, str] = {}
+    while True:
+        try:
+            results = await asyncio.to_thread(poll_live_sessions, home)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # pragma: no cover - poll_live_sessions handles its own
+            # A poller that dies takes session observability down with it and says
+            # nothing, which is the failure this whole task exists to fix.
+            report(f"Dispatch poll failed: {exc}")
+            results = []
+        current = {result.run_id: result.detail for result in results}
+        for run_id, detail in current.items():
+            if seen.get(run_id) != detail:
+                report(f"Dispatch poll {run_id}: {detail}")
+        seen = current
+        await asyncio.sleep(interval)

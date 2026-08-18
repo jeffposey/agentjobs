@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING, Any, AsyncIterator
 
 from fastapi import Depends, FastAPI
@@ -66,11 +67,14 @@ def _reap_finished_sessions(ledger: "DispatchLedger") -> None:
     """Remove the worktrees of sessions that have already ended.
 
     A worktree belonging to a run that finished is litter, and it holds a pid in the
-    session manager's ledger besides. Startup is where this happens because nothing in
-    AgentJobs schedules background work, and inventing a scheduler to delete directories
-    would be the largest new moving part in this subsystem for the smallest reason.
-    `agentjobs dispatch reap` is the on-demand form for anyone who does not want to wait
-    for a restart.
+    session manager's ledger besides. Startup is where this happens, and it stays here
+    now that a scheduler does exist: the poller below reaps each session as it settles
+    it, so this pass only ever finds what was left behind by a process that died. Putting
+    a second sweep on the interval would spawn processes to look for litter that has
+    already been collected. `agentjobs dispatch reap` remains the on-demand form.
+
+    (This docstring used to argue that no scheduler should exist at all. That was right
+    about deleting directories and wrong about session state -- see the poller.)
 
     A **refused** reap is the interesting one and is printed rather than swallowed: the
     session manager will not delete a worktree holding uncommitted changes, which means
@@ -90,9 +94,27 @@ def _reap_finished_sessions(ledger: "DispatchLedger") -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    """Run startup reconciliation once, before the first request is served."""
+    """Reconcile once at startup, then follow live sessions for as long as we serve.
+
+    The poller is the missing half of session dispatch. ``poll_session`` has always known
+    what a session's state means and what to do about it, and nothing ever called it, so
+    a session ran, finished, and left its run reading ``running`` for ever with no
+    ``dispatch_result`` on its task (task-157).
+
+    It is cancelled on shutdown and awaited: a poll caught mid-flight has already written
+    whatever it decided, and letting the task be garbage-collected instead produces a
+    "Task was destroyed but it is pending" line that looks like a fault and is not.
+    """
+    from agentjobs.dispatch.poller import poll_sessions_forever
+
+    poller = asyncio.create_task(poll_sessions_forever(default_home()))
     _reconcile_dispatch_runs()
-    yield
+    try:
+        yield
+    finally:
+        poller.cancel()
+        with suppress(asyncio.CancelledError):
+            await poller
 
 
 app = FastAPI(
