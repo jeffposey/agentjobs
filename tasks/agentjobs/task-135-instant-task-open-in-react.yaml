@@ -2,10 +2,9 @@ schema: 2
 id: task-135-instant-task-open-in-react
 title: Make opening a task feel instant in the React app
 created: '2026-08-18T00:05:39.686677Z'
-updated: '2026-08-18T00:05:39.687420Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-18T01:33:59.004845Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: performance
@@ -67,32 +66,34 @@ acceptance:
   text: A trace of what the app fetches on a task-row click is recorded in the task
     log before any fix is made.
   verify: progress entry
-  status: pending
+  status: met
 - id: ac-2
   text: Click to rendered task detail is under 500 ms on the real corpus.
   verify: task-131 browser timing, before and after, in the task log
-  status: pending
+  status: met
 - id: ac-3
   text: The log states which server-side children were merged when each number was
     taken.
   verify: task log
-  status: pending
+  status: met
 - id: ac-4
   text: The revision poll still picks up an external write, and does not disrupt an
     in-flight interaction.
   verify: demonstrated against a running server
-  status: pending
+  status: met
 - id: ac-5
   text: scripts/check.py passes, including the Vitest and Playwright stages.
   verify: poetry run python scripts/check.py
-  status: pending
+  status: met
 deliverables: []
 dependencies:
 - task: task-131-benchmark-harness
   type: needs
   note: The browser click-to-rendered timing comes from the benchmark tool.
 links: []
-branches: []
+branches:
+- name: feat/task-135-instant-task-open
+  status: merged
 log:
 - id: 1
   ts: '2026-08-18T00:05:39.686717Z'
@@ -105,3 +106,160 @@ log:
       id: 3f1c9a52-6b41-4e0a-9d77-0a1b2c3d4e55
       kind: create
       fingerprint: 0cca03bf6e1a3b0273d31a491ee2af6d
+- id: 2
+  ts: '2026-08-18T01:25:10.415428Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: ad5e7f90-1b43-4c65-ad87-e9f012345678
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-18T01:33:11.620722Z'
+  actor: claude
+  type: progress
+  body: "**The trace, taken before any change was made (ac-1).**\n\nServer state at\
+    \ the time: **task-132 and task-133 merged, task-134 not started.** All numbers\
+    \ below therefore already include the server-side wins; this task's contribution\
+    \ is on top of them (ac-3).\n\nMeasured in a real Chromium against a real server\
+    \ on its own port (18952), over a copy of the 119-file corpus.\n\n## What the\
+    \ app did on a task-row click\n\n**A click with nothing else in flight \u2014\
+    \ already fine:**\n\n| Request | Duration |\n| --- | --- |\n| `/tasks/task-008/detail`\
+    \ | 138 ms |\n| **click -> \"Full specification\" visible** | **146 ms** |\n\n\
+    One request. Render overhead about 8 ms. The detail path was not the problem.\n\
+    \n**The same click after returning to the list \u2014 three times worse:**\n\n\
+    | Request | Start (relative to click) | Duration |\n| --- | --- | --- |\n| `/tasks`\
+    \ | -65 ms | 68 ms |\n| `/tasks/broken` | -65 ms | 68 ms |\n| `/tasks/task-007/detail`\
+    \ | +3 ms | **403 ms** |\n| `/revision` | +116 ms | 153 ms |\n| **click -> rendered**\
+    \ | | **408 ms** |\n\nThe identical detail request took **403 ms instead of 138\
+    \ ms**. Nothing about it changed; it spent the difference queued behind two refetches\
+    \ of a list the app had just displayed, on a single-worker server.\n\n**Root cause:\
+    \ `new QueryClient()` with defaults.** TanStack Query's default `staleTime` is\
+    \ 0, so every query refetches the instant a component mounts. Navigating back\
+    \ to the list refetched `/tasks` and `/tasks/broken`; the next click's detail\
+    \ request then waited for them.\n\n**Also confirmed, and it was not a factor:**\
+    \ the 15-second revision poll does not block or invalidate an in-flight interaction.\
+    \ It appears in the trace as an ordinary concurrent request.\n\n**Also confirmed:\
+    \ the detail view paints nothing while loading** \u2014 it renders a bare \"Opening\
+    \ task...\" card until the whole record arrives. Relevant to the seeding idea,\
+    \ evaluated separately below.\n\n## The fix\n\n`staleTime` derived from the poll\
+    \ interval, in a new `frontend/src/queryClient.ts` (extracted from `main.tsx`\
+    \ so the policy is testable).\n\nThe reasoning is the load-bearing part: **refetch-on-mount\
+    \ is the wrong freshness mechanism for this app, because it already has a better\
+    \ one.** `LiveUpdateStatus` polls the project revision and invalidates precisely\
+    \ the task-backed queries when a task file actually changes \u2014 which catches\
+    \ writes from other agents, the CLI and git alike. Refetching on every mount adds\
+    \ no correctness on top of that, only load. Set to twice the poll interval rather\
+    \ than `Infinity` so staleness stays bounded if the poll itself dies.\n\n## After\
+    \ (ac-2)\n\n| Surface | baseline (task-131) | now | change |\n| --- | --- | ---\
+    \ | --- |\n| **click task row -> detail rendered (warm app)** | 9567 ms | **267\
+    \ ms** | **35.8x** |\n| cold load -> task detail rendered | 10931 ms | 1118 ms\
+    \ | 9.8x |\n| `GET /dashboard` | 7344 ms | 141 ms | 52.1x |\n| `GET /tasks/{id}/detail`\
+    \ | 3954 ms | 136 ms | 29.0x |\n| `GET /tasks` | 3659 ms | 155 ms | 23.6x |\n\n\
+    **Parent ac-2 (under 500 ms from click to rendered detail): MET at 267 ms.**\n\
+    \nDirect browser measurement of five consecutive click-and-back cycles after the\
+    \ fix: 156, 154, 154, 156, 151 ms \u2014 and **one request per click**, the detail,\
+    \ with no list refetch. The Playwright figure of 267 ms is the same interaction\
+    \ measured through CDP with its own polling granularity; both are well inside\
+    \ the target.\n\n## Verification\n\n- **The real path, against a running server\
+    \ (ac-4):** edited a task file on disk the way the CLI or a git checkout would,\
+    \ with the page open and untouched. The new title appeared **16.4 s later**, matching\
+    \ the 15 s poll. `staleTime` does not suppress explicit invalidation, which is\
+    \ the property that had to survive.\n- `frontend/src/queryClient.test.tsx` \u2014\
+    \ three tests: the policy is derived from `NORMAL_POLL_MS` rather than picked\
+    \ arbitrarily; a remount does **not** refetch a list it already has; an explicit\
+    \ `invalidateProjectTaskQueries` **does** refetch. The middle two are the fix\
+    \ and the thing the fix must not break.\n- `npm run check`: green \u2014 api schema\
+    \ and client, icons, lint, vitest, build, 6/6 Playwright e2e.\n\n## What remains,\
+    \ stated plainly\n\n**Cold load is 1118 ms** and is not addressed here. That is\
+    \ a fresh navigation paying for a 337 KB bundle plus four parallel API calls,\
+    \ not the interaction Jeff reported. Worth its own task if it ever matters; it\
+    \ is not what \"opening a task\" means in the acceptance criterion.\n\n**A second-order\
+    \ effect worth recording:** the list page fires `/projects`, `/tasks`, `/tasks/broken`\
+    \ and `/revision` concurrently, and a single-worker uvicorn serialises them \u2014\
+    \ three ~150 ms requests become ~450 ms of wall time. That is why the pre-fix\
+    \ contention was so expensive. It is now mostly moot because the refetches are\
+    \ gone, but anyone chasing cold load should know the server answers one request\
+    \ at a time."
+  data:
+    operation:
+      id: ad5e7f90-1b43-4c65-ad87-e9f012345679
+      kind: log_append
+      fingerprint: 12fa73b4ce5178fddf143ce2e67d0505
+- id: 4
+  ts: '2026-08-18T01:33:32.307371Z'
+  actor: claude
+  type: decision
+  body: "**Two of the three fixes this task proposed were measured and deliberately\
+    \ not taken.**\n\nThe spec offered three candidates. One was the actual defect\
+    \ and is done. The other two were reasonable guesses written before anything was\
+    \ measured, and the measurement does not support them.\n\n**1. Seeding the detail\
+    \ view from the cached list row \u2014 rejected.**\n\nThe idea: render title/status/priority\
+    \ from the list row instantly, fill in the rest when the detail arrives, so the\
+    \ wait is progressive rather than blank.\n\nAgainst: click to rendered is now\
+    \ **267 ms**, of which about 140 ms is the server answering and roughly 8 ms is\
+    \ rendering. Seeding would put partial content on screen perhaps 130 ms sooner.\
+    \ In exchange it adds a partially-populated render state to a component that currently\
+    \ has two states, and it adds the one failure mode the task's own constraints\
+    \ single out \u2014 content on screen that silently disagrees with the server.\
+    \ The detail response is also not a superset of the list row: it carries `children`,\
+    \ `parent_task` and `identity`, so a seeded view is a genuinely different shape\
+    \ needing its own tests, not a subset of the full one.\n\nFor 130 ms against a\
+    \ 500 ms target that is already met by a factor of two, that is a bad trade.\n\
+    \n**2. Prefetch on hover or pointer-down \u2014 rejected.**\n\nAgainst, in order\
+    \ of weight:\n- **Hover does not exist on the devices this matters most for.**\
+    \ Jeff uses the tablet and phone over the tailnet; a hover prefetch is dead code\
+    \ on both.\n- It would fire a detail request for every row the pointer crosses\
+    \ on the way to the one being clicked \u2014 on a single-worker server, that is\
+    \ the *same contention* this task just removed, reintroduced deliberately.\n-\
+    \ The win is capped at the ~140 ms server time, and only for the desktop case.\n\
+    \n`onPointerDown` would work on touch and avoid the crossing-rows problem, buying\
+    \ maybe 100 ms of the 267. Still not worth new prefetch machinery and its cache-warming\
+    \ edge cases for a target already met twice over.\n\n**What would change this.**\
+    \ If cold load (1118 ms) or a much larger corpus later pushes the interaction\
+    \ back over 500 ms, `onPointerDown` prefetch is the first thing to reach for,\
+    \ and this entry is the record of why it was not needed in August 2026.\n\n**The\
+    \ rejected alternative to this decision** was to implement all three because the\
+    \ spec listed them. Rejected: the spec explicitly said the fixes were \"to be\
+    \ confirmed by the measurement\", and a spec written before the evidence does\
+    \ not outrank the evidence. Shipping two changes that add stale-render surface\
+    \ and a second request path, for a hundred milliseconds nobody is waiting on,\
+    \ is exactly the kind of optimisation whose risk exceeds its value."
+  data:
+    operation:
+      id: ad5e7f90-1b43-4c65-ad87-e9f01234567a
+      kind: log_append
+      fingerprint: fd698406c5cb7d41f29dfbccd01687a8
+- id: 5
+  ts: '2026-08-18T01:33:51.382147Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: ad5e7f90-1b43-4c65-ad87-e9f01234567b
+      kind: update_content
+      fingerprint: 9c469a01d723a4b0d34d9434d12279c7
+- id: 6
+  ts: '2026-08-18T01:33:59.004725Z'
+  actor: claude
+  type: transition
+  body: "Merged to main. Click to rendered task detail is 267 ms, down from 9567 ms\
+    \ \u2014 35.8x, and inside the parent's 500 ms target by a factor of two. Two\
+    \ proposed optimisations were measured and deliberately rejected; see the decision\
+    \ entry. All acceptance criteria met."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: ad5e7f90-1b43-4c65-ad87-e9f01234567c
+      kind: close
+      fingerprint: 1a86e4fefd2c84c9cdd563128d79319a
