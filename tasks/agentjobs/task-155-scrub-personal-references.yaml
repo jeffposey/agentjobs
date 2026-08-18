@@ -1,0 +1,176 @@
+schema: 2
+id: task-155-scrub-personal-references
+title: Take the maintainer's private machine out of the public repo's test fixtures
+created: '2026-08-18T21:43:49.173237Z'
+updated: '2026-08-18T21:43:49.174077Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: general
+tags:
+- hygiene
+- public-repo
+- frontend
+- tests
+effort: small
+assignment:
+  eligible: []
+spec:
+  summary: This repository is published at github.com/jeffposey/agentjobs. Its frontend
+    test fixtures use the maintainer's real private project names as sample data,
+    and several files reference a launcher script that exists only on his machine.
+    Neither is sensitive, but neither belongs in a public repo, and the fixtures are
+    trivially replaceable with neutral names.
+  intent: A public repository should read as a product, not as one person's desktop.
+    A contributor cloning this should not be told about projects they cannot see,
+    or pointed at a script that does not exist for them.
+  description: 'Raised 2026-08-18 after Jeff asked what external files this repo refers
+    to. Two separate answers came out of checking, and only the second is a problem.
+
+
+    ## What is NOT a problem, recorded so it is not re-investigated
+
+
+    The repo''s own `CLAUDE.md` imports exactly three files, all in-repo: `@AGENTS.md`,
+    `@ENGINEERING.md`, `@ALLAGENTS.md`. That is the complete set of `@` imports across
+    every tracked markdown file.
+
+
+    The out-of-project references Claude Code reports at session start come from the
+    *user''s global* config (`~/.claude/CLAUDE.md` importing `C:/ai/shared/GLOBAL-AGENTS.md`),
+    which is machine-local, unpublished, and follows the user into any directory.
+    **The repository is not doing it.** No change is needed for that, and no attempt
+    should be made to "fix" it here.
+
+
+    Also checked and clean: no credentials, no tokens, no content from the private
+    `vault`, `personal`, or `product-strategy` repositories. Apparent hits for `vault`
+    and `personal` were false positives -- `azure-key-vault` in `poetry.lock`, the
+    ordinary English word in prose, and Codex''s `personality` config field quoted
+    in a task record.
+
+
+    ## What should change: frontend test fixtures
+
+
+    These use real private project names as sample data:
+
+
+    - `frontend/src/components/ProjectSwitcher.test.tsx` -- `job-hunting` and `mastercalls`
+    as project ids, with roots `C:/projects/job-hunting`, `C:/projects/mastercalls`
+
+    - `frontend/src/components/IssueReporter.test.tsx` -- `job-hunting`, including
+    a fixture route `/p/job-hunting/tasks/task-004-resume`
+
+    - `frontend/src/report/issueReport.test.ts` -- same family of names
+
+
+    These are the maintainer''s actual private projects. The names leak nothing beyond
+    their existence, but they are also doing no work that `alpha`/`beta`, or a plainly
+    fictional pair, would not do better. Fixtures reading as real setup also invite
+    a contributor to think they are meaningful.
+
+
+    ## What should probably NOT change: historical task records
+
+
+    `C:/ai/shared/launchers/open-agentjobs.ps1` appears in `tasks/agentjobs/task-006.yaml`,
+    `task-007.yaml`, `task-122`, `task-123`, `task-126`, `task-130` and `task-154`.
+    `job-hunting` also appears in `task-001.yaml` and `task-146`.
+
+
+    **These are append-only records of what happened.** Editing them to remove a path
+    rewrites history to say something other than what was observed, which is a worse
+    property for a task tracker to have than a private filename in a closed record.
+    The strong default is to leave them alone.
+
+
+    The judgement call this task must actually make: whether that default holds for
+    a *published* repository, or whether historical records deserve an exception.
+    Decide it explicitly and record the reasoning -- do not silently pick one. If
+    the answer is to leave them, say so in the record so the next person auditing
+    does not reopen it.
+
+
+    ## Related but separate
+
+
+    `tasks/agentjobs/task-146-embed-reference-integration.yaml` carries a `C:`-rooted
+    path that trips the `absolute-path` finding in `tests/test_validate.py::TestRealCorpus::test_the_tolerated_drift_is_only_taxonomy_and_serialization`.
+    That failure is pre-existing and currently red on `main`. It is the same family
+    of problem and may be fixable in the same pass, but it is a test failure with
+    its own history -- check before assuming this task should absorb it.'
+  constraints: '- Do not attempt to change what Claude Code loads from the user''s
+    global config. That is machine-local and outside this repository.
+
+    - Do not rewrite git history. This is about file contents at HEAD; the names exist
+    in past commits either way and rewriting a published repository''s history is
+    not on the table.
+
+    - Renaming fixtures must keep the tests meaningful. `ProjectSwitcher.test.tsx`
+    asserts on navigation to `/p/<id>`, so ids must stay URL-shaped and distinct from
+    each other.
+
+    - `pyproject.toml`''s author field is intentional and stays.
+
+    - Decide the historical-task-record question explicitly and record it as a `decision`
+    with the rejected alternative, whichever way it goes.'
+  out_of_scope: Rewriting git history. Changing the user's global CLAUDE.md or anything
+    under C:/ai/shared. The pre-existing absolute-path test failure, unless the task
+    explicitly decides to absorb it.
+  context:
+  - path: frontend/src/components/ProjectSwitcher.test.tsx
+    why: job-hunting and mastercalls as fixture project ids and roots; asserts on
+      /p/<id> navigation.
+  - path: frontend/src/components/IssueReporter.test.tsx
+    why: job-hunting fixture including a task route.
+  - path: frontend/src/report/issueReport.test.ts
+    why: Same fixture family.
+  - path: frontend/src/test/fixtures/projects.response.json
+    why: Already uses neutral names (agentjobs, sample-project). The pattern to follow.
+acceptance:
+- id: sc-1
+  text: No frontend test fixture names a real private project of the maintainer's;
+    replacements are plainly fictional and the tests still assert what they asserted
+    before
+  status: pending
+- id: sc-2
+  text: npm run check passes in frontend/, including the Vitest suites whose fixtures
+    changed
+  status: pending
+- id: sc-3
+  text: The question of whether historical task records should be scrubbed is decided
+    explicitly and recorded as a decision entry naming the rejected alternative
+  status: pending
+- id: sc-4
+  text: A re-run of the search that found this reports only what the decision in sc-3
+    chose to leave, and nothing unexplained
+  status: pending
+- id: sc-5
+  text: The record states plainly that the repo's own CLAUDE.md imports nothing outside
+    the repo, so a later audit does not re-derive it
+  status: pending
+deliverables:
+- path: frontend/src/components/ProjectSwitcher.test.tsx
+  note: Neutral fixture project names
+  status: pending
+dependencies: []
+links:
+- url: https://github.com/jeffposey/agentjobs
+  rel: other
+  title: The public repository this concerns
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T21:43:49.173283Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: 1550aa11-2b33-4c55-8d77-e9f0a1b2c155
+      kind: create
+      fingerprint: 9f75e8cabe85ab7765a98333f0d91e1c
