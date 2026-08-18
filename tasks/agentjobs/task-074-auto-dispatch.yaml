@@ -2,11 +2,9 @@ schema: 2
 id: task-074-auto-dispatch
 title: Auto-dispatch on human approval, opt-in per project
 created: '2026-08-11T00:21:32.508301Z'
-updated: '2026-08-18T11:07:55.426358Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-18T11:19:50.042003Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: infrastructure
@@ -15,7 +13,6 @@ tags:
 - architecture
 effort: 2-3 hours
 assignment:
-  owner: claude
   eligible: []
 parent: task-060-agent-dispatch
 spec:
@@ -77,29 +74,29 @@ acceptance:
 - id: sc-1
   text: With auto_dispatch on, a human approval that hands the ball to an agent starts
     a run with no further interaction; with it off, nothing starts
-  status: pending
+  status: met
 - id: sc-2
   text: An agent handoff never causes a dispatch, in either mode -- tested directly,
     since this is the rule the whole safety argument rests on
-  status: pending
+  status: met
 - id: sc-3
   text: Each budget cap (per-day, lifetime, cooldown) refuses at its boundary and
     not before, using counts derived from dispatch log entries
-  status: pending
+  status: met
 - id: sc-4
   text: Tripping a per-task cap appends a note naming the limit and moves the ball
     to human/decision with a prompt; it never fails silently
-  status: pending
+  status: met
 - id: sc-5
   text: Manual dispatch remains unaffected by the budget caps, per decision D3
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs/dispatch/auto.py
   note: Approval trigger and budget caps
-  status: pending
+  status: done
 - path: tests/test_auto_dispatch.py
   note: Cap boundaries and the agent-handoff-never-dispatches rule
-  status: pending
+  status: done
 dependencies:
 - task: task-073-dispatch-gui
   type: needs
@@ -110,7 +107,7 @@ links:
   title: Agent dispatch design pass (task-060)
 branches:
 - name: feat/task-074-auto-dispatch
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-11T01:43:19.094364Z'
@@ -209,3 +206,97 @@ log:
       id: 3c2c3d4e-5f60-4a71-8b92-c0d1e2f30074
       kind: update_content
       fingerprint: 630f12fd4d07f58abc5567a50478d978
+- id: 6
+  ts: '2026-08-18T11:18:53.512751Z'
+  actor: claude
+  type: progress
+  body: "# Auto-dispatch built, tested, and shipped switched off\n\nBranch `feat/task-074-auto-dispatch`,\
+    \ four commits.\n\n## What landed\n\n`src/agentjobs/dispatch/auto.py` \u2014 `maybe_auto_dispatch()`,\
+    \ `check_budget()`, `last_dispatch_at()`. Called from `approve` and `request-changes`\
+    \ in `api/routes/tasks.py` after the human's write has already landed, so the\
+    \ task's newest log entry *is* that human act, which is what makes the human-clocked\
+    \ check meaningful rather than circular.\n\n**Nothing in this file raises into\
+    \ its caller.** An approval that already succeeded must not turn into an error\
+    \ response because a run could not start; every failure path returns an outcome\
+    \ and, where it matters, writes what happened onto the task.\n\n## The safety\
+    \ argument, and how it is checked\n\nThe rule is unchanged and uncompromised:\
+    \ an approval is a human act so it may cause one dispatch; the handoff that ends\
+    \ the resulting run is written by an agent, so it causes nothing and the wheel\
+    \ stops. That is enforced by *calling* `assert_human_clocked` rather than reimplementing\
+    \ the check, and tested directly (`TestTheHumanClockedRule`) \u2014 including\
+    \ a case that first asserts every budget cap has room, so the test proves the\
+    \ structural rule rather than accidentally testing a cap.\n\n## The caps\n\n3\
+    \ per task per day, 10 lifetime, 60s cooldown. Counted from `dispatch` log entries\
+    \ via `Task.dispatch_count` / `dispatches_since` \u2014 never a stored counter,\
+    \ which could disagree with the evidence for it in the direction that spends money.\n\
+    \nTwo behaviours worth knowing:\n\n- **Count caps park the task**, appending a\
+    \ note naming the limit and handing the ball to `human`/`decision`. A task that\
+    \ burns its budget is reporting a problem with itself, and nobody looks unless\
+    \ it asks them to. **Cooldown does not park it** \u2014 waiting fixes a cooldown;\
+    \ it is not a decision.\n- **Counts are reported before the cooldown.** A task\
+    \ that has genuinely exhausted its lifetime budget says so, rather than telling\
+    \ someone to wait sixty seconds for a refusal that will not change.\n\n## Scope\
+    \ decisions\n\n- **`request-changes` is armed as well as `approve`.** Both are\
+    \ human acts that hand the ball to an agent, and requesting changes is the one\
+    \ handoff that always arrives with instructions attached \u2014 making it the\
+    \ one needing a second click would be backwards.\n- **The generic `POST .../handoff`\
+    \ is deliberately not hooked.** It is the agent-facing verb; putting the trigger\
+    \ there would place it on the transition the human-clocked rule forbids and leave\
+    \ safety resting on filtering correctly. That is the identical objection the design\
+    \ used to reject a `task.handoff` webhook consumer. *Rejected alternative:* hooking\
+    \ it and relying on `assert_human_clocked` to filter. It would in fact be safe,\
+    \ and it is still the wrong shape \u2014 plus it costs a config-file read on every\
+    \ agent handoff in the system.\n- **The settings page shows whether auto-dispatch\
+    \ is armed, and offers no control for it.** Jeff is entitled to see from a phone\
+    \ that approving will start an agent; he must not be able to arm it from there.\n\
+    \n## Verification\n\n- `poetry run pytest`: **1671 passed**, 2 failed \u2014 the\
+    \ same two already red on `main` and named in task-060 entry 12.\n- 15 new cases\
+    \ in `tests/test_auto_dispatch.py`: the human-clocked rule, both trigger endpoints,\
+    \ both off-states, each cap's boundary from both sides, the parking behaviour,\
+    \ and `TestManualDispatchIsNotCapped` proving a task 20 dispatches over every\
+    \ limit still dispatches by hand (sc-5, decision D3).\n- `npm run check` green\
+    \ in full, 25 Vitest cases in `DispatchPanel.test.tsx` and 11 Playwright paths.\n\
+    - `black`, `ruff` clean; `mypy src/agentjobs` shows only the pre-existing `storage.py:268`\
+    \ error.\n\n## State on Jeff's machine after this merges\n\nUnchanged. `auto_dispatch`\
+    \ defaults to `false` and lives in `~/.agentjobs/dispatch.yaml`, which the browser\
+    \ cannot write. Arming it is a deliberate one-line edit \u2014 which is the form\
+    \ the spec's \"wait until it is boring\" precondition takes now that the code\
+    \ exists (see the decision in entry 4)."
+  data:
+    operation:
+      id: 4c2c3d4e-5f60-4a71-8b92-c0d1e2f30074
+      kind: log_append
+      fingerprint: d4ce98fd6b044bf1eadac2a6982048e5
+- id: 7
+  ts: '2026-08-18T11:19:03.178318Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 5c2c3d4e-5f60-4a71-8b92-c0d1e2f30074
+      kind: update_content
+      fingerprint: 78f6229bad4d0fdaf3818c0a6e6d9bbd
+- id: 8
+  ts: '2026-08-18T11:19:50.041854Z'
+  actor: claude
+  type: transition
+  body: "Merged `--no-ff` into `main` and closed. Branch marked merged, worktree removed,\
+    \ nothing pushed.\n\nAll five acceptance criteria met. Merged without human review\
+    \ under the autonomy grant on task-060 (entries 11 and 12).\n\n**Auto-dispatch\
+    \ is off everywhere and nothing on this machine changed.** Arming it means adding\
+    \ `auto_dispatch: true` under a project in `~/.agentjobs/dispatch.yaml` by hand\
+    \ \u2014 which is the form the spec's \"wait until the manual path is boring\"\
+    \ precondition now takes. The Dispatch settings page reports whether it is armed\
+    \ and offers no control for it."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 6c2c3d4e-5f60-4a71-8b92-c0d1e2f30074
+      kind: close
+      fingerprint: 00132f164b95b802399ba74d1c0514e1
