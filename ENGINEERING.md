@@ -38,6 +38,15 @@ poetry run agentjobs init  # If starting fresh
     iterating, but do not substitute them for the gate.
 -   Ensure high test coverage for core logic (`manager.py`, `storage.py`).
 
+### Measuring performance
+-   `scripts/bench.py` times the API, the CLI and the browser's open-a-task
+    interaction. See [docs/performance.md](docs/performance.md).
+-   Every API response carries `X-Response-Time-Ms` and `X-Task-Parses`, so a slow
+    request can be attributed without a profiler.
+-   A change that claims to be faster states a before/after pair from that tool.
+    Prefer asserting on task files parsed rather than on wall-clock time: the parse
+    count means the same thing on every machine, and a timing threshold does not.
+
 ### Code Style
 -   **Formatter**: Black
 -   **Linter**: Ruff
