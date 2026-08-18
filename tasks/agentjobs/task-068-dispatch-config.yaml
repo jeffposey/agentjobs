@@ -2,11 +2,9 @@ schema: 2
 id: task-068-dispatch-config
 title: 'Dispatch: machine-local configuration and runner resolution'
 created: '2026-08-11T00:21:32.473840Z'
-updated: '2026-08-18T06:45:51.500135Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-18T07:06:28.507324Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: infrastructure
@@ -15,7 +13,6 @@ tags:
 - architecture
 effort: 2-3 hours
 assignment:
-  owner: claude
   eligible: []
 parent: task-060-agent-dispatch
 spec:
@@ -92,34 +89,37 @@ acceptance:
 - id: sc-1
   text: A dispatch configuration model loads ~/.agentjobs/dispatch.yaml, honours AGENTJOBS_HOME,
     and treats an absent file as dispatch disabled rather than an error
-  status: pending
+  status: met
 - id: sc-2
   text: 'Runner resolution returns a typed error distinguishing: no config, master
     switch off, project not enabled, unknown runner name'
-  status: pending
+  status: met
 - id: sc-3
   text: Argv substitution is per-element and literal; a test asserts that a prompt
     containing shell metacharacters, quotes and newlines survives as exactly one argv
     element
-  status: pending
+  status: met
 - id: sc-4
   text: The DISPATCH_DISABLED sentinel refuses dispatch even when every other setting
     permits it, and is checked through the same single entry point later tasks call
-  status: pending
+  status: met
 - id: sc-5
   text: agentjobs dispatch enable/disable/config work against a temporary AGENTJOBS_HOME
     in tests, and refuse to enable a project whose named runner does not exist
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs/dispatch/config.py
   note: Model, loader, resolution, substitution
-  status: pending
+  status: done
 - path: src/agentjobs/cli.py
   note: agentjobs dispatch enable|disable|config
-  status: pending
+  status: done
 - path: tests/test_dispatch_config.py
   note: Refusal paths and substitution safety
-  status: pending
+  status: done
+- path: tests/test_dispatch_cli.py
+  note: The three CLI commands against a temporary AGENTJOBS_HOME
+  status: done
 dependencies: []
 links:
 - url: https://github.com/jeffposey/agentjobs/blob/main/docs/agent-dispatch-design.md
@@ -127,7 +127,7 @@ links:
   title: Agent dispatch design pass (task-060)
 branches:
 - name: feat/task-068-dispatch-config
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-11T01:43:18.985523Z'
@@ -193,3 +193,102 @@ log:
       id: 7a3c2b4d-0e5f-4b62-a9d8-2f3a4b5c6d71
       kind: update_content
       fingerprint: 2e85a10e2090a523f2f81a988a765058
+- id: 5
+  ts: '2026-08-18T07:05:22.961974Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 8b4d3c5e-1f60-4c73-ba09-3a4b5c6d7e82
+      kind: update_content
+      fingerprint: 989ba185b738af7d01bb49d71b70ef43
+- id: 6
+  ts: '2026-08-18T07:06:02.622187Z'
+  actor: claude
+  type: progress
+  body: "Config layer built, verified through the real CLI, merged to main.\n\n**Shipped.**\
+    \ `src/agentjobs/dispatch/config.py` (model, loader, four gates, substitution,\
+    \ enablement writer), the `agentjobs dispatch enable|disable|config` command group,\
+    \ and 39 tests across `tests/test_dispatch_config.py` and `tests/test_dispatch_cli.py`.\
+    \ Two commits on `feat/task-068-dispatch-config`, merged `--no-ff` as 7350b75.\
+    \ Nothing pushed.\n\n**All five acceptance criteria exercised through the CLI\
+    \ against a throwaway `AGENTJOBS_HOME`, not only through tests**: absent file\
+    \ reports \"dispatch is off\" rather than erroring; enabling with an undefined\
+    \ runner exits 1 naming the known runners; enabling for real then `dispatch config\
+    \ --project agentjobs` prints \"permitted\"; `touch DISPATCH_DISABLED` flips the\
+    \ same command to \"refused (sentinel)\" with every other setting untouched; `dispatch\
+    \ disable` flips it to \"refused (project_not_enabled)\".\n\n**Three decisions\
+    \ worth knowing before task-070 reads this file.**\n\n1. *An unknown runner is\
+    \ a per-project refusal, not a broken file.* The loader deliberately does **not**\
+    \ cross-check `projects.<id>.runner` against `runners:` at parse time. It would\
+    \ have been the tidier place for the check, but it makes one bad entry fail the\
+    \ whole config and take every other project down with it \u2014 and it collapses\
+    \ the distinction sc-2 asks for, since the caller would see `invalid_config` where\
+    \ it needs `unknown_runner`. The check lives in `assert_dispatch_permitted`.\n\
+    \n2. *The placeholder pattern requires an identifier inside the braces* (`\\{([a-z_][a-z0-9_]*)\\\
+    }`), and substitution is a regex sub, never `str.format`. Both because of the\
+    \ same collision: task-076's permission allow-list is passed as `--settings {\"\
+    permissions\": ...}` JSON, so a runner argv legitimately contains braces. A broad\
+    \ pattern would make that unrepresentable and `str.format` would raise on it.\
+    \ The narrow pattern still catches `{propmt}` as a config error, which is the\
+    \ failure worth catching \u2014 a typo would otherwise reach the agent verbatim\
+    \ as part of its instructions. A test pins the JSON case.\n\n3. *Two fields were\
+    \ added that section 3's config sample does not show*, both settled after it was\
+    \ written: `runners.<name>.mode` (`session`|`batch`, task-077) and `projects.<id>.posture`\
+    \ (`read_only`|`supervised`|`autonomous`, task-076). `mode` defaults to `batch`\
+    \ and `posture` to `supervised`. Defaulting `mode` to batch keeps section 3's\
+    \ own example \u2014 whose argv is `claude -p {prompt}` \u2014 meaning what it\
+    \ looks like. Rejected: leaving both out and making task-070 extend the loader,\
+    \ which would have put a security-relevant field into the file after the file\
+    \ already existed on disk.\n\n**Also deliberate:** `set_project_enabled` edits\
+    \ the raw YAML mapping rather than round-tripping through the dataclasses, so\
+    \ keys this build does not understand survive a write. Comments do not \u2014\
+    \ `yaml.safe_dump` loses them, and that is a known cost, not an oversight.\n\n\
+    **Two pre-existing test failures, not caused by this work, verified red on `main`\
+    \ at 6f07340 before any of it was written.** Stated here because the next agent\
+    \ will see them and wonder.\n\n- `tests/test_validate.py::TestRealCorpus::test_the_tolerated_drift_is_only_taxonomy_and_serialization`\
+    \ \u2014 the real corpus now emits an `absolute-path` finding, which the tolerated\
+    \ set does not include. Source is `tasks/agentjobs/task-146-embed-reference-integration.yaml`,\
+    \ which carries a `C:`-rooted path.\n- `tests/test_task_corpus.py::test_agentjobs_context_paths_exist`\
+    \ \u2014 a task points at a context path that does not exist. In the shared clone\
+    \ it is task-017 naming `src/agentjobs/models.py`; in a worktree it is additionally\
+    \ task-013 naming `src/agentjobs/frontend_dist/assets`, which is a gitignored\
+    \ build artifact and therefore absent from every worktree and every fresh clone.\n\
+    \nThe second one means **`scripts/check.py` cannot currently pass in a worktree**,\
+    \ which matters for a chain of tasks whose workflow requires worktrees. Not fixed\
+    \ here and no task filed, because neither is in this task's scope and filing is\
+    \ Jeff's call.\n\nEverything else is green: 1506 passed."
+  data:
+    operation:
+      id: 9c5e4d6f-2071-4d84-cb1a-4b5c6d7e8f93
+      kind: log_append
+      fingerprint: 8664443f5a8ef91010279698535ccd66
+- id: 7
+  ts: '2026-08-18T07:06:28.507169Z'
+  actor: claude
+  type: transition
+  body: 'All five acceptance criteria met and verified through the real CLI as well
+    as the suite. Branch feat/task-068-dispatch-config merged --no-ff into main as
+    7350b75 and marked merged; worktree removed. Nothing pushed.
+
+
+    Merged without a separate review round under the autonomy grant on task-060 log
+    entry 11 (Jeff, 2026-08-18), which suspends the approval step for this chain and
+    leaves every other merge-gate requirement in force.
+
+
+    Unblocks task-070: `assert_dispatch_permitted(project_id)` is the one call it
+    should make before spawning anything, and it already returns the runner''s `mode`
+    and the project''s `posture`.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: a06f5e70-3182-4e95-dc2b-5c6d7e8f90a4
+      kind: close
+      fingerprint: ac95f1347c9509429ce793d062448cbd
