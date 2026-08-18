@@ -33,6 +33,7 @@ from agentjobs.dispatch.config import (
     DispatchResolution,
     assert_dispatch_permitted,
 )
+from agentjobs.dispatch.ledger import RunLockTimeout, acquire_run_lock
 from agentjobs.dispatch.runner import (
     META_FILENAME,
     DispatchRunner,
@@ -297,21 +298,41 @@ def dispatch_task(
             f"exactly when you least expect it. Current HEAD is {git_head(project.root)}."
         )
 
-    task = _claim_or_verify(manager, task, resolution.runner.name)
+    # Taken before the claim and held for the run's lifetime. The storage lock the
+    # claim uses protects a write lasting microseconds; this one protects a process
+    # lasting half an hour, which is why it cannot be the same `with` block.
+    machine_home = _home(home, resolution)
+    try:
+        lock = acquire_run_lock(machine_home, task.id, timeout=1.0)
+    except RunLockTimeout as exc:
+        # The same fact the live-run scan reports, established by the primitive that is
+        # actually atomic. The scan reads a directory and can lose a race with itself;
+        # this cannot, which is why it gets the final say.
+        raise LiveRunExistsError(str(exc)) from exc
 
-    runner = DispatchRunner(
-        manager=manager,
-        resolution=resolution,
-        project_root=project.root,
-        home=_home(home, resolution),
-        api_base=api_base,
-    )
-    return runner.start(
-        task,
-        actor=causing.actor,
-        caused_by=causing.id,
-        trigger=request.trigger,
-    )
+    try:
+        task = _claim_or_verify(manager, task, resolution.runner.name)
+
+        runner = DispatchRunner(
+            manager=manager,
+            resolution=resolution,
+            project_root=project.root,
+            home=machine_home,
+            api_base=api_base,
+        )
+        handle = runner.start(
+            task,
+            actor=causing.actor,
+            caused_by=causing.id,
+            trigger=request.trigger,
+        )
+    except BaseException:
+        # Nothing started, so nothing will release it later.
+        lock.release()
+        raise
+
+    handle.lock = lock
+    return handle
 
 
 def _claim_or_verify(manager: TaskManager, task: Task, agent: str) -> Task:
