@@ -2,11 +2,9 @@ schema: 2
 id: task-073-dispatch-gui
 title: 'Dispatch in the web UI: the button, the run, and the toggle'
 created: '2026-08-11T00:21:32.502467Z'
-updated: '2026-08-18T10:22:30.351211Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-18T11:05:38.548876Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: ux
@@ -15,7 +13,6 @@ tags:
 - architecture
 effort: half a day
 assignment:
-  owner: claude
   eligible: []
 parent: task-060-agent-dispatch
 spec:
@@ -85,31 +82,34 @@ acceptance:
   text: 'A task with ball: agent in an enabled project shows a Dispatch action separate
     from Approve; clicking it starts a run and the page reflects that without a manual
     refresh'
-  status: pending
+  status: met
 - id: sc-2
   text: A live run shows elapsed time and a working cancel button; a finished run
     shows its outcome and links to its output
-  status: pending
+  status: met
 - id: sc-3
   text: The project toggle can enable and disable dispatch but exposes no way to define
     or edit a runner's argv, verified by inspecting the endpoints the page can reach
-  status: pending
+  status: met
 - id: sc-4
   text: Each refusal from the guard layer renders its specific reason; tests assert
     on the rendered text a user would read
-  status: pending
+  status: met
 - id: sc-5
   text: 'Exercised end to end against a freshly restarted server: approve a task,
     dispatch it, watch the agent run, see the result land on the task record'
-  status: pending
+  status: met
 deliverables:
-- path: frontend/src/
+- path: frontend/src/components/DispatchPanel.tsx
   note: React dispatch action, run status, cancellation, output link, and project
     toggle
-  status: pending
-- path: src/agentjobs/api/routes/
-  note: Toggle endpoint, run status endpoint
-  status: pending
+  status: done
+- path: src/agentjobs/api/routes/dispatch.py
+  note: Dispatch state, enable/disable, run list, cancel, and run output
+  status: done
+- path: frontend/e2e/dispatch.spec.ts
+  note: 'The whole loop against a live server: enable, dispatch, watch, cancel, disable'
+  status: done
 dependencies:
 - task: task-071-dispatch-api-guards
   type: needs
@@ -123,7 +123,7 @@ links:
   title: Agent dispatch design pass (task-060)
 branches:
 - name: feat/task-073-dispatch-gui
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-11T01:43:19.076385Z'
@@ -197,3 +197,120 @@ log:
       id: 2b2c3d4e-5f60-4a71-8b92-c0d1e2f30073
       kind: update_content
       fingerprint: 5ea0b87ae38fdfaec01674ebabb31708
+- id: 6
+  ts: '2026-08-18T10:59:04.867760Z'
+  actor: claude
+  type: progress
+  body: "# Dispatch in the web UI \u2014 built, verified end to end, merging under\
+    \ the task-060 autonomy grant\n\nBranch `feat/task-073-dispatch-gui`, nine commits.\n\
+    \n## What landed\n\n**API** \u2014 `src/agentjobs/api/routes/dispatch.py`, mounted\
+    \ scoped and unscoped like every other task-facing router:\n\n| Endpoint | Purpose\
+    \ |\n|---|---|\n| `GET .../dispatch` | Every gate's state, the runner, the available\
+    \ runners, and which gate refuses right now |\n| `POST .../dispatch/enable` |\
+    \ Point the project at an already-defined runner and turn it on |\n| `POST .../dispatch/disable`\
+    \ | Off. No body, no questions |\n| `GET .../dispatch/runs?task_id=` | This project's\
+    \ runs, newest first, with server-computed elapsed time |\n| `POST .../dispatch/runs/{id}/cancel`\
+    \ | Stop one run and write the cancellation to its task |\n| `GET .../dispatch/runs/{id}/output`\
+    \ | The captured transcript, as `text/plain` |\n\nNothing here writes a runner,\
+    \ an argv, a posture, or the master switch. A schema test asserts it (`test_no_dispatch_request_body_accepts_a_command_to_run`),\
+    \ so a later page cannot quietly add the field \u2014 sc-3 is checked against\
+    \ the API surface rather than against what the current UI happens to render.\n\
+    \n**React** \u2014 `frontend/src/components/DispatchPanel.tsx`: a Dispatch panel\
+    \ on the task page, its own control in its own coloured section, never inside\
+    \ the review panel; run rows with a live/finished label, elapsed time, Cancel,\
+    \ and a link to the output; and a `/p/<project>/dispatch` page carrying the four\
+    \ gates and the toggle, reachable from a top-level nav item so the kill switch\
+    \ is never more than one click away. The runner is a `<select>` over machine-defined\
+    \ names, never a text field, and the page says so in prose.\n\nRuns poll on their\
+    \ own 2s clock while anything is live and stop entirely when nothing is. That\
+    \ is deliberate and the reason is in the code: progress *within* a run is not\
+    \ a task write, so the revision poller would never see it.\n\n## Five bugs found\
+    \ by building this, all fixed here\n\n1. **A cancelled batch run was reported\
+    \ as `failed`, about half the time.** Killing the process wakes the supervisor,\
+    \ which sees a non-zero exit and says `failed`; the ledger writes `cancelled`.\
+    \ Both are read-modify-writes of the same `meta.yaml`. The ledger now raises `cancel_requested`\
+    \ *before* it kills \u2014 the supervisor is blocked in `wait()` until then, so\
+    \ the flag is always visible by the time it wakes \u2014 and the supervisor defers.\
+    \ Deterministic now; the cancel test passed five consecutive full-file runs.\n\
+    2. **The run lock leaked** on both of the supervisor's early-return paths, which\
+    \ then refused every later dispatch at that task with \"a run is already live\"\
+    .\n3. **`DispatchLedger` could only resolve a project through the registry**,\
+    \ so on a server serving an implicit project (`AGENTJOBS_PROJECT_ROOT`) a cancellation\
+    \ stopped the process and had nowhere to write the result \u2014 the run ended\
+    \ and the task never learnt of it, the exact silence this subsystem exists to\
+    \ prevent. The cancel endpoint now hands in the manager it already resolved.\n\
+    4. **Every task created in the React app had an empty log.** The manager writes\
+    \ a creation entry only when a creator is named, and the create form never sent\
+    \ one. So no record of who filed it \u2014 and, since a dispatch must trace to\
+    \ a human's log entry, *a task created in the browser could never be dispatched*.\
+    \ This is the one that would have made the whole feature look broken.\n5. A closed\
+    \ gate was announced as an `alert`, which made `getByRole(\"alert\")` ambiguous\
+    \ on every task page and put an orange box on every task of a machine that has\
+    \ no dispatch config. Closed gates are `status`; only a refusal you provoked is\
+    \ an `alert`.\n\nItems 4 and 5 were found by the end-to-end test, not by review\
+    \ \u2014 which is the argument for having written it.\n\n## Verification\n\n-\
+    \ `poetry run pytest`: **1656 passed**, 2 failed. Both failures are the ones task-060\
+    \ entry 12 named as pre-existing on `main` (`test_agentjobs_context_paths_exist`,\
+    \ `test_the_tolerated_drift_is_only_taxonomy_and_serialization`) and are unrelated.\n\
+    - `npm run check` in `frontend/`: green in full \u2014 generated-client cleanliness,\
+    \ lint, 22 new Vitest cases, build, and **11 Playwright paths** (was 10).\n- `mypy\
+    \ src/agentjobs`: only the one pre-existing `storage.py:268` error; the new module\
+    \ is clean. `black` and `ruff` clean on everything this branch touched.\n- **The\
+    \ new Playwright path is the real evidence for sc-5.** Against a live server it\
+    \ enables dispatch for the project, creates a task, starts an actual OS process\
+    \ from the button, sees it reported running, cancels it, watches it become `Cancelled`\
+    \ (not `failed`), confirms the `dispatch_result` landed on the task record, archives\
+    \ the task, and turns dispatch off again. The e2e harness now writes a machine-local\
+    \ dispatch config with one sleeping runner and the project deliberately *disabled*,\
+    \ so the toggle has something real to switch.\n\n## Two notes for whoever reads\
+    \ this next\n\n- The e2e specs share one server and one project, and the dashboard\
+    \ renders exactly one \"next action\" panel. A task left with the ball on a human\
+    \ silently changes what every later spec sees. The dispatch spec archives its\
+    \ own task for that reason.\n- Item 4 above was a scope addition: attributing\
+    \ browser-created tasks is not what this task asked for. It is here because without\
+    \ it the Dispatch button was offered and then always refused, so sc-1 could not\
+    \ be satisfied at all. Recorded rather than done quietly because it changes what\
+    \ every create in the app writes."
+  data:
+    operation:
+      id: 3b2c3d4e-5f60-4a71-8b92-c0d1e2f30073
+      kind: log_append
+      fingerprint: 8228f8140c4d7ac71c1d98806475f059
+- id: 7
+  ts: '2026-08-18T11:05:30.609700Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 4b2c3d4e-5f60-4a71-8b92-c0d1e2f30073
+      kind: update_content
+      fingerprint: 8205088208d1ebae002a1aba3d48392b
+- id: 8
+  ts: '2026-08-18T11:05:38.548700Z'
+  actor: claude
+  type: transition
+  body: 'Merged `--no-ff` into `main` and closed. Branch marked merged, worktree removed,
+    nothing pushed.
+
+
+    All five acceptance criteria met, sc-5 by a Playwright path that starts a real
+    process from the button against a live server and watches the result land on the
+    task record.
+
+
+    Merged without human review under the autonomy grant on task-060 (entries 11 and
+    12). A review sandbox on its own port with both states seeded is owed to Jeff
+    and will be stood up once the remaining children of task-060 are done, so he gets
+    one URL rather than a series of them.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 5b2c3d4e-5f60-4a71-8b92-c0d1e2f30073
+      kind: close
+      fingerprint: 48a1e872d0c9fc109a150e8e08cb1af5
