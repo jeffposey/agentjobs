@@ -1,0 +1,135 @@
+schema: 2
+id: task-123-expand-a-reported-issue-into-a-spec
+title: Expand a reported issue from a stub into a task worth claiming
+created: '2026-08-18T04:46:50.770957Z'
+updated: '2026-08-18T04:46:50.771757Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: medium
+category: architecture
+tags:
+- issue-reporter
+- workflow
+- architecture
+effort: a decision session, then implementation if accepted
+assignment:
+  eligible: []
+spec:
+  summary: Report Issue stores exactly what you typed and nothing more, so a filed
+    finding is a stub someone still has to turn into a spec by hand. Decide whether
+    AgentJobs should do that expansion itself, and if so, where the intelligence lives.
+  intent: 'Task-065 made recording a finding cost almost nothing, which was the point.
+    What it did not do is make the result *actionable*: `buildIssueTaskRequest` copies
+    the title and notes verbatim, appends a provenance line, tags it and links the
+    task being viewed. The record is born `draft` / `human`/`spec` with the prompt
+    "Finish specifying this task", and finishing it is still manual.
+
+
+    So the friction moved rather than disappeared. Filing is cheap; the backlog now
+    fills with stubs that each cost a specification pass before anyone can claim them,
+    and a stub nobody expands is only marginally better than a note in chat.
+
+
+    Raised by Jeff on 2026-08-18, on seeing what the reporter actually stores: *"Does
+    it use intelligence to figure out what you mean from the title and desc and make
+    a thorough task out of it? or just dumps your exact text in?"* It dumps.'
+  description: "**This is a decision before it is an implementation, and the decision\
+    \ is not obvious.**\n\n## The question\n\nShould a reported issue be expanded\
+    \ \u2014 into a summary a zero-context reader can act on, a working description,\
+    \ acceptance criteria, and read-this-first context pointers \u2014 and if so,\
+    \ by what and when?\n\n## Options, none free\n\n- **Nothing. Keep the stub.**\
+    \ What ships today. Honest about what was typed, and the human-clocked design\
+    \ already expects a person to promote a draft before it is claimable. Cost: the\
+    \ backlog fills with records that each need a pass before they are worth anything.\n\
+    - **Expand at submit time**, in the reporter. Fastest to a good record, and the\
+    \ reporter is the one moment the reporter's own context is live. Cost: AgentJobs\
+    \ would hold model credentials and make a network call it currently never makes,\
+    \ on a local-first tool whose premise is that a checkout is complete. It also\
+    \ puts a latency and a failure mode in the path of the one interaction that must\
+    \ never feel expensive.\n- **Expand on demand**, as an action on a draft \u2014\
+    \ \"flesh this out\" beside Promote. Keeps the capture path instant and makes\
+    \ the cost visible and voluntary. Cost: another button, and the same credentials\
+    \ question, deferred.\n- **Expand by dispatch.** A stub is a task; a task can\
+    \ be dispatched; an agent with the repository in front of it can write a better\
+    \ spec than a server-side call ever could, because it can read the code the finding\
+    \ is about. Costs nothing new architecturally and reuses the dispatch chain (task-060).\
+    \ Cost: it waits on that chain, and it spends a run per stub.\n\n## What must\
+    \ be preserved whichever way it goes\n\nThe reporter's own words are evidence\
+    \ and must survive verbatim. An expansion that overwrites what a person actually\
+    \ typed destroys the only first-hand account of the finding \u2014 the same argument\
+    \ that keeps the log append-only. Expanded content belongs *beside* the original,\
+    \ clearly marked as generated, not on top of it.\n\n## Worth settling in the same\
+    \ pass\n\n- Whether expansion is ever automatic, or always asked for. Given D4's\
+    \ human-clocked rule, automatic expansion of every filed stub is the same shape\
+    \ of unbounded spend that rule exists to prevent.\n- Whether a stub that has not\
+    \ been expanded should be visibly distinguishable in the list, so the backlog\
+    \ does not quietly fill with records that look ready and are not.\n- Whether this\
+    \ changes the answer to task-121: if expansion is cheap and good, bulk capture\
+    \ becomes far more valuable, because fifteen stubs cost fifteen expansions rather\
+    \ than fifteen specification sessions."
+  constraints: "- **This is a decision task. Do not decide it alone.** Lay out the\
+    \ options with their costs, recommend one, hand off to `human`/`decision`, and\
+    \ stop.\n- The reporter's verbatim text is evidence. Any expansion sits beside\
+    \ it and is marked as generated; nothing overwrites what a person typed.\n- Do\
+    \ not put a model call in the submit path without saying plainly what it costs\
+    \ in latency, credentials and failure modes. The capture interaction must not\
+    \ become expensive \u2014 that is the property task-065 exists to protect.\n-\
+    \ Local-first is a constraint, not a preference: a checkout must stay complete\
+    \ and usable with no service reachable."
+  out_of_scope: Automatic triage, prioritisation, duplicate detection, or assignment.
+    Those were ruled out of the issue-reporter epic (task-120) and this does not reopen
+    them.
+  context:
+  - path: frontend/src/report/issueReport.ts
+    why: 'buildIssueTaskRequest: the whole of what a reported issue currently becomes.
+      Read it first -- the answer to ''does it expand anything'' is visible in about
+      forty lines.'
+  - path: docs/agent-dispatch-design.md
+    why: Section 4, 'The prompt is a stub, not a composition' -- the same question
+      was answered once already for dispatch prompts, and the reasoning there (if
+      the record is not sufficient, fix the record) bears directly on this.
+  - path: src/agentjobs/manager.py
+    why: create_task and the draft/human/spec starting state a reported issue lands
+      in.
+acceptance:
+- id: ac-1
+  text: the four options are evaluated with their real costs, and one is recommended
+    with the rejected alternatives recorded
+  status: pending
+- id: ac-2
+  text: the decision states explicitly whether expansion is ever automatic, and what
+    bounds its spend if so
+  status: pending
+- id: ac-3
+  text: the decision states how the reporter's verbatim words are preserved alongside
+    anything generated
+  status: pending
+- id: ac-4
+  text: the consequence for task-121 is stated, either way
+  status: pending
+deliverables: []
+dependencies:
+- task: task-065-report-issue-action
+  type: related
+  note: Built the reporter that produces the stub this task is about.
+- task: task-121-batch-issue-capture
+  type: related
+  note: 'The answer here changes how valuable bulk capture is: fifteen stubs cost
+    fifteen expansions or fifteen specification sessions.'
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T04:46:50.771007Z'
+  actor: system
+  type: transition
+  body: Created draft by system.
+  data:
+    lifecycle: draft
+    operation:
+      id: 7d3a12f9-4c68-4b05-9e37-a2f6510cb8e4
+      kind: create
+      fingerprint: 46cf03de6ee649f7de5b2999207f8119
