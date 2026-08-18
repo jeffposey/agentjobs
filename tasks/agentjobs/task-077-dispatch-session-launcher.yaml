@@ -3,10 +3,72 @@ id: task-077-dispatch-session-launcher
 title: 'Decide: should dispatch launch a remote-controllable session instead of a
   batch run?'
 created: '2026-08-11T01:56:16.465216Z'
-updated: '2026-08-18T04:35:00.621231Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-18T05:11:35.237342Z'
+lifecycle: active
+ball: human
+ball_reason: decision
+ball_prompt: 'Decide whether dispatch launches a session or supervises a batch. Evidence
+  for sc-1 is log entry 5 (entry 4 is a void placeholder, ignore it); the recommendation
+  is entry 6.
+
+
+  Recommended: drive `claude agents` in session mode as the primary path (`--bg --remote-control
+  -w <slug>`), and keep batch `-p` as a second declared runner mode. The split is
+  by purpose, not vendor: `session` for work you might redirect, `batch` for bounded
+  reports where a spend ceiling and structured output matter more than steerability.
+  That satisfies your 2026-08-11 direction and keeps the runner abstraction fillable
+  by a CLI with no session manager.
+
+
+  Against your stated goal, stated honestly: session mode does not remove the chat
+  window, it demotes it. There is no CLI verb to send a message into a running background
+  session - steering happens at claude.ai/code or via `claude attach`. AgentJobs starts
+  the run, records it, and links to it. So AgentJobs becomes where work is tracked
+  and decided, and chat becomes where one run is steered, hanging off a task record
+  instead of floating free. Batch mode fails the goal outright.
+
+
+  The costs I would be asking you to accept, none of which were known in August: output
+  becomes an ANSI screen scrape rather than stream-json; `failed` and `crashed` have
+  no representation in the ledger because there is no exit code; and **`--max-budget-usd`
+  is `--print`-only, so session mode has no per-run spend ceiling at all**. That last
+  one is the strongest argument for the rejected option and you should weigh it before
+  agreeing.
+
+
+  What I need from you:
+
+
+  1. Session mode primary, or batch? If session, confirm the two-mode runner abstraction
+  rather than deleting batch.
+
+  2. sc-3: agree that ''runs do not outlive their supervisor'' is reversed for session
+  mode. `claude stop <id>` is a working kill switch independent of AgentJobs, so the
+  orphan premise no longer holds, and killing live sessions on an `agentjobs serve`
+  restart would destroy work for no safety gain.
+
+  3. sc-3: replace the 1800s wall-clock kill with a staleness rule for sessions -
+  `idle`/`done` past a threshold with an unmoved ball becomes `finished_without_handoff`.
+  Your call on the threshold.
+
+  4. sc-5: I recommend rescoping task-070 and task-072 rather than closing either.
+  072 in particular survives more than its spec expected - `claude agents --json`
+  has no run-to-task mapping, so AgentJobs still needs its own ledger.
+
+
+  Decide this alongside task-076-dispatch-permission-posture, which is also on your
+  ball and depends on this going the session way.
+
+
+  One thing to confirm yourself before code depends on it: I read the Remote Control
+  URL out of a backgrounded session''s transcript but did not open it on a device.
+  Dispatch one session and open the link - thirty seconds.
+
+
+  Once you decide I will write the `decision` entry, amend design section 4 and rewrite
+  section 9, correct the doc''s stale CLI facts (version 2.1.220 -> 2.1.228, and the
+  `--session-id` claim, which is false for `--bg`), and rescope 070 and 072. Nothing
+  has been written to the design doc or to those tasks yet.'
 archived: false
 priority: high
 category: architecture
@@ -16,6 +78,7 @@ tags:
 - design
 effort: a decision session
 assignment:
+  owner: claude
   eligible: []
 parent: task-060-agent-dispatch
 spec:
@@ -251,3 +314,223 @@ log:
     068, 069, 075, 078 or 080 is a defensible thing to pick up instead. This is the
     reasoning, so that whoever picks differently is doing so knowingly.'
   data: {}
+- id: 3
+  ts: '2026-08-18T05:09:36.575791Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: a4c81f36-2e57-4b09-9d13-6f8e0a2b7c94
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 4
+  ts: '2026-08-18T05:09:41.755460Z'
+  actor: claude
+  type: progress
+  body: placeholder
+  data:
+    operation:
+      id: "d72b9e15-8a04-4f36-b5c7-1e93a2d6\u0641"
+      kind: log_append
+      fingerprint: cd2153ba91893afb13d4146a2522df1e
+- id: 5
+  ts: '2026-08-18T05:10:15.551299Z'
+  actor: claude
+  type: progress
+  body: "**Entry 4 is void** \u2014 a placeholder body submitted by mistake. The log\
+    \ is append-only so it stays; ignore it. This is the real entry.\n\n# sc-1: the\
+    \ four questions, answered by running the CLI\n\nInstalled version is **2.1.228**,\
+    \ not the 2.1.220 in the spec and the design doc. All sessions below were run\
+    \ in throwaway git repos under `C:/ai/scratch`, never in this repository, and\
+    \ every one was removed afterwards \u2014 `claude agents --json --all` now reports\
+    \ zero background sessions.\n\n## Q1 \u2014 does `--remote-control` compose with\
+    \ `--bg`? **Yes.**\n\n```\nclaude --bg --remote-control --permission-mode acceptEdits\
+    \ -w aj-wt-test -n \"aj-exp-3\" \\\n  \"Write the string OK into a file named\
+    \ ok.txt using the Write tool. Then stop immediately.\"\n```\n\nReturned immediately\
+    \ with `backgrounded \xB7 b55b35ad \xB7 aj-exp-3`. `claude logs b55b35ad` shows,\
+    \ in the session transcript:\n\n```\n/remote-control is active \xB7 Continue here,\
+    \ on your phone, or at\nhttps://claude.ai/code/session_0142VngQLPx14GUrbyfLWPuC\n\
+    ```\n\nThe `--help` text for `--remote-control` says \"Start an **interactive**\
+    \ session with Remote Control enabled\", which reads as excluding `--bg`. It does\
+    \ not. All four of `--bg`, `--remote-control`, `--permission-mode` and `-w` compose\
+    \ in one invocation.\n\n## Q2 \u2014 does a non-interactively started session\
+    \ surface on other devices? **Evidence says yes; not end-to-end tested.**\n\n\
+    The session emitted its own `claude.ai/code/session_...` URL and named phone as\
+    \ a destination, from a session started with no TTY. That is the CLI asserting\
+    \ reachability, and it is the same mechanism an interactive RC session uses.\n\
+    \n**What I did not do is open it on a phone.** I have no way to verify Jeff's\
+    \ devices from here, and I am not going to report a device test I did not run.\
+    \ If the decision turns on this, it is a thirty-second check: dispatch one session\
+    \ and open the URL. I would treat it as verified-enough to decide on, and worth\
+    \ confirming before anything is built on it.\n\n## Q3 \u2014 default permission\
+    \ mode for a backgrounded session, and is it settable? **Default is `manual`.\
+    \ Yes, settable.**\n\nStatus line of a plain `--bg` session reads `\u23F8 manual\
+    \ mode on`. `--permission-mode acceptEdits` and `--permission-mode dontAsk` both\
+    \ took effect per invocation, confirmed in each session's status line.\n\nThe\
+    \ consequence matters more than the answer. A default `--bg` session meeting its\
+    \ first shell command **parks**:\n\n```\nclaude --bg -n aj-exp-bg-1 \"Write the\
+    \ current time into a file called stamp.txt ...\"\n\u2192 status \"busy\"/state\
+    \ \"working\", then status \"waiting\"/state \"blocked\"\n\u2192 held there across\
+    \ six polls over 60s, no timeout\n\u2192 claude logs showed a rendered permission\
+    \ dialog awaiting an answer\n```\n\nIt does not fail, and it does not silently\
+    \ deny. The full permission matrix is in task-076's log entries 3 and 4; it is\
+    \ the input to that decision, so it lives there.\n\n## Q4 \u2014 what does `claude\
+    \ agents --json` report, and is it enough for \xA79's outcome vocabulary? **Partly.\
+    \ Not enough on its own.**\n\nFields on a background session: `pid`, `id` (8-char\
+    \ short id), `cwd`, `kind` (`interactive`|`background`), `startedAt`, `sessionId`,\
+    \ `name`, `status`, `state`. Interactive sessions carry no `status`/`state`.\n\
+    \nObserved pairs:\n\n| `status` / `state` | Meaning |\n|---|---|\n| `busy` / `working`\
+    \ | Running |\n| `waiting` / `blocked` | Parked on a permission prompt |\n| `idle`\
+    \ / `done` | Finished its turn |\n| `idle` / `blocked` | Finished after a denial\
+    \ (seen under `dontAsk` and under `--tools`) |\n| *(absent)* / `stopped` | `claude\
+    \ stop`ped; conversation retained |\n\nMapped against \xA79's vocabulary: `cancelled`\
+    \ \u2248 `stopped`, `timeout` we would still impose ourselves, and `completed`\
+    \ vs `finished_without_handoff` **cannot be distinguished from this JSON at all**\
+    \ \u2014 both are `idle`/`done`. That distinction has to come from the task record\
+    \ (did the ball move?), which is where \xA79 already got it. `failed` and `crashed`\
+    \ have no representation: there is no exit code in the ledger.\n\nTwo more findings\
+    \ that bear on the decision:\n\n- **`--bg` ignores `--session-id`.** It warns:\
+    \ `--bg manages the session id; ignoring --session-id (use --resume <id> to continue\
+    \ an existing session)`. The spec's \"the caller assigns the id, so a run id and\
+    \ a session id can be the same value\" is **false**. A dispatcher must capture\
+    \ the id from stdout or correlate through `agents --json`.\n- **A `--bg` session\
+    \ never exits.** On completion it becomes `idle`/`done` and keeps its pid. Sessions\
+    \ accumulate until `claude stop` or `claude rm`. That is a process-lifecycle obligation\
+    \ the session model *adds*, not one it removes.\n\n## Undocumented surface worth\
+    \ knowing\n\nNot in `claude --help`'s command list, but real and self-documenting:\n\
+    \n| Command | Behaviour |\n|---|---|\n| `claude logs <id>` | Recent terminal output\
+    \ \u2014 **ANSI pty scrape, not structured** |\n| `claude stop <id>` | Stops the\
+    \ session, keeps the conversation, retains the worktree |\n| `claude attach <id>`\
+    \ | Opens it in the current terminal |\n| `claude rm <id>` | Removes worktree\
+    \ and job state; **refuses if the worktree has uncommitted changes** |\n| `claude\
+    \ agents --cwd <path>` | Filters the ledger by path \u2014 scopes a listing to\
+    \ one project root |\n\nAnd `-w` containment, verified: worktree at `<root>/.claude/worktrees/<name>`,\
+    \ branch `worktree-<name>`, **git-locked with a lock reason naming the session\
+    \ and pid** (`git worktree remove` refused, `-f -f` required), with `agents --json`\
+    \ reporting the session's `cwd` as the worktree path."
+  re: 4
+  data:
+    operation:
+      id: 8f3c1a05-47d9-4e26-b0f8-529c6d1e73ab
+      kind: log_append
+      fingerprint: a11b637ce8fda95e32ea4c05cf8c5efb
+- id: 6
+  ts: '2026-08-18T05:11:15.137445Z'
+  actor: claude
+  type: progress
+  body: "## Recommendation for Jeff's decision \u2014 not a decision entry\n\n**Recommended:\
+    \ drive `claude agents` in session mode as the primary path, and keep batch `-p`\
+    \ as a second declared runner mode \u2014 split by what the run is for, not by\
+    \ which vendor it is.**\n\nEntry 1 already settled the vendor question. What the\
+    \ experiments add is that the two-mode abstraction it proposed is better motivated\
+    \ than it looked: the second mode is not merely a fallback for a CLI without a\
+    \ session manager, it is the *right* mode for a whole class of dispatch.\n\n###\
+    \ Against the stated goal\n\nThe goal is to stop routing work through a chat window.\
+    \ The honest accounting:\n\n- **Batch fails it.** Click Dispatch, read the result.\
+    \ No redirect mid-flight. Everything you would want to say to a running agent\
+    \ has to wait until it is finished and be said as a new dispatch. That replaces\
+    \ the tracking and leaves the conversation exactly where it is.\n- **Session mostly\
+    \ satisfies it, with one thing worth naming.** The run is steerable \u2014 but\
+    \ **the steering happens in Claude's surface, not in AgentJobs'.** There is no\
+    \ CLI verb to send a message into a running background session; you redirect it\
+    \ at `claude.ai/code/session_...` or by `claude attach`. AgentJobs starts it,\
+    \ records it, links to it.\n\nSo session mode does not remove the chat window.\
+    \ It **demotes** it: AgentJobs becomes where work is tracked and decided, chat\
+    \ becomes where a specific run is steered, and every such conversation now hangs\
+    \ off a task record instead of floating free. I think that is the split you actually\
+    \ want, and it is the strongest form of the goal that this CLI can deliver. It\
+    \ is not \"chat is gone.\"\n\n### What it costs, stated at full weight\n\nThese\
+    \ are real, and the third one is the best argument for the rejected option:\n\n\
+    1. **Output becomes a screen scrape.** `claude logs <id>` returns ANSI pty rendering,\
+    \ not structured events. Batch mode's `-p --output-format=stream-json` is genuinely\
+    \ machine-readable. Recommendation: AgentJobs should **not parse `claude logs`**\
+    \ \u2014 link to it, and take structured state from `agents --json` and the task\
+    \ record.\n2. **Outcome fidelity drops.** `completed` vs `finished_without_handoff`\
+    \ is indistinguishable in the ledger (both `idle`/`done`) \u2014 that one still\
+    \ comes from the task record, as \xA79 already had it. But `failed` and `crashed`\
+    \ have **no representation at all**: there is no exit code, and a session that\
+    \ errors internally still reports `idle`/`done`. Batch mode gets this free from\
+    \ the process exit.\n3. **There is no spend ceiling.** `--max-budget-usd` is `--print`-only,\
+    \ verified in `--help`. **Session mode has no per-run money stop**, so \xA77's\
+    \ runaway protection is reduced to the dispatch-count caps and loses its only\
+    \ hard limit. Given a subscription usage window rather than a per-token bill this\
+    \ is less severe than it sounds, but it is a real capability that batch has and\
+    \ session does not.\n4. **Sessions never exit.** An `idle`/`done` session holds\
+    \ its pid until `claude stop` or `claude rm`. Reaping becomes AgentJobs' job \u2014\
+    \ a lifecycle obligation the session model *adds*.\n5. **The Remote Control URL\
+    \ is only in the scrape.** It is not a field in `agents --json`. Putting \"continue\
+    \ on your phone\" in the AgentJobs UI means either scraping it or reconstructing\
+    \ it from the session id, and I have verified neither.\n\n### The two modes, and\
+    \ what actually distinguishes them\n\nRather than `claude` vs `codex`, a runner\
+    \ declares which it is:\n\n| Mode | Invocation | Good for | Gets |\n|---|---|---|---|\n\
+    | `session` | `--bg --remote-control -w <slug>` | Work you might want to redirect:\
+    \ implementation, anything long, anything that may need a permission answered\
+    \ | Steerable from any device, worktree containment, park-and-ask |\n| `batch`\
+    \ | `-p --output-format=stream-json --max-budget-usd N` | Bounded reports: review,\
+    \ triage, defect hunts, the 2026-08-11 read-only run | Spend ceiling, structured\
+    \ output, real exit code |\n\nThis keeps the generic argv-template runner of \xA7\
+    4 intact and satisfies entry 1's constraint that the abstraction not become a\
+    \ Claude-shaped hole \u2014 a CLI with no session manager simply declares `batch`\
+    \ and gets the \xA79 supervisor model, which is retained rather than deleted.\n\
+    \n### sc-3 \u2014 what survives of \xA79 if driving\n\n- **Supervisor thread per\
+    \ run: gone** in session mode, replaced by a poller over `claude agents --json\
+    \ --cwd <root>`. Retained for `batch`.\n- **Run directories and stdout capture:\
+    \ gone** in session mode; `claude logs` owns it.\n- **\"Runs do not outlive their\
+    \ supervisor\": must be reversed for session mode.** The rule existed to prevent\
+    \ an unsupervised orphan with no kill switch. That premise no longer holds \u2014\
+    \ `claude stop <id>` is a working kill switch that does not involve AgentJobs\
+    \ at all, and the session is reachable from any device. Killing live sessions\
+    \ because `agentjobs serve` restarted would destroy work for no safety gain. Startup\
+    \ reconciliation inverts from \"declare it `interrupted`\" to \"re-attach to whatever\
+    \ is still in the ledger.\"\n- **The wall-clock timeout needs different semantics.**\
+    \ 1800s is right for a batch and wrong for a session you might pick up hours later.\
+    \ Suggested replacement, for your call: no hard kill, but treat a session sitting\
+    \ `idle`/`done` past a threshold with an unmoved ball as `finished_without_handoff`\
+    \ and move the ball. That preserves what the timeout was protecting (a task silently\
+    \ going nowhere) without killing a session you intended to return to.\n\n### sc-5\
+    \ \u2014 what happens to task-070 and task-072\n\nRecommendation is **rescope\
+    \ both, close neither.**\n\n- **task-070** shrinks substantially: spawn, capture\
+    \ the id from stdout (it cannot be assigned \u2014 see the `--session-id` finding),\
+    \ record it, poll. The supervisor-thread spec and run-directory spec stay in the\
+    \ record but scoped to `batch` mode. Its verification plan (fake runner that exits\
+    \ non-zero, one that hangs, one that emits megabytes) still applies to `batch`\
+    \ and needs a session-mode equivalent written.\n- **task-072** survives more than\
+    \ the spec anticipated. `claude agents --json` is a ledger but **not our ledger**\
+    \ \u2014 it has no run\u2192task mapping, no dispatch attribution, no history\
+    \ once `claude rm` runs. AgentJobs still needs its own ledger keyed by task; what\
+    \ changes is that it stores a session id and delegates cancellation to `claude\
+    \ stop` instead of managing process groups.\n\n### Rejected alternative, with\
+    \ its cost\n\n**Supervise our own `-p` processes only** (the original \xA79 model).\
+    \ Cost: fails the stated goal outright \u2014 no mid-flight redirect, so dispatch\
+    \ replaces the tracking and leaves the conversation in chat. Also duplicates a\
+    \ session manager that already exists and is scriptable. What it would have bought,\
+    \ and what we give up by not choosing it: a hard spend ceiling, structured stream-json\
+    \ output, and exit-code-derived `failed`/`crashed` outcomes. Those are genuine,\
+    \ which is exactly why the recommendation keeps this mode available rather than\
+    \ deleting it.\n\n### One thing to confirm before building\n\nQ2 is evidenced\
+    \ but not end-to-end tested \u2014 I read the Remote Control URL out of a backgrounded\
+    \ session's own transcript, but did not open it on a device. Thirty-second check,\
+    \ worth doing before code depends on it."
+  data:
+    operation:
+      id: 2b6e94c7-013a-4f58-8d72-6c5f1093ae24
+      kind: log_append
+      fingerprint: a5f0d967849f33480028e2c070a5bed3
+- id: 7
+  ts: '2026-08-18T05:11:35.237159Z'
+  actor: claude
+  type: handoff
+  body: sc-1 verified against CLI 2.1.228 with commands and output in the log. Recommendation
+    and rejected alternative recorded. Handing to Jeff for the decision, as the task's
+    constraints require.
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: 6d1b8c40-9e72-4a35-81f6-0c47b3e29d15
+      kind: handoff
+      fingerprint: 62ccc36231c048cbf6420ae36e8d3947
