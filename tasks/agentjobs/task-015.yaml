@@ -1,0 +1,256 @@
+schema: 2
+id: task-015
+title: Stop one long ball_prompt from swallowing a task list row
+created: '2026-08-18T05:11:36.255369Z'
+updated: '2026-08-18T20:52:18.825054Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: developer_experience
+tags:
+- reported-issue
+- frontend
+- react
+- readability
+effort: small
+assignment:
+  eligible: []
+spec:
+  summary: In the task list, the Status column renders a task's entire ball_prompt
+    untruncated, so a task carrying a long prompt produces a several-hundred-word
+    wall of text in a single table row. The dashboard already truncates the same field;
+    the list does not.
+  intent: The task list is a scanning surface. A reader should be able to sweep the
+    Status column and tell at a glance which tasks are actionable and which are waiting
+    on them. One task with a long ask currently destroys that for the whole page.
+  description: 'Reported by Jeff from the AgentJobs UI at `/p/agentjobs/tasks` on
+    2026-08-18, with a screenshot attached to log entry 1.
+
+
+    ## What the screenshot shows
+
+
+    The row for `task-076-dispatch-permission-posture` occupies roughly two thirds
+    of the visible page. Its Status cell renders the task''s complete `ball_prompt`
+    -- an approximately 700-word decision write-up -- as body text inside the table.
+    The four rows above it are each two lines tall. The reported symptom is entirely
+    a rendering problem; the underlying task record is fine and long prompts are correct
+    and wanted.
+
+
+    ## Root cause, traced
+
+
+    `src/components/DependencyState.tsx` builds a `reasons` array that, for several
+    states, contains the raw `ball_prompt` with no length bound:
+
+
+    - `ball === "external"` -> `[task.ball_prompt || "Waiting for an external dependency."]`
+
+    - `ball === "human"` -> `[task.ball_prompt]`
+
+    - the final fallback -> `[task.ball_prompt]`
+
+
+    Its render maps `reasons` to `<p className="break-words text-xs leading-5">`,
+    which wraps forever rather than clipping. `src/components/TaskList.tsx:183` puts
+    that component in the Status cell, so the list inherits the unbounded text.
+
+
+    ## Why it looked intermittent
+
+
+    Jeff''s reported hypothesis was that it happens "only on ones needing spec or
+    review". That is very close to right, and the reason is worth recording because
+    it explains the shape of the fix:
+
+
+    Those labels correspond to states where `ball` is `human` and a `ball_prompt`
+    exists. Every such row renders its full prompt. Most prompts are one sentence
+    -- `task-123`''s is "Finish specifying this task." -- so the defect is invisible
+    until a task carries a long one. It is not conditional on the state; it is conditional
+    on prompt length, and the states Jeff noticed are simply the ones that have prompts
+    at all.
+
+
+    ## The divergence that allowed it
+
+
+    `src/components/Dashboard.tsx:24` defines `truncate(text, limit)` as a module-private
+    function and applies it at line 99 to exactly this field, at a 160-character limit.
+    It is not exported and `DependencyState` does not use it. So the application already
+    contains a decision about how long this field may render, made in one component
+    and unknown to the other. The fix should remove that divergence rather than add
+    a third local rule.'
+  constraints: '- The full `ball_prompt` must remain readable somewhere obvious. `TaskDetail.tsx`
+    renders it in full at lines 90 and 321; that behaviour is correct and must not
+    be truncated.
+
+    - Do not fix this by shortening prompts or by capping `ball_prompt` at the schema
+    or API layer. A long, complete ask is the schema working as intended -- the resumption
+    contract in ALLAGENTS.md depends on it. This is a presentation bug and the fix
+    belongs in presentation.
+
+    - One shared truncation rule, used by every list surface. Do not add a second
+    private helper.
+
+    - `DependencyState` is also used by `Dashboard.tsx:52`, `DependencyGraph.tsx:78`
+    and `TaskDetail.tsx:322`. Check the change against all four call sites; the `compact`
+    prop already distinguishes list from detail use and may be the right lever.'
+  out_of_scope: Redesigning the task list layout or the Status column's contents.
+    Changing what `dependencyState()` chooses as a label. The React `key={reason}`
+    on the reasons map uses the entire string as a key, which is fragile but is not
+    this defect -- note it, do not fix it here.
+  context:
+  - path: frontend/src/components/DependencyState.tsx
+    why: Root cause. Builds `reasons` from an untruncated `ball_prompt` and renders
+      it in an unbounded paragraph.
+  - path: frontend/src/components/TaskList.tsx
+    why: Line 183 renders DependencyState in the Status cell -- the surface Jeff reported.
+  - path: frontend/src/components/Dashboard.tsx
+    why: Line 24 has the private `truncate()` and line 99 already applies it at 160
+      chars to this same field. The rule to unify on.
+  - path: frontend/src/components/TaskDetail.tsx
+    why: Lines 90 and 321 render the full prompt deliberately. Must stay full.
+acceptance:
+- id: sc-1
+  text: In the task list, a task whose ball_prompt is several hundred words renders
+    a Status cell of bounded height, and its row is comparable in height to its neighbours
+  status: pending
+- id: sc-2
+  text: The complete, untruncated ball_prompt is still reachable -- the task detail
+    page renders it in full, and the truncated list text makes clear that it is truncated
+    rather than appearing to be the whole ask
+  status: pending
+- id: sc-3
+  text: Exactly one truncation rule governs ball_prompt in list surfaces; Dashboard's
+    private truncate() and DependencyState no longer disagree, and no third local
+    helper is introduced
+  status: pending
+- id: sc-4
+  text: A Vitest component test renders DependencyState with a long ball_prompt and
+    asserts the output is bounded, so the regression is caught without a human looking
+    at a page
+  status: pending
+- id: sc-5
+  text: 'Verified in a browser against the reported case: /p/agentjobs/tasks with
+    task-076-dispatch-permission-posture visible, compared to the attached screenshot
+    on log entry 1'
+  status: pending
+- id: sc-6
+  text: The other three DependencyState call sites (Dashboard, DependencyGraph, TaskDetail
+    work-state panel) are checked and none regressed
+  status: pending
+deliverables:
+- path: frontend/src/components/DependencyState.tsx
+  note: Bounded rendering of prompt-derived reasons
+  status: pending
+dependencies: []
+links:
+- url: https://github.com/jeffposey/agentjobs/blob/main/frontend/src/components/DependencyState.tsx
+  rel: other
+  title: DependencyState -- the component at fault
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:11:36.258187Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: 8001786d-0b41-42d4-83df-9f43bdc42782
+      kind: create
+      fingerprint: 5040db3a7d7dad75842b8e110ed0d93d
+  attachments:
+  - path: attachments/task-015/8a7c3b419c668b2cac0dd59c9c015f3838595c94c0cb945e0db7ea447201b307.png
+    media_type: image/png
+    sha256: 8a7c3b419c668b2cac0dd59c9c015f3838595c94c0cb945e0db7ea447201b307
+    size_bytes: 214401
+    label: image.png
+- id: 2
+  ts: '2026-08-18T20:51:51.648583Z'
+  actor: system
+  type: note
+  body: Updated acceptance, category, deliverables, effort, links, priority, spec,
+    tags, title.
+  data:
+    fields:
+    - acceptance
+    - category
+    - deliverables
+    - effort
+    - links
+    - priority
+    - spec
+    - tags
+    - title
+    operation:
+      id: 0150aa11-2b33-4c55-8d77-e9f0a1b2c015
+      kind: update_content
+      fingerprint: 1fe7785732ba97c099f7b5feb7fc47b0
+- id: 3
+  ts: '2026-08-18T20:52:18.824910Z'
+  actor: claude
+  type: progress
+  body: '# Specced from the reported stub. Root cause found; no code written.
+
+
+    The task was filed from the UI as a title, one line of hypothesis and a screenshot.
+    It now carries a specification. **Nothing is implemented** -- it stays `ready`/`agent`/`available`
+    and is claimable.
+
+
+    ## The diagnosis, so it is not re-derived
+
+
+    The Status column of the task list renders the entire `ball_prompt` with no length
+    bound. `DependencyState.tsx` puts the raw prompt into its `reasons` array for
+    three states (`ball === "external"`, `ball === "human"`, and the final fallback),
+    then renders each reason as a `break-words` paragraph, which wraps indefinitely
+    rather than clipping. `TaskList.tsx:183` uses that component in the Status cell.
+
+
+    **Jeff''s reported hypothesis -- "only on ones needing spec or review" -- is nearly
+    right, and the correction matters for the fix.** Those labels are the `ball ===
+    human` states, which are the states that carry a prompt at all. Every one of them
+    renders its prompt in full. It only *looks* selective because most prompts are
+    a single sentence: `task-123`''s is "Finish specifying this task." The trigger
+    is prompt length, not task state.
+
+
+    ## The thing that makes this a one-line-rule fix rather than a judgement call
+
+
+    `Dashboard.tsx:24` already defines `truncate()` and already applies it to `ball_prompt`
+    at 160 characters on line 99. It is module-private, so `DependencyState` cannot
+    see it. The application therefore already holds a decision about how much of this
+    field may render in a list -- made once, in one component, and unknown to the
+    other. sc-3 asks for that divergence to be closed rather than for a third local
+    helper.
+
+
+    ## Deliberately not folded in
+
+
+    `DependencyState` uses `key={reason}` -- the whole reason string as a React key.
+    Fragile, and duplicate reasons would collide. Recorded in `out_of_scope` rather
+    than fixed, because it is a separate defect and bundling it would make the diff
+    harder to review than the fix deserves.
+
+
+    ## Verified
+
+
+    Read the attached screenshot on log entry 1 and traced every `ball_prompt` and
+    `DependencyState` reference in `frontend/src`. The four call sites are Dashboard:52,
+    DependencyGraph:78, TaskDetail:322 and TaskList:183 -- listed in the constraints
+    because a fix must be checked against all of them, not just the reported one.'
+  data:
+    operation:
+      id: 0150bb22-3c44-4d66-8e88-f0a1b2c3d015
+      kind: log_append
+      fingerprint: 25cd4f9f25d18bb002b4e12bec9d53da
