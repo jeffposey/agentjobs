@@ -2,10 +2,9 @@ schema: 2
 id: task-078-agent-loops
 title: 'Agent loops: make acceptance criteria executable so a loop can stop itself'
 created: '2026-08-11T02:29:29.362319Z'
-updated: '2026-08-18T04:35:00.642038Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-18T11:42:55.673663Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: architecture
@@ -97,43 +96,208 @@ acceptance:
 - id: sc-1
   text: A design document exists recording, for each decision, what is proposed, why,
     and what was rejected -- in the shape of docs/schema-design.md and docs/agent-dispatch-design.md
-  status: pending
+  status: met
 - id: sc-2
   text: 'The acceptance[].check schema change is specified: where it runs, with what
     permissions and timeout, who may set it, and how results are logged'
-  status: pending
+  status: met
 - id: sc-3
   text: 'The security question is answered explicitly: a check is arbitrary code from
     a task file, so a cloned repository must not be able to run commands on the machine
     that clones it'
-  status: pending
+  status: met
 - id: sc-4
   text: D5's three bounds and the guardrails (thrash detection, regression guard)
     are specified concretely with chosen numbers and what happens when each trips
     -- not gestured at
-  status: pending
+  status: met
 - id: sc-5
   text: Tasks with a mix of evaluable and prose criteria have a stated behaviour,
     since that is the common case
-  status: pending
+  status: met
 - id: sc-6
   text: 'The counter-argument is addressed: what an outer loop buys that the inner
     loop does not already provide for free'
-  status: pending
+  status: met
 - id: sc-7
   text: Implementation tasks are derived, each independently reviewable
-  status: pending
+  status: met
 deliverables:
 - path: docs/agent-loops-design.md
   note: The design, with rationale and rejected alternatives
-  status: pending
+  status: done
 - path: docs/agent-dispatch-design.md
-  note: Section 2a updated with the resolved mechanism
-  status: pending
+  note: 'Section 2a amended: the budget caps count chains, not iterations (L7)'
+  status: done
 dependencies:
 - task: task-077-dispatch-session-launcher
   type: related
   note: A loop iteration is a dispatch; what a dispatch starts is decided there.
 links: []
-branches: []
-log: []
+branches:
+- name: docs/task-078-agent-loops-design
+  status: merged
+log:
+- id: 1
+  ts: '2026-08-18T11:33:21.715342Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 1e2c3d4e-5f60-4a71-8b92-c0d1e2f30078
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 2
+  ts: '2026-08-18T11:40:47.950049Z'
+  actor: claude
+  type: decision
+  body: "# `check` is a new field, not a filled-in `verify` \u2014 and this task's\
+    \ own constraint was factually wrong\n\nThis task's constraints say:\n\n> `AcceptanceCriterion.verify`\
+    \ already exists in the schema and is unused. Prefer filling it over inventing\
+    \ a parallel mechanism.\n\n**The premise is wrong.** Measured against the corpus\
+    \ on 2026-08-18:\n\n| | count |\n|---|---|\n| `acceptance[].verify` values present\
+    \ | **132** |\n| Of those, shaped like a runnable command | ~36 |\n| Of those,\
+    \ prose describing how a *human* checks | ~96 |\n\nRepresentative of the ninety-six:\
+    \ *\"Show the test failing against the unfixed code, then passing.\"* \xB7 *\"\
+    Mutate the task from another surface with the detail page open, then promote.\"\
+    * \xB7 *\"Jeff runs the install; the manifest validation errors, if any, are recorded.\"\
+    *\n\nThose are good entries. Several describe things no command can decide.\n\n\
+    **The decision.** `check` is a new optional field, an argv list. `verify` keeps\
+    \ its meaning as prose about what a person should do. A criterion may carry both,\
+    \ and one that does is the best-documented kind: the command says whether it passes,\
+    \ the prose says what passing is meant to mean.\n\n**Rejected: repurposing `verify`.**\
+    \ Ninety-six prose strings would become commands. The only rescue \u2014 \"execute\
+    \ it if it looks like a command\" \u2014 makes a *heuristic* the security boundary\
+    \ on a field that is committed to a repository and cloned onto other people's\
+    \ machines. A heuristic deciding whether to execute a string is not a boundary.\n\
+    \n**Rejected: restructuring `verify` into `{text, check}`.** Cleaner on a blank\
+    \ page; a breaking schema change to 132 existing values for no behaviour a new\
+    \ optional field does not already give.\n\nThe constraint was a reasonable belief\
+    \ that turned out not to survive `grep`, which is exactly the kind of thing a\
+    \ design pass exists to find. Recorded here rather than quietly worked around,\
+    \ because the next person to read that constraint will otherwise think the design\
+    \ ignored it."
+  data:
+    operation:
+      id: 2e2c3d4e-5f60-4a71-8b92-c0d1e2f30078
+      kind: log_append
+      fingerprint: 9369674312f0c17e3d91d2ad134c410d
+- id: 3
+  ts: '2026-08-18T11:41:04.568761Z'
+  actor: claude
+  type: decision
+  body: "# The budget caps as \xA72a published them would have made D5 inert\n\nCorrecting\
+    \ a rule that is already in a design document, so it is recorded as a decision\
+    \ rather than buried in a diff.\n\n**What \xA72a said:**\n\n> \xA77's caps now\
+    \ bind here. They were scoped to auto-dispatch (D3) because a human clicking is\
+    \ a decision; a loop is not clicking, so the per-task counts and cooldown apply\
+    \ to every iteration after the first.\n\n**What that would do.** The per-task-per-day\
+    \ cap is **3**. A chain a human explicitly authorized for 5 iterations would be\
+    \ refused at iteration 4 \u2014 by a limit designed for a different mechanism,\
+    \ silently, mid-chain. And the 60-second cooldown would insert a minute of dead\
+    \ time between iterations for nothing: the previous iteration has already reached\
+    \ a terminal state, which is the exact condition the cooldown exists to guarantee.\n\
+    \nThe clause is right in spirit \u2014 a loop is not a human clicking, so it needs\
+    \ bounding \u2014 and wrong in the unit it counts.\n\n**Decision L7:**\n\n- **Per-task-per-day\
+    \ (3) counts authorized chains**, not iterations. Three separate chains against\
+    \ one task in a day is still the signal the cap was built to give \u2014 something\
+    \ is wrong with the task \u2014 and it no longer truncates the mechanism it was\
+    \ meant to bound.\n- **Per-task-lifetime (10) keeps counting dispatches.** It\
+    \ stays a true backstop: it is the number that catches a bug in the loop driver\
+    \ itself, and a backstop redefined to accommodate the thing it guards is not a\
+    \ backstop. A chain that would cross it is refused mid-chain and stops loudly.\n\
+    - **Cooldown does not apply within a chain.** It exists to stop two runs being\
+    \ started in the same breath, and iteration *n+1* begins only after *n* is terminal\
+    \ by construction.\n\n**Rejected: raising the per-day cap for loops.** It sets\
+    \ the number by what the feature needs rather than by what the cap is for, and\
+    \ the next feature would ask for the same. Changing the unit is the honest fix;\
+    \ changing the number to accommodate is how a limit stops meaning anything.\n\n\
+    \xA72a is amended in this branch to say so, with the reasoning inline. Left as\
+    \ published, the first person to implement D5 would have discovered the contradiction\
+    \ by watching a chain die at iteration 4 and spent an afternoon deciding whether\
+    \ it was a bug."
+  data:
+    operation:
+      id: 3e2c3d4e-5f60-4a71-8b92-c0d1e2f30078
+      kind: log_append
+      fingerprint: 495ade9ddd934bfcaad2270bb7614b3a
+- id: 4
+  ts: '2026-08-18T11:42:33.703221Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 4e2c3d4e-5f60-4a71-8b92-c0d1e2f30078
+      kind: update_content
+      fingerprint: 5ca970240e3420bece6f95ef5df1464c
+- id: 5
+  ts: '2026-08-18T11:42:55.673474Z'
+  actor: claude
+  type: transition
+  body: "# Design pass complete, merged, six implementation tasks derived\n\n`docs/agent-loops-design.md`,\
+    \ 12 sections, seven decisions (L1\u2013L7) each with what it rejected and why.\
+    \ Merged `--no-ff`, nothing pushed. Branch marked merged, worktree removed.\n\n\
+    ## The questions the task set, answered\n\n**The thesis survives, narrowed.**\
+    \ AgentJobs' contribution is not running loops \u2014 it is that a task already\
+    \ carries the two things a chat window does not: a stated definition of done and\
+    \ a history that outlives the process. The gap is that `acceptance[]` is prose.\n\
+    \n**The counter-argument (sc-6) is conceded and used to scope the design.** The\
+    \ inner loop \u2014 write, test, fix \u2014 is what agent CLIs already do, for\
+    \ free and *better*, because it keeps its context. The outer loop buys exactly\
+    \ three things: survival past context exhaustion (the big one, and specific to\
+    \ having a durable record), a termination condition the agent does not control,\
+    \ and an audit trail. Everything else credited to outer loops is the inner loop\
+    \ wearing a costume. The consequence is a rule: an outer iteration begins only\
+    \ when the inner loop has genuinely stopped.\n\n**Security (sc-3).** Checks run\
+    \ only for projects already enabled for dispatch, under task-068's existing four\
+    \ gates \u2014 never on read, never implicitly. The argument for reusing rather\
+    \ than inventing a weaker gate: enabling dispatch already authorizes an autonomous\
+    \ agent with write access, and a check is strictly less dangerous than that. An\
+    \ allow-list of permitted executables was rejected as security theatre \u2014\
+    \ `poetry run <anything>` is on any plausible allow-list.\n\n**Numbers (sc-4),\
+    \ each with its reasoning:** 5 iterations default / 20 ceiling; 4h chain wall-clock\
+    \ / 12h ceiling; thrash at **3** identical result vectors, not 2, because two\
+    \ is one flaky rerun plus a no-op fix; regression stops **immediately with no\
+    \ retry**.\n\n**Mixed criteria (sc-5).** The loop converges on the checked ones,\
+    \ never marks an unchecked one met, and stops at `human`/`review` rather than\
+    \ `completed` \u2014 the prose criteria are exactly the judgement it cannot make.\n\
+    \n## Two findings that changed the design\n\nBoth recorded as decision entries\
+    \ above, because a diff would not carry them:\n\n1. **This task's own constraint\
+    \ was factually wrong.** `verify` is not unused: 132 values in the corpus, ~96\
+    \ of them prose describing what a *person* should do. Executing that field would\
+    \ reinterpret them as commands, and the only rescue makes a heuristic the security\
+    \ boundary. So `check` is a new field and `verify` keeps its meaning.\n2. **Dispatch\
+    \ design \xA72a would have made D5 inert.** The per-task-per-day cap of 3 would\
+    \ kill any chain authorized for more than three iterations, and the 60s cooldown\
+    \ would insert dead time between iterations that are serial by construction. \xA7\
+    2a is amended here: per-day counts chains, the lifetime cap keeps counting dispatches\
+    \ as a true backstop, the cooldown does not apply within a chain.\n\n## Derived\
+    \ tasks\n\n**task-147** schema \xB7 **task-148** evaluator \xB7 **task-149** CLI/API\
+    \ trigger \xB7 **task-150** chain authorization \xB7 **task-151** loop driver\
+    \ \xB7 **task-152** GUI. Chained by `needs`.\n\n**147\u2013149 are the useful,\
+    \ autonomy-free half** and the design names them as the natural stopping point:\
+    \ executable acceptance criteria a person can evaluate on demand, carrying the\
+    \ whole schema and security surface and none of the risk.\n\n**150 and 151 carry\
+    \ an explicit constraint that they must not be started without Jeff's go-ahead\
+    \ on building the outer loop at all**, with instructions to hand off `human`/`decision`\
+    \ and stop. The design being finished is not the same as the decision being made,\
+    \ and an agent working the backlog would otherwise make it by default \u2014 the\
+    \ failure mode task-060's grooming pass identified on 2026-08-18.\n\nMerged without\
+    \ human review under the autonomy grant on task-060 (entries 11 and 12). Docs\
+    \ and task records only; no code."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 5e2c3d4e-5f60-4a71-8b92-c0d1e2f30078
+      kind: close
+      fingerprint: b9e885fe0473f6c3072d469eedbb1207
