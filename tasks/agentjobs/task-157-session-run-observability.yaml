@@ -2,7 +2,7 @@ schema: 2
 id: task-157-session-run-observability
 title: Notice when a dispatched session ends, and let its output be read
 created: '2026-08-18T21:53:32.107442Z'
-updated: '2026-08-18T21:53:32.108174Z'
+updated: '2026-08-18T21:57:00.788357Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -199,3 +199,136 @@ log:
       id: 1570aa11-2b33-4c55-8d77-e9f0a1b2c157
       kind: create
       fingerprint: 172defbb0682834da164675ff7a4078b
+- id: 2
+  ts: '2026-08-18T21:57:00.788210Z'
+  actor: claude
+  type: progress
+  body: '# Implementation traced end to end. No code written -- read this before starting,
+    it saves the tracing.
+
+
+    Worktree `C:/projects/aj-157` and branch `fix/task-157-session-run-observability`
+    were created and then removed with nothing committed. Starting fresh is correct.
+
+
+    ## The one architectural decision, made and reasoned
+
+
+    **The scheduler must call `DispatchRunner.poll_session()`. Do not reimplement
+    its logic in the ledger.**
+
+
+    The temptation is to add polling to `DispatchLedger`, which already walks `live_runs(self.home)`
+    and can reach the session ledger. Resist it. `poll_session` and the methods under
+    it carry decisions the ledger has no access to and would have to duplicate:
+
+
+    - `_settle_finished_session` distinguishes a session that *concluded* from one
+    that merely *stopped* by asking whether the task''s ball moved after the dispatch
+    entry (`_ball_moved`). The session ledger cannot tell these apart -- both are
+    `idle`/`done` with no exit code.
+
+    - It then applies a **staleness window** (`resolution.limits.session_stale_seconds`)
+    before calling anything `finished_without_handoff`, because an agent pausing mid-turn
+    is indistinguishable from one that stopped until enough time passes.
+
+    - `_park_session` builds the `human`/`input` handoff, fetches the transcript,
+    extracts the Remote Control URL and quotes the terminal tail. It is already idempotent,
+    keyed on the run''s own status rather than the ball.
+
+    - Outcome choice differs per phase: FINISHED -> `COMPLETED` or `FINISHED_WITHOUT_HANDOFF`,
+    STOPPED -> `CANCELLED`, GONE -> `INTERRUPTED`, and `reap` is true only on the
+    clean path.
+
+
+    Duplicating that in the ledger gives two implementations of the subsystem''s most
+    subtle judgement, which will drift. The ledger already imports from `runner` (ledger.py:41),
+    so there is no cycle to fight.
+
+
+    ## What the scheduler has to assemble
+
+
+    `DispatchRunner(manager=, resolution=, project_root=, home=, api_base=)`, per
+    `dispatch_task` in `guards.py:316`. Per live session run the poller needs:
+
+
+    - `resolution` -- `assert_dispatch_permitted(record.project_id, home)`.
+
+    - `manager` and `project_root` -- from the registry via `record.project_id`.
+
+    - A `RunHandle` reconstructed from the run''s `meta.yaml`: it needs at least `run_id`,
+    `task_id`, `session_id`, `dispatch_entry_id` and its `RunDirectory`. `dispatch_entry_id`
+    is essential -- `_ball_moved` returns False without it, which would misclassify
+    every finished session as `finished_without_handoff`.
+
+
+    **Known trap:** `DispatchLedger.manager_for` resolves projects *only* through
+    `self.registry`. A run stamped with the implicit `_local` id is not in the registry,
+    so it resolves to None and would be skipped silently. That is the same root cause
+    as the run-visibility problem noted in the sandbox, and the poller must not inherit
+    it -- either resolve implicit projects too, or log loudly when a live run cannot
+    be resolved rather than dropping it.
+
+
+    ## Cause 2 is a separate, smaller change
+
+
+    `reconcile()` (ledger.py:464) currently asks only whether the session id is *present*
+    in the session ledger. If present it records "session still running; re-attached"
+    and moves on. Give it the same `classify_session` call, so a session that ended
+    while AgentJobs was down settles on the next start instead of being re-attached
+    forever.
+
+
+    Preserve the existing behaviour on a `LedgerError`: it deliberately leaves live
+    runs alone rather than declaring work dead on a failed lookup. That is acceptance
+    criterion sc-5.
+
+
+    ## Cause 3 -- the output route
+
+
+    `DispatchRunner.transcript(session_id)` (runner.py:746) already shells out to
+    `<runner> logs <id>` and is already used for parked-session prompts. The run output
+    route should use it **for session-mode runs only**; batch runs'' `stdout.log`
+    genuinely is their output and must keep working unchanged. Render only -- `transcript()`''s
+    docstring is explicit that nothing may branch on its content, and that constraint
+    holds here.
+
+
+    ## Where the scheduler goes
+
+
+    `lifespan` in `api/main.py:92` already calls `_reconcile_dispatch_runs()` once.
+    An `asyncio` task started there and cancelled on shutdown is the smallest thing
+    that works.
+
+
+    Note the counter-argument already written into the codebase: `_reap_finished_sessions`''
+    docstring says *"nothing in AgentJobs schedules background work, and inventing
+    a scheduler to delete directories would be the largest new moving part in this
+    subsystem for the smallest reason."* That reasoning was right for reaping worktrees
+    and is wrong for session state -- without a scheduler the primary dispatch mode
+    never reports anything. Worth recording as a `decision` when it is built, since
+    it knowingly reverses a documented position.
+
+
+    ## Verification that would actually catch this
+
+
+    The existing tests pass and did not catch any of it, because they exercise `poll_session`
+    directly -- proving the decision logic while saying nothing about whether the
+    decision is ever made. sc-6 therefore asks for an end-to-end check in the review
+    sandbox: dispatch a real session, let it finish untouched, and confirm the run
+    reaches a terminal state and the task gets a `dispatch_result` with nobody intervening.
+
+
+    The sandbox at `C:/ai/scratch/agentjobs-dispatch-review-sandbox.py` is set up
+    for exactly this: port 8901, `claude-session` runner in session mode, `autonomous`
+    posture, throwaway git repo.'
+  data:
+    operation:
+      id: 1571aa11-2b33-4c55-8d77-e9f0a1b2c157
+      kind: log_append
+      fingerprint: 33d02277aaf07dfea69a9e22f4b12b18
