@@ -73,6 +73,18 @@ test("turns dispatch on, starts a real agent process, cancels it, and turns it o
   // The run's end landed on the task record, which is the point of the whole thing.
   await expect(page.getByRole("region", { name: "Task log" })).toContainText("dispatch_result");
 
+  // Cancelling hands the ball to a human, which is correct and also means this task
+  // would sit in every later spec's dashboard as the project's next action -- these
+  // specs share one server and one project. Archiving it is both the cleanup and one
+  // more real flow exercised.
+  await page
+    .getByRole("region", { name: "Review actions" })
+    .getByRole("button", { name: /reject/i })
+    .click();
+  await page.getByLabel("Reason for rejection").fill("End-to-end run finished with it.");
+  await page.getByRole("button", { name: "Submit" }).click();
+  await expect(page).toHaveURL(/\/app\/p\/_local\/tasks$/);
+
   await page.getByRole("link", { name: "Dispatch", exact: true }).click();
   await page.getByRole("button", { name: /disable dispatch/i }).click();
   await expect(settings.getByText("This project", { exact: true }).locator("..")).toContainText(
