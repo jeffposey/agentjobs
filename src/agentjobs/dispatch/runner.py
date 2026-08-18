@@ -420,6 +420,14 @@ class RunHandle:
     session_id: Optional[str] = None
     dispatch_entry_id: Optional[int] = None
     supervisor: Optional[threading.Thread] = field(default=None, repr=False)
+    lock: Optional[object] = field(default=None, repr=False)
+    """The per-task run lock, held for this run's lifetime and released when it ends."""
+
+    def release_lock(self) -> None:
+        """Release the run lock, if this run took one. Safe to call twice."""
+        if self.lock is not None:
+            self.lock.release()  # type: ignore[attr-defined]
+            self.lock = None
 
 
 class DispatchRunner:
@@ -941,6 +949,7 @@ class DispatchRunner:
             body=body,
         )
         handle.directory.update_meta(status="finished", outcome=outcome.value)
+        handle.release_lock()
 
         if reap and handle.session_id:
             self.stop_session(handle.session_id)
@@ -1147,6 +1156,7 @@ class DispatchRunner:
                 body = f"{body or ''}\n\nLast output:\n\n```\n{tail}\n```".strip()
 
         handle.directory.update_meta(status="finished", outcome=outcome.value, exit_code=exit_code)
+        handle.release_lock()
         self.manager.record_dispatch_result(
             handle.task_id,
             actor="dispatcher",
