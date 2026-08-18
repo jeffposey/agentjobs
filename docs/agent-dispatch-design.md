@@ -700,6 +700,44 @@ Re-dispatch of an already-`active` task (ball `agent`/`revise` after changes wer
 requested) does not claim — it verifies the existing owner matches the runner's agent
 and that no live run holds the task lock.
 
+### Working-tree isolation: cwd stays the project root, and that is not the same question
+
+*Added 2026-08-18, resolving task-075's open cwd question.*
+
+A run's `cwd` is the shared project root, exactly as the `dispatch` log entry above
+records it. That looks like the failure task-075 exists to prevent — two dispatched runs
+editing one working tree — and it is not, because **cwd and working tree are different
+things here**. The runner is invoked *from* the repository and is passed `-w <task_id>`,
+so it creates and enters its own task-named worktree before doing any work. cwd is where
+the CLI is launched; the worktree is where it writes.
+
+Setting cwd to a worktree instead would be actively wrong. The worktree does not exist
+until the runner makes it, so AgentJobs would have to create one first — which is the
+worktree pool this task considered and rejected (see task-075's decision entry). It also
+breaks `claude agents --json --cwd <project-root>`, which is how §9's poller scopes the
+session listing to one project: sessions launched from a worktree would not be listed
+under the root they belong to.
+
+**Isolation therefore comes from the runner, not from AgentJobs**, and it is supplied by
+AgentJobs rather than left to the agent to remember — `posture_flags()` adds `-w`, so a
+dispatched run cannot fail to take a worktree the way a human-driven agent can.
+`read_only` is the one posture that gets none, because a run that cannot write has
+nothing to isolate.
+
+The limitation this leaves, stated so it is not rediscovered as a bug: a runner driving a
+CLI with no worktree flag gets no isolation, and AgentJobs cannot give it any. Acceptable
+while the shipped default is Claude Code. Revisit the first time a second runner is
+defined for a CLI without one, or the first time two dispatched runs are seen writing to
+the same tree.
+
+**Removing a worktree is part of the run's lifecycle, not a follow-up.** `claude rm`
+deletes a finished session's worktree, and the ledger's `reap` is the path that calls it
+— refusing, deliberately, when the worktree holds uncommitted changes, because that
+refusal means the run produced work nobody has looked at. Reaping happens at server
+startup and on demand via `agentjobs dispatch reap`. It is *not* on a timer: nothing in
+this system schedules background work, and inventing a scheduler to delete directories
+would be the largest new moving part in the subsystem for the smallest reason.
+
 ---
 
 ## 9. Process lifecycle
