@@ -2,10 +2,59 @@ schema: 2
 id: task-076-dispatch-permission-posture
 title: Decide what a dispatched agent is allowed to do without a human present
 created: '2026-08-11T01:43:18.956698Z'
-updated: '2026-08-18T04:35:00.599739Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-18T05:09:06.334692Z'
+lifecycle: active
+ball: human
+ball_reason: decision
+ball_prompt: 'Choose the permission posture for dispatched runs. Research and a recommendation
+  are in log entries 2-4; entry 3 corrects an error in entry 2, read it before entry
+  2.
+
+
+  Recommended: three named postures selected per project, defaulting to `supervised`
+  = `--permission-mode acceptEdits -w <task-slug>` plus a project allow-list passed
+  via `--settings` in `Tool(prefix:*)` form. Commands on the list run unattended;
+  anything else parks the session at `waiting`/`blocked`, which AgentJobs polls and
+  turns into ball -> human/input, answerable from your phone. `read_only` (`--tools
+  "Read,Glob,Grep,WebFetch"`, verified enforceable) and `autonomous` (`bypassPermissions`,
+  opt-in, never default) are the other two.
+
+
+  Rejected, with costs: read-only-only (cannot run the suite, so satisfies no acceptance
+  criterion in 068-075); `dontAsk` as default (never parks, but silently denies and
+  the agent then produces untested work and hands back anyway - a visible stall traded
+  for an invisible half-finished result); `bypassPermissions` as default (unattended
+  shell, and the worktree that would justify it is a blast-radius reducer, not a boundary);
+  a bespoke AgentJobs allow-list (duplicates a mechanism that already enforces).
+
+
+  What I need from you:
+
+
+  1. Pick a posture set and a default.
+
+  2. Confirm the seed allow-list: `poetry run pytest:*`, `poetry run ruff:*`, `poetry
+  run black:*`, `poetry run mypy:*`, `npm run:*`, `git status:*`, `git diff:*`, `git
+  add:*`, `git commit:*`.
+
+  3. Decide sc-3: whether task-075 layer 2 is dropped for dispatched runs in favour
+  of the CLI''s own `-w` worktree (recommended - it is git-locked with a lock reason
+  naming the session, and `claude rm` refuses to discard uncommitted work).
+
+
+  Note for the overnight-kickoff plan specifically: under `supervised`, the first
+  dispatched run parks the first time it meets a command outside the allow-list. That
+  is recoverable from your phone but it is not zero-touch. If you want a genuinely
+  unattended overnight chain, that is the `autonomous` posture and you should say
+  so explicitly - I have not assumed it.
+
+
+  This decision depends on task-077-dispatch-session-launcher going the session way.
+  Decide 077 alongside it. Once you decide, I will write the `decision` entry with
+  the rejected alternatives, amend docs/agent-dispatch-design.md section 4 (which
+  also needs its CLI version corrected from 2.1.220 to 2.1.228 and its `--session-id`
+  claim corrected - see task-077''s log), and update task-070''s spec with the concrete
+  flags (sc-4). Nothing has been written to the design doc or to 070 yet.'
 archived: false
 priority: high
 category: architecture
@@ -15,6 +64,7 @@ tags:
 - design
 effort: a decision session, then a documented posture
 assignment:
+  owner: claude
   eligible: []
 parent: task-060-agent-dispatch
 spec:
@@ -136,4 +186,223 @@ dependencies:
   note: Containment changes the answer. Decide together or 075 first.
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-18T05:03:07.569228Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 3f2a1c44-9b0e-4d21-8a77-1e5c6b3d0a91
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 2
+  ts: '2026-08-18T05:03:34.277047Z'
+  actor: claude
+  type: progress
+  body: "Verified the permission mechanics against the installed CLI on 2026-08-18.\
+    \ **The task's central factual premise is wrong**, and correcting it changes what\
+    \ the options mean.\n\nInstalled: **claude 2.1.228** (the record and design doc\
+    \ both say 2.1.220). All experiments were run in throwaway git repos under C:/ai/scratch,\
+    \ never in this repository; every session was removed afterwards (`claude agents\
+    \ --json --all` reports zero background sessions remaining).\n\n## The premise\
+    \ that was wrong\n\nThe spec says a permission prompt \"in headless mode is not\
+    \ a prompt but a silent denial.\" That is true of `claude -p`. It is **false**\
+    \ of a `--bg` session.\n\nRan a default-permission background session with a prompt\
+    \ requiring one shell command:\n\n```\nclaude --bg -n aj-exp-bg-1 \"Write the\
+    \ current time into a file called stamp.txt ...\"\n```\n\n`claude agents --json`\
+    \ reported `\"status\": \"busy\", \"state\": \"working\"`, then settled into **`\"\
+    status\": \"waiting\", \"state\": \"blocked\"`** and stayed there across six polls\
+    \ over 60s with no timeout. `claude logs <id>` showed the session parked on a\
+    \ rendered permission dialog \u2014 \"Do you want to proceed? 1. Yes / 2. Yes,\
+    \ and always allow ... / 3. No\".\n\nSo a dispatched session that meets an unpermitted\
+    \ action does not fail and does not silently deny. **It parks, indefinitely, in\
+    \ a state the ledger reports.** That is a queryable, addressable condition \u2014\
+    \ which means \"ask the human\" becomes an available posture, and it was not available\
+    \ under the batch assumption this task was written against.\n\n## What actually\
+    \ enforces, and what does not\n\n| Flag | Result |\n|---|---|\n| `--permission-mode\
+    \ acceptEdits` with `--bg` | **Works.** Status line confirms \"accept edits on\"\
+    . |\n| `--permission-mode dontAsk` with `--bg` | **Works**, and permits shell\
+    \ commands without prompting \u2014 `git status --short` ran unprompted despite\
+    \ not being on any allowlist in `~/.claude/settings.json` or `.claude/settings.local.json`.\
+    \ |\n| `--tools \"Read,Glob,Grep\"` | **Works, and is enforced.** The agent reported\
+    \ its entire toolset as Glob/Grep/Read/EndConversation and could not shell out\
+    \ at all. This is a real read-only mechanism. |\n| `--disallowedTools \"Bash\"\
+    ` | **Did not hold.** The shell ran anyway. |\n| `--disallowedTools \"PowerShell\"\
+    ` | **Did not hold.** The shell ran anyway. |\n\nThe `--disallowedTools` result\
+    \ is three trials across two permission modes (`dontAsk` and `acceptEdits`), including\
+    \ both plausible names for the Windows shell tool. Whatever the cause, **a posture\
+    \ must not be built on `--disallowedTools`** on this version; `--tools` is the\
+    \ flag that actually constrained the agent.\n\nThis directly damages option 2\
+    \ as the task frames it (\"edits accepted, commands allow-listed\"). The per-runner\
+    \ argv allow-list it imagines does not exist in enforceable form here. Allow-listing\
+    \ on this machine lives in `.claude/settings.json` `permissions.allow`, which\
+    \ is a settings surface, not a dispatch-argv surface \u2014 and which the six\
+    \ entries currently in the user file show is maintained by hand and ad hoc.\n\n\
+    ## Containment (sc-3 input)\n\n`-w/--worktree` composes with `--bg`. Verified:\
+    \ the worktree was created at `<root>/.claude/worktrees/<name>` on branch `worktree-<name>`,\
+    \ **git-locked with a lock reason naming the session and pid** (`git worktree\
+    \ remove` refused; `-f -f` required), and `claude agents --json` reported the\
+    \ session's `cwd` as the worktree path rather than the project root. `claude rm\
+    \ <id>` refused to delete a worktree holding uncommitted changes.\n\nThat is materially\
+    \ better containment than task-075 layer 2 would have had to build, and it is\
+    \ free. It is **not a sandbox** \u2014 an agent with shell access can `cd` anywhere\
+    \ on the machine. It reduces blast radius for accidents; it does not bound a determined\
+    \ or confused agent. That distinction should govern how much the worktree is allowed\
+    \ to buy in the decision.\n\nFull evidence, including the session-launcher findings,\
+    \ is in task-077-dispatch-session-launcher's log."
+  data:
+    operation:
+      id: 7c4e2b18-5a3f-4c90-b2d6-8e1a0f7c5d33
+      kind: log_append
+      fingerprint: 1e8d0a73d0d070d2207f25064dc6ba7b
+- id: 3
+  ts: '2026-08-18T05:08:11.828875Z'
+  actor: claude
+  type: progress
+  body: "**Correction to entry 2, and the permission matrix that replaces it.** Entry\
+    \ 2 claimed allow-listing was not enforceable. That was my syntax error, not a\
+    \ product defect, and the corrected result changes the recommendation.\n\n## Correction\n\
+    \nEntry 2 reported that a `permissions.allow` entry did not suppress a prompt.\
+    \ I had written the rules as `PowerShell(Set-Content*)` \u2014 no colon. The documented\
+    \ form is `Tool(prefix:*)`. Retested with the colon:\n\n```\nclaude --bg --permission-mode\
+    \ acceptEdits \\\n  --settings '{\"permissions\":{\"allow\":[\"Bash(python -m\
+    \ pytest:*)\",\"PowerShell(python -m pytest:*)\"]}}' \\\n  \"Run the shell command\
+    \ 'python -m pytest --version' ...\"\n```\n\nSession went straight to `\"status\"\
+    : \"idle\", \"state\": \"done\"` with no prompt, and the command genuinely executed\
+    \ (it reported `No module named pytest`, exit 1 \u2014 a real result from a real\
+    \ run). **Allow-listing works, and it is settable per invocation through `--settings`.**\
+    \ Option 2 in the spec is therefore viable, not dead.\n\nEntry 2's `--disallowedTools`\
+    \ result still stands as observed (three trials, shell ran anyway), but given\
+    \ the syntax lesson I would not now call it a defect \u2014 my invocation may\
+    \ have been wrong in the same way. Either way it is not needed: the positive allow-list\
+    \ is what a posture requires.\n\n## The verified permission matrix\n\nEvery cell\
+    \ below was run as a `--bg` session on 2.1.228 and read back from `claude agents\
+    \ --json` plus `claude logs`.\n\n| `--permission-mode` | File edits | Auto-classified\
+    \ safe reads (`git log`, `git status`) | Arbitrary command (`python -m pytest\
+    \ --version`) |\n|---|---|---|---|\n| *(default)* = **manual** | prompt \u2192\
+    \ **parks** | allowed | prompt \u2192 **parks** |\n| `acceptEdits` | allowed |\
+    \ allowed | prompt \u2192 **parks** |\n| `acceptEdits` + allow-list entry | allowed\
+    \ | allowed | **allowed, no prompt** |\n| `dontAsk` | allowed | allowed | **silently\
+    \ denied; run continues** |\n| `--tools \"Read,Glob,Grep\"` | no tool | no tool\
+    \ | no tool at all |\n\nThree things in that table were not known when this task\
+    \ was written:\n\n1. **The default mode for `--bg` is `manual`** (status line:\
+    \ \"\u23F8 manual mode on\"), not a headless auto-deny.\n2. **`dontAsk` is the\
+    \ silent-denial mode** \u2014 the exact behaviour the spec attributed to headless\
+    \ mode generally. The agent was told no, said so, and explicitly declined to route\
+    \ around it. Useful, and it is the *only* mode where a run continues past a refusal\
+    \ instead of parking.\n3. **`acceptEdits` covers edit-shaped shell commands, not\
+    \ just the Write tool.** `Set-Content -Path ae.txt` ran unprompted under `acceptEdits`\
+    \ and the file was created. But it does **not** cover a test runner: `python -m\
+    \ pytest --version` parked.\n\nSo there is no permission *mode* that permits `pytest`\
+    \ but not arbitrary commands. That middle exists only as an allow-list, which\
+    \ is why the allow-list finding above is the load-bearing one."
+  re: 2
+  data:
+    operation:
+      id: b18d7e02-6c45-4f3a-9d81-2b7f4e6a0c58
+      kind: log_append
+      fingerprint: b1fd211ba83ed75ee5b43904b019f0eb
+- id: 4
+  ts: '2026-08-18T05:08:47.334459Z'
+  actor: claude
+  type: progress
+  body: "## Recommendation for Jeff's decision \u2014 not a decision entry\n\n**Recommended:\
+    \ option 4, instantiated as three named postures, defaulting to a variant of option\
+    \ 2.** Per-project selection, machine-local in `~/.agentjobs/dispatch.yaml` like\
+    \ every other dispatch setting.\n\n| Posture | Flags | For |\n|---|---|---|\n\
+    | `read_only` | `--tools \"Read,Glob,Grep,WebFetch\"` | Review, triage, plans,\
+    \ defect reports. Verified enforceable \u2014 the agent has no shell at all. |\n\
+    | `supervised` **(default)** | `--permission-mode acceptEdits -w <task-slug>`\
+    \ + project allow-list via `--settings` | Normal dispatched work. |\n| `autonomous`\
+    \ | `--permission-mode bypassPermissions -w <task-slug>` | Explicit per-project\
+    \ opt-in, never default. |\n\n### Why `supervised` is the default, and what it\
+    \ costs\n\nIt is option 2, but with the allow-list living where it is actually\
+    \ enforced (`permissions.allow` in `--settings`, `Tool(prefix:*)` form) rather\
+    \ than in bespoke runner argv. The seed list is small and boring: `poetry run\
+    \ pytest:*`, `poetry run ruff:*`, `poetry run black:*`, `poetry run mypy:*`, `npm\
+    \ run:*`, `git status:*`, `git diff:*`, `git add:*`, `git commit:*`.\n\nThe property\
+    \ that makes this the right default is what happens to everything *not* on the\
+    \ list: **the session parks at `waiting`/`blocked` rather than failing or silently\
+    \ proceeding.** Parked is a state `claude agents --json` reports, so AgentJobs\
+    \ can poll it and move the ball to `human`/`input` with the pending command quoted\
+    \ in the `ball_prompt`. Jeff answers it from his phone through Remote Control.\
+    \ The prompt's own \"don't ask again for: `<command>`\" option means the allow-list\
+    \ grows by use rather than by anticipation.\n\nThe spec's framing \u2014 \"cannot\
+    \ run pytest = satisfies nothing; can run anything = unattended shell\" \u2014\
+    \ was a genuine dilemma only because a batch run has no third move. A session\
+    \ has one: **ask.** That is the substantive thing the 2026-08-18 experiments add\
+    \ to this task.\n\nThe cost, stated plainly: the allow-list is still a maintenance\
+    \ surface that will be widened under pressure, exactly as the spec predicted.\
+    \ The mitigation is that widening it is now a visible act (a prompt Jeff answered)\
+    \ rather than a config edit nobody reviews.\n\n### sc-2, answered directly\n\n\
+    **Yes, a dispatched agent may run shell commands unattended \u2014 only those\
+    \ matching its project's allow-list.** Everything else parks and waits for a human.\
+    \ Under `autonomous`, all commands run unattended, and that posture is off unless\
+    \ a project turns it on.\n\n### sc-3, the task-075 interaction\n\n`-w` gives dispatched\
+    \ runs worktree containment for free, and better than task-075 layer 2 would have\
+    \ built: the worktree is git-locked with a lock reason naming the session and\
+    \ pid, and `claude rm` refuses to discard one holding uncommitted changes. **Recommendation:\
+    \ task-075 layer 2 is not needed for dispatched runs**; AgentJobs should pass\
+    \ `-w` and let the CLI own the worktree. Layer 1 (the convention, for interactive\
+    \ agents) is already merged and unaffected.\n\nWhat changes with containment versus\
+    \ the shared checkout:\n\n- **Shared checkout:** an unattended agent is committing\
+    \ on top of whatever a peer has in flight \u2014 the three 2026-08-11 failures,\
+    \ at machine speed. `acceptEdits` would be too permissive here; `read_only` would\
+    \ be the only defensible default.\n- **Contained worktree:** an accident is confined\
+    \ to a branch nobody else has checked out, and is recoverable by deleting the\
+    \ worktree. This is what makes `acceptEdits` defensible as a default and `bypassPermissions`\
+    \ discussable at all.\n\n**A worktree is not a sandbox.** An agent with shell\
+    \ access can `cd` anywhere on the machine; containment reduces the blast radius\
+    \ of accidents, it does not bound a confused or adversarial agent. So containment\
+    \ justifies `supervised` as a default. It does **not** justify making `autonomous`\
+    \ the default, and the recommendation deliberately stops short of that.\n\n###\
+    \ Rejected alternatives, with their costs\n\n1. **Read-only only.** Cost: cannot\
+    \ satisfy a single acceptance criterion in tasks 068\u2013075, all of which require\
+    \ running the suite. It stays in the roster as the `read_only` posture because\
+    \ it is genuinely the right tool for review and triage dispatches \u2014 but as\
+    \ the *only* mode it makes dispatch a reporting feature, not a work feature, and\
+    \ the dispatch chain 070\u2192073 could never be run by it.\n2. **`dontAsk` as\
+    \ the default.** Superficially the perfect unattended mode \u2014 it never parks,\
+    \ it just refuses and carries on. Rejected: verified behaviour is that the agent\
+    \ hits the denial, reports it, and stops trying. A run that cannot execute the\
+    \ suite produces untested code and then hands back a task claiming work is done.\
+    \ It converts a visible stall into an invisible half-finished result, which is\
+    \ worse. Worth keeping available for a project that explicitly wants never-park\
+    \ semantics.\n3. **`bypassPermissions` as the default.** Most useful, and the\
+    \ only posture with no parking at all. Rejected as a *default* because it makes\
+    \ every dispatch an unattended shell on Jeff's machine, which is what \xA76's\
+    \ four gates exist to avoid granting casually \u2014 and because the containment\
+    \ that would justify it is a blast-radius reducer, not a boundary. Retained as\
+    \ opt-in.\n4. **A bespoke per-runner argv allow-list** (option 2 as literally\
+    \ written). Rejected: `--settings permissions.allow` already does this, is enforced,\
+    \ and is per-invocation. Building a second allow-list mechanism in AgentJobs would\
+    \ mean maintaining a translation layer to the one that actually enforces.\n\n\
+    ### The one thing this recommendation depends on\n\nIt assumes dispatch launches\
+    \ a **session** (task-077), because \"park and ask the human\" requires a run\
+    \ that can be answered. If task-077 is decided the other way \u2014 batch `claude\
+    \ -p` \u2014 then `supervised` is not implementable, parking becomes a hang, and\
+    \ the honest default becomes `read_only` or `bypassPermissions` with nothing in\
+    \ between. **These two decisions should be made together, in that order.**"
+  data:
+    operation:
+      id: c93a5f71-0d26-4b88-a4e3-7f2c1e9b6045
+      kind: log_append
+      fingerprint: c127887e1190a4bf30c972e764823bbb
+- id: 5
+  ts: '2026-08-18T05:09:06.334500Z'
+  actor: claude
+  type: handoff
+  body: Research complete, recommendation recorded. Handing to Jeff for the decision
+    itself, as the task's constraints require.
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: e5b70a29-1f83-4c67-9e04-3d8a2b1f7c60
+      kind: handoff
+      fingerprint: fb4d90b442381d4fd0a0ae8119bd3267
