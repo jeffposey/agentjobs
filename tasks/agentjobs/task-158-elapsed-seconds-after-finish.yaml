@@ -1,0 +1,86 @@
+schema: 2
+id: task-158-elapsed-seconds-after-finish
+title: Stop a finished run's elapsed time from counting forever
+created: '2026-08-18T21:53:32.353465Z'
+updated: '2026-08-18T21:53:32.354325Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: reliability
+tags:
+- dispatch
+- api
+- frontend
+effort: small
+assignment:
+  eligible: []
+parent: task-060-agent-dispatch
+spec:
+  summary: The runs API computes elapsed_seconds from the current time rather than
+    the run's finish time, so every terminal run reports a duration that grows without
+    bound.
+  intent: A completed run's duration is a fact about the past. Reporting it as a number
+    that increases while you watch makes every duration in the UI untrustworthy.
+  description: "Found 2026-08-18 by a dispatched agent exercising the run-watching\
+    \ surface, and\nindependently consistent with the run records on disk.\n\n## Evidence\n\
+    \n- `run_review01`: `status: finished`, `outcome: completed`, `live: false`. Its\
+    \ own task\n  log records `duration_seconds: 42.0`. The runs API reported `elapsed_seconds:\
+    \ 41877.2`\n  -- about 11.6 hours.\n- `run_a2fea425`: `status: failed`, `live:\
+    \ false`, reported `elapsed_seconds: 864.99`,\n  which is exactly wall-clock-now\
+    \ minus `started_at`.\n\nSo the value is `now - started_at` regardless of whether\
+    \ the run ended. Any duration\ncolumn is wrong for every completed run, and wrong\
+    \ by an unbounded amount that depends on\nwhen you happen to look.\n\nNote the\
+    \ sandbox seeds `task-003` specifically to demonstrate a clean completed run with\n\
+    its outcome badge. Its duration is the part that is wrong, which is how this stayed\n\
+    unnoticed -- the badge looked right."
+  constraints: '- A run that genuinely is live must still report a growing elapsed
+    time; do not fix this by freezing everything.
+
+    - Runs interrupted by a restart may have no recorded finish time. Decide what
+    they report and make it obviously not a live duration, rather than falling back
+    to now.
+
+    - The task log already records duration_seconds for concluded runs. Prefer reconciling
+    with that existing fact over inventing a second source of truth.'
+  out_of_scope: Redesigning the runs listing or what a run record stores beyond what
+    a correct duration needs.
+  context:
+  - path: src/agentjobs/api/routes/dispatch.py
+    why: Where elapsed_seconds is computed for the runs listing.
+acceptance:
+- id: sc-1
+  text: A terminal run reports a duration that does not change between two requests
+    separated by real time
+  status: pending
+- id: sc-2
+  text: A finished run's reported duration agrees with the duration_seconds recorded
+    on its task
+  status: pending
+- id: sc-3
+  text: A live run still reports a duration that grows
+  status: pending
+- id: sc-4
+  text: A run with no recorded finish time reports something that cannot be mistaken
+    for a live duration, and the choice is stated in the code
+  status: pending
+deliverables:
+- path: src/agentjobs/api/routes/dispatch.py
+  note: Duration from finish time, not now
+  status: pending
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T21:53:32.353520Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: 1580aa11-2b33-4c55-8d77-e9f0a1b2c158
+      kind: create
+      fingerprint: 13016b5b9170a85dc60dd2343dad9556

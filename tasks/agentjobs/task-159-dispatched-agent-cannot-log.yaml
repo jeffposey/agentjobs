@@ -1,0 +1,110 @@
+schema: 2
+id: task-159-dispatched-agent-cannot-log
+title: Let a dispatched agent log progress under the identity it was dispatched as
+created: '2026-08-18T21:53:32.594437Z'
+updated: '2026-08-18T21:53:32.595382Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: reliability
+tags:
+- dispatch
+- actors
+- api
+effort: small
+assignment:
+  eligible: []
+parent: task-060-agent-dispatch
+spec:
+  summary: The dispatcher claims a task and writes log entries as the runner's name,
+    but the task-write API rejects that same name as an unknown actor. A dispatched
+    agent therefore cannot log progress or hand off under its own identity -- it must
+    log as someone else or stop.
+  intent: A dispatched agent is instructed to follow the resumption contract, which
+    is entirely made of task writes. If it cannot make those writes as itself, the
+    contract is unfollowable and the audit trail is wrong about who did the work.
+  description: "Found 2026-08-18 by a dispatched agent that hit it while trying to\
+    \ log its own\nfindings, and reported in its progress entry on the sandbox's task-002.\n\
+    \n## What happens\n\nThe dispatcher set `assignment.owner` to `claude-session`,\
+    \ wrote log entry 2 as actor\n`claude-session` (\"Claimed by claude-session\"\
+    ), and named `claude-session` as both agent\nand runner in the dispatch entry.\n\
+    \n`POST /api/tasks/{id}/progress` with author `claude-session` then returns:\n\
+    \n```\nHTTP 400 unknown_actor\n'claude-session' is not an actor in this project.\n\
+    Configured actors: Jeff Posey, claude, codex.\n```\n\nSo the dispatch path writes\
+    \ actor ids that the task-write path refuses. The agent in\nquestion logged as\
+    \ `claude` instead and said so in its entry -- meaning the record now\nattributes\
+    \ its work to an actor that did not do it, which is exactly what the actor\nvocabulary\
+    \ exists to prevent.\n\n## Why it matters beyond one bad entry\n\nThe claim itself\
+    \ succeeded under the unvalidated id. The task record therefore holds an\n`owner`\
+    \ that no managed write can act as: the agent cannot hand off, cannot release,\
+    \ and\ncannot close under the identity that owns the task.\n\n## Two candidate\
+    \ shapes, neither chosen here\n\n- **Validate the runner id against the project's\
+    \ actors before claiming**, and refuse the\n  dispatch with a clear message if\
+    \ it is not configured. Safe and explicit; makes a\n  working dispatch depend\
+    \ on per-project actor config.\n- **Register a runner id as an actor automatically**\
+    \ when dispatch uses it. Removes the\n  setup step; widens what can create actors,\
+    \ which deserves thought given actors are a\n  trust vocabulary.\n\nDecide with\
+    \ reasoning and record the rejected one."
+  constraints: '- Do not fix this by loosening actor validation generally. The write
+    path refusing unknown actors is correct and is what caught this.
+
+    - Whatever is chosen must leave the existing reserved-actor behaviour intact --
+    see task-153, which concerns the dispatcher''s own reserved id on a different
+    path.
+
+    - The fix must cover the whole contract a dispatched agent is told to follow:
+    progress, handoff, release, close -- not progress alone.'
+  out_of_scope: Redesigning the actor vocabulary. The dispatcher-actor refusal message
+    defect, which is task-153.
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: Claims the task and writes entries as the runner name.
+  - path: src/agentjobs/actors.py
+    why: The actor vocabulary and its reserved set.
+  - path: src/agentjobs/api/routes/status.py
+    why: acting_actor / validate_actor -- the write path that refuses the id dispatch
+      just used.
+acceptance:
+- id: sc-1
+  text: A dispatched agent can write progress, handoff, release and close under the
+    identity it was dispatched as, or the dispatch is refused up front with a message
+    saying how to configure it
+  status: pending
+- id: sc-2
+  text: No task ends up owned by an actor that managed writes cannot act as
+  status: pending
+- id: sc-3
+  text: Unknown actors are still refused on ordinary write paths; validation is not
+    loosened generally
+  status: pending
+- id: sc-4
+  text: The chosen approach is recorded as a decision naming the rejected alternative
+  status: pending
+- id: sc-5
+  text: Verified with a real dispatched session that logs progress as itself and the
+    entry is attributed correctly
+  status: pending
+deliverables:
+- path: src/agentjobs/dispatch/runner.py
+  note: Runner identity usable on write paths
+  status: pending
+dependencies:
+- task: task-153-dispatcher-actor-refusal-message
+  type: related
+  note: 'Adjacent: also about a dispatch-written actor id the guard layer mishandles.'
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T21:53:32.594505Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: 1590aa11-2b33-4c55-8d77-e9f0a1b2c159
+      kind: create
+      fingerprint: f401ff62bcf0bbbdf845f3cb66f85cfd

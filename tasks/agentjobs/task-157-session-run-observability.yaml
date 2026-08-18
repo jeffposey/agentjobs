@@ -1,0 +1,201 @@
+schema: 2
+id: task-157-session-run-observability
+title: Notice when a dispatched session ends, and let its output be read
+created: '2026-08-18T21:53:32.107442Z'
+updated: '2026-08-18T21:53:32.108174Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: reliability
+tags:
+- dispatch
+- session
+- reliability
+effort: medium
+assignment:
+  eligible: []
+parent: task-060-agent-dispatch
+spec:
+  summary: 'A session-mode run stays status: running forever and never produces a
+    dispatch_result, because nothing polls it. Its captured output is only the launcher''s
+    banner, so the session''s actual work is unreachable from AgentJobs. Session mode
+    is the primary dispatch path, so dispatch can currently start work and then go
+    blind.'
+  intent: A dispatch that cannot be observed is a dispatch that cannot be trusted.
+    The record must settle on its own, and a human must be able to read what the agent
+    did without leaving the app.
+  description: 'Observed 2026-08-18 by Jeff in the review sandbox, and confirmed directly.
+
+
+    ## The evidence
+
+
+    Session `118facc2`, dispatched as `run_52c47791`, finished. At that moment:
+
+
+    | Source | State |
+
+    |---|---|
+
+    | `claude agents --json` | `status: idle`, `state: done` |
+
+    | `home/runs/run_52c47791/meta.yaml` | `status: running`, `outcome: None`, `finished_at:
+    None` |
+
+    | the React run row | "Running for 6m 47s", with Cancel offered |
+
+    | `stdout.log` | 249 bytes -- the launcher banner only |
+
+
+    The task never received a `dispatch_result` entry.
+
+
+    ## Cause 1 -- nothing schedules polling
+
+
+    `DispatchRunner.poll_session()` (`src/agentjobs/dispatch/runner.py:792`) is complete
+    and
+
+    correct: it classifies the session and acts on all four phases -- parks a permission
+
+    prompt into a `human`/`input` handoff, settles a finished session, records a
+
+    cancellation, and marks a vanished session interrupted. Its own docstring says
+    *"Called
+
+    by whatever schedules polling (task-072); this function decides, it does not loop."*
+
+
+    **Nothing calls it.** This is the same shape as the `reap_finished()` defect found
+    on
+
+    2026-08-18: implemented, tested, unscheduled. A unit test proves the decision
+    logic and
+
+    says nothing about whether the decision is ever made.
+
+
+    ## Cause 2 -- startup reconciliation checks presence, not phase
+
+
+    `DispatchLedger.reconcile()` (`src/agentjobs/dispatch/ledger.py:464`) is called
+    from the
+
+    API lifespan hook. For a live session run it looks the session up in the ledger
+    and, if
+
+    present, records *"session still running; re-attached"* and moves on. It never
+    inspects
+
+    `status`/`state`.
+
+
+    So a session that finished while AgentJobs was down is still listed by the session
+
+    manager, is therefore judged "still running", and stays `running` across every
+    subsequent
+
+    restart. **Restarting does not clear it.**
+
+
+    ## Cause 3 -- a session run''s stdout.log cannot contain the session''s work
+
+
+    `_start_session` writes the *launcher''s* stdout to `stdout.log`. Under `--bg`
+    that is the
+
+    backgrounding banner and nothing else; the session''s transcript lives in Claude
+    Code''s
+
+    own store. So "View output" on a session run is structurally unable to show what
+    the
+
+    agent did, and always will be, however long the run.
+
+
+    `DispatchRunner.transcript()` (`runner.py:746`) already shells out to
+
+    `<runner> logs <session_id>` and is already used to quote a parked session''s
+    terminal
+
+    into a ball prompt. The reader exists; the output route does not use it.'
+  constraints: '- `poll_session` decides; it must not grow a loop inside itself. The
+    scheduler is the new part.
+
+    - Polling must be idempotent and safe to run against a task whose ball moved for
+    unrelated reasons -- `_park_session` already keys on run state for this reason.
+
+    - Do not make the output route parse the transcript. `transcript()` is explicitly
+    rendering, not parsing, and no control flow may depend on its content.
+
+    - A failed or unreadable session lookup must not conclude that live work is dead.
+    `reconcile()` already refuses to do this on a ledger error; preserve that.
+
+    - Session and batch runs differ here on purpose. Do not unify their output handling
+    into something that degrades batch, whose stdout.log is genuinely the run''s output.'
+  out_of_scope: Cancelling or steering a session from the UI beyond what exists. Any
+    change to what a session is launched with. The elapsed-seconds defect (task-158)
+    and the dispatcher actor-id defect (task-159).
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: poll_session at 792 is the complete decision function nothing calls; transcript()
+      at 746 is the unused output reader.
+  - path: src/agentjobs/dispatch/ledger.py
+    why: reconcile() at 464 checks session presence but never phase, so restarts do
+      not settle a finished session.
+  - path: src/agentjobs/api/main.py
+    why: lifespan calls reconcile once at startup; the periodic poller belongs alongside
+      it.
+  - path: src/agentjobs/api/routes/dispatch.py
+    why: The run output route that currently serves only stdout.log.
+acceptance:
+- id: sc-1
+  text: 'A dispatched session that finishes on its own is observed without human action:
+    its run reaches a terminal status and its task receives a dispatch_result entry'
+  status: pending
+- id: sc-2
+  text: A session that parks on a permission prompt produces a human/input handoff
+    without anything else being triggered manually
+  status: pending
+- id: sc-3
+  text: Restarting AgentJobs settles a session that ended while it was down, rather
+    than reporting it re-attached and leaving it running forever
+  status: pending
+- id: sc-4
+  text: The run output surface shows a session run's actual transcript, not only the
+    launcher banner; batch runs still show their captured stdout unchanged
+  status: pending
+- id: sc-5
+  text: A ledger lookup that fails leaves live runs alone rather than concluding they
+    are dead
+  status: pending
+- id: sc-6
+  text: 'Verified end to end against a real dispatched session in the review sandbox:
+    dispatch, let it finish untouched, and confirm the UI reaches a terminal state
+    and shows the transcript'
+  status: pending
+deliverables:
+- path: src/agentjobs/api/main.py
+  note: Scheduled session polling
+  status: pending
+dependencies:
+- task: task-072-dispatch-ledger-cancel
+  type: related
+  note: Closed. Its scope named the scheduler poll_session refers to; the scheduler
+    was never built.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T21:53:32.107487Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: 1570aa11-2b33-4c55-8d77-e9f0a1b2c157
+      kind: create
+      fingerprint: 172defbb0682834da164675ff7a4078b
