@@ -1,0 +1,206 @@
+schema: 2
+id: task-137-embedded-helper-ui
+title: 'Embedded AgentJobs: drop the helper UI into an app you are building'
+created: '2026-08-18T05:51:57.001478Z'
+updated: '2026-08-18T05:51:57.002253Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- embedding
+- external-projects
+- issue-reporter
+- dispatch
+- react-frontend
+- developer-experience
+effort: multi-task program
+assignment:
+  eligible: []
+spec:
+  summary: 'A project that uses AgentJobs still has to leave its own app to use it.
+    Ship a drop-in React component so any project''s frontend carries an AgentJobs
+    launcher of its own: open this project''s backlog, adjust settings, and report
+    an issue that becomes a real task -- optionally with an agent already working
+    on it.'
+  intent: 'The moment a problem is cheapest to capture is the moment you see it, and
+    that moment happens in *your* app, not in AgentJobs. Task-120 made capture cheap
+    inside the AgentJobs UI. Every other project still routes the same observation
+    through chat or memory, which is the identical leak one level out.
+
+
+    Closing that loop inside the product being built is also the shortest demonstration
+    of what AgentJobs is for. Notice something while clicking around your own app,
+    file it without leaving the page, and have an agent working on it before you have
+    finished looking at the next screen. A tracker with an API can record the task;
+    what it cannot do is put the capture surface inside the app under development
+    and start the work from there.
+
+
+    The measure of this epic is integration cost, not feature count. If adopting the
+    widget in a new project takes an afternoon of wiring, projects will not adopt
+    it and the loop stays open.'
+  description: 'Implementation umbrella. It is finished by its children and must not
+    become a parallel implementation workstream.
+
+
+    ## The shape being built
+
+
+    A host project''s React app renders one component. That component puts a small
+    launcher on the page whose menu offers:
+
+
+    - **Open in AgentJobs** -- a deep link to this project''s page (`/app/p/<project>/tasks`),
+    with a count of what is open and what is waiting on the human, so the launcher
+    also serves as a reminder that a backlog exists.
+
+    - **Report issue** -- the same reporter the AgentJobs UI uses, capturing the host
+    page''s context (URL, route, whatever metadata the host chooses to pass) instead
+    of an AgentJobs route.
+
+    - **Start an agent on it** -- an optional toggle on the report form, offered only
+    when the server says dispatch is available for this project. This is the vibe-coding
+    loop: report and dispatch in one action.
+
+    - **Settings** -- where the widget points, who is reporting, and whether dispatch
+    is offered at all.
+
+
+    ## What this is and is not
+
+
+    It is a developer-facing, development-time affordance: the person running the
+    app is the person who owns the backlog. It is not an end-user feedback widget
+    for a shipped product, and the security posture child exists specifically so it
+    cannot quietly become one.
+
+
+    ## Children
+
+
+    - **task-138** decides how the code ships (npm package / server-served bundle
+    / iframe) before anything is built on top of the answer.
+
+    - **task-139** extracts the reporter from the AgentJobs app so there is one implementation,
+    not a fork.
+
+    - **task-140** makes the server callable from another app''s origin and adds the
+    single bootstrap call a widget needs.
+
+    - **task-141** builds the launcher, the project link, and the embedded report
+    flow.
+
+    - **task-142** settles the settings surface and reporter identity.
+
+    - **task-143** adds dispatch-on-report.
+
+    - **task-144** decides what an embedded surface may do, and from where.
+
+    - **task-145** drives integration cost down to one dependency and one component.
+
+    - **task-146** proves the whole loop from a real, non-AgentJobs host and writes
+    the guide.'
+  constraints: '- One reporter implementation, shared with the AgentJobs UI. A second
+    copy is a fork and will drift.
+
+    - The widget must never break the host app: no crashes, no unhandled rejections,
+    no console noise when no AgentJobs server is running, and no interference with
+    the host''s routing, styles, or keyboard handling.
+
+    - It must be inert or absent in a host''s production build unless that project
+    explicitly opts in, and must not be reachable from an origin nobody allowed.
+
+    - Task creation goes through the same managed API/TaskManager path as every other
+    task. No parallel issue store, ever.
+
+    - Dispatch is offered only when the server reports it available for the project;
+    the widget never invents or launches a runner itself.
+
+    - React 19 hosts are the target. Do not force a second copy of React, and do not
+    require React Router in the host.
+
+    - Integration cost is the acceptance measure, not an aspiration: one dependency
+    and one component.'
+  out_of_scope: '- Non-React hosts: plain script tag, web component, Vue, Svelte,
+    native or mobile SDKs.
+
+    - End-user feedback collection for shipped products, anonymous reporters, or ingestion
+    from the public internet.
+
+    - Embedding the full task board, dashboard, or dependency graph in a host app.
+
+    - The batch capture tray (task-121) on the embedded surface; single-issue reporting
+    first.
+
+    - Editing a project''s committed `.agentjobs/config.yaml` from a host app. Project
+    settings are edited in AgentJobs.
+
+    - Multi-tenant or hosted AgentJobs, and any authentication system beyond what
+    task-144 concludes is needed.'
+  context:
+  - path: frontend/src/components/IssueReporter.tsx
+    why: The reporter that must become host-agnostic; today it depends on react-router,
+      the app's query client, and the app's Tailwind classes.
+  - path: frontend/src/report/issueReport.ts
+    why: The existing seam that already separates request building from the component,
+      for exactly this reason.
+  - path: src/agentjobs/api/main.py
+    why: CORS allow_origins is a hardcoded four-entry list; every external host origin
+      fails preflight today.
+  - path: src/agentjobs/projects.py
+    why: The machine registry that maps a project id to a root, and the only place
+      an id becomes a path.
+  - path: tasks/agentjobs/task-120-issue-reporter-workflow.yaml
+    why: The in-app reporting epic this one extends outward; the same no-parallel-store
+      rule applies.
+  - path: tasks/agentjobs/task-060-agent-dispatch.yaml
+    why: The dispatch design this epic's dispatch-on-report child consumes rather
+      than reinvents.
+acceptance:
+- id: ac-1
+  text: Every child task is closed completed, with its acceptance evidence in its
+    own log.
+  status: pending
+- id: ac-2
+  text: A registered project that is not AgentJobs renders the launcher in its own
+    React app and, from its own page, opens its backlog, files a task that appears
+    in AgentJobs, and starts an agent on it.
+  status: pending
+- id: ac-3
+  text: docs/embedding.md takes a reader from an unmodified React app to a working
+    launcher without reading source, in one dependency and one component.
+  status: pending
+- id: ac-4
+  text: The AgentJobs UI's reporter and the embedded reporter are the same code --
+    there is no second implementation to delete.
+  status: pending
+- id: ac-5
+  text: With no AgentJobs server running, a host app loads and behaves normally and
+    the launcher explains itself rather than erroring.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-120-issue-reporter-workflow
+  type: related
+  note: In-app reporting; this epic takes the same flow outside AgentJobs' own UI.
+- task: task-060-agent-dispatch
+  type: related
+  note: Dispatch design; the report-and-dispatch child consumes its API rather than
+    reinventing it.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:51:57.001527Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: bc1306cf-8a80-4e9a-929f-8bd63ded5167
+      kind: create
+      fingerprint: e9c75990f5eeb7e10649c6a47281f96b

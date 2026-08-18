@@ -1,0 +1,124 @@
+schema: 2
+id: task-138-embed-distribution-decision
+title: Decide how the embedded UI reaches someone else's React app
+created: '2026-08-18T05:52:27.037445Z'
+updated: '2026-08-18T05:52:27.038171Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- embedding
+- architecture
+- react-frontend
+- decision
+effort: a design pass, then a spike that proves the choice
+assignment:
+  eligible: []
+parent: task-137-embedded-helper-ui
+spec:
+  summary: There are three defensible ways to get AgentJobs UI into a host project's
+    React app -- a published package, a bundle served by the running server, or an
+    iframe. Pick one with reasons and prove it consumable before anything is built
+    on top of the answer.
+  intent: 'Every other child of task-137 inherits this choice: where the component
+    lives, how it is versioned, how it is styled, and what happens when the host and
+    the server disagree about the API. Deciding it after building the widget means
+    rebuilding the widget.'
+  description: 'Evaluate at least these three, and record the rejected alternatives
+    rather than only the winner.
+
+
+    **1. A published npm package** built as a second Vite library entry from `frontend/`,
+    with React as a peer dependency. Idiomatic for a React host, typed, tree-shakeable,
+    versioned independently. Costs: a publish pipeline this repo does not have, and
+    a real version-skew surface -- the installed package and the server answering
+    its calls can disagree about the API shape.
+
+
+    **2. A bundle served by the running server** (`GET /embed/agentjobs.js`), mounted
+    by a small host-side shim or a custom element. Always version-matched to the server
+    that will answer its calls, no registry and no publish step, and it upgrades when
+    the server upgrades. Costs: the host''s dev build depends on a reachable server,
+    styling needs shadow DOM or equivalent isolation, and it is a less familiar shape
+    for a React codebase.
+
+
+    **3. An iframe** onto a purpose-built AgentJobs route. Near-total isolation and
+    almost no new code. Costs: page context has to cross a postMessage boundary anyway,
+    overlay sizing and focus are awkward, and it will never feel like part of the
+    host app.
+
+
+    Weigh at minimum: version skew between host and server; duplicate React copies
+    and the hook breakage that follows; Tailwind class collisions in both directions;
+    host CSP; behaviour when no server is running; and how the choice interacts with
+    the posture decided in task-144 (a served bundle makes the server the distribution
+    point, which is a security fact as well as a packaging one).
+
+
+    Produce a spike that proves the chosen mechanism: a throwaway React app *outside
+    this repository* consumes the artifact and renders a placeholder. A choice that
+    has not been consumed by a real host has not been proven.
+
+
+    Hand off to the human for the decision unless the spike makes one option clearly
+    dominant; either way the reasoning and the rejected options go in a `decision`
+    log entry on this task, because no later reader can recover them from the diff.'
+  constraints: '- The decision is recorded as a `decision` log entry naming the rejected
+    alternatives, not only as code.
+
+    - No production publishing to a public registry as part of this task; proving
+    consumability locally is enough.
+
+    - Whatever is chosen must not force a second React copy into the host bundle.
+
+    - Do not build the widget''s features here. This task ends at a placeholder that
+    proves the delivery mechanism.'
+  out_of_scope: The widget's actual UI, the reporter, settings, dispatch, and any
+    server-side change beyond what the spike needs to load.
+  context:
+  - path: frontend/package.json
+    why: Private, unversioned, single-app build today; a package or a second library
+      entry changes this file.
+  - path: src/agentjobs/api/spa.py
+    why: How the server already serves the bundled app -- the closest existing thing
+      to option 2.
+  - path: frontend/src/api/generated
+    why: The generated client is the version-skew surface any distributed package
+      inherits.
+acceptance:
+- id: ac-1
+  text: A decision log entry names the chosen mechanism, the reasoning, and each rejected
+    alternative with why it lost.
+  status: pending
+- id: ac-2
+  text: A React app outside this repository consumes the chosen artifact and renders
+    a placeholder launcher.
+  status: pending
+- id: ac-3
+  text: 'The version-skew story is stated explicitly: what happens when the host''s
+    widget and the server disagree about the API.'
+  status: pending
+- id: ac-4
+  text: The host app's bundle contains exactly one copy of React, verified rather
+    than assumed.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:52:27.037485Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 35d6f2c6-42e4-4561-a9ff-4f522aba8395
+      kind: create
+      fingerprint: 7cf5d664fdb5ccf38ed95ff96e4cf5a8

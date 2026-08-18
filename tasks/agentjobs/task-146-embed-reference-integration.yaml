@@ -1,0 +1,133 @@
+schema: 2
+id: task-146-embed-reference-integration
+title: Prove the loop from a real project that is not AgentJobs, then write the guide
+created: '2026-08-18T05:55:46.457033Z'
+updated: '2026-08-18T05:55:46.458190Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- embedding
+- documentation
+- verification
+- external-projects
+effort: 1 day
+assignment:
+  eligible: []
+parent: task-137-embedded-helper-ui
+spec:
+  summary: Embed the widget in a registered project's own React app, run the whole
+    loop from inside that app -- open the backlog, file an issue, start an agent on
+    it -- and write docs/embedding.md from what actually happened rather than from
+    what was intended.
+  intent: 'Everything in this epic can pass its own tests while remaining unusable
+    by a project that is not this one, because this repository has advantages a host
+    does not: the code, the styles, the routes, the server on a known port, and an
+    author who knows all of it. The only check that means anything is a different
+    project, a different repo, a different dev server, and a person following written
+    instructions.'
+  description: 'The host is `C:/projects/job-hunting/tools/triage/web` -- a React
+    app in a project already registered with AgentJobs and emphatically not this repository.
+    If it turns out to be a poor fit, any other registered project''s React frontend
+    serves, but the substitution and the reason go in this task''s log.
+
+
+    From inside that app, with its own dev server running:
+
+
+    1. See the launcher and the job-hunting backlog counts.
+
+    2. Open the job-hunting project in AgentJobs from the launcher.
+
+    3. File an issue about something on the page, and confirm it lands in the **job-hunting**
+    backlog with the page context captured.
+
+    4. Subject to task-144''s posture, dispatch an agent on it and confirm the run.
+
+
+    Record in this task''s log: the created task id in the job-hunting project, screenshots,
+    and everything that turned out to be friction -- each item either fixed here or
+    filed as its own task. Friction discovered and then forgotten is the failure this
+    child exists to prevent.
+
+
+    Then write `docs/embedding.md` from that session: install, mount, configure, what
+    it does, what it refuses to do, and the security posture in plain language. Index
+    it from `docs/index.md` and the README where the reader will look for it.
+
+
+    Finally, stand up a review server on its own port, with throwaway data and both
+    a reachable and an unreachable server state seeded, and hand it over with a URL
+    rather than a diff.'
+  constraints: '- The reported task goes in the host project''s backlog, not this
+    one. Clean up or clearly mark anything filed as a test.
+
+    - No AgentJobs-specific shortcut may be used to make the host work; if the host
+    needs something this repo has, that is a finding, not a workaround.
+
+    - Documentation is written from the session, not from the specs. Anything the
+    docs claim must have been done.
+
+    - Review is handed over as a running URL on its own port with throwaway data,
+    per the standing review rule.'
+  out_of_scope: Permanent adoption of the widget in the host project, changes to the
+    host project beyond what the integration needs, and marketing or launch material.
+  context:
+  - path: C:/projects/job-hunting/tools/triage/web
+    why: 'The reference host: a React app in a registered project that is not this
+      repository.'
+  - path: docs/index.md
+    why: Where the new embedding guide has to be indexed to be found.
+  - path: docs/quickstart.md
+    why: The tone and level of detail an integration guide should match.
+acceptance:
+- id: ac-1
+  text: The full loop is completed from a non-AgentJobs host app, with the created
+    task id, the dispatch record, and screenshots linked from this task's log.
+  status: pending
+- id: ac-2
+  text: docs/embedding.md exists, is indexed from docs/index.md and the README, and
+    takes a reader from an unmodified React app to a working launcher.
+  status: pending
+- id: ac-3
+  text: Every piece of friction found during the integration is either fixed in this
+    task or filed as its own task, listed in the log.
+  status: pending
+- id: ac-4
+  text: A review server is running on its own port with throwaway data and both server-reachable
+    and server-absent states, handed over as a URL.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-141-embed-launcher-and-project-link
+  type: needs
+  note: The launcher being integrated.
+- task: task-142-embed-settings-and-identity
+  type: needs
+  note: Configuration and reporter identity the integration exercises.
+- task: task-143-report-and-dispatch-from-host
+  type: needs
+  note: The dispatch step of the loop being proven.
+- task: task-144-embed-security-posture
+  type: needs
+  note: The posture the guide documents in plain language.
+- task: task-145-embed-zero-config-wiring
+  type: needs
+  note: The integration cost this task measures for real.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:55:46.457125Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 550226c8-8d54-4016-b005-809209b74372
+      kind: create
+      fingerprint: fc7f0a3796678f8bbea69770c1525e7c

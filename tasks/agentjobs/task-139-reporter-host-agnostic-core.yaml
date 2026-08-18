@@ -1,0 +1,123 @@
+schema: 2
+id: task-139-reporter-host-agnostic-core
+title: Lift the issue reporter out of the AgentJobs app so a host app can render it
+created: '2026-08-18T05:53:14.442257Z'
+updated: '2026-08-18T05:53:14.442959Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- embedding
+- issue-reporter
+- react-frontend
+- refactor
+effort: 1 day
+assignment:
+  eligible: []
+parent: task-137-embedded-helper-ui
+spec:
+  summary: The reporter is welded to react-router, the app's query client and its
+    Tailwind classes, none of which a host app has. Extract a host-agnostic core that
+    both the AgentJobs UI and the embedded widget render, so there is one reporter
+    rather than two that drift.
+  intent: The alternative to extraction is a second reporter written for the widget.
+    It would start identical and diverge on the first change -- different tags, different
+    context wording, different required fields -- and reported issues would stop being
+    one filterable population, which is the property task-120 built the flow around.
+  description: '`frontend/src/components/IssueReporter.tsx` currently calls `useLocation()`,
+    derives project and task by matching AgentJobs'' own `/p/:project/tasks/:task`
+    routes, mutates through the app''s generated tanstack hooks, and styles itself
+    with the app''s dark-theme Tailwind classes. A host app has no such routes, no
+    such query client, and its own styling.
+
+
+    Introduce the seams:
+
+
+    - **Context is supplied, not discovered.** The host passes where the reporter
+    was standing -- URL, route, and any metadata it chooses to attach. AgentJobs''
+    own UI keeps deriving that from the router and passes it in, so its behaviour
+    is unchanged. `frontend/src/report/issueReport.ts` already separates request building
+    for precisely this reason; extend the same seam up to the component.
+
+    - **The client and the project are inputs.** No importing app singletons from
+    inside the core.
+
+    - **No react-router import inside the core**, at any depth.
+
+    - **Styling that does not assume the app''s Tailwind build**, in whichever form
+    task-138''s decision requires.
+
+
+    Attachments come along: `AttachmentPicker` and `frontend/src/report/attachments.ts`
+    are part of the reporting flow and face the same coupling questions.
+
+
+    This is a refactor with no user-visible change in the AgentJobs UI. Keep it that
+    way -- if the app''s own reporter looks or behaves differently afterwards, something
+    was lost in the lift.'
+  constraints: '- One implementation. The AgentJobs UI must render the extracted core,
+    not a copy of it.
+
+    - Existing IssueReporter tests keep passing, or move with the code and keep asserting
+    the same behaviour.
+
+    - No behaviour change in the AgentJobs UI, including the derived project/task
+    context and the `reported-issue` tag.
+
+    - The core must mount in a test host with no router and no application query client,
+    and that must be a test.'
+  out_of_scope: The launcher, settings, dispatch, and the batch capture tray (task-121).
+    New reporter features of any kind -- this task moves code, it does not grow it.
+  context:
+  - path: frontend/src/components/IssueReporter.tsx
+    why: The component being lifted, and every coupling that has to be broken.
+  - path: frontend/src/report/issueReport.ts
+    why: The existing seam; its comment already anticipates a second caller.
+  - path: frontend/src/report/attachments.ts
+    why: Attachment handling that travels with the reporter.
+  - path: frontend/src/components/IssueReporter.test.tsx
+    why: The behaviour that must survive the move.
+acceptance:
+- id: ac-1
+  text: The AgentJobs UI's Report issue flow is rendered by the extracted core and
+    behaves identically, including derived project/task context and the reported-issue
+    tag.
+  verify: cd frontend && npm run test
+  status: pending
+- id: ac-2
+  text: The core mounts and submits in a test host with no react-router and no application
+    query client.
+  status: pending
+- id: ac-3
+  text: No react-router import is reachable from the core, verified by a check rather
+    than by inspection.
+  status: pending
+- id: ac-4
+  text: Attachments work from both the AgentJobs UI and a router-less host.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-138-embed-distribution-decision
+  type: needs
+  note: The packaging choice decides where the core lives and how it is styled.
+- task: task-120-issue-reporter-workflow
+  type: related
+  note: The in-app reporting epic whose single-population rule this preserves.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:53:14.442300Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: d4fac30f-be33-42a8-bd06-471f80e7a145
+      kind: create
+      fingerprint: 16ea914a7eb202013386e230085d2649

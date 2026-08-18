@@ -1,0 +1,110 @@
+schema: 2
+id: task-145-embed-zero-config-wiring
+title: 'One dependency and one component: make the widget wire itself up'
+created: '2026-08-18T05:55:19.053134Z'
+updated: '2026-08-18T05:55:19.053798Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: developer_experience
+tags:
+- embedding
+- developer-experience
+- vite
+- external-projects
+effort: half a day
+assignment:
+  eligible: []
+parent: task-137-embedded-helper-ui
+spec:
+  summary: A host project already has `.agentjobs/config.yaml` and is already in the
+    machine registry, so it should not have to be told its own project id and server
+    URL by hand. Discover what can be discovered at dev-server start, and count the
+    steps that remain.
+  intent: The epic's stated measure is integration cost. Every value a developer has
+    to look up and paste is a step where adoption stops, and all of these values are
+    already written down somewhere on the same machine. If the widget cannot configure
+    itself in a project that AgentJobs already knows about, the "easy" in the epic
+    title is not earned.
+  description: 'Provide dev-time wiring that reads what the machine already knows:
+    the host repo''s `.agentjobs/config.yaml` for the project, and the machine registry
+    for the server. A Vite plugin is the expected mechanism, since Vite is what this
+    project''s own frontend uses and what a React host most likely uses; an equivalent
+    documented mechanism is acceptable if it does the same job.
+
+
+    Requirements:
+
+
+    - Runs at dev-server start, injects project id and server base URL, and does **nothing**
+    in a production build -- it must not become the reason a widget ships to production.
+
+    - Falls back cleanly to explicit props when discovery fails, when the host is
+    not a registered project, or when the host repo has no `.agentjobs/config.yaml`.
+    Discovery is a convenience; explicit configuration always wins and the precedence
+    is task-142''s to define.
+
+    - Says why it could not discover something, once, rather than failing silently
+    or repeating on every reload.
+
+
+    Then measure. Take an unmodified React app and count the steps from nothing to
+    a working launcher. Record the count and the steps in this task. If it is more
+    than one dependency and one component, either fix that or state plainly why it
+    cannot be.'
+  constraints: '- The plugin must be inert in production builds, verified rather than
+    asserted.
+
+    - Never read outside the host repo and the machine registry, and never write to
+    either.
+
+    - Explicit host configuration always overrides discovery.
+
+    - The step count is recorded as evidence, not claimed.'
+  out_of_scope: Bundler support beyond Vite (webpack, Next.js, Remix, Parcel), CI
+    integration, and any change to the registry format.
+  context:
+  - path: src/agentjobs/projects.py
+    why: The machine registry and the AGENTJOBS_HOME override the plugin reads.
+  - path: .agentjobs/config.yaml
+    why: The per-project file a host repo already has.
+  - path: frontend/vite.config.ts
+    why: The project's own Vite setup, and the closest reference for plugin shape.
+acceptance:
+- id: ac-1
+  text: In a registered host project, the widget renders correctly with no server
+    URL or project id written anywhere in the host's source.
+  status: pending
+- id: ac-2
+  text: In an unregistered host, the widget still works from explicit props and explains
+    once why discovery did not apply.
+  status: pending
+- id: ac-3
+  text: A production build of a host app contains no trace of the plugin's injected
+    values, verified against the built output.
+  status: pending
+- id: ac-4
+  text: The steps from an unmodified React app to a working launcher are counted and
+    recorded in this task.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-141-embed-launcher-and-project-link
+  type: needs
+  note: The component whose configuration is being discovered.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:55:19.053171Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 09096d3d-db0d-427d-9a06-290e1b6dfc31
+      kind: create
+      fingerprint: d856db5eba78670156d0de2bb06bb62f

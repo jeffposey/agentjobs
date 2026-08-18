@@ -1,0 +1,119 @@
+schema: 2
+id: task-144-embed-security-posture
+title: Decide what an embedded surface may do, and from where
+created: '2026-08-18T05:53:36.558541Z'
+updated: '2026-08-18T05:53:36.559220Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- embedding
+- security
+- decision
+- dispatch
+effort: a written proposal, then a human decision
+assignment:
+  eligible: []
+parent: task-137-embedded-helper-ui
+spec:
+  summary: The API has no authentication. A widget that creates tasks and starts coding
+    agents makes both reachable from any page an allowed origin serves -- including,
+    if nobody decides otherwise, a production bundle or a tailnet address. Settle
+    the posture before the widget exists.
+  intent: 'Every other child of this epic is easier to build if this is answered and
+    much harder to retrofit if it is not. The specific hazard is not hypothetical:
+    this machine already publishes AgentJobs on a tailnet, so "reachable from a browser"
+    is not the same as "reachable only by the person at the keyboard", and the capability
+    being exposed is not reading a backlog -- it is starting an agent with write access
+    to a repository.'
+  description: 'Produce a written proposal with rejected alternatives, hand it to
+    the human for the decision, and record the answer as a binding `decision` entry.
+    Questions to settle:
+
+
+    - **Default posture.** Loopback-only development, with anything wider explicitly
+    opted into per project? Or something else, argued for.
+
+    - **Whether a widget authenticates at all**, and if so how: a per-project token
+    issued by AgentJobs and pasted into the host''s dev config, origin allowlist alone,
+    or nothing beyond loopback because loopback is already the trust boundary. Name
+    what each option actually defends against, and say plainly what it does not.
+
+    - **What stops the widget shipping in a production bundle by accident.** A build-mode
+    no-op, a required explicit flag, a documented guard, or all three. The failure
+    being designed against is a developer shipping their app with a control that files
+    tasks into a private backlog and starts agents on a workstation.
+
+    - **Whether dispatch is permitted from an embedded surface at all**, and under
+    what conditions. This is narrower than the general dispatch posture in task-076
+    and must not contradict it -- read that decision first and defer to it where they
+    overlap.
+
+    - **What happens when posture and configuration disagree.** Refuse loudly and
+    say why; never silently allow, and never silently drop the feature with no explanation.
+
+
+    This child gates any use beyond loopback and gates the dispatch toggle on the
+    report form.'
+  constraints: '- Read task-076''s recorded decision before proposing anything, and
+    do not relitigate it.
+
+    - The output is a decision entry with rejected alternatives, not only an implementation.
+
+    - Any mechanism proposed must be enforceable server-side. A client-side-only guard
+    is a comment, not a control.
+
+    - Do not invent an authentication framework for AgentJobs as a whole under cover
+    of this task; if the answer is that one is needed, that is a separate task and
+    this one says so.'
+  out_of_scope: A general authentication or multi-user system for AgentJobs, network-level
+    access control, and the widget's UI.
+  context:
+  - path: tasks/agentjobs/task-076-dispatch-permission-posture.yaml
+    why: The general dispatch permission decision this one must sit inside, not contradict.
+  - path: src/agentjobs/api/main.py
+    why: 'The whole of the current access model: a CORS list and nothing else.'
+  - path: docs/mobile-access.md
+    why: How this installation is already published beyond the local machine.
+acceptance:
+- id: ac-1
+  text: A decision entry records the default posture, the authentication answer, the
+    production-build guard, and whether dispatch is permitted from an embedded surface
+    -- each with its rejected alternative.
+  status: pending
+- id: ac-2
+  text: The decision is consistent with task-076's recorded posture, with any overlap
+    called out explicitly.
+  status: pending
+- id: ac-3
+  text: Every proposed control is enforceable server-side, stated per control.
+  status: pending
+- id: ac-4
+  text: 'The misconfiguration failure mode is specified: what is refused, what the
+    operator sees, and why.'
+  status: pending
+deliverables: []
+dependencies:
+- task: task-140-embed-server-surface
+  type: needs
+  note: The origin-allowlist mechanism this decision configures.
+- task: task-076-dispatch-permission-posture
+  type: related
+  note: The general dispatch posture this narrower decision must sit inside.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:53:36.558581Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 687e06cf-a27a-4192-b6b4-6474cc755355
+      kind: create
+      fingerprint: f4e3aae6a541db0da67bc08a06bcc0c2

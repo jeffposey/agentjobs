@@ -1,0 +1,111 @@
+schema: 2
+id: task-140-embed-server-surface
+title: Make the server callable from another app's origin, in one bootstrap request
+created: '2026-08-18T05:52:46.781447Z'
+updated: '2026-08-18T05:52:46.782419Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- embedding
+- api
+- cors
+- external-projects
+effort: half a day
+assignment:
+  eligible: []
+parent: task-137-embedded-helper-ui
+spec:
+  summary: CORS is a hardcoded list of four localhost origins, and there is no single
+    call that tells an embedded client what it needs to render. Make the allowlist
+    configurable and add the one request a widget makes to bootstrap itself.
+  intent: A host app on any port other than 5173 or 8765 fails preflight before it
+    sends its first request, so today no external project can talk to AgentJobs from
+    a browser at all. And a widget that has to make four calls to draw a launcher
+    is a widget that makes a host app slower to load, which is the fastest way to
+    get it removed.
+  description: 'Two changes, plus the failure mode.
+
+
+    **Configurable origins.** `src/agentjobs/api/main.py` hardcodes `http://localhost:8765`,
+    `http://127.0.0.1:8765`, `http://localhost:5173`, `http://127.0.0.1:5173`. Make
+    the allowlist configurable -- machine-level config and/or environment -- while
+    defaulting to loopback so nothing widens by accident. `allow_credentials` is True,
+    so a wildcard is not available and should not be introduced. What may be configured,
+    and by whom, is constrained by task-144; ship the mechanism here and let that
+    decision set the default.
+
+
+    **One bootstrap call.** Add the single endpoint an embedded client hits on mount,
+    returning everything the launcher needs: the project''s display name, the AgentJobs
+    UI base URL to deep-link into, the categories/tags/actors the report form must
+    offer, the counts the badge shows, and whether dispatch is available for this
+    project. One round trip, and cheap in task parses -- a widget that costs a host
+    app a full corpus load per page view is not shippable. State the parse count as
+    evidence, not the millisecond figure.
+
+
+    **The absent server is a normal state, not an error.** A host app runs whether
+    or not anyone started AgentJobs. Network failure, a refused connection, and a
+    wrong base URL must all resolve to a defined result the widget can render, with
+    a test for each. Nothing here may throw into a host app''s error boundary.'
+  constraints: '- Default stays loopback-only; widening is explicit configuration,
+    never a default.
+
+    - No wildcard origin while `allow_credentials` is True.
+
+    - The bootstrap response is one request and is measured in task parses, per the
+    performance work.
+
+    - Reuse existing project registry and config resolution; do not add a second path
+    from project id to disk.'
+  out_of_scope: Authentication and tokens (task-144 decides whether any exist), the
+    widget itself, and dispatch invocation.
+  context:
+  - path: src/agentjobs/api/main.py
+    why: The hardcoded CORS allowlist and the measurement headers.
+  - path: src/agentjobs/api/routes/projects.py
+    why: Existing project-scoped responses the bootstrap payload should compose from
+      rather than duplicate.
+  - path: src/agentjobs/projects.py
+    why: Registry resolution from project id to root; the only place an id becomes
+      a path.
+  - path: docs/performance.md
+    why: The parse-count discipline this endpoint's evidence must follow.
+acceptance:
+- id: ac-1
+  text: A browser page on a configured non-default origin completes a preflight and
+    creates a task; an unconfigured origin is refused.
+  verify: poetry run pytest tests/test_api.py
+  status: pending
+- id: ac-2
+  text: The bootstrap endpoint answers in one request with project name, UI link target,
+    form vocabulary, counts, and dispatch availability.
+  status: pending
+- id: ac-3
+  text: Its task-parse count is recorded and does not grow with corpus size beyond
+    a stated bound.
+  status: pending
+- id: ac-4
+  text: Server down, connection refused, and wrong base URL each produce a defined
+    client-visible state, each with a test.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:52:46.781489Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 646321c8-5844-43bd-8924-892234300fb9
+      kind: create
+      fingerprint: 95ea20df26a31e3840928937f23e1458

@@ -1,0 +1,138 @@
+schema: 2
+id: task-141-embed-launcher-and-project-link
+title: 'The launcher: open this project''s backlog, or report what you just saw'
+created: '2026-08-18T05:54:07.296935Z'
+updated: '2026-08-18T05:54:07.297636Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- embedding
+- react-frontend
+- issue-reporter
+- gui
+effort: 1-2 days
+assignment:
+  eligible: []
+parent: task-137-embedded-helper-ui
+spec:
+  summary: 'The visible piece of the epic. One component a host app renders, putting
+    a small AgentJobs launcher on every page of that app: a link into this project''s
+    backlog, and Report issue with the host page''s context already captured.'
+  intent: This is the whole promise of the epic in one control. Everything before
+    it is groundwork; everything after it is extension. If the launcher is intrusive,
+    ugly in a host app's own design, or fragile when the server is down, the projects
+    it is meant to serve will delete it and go back to chat.
+  description: 'Build the component a host app mounts once -- shape and import path
+    per task-138''s decision, but conceptually `<AgentJobs project="..." server="..."
+    />`.
+
+
+    **The launcher.** Small, unobtrusive, positioned so it does not fight the host''s
+    own layout, and dismissible. It carries a count -- open tasks, and how many are
+    waiting on the human -- because its second job is to remind you a backlog exists
+    while you are looking at something else.
+
+
+    **Open in AgentJobs.** Deep link to `/app/p/<project>/tasks` on the configured
+    server, opened in a new tab so the host app''s state survives. The base URL comes
+    from task-140''s bootstrap rather than being assembled by hand in the widget.
+
+
+    **Report issue.** Mount task-139''s extracted core with context from the host
+    page: the URL, the route if the host offers one, and any metadata the host passed
+    to the component. A task created here is a normal task in that project''s backlog
+    with the same `reported-issue` tag as one filed from the AgentJobs UI, and confirmation
+    links to it.
+
+
+    **Style isolation, both directions.** The widget must look deliberate without
+    inheriting the host''s typography and without leaking its own styles into the
+    host. Whether that is shadow DOM, scoped classes, or something else follows from
+    task-138.
+
+
+    **Degradation.** With no server reachable, the launcher still renders, says what
+    is wrong in one line, and offers nothing that will fail. No thrown errors, no
+    unhandled rejections, no console noise, and no interference with the host''s routing
+    or keyboard handling.
+
+
+    Stand up a review server on its own port with seeded throwaway data and both states
+    -- server reachable and server absent -- so the change can be looked at rather
+    than read.'
+  constraints: '- The reporter is task-139''s core. No second implementation, no widget-only
+    fork of the form.
+
+    - Never mutate the host''s global styles, document listeners, or history; clean
+    up everything on unmount.
+
+    - Keyboard accessible and Escape-dismissible; focus returns where it came from.
+
+    - No polling loop that keeps a host app''s tab busy; refresh counts on open, not
+    on a timer.
+
+    - The deep-link base URL comes from the bootstrap response, not from string assembly
+    in the client.'
+  out_of_scope: Settings (task-142), dispatch (task-143), zero-config discovery (task-145),
+    and embedding any other AgentJobs view.
+  context:
+  - path: frontend/src/components/IssueReporter.tsx
+    why: The existing launcher-and-dialog pattern in AgentJobs' own UI, and the placement
+      reasoning in its header comment.
+  - path: frontend/src/components/ConnectionUnavailable.tsx
+    why: How the app already expresses an unreachable server, so the widget's version
+      reads consistently.
+  - path: frontend/src/components/TaskCount.tsx
+    why: Existing count presentation to reuse rather than reinvent.
+acceptance:
+- id: ac-1
+  text: 'A React app containing no AgentJobs code of its own renders the launcher
+    and completes all three actions: see counts, open the project in AgentJobs, file
+    an issue.'
+  status: pending
+- id: ac-2
+  text: An issue filed from the host app appears as a normal task in that project's
+    backlog, tagged reported-issue, carrying the host page's URL.
+  status: pending
+- id: ac-3
+  text: Host styles are unchanged by the widget and the widget is unaffected by host
+    styles, demonstrated in a host with aggressive global CSS.
+  status: pending
+- id: ac-4
+  text: With the server stopped, the host app loads normally, the launcher explains
+    itself, and the console is clean.
+  status: pending
+- id: ac-5
+  text: Reachable and unreachable states are both viewable on a review server on its
+    own port with throwaway data.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-138-embed-distribution-decision
+  type: needs
+  note: Delivery mechanism and styling approach.
+- task: task-139-reporter-host-agnostic-core
+  type: needs
+  note: The reporter this mounts.
+- task: task-140-embed-server-surface
+  type: needs
+  note: CORS from the host origin, and the bootstrap payload the launcher renders
+    from.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:54:07.296976Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 2bc2f6cd-8e7d-40b6-9e73-f5c5f4b83749
+      kind: create
+      fingerprint: e3ee6f2b3dc82a62238dd8d432eaecf5

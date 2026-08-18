@@ -1,0 +1,119 @@
+schema: 2
+id: task-143-report-and-dispatch-from-host
+title: Start an agent on it without leaving the app you are building
+created: '2026-08-18T05:54:55.902846Z'
+updated: '2026-08-18T05:54:55.903705Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- embedding
+- dispatch
+- issue-reporter
+- workflow
+effort: 1 day
+assignment:
+  eligible: []
+parent: task-137-embedded-helper-ui
+spec:
+  summary: The report form grows an optional "start an agent on this now". Filing
+    becomes dispatching, so the path from noticing a problem in your own app to an
+    agent working on it never leaves the page you noticed it on.
+  intent: This is the part of the epic that is not achievable with any other tracker.
+    Recording an issue from inside your app is a convenience; turning that same action
+    into a running agent, in the right repository, with the context of the page you
+    were looking at, is the loop AgentJobs exists to close. Everything else in this
+    epic is scaffolding for this control.
+  description: 'When task-140''s bootstrap reports that dispatch is available for
+    this project -- and task-144''s posture permits it from an embedded surface --
+    the report form offers a toggle.
+
+
+    Submitting with the toggle on creates the task through the normal managed path
+    and then dispatches it through the dispatch API from task-071. The response must
+    give the widget enough to say the run started and to link to it in AgentJobs,
+    so the reporter can watch or cancel rather than wondering.
+
+
+    **Creation and dispatch are two outcomes, not one.** If dispatch fails, the task
+    still exists and the widget says so plainly, with the reason and a link to the
+    task. Silently discarding a report because a runner would not start is the worst
+    possible failure here: it teaches the user that filing is unreliable, and the
+    epic''s premise is that filing must be more reliable than remembering.
+
+
+    The widget never launches a runner itself, never bypasses the dispatch guard layer,
+    and never invents a runner configuration. It asks the server, which already knows
+    how.
+
+
+    Auto-dispatch (task-074) is a separate mechanism: this toggle is a per-report
+    choice and does not imply, enable, or depend on it.'
+  constraints: '- The toggle is absent, not merely disabled, when dispatch is unavailable
+    or the posture forbids it from this surface. A disabled control invites a support
+    question that has no answer.
+
+    - Dispatch goes through the existing dispatch API and its guards; no new invocation
+    path.
+
+    - A failed dispatch leaves a created task and an explicit, reported failure state.
+
+    - No new dispatch configuration surface in the widget; runners are configured
+    where they already are.'
+  out_of_scope: Auto-dispatch on approval (task-074), run monitoring or log streaming
+    in the host app beyond a link, cancellation UI, and any change to how runners
+    are configured.
+  context:
+  - path: tasks/agentjobs/task-071-dispatch-api-guards.yaml
+    why: The endpoint and guard layer this consumes.
+  - path: tasks/agentjobs/task-072-dispatch-ledger-cancel.yaml
+    why: The run record the widget links to.
+  - path: docs/agent-dispatch-design.md
+    why: The dispatch design this must not reinvent.
+acceptance:
+- id: ac-1
+  text: From a host app, a reported issue arrives as a task whose log records a dispatch,
+    with a run visible in AgentJobs.
+  status: pending
+- id: ac-2
+  text: A dispatch failure leaves the created task intact and reports the reason with
+    a link to it.
+  status: pending
+- id: ac-3
+  text: The toggle is absent when the server reports dispatch unavailable, and absent
+    when the posture forbids it from an embedded surface.
+  status: pending
+- id: ac-4
+  text: No code path in the widget starts a process or reads runner configuration.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-141-embed-launcher-and-project-link
+  type: needs
+  note: The report flow this toggle lives on.
+- task: task-144-embed-security-posture
+  type: needs
+  note: Whether dispatch from an embedded surface is permitted at all.
+- task: task-071-dispatch-api-guards
+  type: needs
+  note: The dispatch endpoint and guard layer this calls.
+- task: task-074-auto-dispatch
+  type: related
+  note: A separate mechanism; this toggle neither implies nor depends on it.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:54:55.902907Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 10c0124b-9c28-49d9-8899-4f6558d9d217
+      kind: create
+      fingerprint: f0787331627075df4cfc6a99ffa88665

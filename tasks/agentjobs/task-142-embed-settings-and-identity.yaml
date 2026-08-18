@@ -1,0 +1,126 @@
+schema: 2
+id: task-142-embed-settings-and-identity
+title: Settings for the embedded widget, and who the host app says is reporting
+created: '2026-08-18T05:54:36.235002Z'
+updated: '2026-08-18T05:54:36.235677Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: developer_experience
+tags:
+- embedding
+- settings
+- identity
+- react-frontend
+effort: 1 day
+assignment:
+  eligible: []
+parent: task-137-embedded-helper-ui
+spec:
+  summary: The widget needs a settings panel, and the interesting part is deciding
+    which settings belong to the widget and which belong to the project's committed
+    config in AgentJobs. Also settle how a host app -- which has no AgentJobs session
+    -- says who is reporting.
+  intent: Without a settings surface, every change of server URL, project, or reporter
+    identity is a host-app code change and a rebuild, which makes the widget feel
+    like configuration rather than a tool. Without an identity answer, every task
+    filed from a host app is from nobody in particular, and the actor field -- which
+    the whole handoff model runs on -- becomes noise.
+  description: '**Split the settings, and record why.** The proposal to evaluate:
+
+
+    *Widget-local, persisted by the host browser:* server base URL, project id, who
+    is reporting, whether the dispatch control is offered at all, launcher placement,
+    and hide-for-this-session.
+
+
+    *Project-level, and not editable from here:* categories, tags, actors, dispatch
+    runners -- these live in the project''s committed `.agentjobs/config.yaml` and
+    are edited in AgentJobs. The panel shows them read-only and links out.
+
+
+    The reasoning to record either way: a panel that writes a project''s committed
+    config from a browser running some other application has a much larger blast radius
+    than this epic wants, and the edit already has a good home.
+
+
+    **Identity.** A host app has no AgentJobs session and no login. Decide how the
+    reporter is named: configured once at integration time by the host, remembered
+    locally by the widget on first use, or read from the project''s `default_user`.
+    Say what happens when the configured actor is not in the project''s vocabulary
+    -- refusing at report time, after the reporter has typed everything, is the wrong
+    moment. This overlaps task-064; read it and stay consistent with it.
+
+
+    **Precedence must be legible.** Props from the host, discovered values (task-145),
+    and locally saved settings can all disagree. Define the order once, show the effective
+    value in the panel, and say where it came from -- a widget pointing at the wrong
+    project without telling you is a hard bug to see.'
+  constraints: '- No writes to a project''s `.agentjobs/config.yaml` from an embedded
+    surface.
+
+    - Settings persist per host origin, so two host apps on one machine do not overwrite
+    each other.
+
+    - Changing server or project takes effect without a host rebuild.
+
+    - Never persist anything secret in host browser storage; if task-144''s decision
+    introduces a token, its storage is that decision''s to specify, not this task''s
+    to improvise.
+
+    - The effective configuration and its source are visible in the panel.'
+  out_of_scope: Editing project configuration, an AgentJobs-wide user or login system,
+    and per-user preferences inside AgentJobs' own UI.
+  context:
+  - path: tasks/agentjobs/task-064-human-actor-identity.yaml
+    why: The existing identity work this must stay consistent with.
+  - path: .agentjobs/config.yaml
+    why: The project-level settings that stay committed and are shown read-only.
+  - path: src/agentjobs/projects.py
+    why: Actor vocabulary and default_user resolution.
+acceptance:
+- id: ac-1
+  text: A decision entry records which settings are widget-local and which stay project-level,
+    with the rejected alternative.
+  status: pending
+- id: ac-2
+  text: Settings survive a reload in the host app and are scoped per host origin.
+  status: pending
+- id: ac-3
+  text: Changing server or project in the panel repoints the widget with no host rebuild.
+  status: pending
+- id: ac-4
+  text: Project config is shown read-only with a working link into AgentJobs.
+  status: pending
+- id: ac-5
+  text: An actor not in the project vocabulary is caught and explained before the
+    reporter has typed a report, not after.
+  status: pending
+- id: ac-6
+  text: The panel shows the effective server and project and where each value came
+    from.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-141-embed-launcher-and-project-link
+  type: needs
+  note: The launcher this panel opens from.
+- task: task-064-human-actor-identity
+  type: related
+  note: Identity model the reporter field must stay consistent with.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T05:54:36.235041Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: bf187e06-7762-4633-9cda-3edc54e80f84
+      kind: create
+      fingerprint: 3ca9ad3bf2ff0b4ffa4b7d3b431ac464
