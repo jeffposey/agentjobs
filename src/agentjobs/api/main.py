@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from fastapi import Depends, FastAPI
@@ -11,6 +12,7 @@ from fastapi.responses import JSONResponse
 from starlette import status
 
 from agentjobs.__version__ import __version__
+from agentjobs.instrumentation import reset_task_parses, task_parse_count
 from agentjobs.projects import ProjectError
 from agentjobs.storage import TaskLoadError
 
@@ -37,6 +39,36 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+MEASUREMENT_HEADER = "X-Response-Time-Ms"
+PARSE_COUNT_HEADER = "X-Task-Parses"
+
+
+@app.middleware("http")
+async def measure_request(request: Any, call_next: Any) -> Any:
+    """Report how long a request took and how many task files it parsed.
+
+    Two headers, on every response:
+
+    - ``X-Response-Time-Ms`` -- wall time inside the application.
+    - ``X-Task-Parses`` -- task files read and parsed from disk while serving it.
+
+    The parse count is the more useful of the two. It says *why* a request was slow
+    without attaching a profiler, and unlike a millisecond figure it means the same
+    thing on a fast laptop and a loaded CI box: a request that parses a 112-file
+    corpus four times is doing four times too much work on any hardware.
+
+    The counter is reset per request rather than read as a running total, because a
+    long-lived server would otherwise report a number that only ever grows.
+    """
+    reset_task_parses()
+    started = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    response.headers[MEASUREMENT_HEADER] = f"{elapsed_ms:.1f}"
+    response.headers[PARSE_COUNT_HEADER] = str(task_parse_count())
+    return response
+
+
 app.add_middleware(
     CORSMiddleware,
     # Origins stay explicit: the browser rejects "*" when allow_credentials is True.
@@ -50,6 +82,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Without this the browser hides the measurement headers from page scripts, so a
+    # frontend served from the Vite dev server could not read its own timings.
+    expose_headers=[MEASUREMENT_HEADER, PARSE_COUNT_HEADER],
 )
 
 
