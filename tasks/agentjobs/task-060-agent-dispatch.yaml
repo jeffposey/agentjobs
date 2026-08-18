@@ -2,7 +2,7 @@ schema: 2
 id: task-060-agent-dispatch
 title: 'Close the loop: make a human decision actually start an agent (design pass)'
 created: '2026-08-10T07:40:19Z'
-updated: '2026-08-18T04:36:11.073300Z'
+updated: '2026-08-18T06:27:09.852610Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -553,3 +553,61 @@ log:
       id: 3c9e5a80-71d4-4b62-8f39-e0a4c517d296
       kind: log_append
       fingerprint: 8ac7c3e050b98ac09d5713409f68b8b5
+- id: 11
+  ts: '2026-08-18T06:27:09.852379Z'
+  actor: Jeff Posey
+  type: instruction
+  body: "# AUTONOMY GRANT for the dispatch chain \u2014 Jeff, 2026-08-18 ~01:20\n\n\
+    **Read this before working any child of task-060.** It overrides a documented\
+    \ rule, deliberately and with scope.\n\n## What Jeff granted, in his words\n\n\
+    > \"override the rule of not merging without human approval for these, or the\
+    \ overnight doesn't work\"\n\n## Scope\n\nApplies to the open children of task-060:\
+    \ **task-068, task-069, task-070, task-071, task-072, task-073, task-074**, and\
+    \ the adjacent 075 / 078 / 080-dispatch-model-profiles.\n\nFor these tasks only,\
+    \ and for this run: **an agent may merge its own branch without waiting for human\
+    \ review.** ENGINEERING.md's merge gate (\"wait for explicit human approval; absence\
+    \ of objection is not approval\") is suspended for this set.\n\nEverything else\
+    \ in the merge gate still applies and is not optional:\n\n- Branch (in a worktree)\
+    \ before work, `--no-ff` merge, mark the branch merged, close the task.\n- **Tests\
+    \ green before every commit.** The grant covers the *approval* step, not the *verification*\
+    \ step. Merging red is not authorised by anything here.\n- Task records still\
+    \ go to `main`, never to a feature branch.\n- One logical change per commit; stage\
+    \ explicit paths, never `git add -A`.\n\n## What is NOT granted\n\n- No force-push,\
+    \ no history rewriting on `main`, no `git push` to any remote. Pushing was never\
+    \ part of this and Jeff has a standing rule that merge approval does not carry\
+    \ push approval.\n- No deleting or overwriting anything not easily recoverable.\n\
+    - This does not extend to tasks outside the list above. A different task still\
+    \ needs its own review.\n\n## The escalation Jeff described, and its current state\n\
+    \nHe said he would be checking for \"an hour or so\" and would then say **\"go\
+    \ full autonomous\"** as a separate message. As of this entry that message has\
+    \ **not** been sent.\n\nSo the working posture right now is: **merge freely within\
+    \ the scope above, and still surface questions and decisions early** \u2014 his\
+    \ words: \"ask questions early and for feedback early as new shit comes to light.\"\
+    \ Do not batch discoveries until morning. When something genuinely changes the\
+    \ plan, put it in the task record and say so.\n\nIf and when he sends the full-autonomous\
+    \ message, that removes the expectation of surfacing things in real time. It does\
+    \ not widen the scope above.\n\n## Why this is recorded here rather than left\
+    \ in chat\n\nThe chat session that produced it is enormous and will not survive.\
+    \ A successor agent reading task-068 has no way to know a human suspended the\
+    \ merge gate unless it is in the record. Per ALLAGENTS, an authorisation that\
+    \ governs how work proceeds is durable state, not conversation."
+  data:
+    granted_by: Jeff Posey
+    scope:
+    - task-068-dispatch-config
+    - task-069-dispatch-log-entries
+    - task-070-dispatch-runner
+    - task-071-dispatch-api-guards
+    - task-072-dispatch-ledger-cancel
+    - task-073-dispatch-gui
+    - task-074-auto-dispatch
+    - task-075-agent-worktree-isolation
+    - task-078-agent-loops
+    - task-080-dispatch-model-profiles
+    suspends: ENGINEERING.md merge gate human approval
+    still_required: tests green, worktree, --no-ff, task records on main, no push
+    full_autonomous_signal_received: false
+    operation:
+      id: e17c3a95-4b28-4f60-9d31-8a25c07e4b13
+      kind: log_append
+      fingerprint: 81d615adc567374b0a9267edab9fcffd

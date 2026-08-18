@@ -1,0 +1,140 @@
+schema: 2
+id: task-018
+title: A parent can close while its children are open, and nothing can reopen it
+created: '2026-08-18T06:27:57.132450Z'
+updated: '2026-08-18T06:27:57.133172Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: correctness
+tags:
+- schema
+- correctness
+- workflow
+effort: half a day, once the reopen question is decided
+assignment:
+  eligible: []
+spec:
+  summary: "task-060 is `closed`/`completed` with ten open children. Nothing prevented\
+    \ that close, nothing flags it now, and there is no verb to undo it \u2014 `claim`\
+    \ refuses a closed task, so the umbrella for the largest active effort in the\
+    \ corpus cannot be reopened at all."
+  intent: A parent's state should tell the truth about whether the effort under it
+    is finished.
+  description: "Found by Jeff on 2026-08-18 at ~01:20, looking for the dispatch epic\
+    \ and finding it marked Done. In his words: *\"it shouldn't be Done ... you never\
+    \ should have set a parent task done when it had children, there should be automatic\
+    \ rules against it.\"*\n\n## What is wrong\n\n`task-060-agent-dispatch` is `lifecycle:\
+    \ closed`, `outcome: completed`. It has **ten open children** (068\u2013075, 078,\
+    \ 080-dispatch-model-profiles). The API reports this plainly \u2014 `open_children_count:\
+    \ 10` on a closed task \u2014 so the data to catch it is already there and nothing\
+    \ acts on it.\n\nThree distinct defects, and the third is the one that hurts:\n\
+    \n1. **Closing was not prevented.** ALLAGENTS.md already establishes that a parent\
+    \ is not *claimable* while a child is open. The symmetric rule \u2014 a parent\
+    \ is not *closable* while a child is open \u2014 does not exist. It was closed\
+    \ on 2026-08-11 when only its design deliverable was done.\n2. **It is not flagged.**\
+    \ No view, list or dashboard surfaces \"closed parent, open children\". A grooming\
+    \ note on task-060 (log entry 10, 2026-08-18) had already spotted this and deliberately\
+    \ left it alone rather than restructuring unilaterally. It then cost Jeff real\
+    \ time looking for the epic and concluding, sarcastically, that the work was already\
+    \ finished.\n3. **There is no way back.** `task_claim` on a closed task returns\
+    \ `invalid_transition: not available to claim (it is completed)`. The verb set\
+    \ is claim / handoff / release / close / promote, and **none of them moves a closed\
+    \ task back to open.** So the umbrella for the largest active effort in the corpus\
+    \ is permanently stuck reading Done. Verified 2026-08-18.\n\n## Scope\n\n**Prevent\
+    \ it.** Refuse `close` when the task has open children, the way claim is already\
+    \ refused. The error should name the open children rather than saying \"not allowed\"\
+    .\n\n**Allow the escape hatch, deliberately.** A blanket refusal is wrong on its\
+    \ own: a parent whose remaining children were abandoned should still be closable.\
+    \ Consider an explicit force with a required reason, recorded as a log entry,\
+    \ rather than a silent bypass.\n\n**Add a reopen path.** This is the part with\
+    \ a real design question in it, and it should be argued rather than assumed \u2014\
+    \ see below.\n\n**Fix the existing record.** task-060 must end up accurately representing\
+    \ an in-flight effort with ten open children.\n\n## Argue this before building\n\
+    \n**Is `reopen` a new verb, or is closing simply reversible by `claim`?** Both\
+    \ have costs. A dedicated `reopen` keeps the verb set honest about what happened\
+    \ and gets its own log entry with a reason \u2014 consistent with how every other\
+    \ axis moves. Making `claim` accept a closed task is fewer concepts but silently\
+    \ erases the distinction between \"this was never finished\" and \"this was finished\
+    \ and has been reopened\", which is exactly the kind of history the log exists\
+    \ to preserve.\n\nAlso decide: does reopening a parent require anything of its\
+    \ children, and what `outcome` does a reopened task carry \u2014 cleared, or retained\
+    \ until it closes again?\n\n## Related\n\n- **task-100-dependency-cycle-deadlock**\
+    \ \u2014 the same family: a state the schema permits, that nothing detects, that\
+    \ strands work silently.\n- **task-105** \u2014 task-number collisions, another\
+    \ corpus-integrity defect found the same night.\n- ALLAGENTS.md's umbrella non-claimability\
+    \ rule (task-045) is the precedent this should mirror."
+  constraints: '- State moves only through the manager verbs. If reopening is the
+    answer, it is a verb with its own log entry, not a YAML edit and not a special
+    case inside another verb.
+
+    - Do not silently reopen or restructure task-060 as a side effect of fixing the
+    rule. Fixing the record is in scope; doing it without a log entry saying why is
+    not.
+
+    - The refusal must name the open children. "Cannot close" without saying what
+    is blocking it reproduces the original problem one level up.
+
+    - Keep the deliberate-close escape hatch. A parent whose children were abandoned
+    must still be closable by someone who means it.'
+  out_of_scope: Reworking the parent/child model itself, or introducing multi-parent
+    tasks. This is about a state transition being permitted that should not be, and
+    being irreversible when it should not be.
+  context:
+  - path: src/agentjobs/manager.py
+    why: Where close lives, and where claim already refuses an umbrella with open
+      children -- mirror that.
+  - path: ALLAGENTS.md
+    why: The umbrella non-claimability rule this should be symmetric with.
+  - path: tasks/agentjobs/task-060-agent-dispatch.yaml
+    why: The instance. Log entry 10 predicted this exact problem and left it; entry
+      11 is the autonomy grant that must survive any correction.
+acceptance:
+- id: sc-1
+  text: Closing a task with open children is refused, and the error names the open
+    children
+  status: pending
+- id: sc-2
+  text: A deliberate override exists, requires a stated reason, and records that reason
+    in the log
+  status: pending
+- id: sc-3
+  text: A decision entry records whether reopen is a new verb or a relaxation of claim,
+    with the rejected option and its reasoning, plus what happens to `outcome` on
+    reopen
+  status: pending
+- id: sc-4
+  text: A closed task can be returned to an open lifecycle through a manager verb,
+    with a log entry attributing it
+  status: pending
+- id: sc-5
+  text: task-060 is corrected to accurately represent an in-flight effort, with a
+    log entry explaining the correction
+  status: pending
+- id: sc-6
+  text: A closed-parent-with-open-children state is detectable -- a test asserts the
+    manager refuses to create one, and existing instances are reportable rather than
+    only visible by reading each record
+  status: pending
+deliverables: []
+dependencies:
+- task: task-100-dependency-cycle-deadlock
+  type: related
+  note: 'Same family of defect: a schema-permitted state that nothing detects and
+    that strands work.'
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T06:27:57.132494Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: b8710e5c-4f92-4a36-b0d7-6e2915043fc8
+      kind: create
+      fingerprint: 5b88e0e0b7d3989bad958af7064ff7b9
