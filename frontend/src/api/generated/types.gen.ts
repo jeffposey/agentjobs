@@ -467,6 +467,69 @@ export type DependencyRelation = {
 export type DependencyType = 'needs' | 'blocks' | 'related';
 
 /**
+ * DispatchRequestBody
+ *
+ * Ask AgentJobs to start an agent on this task.
+ *
+ * There is no ``actor`` field, and that absence is the design. The actor recorded on a
+ * dispatch is the author of the log entry that *caused* it, not whoever posted the
+ * request -- otherwise the human-clocked rule would be satisfied by a caller naming a
+ * human, which is not evidence of anything.
+ */
+export type DispatchRequestBody = {
+    /**
+     * Caused By
+     *
+     * Log entry id authorising this dispatch. Defaults to the newest entry. Its actor must be a configured human.
+     */
+    caused_by?: number | null;
+};
+
+/**
+ * DispatchStarted
+ *
+ * What a successful dispatch reports back.
+ */
+export type DispatchStarted = {
+    /**
+     * Caused By
+     *
+     * The log entry this dispatch is attributed to.
+     */
+    caused_by: number;
+    /**
+     * Mode
+     *
+     * session or batch.
+     */
+    mode: string;
+    /**
+     * Posture
+     *
+     * What the run is permitted to do.
+     */
+    posture: string;
+    /**
+     * Run Id
+     *
+     * AgentJobs' identifier for this run.
+     */
+    run_id: string;
+    /**
+     * Session Id
+     *
+     * Session mode only, and assigned by the CLI rather than by us.
+     */
+    session_id?: string | null;
+    /**
+     * Task Id
+     *
+     * The task the run is working.
+     */
+    task_id: string;
+};
+
+/**
  * FeedbackActionRequest
  *
  * Request changes with feedback.
@@ -3066,6 +3129,40 @@ export type GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetResponses = {
 
 export type GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetResponse = GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetResponses[keyof GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetResponses];
 
+export type DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostData = {
+    body?: DispatchRequestBody;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/tasks/{task_id}/dispatch';
+};
+
+export type DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostError = DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostErrors[keyof DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostErrors];
+
+export type DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostResponses = {
+    /**
+     * Successful Response
+     */
+    202: DispatchStarted;
+};
+
+export type DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostResponse = DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostResponses[keyof DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostResponses];
+
 export type HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostData = {
     body: HandoffRequest;
     path: {
@@ -3988,6 +4085,36 @@ export type GetTaskDetailApiTasksTaskIdDetailGetResponses = {
 };
 
 export type GetTaskDetailApiTasksTaskIdDetailGetResponse = GetTaskDetailApiTasksTaskIdDetailGetResponses[keyof GetTaskDetailApiTasksTaskIdDetailGetResponses];
+
+export type DispatchTaskEndpointApiTasksTaskIdDispatchPostData = {
+    body?: DispatchRequestBody;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/tasks/{task_id}/dispatch';
+};
+
+export type DispatchTaskEndpointApiTasksTaskIdDispatchPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DispatchTaskEndpointApiTasksTaskIdDispatchPostError = DispatchTaskEndpointApiTasksTaskIdDispatchPostErrors[keyof DispatchTaskEndpointApiTasksTaskIdDispatchPostErrors];
+
+export type DispatchTaskEndpointApiTasksTaskIdDispatchPostResponses = {
+    /**
+     * Successful Response
+     */
+    202: DispatchStarted;
+};
+
+export type DispatchTaskEndpointApiTasksTaskIdDispatchPostResponse = DispatchTaskEndpointApiTasksTaskIdDispatchPostResponses[keyof DispatchTaskEndpointApiTasksTaskIdDispatchPostResponses];
 
 export type HandoffTaskApiTasksTaskIdHandoffPostData = {
     body: HandoffRequest;
