@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+from typing import TYPE_CHECKING, Any, AsyncIterator
 
 from fastapi import Depends, FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -27,6 +27,9 @@ from .routes import (
 from .routes.status import MutationError, mutation_error_response
 from .spa import register_spa
 
+if TYPE_CHECKING:  # pragma: no cover - the runtime import stays inside the function
+    from agentjobs.dispatch.ledger import DispatchLedger
+
 DESCRIPTION = (
     "REST API for interacting with AgentJobs tasks, including task "
     "management, status tracking, prompt coordination, and search."
@@ -48,13 +51,41 @@ def _reconcile_dispatch_runs() -> None:
     """
     from agentjobs.dispatch.ledger import DispatchLedger, LedgerError
 
+    ledger = DispatchLedger(default_home())
     try:
-        results = DispatchLedger(default_home()).reconcile()
+        results = ledger.reconcile()
     except (LedgerError, OSError) as exc:  # pragma: no cover - defensive
         print(f"Dispatch reconciliation skipped: {exc}", flush=True)
         return
     for result in results:
         print(f"Dispatch reconcile {result.run_id}: {result.detail}", flush=True)
+    _reap_finished_sessions(ledger)
+
+
+def _reap_finished_sessions(ledger: "DispatchLedger") -> None:
+    """Remove the worktrees of sessions that have already ended.
+
+    A worktree belonging to a run that finished is litter, and it holds a pid in the
+    session manager's ledger besides. Startup is where this happens because nothing in
+    AgentJobs schedules background work, and inventing a scheduler to delete directories
+    would be the largest new moving part in this subsystem for the smallest reason.
+    `agentjobs dispatch reap` is the on-demand form for anyone who does not want to wait
+    for a restart.
+
+    A **refused** reap is the interesting one and is printed rather than swallowed: the
+    session manager will not delete a worktree holding uncommitted changes, which means
+    that run produced work nobody has looked at.
+    """
+    from agentjobs.dispatch.ledger import LedgerError
+
+    try:
+        results = ledger.reap_finished()
+    except (LedgerError, OSError) as exc:  # pragma: no cover - defensive
+        print(f"Dispatch reaping skipped: {exc}", flush=True)
+        return
+    for result in results:
+        verb = "reaped" if result.stopped else "kept"
+        print(f"Dispatch {verb} {result.run_id}: {result.detail}", flush=True)
 
 
 @asynccontextmanager

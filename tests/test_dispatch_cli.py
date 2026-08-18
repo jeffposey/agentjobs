@@ -214,3 +214,56 @@ class TestDispatchRun:
                 ball_prompt="Review please.",
             )
         return task.id
+
+
+class TestDispatchReapCommand:
+    """`dispatch reap` clears finished worktrees, and never forces a refusal.
+
+    The reaping itself is covered in test_dispatch_lifecycle.py against a fake session
+    manager. What these add is the command's own job: telling a human which worktrees
+    were removed, which were kept, and that a kept one is worth looking at.
+    """
+
+    def test_it_says_so_when_there_is_nothing_to_reap(self) -> None:
+        result = runner.invoke(app, ["dispatch", "reap"])
+
+        assert result.exit_code == 0
+        assert "Nothing to reap." in result.stdout
+
+    def test_a_removed_worktree_is_reported(self, monkeypatch) -> None:
+        from agentjobs.dispatch.ledger import DispatchLedger, StopResult
+
+        monkeypatch.setattr(
+            DispatchLedger,
+            "reap_finished",
+            lambda self: [StopResult("run_a1b2c3d4", True, "removed session s1")],
+        )
+
+        result = runner.invoke(app, ["dispatch", "reap"])
+
+        assert result.exit_code == 0
+        assert "run_a1b2c3d4" in result.stdout
+        assert "removed session s1" in result.stdout
+        assert "kept" not in result.stdout
+
+    def test_a_kept_worktree_is_flagged_and_counted(self, monkeypatch) -> None:
+        """A refused reap means a run produced work nobody has looked at."""
+        from agentjobs.dispatch.ledger import DispatchLedger, StopResult
+
+        monkeypatch.setattr(
+            DispatchLedger,
+            "reap_finished",
+            lambda self: [
+                StopResult(
+                    "run_kept0001", False, "not removed: worktree holds uncommitted changes"
+                ),
+                StopResult("run_gone0002", True, "removed session s2"),
+            ],
+        )
+
+        result = runner.invoke(app, ["dispatch", "reap"])
+
+        assert result.exit_code == 0
+        assert "uncommitted changes" in result.stdout
+        assert "1 worktree(s) kept" in result.stdout
+        assert "Look at what is in them" in result.stdout
