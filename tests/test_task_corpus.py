@@ -14,7 +14,7 @@ from typing import Iterator
 import pytest
 import yaml
 
-from agentjobs.models_v2 import Lifecycle, SCHEMA_VERSION, Task, load_task
+from agentjobs.models_v2 import DeliverableStatus, Lifecycle, SCHEMA_VERSION, Task, load_task
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CORPUS_DIRS = ("tasks/agentjobs", "tasks/test-data")
@@ -88,11 +88,27 @@ def test_agentjobs_task_ids_and_relationships_are_not_dangling() -> None:
 
 
 def test_agentjobs_context_paths_exist() -> None:
-    """Read-this-first pointers are useful only while their target still exists."""
+    """Read-this-first pointers are useful only while their target still exists.
+
+    A task's own pending deliverables are exempt. A task may legitimately point at a
+    file it exists in order to create -- task-002 does exactly that, naming an
+    untracked plugin manifest as both the thing to read and the thing to produce.
+    Requiring it to exist made this test pass only in a clone where someone had
+    already created the file by hand, and fail in every worktree and every fresh
+    clone. That is a test asserting the state of one developer's disk rather than the
+    state of the repository.
+    """
     for task in agentjobs_tasks():
+        pending_deliverables = {
+            deliverable.path.rstrip("/")
+            for deliverable in task.deliverables
+            if deliverable.status is not DeliverableStatus.DONE
+        }
         for pointer in task.spec.context:
             path = pointer.path.rstrip("/")
             if "://" in path or any(character in path for character in "*{}<>"):
+                continue
+            if path in pending_deliverables:
                 continue
             assert (REPO_ROOT / path).exists(), f"{task.id} has missing context path {path}"
 

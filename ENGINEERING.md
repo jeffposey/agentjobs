@@ -183,6 +183,12 @@ review request the reviewer can actually see.
 -   **Always** use the `TaskStorage` abstraction; avoid direct file I/O on task files where possible.
 -   **Verify** local server startup and the React `/app/` route (`poetry run agentjobs
     open`) after modifying API routes or frontend serving.
+-   **Rebuild the frontend after merging front-end work, then restart.**
+    `src/agentjobs/frontend_dist/` is gitignored, so merging a React change to `main`
+    does **not** update the bundle a running server serves. `git pull` and a restart
+    are not enough; the clone that serves the app needs `npm run build` in `frontend/`
+    as well. Observed 2026-08-17: a merged performance fix appeared to have done
+    nothing, because the browser was still being handed the pre-merge bundle.
 -   **Restart the server after changing models, storage, or task files.** A running
     `agentjobs serve` holds the imported code in memory. If the task files change
     underneath it — a schema migration, a checkout, a bulk edit — it reads new data with
