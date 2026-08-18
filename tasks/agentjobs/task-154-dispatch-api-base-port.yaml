@@ -1,0 +1,190 @@
+schema: 2
+id: task-154-dispatch-api-base-port
+title: Tell a dispatched agent the address AgentJobs is actually serving on
+created: '2026-08-18T21:21:58.341616Z'
+updated: '2026-08-18T21:21:58.342379Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: reliability
+tags:
+- dispatch
+- runner
+- configuration
+effort: small
+assignment:
+  eligible: []
+spec:
+  summary: Every dispatched agent is told 'AgentJobs is serving at http://localhost:8765'
+    regardless of the port actually serving, because the API never passes api_base
+    to the runner and the parameter's default is hardcoded. An agent dispatched from
+    any other port is pointed at an address that is usually not listening.
+  intent: A dispatched agent is expected to read its task record and write progress
+    back. It cannot do either if the only address it is given is wrong, and it has
+    no way to discover the right one.
+  description: 'Found 2026-08-18 while rebuilding the dispatch review sandbox on port
+    8901. The generated session prompt named :8765, which nothing was serving.
+
+
+    ## Observed
+
+
+    From a live session dispatched by a server on port 8901, as it appears in `claude
+    agents --json`:
+
+
+    ```
+
+    You are the agent `claude-session` working task `task-001` in project
+
+    `review-project` (root: ...). AgentJobs is serving at http://localhost:8765.
+
+    Read the task record and follow the resumption contract in
+
+    docs/agent-workflow.md. Dispatch run id: run_ba30b59b.
+
+    ```
+
+
+    ## Cause
+
+
+    `api_base` is threaded through the dispatch stack as a parameter with a hardcoded
+    default at every level:
+
+
+    - `src/agentjobs/dispatch/runner.py:447` -- `api_base: str = "http://localhost:8765"`,
+    stored at :455, interpolated into the prompt template at :88 and exposed as an
+    argv placeholder at :486.
+
+    - `src/agentjobs/dispatch/guards.py:246` -- the same default, forwarded to the
+    runner at :321.
+
+    - `src/agentjobs/dispatch/auto.py:175` -- the same default again, forwarded at
+    :216.
+
+
+    The HTTP endpoint `dispatch_task_endpoint` in `src/agentjobs/api/routes/status.py:459`
+    calls `dispatch_task(...)` **without** passing `api_base`, so the default is what
+    every dispatch actually gets. Nothing in the request path knows what host and
+    port the server is bound to, so the value is not merely defaulted -- it is unobtainable
+    at the point it is needed.
+
+
+    `api_base` is also a supported argv placeholder (`PLACEHOLDERS` in `src/agentjobs/dispatch/config.py:42`),
+    so a runner template containing `{api_base}` is substituted with the same wrong
+    value. Fixing only the prompt string would leave that half broken.
+
+
+    ## Why this is not only a sandbox problem
+
+
+    8765 is the CLI''s default port. Jeff''s real dashboard runs on 8876 via `C:/ai/shared/launchers/open-agentjobs.ps1`,
+    and there is deliberately nothing on 8765 -- a second server on the default port
+    is a documented hazard in this project, because it serves stale code from a process
+    nobody restarts. So on the machine this feature was built for, **the default is
+    not merely often wrong, it names the one port that is specifically supposed to
+    be unused.**
+
+
+    An agent that follows the address it was given reaches nothing, and its failure
+    mode is silence: it cannot read the task, so it cannot log why it stopped.
+
+
+    ## Shape of a fix, not prescribed
+
+
+    The value has to come from whatever knows the bound address. Options seen while
+    diagnosing, in no particular order: derive it from the incoming request in the
+    endpoint; carry it as a machine-local setting in `~/.agentjobs/dispatch.yaml`
+    beside the runners; or resolve it once at server startup and hold it in app state.
+    Each has a different answer for the CLI path, which has no request to derive from
+    -- and the CLI path is the one that must not regress, so whichever is chosen should
+    be checked against `agentjobs dispatch run` and not only against the HTTP endpoint.'
+  constraints: '- Fix the placeholder and the prompt together. `{api_base}` in a runner''s
+    argv is substituted from the same value; correcting only the prompt sentence leaves
+    a second wrong copy in every template that uses it.
+
+    - Do not solve this by making the sandbox or any caller patch the prompt text.
+    The review sandbox at C:/ai/scratch/agentjobs-dispatch-review-sandbox.py currently
+    appends a correction to its runner argv as a deliberate, commented workaround;
+    that workaround should be deleted as part of this task, not treated as the pattern.
+
+    - The CLI dispatch path has no HTTP request to derive an address from. Whatever
+    is chosen must work there too.
+
+    - Do not change the default port of anything to make the defaults line up. The
+    mismatch is the symptom, not the cause.'
+  out_of_scope: Changing how the server chooses its port, the launcher, or the prompt
+    template's wording beyond the address it carries. Any wider rework of how runners
+    are configured.
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: Line 88 interpolates api_base into the prompt; line 447 is the hardcoded
+      default; line 486 exposes it as an argv placeholder.
+  - path: src/agentjobs/api/routes/status.py
+    why: Line 459 dispatch_task_endpoint calls dispatch_task without api_base, so
+      the default always wins on the HTTP path.
+  - path: src/agentjobs/dispatch/guards.py
+    why: Line 246 repeats the default and line 321 forwards it to the runner.
+  - path: src/agentjobs/dispatch/auto.py
+    why: Line 175 repeats the default again on the auto-dispatch path, which must
+      not diverge from the manual one.
+  - path: src/agentjobs/dispatch/config.py
+    why: Line 42 PLACEHOLDERS includes api_base, so runner argv templates interpolate
+      the same value.
+acceptance:
+- id: sc-1
+  text: An agent dispatched from a server bound to a non-default port is told that
+    server's address, in both the generated prompt and any {api_base} argv placeholder
+  status: pending
+- id: sc-2
+  text: The CLI dispatch path resolves an address correctly too, and a test covers
+    it rather than only the HTTP endpoint
+  status: pending
+- id: sc-3
+  text: Auto-dispatch resolves the same address as manual dispatch; the two paths
+    do not carry separate defaults that can drift
+  status: pending
+- id: sc-4
+  text: 'Verified end to end: dispatch a real session from a server on a non-8765
+    port and confirm from the run record that the address it was given is the one
+    serving'
+  status: pending
+- id: sc-5
+  text: The prompt-correction workaround in C:/ai/scratch/agentjobs-dispatch-review-sandbox.py
+    is removed, and a dispatch from that sandbox still reaches the right address
+  status: pending
+deliverables:
+- path: src/agentjobs/api/routes/status.py
+  note: Endpoint supplies the real serving address
+  status: pending
+- path: src/agentjobs/dispatch/runner.py
+  note: api_base sourced rather than defaulted
+  status: pending
+dependencies:
+- task: task-070-dispatch-runner
+  type: related
+  note: Closed. Introduced the prompt template and the api_base parameter.
+- task: task-071-dispatch-api-guards
+  type: related
+  note: Closed. Introduced the endpoint that omits api_base.
+- task: task-074-auto-dispatch
+  type: related
+  note: Closed. Carries its own copy of the same default on the auto path.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-18T21:21:58.341670Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: 1540aa11-2b33-4c55-8d77-e9f0a1b2c154
+      kind: create
+      fingerprint: cc346cf30b7764eb4079699531f7e288
