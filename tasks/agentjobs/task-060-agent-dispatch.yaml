@@ -2,7 +2,7 @@ schema: 2
 id: task-060-agent-dispatch
 title: 'Close the loop: make a human decision actually start an agent (design pass)'
 created: '2026-08-10T07:40:19Z'
-updated: '2026-08-18T11:50:20.599196Z'
+updated: '2026-08-18T22:23:48.851892Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -749,3 +749,116 @@ log:
       id: 6a2c3d4e-5f60-4a71-8b92-c0d1e2f30060
       kind: log_append
       fingerprint: fac599e413edb59ad54795a1352f0714
+- id: 14
+  ts: '2026-08-18T22:23:48.851694Z'
+  actor: claude
+  type: progress
+  body: "# Session three, 2026-08-18 \u2014 dispatch ran for real, and going blind\
+    \ afterwards is the remaining gap\n\nContinues entry 13. **This entry is the handoff\
+    \ to a fresh session; everything needed is here.** The previous conversation was\
+    \ very long and is not available. Do not rely on it.\n\n## The headline\n\n**Dispatch\
+    \ works end to end.** A real `claude --bg --remote-control` session started from\
+    \ the React app, ran autonomously in its own worktree, claimed its task, did work,\
+    \ and finished. That had never happened before this session \u2014 entry 13's\
+    \ dispatch was verified only against stubs and one parked session.\n\n**What does\
+    \ not work is everything after \"started\".** AgentJobs never notices a session\
+    \ ended. The run reads `running` forever, no `dispatch_result` is ever written,\
+    \ and the captured output is only the launcher's banner. That is `task-157-session-run-observability`,\
+    \ in flight right now (see below).\n\n## Closed and merged\n\n- **task-080-dispatch-model-profiles**\
+    \ \u2014 Jeff decided all four questions; design amended in `docs/agent-dispatch-design.md`\
+    \ \xA74, merged `--no-ff`, closed. Difficulty (`routine`/`standard`/`hard`) is\
+    \ being built; the profile layer is accepted-but-unbuilt with three written reopen\
+    \ triggers. **sc-3, sc-6 and sc-7 were left pending on purpose** \u2014 they presume\
+    \ the shape D2 rejected. One open question is recorded: what a strict refusal\
+    \ does when the caller is unattended.\n\n## Filed this session\n\n| Task | What\
+    \ |\n|---|---|\n| **task-015** | Specced from Jeff's UI-reported stub. `DependencyState`\
+    \ renders an untruncated `ball_prompt` in the task list; `Dashboard` truncates\
+    \ the same field via a private helper it cannot share. |\n| **task-153** | The\
+    \ `not_human_clocked` refusal tells you to add the reserved `dispatcher` actor\
+    \ as a **human** \u2014 advice that works and would defeat the agent-starts-agent\
+    \ prohibition. React UI unaffected; API and CLI are not. |\n| **task-154** | `api_base`\
+    \ is never plumbed, so every dispatched agent is told AgentJobs is at `localhost:8765`\
+    \ whatever port is serving. On this machine 8765 is the port deliberately left\
+    \ unused. |\n| **task-155** | Public-repo hygiene: frontend fixtures use real\
+    \ private project names (`job-hunting`, `mastercalls`). Confirmed clean of credentials\
+    \ and private-repo content. |\n| **task-156** | The `difficulty` field. Unblocked\
+    \ now that task-080 merged. |\n| **task-157/158/159** | Children of this task\
+    \ \u2014 see below. |\n\n## The three dispatch defects, all from one real run\n\
+    \n- **task-157** \u2014 nothing ever calls `poll_session`, so a finished session\
+    \ is never noticed; `reconcile()` checks session *presence* but not phase; and\
+    \ a session run's `stdout.log` structurally cannot hold the session's work. **Jeff\
+    \ added a requirement:** output must be readable *while* the run goes \u2014 a\
+    \ collapsible section that tails live and holds the finished output in the same\
+    \ place (sc-7/8/9).\n- **task-158** \u2014 `elapsed_seconds` is computed from\
+    \ now, not from the finish time, so every terminal run's duration grows forever.\
+    \ A run recorded as 42 seconds reported 11.6 hours.\n- **task-159** \u2014 the\
+    \ dispatcher claims and logs as the runner id (`claude-session`), which the task-write\
+    \ API then rejects as an unknown actor. **A dispatched agent cannot log progress\
+    \ as itself.** Found by a dispatched agent hitting it.\n\n157 and 159 were found\
+    \ by the dispatched session, not by a human or a test.\n\n## In flight right now\n\
+    \n**Session `11b439d9`, working `task-157` in worktree `C:/projects/aj-157`**\
+    \ on branch `fix/task-157-session-run-observability`. Started directly with `claude\
+    \ --bg --remote-control`, not through AgentJobs dispatch. As of this entry it\
+    \ has the poller committed and has uncommitted work on the scheduler (`api/main.py`),\
+    \ `runner.py`, and a new `tests/test_dispatch_poller.py`.\n\n`claude agents --json`\
+    \ for status, `claude logs 11b439d9`, `claude attach 11b439d9`. **It was told\
+    \ not to merge and not to push**, and to hand off to `human`/`review`.\n\nIf it\
+    \ has finished by the time you read this: check its handoff, review the branch,\
+    \ and reap with `claude rm 11b439d9`. **A refused reap means uncommitted work\
+    \ in its worktree \u2014 surface it, never force it.**\n\n## What the next session\
+    \ picks up\n\nJeff's words: *testing dispatch, and the React GUI being able to\
+    \ see the tail of output and know when it finishes.* Concretely, once task-157's\
+    \ branch lands:\n\n1. Verify dispatch end to end the way a user does \u2014 sandbox\
+    \ below, dispatch, walk away, come back and confirm the run reached a terminal\
+    \ state with a `dispatch_result` on the task and nobody intervening.\n2. Confirm\
+    \ the live tail works while a run is going and still holds the output after, in\
+    \ one collapsible section.\n3. Then task-158 and task-159, which are small and\
+    \ independent.\n\n## The review sandbox \u2014 use it, it is now a real test\n\
+    \n```\npoetry -P C:/projects/agentjobs run python C:/ai/scratch/agentjobs-dispatch-review-sandbox.py\n\
+    ```\n\nPort 8901, own AGENTJOBS_HOME, own throwaway git repo. Rebuilt this session\
+    \ because the first version proved nothing: every runner was `time.sleep(120)`,\
+    \ which writes no output and is not Claude, so the two things most worth reviewing\
+    \ could not be shown. It now has a **real `claude-session` runner in session mode\
+    \ with `autonomous` posture**, plus `noisy-batch` (prints progress for ~90s, cancellable,\
+    \ real output) and `quick-batch`. Four tasks seeded including a `human`-balled\
+    \ one so the negative case \u2014 Dispatch correctly absent \u2014 is visible.\n\
+    \nIt re-arms its agent-balled tasks with a fresh human log entry on every start,\
+    \ because after one run the newest entry is the dispatcher's and the human-clocked\
+    \ rule refuses the next dispatch. Without that the sandbox works exactly once.\n\
+    \n## Five things that will otherwise cost an hour\n\n1. **`~/.agentjobs/dispatch.yaml`\
+    \ does not exist on this machine.** That is why the Dispatch section is absent\
+    \ from the real dashboard on :8876 \u2014 `DispatchPanel` is deliberately silent\
+    \ when dispatch was never configured. It is not a stale build and restarting will\
+    \ not change it.\n2. **`AGENTJOBS_PROJECT_ROOT` overrides the registry.** Setting\
+    \ it puts the server in implicit single-project mode as `_local`, so project-scoped\
+    \ pages render for one id while dispatch resolves another \u2014 which is how\
+    \ the sandbox came to report \"project `_local` is not enabled\" on a `review-project`\
+    \ page. Unsetting it makes the implicit project fall back to `Path.cwd()`, which\
+    \ if you launch via `poetry -P C:/projects/agentjobs` is the **real repo** \u2014\
+    \ the sandbox briefly served all 145 real tasks under `_local`, with ids colliding\
+    \ with its own. The sandbox now `chdir`s into itself. Both ids are enabled there\
+    \ because they are the same directory.\n3. **Session grouping in the desktop app\
+    \ is by git repository**, resolved through `git rev-parse --git-common-dir` \u2014\
+    \ never by session name. A linked worktree groups with its parent repo; a separate\
+    \ `git init` groups under \"Other\". No name AgentJobs can pass will move a session\
+    \ between groups, which retires the session-naming idea floated earlier for that\
+    \ purpose.\n4. **`--remote-control <name>` does not set the organizer's display\
+    \ label.** The argv carries the name correctly and the sidebar shows an auto-generated\
+    \ summary anyway.\n5. **`bypassPermissions` needs a one-off interactive acceptance\
+    \ per machine** (`claude --dangerously-skip-permissions`). Jeff has done it here.\
+    \ A session started with `acceptEdits` plus an allow-list parks on the first command\
+    \ outside the list and waits silently \u2014 his standing call is bypass for sessions\
+    \ started on his behalf. Codified in the `spawn-session` skill.\n\n## Standing\
+    \ rules, unchanged\n\nThe autonomy grant in entries 11\u201312 **is expired and\
+    \ was not renewed**. Worktree before work, `--no-ff`, task records to `main` never\
+    \ a branch, stage explicit paths, **no `git push`** \u2014 Jeff pushes.\n\n##\
+    \ Verification state\n\nNothing in this session touched product code except through\
+    \ the task-080 docs merge and the in-flight task-157 branch. The two pre-existing\
+    \ failures named in entry 12 are still red on `main` and are still not yours:\
+    \ `test_agentjobs_context_paths_exist`, and the `absolute-path` tolerated-drift\
+    \ assertion."
+  data:
+    operation:
+      id: 0600cc11-2b33-4c55-8d77-e9f0a1b2c060
+      kind: log_append
+      fingerprint: 1878f36c834c76160b0fcdc0f2d76538
