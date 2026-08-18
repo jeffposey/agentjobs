@@ -6,6 +6,7 @@ import { toUploads, type PendingAttachment } from "../report/attachments";
 import { AttachmentPicker } from "./AttachmentPicker";
 import { DependencyGraph } from "./DependencyGraph";
 import { DependencyState } from "./DependencyState";
+import { DispatchPanel, type DispatchPanelProps } from "./DispatchPanel";
 
 const PRIORITY_CLASSES: Record<string, string> = {
   critical: "bg-red-900 text-red-200",
@@ -283,6 +284,10 @@ export type TaskDetailProps = {
   ) => Promise<void> | void;
   onReject: (reason: string) => Promise<void> | void;
   onPromote: (note: string | null) => Promise<void> | void;
+  // Dispatch arrives as its own bundle rather than as loose props, so nothing about
+  // starting an agent can be mistaken for part of the review panel's contract.
+  // Absent, the page renders exactly as it did before dispatch existed.
+  dispatch?: Omit<DispatchPanelProps, "taskIsDispatchable">;
 };
 
 export function TaskDetail(props: TaskDetailProps) {
@@ -307,7 +312,13 @@ export function TaskDetail(props: TaskDetailProps) {
 
       <PromoteError {...props} />
       <ReviewPanel {...props} />
-      {task.ball !== "human" && task.ball_prompt && <section className="rounded-xl border border-dark-border bg-dark-surface p-4"><h2 className="mb-2 text-xs font-semibold uppercase text-dark-muted">Current ask ({task.ball}/{task.ball_reason})</h2><SpecText>{task.ball_prompt}</SpecText></section>}
+      {props.dispatch && (
+        <DispatchPanel
+          {...props.dispatch}
+          taskIsDispatchable={task.ball === "agent" && task.lifecycle !== "closed"}
+        />
+      )}
+      {task.ball !== "human" && task.ball_prompt &&<section className="rounded-xl border border-dark-border bg-dark-surface p-4"><h2 className="mb-2 text-xs font-semibold uppercase text-dark-muted">Current ask ({task.ball}/{task.ball_reason})</h2><SpecText>{task.ball_prompt}</SpecText></section>}
       <section className="rounded-lg border border-dark-border bg-dark-surface p-4" aria-label="Dependency state"><h2 className="mb-2 text-sm font-semibold">Work state</h2><DependencyState task={task} /></section>
       <Relationships detail={detail} projectId={projectId} />
       <DependencyGraph children={detail.children} edges={detail.child_dependency_edges} projectId={projectId} umbrellaTitle={task.title} />

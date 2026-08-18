@@ -3,12 +3,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
 import {
+  cancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostMutation,
+  disableDispatchApiProjectsProjectIdDispatchDisablePostMutation,
+  enableDispatchApiProjectsProjectIdDispatchEnablePostMutation,
   getDashboardApiProjectsProjectIdDashboardGetOptions,
+  getDispatchStateApiProjectsProjectIdDispatchGetOptions,
   getProjectsApiProjectsGetOptions,
   getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetOptions,
   approveTaskApiProjectsProjectIdTasksTaskIdApprovePostMutation,
   createTaskApiProjectsProjectIdTasksPostMutation,
+  dispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostMutation,
   listBrokenTasksApiProjectsProjectIdTasksBrokenGetOptions,
+  listDispatchRunsApiProjectsProjectIdDispatchRunsGetOptions,
   listTasksApiProjectsProjectIdTasksGetOptions,
   promoteTaskApiProjectsProjectIdTasksTaskIdPromotePostMutation,
   rejectTaskApiProjectsProjectIdTasksTaskIdRejectPostMutation,
@@ -21,6 +27,11 @@ import {
 } from "./api/schema-version";
 import { Dashboard } from "./components/Dashboard";
 import { ConnectionUnavailable } from "./components/ConnectionUnavailable";
+import {
+  DispatchSettings,
+  runsPollInterval,
+  type DispatchRefusal,
+} from "./components/DispatchPanel";
 import { TaskList } from "./components/TaskList";
 import { TaskDetail } from "./components/TaskDetail";
 import { TaskCreate } from "./components/TaskCreate";
@@ -117,6 +128,117 @@ function TaskListPage({ projectId }: { projectId: string }) {
   return <TaskList tasks={tasksQuery.data} brokenFiles={brokenQuery.data} projectId={projectId} />;
 }
 
+/**
+ * Everything the dispatch panel needs for one task, in one hook.
+ *
+ * The runs query polls on its own clock rather than waiting for the revision poller,
+ * because a run's progress is not a task write: the process is alive, the meta file is
+ * changing, and the task YAML has not moved since the dispatch entry was written. A
+ * page that only refetched on revision changes would show "Running for 3s" until the
+ * run ended. It stops polling the moment nothing is live, so an idle task costs the
+ * same as it did before dispatch existed.
+ */
+function useTaskDispatch(projectId: string, taskId: string) {
+  const queryClient = useQueryClient();
+  const [refusal, setRefusal] = useState<DispatchRefusal | null>(null);
+  const [cancellingRunId, setCancellingRunId] = useState<string | null>(null);
+
+  const stateQuery = useQuery(
+    getDispatchStateApiProjectsProjectIdDispatchGetOptions({ path: { project_id: projectId } }),
+  );
+  const runsQuery = useQuery({
+    ...listDispatchRunsApiProjectsProjectIdDispatchRunsGetOptions({
+      path: { project_id: projectId },
+      query: { task_id: taskId },
+    }),
+    refetchInterval: (query) => runsPollInterval(query.state.data ?? []),
+  });
+  const start = useMutation(
+    dispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostMutation(),
+  );
+  const cancel = useMutation(
+    cancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostMutation(),
+  );
+
+  const runs = runsQuery.data ?? [];
+  return {
+    state: stateQuery.data ?? null,
+    runs,
+    busy: start.isPending,
+    cancellingRunId,
+    dispatchRefusal: refusal,
+    onDispatch: async () => {
+      setRefusal(null);
+      try {
+        await start.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: {} });
+      } catch (error) {
+        const read = readRefusal(error);
+        // Every guard has its own code and its own sentence. Collapsing them into
+        // "dispatch failed" would leave a human retrying the one refusal that can
+        // never succeed.
+        setRefusal(
+          read
+            ? { reason: read.code, message: read.message, suggestedAction: read.suggestedAction }
+            : {
+                reason: "unreachable",
+                message: "AgentJobs could not be reached to start a run.",
+                suggestedAction: "Check that the server is still running, then try again.",
+              },
+        );
+      }
+      await queryClient.invalidateQueries();
+    },
+    onCancel: async (runId: string) => {
+      setCancellingRunId(runId);
+      try {
+        await cancel.mutateAsync({ path: { project_id: projectId, run_id: runId } });
+      } finally {
+        setCancellingRunId(null);
+        await queryClient.invalidateQueries();
+      }
+    },
+  };
+}
+
+function DispatchSettingsPage({ projectId }: { projectId: string }) {
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const stateQuery = useQuery(
+    getDispatchStateApiProjectsProjectIdDispatchGetOptions({ path: { project_id: projectId } }),
+  );
+  const enable = useMutation(enableDispatchApiProjectsProjectIdDispatchEnablePostMutation());
+  const disable = useMutation(disableDispatchApiProjectsProjectIdDispatchDisablePostMutation());
+  const after = async () => { await queryClient.invalidateQueries(); };
+
+  return (
+    <DispatchSettings
+      state={stateQuery.data ?? null}
+      busy={enable.isPending || disable.isPending}
+      error={error}
+      onEnable={async (runner) => {
+        setError(null);
+        try {
+          await enable.mutateAsync({ path: { project_id: projectId }, body: { runner } });
+        } catch (caught) {
+          const refusal = readRefusal(caught);
+          setError(refusal ? refusal.message : "Dispatch could not be enabled. Reload and try again.");
+        }
+        await after();
+      }}
+      onDisable={async () => {
+        setError(null);
+        try {
+          await disable.mutateAsync({ path: { project_id: projectId } });
+        } catch (caught) {
+          const refusal = readRefusal(caught);
+          setError(refusal ? refusal.message : "Dispatch could not be disabled. Reload and try again.");
+        }
+        await after();
+      }}
+    />
+  );
+}
+
 function TaskDetailPage({ projectId }: { projectId: string }) {
   const { taskId = "" } = useParams<{ taskId: string }>();
   const queryClient = useQueryClient();
@@ -136,6 +258,7 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
   // a failure to report and forget: the page reloads and the human is asked again,
   // so the explanation has to outlive the mutation that produced it.
   const [promoteError, setPromoteError] = useState<string | null>(null);
+  const dispatch = useTaskDispatch(projectId, taskId);
 
   if (detailQuery.error instanceof UnsupportedTaskSchemaError) return <StatusCard title="Unsupported task schema">{detailQuery.error.message}</StatusCard>;
   if (detailQuery.isPending) return <StatusCard title="Opening task...">Loading the complete task record.</StatusCard>;
@@ -152,6 +275,7 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
       error={actionError ? "The action could not be recorded. Reload and try again." : null}
       promoteBusy={promote.isPending}
       promoteError={promoteError}
+      dispatch={dispatch}
       onApprove={async () => { if (!user) return; await approve.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user } }); await refresh(); }}
       onRequestChanges={async (feedback, attachments) => { if (!user) return; await changes.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, feedback, attachments } }); await refresh(); }}
       onReject={async (reason) => { if (!user) return; await reject.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, reason } }); await navigate(`/p/${encodeURIComponent(projectId)}/tasks`, { replace: true }); }}
@@ -216,6 +340,9 @@ function ProjectApp() {
           <Link to={projectPath(projectId)} className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">Dashboard</Link>
           <Link to={projectPath(projectId, "/tasks")} className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">Tasks</Link>
           <Link to={projectPath(projectId, "/tasks/new")} className="touch-target rounded-md px-3 text-sm font-medium text-blue-300 hover:bg-dark-border">Create</Link>
+          {/* Its own nav entry, not buried in a menu: this is where the switch that
+              stops every future run lives, and a kill switch you cannot reach is not one. */}
+          <Link to={projectPath(projectId, "/dispatch")} className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">Dispatch</Link>
           <a href="/docs" className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">API Docs</a>
         </nav>
       </header>
@@ -226,6 +353,7 @@ function ProjectApp() {
           <Route path="tasks" element={<TaskListPage projectId={projectId} />} />
           <Route path="tasks/new" element={<TaskCreatePage projectId={projectId} />} />
           <Route path="tasks/:taskId" element={<TaskDetailPage projectId={projectId} />} />
+          <Route path="dispatch" element={<DispatchSettingsPage projectId={projectId} />} />
           <Route path="*" element={<Navigate to="/not-found" replace />} />
         </Routes>
       </main>

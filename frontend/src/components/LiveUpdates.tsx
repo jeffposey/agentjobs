@@ -25,6 +25,10 @@ export const PROJECT_TASK_QUERY_IDS = new Set([
   "getNextTaskApiProjectsProjectIdTasksNextGet",
   "getTaskApiProjectsProjectIdTasksTaskIdGet",
   "getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGet",
+  // A dispatch and its result are log entries, so starting and finishing a run both
+  // move the revision. The runs list additionally polls on its own clock while
+  // something is live, because progress within a run is not a task write at all.
+  "listDispatchRunsApiProjectsProjectIdDispatchRunsGet",
 ]);
 
 /**
@@ -50,6 +54,16 @@ export const NON_TASK_PROJECT_QUERY_IDS = new Map([
     "An attachment is content-addressed -- its filename is the hash of its bytes -- so "
       + "the response for a given URL can never change. It is also rendered by the "
       + "browser as an <img> rather than fetched through the query client.",
+  ],
+  [
+    "getDispatchStateApiProjectsProjectIdDispatchGet",
+    "Machine-local configuration -- ~/.agentjobs/dispatch.yaml and the sentinel file. "
+      + "No task write can change it, and it is refetched explicitly after the toggle.",
+  ],
+  [
+    "readDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGet",
+    "A run's captured transcript, opened in its own tab as text rather than fetched "
+      + "through the query client. It grows with the process, not with task writes.",
   ],
 ]);
 
