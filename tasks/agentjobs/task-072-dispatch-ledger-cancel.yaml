@@ -2,11 +2,9 @@ schema: 2
 id: task-072-dispatch-ledger-cancel
 title: 'Dispatch: run ledger, cancellation, and startup reconciliation'
 created: '2026-08-11T00:21:32.495701Z'
-updated: '2026-08-18T08:45:12.970218Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-18T09:00:10.456897Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: infrastructure
@@ -15,7 +13,6 @@ tags:
 - architecture
 effort: half a day
 assignment:
-  owner: claude
   eligible: []
 parent: task-060-agent-dispatch
 spec:
@@ -92,47 +89,50 @@ acceptance:
 - id: sc-1
   text: dispatch status lists live and recent runs with task, agent, mode, run id,
     session id where applicable, elapsed time and outcome
-  status: pending
+  status: met
 - id: sc-2
   text: Cancelling a batch run terminates the whole process group after the grace
     period and writes outcome cancelled to the task
-  status: pending
+  status: met
 - id: sc-3
   text: Cancelling a session run calls claude stop and writes outcome cancelled, without
     managing process groups itself
-  status: pending
+  status: met
 - id: sc-4
   text: dispatch stop both writes the sentinel and stops live runs in both modes;
     a dispatch attempted immediately afterwards is refused
-  status: pending
+  status: met
 - id: sc-5
   text: A batch run killed without its supervisor (simulate a hard crash) is found
     at next startup, marked interrupted on the task, and moves the ball to human --
     it does not disappear silently
-  status: pending
+  status: met
 - id: sc-6
   text: After a server restart, a still-live session is re-attached and left running
     rather than cancelled or marked interrupted; a recorded session absent from claude
     agents --json gets a terminal entry
-  status: pending
+  status: met
 - id: sc-7
   text: A finished session is reaped, and a reap blocked by uncommitted changes in
     its worktree surfaces that reason rather than being forced or silently skipped
-  status: pending
+  status: met
 - id: sc-8
   text: Two dispatches of the same task cannot both hold the run lock, and a stale
     lock produces a timeout error naming it rather than hanging
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs/dispatch/ledger.py
-  note: Run directories, locks, re-attach reconciliation, session reaping
-  status: pending
+  note: Run directories, the per-task lock, re-attach reconciliation, session reaping
+  status: done
 - path: src/agentjobs/cli.py
-  note: dispatch status|cancel|stop across both modes
-  status: pending
+  note: dispatch status|cancel|stop|reconcile across both modes
+  status: done
+- path: src/agentjobs/api/main.py
+  note: Reconciliation runs once from the server's lifespan hook
+  status: done
 - path: tests/test_dispatch_lifecycle.py
   note: Cancel, crash, reconcile, re-attach, reap, lock contention
-  status: pending
+  status: done
 dependencies:
 - task: task-070-dispatch-runner
   type: needs
@@ -147,7 +147,7 @@ links:
   title: Agent dispatch design pass (task-060)
 branches:
 - name: feat/task-072-dispatch-ledger-cancel
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-11T01:43:19.058608Z'
@@ -227,3 +227,104 @@ log:
       id: b4c5d6e7-f809-4415-2637-a2b3c4d5e6f7
       kind: update_content
       fingerprint: 27cf73c76815ef9a4962541c030a28cf
+- id: 6
+  ts: '2026-08-18T08:59:35.365406Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: c5d6e7f8-091a-4526-3748-b3c4d5e6f708
+      kind: update_content
+      fingerprint: 449bf4c8efc861e7d8e0dafe18eb9621
+- id: 7
+  ts: '2026-08-18T09:00:00.400712Z'
+  actor: claude
+  type: progress
+  body: "Ledger, cancellation, run lock, reaping and startup reconciliation. Merged\
+    \ to main.\n\nTwo commits on `feat/task-072-dispatch-ledger-cancel`, merged `--no-ff`.\
+    \ 31 new tests in `tests/test_dispatch_lifecycle.py`. Nothing pushed.\n\n## The\
+    \ crash path, verified as a real crash\n\nA throwaway home with a run directory\
+    \ left at `status: running` and no supervisor anywhere \u2014 which is exactly\
+    \ what a hard kill leaves behind. Started a real `agentjobs serve` on 8898; its\
+    \ startup printed `Dispatch reconcile run_crashed: batch run marked interrupted`,\
+    \ and `GET /api/projects/aj072/tasks/task-001` then showed `3 dispatch` \u2192\
+    \ `4 dispatch_result dispatcher interrupted` \u2192 `5 handoff dispatcher`, ball\
+    \ on `human`/`decision`. `agentjobs dispatch status` listed it; `agentjobs dispatch\
+    \ stop` armed the sentinel and reported nothing live. Sandbox removed.\n\nThat\
+    \ is sc-5 done the way it was written \u2014 \"simulate a hard crash\" \u2014\
+    \ rather than by calling `reconcile()` in a test and trusting that a server would\
+    \ too.\n\n## Decisions\n\n**Reconciliation runs from the server's lifespan hook,\
+    \ and its failures are never fatal.** A server that refuses to start because it\
+    \ could not tidy up is worse than one that starts with the tidying undone: the\
+    \ run directories are still on disk and the next start will find them. Rejected:\
+    \ raising out of startup, which would turn a missing `claude` binary into an unbootable\
+    \ server.\n\n**Not being able to read the session ledger leaves sessions alone.**\
+    \ `_session` raises `LedgerError` rather than letting an `OSError` escape, and\
+    \ reconciliation treats a failed lookup as *unknown*, not as *dead*. Writing `interrupted`\
+    \ because the CLI was momentarily unreachable would report live work as finished\
+    \ \u2014 the one direction this subsystem must never get wrong. A test uses a\
+    \ nonexistent binary and asserts no terminal entry is written.\n\n**An unreadable\
+    \ run counts as live.** Same principle at the file level: a run whose meta cannot\
+    \ be parsed cannot be shown to have ended, and calling it finished would both\
+    \ hide a crash and let a second run start beside it.\n\n**The run lock is the\
+    \ authority on \"one run per task\", not the directory scan.** `guards.dispatch_task`\
+    \ still scans first because the scan produces a better message, but it now takes\
+    \ the `O_CREAT|O_EXCL` lock before claiming and converts a `RunLockTimeout` into\
+    \ `LiveRunExistsError`. The scan reads a directory and can lose a race with itself;\
+    \ the lock cannot. This closes the window task-071's progress entry flagged as\
+    \ deliberately left open.\n\n**The lock is released by whoever writes the terminal\
+    \ entry**, in `_finish_batch` and `_finish_session`, and by `dispatch_task`'s\
+    \ own `except` if the spawn never happened. A lock outliving its run would refuse\
+    \ every future dispatch of that task until someone found the file \u2014 which\
+    \ is why the timeout message names the file and the pid that left it.\n\n**`claude\
+    \ rm` refusing over uncommitted changes is recorded, not retried with `-f`.**\
+    \ That refusal is the signal that a run produced work nobody has looked at; forcing\
+    \ past it deletes exactly the thing worth keeping. The reason is written into\
+    \ the run's meta as `reap_blocked` so it is visible in `dispatch status` rather\
+    \ than only in a log line nobody reads.\n\n## What a later task should know\n\n\
+    `DispatchLedger` takes `session_command` so the session manager is injectable\
+    \ \u2014 that is what let the whole session half be tested without a real Claude\
+    \ Code install, and it means a non-Claude CLI with an `agents`/`stop`/`rm` surface\
+    \ would work unchanged.\n\nReaping is not yet scheduled by anything. `reap_finished()`\
+    \ exists and is tested; nothing calls it periodically. Whatever schedules polling\
+    \ (task-073's UI refresh, or a future worker) should call it, or finished sessions\
+    \ will accumulate pids until someone runs the CLI.\n\nFull suite: 1642 passed,\
+    \ with the two pre-existing failures from task-068 log entry 6 unchanged."
+  data:
+    operation:
+      id: d6e7f809-1a2b-4637-4859-c4d5e6f70819
+      kind: log_append
+      fingerprint: 025769b14a60edba0de524a8b9ec2f74
+- id: 8
+  ts: '2026-08-18T09:00:10.456756Z'
+  actor: claude
+  type: transition
+  body: 'All eight acceptance criteria met. sc-5 verified against a real server startup
+    finding a real orphaned run, not a mocked one. Branch merged --no-ff and marked
+    merged; worktree removed; sandbox and its registry entry cleaned up. Nothing pushed.
+
+
+    Merged without a separate review round under the autonomy grant on task-060 log
+    entry 11 (Jeff, 2026-08-18).
+
+
+    Also closes the concurrency window task-071 flagged: the per-task run lock is
+    now taken before the claim, so the directory scan is no longer the only thing
+    preventing two runs on one task.
+
+
+    Unblocks task-073 (the UI), which should read this task''s progress entry: reaping
+    exists but nothing schedules it yet, and `DispatchLedger` takes an injectable
+    `session_command`.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: e7f8091a-2b3c-4748-596a-d5e6f7081920
+      kind: close
+      fingerprint: a820eee60f5bef375b9a5c6ed9541fd8
