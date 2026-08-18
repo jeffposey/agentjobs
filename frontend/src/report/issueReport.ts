@@ -1,4 +1,4 @@
-import type { TaskCreateRequest } from "../api/generated";
+import type { AttachmentUpload, TaskCreateRequest } from "../api/generated";
 
 /**
  * Building one reported issue into a normal task request.
@@ -101,12 +101,14 @@ export function buildIssueTaskRequest({
   destinationProjectId,
   reporter,
   operationId,
+  attachments = [],
 }: {
   draft: IssueDraft;
   context: ReportContext;
   destinationProjectId: string;
   reporter: string;
   operationId: string;
+  attachments?: Array<AttachmentUpload>;
 }): TaskCreateRequest {
   const details = draft.details.trim();
   const description = [details, provenance(context, reporter, destinationProjectId)]
@@ -120,6 +122,7 @@ export function buildIssueTaskRequest({
     tags: [REPORTED_ISSUE_TAG],
     actor: reporter,
     operation_id: operationId,
+    attachments,
     dependencies:
       context.taskId && sameProject
         ? [

@@ -153,7 +153,7 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
       promoteBusy={promote.isPending}
       promoteError={promoteError}
       onApprove={async () => { if (!user) return; await approve.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user } }); await refresh(); }}
-      onRequestChanges={async (feedback) => { if (!user) return; await changes.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, feedback } }); await refresh(); }}
+      onRequestChanges={async (feedback, attachments) => { if (!user) return; await changes.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, feedback, attachments } }); await refresh(); }}
       onReject={async (reason) => { if (!user) return; await reject.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, reason } }); await navigate(`/p/${encodeURIComponent(projectId)}/tasks`, { replace: true }); }}
       onPromote={async (note) => {
         if (!user) return;

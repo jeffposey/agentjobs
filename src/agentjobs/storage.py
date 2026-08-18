@@ -18,6 +18,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional
 import yaml
 from pydantic import ValidationError
 
+from .attachments import AttachmentStore
 from .instrumentation import record_task_parse
 from .models_v2 import SchemaVersionError, Task
 from .receipts import ReceiptStore
@@ -197,6 +198,9 @@ class TaskStorage:
         self.tasks_dir = Path(tasks_dir)
         self.tasks_dir.mkdir(parents=True, exist_ok=True)
         self.receipts = ReceiptStore.for_tasks_directory(self.tasks_dir)
+        # Sidecar images live beside the task files and are reached through storage,
+        # so nothing above this layer composes a filesystem path of its own.
+        self.attachments = AttachmentStore(self.tasks_dir)
 
     def project_revision(self) -> tuple[str, int]:
         """Return a cheap signal that changes when this project's task files change.

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING, Union
 
 from .operations import (
     Operation,
@@ -22,7 +22,9 @@ from .operations import (
     stamp,
 )
 
+from .attachments import AttachmentPayload
 from .models_v2 import (
+    Attachment,
     Ball,
     BallReason,
     DeliverableStatus,
@@ -358,6 +360,7 @@ class TaskManager:
         lifecycle: Lifecycle = Lifecycle.DRAFT,
         actor: Optional[str] = None,
         operation_id: Optional[str] = None,
+        attachments: Optional[Sequence[AttachmentPayload]] = None,
         **kwargs: Any,
     ) -> Task:
         """Create a new task, generating an identifier when omitted.
@@ -383,6 +386,7 @@ class TaskManager:
                 lifecycle=lifecycle,
                 actor=actor,
                 operation=None,
+                attachments=attachments,
                 **kwargs,
             )
 
@@ -406,6 +410,7 @@ class TaskManager:
                 lifecycle=lifecycle,
                 actor=actor,
                 operation=operation,
+                attachments=attachments,
                 **kwargs,
             )
 
@@ -443,6 +448,7 @@ class TaskManager:
         lifecycle: Lifecycle,
         actor: Optional[str],
         operation: Optional[Operation],
+        attachments: Optional[Sequence[AttachmentPayload]] = None,
         **kwargs: Any,
     ) -> Task:
         """Build and persist one task. Callers holding the creation lock stay serialised."""
@@ -487,6 +493,12 @@ class TaskManager:
 
         task = Task.model_validate(task_kwargs)
         creator = actor or (operation.actor if operation is not None else None)
+        # An attachment has to hang off an entry, and on a fresh task the creation
+        # entry is the only one there is -- so supplying images is itself a reason to
+        # write it, even when nobody named a creator.
+        stored = self._store_attachments(task_id, attachments)
+        if creator is None and stored:
+            creator = "system"
         if creator is not None:
             # The creation entry carries two things: the operation marker a retry
             # finds, and who created the task. Either one on its own is reason enough
@@ -500,6 +512,7 @@ class TaskManager:
                 body=f"Created {lifecycle.value} by {creator}.",
                 data={"lifecycle": lifecycle.value},
                 operation=operation,
+                attachments=stored,
             )
         return self.storage.save_task(task)
 
@@ -594,6 +607,20 @@ class TaskManager:
             raise TaskNotFoundError(f"Task '{task_id}' not found.")
         return self.storage.mutate_task(task_id, mutator)
 
+    def _store_attachments(
+        self, task_id: str, payloads: Optional[Sequence[AttachmentPayload]]
+    ) -> Optional[List[Attachment]]:
+        """Write each payload beside the task and return the records referencing them.
+
+        Kept in the manager rather than at the API boundary so the blob and the entry
+        that points at it are written by one call. An AttachmentError raised here
+        aborts the whole verb, which is what stops a task from recording feedback that
+        cites an image nobody managed to store.
+        """
+        if not payloads:
+            return None
+        return [self.storage.attachments.write(task_id, payload) for payload in payloads]
+
     @staticmethod
     def _append_entry(
         task: Task,
@@ -604,6 +631,7 @@ class TaskManager:
         re: Optional[int] = None,
         data: Optional[Dict[str, Any]] = None,
         operation: Optional[Operation] = None,
+        attachments: Optional[List[Attachment]] = None,
     ) -> LogEntry:
         """Append one entry, stamping the operation that produced it.
 
@@ -619,6 +647,10 @@ class TaskManager:
             body=body,
             re=re,
             data=stamp(data, operation),
+            # None rather than [] when there are none, so an entry without images does
+            # not carry an empty key -- every existing task file would otherwise gain a
+            # line on its next write, for a field it does not use.
+            attachments=attachments or None,
         )
         task.log.append(entry)
         return entry
@@ -701,8 +733,14 @@ class TaskManager:
         body: Optional[str] = None,
         operation_id: Optional[str] = None,
         expected_revision: Optional[Union[datetime, str]] = None,
+        attachments: Optional[Sequence[AttachmentPayload]] = None,
     ) -> Task:
-        """Move the ball. The ask travels with it, by schema requirement."""
+        """Move the ball. The ask travels with it, by schema requirement.
+
+        ``attachments`` are images evidencing this handoff -- a screenshot of the thing
+        being objected to. They are written inside the mutation, so a stored file
+        without an entry referencing it is not a state this verb can produce.
+        """
         operation = self._operation(
             operation_id,
             "handoff",
@@ -731,6 +769,7 @@ class TaskManager:
                 body=body or ball_prompt,
                 data={"ball": task.ball.value, "ball_reason": task.ball_reason.value},
                 operation=operation,
+                attachments=self._store_attachments(task.id, attachments),
             )
             return task
 

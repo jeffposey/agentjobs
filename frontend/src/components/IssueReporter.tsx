@@ -7,7 +7,9 @@ import {
   getProjectsApiProjectsGetOptions,
 } from "../api/generated/@tanstack/react-query.gen";
 import { readRefusal } from "../api/mutation-error";
+import { toUploads, type PendingAttachment } from "../report/attachments";
 import { buildIssueTaskRequest, readReportContext } from "../report/issueReport";
+import { AttachmentPicker } from "./AttachmentPicker";
 
 /**
  * Report Issue: global chrome that turns something you just noticed into a task.
@@ -60,6 +62,7 @@ function IssueReporterDialog({ onClose }: { onClose: () => void }) {
   const [title, setTitle] = useState("");
   const [details, setDetails] = useState("");
   const [actionable, setActionable] = useState(false);
+  const [attachments, setAttachments] = useState<Array<PendingAttachment>>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<Submitted | null>(null);
 
@@ -96,6 +99,7 @@ function IssueReporterDialog({ onClose }: { onClose: () => void }) {
           // A retry after a timeout resolves to the task the first attempt made
           // instead of filing the same finding twice.
           operationId: crypto.randomUUID(),
+          attachments: toUploads(attachments),
         }),
       });
       await queryClient.invalidateQueries();
@@ -115,6 +119,7 @@ function IssueReporterDialog({ onClose }: { onClose: () => void }) {
     setTitle("");
     setDetails("");
     setActionable(false);
+    setAttachments([]);
     setError(null);
     titleRef.current?.focus();
   };
@@ -190,19 +195,18 @@ function IssueReporterDialog({ onClose }: { onClose: () => void }) {
               />
             </label>
 
-            <label className="block font-medium">
-              What happened
-              <span className="mt-1 block text-xs font-normal text-dark-muted">
-                Enough for someone who was not here. The page you were on is recorded for you.
-              </span>
-              <textarea
-                name="details"
-                required
-                value={details}
-                onChange={(event) => setDetails(event.target.value)}
-                className={`${inputClass} min-h-28`}
-              />
-            </label>
+            <AttachmentPicker
+              label="What happened"
+              hint="Enough for someone who was not here. The page you were on is recorded for you."
+              placeholder="What went wrong? Paste a screenshot here with Ctrl+V."
+              value={details}
+              onChange={setDetails}
+              attachments={attachments}
+              onAttachmentsChange={setAttachments}
+              name="details"
+              required
+              textareaClassName={`${inputClass} min-h-28`}
+            />
 
             <label className="block font-medium">
               File into project

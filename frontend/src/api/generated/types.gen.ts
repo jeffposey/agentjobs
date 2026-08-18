@@ -66,6 +66,79 @@ export type Assignment = {
 };
 
 /**
+ * Attachment
+ *
+ * One image stored beside the tasks, referenced from the entry it illustrates.
+ *
+ * The blob lives in a sidecar file; only this metadata is in the YAML. That is the
+ * whole point of the storage decision: a task file stays something a person can read
+ * in a text editor and git can diff line by line, which a base64 blob would end.
+ *
+ * ``path`` is relative to the project's tasks directory, not to the repository root,
+ * because that is the directory storage already owns and resolves safely. ``sha256``
+ * is both the file's name and its integrity check: a read that does not hash to this
+ * is refused rather than rendered.
+ */
+export type Attachment = {
+    /**
+     * Label
+     *
+     * Accessible label; alt text where it renders.
+     */
+    label: string;
+    /**
+     * Media Type
+     *
+     * Image media type, derived from the bytes.
+     */
+    media_type: string;
+    /**
+     * Path
+     *
+     * Sidecar path relative to the tasks directory.
+     */
+    path: string;
+    /**
+     * Sha256
+     *
+     * Content hash.
+     */
+    sha256: string;
+    /**
+     * Size Bytes
+     *
+     * Size of the stored file.
+     */
+    size_bytes: number;
+};
+
+/**
+ * AttachmentUpload
+ *
+ * One pasted image, on its way to a sidecar file.
+ *
+ * Base64 in the request body, never in the stored record: the transport needs the
+ * bytes inline and the YAML must stay readable, and those are different problems with
+ * different right answers. ``media_type`` is deliberately absent -- the server reads
+ * the type from the bytes, because a declared type is a claim and the magic number is
+ * the blob.
+ */
+export type AttachmentUpload = {
+    /**
+     * Data Base64
+     *
+     * Base64-encoded image bytes (PNG, JPEG or WebP).
+     */
+    data_base64: string;
+    /**
+     * Label
+     *
+     * Accessible label used as alt text where the image renders.
+     */
+    label?: string;
+};
+
+/**
  * Ball
  *
  * Who acts next. Required while a task is open; null only when closed.
@@ -400,6 +473,12 @@ export type DependencyType = 'needs' | 'blocks' | 'related';
  */
 export type FeedbackActionRequest = {
     /**
+     * Attachments
+     *
+     * Images evidencing the feedback, stored as sidecar files.
+     */
+    attachments?: Array<AttachmentUpload>;
+    /**
      * Feedback
      *
      * Feedback text
@@ -589,6 +668,12 @@ export type LogEntry = {
      * Actor id. A bare reference; kind is resolved from config (D4).
      */
     actor: string;
+    /**
+     * Attachments
+     *
+     * Images evidencing this entry, stored as sidecar files.
+     */
+    attachments?: Array<Attachment> | null;
     /**
      * Body
      *
@@ -1248,6 +1333,12 @@ export type TaskCreateRequest = {
      * Configured actor id to record as the creator. Written to the creation log entry, so a task can say who filed it. Refused when the project does not define the id.
      */
     actor?: string | null;
+    /**
+     * Attachments
+     *
+     * Images evidencing the report, stored as sidecar files.
+     */
+    attachments?: Array<AttachmentUpload>;
     /**
      * Branches
      *
@@ -2781,6 +2872,42 @@ export type ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponses = {
 
 export type ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponse = ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponses[keyof ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponses];
 
+export type GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Filename
+         */
+        filename: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/tasks/{task_id}/attachments/{filename}';
+};
+
+export type GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetError = GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetErrors[keyof GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetErrors];
+
+export type GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostData = {
     body: ClaimRequest;
     path: {
@@ -3687,6 +3814,38 @@ export type ApproveTaskApiTasksTaskIdApprovePostResponses = {
 };
 
 export type ApproveTaskApiTasksTaskIdApprovePostResponse = ApproveTaskApiTasksTaskIdApprovePostResponses[keyof ApproveTaskApiTasksTaskIdApprovePostResponses];
+
+export type GetAttachmentApiTasksTaskIdAttachmentsFilenameGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Filename
+         */
+        filename: string;
+    };
+    query?: never;
+    url: '/api/tasks/{task_id}/attachments/{filename}';
+};
+
+export type GetAttachmentApiTasksTaskIdAttachmentsFilenameGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAttachmentApiTasksTaskIdAttachmentsFilenameGetError = GetAttachmentApiTasksTaskIdAttachmentsFilenameGetErrors[keyof GetAttachmentApiTasksTaskIdAttachmentsFilenameGetErrors];
+
+export type GetAttachmentApiTasksTaskIdAttachmentsFilenameGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type ClaimTaskApiTasksTaskIdClaimPostData = {
     body: ClaimRequest;

@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import type { LogEntry, TaskDetailResponse } from "../api/generated";
+import type { AttachmentUpload, LogEntry, TaskDetailResponse } from "../api/generated";
+import { toUploads, type PendingAttachment } from "../report/attachments";
+import { AttachmentPicker } from "./AttachmentPicker";
 import { DependencyGraph } from "./DependencyGraph";
 import { DependencyState } from "./DependencyState";
 
@@ -55,6 +57,7 @@ function ReviewPanel({
 }: TaskDetailProps) {
   const [mode, setMode] = useState<"none" | "promote" | "changes" | "reject">("none");
   const [feedback, setFeedback] = useState("");
+  const [attachments, setAttachments] = useState<Array<PendingAttachment>>([]);
   if (detail.task.ball !== "human") return null;
 
   const planning = detail.task.lifecycle === "draft";
@@ -106,7 +109,7 @@ function ReviewPanel({
               <textarea id="promote-note" value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={4} className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none" placeholder="Say why the spec is finished. Left empty, AgentJobs writes its own sentence." />
               <div className="mobile-action-row flex gap-3">
                 <button type="submit" disabled={working} className="touch-target rounded-lg bg-emerald-600 px-4 font-semibold text-white disabled:opacity-60">Promote</button>
-                <button type="button" onClick={() => { setMode("none"); setFeedback(""); }} className="touch-target rounded-lg border border-dark-border px-4 font-semibold">Cancel</button>
+                <button type="button" onClick={() => { setMode("none"); setFeedback(""); setAttachments([]); }} className="touch-target rounded-lg border border-dark-border px-4 font-semibold">Cancel</button>
               </div>
             </form>
           )}
@@ -117,14 +120,30 @@ function ReviewPanel({
                 event.preventDefault();
                 const value = feedback.trim();
                 if (!value) return;
-                void (mode === "changes" ? onRequestChanges(value) : onReject(value));
+                void (mode === "changes" ? onRequestChanges(value, toUploads(attachments)) : onReject(value));
               }}
             >
-              <label htmlFor="review-feedback" className="block text-sm font-semibold">{mode === "changes" ? copy.feedbackLabel : "Reason for rejection"}</label>
-              <textarea id="review-feedback" required value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={4} className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none" placeholder={mode === "changes" ? copy.feedbackPlaceholder : "Explain why this task should stop..."} />
+              {mode === "changes" ? (
+                <AttachmentPicker
+                  label={copy.feedbackLabel}
+                  hint="Paste a screenshot of what you are describing; it is stored with this entry."
+                  placeholder={copy.feedbackPlaceholder}
+                  value={feedback}
+                  onChange={setFeedback}
+                  attachments={attachments}
+                  onAttachmentsChange={setAttachments}
+                  required
+                  textareaClassName="mt-1 min-h-28 w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none"
+                />
+              ) : (
+                <>
+                  <label htmlFor="review-feedback" className="block text-sm font-semibold">Reason for rejection</label>
+                  <textarea id="review-feedback" required value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={4} className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none" placeholder="Explain why this task should stop..." />
+                </>
+              )}
               <div className="mobile-action-row flex gap-3">
                 <button type="submit" disabled={working || !feedback.trim()} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white disabled:opacity-60">Submit</button>
-                <button type="button" onClick={() => { setMode("none"); setFeedback(""); }} className="touch-target rounded-lg border border-dark-border px-4 font-semibold">Cancel</button>
+                <button type="button" onClick={() => { setMode("none"); setFeedback(""); setAttachments([]); }} className="touch-target rounded-lg border border-dark-border px-4 font-semibold">Cancel</button>
               </div>
             </form>
           )}
@@ -188,7 +207,43 @@ function Relationships({ detail, projectId }: { detail: TaskDetailResponse; proj
   );
 }
 
-function Log({ entries }: { entries: Array<LogEntry> }) {
+function EntryAttachments({
+  entry,
+  projectId,
+  taskId,
+}: {
+  entry: LogEntry;
+  projectId: string;
+  taskId: string;
+}) {
+  const attachments = entry.attachments ?? [];
+  if (attachments.length === 0) return null;
+  return (
+    <ul aria-label={`Images on entry ${entry.id}`} className="mt-3 flex flex-wrap gap-3">
+      {attachments.map((attachment) => {
+        // The stored path is relative to the tasks directory; the route addresses the
+        // file by task and basename, so the server never takes a path from a client.
+        const filename = attachment.path.split("/").pop() ?? "";
+        const href = `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/attachments/${encodeURIComponent(filename)}`;
+        return (
+          <li key={attachment.sha256}>
+            {/* Shown, not linked. A screenshot nobody clicks is a screenshot nobody
+                sees -- the anchor is only so the full-size image is reachable. */}
+            <a href={href} target="_blank" rel="noreferrer">
+              <img
+                src={href}
+                alt={attachment.label}
+                className="max-h-64 rounded-lg border border-dark-border"
+              />
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function Log({ entries, projectId, taskId }: { entries: Array<LogEntry>; projectId: string; taskId: string }) {
   if (entries.length === 0) return null;
   const answered = new Set(entries.filter((entry) => entry.type === "answer" && entry.re).map((entry) => entry.re));
   const ordered = [...entries].sort((left, right) => right.id - left.id);
@@ -202,6 +257,7 @@ function Log({ entries }: { entries: Array<LogEntry> }) {
             <article className={`border-l-2 pl-4 ${LOG_CLASSES[entry.type] ?? "border-blue-500"}`} key={entry.id} data-log-id={entry.id}>
               <div className="flex flex-wrap items-center gap-2 text-xs uppercase text-dark-muted"><span>#{entry.id}</span><span>•</span><span>{entry.actor}</span><span>•</span><time dateTime={entry.ts}>{new Date(entry.ts).toLocaleString()}</time><span className="rounded border border-dark-border bg-dark-bg px-2 py-0.5 lowercase">{openQuestion ? "open question" : entry.type}</span>{entry.re && <span>re #{entry.re}</span>}</div>
               {entry.body && <details open={index === 0 || entry.body.length <= 400} className="mt-2"><summary className="touch-target cursor-pointer text-xs text-blue-300">{entry.body.length > 400 ? "Entry details" : "Entry"}</summary><SpecText muted>{entry.body}</SpecText></details>}
+              <EntryAttachments entry={entry} projectId={projectId} taskId={taskId} />
             </article>
           );
         })}
@@ -221,7 +277,10 @@ export type TaskDetailProps = {
   promoteBusy?: boolean;
   promoteError?: string | null;
   onApprove: () => Promise<void> | void;
-  onRequestChanges: (feedback: string) => Promise<void> | void;
+  onRequestChanges: (
+    feedback: string,
+    attachments: Array<AttachmentUpload>,
+  ) => Promise<void> | void;
   onReject: (reason: string) => Promise<void> | void;
   onPromote: (note: string | null) => Promise<void> | void;
 };
@@ -264,7 +323,7 @@ export function TaskDetail(props: TaskDetailProps) {
       </section>
 
       {(task.deliverables?.length ?? 0) > 0 && <section className="rounded-lg border border-dark-border bg-dark-surface" aria-label="Deliverables"><h2 className="border-b border-dark-border p-4 text-lg font-semibold">Deliverables</h2><div className="divide-y divide-dark-border">{task.deliverables?.map((item) => <div className="p-4" key={item.path}><code className="break-all text-sm">{item.path}</code><span className="ml-2 text-xs uppercase text-dark-muted">{item.status ?? "pending"}</span>{item.note && <p className="mt-1 text-sm text-dark-muted">{item.note}</p>}</div>)}</div></section>}
-      <Log entries={task.log ?? []} />
+      <Log entries={task.log ?? []} projectId={projectId} taskId={task.id} />
       {(task.links?.length ?? 0) > 0 && <section className="rounded-lg border border-dark-border bg-dark-surface" aria-label="External links"><h2 className="border-b border-dark-border p-4 text-lg font-semibold">Links</h2><ul>{task.links?.map((link) => <li className="p-4" key={link.url}><a className="touch-target break-all text-blue-300 underline" href={link.url} target="_blank" rel="noreferrer">{link.title ?? link.url}</a><span className="ml-2 text-xs uppercase text-dark-muted">{link.rel ?? "other"}</span></li>)}</ul></section>}
     </div>
   );

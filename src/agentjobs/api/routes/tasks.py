@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+import base64
+import binascii
+from typing import Any, Dict, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from agentjobs.actors import UnknownActorError, validate_actor
+from agentjobs.attachments import AttachmentError, AttachmentPayload
 from agentjobs.operations import OperationConflictError, RevisionConflictError
 from agentjobs.projects import Project
 from agentjobs.manager import TaskManager, TaskNotFoundError
+from agentjobs.storage import TaskStorage
 from agentjobs.models_v2 import (
     Ball,
     BallReason,
@@ -22,8 +27,15 @@ from agentjobs.models_v2 import (
 )
 
 from .status import acting_actor, get_acting_project
-from ..dependencies import current_identity, get_project, get_task_manager, project_config
+from ..dependencies import (
+    current_identity,
+    get_project,
+    get_task_manager,
+    get_task_storage,
+    project_config,
+)
 from ..models import (
+    AttachmentUpload,
     BrokenTaskFile,
     DependencyRelation,
     HumanActionResponse,
@@ -84,6 +96,25 @@ def acting_user(project: Any, user: str) -> str:
             detail=f"Review actions must be attributed to configured user {identity.user!r}.",
         )
     return validated
+
+
+def decoded_attachments(uploads: Sequence[AttachmentUpload]) -> List[AttachmentPayload]:
+    """Turn base64 uploads into payloads, refusing anything that will not decode.
+
+    Refused here rather than deeper, because the person is still looking at the form
+    with their prose in it: a 400 they can read beats a write that half-succeeded.
+    """
+    payloads: List[AttachmentPayload] = []
+    for index, upload in enumerate(uploads):
+        try:
+            data = base64.b64decode(upload.data_base64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Attachment {index + 1} is not valid base64 data.",
+            ) from exc
+        payloads.append(AttachmentPayload(data=data, label=upload.label))
+    return payloads
 
 
 @router.get("", response_model=List[TaskRead])
@@ -248,6 +279,52 @@ async def get_task_detail(
     )
 
 
+@router.get("/{task_id}/attachments/{filename}")
+async def get_attachment(
+    task_id: str,
+    filename: str,
+    manager: TaskManager = Depends(get_task_manager),
+    storage: TaskStorage = Depends(get_task_storage),
+) -> Response:
+    """Serve one image a log entry references.
+
+    Resolved through the task's own record rather than straight off the filesystem, so
+    the only files this can ever return are ones an entry actually points at. That also
+    supplies the recorded hash, which is checked before the bytes are handed back: a
+    file edited or corrupted since it was stored is refused rather than rendered.
+    """
+    task = manager.get_task(task_id)
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Task {task_id} not found"
+        )
+    wanted = f"attachments/{task_id}/{filename}"
+    record = next(
+        (
+            attachment
+            for entry in task.log
+            for attachment in (entry.attachments or [])
+            if attachment.path == wanted
+        ),
+        None,
+    )
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No log entry on {task_id} references {filename}.",
+        )
+    try:
+        data = storage.attachments.read(record)
+    except AttachmentError as exc:
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail=str(exc)) from exc
+    return Response(
+        content=data,
+        media_type=record.media_type,
+        # Content-addressed: the name is the hash, so these bytes can never change.
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
 @router.get("/{task_id}", response_model=Task)
 async def get_task(task_id: str, manager: TaskManager = Depends(get_task_manager)) -> Task:
     """Retrieve a specific task by identifier."""
@@ -284,8 +361,11 @@ async def create_task(
         return manager.create_task(
             actor=actor,
             operation_id=payload.operation_id,
+            attachments=decoded_attachments(payload.attachments),
             **kwargs,
         )
+    except AttachmentError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except OperationConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except ValueError as exc:
@@ -382,6 +462,10 @@ class FeedbackActionRequest(HumanActionRequest):
         description="Feedback text",
         examples=["Please add error handling"],
     )
+    attachments: List[AttachmentUpload] = Field(
+        default_factory=list,
+        description="Images evidencing the feedback, stored as sidecar files.",
+    )
 
 
 class RejectActionRequest(HumanActionRequest):
@@ -445,6 +529,7 @@ async def request_changes(
     log entry verbatim.
     """
     user = acting_user(project, payload.user)
+    attachments = decoded_attachments(payload.attachments)
     try:
         task = manager.handoff(
             task_id,
@@ -453,8 +538,11 @@ async def request_changes(
             ball_reason=BallReason.REVISE,
             ball_prompt=payload.feedback,
             body=f"Changes requested by {user}:\n\n{payload.feedback}",
+            attachments=attachments,
         )
         return HumanActionResponse(task=task)
+    except AttachmentError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
