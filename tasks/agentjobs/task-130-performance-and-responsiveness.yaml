@@ -1,0 +1,351 @@
+schema: 2
+id: task-130-performance-and-responsiveness
+title: Make AgentJobs feel instant
+created: '2026-08-17T23:51:43.310915Z'
+updated: '2026-08-18T00:00:22.377833Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+category: performance
+tags:
+- performance
+- react-frontend
+- cli
+- api
+- storage
+effort: several days
+assignment:
+  eligible: []
+spec:
+  summary: 'AgentJobs is unusably slow for its size: opening a task takes 5-10 seconds
+    against a 112-file, 1.1 MB corpus. This umbrella covers measuring latency in both
+    the CLI and the React app, fixing the causes (the corpus is re-parsed several
+    times per request, with PyYAML''s pure-Python loader), and adding performance
+    budgets to the test suite so it cannot silently regress.'
+  intent: 'Reported by Jeff on 2026-08-17 from ordinary use, as the single most frustrating
+    thing about the product: 5-10 seconds to open a task after clicking it. The app
+    is simple and the data is small; it should feel snappy.
+
+
+    This is filed ahead of the issue-reporting epic (task-120 / task-121) deliberately.
+    A tool for capturing and fixing issues quickly is worth little if using it means
+    waiting several seconds per click.
+
+
+    The cause was measured before this task was written, so the children below are
+    remediation of known defects rather than an open-ended investigation. The numbers
+    and the call sites are recorded in the description so a later reader can tell
+    whether a change actually helped.'
+  description: '# Make AgentJobs feel instant
+
+
+    ## Measured today (2026-08-17, 112 task files, 1.1 MB of YAML, warm server on
+    localhost)
+
+
+    | Surface | Wall time |
+
+    | --- | --- |
+
+    | `GET /api/projects/{p}/dashboard` | **7.9 s** |
+
+    | `GET /api/projects/{p}/tasks/{id}/detail` | **4.1 s** |
+
+    | `GET /api/projects/{p}/tasks` | **4.1 s** |
+
+    | `GET /api/projects` | 2.0 s |
+
+    | `GET /api/projects/{p}/search?q=...` | 1.2 s |
+
+    | `GET /api/projects/{p}/revision` (polled every 15 s) | 0.23 s |
+
+    | `agentjobs list --lifecycle ready` (CLI, cold process) | 3.0 s |
+
+
+    Those are single-request numbers against a server that was already warm. They
+    account
+
+    for the whole of the reported "5-10 seconds to open a task": the React app fetches
+    the
+
+    detail and the list, and both re-read and re-validate the entire corpus.
+
+
+    ## Why it is slow (root-caused, not guessed)
+
+
+    Two independent multipliers, either of which alone would be visible.
+
+
+    **1. The corpus is parsed several times per request.** `TaskStorage.list_tasks()`
+    calls
+
+    `load_all()`, which globs and re-parses every YAML file in the project. Nothing
+    caches
+
+    it. One `GET /tasks` therefore walks the whole corpus about four times:
+
+
+    - `TaskManager.list_tasks()` -> `storage.list_tasks()` (src/agentjobs/manager.py:94)
+
+    - `_read_tasks()` -> `dependency_facts()` -> `storage.list_tasks()` (manager.py:214)
+
+    - `dependency_facts()` -> `_dependency_states()` -> `storage.load_all()` (manager.py:128)
+
+    - `dependency_facts()` -> `_open_children()` -> `storage.list_tasks()` (manager.py:272)
+
+
+    The dashboard is worse still, which is why it is the slowest page in the product
+    and
+
+    also the landing page.
+
+
+    **2. YAML is parsed by PyYAML''s pure-Python loader.** `storage.load_task()` calls
+
+    `yaml.safe_load` (src/agentjobs/storage.py:155). Measured over the real corpus:
+
+
+    - `yaml.safe_load` (pure Python): **0.81 s**
+
+    - `yaml.load(..., Loader=CSafeLoader)` (libyaml): **0.075 s**
+
+
+    libyaml is already installed and importable in this environment. That is a ~10x
+    parsing
+
+    win for a one-line change, guarded by a fallback for installs without it.
+
+
+    Multiply the two together and 4 s for a list is exactly what you would predict.
+
+
+    **3. The revision poll reads every byte.** `TaskStorage.project_revision()`
+
+    (storage.py:95) hashes the full contents of every task file. The React app polls
+    it
+
+    every 15 seconds, so the server re-reads 1.1 MB per client per poll to answer
+    "has
+
+    anything changed". Correct, but far more work than the question needs.
+
+
+    ## Shape of the work
+
+
+    1. **Measure first** (task-131). A repeatable benchmark for API, CLI, and browser
+    interactions, so every later change is judged against numbers rather than a feeling.
+    Nothing else in this epic merges without a before/after from this tool.
+
+    2. **Load the corpus once** (task-132). Structural fix: a request-scoped snapshot,
+    so a single request never parses a file twice.
+
+    3. **Parse faster** (task-133). libyaml `CSafeLoader`, with a graceful fallback.
+
+    4. **Stop re-reading unchanged files** (task-134). A process cache keyed on file
+    identity, which also makes the 15-second revision poll nearly free.
+
+    5. **Fix the front end** (task-135). Measure what the React app actually does
+    when a task row is clicked, and make that interaction feel immediate.
+
+    6. **Lock it in** (task-136). Performance budgets in the suite, run by `scripts/check.py`,
+    over a synthetic corpus of fixed size so the thresholds are stable across machines.
+
+    '
+  constraints: '- Correctness is not negotiable for speed. Broken task files must
+    still be reported by filename (the `load_all()` error-collection behaviour), a
+    stale cache must never serve a task record that has changed on disk, and the revision
+    signal must still notice writes made by the CLI, by git, and by hand editing.
+
+    - Caching must be correct under the multi-writer reality this project already
+    designed for: the API is not the only writer.
+
+    - Every child states its before and after numbers, produced by task-131''s tool,
+    in a `progress` log entry. ''Feels faster'' is not evidence.
+
+    - Budgets added in task-136 must be stable on a slow machine. A flaky performance
+    test is worse than none, because it gets disabled.'
+  out_of_scope: '- Replacing YAML files with a database or a derived index. The git-friendly,
+    one-file-per-task design is the product; this epic makes that design fast, it
+    does not trade it away.
+
+    - The legacy Jinja UI. It is deprecated (see task-007) and gets no performance
+    work.
+
+    - The issue-reporter epic (task-120, task-121), which follows this one.
+
+    - Network and tailnet latency for remote devices. In scope is server and client
+    work time, measured on localhost.'
+  context:
+  - path: src/agentjobs/manager.py
+    why: list_tasks, dependency_facts, _dependency_states and _open_children each
+      re-read the whole corpus; this is the main multiplier.
+  - path: src/agentjobs/storage.py
+    why: load_all/load_task do the globbing and the pure-Python yaml.safe_load; project_revision
+      hashes every byte on every poll.
+  - path: src/agentjobs/api/routes/tasks.py
+    why: _read_tasks calls dependency_facts on every request, which triggers the repeated
+      loads.
+  - path: scripts/check.py
+    why: The single repository gate; performance budgets have to run here to be real.
+  - path: ENGINEERING.md
+    why: 'Verification standards: exercise the change the way a user would, and ask
+      what a passing check would have caught.'
+acceptance:
+- id: ac-1
+  text: A repeatable benchmark exists and is documented, covering API endpoints, CLI
+    commands, and the browser click-to-rendered-task interaction.
+  verify: task-131 closed completed
+  status: pending
+- id: ac-2
+  text: Opening a task in the React app is under 500 ms from click to rendered detail,
+    on the real 112-file corpus.
+  verify: before/after numbers recorded in task-135
+  status: pending
+- id: ac-3
+  text: GET /tasks, /tasks/{id}/detail and /dashboard are each under 300 ms on the
+    real corpus.
+  verify: benchmark output in the task-132/133/134 logs
+  status: pending
+- id: ac-4
+  text: No request parses the same task file more than once.
+  verify: test asserting parse count per request
+  status: pending
+- id: ac-5
+  text: The CLI's common read commands return in under 1 s including interpreter startup.
+  verify: benchmark output
+  status: pending
+- id: ac-6
+  text: scripts/check.py fails if any budgeted surface regresses past its threshold.
+  verify: poetry run python scripts/check.py
+  status: pending
+- id: ac-7
+  text: Jeff has confirmed in a browser, on desktop and on a device, that the app
+    feels responsive.
+  verify: human review at the end of the epic
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-17T23:51:43.310964Z'
+  actor: system
+  type: transition
+  body: Created ready by system.
+  data:
+    lifecycle: ready
+    operation:
+      id: 777f8af8-8f7d-490a-97eb-789900248395
+      kind: create
+      fingerprint: d0215fb9689deb30a9911beca3f348ed
+- id: 2
+  ts: '2026-08-18T00:00:16.844990Z'
+  actor: claude
+  type: decision
+  body: '**One human review for the whole epic, not one per child.**
+
+
+    Jeff, 2026-08-17, on filing this epic: "Only wait for my review when you think
+    it''s fast but need me to double check by testing in browser."
+
+
+    So for the children of task-130 only, the per-branch merge gate in ENGINEERING.md
+    is relaxed: an agent may merge a child on green tests plus a recorded before/after
+    benchmark, without stopping for approval. The review checkpoint moves to the end
+    of the epic, where it is a browser test on a real device rather than a diff read.
+
+
+    **Rejected alternative:** hand off each of the six children for individual review,
+    as the standard gate requires. Rejected because Jeff explicitly asked not to be
+    stopped six times, and because the thing under review here is a *felt* property
+    -- latency -- that a diff cannot demonstrate and a benchmark number can. Six approval
+    round-trips would each ask him to approve something he still could not feel.
+
+
+    **What this does not relax:** every child still records before/after numbers from
+    task-131''s tool before it merges, still runs `scripts/check.py` green, and is
+    still committed on its own branch from its own worktree. Speed of review is not
+    permission to skip evidence. If a child turns out to need a product decision rather
+    than an implementation, it hands off to human/decision as normal -- this decision
+    covers review, not judgement calls.
+
+
+    **Review logistics, still open:** Jeff may be able to test a branch server from
+    a tablet if its URL is reachable from the Claude app; if the temporary port is
+    not on the tailnet, the fallback agreed at filing time is to verify on desktop,
+    merge, and have him confirm on the device against the normal tailnet URL afterwards.'
+  data:
+    operation:
+      id: eefc4f55-47fa-44a0-a250-b04e0ceb198f
+      kind: log_append
+      fingerprint: fac98347817deced8c9a8b85eaf6f9ce
+- id: 3
+  ts: '2026-08-18T00:00:22.377707Z'
+  actor: claude
+  type: progress
+  body: "**Session boundary.** The epic record and the measurements are complete;\
+    \ the six child\ntasks have NOT been created yet. A fresh session should create\
+    \ them, then work them.\n\nHanding off here on purpose: the `agentjobs` MCP interface\
+    \ was unreachable for this\nsession (port 8765 vs 8876 -- see task-126, where\
+    \ the evidence is logged). It has now\nbeen fixed machine-locally and verified\
+    \ to serve 14 tools, but an MCP server only\nattaches at session start, so this\
+    \ session could not use it. Everything above was\nwritten through the REST API,\
+    \ which reaches the same authoritative code path. **The next\nsession should have\
+    \ the MCP tools and should use them** (`task_create_ready`,\n`task_claim`, `task_log_append`,\
+    \ ...) rather than the REST fallback.\n\n## What is already done\n\n- task-130\
+    \ exists, `ready`, priority `critical`, with the full measurement table and\n\
+    \  root-cause analysis in `spec.description`. Do not re-measure before reading\
+    \ it.\n- The review-gate decision is logged above and is binding.\n- Nothing is\
+    \ claimed. No branches or worktrees exist yet.\n\n## The six children to create\n\
+    \nAll with `parent: task-130-performance-and-responsiveness`, lifecycle `ready`,\n\
+    category `performance`. Suggested ids are free as of this writing; confirm before\
+    \ use.\n\n**task-131 -- Measure it: a benchmark for API, CLI, and the browser.**\
+    \ priority\ncritical, no dependencies. The gate for everything else. Deliver a\
+    \ repeatable script\n(suggest `scripts/bench.py`) reporting p50/p95 for the API\
+    \ endpoints in the table, the\ncommon CLI read commands, and a Playwright-driven\
+    \ click-to-rendered-task timing. It\nmust run against a corpus of stated size\
+    \ and print the size, so two runs are\ncomparable. Also add per-request server-side\
+    \ timing (a response header or structured\nlog) so a slow request can be attributed\
+    \ without a profiler.\n\n**task-132 -- Load the task corpus once per request.**\
+    \ priority critical, needs\ntask-131. The single biggest win. Introduce a request-scoped\
+    \ corpus snapshot so\n`list_tasks`, `dependency_facts`, `_dependency_states` and\
+    \ `_open_children` share one\nparse instead of four. Call sites are named in the\
+    \ epic description with line numbers.\nAcceptance should include a test asserting\
+    \ the parse count for one request, not just a\nwall-clock number -- that is the\
+    \ check that would actually catch a regression.\n\n**task-133 -- Parse YAML with\
+    \ libyaml.** priority high, needs task-131. Use\n`yaml.CSafeLoader` in `storage.load_task`,\
+    \ falling back to the pure-Python loader when\nthe C extension is absent, and\
+    \ make the fallback visible rather than silent. Measured\n0.81 s -> 0.075 s over\
+    \ the real corpus. Small and near-independent of task-132; they\nmultiply.\n\n\
+    **task-134 -- Stop re-reading files that have not changed.** priority high, needs\n\
+    task-132 and task-133. A process-level cache keyed on file identity (mtime + size,\
+    \ or\nwhatever survives the multi-writer reality this project already designed\
+    \ for: CLI, git\ncheckout, hand edits). Must also make `project_revision()` cheap\
+    \ -- it currently reads\nall 1.1 MB on every 15-second poll, per client. The correctness\
+    \ constraints in the epic\nare load-bearing here; a stale cache is a worse bug\
+    \ than a slow app.\n\n**task-135 -- Make opening a task feel instant in the React\
+    \ app.** priority critical,\nneeds task-131. Measure first: what does the app\
+    \ actually fetch when a row is clicked?\nLikely fixes are prefetch-on-hover/intent\
+    \ from the list, seeding the detail view from\nthe already-loaded list row so\
+    \ something renders immediately, and making sure the\n15-second poll never blocks\
+    \ or refetches an interaction. Target: under 500 ms click to\nrendered detail.\n\
+    \n**task-136 -- Performance budgets in the suite.** priority high, needs 132,\
+    \ 133, 134,\n135. Budgets asserted by `scripts/check.py` over a *synthetic* corpus\
+    \ of fixed size, so\nthresholds do not drift with the real backlog and do not\
+    \ flake on a slow machine.\nPrefer asserting on work done (files parsed per request)\
+    \ alongside wall-clock, since\nwork counts are stable across hardware and wall-clock\
+    \ is not.\n\n## After the children exist\n\nWork them one eligible child at a\
+    \ time per the parent-task loop in ALLAGENTS.md:\nworktree, branch, claim, work,\
+    \ verify with the task-131 tool, merge on green per the\ndecision above, close,\
+    \ remove the worktree, continue. Stop at the end of the epic and\nhand off to\
+    \ Jeff for the browser check (ac-7)."
+  data:
+    operation:
+      id: 682f1eb5-da96-4b47-bcb8-a84c5dab33b3
+      kind: log_append
+      fingerprint: df76656e3a064df4f2530fc7b95eb088

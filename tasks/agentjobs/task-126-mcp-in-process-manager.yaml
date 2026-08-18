@@ -2,12 +2,12 @@ schema: 2
 id: task-126-mcp-in-process-manager
 title: Let the STDIO MCP server run without a separately started service
 created: '2026-08-17T20:47:31.623715Z'
-updated: '2026-08-17T20:47:58.093396Z'
+updated: '2026-08-18T00:00:12.712265Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: medium
+priority: high
 category: architecture
 tags:
 - mcp
@@ -218,3 +218,65 @@ log:
       id: 8c16e4f3-9d57-4a0b-b148-0e639caf5d7d
       kind: update_content
       fingerprint: 23ea6d5f03b60f5bfcb113c83c8e54cd
+- id: 3
+  ts: '2026-08-18T00:00:08.562130Z'
+  actor: claude
+  type: note
+  body: 'Field evidence for this task, hit on 2026-08-17 in a live Claude Code session.
+
+
+    The `agentjobs` MCP server never connected. Cause:
+
+
+    ```
+
+    agentjobs mcp: AgentJobs service at http://127.0.0.1:8765 is not reachable
+
+    ([WinError 10061] the target machine actively refused it).
+
+    ```
+
+
+    `src/agentjobs/mcp/config.py:14` sets `DEFAULT_BASE_URL = "http://127.0.0.1:8765"`,
+    and the shipped plugin `plugins/agentjobs/.mcp.json` pins the same port into `AGENTJOBS_URL`.
+    The machine''s actual server runs on **8876** (started by `C:/ai/shared/launchers/open-agentjobs.ps1`,
+    which deliberately avoids the default port so a second stale server cannot answer
+    on it).
+
+
+    Result: the agent silently lost the whole MCP interface and fell back to the REST
+    API for the session. Nothing failed loudly at the point of use -- the tools simply
+    were not in the tool list, which reads identically to ''this product has no MCP''.
+
+
+    Worked around locally by setting `AGENTJOBS_URL=http://127.0.0.1:8876` in the
+    machine-local `.mcp.json` (gitignored) and in the plugin cache copy. Verified:
+    the server then connects and serves 14 tools. The tracked `plugins/agentjobs/.mcp.json`
+    was deliberately left at 8765 -- baking one user''s port into a public artifact
+    trades this bug for a worse one.
+
+
+    Why this belongs here rather than in a new task: a port is only load-bearing because
+    the MCP server is a REST client that cannot start its own service. An in-process
+    TaskManager path removes the port from the equation entirely, which is exactly
+    what this task proposes. Two lesser fixes are worth considering *within* this
+    task if the in-process path slips: discover the running service from the registry
+    or a pidfile rather than a hardcoded default, and fail loudly at install time
+    instead of at first tool call.'
+  data:
+    operation:
+      id: 70c260f6-8eec-42ab-92d6-f9cafc7a6f02
+      kind: log_append
+      fingerprint: cc69fd526d584a949f9ba4b37adfc636
+- id: 4
+  ts: '2026-08-18T00:00:12.712152Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: fd3b8a34-d9c7-4507-b6d1-62720cd55220
+      kind: update_content
+      fingerprint: f817057ee5472e7cdb5f7031b314a68c
