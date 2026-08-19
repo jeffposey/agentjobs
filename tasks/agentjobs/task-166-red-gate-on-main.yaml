@@ -3,83 +3,11 @@ id: task-166-red-gate-on-main
 title: The repository's own gate is red on main, and correcting the records that make
   it red is harder than it should be
 created: '2026-08-19T17:21:02.547272Z'
-updated: '2026-08-19T18:09:05.222436Z'
+updated: '2026-08-19T18:10:52.773278Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "The gate is green end to end on `fix/task-166-red-gate`. Nothing is\
-  \ merged and nothing is pushed. Please review and merge.\n\n```\npoetry run python\
-  \ scripts/check.py     ->  exit 0\n  1779 passed, 154 warnings in 212.33s (0:03:32)\n\
-  \  Test Files  20 passed (20) / Tests  124 passed (124)      [vitest]\n  11 passed\
-  \ (12.4s)                                          [playwright]\n\npoetry run mypy\
-  \ .   ->  Success: no issues found in 143 source files\npoetry run ruff check .\
-  \  ->  clean\npoetry run black --check .  ->  143 files unchanged\n```\n\n## Already\
-  \ on `main` \u2014 the record fixes (`2aba6c8`)\n\nFour context pointers, all through\
-  \ the managed `PATCH` API, each verified as a one-line content diff with `git diff`\
-  \ before committing. `task-017` and `task-161` were renames. `task-076`'s and `task-146`'s\
-  \ pointers were dropped \u2014 reasons in the commit message and in log entry 4.\n\
-  \n**`task-076` is closed and the API accepted the edit.** That answers the question\
-  \ the spec raised rather than assuming it; see the decision in log entry 7.\n\n\
-  ## On the branch \u2014 three commits, in review order\n\n**`0f620fb fix(e2e): give\
-  \ the dispatch runner an actor the project configures`** \u2014 one line plus a\
-  \ comment, and the one to read first.\n\nThe dispatch e2e was **not** the ledger,\
-  \ the poller, or a bad assertion. Task-159's guard (`31b2198`, 2026-08-19) refuses\
-  \ a dispatch whose runner would act as an identity outside the project's `actors:`.\
-  \ `frontend/e2e/run_server.py` declares a runner named `e2e-sleeper` with no `actor:`,\
-  \ so the guard refused it, no run was ever created, and the spec timed out waiting\
-  \ for a list item that could not exist \u2014 which is why it read as a product\
-  \ bug. That commit fixed the four Python fixtures with exactly this change and missed\
-  \ the fifth, which is YAML inside the Playwright harness. The guard and the assertions\
-  \ are both correct; the fixture was a day stale.\n\n**`50ebbac chore(mypy): make\
-  \ the type check runnable at all`** \u2014 adds `scripts/__init__.py`. `poetry run\
-  \ mypy .` was aborting on `Source file found twice under different module names`\
-  \ before checking anything, so the command ENGINEERING.md lists under Pre-commit\
-  \ has never type-checked a line of this repository.\n\n**`d5bb357 fix(types): clear\
-  \ the 42 errors mypy could not previously reach`** \u2014 19 files, 64 insertions.\
-  \ This is the biggest diff and the least interesting one; it is what the first real\
-  \ mypy run found. 42 of 43 are in `tests/` and tooling, `src/` had one (`_Snapshot.tasks`\
-  \ typed `Dict[str, Any]` where only three types are ever stored). Nothing is silenced\
-  \ that could be fixed: nine unused `# type: ignore`s removed, eight `yaml.safe_load`/`json.loads`\
-  \ returns given the narrowing their annotations already claimed, six `Task | None`\
-  \ accesses given the `is not None` assert so a failure names the missing task instead\
-  \ of raising `AttributeError`. One new ignore, on `build_release.py`'s deliberate\
-  \ runtime-fallback import.\n\n`black` also reformatted one signature in `tests/test_cli.py`\
-  \ that was **already drifted on `main`** before this branch.\n\n## The one thing\
-  \ I want your call on\n\n`scripts/check.py` runs exactly two things: `pytest` and\
-  \ `npm run check`. It runs neither `black`, nor `ruff`, nor `mypy` \u2014 all three\
-  \ of which ENGINEERING.md lists under **Pre-commit**. That is how both of this task's\
-  \ defects survived on `main`: a mypy invocation broken badly enough to check nothing,\
-  \ and a `black` drift nobody saw.\n\nAdding `mypy` to the gate costs **2.9 seconds\
-  \ warm** against a four-and-a-half-minute gate.\n\nI did not do it. It changes what\
-  \ \"the gate\" means for every agent here, and the task asked me to fix the invocation,\
-  \ not to redefine the gate \u2014 that is your call, not mine. If you want it, it\
-  \ is a three-line change to `scripts/check.py` and should be its own commit. Reasoning\
-  \ and the rejected alternative are in log entry 8.\n\n## Decisions recorded (entries\
-  \ 6, 7, 8)\n\n- **Corpus tests keep asserting on live records, and keep failing\
-  \ rather than warning.** The premise that they are fragile because agents rewrite\
-  \ records daily is plausible but is not what happened: the pointers rotted and *nobody\
-  \ saw the red gate*, because until task-165 a worktree could not run it at all.\
-  \ Warning was rejected as making a caught defect uncaught; open-tasks-only was rejected\
-  \ because `task-076` is the counterexample \u2014 closed, and its pointer was never\
-  \ valid rather than rotted.\n- **Whole-object spec patches stay; partial patches\
-  \ rejected.** The retyping hazard is real and is a property of how an agent does\
-  \ the write, not of the contract \u2014 all four fixes here were done by a script\
-  \ with no prose passing through a model. Whole-object plus `expected_revision` is\
-  \ what forces a read-modify-write and makes a lost update impossible. The ergonomic\
-  \ gap should be closed with a helper that fetches, applies one field change, **shows\
-  \ the diff**, and resends \u2014 not by loosening the API.\n- **Closed records stay\
-  \ editable.** Immutability would make a permanently-red gate caused by a closed\
-  \ record fixable only by hand-editing YAML, which is the exact thing the managed\
-  \ interface exists to prevent.\n\n## Follow-ups I did not file (say the word and\
-  \ I will)\n\n1. Add `mypy`/`ruff`/`black --check` to `scripts/check.py` \u2014 the\
-  \ question above.\n2. A `dangling-context-path` rule in `src/agentjobs/validation.py`,\
-  \ beside the existing `absolute-path` rule, so a bad pointer is refused at the write\
-  \ by the agent who introduced it rather than at some later agent's gate run. It\
-  \ does not replace the corpus test \u2014 that one catches pointers broken later\
-  \ by a rename \u2014 but it would remove most of the volume.\n3. Promote this task's\
-  \ read-modify-write-with-diff script into the CLI/MCP layer, per the second decision.\n\
-  \n## Worktree\n\n`C:/projects/aj-166`, branch `fix/task-166-red-gate`, four commits\
-  \ ahead of the `main` it was rebased onto. Clean tree. Not pushed.\n"
+ball: agent
+ball_reason: revise
+ball_prompt: yes, make it run the checks that it should, then merge
 archived: false
 priority: high
 category: infrastructure
@@ -597,3 +525,14 @@ log:
       id: 38913bee-2a9d-4f70-8293-2c29b3c82c91
       kind: handoff
       fingerprint: b6b0df4034b7e59fc2f5909426150afa
+- id: 11
+  ts: '2026-08-19T18:10:52.773164Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by Jeff Posey:
+
+
+    yes, make it run the checks that it should, then merge'
+  data:
+    ball: agent
+    ball_reason: revise
