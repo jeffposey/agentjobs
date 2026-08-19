@@ -2,53 +2,18 @@ schema: 2
 id: task-177-runner-groups
 title: 'Runner groups: a dispatch names a group, the dispatcher picks a member'
 created: '2026-08-19T19:11:40.932936Z'
-updated: '2026-08-19T20:09:12.562418Z'
+updated: '2026-08-19T20:18:05.316288Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Review `feat/task-177-runner-groups` in the worktree at C:/projects/aj-177\
-  \ (branched from main at 4f40173, five commits, nothing pushed). All seven acceptance\
-  \ criteria met; `poetry run python scripts/check.py` exits 0.\n\n**What to look\
-  \ at, in the order I would**\n\n1. **`docs/agent-dispatch-design.md` section 4**\
-  \ \u2014 the design judgement is the deliverable here. It now says a *group* is\
-  \ the candidate list and a *profile* is the mapping, gives them one precedence ladder\
-  \ with the profile rungs reserved rather than occupied, and records what the CLIs\
-  \ actually expose.\n2. **`src/agentjobs/dispatch/config.py`** \u2014 `resolve_runner`\
-  \ (the ladder) and `select_runner` (the choice and its account). Selection lives\
-  \ inside `assert_dispatch_permitted`, after all four gates.\n3. **`src/agentjobs/dispatch/scaffold.py`**\
-  \ \u2014 the starting config a human is shown. This is the one thing that puts a\
-  \ dispatch config on disk; check you agree with the shape it recommends and with\
-  \ the runners it names.\n\n**Three things I decided that you may want to overrule**\n\
-  \n- **D2 \u2014 an exhausted group refuses rather than falling back to the project's\
-  \ plain runner.** Every other hole in the ladder falls back and says so; this one\
-  \ does not, because substituting a runner from outside the group spends money on\
-  \ a model nobody asked for. If you would rather it fell back loudly, that is a small\
-  \ change and I will make it.\n- **D3 \u2014 `default_group:` is an explicit key,\
-  \ not a magic group named `default`.** The task's sketch had the magic name. Consequence,\
-  \ stated in the design: adding `default_group` overrides a project's plain `runner`,\
-  \ because it sits above it on the ladder.\n- **D4 \u2014 I fixed an unrelated pre-existing\
-  \ gate failure.** The suite could not be collected at all on a clean checkout of\
-  \ main in this worktree (pywin32 claims the `scripts` package name; full mechanism\
-  \ in D4). Two lines of test-only change in its own commit, `d98e00a`, with existing\
-  \ precedent in the same directory. If you would rather that landed separately, it\
-  \ cherry-picks cleanly and the rest of the branch does not depend on it.\n\n**Verified\
-  \ beyond the suite** on this machine through the real CLI against a throwaway AGENTJOBS_HOME:\
-  \ `dispatch example --write` wrote once and refused the second time; `dispatch config`\
-  \ listed the groups with `[off] codex  # Second option; ...`; `dispatch config --project\
-  \ agentjobs` resolved to `claude-standard from group 'standard' (project)`; and\
-  \ with `claude-standard` disabled and the genuinely-uninstalled `codex` enabled\
-  \ it refused with both skip reasons named. Both skip paths were exercised against\
-  \ real machine state, not fixtures.\n\n**Deliberately left out, so you are not surprised\
-  \ by their absence**\n\n- The difficulty \u2192 profile table. Out of scope by the\
-  \ spec. **It is a natural follow-up and I have not filed a task for it** \u2014\
-  \ say the word.\n- A `strict` mode for groups, so section 4's inherited open question\
-  \ (what a strict refusal does for an unattended caller) is still open and still\
-  \ flagged. Nothing here forced an answer.\n- Any frontend UI. The API now returns\
-  \ `available_groups` and `default_group` and accepts a group on enable and on dispatch,\
-  \ and the generated client is regenerated and committed, but no React was written\
-  \ \u2014 browser authoring of groups is out of scope and collides with gate 3.\n\
-  \n**On approval**: rebase onto main, merge --no-ff, mark the branch merged, close,\
-  \ and remove the worktree. I have not merged, not pushed, and not deleted anything."
+ball: agent
+ball_reason: revise
+ball_prompt: "Fix the scaffolded runner argv: session runners must use the design's\
+  \ session invocation (--bg --remote-control) rather than -p, and every flag the\
+  \ example ships must be one you confirmed exists. Then actually dispatch a run from\
+  \ the scaffolded config in a throwaway home and show it reaching a live session\
+  \ with a Remote Control URL \u2014 the previous pass verified only that the example\
+  \ parses. Add a check that keeps an unexercised example from shipping again. D1-D4\
+  \ are accepted; do not relitigate them. Same branch and worktree; hand back to human/review\
+  \ with the run id and the transcript line as evidence. Do not merge or push."
 archived: false
 priority: high
 category: architecture
@@ -482,3 +447,57 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 9
+  ts: '2026-08-19T20:18:05.316110Z'
+  actor: Jeff Posey
+  type: handoff
+  body: "Changes requested by Jeff Posey after review. The design work, the resolver\
+    \ and the four decisions (D1-D4) are accepted and are not to be relitigated. One\
+    \ defect in the shipped example, and one process requirement that follows from\
+    \ it.\n\n## The defect\n\n`src/agentjobs/dispatch/scaffold.py` declares its Claude\
+    \ runners as `mode: session` and gives them:\n\n    argv: [\"claude\", \"--bg\"\
+    , \"-p\", \"{prompt}\"]\n\nThat contradicts the design document amended on this\
+    \ same branch. `docs/agent-dispatch-design.md:403` states the session invocation\
+    \ is `--bg --remote-control -w <task-slug>`, and `-p/--print` is the *batch* flag\
+    \ \u2014 \"print response and exit\". Two consequences:\n\n1. **No `--remote-control`\
+    \ means the session is not steerable from another device.** That is the whole\
+    \ reason session mode was chosen over batch (design section 4, verified end to\
+    \ end 2026-08-18). Jeff drives sessions from his phone; a scaffold that drops\
+    \ it removes the feature from every setup that copies it.\n2. `-p` on a runner\
+    \ declared `mode: session` asks the CLI for print-and-exit while AgentJobs' session\
+    \ machinery expects a backgrounded session whose id it captures and polls.\n\n\
+    This is the config every new setup inherits, so it is the one file where being\
+    \ wrong propagates.\n\n## What was verified, and what was not\n\nThe end-to-end\
+    \ verification in your handoff covered `dispatch example --write`, `dispatch config`,\
+    \ `dispatch config --project`, and both skip paths. Those are all *configuration*\
+    \ surfaces. **No scaffolded runner was ever executed.** A recommended config that\
+    \ parses is not a recommended config that runs.\n\n## What to do\n\n1. Correct\
+    \ the scaffold's session runners to match the design's session invocation. Do\
+    \ not add `-w`: `posture_flags` already supplies the worktree flag, and a second\
+    \ one would produce two worktrees.\n2. Check every other runner in the scaffold\
+    \ the same way, including the batch `codex` entry and the `--effort` / `--model`\
+    \ values. Any flag the example ships should be one you have confirmed exists on\
+    \ the CLI it names.\n3. **Actually dispatch one.** Take a throwaway `AGENTJOBS_HOME`\
+    \ and a throwaway project as you did for the refusal paths, write the scaffold,\
+    \ enable it, and start a real run from the scaffolded group. It must reach a live\
+    \ session that AgentJobs records \u2014 and the Remote Control URL must appear\
+    \ in the transcript, since that is the specific capability the current argv loses.\n\
+    4. Add whatever check makes this class of defect impossible to ship again \u2014\
+    \ an example that is exercised rather than only parsed. State what you chose and\
+    \ why.\n5. If correcting the argv changes anything in the design section, amend\
+    \ it in the same commit.\n\n## Everything else stands\n\nD1 (headroom is not observable),\
+    \ D2 (an exhausted group refuses rather than substituting), D3 (`default_group:`\
+    \ as an explicit key) and D4 (the pywin32 `scripts` collision fix) are all accepted\
+    \ as decided. The gate was re-run independently on this branch and exits 0; keep\
+    \ it that way.\n\n## Posture\n\nSame branch, same worktree at C:/projects/aj-177.\
+    \ Do not merge, do not push, do not remove the worktree. When the argv is corrected\
+    \ and a real dispatch from the scaffolded config has been observed working, hand\
+    \ back to human/review with the evidence \u2014 the run id, and the transcript\
+    \ line carrying the Remote Control URL."
+  data:
+    ball: agent
+    ball_reason: revise
+    operation:
+      id: 9d4b7e21-8c15-4a63-b0f7-3e6d2c5a0186
+      kind: handoff
+      fingerprint: 1ce1be700c33aeff72507504d981216e
