@@ -1,0 +1,106 @@
+schema: 2
+id: task-187
+title: Two worktrees cannot run the gate at the same time, because Playwright's port
+  is a constant
+created: '2026-08-19T23:41:13.123280Z'
+updated: '2026-08-19T23:41:13.124052Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: infrastructure
+tags:
+- testing
+- worktree
+- developer-experience
+effort: small
+assignment:
+  eligible: []
+spec:
+  summary: frontend/playwright.config.ts hardcodes port 18940 with reuseExistingServer:false,
+    so the second concurrent `scripts/check.py` on a machine fails to bind and reports
+    a red gate that has nothing to do with the branch under test. This repository's
+    own process tells several agents to work simultaneously in sibling worktrees,
+    so concurrent gate runs are the normal case, not an unusual one.
+  intent: Found 2026-08-19 while running three autonomous sessions in parallel worktrees,
+    each required by ENGINEERING.md to run the full gate before every commit. The
+    gate is the one thing every contributor must run and it is not safe to run twice
+    at once.
+  description: "`frontend/playwright.config.ts`:\n\n```ts\nconst port = 18940;\n...\n\
+    webServer: { command: \"poetry run python e2e/run_server.py\", url: `${baseURL}/health`,\
+    \ reuseExistingServer: false, timeout: 30_000 }\n```\n\nThe port is a module-level\
+    \ constant and the same value is used for the `webServer` bind and\nfor `baseURL`,\
+    \ so two checkouts running the gate concurrently contend for one socket.\n\n**The\
+    \ current failure is at least loud.** `reuseExistingServer: false` means the second\
+    \ run\ntries to start its own server, fails to bind, and errors \u2014 it does\
+    \ not silently attach to\nthe first worktree's server and report a green gate\
+    \ against somebody else's code. That\nwould have been the dangerous version, and\
+    \ it is worth keeping whatever the fix is.\n\n**What it costs anyway.** The error\
+    \ surfaces roughly four minutes into a five-minute gate,\nnames a port rather\
+    \ than a cause, and lands on an agent who has been told the gate is\nexpected\
+    \ green. The likely reaction is to re-run it, or to start diagnosing a branch\
+    \ that\nwas never broken.\n\n## Shape of a fix, not prescribed\n\nThe port needs\
+    \ to be unique per checkout and known to both halves of the config. Options\n\
+    seen while diagnosing: derive it from a hash of the repository root so a given\
+    \ worktree\nalways gets the same port (stable, debuggable, still collides across\
+    \ two clones that hash\nalike); ask the OS for a free port and pass it to `run_server.py`\
+    \ through the environment\n(no collisions at all, but the URL is no longer predictable\
+    \ from outside the run); or read\nan env var with the current constant as the\
+    \ default (smallest change, but it only helps\nwhoever remembers to set it, which\
+    \ is nobody).\n\nWhichever is chosen, `e2e-bench` and `playwright.bench.config.ts`\
+    \ need the same treatment\nor they inherit the bug.\n\n## Check while you are\
+    \ in there\n\nWhether anything else in the test suite binds a fixed port. A gate\
+    \ that is safe to run\nconcurrently in one place and not another is not safe to\
+    \ run concurrently."
+  constraints: '- Do not fix this by making the second run reuse the first run''s
+    server. A gate that can silently test another checkout''s code is worse than one
+    that fails.
+
+    - The bench config must not keep the bug after the main config loses it.
+
+    - A developer reading a failure must be able to tell which checkout owns which
+    port.'
+  out_of_scope: Making the gate faster, or splitting it. Parallelising Playwright
+    within one run (workers is deliberately 1).
+  context:
+  - path: frontend/playwright.config.ts
+    why: The constant, and the webServer block that binds it.
+  - path: frontend/playwright.bench.config.ts
+    why: Same pattern; fixing one and not the other leaves the bug.
+  - path: frontend/e2e/run_server.py
+    why: The server the config starts; it has to learn the port from the same source.
+  - path: scripts/check.py
+    why: The gate every contributor runs, and the caller that makes this a shared
+      problem.
+acceptance:
+- id: ac-1
+  text: Two checkouts of this repository can run scripts/check.py concurrently and
+    both pass
+  status: pending
+- id: ac-2
+  text: The bench configuration gets the same treatment, verified the same way
+  status: pending
+- id: ac-3
+  text: A failing run names the checkout or the port source clearly enough to diagnose
+    without reading the config
+  status: pending
+- id: ac-4
+  text: No path exists by which a gate run tests a server started by a different checkout
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T23:41:13.123326Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 5d9e2b71-84c3-4a06-9f52-1b7d0e6a3c84
+      kind: create
+      fingerprint: a88733497dde07f7a32e67c1840773b8
