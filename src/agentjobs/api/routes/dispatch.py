@@ -128,7 +128,11 @@ class DispatchRunView(BaseModel):
     started_at: Optional[str] = None
     elapsed_seconds: Optional[float] = Field(
         default=None,
-        description="Seconds since start for a live run; total duration once it ended.",
+        description=(
+            "Seconds since start for a live run; the total it ran for once it ended, "
+            "measured to its finish time so it stops moving. Null when a concluded run "
+            "has no recorded finish time -- render that as unknown, never as a number."
+        ),
     )
     live: bool = Field(..., description="Nothing has declared this run over.")
     caused_by: Optional[int] = Field(

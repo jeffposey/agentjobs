@@ -809,7 +809,7 @@
                 "type": "null"
               }
             ],
-            "description": "Seconds since start for a live run; total duration once it ended.",
+            "description": "Seconds since start for a live run; the total it ran for once it ended, measured to its finish time so it stops moving. Null when a concluded run has no recorded finish time -- render that as unknown, never as a number.",
             "title": "Elapsed Seconds"
           },
           "live": {

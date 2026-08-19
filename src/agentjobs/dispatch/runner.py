@@ -70,6 +70,10 @@ from agentjobs.models_v2 import (
 
 RUNS_DIRNAME = "runs"
 META_FILENAME = "meta.yaml"
+
+TERMINAL_STATUSES = frozenset({"finished", "cancelled", "failed"})
+"""Statuses meaning nothing is executing. Everything else counts as live."""
+
 STDOUT_FILENAME = "stdout.log"
 STDERR_FILENAME = "stderr.log"
 TRANSCRIPT_FILENAME = "transcript.log"
@@ -342,6 +346,27 @@ def runs_root(home: Path) -> Path:
     return home / RUNS_DIRNAME
 
 
+def finish_stamped(meta: Dict[str, object], fields: Dict[str, object]) -> Dict[str, object]:
+    """Merged run metadata, with ``finished_at`` recorded by the write that ends a run.
+
+    A concluded run's duration is ``finished_at - started_at``. Without a finish time the
+    only thing left to subtract from is the clock you happen to read it at, which is why
+    every terminal run's duration grew without bound: a run that took 42 seconds reported
+    11.6 hours the next morning (task-158).
+
+    Stamped here rather than at each of the several call sites that can end a run, so
+    none of them can forget -- including ones written later. An explicit ``finished_at``
+    in ``fields`` wins, because the two finishing paths pass the same instant they
+    computed the task log's ``duration_seconds`` from, and that agreement is worth more
+    than the fraction of a second a meta write costs.
+    """
+    merged = {**meta, **fields}
+    status = merged.get("status")
+    if isinstance(status, str) and status in TERMINAL_STATUSES and not merged.get("finished_at"):
+        merged["finished_at"] = datetime.now(timezone.utc).isoformat()
+    return merged
+
+
 @dataclass
 class RunDirectory:
     """One run's machine-local directory.
@@ -380,10 +405,8 @@ class RunDirectory:
         return loaded if isinstance(loaded, dict) else {}
 
     def update_meta(self, **fields: object) -> None:
-        """Merge fields into meta.yaml."""
-        meta = self.read_meta()
-        meta.update(fields)
-        self.write_meta(meta)
+        """Merge fields into meta.yaml, stamping the finish time when the run ends."""
+        self.write_meta(finish_stamped(self.read_meta(), fields))
 
     def output_tail(self, lines: int = OUTPUT_TAIL_LINES) -> str:
         """The last lines of combined output, for inlining into a failure entry."""
@@ -997,10 +1020,11 @@ class DispatchRunner:
         """Write the terminal entry for a session, reap it, and move the ball if needed."""
         if handle.directory.read_meta().get("status") in {"finished", "cancelled", "failed"}:
             return
+        finished = self.clock()
         duration = None
         started = self._started_at(handle)
         if started is not None:
-            duration = (self.clock() - started).total_seconds()
+            duration = (finished - started).total_seconds()
 
         self.manager.record_dispatch_result(
             handle.task_id,
@@ -1012,7 +1036,9 @@ class DispatchRunner:
             log_path=str(handle.directory.path),
             body=body,
         )
-        handle.directory.update_meta(status="finished", outcome=outcome.value)
+        handle.directory.update_meta(
+            status="finished", outcome=outcome.value, finished_at=finished.isoformat()
+        )
         handle.release_lock()
 
         if reap and handle.session_id:
@@ -1227,17 +1253,23 @@ class DispatchRunner:
             handle.release_lock()
             return
 
+        finished = self.clock()
         duration = None
         started = self._started_at(handle)
         if started is not None:
-            duration = (self.clock() - started).total_seconds()
+            duration = (finished - started).total_seconds()
 
         if outcome is not DispatchOutcome.COMPLETED:
             tail = handle.directory.output_tail()
             if tail.strip():
                 body = f"{body or ''}\n\nLast output:\n\n```\n{tail}\n```".strip()
 
-        handle.directory.update_meta(status="finished", outcome=outcome.value, exit_code=exit_code)
+        handle.directory.update_meta(
+            status="finished",
+            outcome=outcome.value,
+            exit_code=exit_code,
+            finished_at=finished.isoformat(),
+        )
         handle.release_lock()
         self.manager.record_dispatch_result(
             handle.task_id,
