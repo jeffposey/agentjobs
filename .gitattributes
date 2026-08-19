@@ -1,0 +1,7 @@
+# The generated API client is written by @hey-api/openapi-ts, which emits LF. With
+# core.autocrlf=true git checks it out as CRLF, so the first gate run in a fresh
+# worktree rewrites all seventeen files back to LF and leaves the tree looking
+# modified -- an empty `git diff`, a dirty `git status`, and a `git worktree remove`
+# that refuses. Declaring the checkout eol here makes the file on disk agree with
+# what the generator writes. Observed 2026-08-19.
+frontend/src/api/generated/** text eol=lf
