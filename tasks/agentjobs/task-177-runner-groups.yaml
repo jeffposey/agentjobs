@@ -1,0 +1,190 @@
+schema: 2
+id: task-177-runner-groups
+title: 'Runner groups: a dispatch names a group, the dispatcher picks a member'
+created: '2026-08-19T19:11:40.932936Z'
+updated: '2026-08-19T19:11:40.933677Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: architecture
+tags:
+- dispatch
+- configuration
+- model-selection
+- architecture
+effort: "medium \u2014 a config-schema change, a resolver, an audit trail, and CLI\
+  \ surfacing"
+assignment:
+  eligible: []
+parent: task-160-dispatch-phase-two
+spec:
+  summary: "Machine-local dispatch config has a flat list of runners today and a project\
+    \ points at exactly one. Make it a two-level hierarchy: named runner *groups*,\
+    \ each holding several interchangeable runners, with members that can be individually\
+    \ disabled. A dispatch names a group and the dispatcher chooses a member from\
+    \ it \u2014 by declared preference, by availability, and where it is observable,\
+    \ by current usage-limit headroom."
+  intent: "Which model does a piece of work should be a property of the request (\"\
+    audit this with the big one\"), not of a machine-wide single-runner setting that\
+    \ has to be edited between dispatches. A group also survives one member being\
+    \ unavailable \u2014 a rate-limited or not-yet-configured runner should cost a\
+    \ fallback, not a failed dispatch."
+  description: "Raised by Jeff on 2026-08-19, immediately after dispatch was configured\
+    \ on a real\nmachine for the first time: *\"Improve dispatch runner capabilities.\
+    \ It should be a\nhierarchy. At the top level, they are runner groups... The behavior\
+    \ is that the\ndispatcher can choose between the options for the runner group\
+    \ that a task/turn is\nrequesting. This could be based on current session limits\
+    \ and such.\"*\n\n## The shape asked for\n\n`runners:` today is a flat map of\
+    \ name \u2192 argv, and `projects.<id>.runner` names exactly\none of them. The\
+    \ ask adds a level above it:\n\n```yaml\nrunner_groups:\n  default:\n    description:\
+    \ What a dispatch gets when it names nothing.   # recommended default\n    runners:\n\
+    \      - name: claude-opus-5        # ordinary runner definitions, unchanged\n\
+    \      - name: chatgpt-sol\n        enabled: false             # configured but\
+    \ deliberately not in play yet\n  simple:\n    runners: [ ... ]\n  big-audit:\n\
+    \    runners: [ ... ]\n```\n\nThe exact key names above are illustrative, not\
+    \ decided. What must hold:\n\n1. A group is an **ordered list of interchangeable\
+    \ runners**, not one runner.\n2. A member can be **disabled individually** without\
+    \ deleting it. Writing a runner you\n   have not set up yet, and leaving it off,\
+    \ is a first-class state \u2014 it is how someone\n   records \"this is the second\
+    \ option once I configure it\".\n3. Something recommends a **starting set of groups**\
+    \ to whoever is setting dispatch up,\n   because the file is written by hand and\
+    \ an empty one gives no shape to copy. Decide\n   whether that is documentation,\
+    \ a scaffold command, or commented defaults; a\n   `dispatch.yaml` that AgentJobs\
+    \ silently synthesises is not acceptable (see\n   constraints).\n4. A dispatch\
+    \ may **name the group** it wants. A task, a project, or one dispatch \u2014\n\
+    \   decide the precedence and state it.\n5. The dispatcher **selects a member**\
+    \ and records why.\n\n## Selection inputs \u2014 verify before designing around\
+    \ them\n\nJeff's stated motivation for a list rather than a single runner is *\"\
+    current session\nlimits and such\"*. Treat that as a requirement to **check what\
+    \ is actually observable**,\nnot as a settled mechanism:\n\n- Determine whether\
+    \ the installed agent CLIs expose remaining session/usage headroom in\n  any scriptable\
+    \ form. Verify by running commands, not by reading help text \u2014 this repo\n\
+    \  has been burned by the difference (design section 4's flag table).\n- If headroom\
+    \ is **not** observable, say so plainly in the design and select on what is:\n\
+    \  declared order, `enabled`, and whether the executable resolves at all. Record\
+    \ the\n  limit-aware selection as a follow-up task against a named trigger rather\
+    \ than\n  implementing a guess.\n- If it **is** observable, decide what a probe\
+    \ costs and how a stale answer behaves.\n  A selection that hangs on an unreachable\
+    \ API is worse than a first-enabled-wins rule.\n\nWhatever the inputs, the choice\
+    \ must be **explainable after the fact**: the `dispatch`\nlog entry records the\
+    \ group, the candidates considered, the member chosen, and why each\nother candidate\
+    \ was passed over.\n\n## Reconcile with task-080, do not build beside it\n\n`task-080-dispatch-model-profiles`\
+    \ closed on 2026-08-18 with a **decided but deliberately\nunbuilt** profile layer,\
+    \ written up in `docs/agent-dispatch-design.md` section 4. It maps\na task's `difficulty`\
+    \ to *one existing runner*, with precedence one-run override \u2192\ndispatch-named\
+    \ profile \u2192 project default \u2192 machine default \u2192 the plain `runner`.\n\
+    \n**This task fires that section's reopen trigger 2** (a dispatch about to consume\
+    \ a\nmaterially wrong-cost model for the work) and overlaps its territory directly.\
+    \ The two\nare compatible and must ship as one mechanism:\n\n- a **group** is\
+    \ the candidate list \u2014 *which runners are interchangeable for this kind of\n\
+    \  work*;\n- a **profile** is the mapping \u2014 *which group or runner a difficulty\
+    \ gets*.\n\nSo the resolver produced here is the resolver that section describes,\
+    \ extended to resolve\nto a group and then within it. Reuse its precedence ladder,\
+    \ its fallback-and-say-so\nbehaviour, its opt-in `strict`, and its rule that a\
+    \ runner's `model`/`effort` labels are\nthe author's claim and never parsed. **Do\
+    \ not invent a second precedence order or a\nsecond audit vocabulary.** Amend\
+    \ section 4 in the same branch; a design describing a flat\nrunner list while\
+    \ a hierarchy ships is worse than no design.\n\nIts one open question is inherited:\
+    \ what a strict refusal does for an unattended caller.\nAnswer it only if this\
+    \ task's scope forces it; otherwise leave it flagged.\n\n## Not the whole profile\
+    \ layer\n\n`difficulty` already exists on tasks and today has no automated consumer.\
+    \ Wiring\ndifficulty \u2192 group is a natural next step and is **explicitly not\
+    \ required here** \u2014\ndelivering groups, group selection, and naming a group\
+    \ on a dispatch is a complete unit.\nSay in the handoff whether the difficulty\
+    \ wiring is a follow-up task or fell in scope."
+  constraints: '- **Argv remains the only thing that launches.** A group is a name
+    over runners; AgentJobs still learns nothing about models, effort vocabularies,
+    or providers, and never constructs a command from a label.
+
+    - **Groups and runners are machine-local, always.** They live in `~/.agentjobs/dispatch.yaml`
+    and nothing in a project repository may define or extend one. Design section 6
+    gate 3: a cloned repo must never carry a "run this on my machine" payload that
+    the project''s own config legitimises.
+
+    - **Backwards compatible.** An existing `dispatch.yaml` with a flat `runners:`
+    map and `projects.<id>.runner` keeps working untouched, with no migration step
+    and no warning. Someone who never wants a group should not learn that groups exist.
+
+    - **No silent config synthesis.** Recommending defaults means showing a human
+    what to write, or writing it on an explicit command. A dispatch.yaml that appears
+    on its own, or gains entries nobody typed, defeats the gate that makes the file
+    the record of what this machine will run.
+
+    - **Every existing guard applies unchanged**: the four gates, the run lock, concurrency
+    and budget caps, the kill-switch sentinel, and the human-clocked rule. Group selection
+    happens *after* `assert_dispatch_permitted`, never around it.
+
+    - **A disabled member is never selected, and never silently becomes selectable.**
+    Enabling is a hand edit.
+
+    - Selection must be deterministic given the same inputs, and its explanation must
+    be in the task record, not only in a local run directory.'
+  out_of_scope: "Authoring runners or groups from the browser \u2014 that is its own\
+    \ task, and it collides with design section 6 gate 3. Building the full difficulty\
+    \ \u2192 profile table. Anything in task-078's loop/chain machinery. Adding a\
+    \ second agent vendor's runner as working configuration; a disabled example entry\
+    \ is enough to prove the shape."
+  context:
+  - path: src/agentjobs/dispatch/config.py
+    why: Where runners, projects and the four gates are parsed and validated. The
+      hierarchy lands here.
+  - path: src/agentjobs/dispatch/runner.py
+    why: 'compose_argv and the posture flags: what AgentJobs supplies versus what
+      the operator''s template supplies.'
+  - path: src/agentjobs/dispatch/guards.py
+    why: The precondition layer group selection must sit behind, not beside.
+  - path: docs/agent-dispatch-design.md
+    why: Section 4 holds the decided-but-unbuilt profile layer this must reconcile
+      with; section 6 gate 3 is why groups stay machine-local.
+  - path: tasks/agentjobs/task-080-dispatch-model-profiles.yaml
+    why: The binding decision record (D1-D4) and its rejected alternatives. Do not
+      relitigate.
+acceptance:
+- id: sc-1
+  text: dispatch.yaml supports named runner groups holding an ordered list of runners,
+    with per-member enable/disable, and an existing flat-runner config still loads
+    and dispatches unchanged
+  status: pending
+- id: sc-2
+  text: A dispatch can name a group; precedence between a group named on the dispatch,
+    on the project, and machine-wide is implemented and documented
+  status: pending
+- id: sc-3
+  text: The dispatcher selects a member deterministically and the dispatch log entry
+    records the group, the candidates, the winner, and why each other candidate was
+    skipped
+  status: pending
+- id: sc-4
+  text: Whether usage-limit headroom is observable from the installed CLIs is answered
+    by running them, and the answer is recorded as a decision with what it implies
+    for selection
+  status: pending
+- id: sc-5
+  text: A recommended starting set of groups is available to someone setting dispatch
+    up, by a route that never writes config nobody asked for
+  status: pending
+- id: sc-6
+  text: docs/agent-dispatch-design.md section 4 describes groups and profiles as one
+    mechanism, with no text still describing a flat runner list as the whole story
+  status: pending
+- id: sc-7
+  text: poetry run python scripts/check.py passes
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T19:11:40.932980Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3f9c1a24-7b8e-4d51-9a02-6c1e5b7f0177
+      kind: create
+      fingerprint: 593be828615a598f8b4e7f271727e25f

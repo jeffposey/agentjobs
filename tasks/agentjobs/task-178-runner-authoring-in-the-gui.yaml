@@ -1,0 +1,130 @@
+schema: 2
+id: task-178-runner-authoring-in-the-gui
+title: Authoring runners and groups from the browser, without reopening gate 3
+created: '2026-08-19T19:13:24.181646Z'
+updated: '2026-08-19T19:13:24.182385Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: low
+category: ux
+tags:
+- dispatch
+- ux
+- safety
+- configuration
+effort: a design decision first; the UI is small if the decision permits one at all
+assignment:
+  eligible: []
+parent: task-160-dispatch-phase-two
+spec:
+  summary: "Today the Dispatch page can point a project at a runner that already exists\
+    \ and can never create one, because creating one is writing an argv that this\
+    \ machine will execute. Decide whether a browser may author a runner or a runner\
+    \ group at all, and if so under what proof that the person clicking is at the\
+    \ machine \u2014 then build whatever that decision allows."
+  intent: Setting dispatch up currently means hand-editing a YAML file whose location
+    and schema are not discoverable from the UI that complains about it. That is a
+    real onboarding wall. The wall is also the safety property, so the goal is to
+    lower it deliberately rather than to remove it by accident.
+  description: "Raised by Jeff on 2026-08-19: *\"Add a task for the GUI to be able\
+    \ to create these\nrunners, but low priority. It is fine to ask an agent to do\
+    \ it for us, and is likely to\nbe the preferred method anyway.\"* Filed alongside\
+    \ `task-177-runner-groups`, which builds\nthe hierarchy this would edit.\n\n##\
+    \ Why this is a decision task and not a form\n\n`src/agentjobs/api/routes/dispatch.py`\
+    \ says it plainly, and it is load-bearing rather\nthan cautious:\n\n> There is\
+    \ no endpoint that writes a runner, edits an argv, sets a posture, or flips the\n\
+    > master switch... the browser-reachable surface may switch a capability that\
+    \ a human\n> already wrote into `~/.agentjobs/dispatch.yaml` on and off, and may\
+    \ never widen it.\n\nThe API is unauthenticated on localhost, and on this deployment\
+    \ it is also reachable over\na tailnet. An endpoint that accepts an argv and stores\
+    \ it as a runner is, exactly, an\nendpoint that accepts arbitrary commands for\
+    \ later execution. `set_project_enabled`\nenforces the same rule one layer down\
+    \ by refusing a runner the machine does not define,\nso the property is currently\
+    \ defended twice.\n\n**So the first deliverable is an answer, not a screen.**\
+    \ Options worth weighing, each\nwith what it costs:\n\n1. **Do nothing; document\
+    \ instead.** The Dispatch page already names the file path. Add\n   a copyable\
+    \ starter block and a link to the schema. Zero new surface, and it keeps the\n\
+    \   \"ask an agent to write it\" path that Jeff expects to prefer anyway.\n2.\
+    \ **Generate, never write.** The browser composes a runner or group and renders\
+    \ the YAML\n   to copy, or writes it to a scratch file the human moves. Nothing\
+    \ the server executes\n   changes without a hand edit.\n3. **Write only under\
+    \ a machine-presence proof.** A one-time code printed on the server's\n   own\
+    \ stdout, or a CLI-issued token, must be echoed back before the write lands. Makes\n\
+    \   remote-tab authorship impossible while letting someone at the keyboard use\
+    \ the UI.\n4. **Write freely, gated on a config opt-in.** Cheapest to build, and\
+    \ it makes gate 3\n   depend on a setting rather than on the absence of an endpoint.\
+    \ If this is chosen, say\n   so explicitly and record what it gives up.\n\nWhatever\
+    \ is chosen: **enabling and disabling stay as they are**, and the kill switch\
+    \ must\nkeep working with no ceremony at all.\n\n## If a build follows\n\nScope\
+    \ it to what the decision permits, and cover the parts a hand-editor gets wrong:\
+    \ a\nrunner name that is not in the project's `actors:` vocabulary, an argv with\
+    \ no `{prompt}`,\nan unknown placeholder, a group whose members do not exist,\
+    \ and a group with every member\ndisabled. Those are validation the CLI already\
+    \ has in `dispatch/config.py` \u2014 surface the\nsame errors rather than writing\
+    \ a second set.\n\n## Depends on task-177\n\nThe hierarchy has to exist before\
+    \ there is a hierarchy to edit. Do not start this before\ntask-177's config shape\
+    \ is merged, or the UI will be built against a schema that changed\nunderneath\
+    \ it."
+  constraints: "- The four gates in `docs/agent-dispatch-design.md` section 6 are\
+    \ not negotiable by this task. Any proposal that widens the browser-reachable\
+    \ execution surface must say precisely which gate it changes and what failure\
+    \ that admits \u2014 and must be approved as a decision before anything is built.\n\
+    - Disable, and the `DISPATCH_DISABLED` sentinel, must keep working unconditionally\
+    \ and without ceremony. A kill switch you cannot reach is not one.\n- Do not duplicate\
+    \ validation. `dispatch/config.py` already refuses bad argv, unknown placeholders\
+    \ and undefined runners; the UI surfaces those errors, it does not re-implement\
+    \ them.\n- Nothing in a project repository may define a runner or a group, whatever\
+    \ this decides about the browser."
+  out_of_scope: "Building the runner-group config schema itself (task-177). Editing\
+    \ postures, limits, or the master switch from the browser \u2014 those are separate\
+    \ widenings and each needs its own argument."
+  context:
+  - path: src/agentjobs/api/routes/dispatch.py
+    why: The module docstring states the rule this task must either honour or consciously
+      change.
+  - path: src/agentjobs/dispatch/config.py
+    why: set_project_enabled is the only mutation allowed today, and shows how narrow
+      it deliberately is.
+  - path: docs/agent-dispatch-design.md
+    why: Section 6, gate 3, and the reason the whole subsystem is written the way
+      it is.
+  - path: frontend/src
+    why: Where the Dispatch page lives, if a build follows the decision.
+acceptance:
+- id: sc-1
+  text: A decision entry records whether the browser may author runners or groups,
+    which option was chosen, and what each rejected option would have cost
+  status: pending
+- id: sc-2
+  text: If the decision permits a write path, it names the presence proof or opt-in
+    that guards it, and the design document says so
+  status: pending
+- id: sc-3
+  text: Whatever ships, disable and the kill-switch sentinel still work with dispatch
+    misconfigured, and a test asserts it
+  status: pending
+- id: sc-4
+  text: Someone setting dispatch up for the first time can get to a working runner
+    from the Dispatch page without being told to go read the source
+  status: pending
+deliverables: []
+dependencies:
+- task: task-177-runner-groups
+  type: needs
+  note: The hierarchy must exist before there is one to edit.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T19:13:24.181685Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 8b2d4e61-0c37-4f9a-b5d8-2a7e6c410180
+      kind: create
+      fingerprint: b67e687a431b3f2e0883a88d3b7f2741
