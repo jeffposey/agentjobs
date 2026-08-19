@@ -3,7 +3,7 @@ id: task-017
 title: Let an agent ask structured multiple-choice questions the human answers in
   the GUI
 created: '2026-08-18T05:35:45.027948Z'
-updated: '2026-08-18T05:35:45.028703Z'
+updated: '2026-08-19T17:44:06.151454Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -85,7 +85,7 @@ spec:
   - path: docs/task-schema.md
     why: The `question`/`answer` entry types and `re` threading this should build
       on.
-  - path: src/agentjobs/models.py
+  - path: src/agentjobs/models_v2.py
     why: Where a typed option model would live if option 1 in the description is chosen.
   - path: frontend/src/components/TaskDetail.tsx
     why: Where questions would render, alongside the ball_reason work in task-016.
@@ -145,3 +145,15 @@ log:
       id: 7b2f6c14-9d38-4e07-a625-3f81b0e94c72
       kind: create
       fingerprint: cc04c10e359be0081cae843bd5ffddbf
+- id: 2
+  ts: '2026-08-19T17:44:06.151295Z'
+  actor: system
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 36663c2b-3355-4d54-9b70-07497a4a8487
+      kind: update_content
+      fingerprint: 716c7e8032ccb011de8ee26dcb820788

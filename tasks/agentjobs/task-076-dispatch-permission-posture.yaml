@@ -2,7 +2,7 @@ schema: 2
 id: task-076-dispatch-permission-posture
 title: Decide what a dispatched agent is allowed to do without a human present
 created: '2026-08-11T01:43:18.956698Z'
-updated: '2026-08-18T06:17:12.230356Z'
+updated: '2026-08-19T17:44:28.251059Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -106,8 +106,6 @@ spec:
   context:
   - path: docs/agent-dispatch-design.md
     why: 'Section 4, ''Permission posture: the gap this design left''.'
-  - path: .claude/settings.json
-    why: What an allowlist looks like in practice on this machine.
 acceptance:
 - id: sc-1
   text: A decision is recorded in docs/agent-dispatch-design.md section 4 with the
@@ -515,3 +513,15 @@ log:
       id: 7e4d0a12-63bf-4915-8c07-25a91f3e8d64
       kind: close
       fingerprint: abaae733ba22c112d2ad30f99398aee7
+- id: 13
+  ts: '2026-08-19T17:44:28.250911Z'
+  actor: system
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 9a873850-d771-404d-8b9d-f4db312b4632
+      kind: update_content
+      fingerprint: 89ff172d1974f2f81c6350c493295564

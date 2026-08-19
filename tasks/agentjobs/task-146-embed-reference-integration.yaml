@@ -2,7 +2,7 @@ schema: 2
 id: task-146-embed-reference-integration
 title: Prove the loop from a real project that is not AgentJobs, then write the guide
 created: '2026-08-18T05:55:46.457033Z'
-updated: '2026-08-18T05:55:46.458190Z'
+updated: '2026-08-19T17:44:26.892337Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -76,9 +76,6 @@ spec:
   out_of_scope: Permanent adoption of the widget in the host project, changes to the
     host project beyond what the integration needs, and marketing or launch material.
   context:
-  - path: C:/projects/job-hunting/tools/triage/web
-    why: 'The reference host: a React app in a registered project that is not this
-      repository.'
   - path: docs/index.md
     why: Where the new embedding guide has to be indexed to be found.
   - path: docs/quickstart.md
@@ -131,3 +128,15 @@ log:
       id: 550226c8-8d54-4016-b005-809209b74372
       kind: create
       fingerprint: fc7f0a3796678f8bbea69770c1525e7c
+- id: 2
+  ts: '2026-08-19T17:44:26.892144Z'
+  actor: system
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 97588643-a394-46d2-8546-336080003247
+      kind: update_content
+      fingerprint: 89071179a1f23adcda2425a188052623

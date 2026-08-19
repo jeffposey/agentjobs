@@ -3,7 +3,7 @@ id: task-161-project-level-dispatch
 title: 'Dispatch a project, not a task: one button that starts an agent on whatever
   is next'
 created: '2026-08-19T16:42:31.089654Z'
-updated: '2026-08-19T16:42:31.090643Z'
+updated: '2026-08-19T17:44:25.866399Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -71,7 +71,7 @@ spec:
     why: The per-task dispatch endpoint this parallels.
   - path: frontend/src/components/DispatchPanel.tsx
     why: The existing dispatch UI and its run list.
-  - path: tasks/agentjobs/task-153-dispatcher-actor-advice.yaml
+  - path: tasks/agentjobs/task-153-dispatcher-actor-refusal-message.yaml
     why: The caused-by / human-clocked guard and the advice it currently gives, which
       question 4 turns on.
 acceptance:
@@ -107,3 +107,15 @@ log:
       id: b2e1d4a8-6f75-4c23-8a94-1d8e3f027161
       kind: create
       fingerprint: 3ef8560b77c871c9fd2f4fec6606e25f
+- id: 2
+  ts: '2026-08-19T17:44:25.866285Z'
+  actor: system
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 8cb692bc-a8eb-41d9-bf77-334307c896c0
+      kind: update_content
+      fingerprint: 707b51a4b35ae1667619ec7e3cf729be
