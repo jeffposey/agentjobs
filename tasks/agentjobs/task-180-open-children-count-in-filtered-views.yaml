@@ -1,0 +1,87 @@
+schema: 2
+id: task-180-open-children-count-in-filtered-views
+title: open_children_count is computed over the filtered subset, so a list or search
+  under-reports it
+created: '2026-08-19T19:22:58.406965Z'
+updated: '2026-08-19T19:22:58.407770Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: reliability
+tags:
+- api
+- dependencies
+- correctness
+effort: small
+assignment:
+  eligible: []
+spec:
+  summary: A parent task with six open children reports open_children_count 0 from
+    search and filtered list views, because dependency_facts counts children only
+    among the tasks it was handed. The sibling field actionable is computed over the
+    whole corpus and stays correct, so the two disagree in the same response.
+  intent: 'A count that is silently relative to whatever filter produced the view
+    is worse than no count: a reader has no way to tell 0-because-none from 0-because-not-in-this-page.'
+  description: "Found 2026-08-19 while checking that a newly filed child had attached\
+    \ to its parent.\n\n## Observed\n\nA search returning two tasks reported `open_children_count:\
+    \ 0` for\n`task-160-dispatch-phase-two`. `task_get` on the same task, in the same\
+    \ server, reported\n`open_children_count: 6` in its `dependency_facts` \u2014\
+    \ the correct number.\n\n## Cause\n\n`TaskManager.dependency_facts` in `src/agentjobs/manager.py`\
+    \ builds the count by\niterating the `project_tasks` argument:\n\n```python\n\
+    for candidate in project_tasks:\n    if candidate.parent and candidate.is_open:\n\
+    \        open_children_counts[candidate.parent] = ...\n```\n\nWhen callers pass\
+    \ a filtered subset \u2014 which list and search do \u2014 children outside that\n\
+    subset are not counted. Note the contrast three lines up: `actionable` uses\n\
+    `self._open_children()`, which reads the whole corpus and is therefore right in\
+    \ every\nview. So one field in the response is corpus-wide and its neighbour is\
+    \ page-relative,\nwith nothing in the API surface saying so.\n\n## Worth deciding\
+    \ rather than patching blindly\n\nComputing the count over the corpus on every\
+    \ list is the obvious fix and is probably\ncorrect, but the subset argument exists\
+    \ for a reason \u2014 check whether it was a\ndeliberate cost trade before removing\
+    \ it. If it was, the field must become nullable and\nbe omitted in views that\
+    \ cannot compute it honestly, rather than defaulting to 0."
+  constraints: '- Do not make a list response pay for a full corpus parse if that
+    is what the subset argument was avoiding; the project measures parses per request
+    deliberately (X-Task-Parses). Whichever way this goes, state the cost.
+
+    - 0 must mean zero. A field that cannot be computed in a given view is null or
+    absent, never a plausible-looking number.'
+  out_of_scope: Any change to actionable, which is already correct.
+  context:
+  - path: src/agentjobs/manager.py
+    why: 'dependency_facts: the subset iteration for the count, beside the corpus-wide
+      _open_children used by actionable.'
+  - path: src/agentjobs/api/models.py
+    why: Where the field is projected into API responses with a 0 default.
+  - path: docs/performance.md
+    why: The parse-count budget any fix has to answer to.
+acceptance:
+- id: sc-1
+  text: A search or filtered list that excludes a parent's children reports that parent's
+    open child count correctly, or omits it, and a test pins the behaviour
+  status: pending
+- id: sc-2
+  text: The parse-count impact of the chosen approach is measured and recorded on
+    the task
+  status: pending
+- id: sc-3
+  text: poetry run python scripts/check.py passes
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T19:22:58.407004Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: d5b8e3ca-2e47-4941-a6d2-8f4c1b3e0180
+      kind: create
+      fingerprint: 027d6e281f261a90f37d8465abf9a72c

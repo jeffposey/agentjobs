@@ -1,0 +1,147 @@
+schema: 2
+id: task-179-dispatch-onto-a-worked-task
+title: Dispatch is offered on a task an agent is already working, and the guards would
+  allow it
+created: '2026-08-19T19:22:34.834865Z'
+updated: '2026-08-19T19:22:34.835758Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: reliability
+tags:
+- dispatch
+- safety
+- ux
+- guards
+effort: small in code, one decision in the middle of it
+assignment:
+  eligible: []
+spec:
+  summary: "A task that is claimed and actively being worked still shows an enabled\
+    \ Dispatch button, and the guard layer would let the click through \u2014 because\
+    \ \"one live run per task\" is enforced only against runs that dispatch itself\
+    \ started, and an active task owned by the same actor is passed through rather\
+    \ than refused. Two agents on one task and one branch is the failure this prevents\
+    \ nowhere."
+  intent: The record already says an agent holds this task. That is the only signal
+    AgentJobs has about agents it did not start, and both the button and the guard
+    currently ignore it.
+  description: "Observed by Jeff on 2026-08-19, live: *\"the new session claimed 177\
+    \ and is working on\nit, the task shows in progress, and the Dispatch button is\
+    \ still there begging to get\nclicked... that ain't good.\"*\n\n`task-177-runner-groups`\
+    \ was claimed by an agent launched through the spawn-session\nskill \u2014 a normal\
+    \ `claude --bg` session, not a dispatch. The record read\n`lifecycle: active`,\
+    \ `ball: agent`, `ball_reason: work`, `owner: claude`, and the task\npage still\
+    \ offered Dispatch.\n\n## Two independent causes, and the second is the dangerous\
+    \ one\n\n**The button.** `frontend/src/components/TaskDetail.tsx` computes\n\n\
+    ```ts\ntaskIsDispatchable={task.ball === \"agent\" && task.lifecycle !== \"closed\"\
+    }\n```\n\n`agent`/`available` (nobody is on it) and `agent`/`work` (an agent is\
+    \ on it right now)\nare indistinguishable to that expression, and `assignment.owner`\
+    \ is not consulted at all.\n\n**The guards.** `src/agentjobs/dispatch/guards.py`\
+    \ enforces one live run per task two\nways, and both are blind here:\n\n- `live_runs()`\
+    \ scans the run ledger \u2014 runs *dispatch* created. A session started by the\n\
+    \  spawn-session skill, by a human in a terminal, or by any other tool writes\
+    \ no ledger\n  row, so the scan sees nothing.\n- `acquire_run_lock()` is taken\
+    \ per task by dispatch. An externally started agent holds\n  no such lock.\n\n\
+    Then `_claim_or_verify` does not refuse an already-active task. It raises\n`OwnerMismatchError`\
+    \ only when the owner differs from the dispatching runner's actor;\nwhen they\
+    \ match it returns the task and the spawn proceeds. With a single shared agent\n\
+    actor id \u2014 this project configures exactly one, `claude` \u2014 **\"already\
+    \ ours\" cannot\ndistinguish \"a run of mine that died\" from \"a different agent,\
+    \ working right now.\"**\n\n## What actually stopped it, and why that is luck\
+    \ rather than safety\n\n`assert_human_clocked` refused, because the newest log\
+    \ entry was the child's own `claim`,\nwritten by `claude`. The refusal was about\
+    \ *who wrote the last entry*, not about the task\nbeing worked.\n\nThe moment\
+    \ a human entry becomes the newest \u2014 Jeff comments, approves, requests changes,\n\
+    or answers a handoff \u2014 the same click passes every gate: not closed, config\
+    \ permits,\nnewest entry is human, no ledger run, no lock, tree clean, owner matches.\
+    \ It claims\nnothing new and starts a second agent against the same task record\
+    \ and the same branch.\nThat is precisely the outcome `LiveRunExistsError`'s own\
+    \ message says must never happen:\n*\"a second would have two agents editing the\
+    \ same repository with the same task record.\"*\n\n## What must be decided, not\
+    \ assumed\n\n1. **Is `lifecycle: active` with an owner a refusal on its own?**\
+    \ It should be, but not\n   unconditionally \u2014 `_claim_or_verify` exists to\
+    \ serve the legitimate case where a\n   previous run died and the task is still\
+    \ active and still owned. Distinguish *owned and\n   something is alive* from\
+    \ *owned and nothing is*, and say how each is detected.\n2. **What evidence counts\
+    \ as \"something is alive\" for an agent AgentJobs did not start?**\n   The honest\
+    \ answer may be \"none, so trust the record and require an explicit override\"\
+    .\n   If an override exists, it is a deliberate act with its own log entry, never\
+    \ a quiet\n   force flag.\n3. **What does the button do instead?** Not offered,\
+    \ with the reason visible \u2014 who holds\n   it and since when \u2014 beats\
+    \ offered-and-refused. `DispatchPanel` already renders\n   refusal copy per reason\
+    \ code; this needs a task-state reason alongside the config\n   ones.\n\n## The\
+    \ general statement worth putting in the design\n\nAgentJobs cannot see agents\
+    \ it did not start, and it never will be able to. The task\nrecord's claim state\
+    \ is therefore the only cross-tool signal it has that work is in\nflight, which\
+    \ makes it the thing the guard must consult \u2014 not the ledger, which by\n\
+    construction only knows about dispatch's own children."
+  constraints: '- Do not remove the ability to dispatch a task that is active and
+    owned because its previous run died. That case is real and is why `_claim_or_verify`
+    is written the way it is; the fix must separate it from the live case rather than
+    blanket-refuse.
+
+    - The refusal must be a typed `DispatchRefused` subclass with a stable `reason`
+    code, like every other gate, so the browser renders copy from the code rather
+    than matching message text.
+
+    - Fix both layers. A disabled button with the endpoint still permissive leaves
+    the hole open to the CLI, `curl`, and the API docs page; a refusing endpoint with
+    the button still lit is a UI that invites a rejected click.
+
+    - Every existing gate keeps its current behaviour and ordering. This adds a check,
+    it does not reorder or relax the ones already there.'
+  out_of_scope: Registering externally started sessions in the dispatch ledger so
+    AgentJobs can track agents it did not start. That is a much larger idea, it is
+    not required to close this hole, and it should be filed on its own if it is wanted.
+  context:
+  - path: src/agentjobs/dispatch/guards.py
+    why: dispatch_task's gate order, the live_runs scan, the run lock, and _claim_or_verify's
+      same-actor pass-through.
+  - path: frontend/src/components/TaskDetail.tsx
+    why: taskIsDispatchable, the expression that offers the button.
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: The refusal-copy map keyed by reason code, where a new task-state refusal
+      must appear.
+  - path: docs/agent-dispatch-design.md
+    why: Section 6 and 7 describe the guarantees this violates; the general statement
+      about unseeable agents belongs there.
+acceptance:
+- id: sc-1
+  text: Dispatching a task that is active, owned, and being worked is refused by a
+    typed error with its own reason code, proven by a test that does not depend on
+    which actor wrote the newest log entry
+  status: pending
+- id: sc-2
+  text: The Dispatch button is not offered for such a task, and the page says who
+    holds it instead
+  status: pending
+- id: sc-3
+  text: Re-dispatching a task that is active and owned but has no live run still works,
+    and a test pins that case apart from sc-1
+  status: pending
+- id: sc-4
+  text: The design document states that AgentJobs cannot observe agents it did not
+    start, and that the record's claim state is the guard that follows from it
+  status: pending
+- id: sc-5
+  text: poetry run python scripts/check.py passes
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T19:22:34.834908Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c4a7f2b9-1d6e-4830-95c1-7e3b0a2d0179
+      kind: create
+      fingerprint: ff6aefd11eb4e4ab23031493a2cec3cf
