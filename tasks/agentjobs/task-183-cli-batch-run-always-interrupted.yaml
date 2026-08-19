@@ -1,0 +1,84 @@
+schema: 2
+id: task-183-cli-batch-run-always-interrupted
+title: A batch run started from the CLI always ends interrupted, however well it went
+created: '2026-08-19T20:50:29.282313Z'
+updated: '2026-08-19T20:50:29.283061Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: reliability
+tags:
+- dispatch
+- cli
+- ledger
+effort: small
+assignment:
+  eligible: []
+parent: task-181-dispatch-phase-one-hardening
+spec:
+  summary: "agentjobs dispatch run returns as soon as the child is spawned, but a\
+    \ batch run's supervisor is a daemon thread inside that same process. The process\
+    \ exits, the supervisor dies with it, the run record stays running until reconciliation\
+    \ later declares it interrupted \u2014 even when the child finished successfully."
+  intent: The outcome recorded for a run should describe the run, not the lifetime
+    of the process that happened to start it. Right now a clean success is indistinguishable
+    in the record from a real interruption.
+  description: "Found 2026-08-19 by the task-177 session while dispatching a real\
+    \ batch run from the\nscaffolded config. `run_29f1a541`'s child completed with\
+    \ exit 0 and a success result; its\nrecord stayed `running` and was later reconciled\
+    \ to `interrupted`. Pre-existing.\n\nThe ledger's own module docstring says batch\
+    \ runs do not outlive their supervisor, and\nthat is the design \u2014 killing\
+    \ `agentjobs serve` terminating its batch runs is deliberate\n(design section\
+    \ 6). But from the **one-shot CLI** that outcome is not exceptional, it is\nguaranteed:\
+    \ the CLI's whole job is to return immediately.\n\nTwo things worth separating\
+    \ when fixing this:\n\n1. **The record is wrong.** A run that finished successfully\
+    \ should not be recorded as\n   interrupted because the launcher exited.\n2. **Nothing\
+    \ says so.** `agentjobs dispatch run` prints a success line and gives no hint\n\
+    \   that the run it just started will not be supervised to completion. Even if\
+    \ the\n   behaviour is kept, the output should say what will happen.\n\nOptions,\
+    \ none prescribed: have the CLI wait for a batch run rather than returning; make\n\
+    the supervisor outlive the launching process; or refuse a batch runner from the\
+    \ one-shot\nCLI and say to use the server. Session runners are unaffected \u2014\
+    \ they are owned by the\nagent CLI's own manager, which is the point of the mode."
+  constraints: '- Do not change what killing `agentjobs serve` does to its batch runs;
+    that is a deliberate safety property, not this defect.
+
+    - Whatever is chosen, `agentjobs dispatch run` must not report success in a way
+    that implies supervision it is not providing.'
+  out_of_scope: Session-mode lifecycle, which is owned by the agent CLI's session
+    manager and behaves correctly here.
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: The batch supervisor thread and its terminal dispatch_result writing.
+  - path: src/agentjobs/dispatch/ledger.py
+    why: Reconciliation, which is what later marks the run interrupted.
+  - path: src/agentjobs/cli.py
+    why: 'dispatch run: returns as soon as the handle exists.'
+acceptance:
+- id: sc-1
+  text: "A batch run started from the CLI that completes successfully is recorded\
+    \ as succeeded, or the CLI states plainly that it will not be supervised \u2014\
+    \ and whichever is chosen is a recorded decision"
+  status: pending
+- id: sc-2
+  text: Killing agentjobs serve still terminates its own batch runs, unchanged, pinned
+    by a test
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T20:50:29.282347Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 2b3c4d5e-6f70-4b81-9c02-3d4e5f600183
+      kind: create
+      fingerprint: 862e88adc3bdacf936878cf588b97501

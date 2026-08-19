@@ -1,0 +1,91 @@
+schema: 2
+id: task-182-clean-tree-versus-in-repo-tasks
+title: require_clean_tree refuses every dispatch in a project whose task files live
+  in its own repo
+created: '2026-08-19T20:50:13.107702Z'
+updated: '2026-08-19T20:50:13.108410Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: reliability
+tags:
+- dispatch
+- guards
+- git
+effort: small
+assignment:
+  eligible: []
+parent: task-181-dispatch-phase-one-hardening
+spec:
+  summary: "Dispatch checks the tree is clean, then claims the task \u2014 which writes\
+    \ the task YAML into that same tree \u2014 and the spawn-time re-check then refuses\
+    \ dirty_tree. Any project keeping its tasks in the repo being dispatched, which\
+    \ includes agentjobs itself, cannot dispatch at all with the default setting on."
+  intent: 'The default is on, and the failure it produces is self-inflicted: dispatch
+    dirties the tree itself, between its own two checks. Turning the safety off to
+    work around that gives up protection against a real hazard.'
+  description: "Found 2026-08-19 by the task-177 session, while dispatching real runs\
+    \ from the scaffolded\nconfig against a throwaway project. Reproduced there before\
+    \ switching the setting off to\nproceed. Pre-existing; runner groups neither caused\
+    \ nor touched it.\n\n## The sequence\n\n1. `assert_dispatch_permitted` passes\
+    \ \u2014 tree is clean.\n2. `dispatch_task` reaches `_claim_or_verify`, which\
+    \ claims the task. The claim writes the\n   task's YAML file, which for these\
+    \ projects is **inside the repository being\n   dispatched**.\n3. The spawn-time\
+    \ re-check sees an uncommitted change and raises `DirtyTreeError`.\n\n`working_tree_clean`\
+    \ in `src/agentjobs/dispatch/runner.py` runs a bare\n`git status --porcelain`\
+    \ over the whole tree, with no exclusion for the tasks directory.\n\n## Why it\
+    \ matters here specifically\n\nThis repository keeps its own tasks in `tasks/agentjobs/`,\
+    \ and ENGINEERING.md requires\ntask-record writes to land on `main` in the shared\
+    \ clone. So on the machine dispatch was\nbuilt for, dispatching an agentjobs task\
+    \ with the documented default is guaranteed to\nrefuse \u2014 and the refusal\
+    \ names uncommitted changes that dispatch made a moment earlier.\n\n## What to\
+    \ decide\n\nThe obvious fix is to exclude the project's `tasks_directory` from\
+    \ the cleanliness check,\nand it is probably right \u2014 but state the cost:\
+    \ a genuinely uncommitted *hand* edit to a\ntask file would then also be ignored,\
+    \ and the whole point of `require_clean_tree` is that\nan agent should not commit\
+    \ on top of in-flight human work. Alternatives worth a sentence\neach before choosing:\
+    \ check cleanliness once and pass the verdict to the spawn rather than\nre-deriving\
+    \ it; or commit the claim before the re-check."
+  constraints: '- Do not solve this by defaulting `require_clean_tree` to false. The
+    protection is real; it is the check''s blindness to its own write that is wrong.
+
+    - Whatever is chosen must still refuse when a human has genuinely uncommitted
+    work in the repository, and a test must pin that case apart from the self-inflicted
+    one.'
+  out_of_scope: Changing where task files live, or the rule that task records are
+    committed to main.
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: working_tree_clean, and the spawn-time re-check that refuses.
+  - path: src/agentjobs/dispatch/guards.py
+    why: 'The gate order: the clean check, then the claim that dirties the tree.'
+acceptance:
+- id: sc-1
+  text: A project whose task files live in the dispatched repository can dispatch
+    with require_clean_tree left at its default
+  status: pending
+- id: sc-2
+  text: A dispatch is still refused when the repository has uncommitted work that
+    dispatch did not create, pinned by its own test
+  status: pending
+- id: sc-3
+  text: The choice and its cost are recorded as a decision with the rejected alternatives
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T20:50:13.107742Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 1a2b3c4d-5e6f-4a70-8b91-2c3d4e5f0182
+      kind: create
+      fingerprint: 7fd485e08669049560beeabdf4fe10ff
