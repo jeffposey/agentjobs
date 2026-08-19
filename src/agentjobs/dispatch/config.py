@@ -21,11 +21,20 @@ Four gates, each independently sufficient to refuse a run:
 
 ``assert_dispatch_permitted`` walks all four and is the single entry point later tasks
 call. It returns the resolved runner or raises a typed error naming which gate refused.
+
+**Runner groups (task-177)** sit on top of the flat ``runners:`` map: a group is an
+ordered list of runners that are interchangeable for one kind of work, a dispatch may
+name one, and the first member that can actually run is the one that runs. Everything
+about them is additive -- a config with no ``runner_groups:`` block behaves exactly as
+it did, resolves through ``projects.<id>.runner``, and logs nothing new. Selection
+happens after all four gates, never around them, which is why it lives inside
+``assert_dispatch_permitted`` rather than beside it.
 """
 
 from __future__ import annotations
 
 import re
+import shutil
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -120,6 +129,30 @@ class UnknownRunnerError(DispatchError):
     reason = "unknown_runner"
 
 
+class UnknownGroupError(DispatchError):
+    """A dispatch, a project, or the machine default names a group nobody defined.
+
+    Separate from ``UnknownRunnerError`` because the fix is different: one says "point
+    this at a runner you wrote", the other says "point this at a group you wrote", and a
+    caller that cannot tell them apart tells its user to edit the wrong block.
+    """
+
+    reason = "unknown_group"
+
+
+class NoEligibleRunnerError(DispatchError):
+    """A group resolved, and every member of it was passed over.
+
+    Deliberately not a fallback to the project's plain runner. A group is the operator's
+    statement about *which runners are interchangeable for this kind of work*; reaching
+    outside it would run a model the requester did not ask for, at a cost they did not
+    choose, which is the failure the group layer exists to prevent. The message names
+    every candidate and why each was skipped, so the refusal is actionable.
+    """
+
+    reason = "no_eligible_runner"
+
+
 class PlaceholderError(DispatchError):
     """A runner's argv references a placeholder that is unknown or unsupplied."""
 
@@ -179,12 +212,102 @@ class DispatchRunner:
 
 
 @dataclass(frozen=True)
+class RunnerGroupMember:
+    """One runner's membership in a group: which runner, and whether it is in play."""
+
+    runner: str
+    enabled: bool = True
+    note: Optional[str] = None
+    """Free text for the human reading the file. Never parsed, never acted on.
+
+    It exists so ``enabled: false`` can say *why* -- "no API key on this machine yet",
+    "waiting on the org to approve the spend" -- beside the flag rather than in someone's
+    memory. A disabled member with no explanation is indistinguishable from a mistake.
+    """
+
+
+@dataclass(frozen=True)
+class RunnerGroup:
+    """An ordered list of runners that are interchangeable for one kind of work.
+
+    Order is the declaration order in the file and is the whole preference mechanism:
+    the first member that can actually run is the one that runs. There is no scoring, no
+    weighting, and nothing consulted over the network -- see the task-177 decision on
+    what the installed CLIs do and do not expose.
+    """
+
+    name: str
+    members: List[RunnerGroupMember] = field(default_factory=list)
+    description: Optional[str] = None
+
+
+class SelectionSource(str, Enum):
+    """Which rung of the precedence ladder decided what runs (design section 4)."""
+
+    DISPATCH = "dispatch"
+    """A group named on this one dispatch. The narrowest thing that can win today."""
+
+    PROJECT = "project"
+    """``projects.<id>.group``."""
+
+    MACHINE = "machine"
+    """``default_group:``, the machine-wide fallback group."""
+
+    PROJECT_RUNNER = "project_runner"
+    """``projects.<id>.runner`` -- today's behaviour, and the last rung of the ladder."""
+
+
+class SkipReason(str, Enum):
+    """Why a group member was passed over. Recorded per candidate, in the task log."""
+
+    DISABLED = "disabled"
+    """``enabled: false``. A hand edit is the only thing that changes it."""
+
+    UNDEFINED_RUNNER = "undefined_runner"
+    """The member names a runner absent from ``runners:``."""
+
+    EXECUTABLE_NOT_FOUND = "executable_not_found"
+    """``argv[0]`` does not resolve on PATH, so starting it would fail with WinError 2."""
+
+
+@dataclass(frozen=True)
+class RunnerCandidate:
+    """One member of a group, and what the selector concluded about it."""
+
+    runner: str
+    eligible: bool
+    skipped_because: Optional[SkipReason] = None
+    detail: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class RunnerSelection:
+    """The chosen runner and the complete account of how it was chosen.
+
+    Carried on the resolution and copied into the ``dispatch`` log entry, because the
+    thing that makes a group safe is not the selection rule but the ability to answer
+    "why did this run on that model" three weeks later from the git-tracked record.
+    """
+
+    runner: DispatchRunner
+    source: SelectionSource
+    group: Optional[str] = None
+    candidates: List[RunnerCandidate] = field(default_factory=list)
+
+    @property
+    def from_group(self) -> bool:
+        """True when a group participated, so a flat setup logs nothing new."""
+        return self.group is not None
+
+
+@dataclass(frozen=True)
 class ProjectDispatchSettings:
     """Whether and how one project may dispatch on this machine."""
 
     project_id: str
     enabled: bool = False
     runner: Optional[str] = None
+    group: Optional[str] = None
     require_clean_tree: bool = True
     auto_dispatch: bool = False
     posture: Posture = Posture.SUPERVISED
@@ -220,6 +343,8 @@ class DispatchConfig:
     version: int = SUPPORTED_VERSION
     enabled: bool = False
     runners: Dict[str, DispatchRunner] = field(default_factory=dict)
+    runner_groups: Dict[str, RunnerGroup] = field(default_factory=dict)
+    default_group: Optional[str] = None
     projects: Dict[str, ProjectDispatchSettings] = field(default_factory=dict)
     limits: DispatchLimits = field(default_factory=DispatchLimits)
     path: Optional[Path] = None
@@ -231,13 +356,26 @@ class DispatchConfig:
 
 @dataclass(frozen=True)
 class DispatchResolution:
-    """What ``assert_dispatch_permitted`` returns when every gate is open."""
+    """What ``assert_dispatch_permitted`` returns when every gate is open.
+
+    ``runner`` is the runner that will start. ``selection`` is the account of how it was
+    arrived at -- identical information for a flat config, where the account is one rung
+    long and nothing is logged about it.
+    """
 
     project_id: str
     runner: DispatchRunner
     settings: ProjectDispatchSettings
     limits: DispatchLimits
     config: DispatchConfig
+    selection: Optional[RunnerSelection] = None
+    """How ``runner`` was chosen, or ``None`` when no group participated.
+
+    ``None`` rather than a one-rung selection on purpose: it is the flag that keeps a
+    flat config's ``dispatch`` log entry byte-identical to what it was before groups
+    existed. Someone who never wants a group should not learn from their task files that
+    groups exist.
+    """
 
 
 # ----- locations --------------------------------------------------------------
@@ -300,6 +438,16 @@ def _parse(raw: dict, path: Path) -> DispatchConfig:
         name: _parse_runner(name, value, path)
         for name, value in _mapping(raw.get("runners"), "runners", path).items()
     }
+    runner_groups = {
+        name: _parse_group(name, value, path)
+        for name, value in _mapping(raw.get("runner_groups"), "runner_groups", path).items()
+    }
+    default_group = raw.get("default_group")
+    if default_group is not None and not isinstance(default_group, str):
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: default_group must be a string naming "
+            "one of runner_groups."
+        )
     projects = {
         project_id: _parse_project(project_id, value, path)
         for project_id, value in _mapping(raw.get("projects"), "projects", path).items()
@@ -309,11 +457,18 @@ def _parse(raw: dict, path: Path) -> DispatchConfig:
     # load error. It is a refusal for that project only, raised by
     # assert_dispatch_permitted as UnknownRunnerError -- so one bad entry cannot take
     # the whole file, and every other project, down with it.
+    #
+    # The same holds for a group member naming an undefined runner, and for a group name
+    # nobody defined. Deferring those is what makes "write the second option now, enable
+    # it once you have set it up" a legal, working state rather than a file that will not
+    # load. The selector reports each one against the member it came from.
 
     return DispatchConfig(
         version=version,
         enabled=_bool(raw.get("enabled"), "enabled", path, default=False),
         runners=runners,
+        runner_groups=runner_groups,
+        default_group=default_group or None,
         projects=projects,
         limits=_parse_limits(_mapping(raw.get("limits"), "limits", path), path),
         path=path,
@@ -365,6 +520,73 @@ def _parse_runner(name: str, raw: object, path: Path) -> DispatchRunner:
     return DispatchRunner(name=name, argv=list(argv), env=env, mode=mode, actor=actor_raw or None)
 
 
+def _parse_group(name: str, raw: object, path: Path) -> RunnerGroup:
+    """Validate one runner group: an ordered list of members, and nothing clever.
+
+    A member may be written as a bare string (``- claude-opus``) or as a mapping
+    (``- runner: claude-opus`` with ``enabled`` and ``note``). Both are accepted because
+    the short form is what a group of already-working runners looks like, and forcing a
+    mapping on it would make the common case the ugly one.
+    """
+    where = f"runner_groups.{name}"
+    mapping = _mapping(raw, where, path)
+
+    description = mapping.get("description")
+    if description is not None and not isinstance(description, str):
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: {where}.description must be a string."
+        )
+
+    raw_members = mapping.get("members")
+    if not isinstance(raw_members, list) or not raw_members:
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: {where}.members must be a non-empty "
+            "list. A group with no members can never dispatch, which is a slower way of "
+            "saying the group should not exist."
+        )
+
+    members: List[RunnerGroupMember] = []
+    seen: set[str] = set()
+    for index, element in enumerate(raw_members):
+        member = _parse_group_member(element, f"{where}.members[{index}]", path)
+        if member.runner in seen:
+            raise DispatchConfigError(
+                f"Invalid dispatch config at {path}: {where} lists runner "
+                f"{member.runner!r} twice. Order is the preference, so a duplicate has "
+                "no meaning that the first mention does not already have."
+            )
+        seen.add(member.runner)
+        members.append(member)
+
+    return RunnerGroup(name=name, members=members, description=description)
+
+
+def _parse_group_member(raw: object, where: str, path: Path) -> RunnerGroupMember:
+    """Validate one group member in either the bare-string or the mapping form."""
+    if isinstance(raw, str):
+        return RunnerGroupMember(runner=raw)
+
+    mapping = _mapping(raw, where, path)
+    runner = mapping.get("runner")
+    if not isinstance(runner, str) or not runner:
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: {where}.runner must name a runner "
+            "defined under 'runners:'."
+        )
+
+    note = mapping.get("note")
+    if note is not None and not isinstance(note, str):
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: {where}.note must be a string."
+        )
+
+    return RunnerGroupMember(
+        runner=runner,
+        enabled=_bool(mapping.get("enabled"), f"{where}.enabled", path, default=True),
+        note=note,
+    )
+
+
 def _parse_project(project_id: str, raw: object, path: Path) -> ProjectDispatchSettings:
     """Validate one project's dispatch settings."""
     where = f"projects.{project_id}"
@@ -374,6 +596,13 @@ def _parse_project(project_id: str, raw: object, path: Path) -> ProjectDispatchS
     if runner is not None and not isinstance(runner, str):
         raise DispatchConfigError(
             f"Invalid dispatch config at {path}: {where}.runner must be a string."
+        )
+
+    group = mapping.get("group")
+    if group is not None and not isinstance(group, str):
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: {where}.group must be a string naming "
+            "one of runner_groups."
         )
 
     posture_raw = mapping.get("posture", Posture.SUPERVISED.value)
@@ -389,6 +618,7 @@ def _parse_project(project_id: str, raw: object, path: Path) -> ProjectDispatchS
         project_id=project_id,
         enabled=_bool(mapping.get("enabled"), f"{where}.enabled", path, default=False),
         runner=runner,
+        group=group,
         require_clean_tree=_bool(
             mapping.get("require_clean_tree"), f"{where}.require_clean_tree", path, default=True
         ),
@@ -539,15 +769,191 @@ def _value_for(name: str, values: Mapping[str, str]) -> str:
     return str(values[name])
 
 
+# ----- group selection --------------------------------------------------------
+
+
+def executable_available(argv: Sequence[str]) -> bool:
+    """Whether this runner's program can actually be started on this machine.
+
+    The one selection input that is about the world rather than about the file, and it
+    is deliberately the cheapest such input there is: a PATH scan, no subprocess, no
+    network, no clock. A member whose CLI is not installed is the ordinary case this
+    exists for -- a group that lists a second vendor on a machine where only the first
+    is installed should cost a skip, not a ``WinError 2`` after the task has been
+    claimed.
+
+    A templated ``argv[0]`` is treated as available. Nothing can know what it will
+    become, and guessing "unavailable" would silently remove a working runner from every
+    group it is in.
+    """
+    if not argv:
+        return False
+    program = argv[0]
+    if "{" in program:
+        return True
+    return shutil.which(program) is not None
+
+
+def select_runner(
+    group: RunnerGroup,
+    runners: Mapping[str, DispatchRunner],
+    *,
+    source: SelectionSource,
+) -> RunnerSelection:
+    """Choose the first member of ``group`` that can run, and account for the rest.
+
+    Deterministic by construction: the inputs are the file's declared order and three
+    local predicates, so the same config selects the same member every time. Candidates
+    after the winner are still listed, marked eligible, and not evaluated further --
+    "considered and not reached" is a different fact from "considered and rejected", and
+    the log entry should not blur them.
+
+    Raises ``NoEligibleRunnerError`` when every member was passed over. See that class
+    for why this does not fall back to the project's plain runner.
+    """
+    candidates: List[RunnerCandidate] = []
+    chosen: Optional[DispatchRunner] = None
+
+    for member in group.members:
+        if chosen is not None:
+            candidates.append(RunnerCandidate(runner=member.runner, eligible=True))
+            continue
+
+        definition = runners.get(member.runner)
+        if not member.enabled:
+            candidates.append(
+                RunnerCandidate(
+                    runner=member.runner,
+                    eligible=False,
+                    skipped_because=SkipReason.DISABLED,
+                    detail=member.note,
+                )
+            )
+        elif definition is None:
+            candidates.append(
+                RunnerCandidate(
+                    runner=member.runner,
+                    eligible=False,
+                    skipped_because=SkipReason.UNDEFINED_RUNNER,
+                    detail=f"No runner named {member.runner!r} under 'runners:'.",
+                )
+            )
+        elif not executable_available(definition.argv):
+            candidates.append(
+                RunnerCandidate(
+                    runner=member.runner,
+                    eligible=False,
+                    skipped_because=SkipReason.EXECUTABLE_NOT_FOUND,
+                    detail=f"{definition.argv[0]!r} is not on PATH.",
+                )
+            )
+        else:
+            chosen = definition
+            candidates.append(RunnerCandidate(runner=member.runner, eligible=True))
+
+    if chosen is None:
+        raise NoEligibleRunnerError(
+            f"Runner group {group.name!r} has no member that can run: "
+            f"{_why_skipped(candidates)}. Enable a member by hand, install the CLI it "
+            "needs, or dispatch against a different group -- nothing outside the group "
+            "is substituted for it."
+        )
+
+    return RunnerSelection(runner=chosen, source=source, group=group.name, candidates=candidates)
+
+
+def _why_skipped(candidates: Sequence[RunnerCandidate]) -> str:
+    """Each skipped candidate and its reason, for the refusal message."""
+    return "; ".join(
+        f"{candidate.runner} ({candidate.skipped_because.value if candidate.skipped_because else 'ok'}"
+        + (f": {candidate.detail}" if candidate.detail else "")
+        + ")"
+        for candidate in candidates
+    )
+
+
+def resolve_runner(
+    config: DispatchConfig,
+    settings: ProjectDispatchSettings,
+    *,
+    group: Optional[str] = None,
+) -> RunnerSelection:
+    """Walk the precedence ladder and return the runner with its full account.
+
+    Narrowest first, exactly the ladder design section 4 decided for profiles, with the
+    profile rungs not yet built:
+
+    1. a group named on **this dispatch**;
+    2. *(unbuilt)* a profile named on this dispatch, mapping difficulty to a group;
+    3. ``projects.<id>.group``;
+    4. *(unbuilt)* a machine default profile;
+    5. ``default_group:``, the machine-wide group;
+    6. ``projects.<id>.runner`` -- today's behaviour, and the fallback.
+
+    Rung 6 is reached only when no group applies at all, which is what makes an existing
+    flat config behave exactly as it did. It is *not* reached when a group applies and
+    turns out to be exhausted: see ``NoEligibleRunnerError``.
+    """
+    for name, source in (
+        (group, SelectionSource.DISPATCH),
+        (settings.group, SelectionSource.PROJECT),
+        (config.default_group, SelectionSource.MACHINE),
+    ):
+        if not name:
+            continue
+        definition = config.runner_groups.get(name)
+        if definition is None:
+            raise UnknownGroupError(
+                f"{_group_origin(source, settings.project_id)} names runner group "
+                f"{name!r}, which is not defined in {config.path}. Known groups: "
+                f"{_known(config.runner_groups)}. Groups are written by hand, on this "
+                "machine, and never by a project or the browser."
+            )
+        return select_runner(definition, config.runners, source=source)
+
+    if not settings.runner:
+        raise UnknownRunnerError(
+            f"Project {settings.project_id!r} is enabled for dispatch but names no "
+            f"runner and no group. Set projects.{settings.project_id}.runner or "
+            f".group in {config.path}."
+        )
+
+    runner = config.runners.get(settings.runner)
+    if runner is None:
+        raise UnknownRunnerError(
+            f"Project {settings.project_id!r} names runner {settings.runner!r}, which "
+            f"is not defined in {config.path}. Known runners: {_known(config.runners)}."
+        )
+
+    return RunnerSelection(runner=runner, source=SelectionSource.PROJECT_RUNNER)
+
+
+def _group_origin(source: SelectionSource, project_id: str) -> str:
+    """Where a group name came from, so an unknown one says which line to fix."""
+    if source is SelectionSource.DISPATCH:
+        return "This dispatch"
+    if source is SelectionSource.PROJECT:
+        return f"Project {project_id!r}"
+    return "default_group"
+
+
 # ----- the gates --------------------------------------------------------------
 
 
-def assert_dispatch_permitted(project_id: str, home: Optional[Path] = None) -> DispatchResolution:
+def assert_dispatch_permitted(
+    project_id: str, home: Optional[Path] = None, *, group: Optional[str] = None
+) -> DispatchResolution:
     """Walk every dispatch gate for ``project_id`` and resolve its runner.
 
     The single entry point the API, the CLI and the supervisor all call. Raises a
     ``DispatchError`` subclass naming the gate that refused; returns the resolved runner
     only when all four are open.
+
+    ``group`` is the group named on this one dispatch, and it is the narrowest rung of
+    the precedence ladder in ``resolve_runner``. It is an argument to *this* function
+    rather than a separate step around it: group selection happens strictly after the
+    four gates have all opened, so naming a group can never route past one. Passing it
+    to a machine whose config has no groups is a refusal, not a silent fallback.
 
     The sentinel is checked first and re-checked immediately before every spawn by the
     caller: this function proves dispatch was permitted at the moment it was asked, not
@@ -577,25 +983,17 @@ def assert_dispatch_permitted(project_id: str, home: Optional[Path] = None) -> D
             f"Run 'agentjobs dispatch enable {project_id}'."
         )
 
-    if not settings.runner:
-        raise UnknownRunnerError(
-            f"Project {project_id!r} is enabled for dispatch but names no runner. "
-            f"Set projects.{project_id}.runner in {config.path}."
-        )
-
-    runner = config.runners.get(settings.runner)
-    if runner is None:
-        raise UnknownRunnerError(
-            f"Project {project_id!r} names runner {settings.runner!r}, which is not "
-            f"defined in {config.path}. Known runners: {_known(config.runners)}."
-        )
+    # Gate 2, and only now: every other gate is about whether this machine will run
+    # anything at all, and none of them may be reachable from a caller's choice of group.
+    selection = resolve_runner(config, settings, group=group)
 
     return DispatchResolution(
         project_id=project_id,
-        runner=runner,
+        runner=selection.runner,
         settings=settings,
         limits=config.limits,
         config=config,
+        selection=selection if selection.from_group else None,
     )
 
 
@@ -607,14 +1005,17 @@ def set_project_enabled(
     enabled: bool,
     *,
     runner: Optional[str] = None,
+    group: Optional[str] = None,
     home: Optional[Path] = None,
 ) -> ProjectDispatchSettings:
     """Turn dispatch on or off for one project, and return its resulting settings.
 
-    Enablement is the only part of this file a browser or a CLI may write. Runners are
-    never created here: a project can only be pointed at a command that a human already
-    wrote into this machine's config by hand, which is what keeps the reachable
-    execution surface exactly as wide as that file says (design section 6, gate 3).
+    Enablement is the only part of this file a browser or a CLI may write. Runners and
+    groups are never created here: a project can only be pointed at a command, or a list
+    of commands, that a human already wrote into this machine's config by hand, which is
+    what keeps the reachable execution surface exactly as wide as that file says (design
+    section 6, gate 3). Pointing at an existing group is the same act as pointing at an
+    existing runner and is allowed on the same terms; authoring one is not.
 
     The raw mapping is edited in place rather than being round-tripped through the
     dataclasses, so keys this build does not understand survive the write.
@@ -643,10 +1044,26 @@ def set_project_enabled(
         )
 
     if enabled:
-        chosen = _runner_for_enable(project_id, runner, entry.get("runner"), config, path)
-        entry["runner"] = chosen
-    elif runner is not None:
-        raise DispatchError("--runner is meaningless when disabling a project.")
+        if runner is not None and group is not None:
+            raise DispatchError(
+                "Give a runner or a group, not both. A group already says which runners "
+                "are in play, so naming one of them beside it says two things at once."
+            )
+        if group is not None:
+            if group not in config.runner_groups:
+                raise UnknownGroupError(
+                    f"No runner group named {group!r} is defined in {path}. "
+                    f"Known groups: {_known(config.runner_groups)}. Groups are written "
+                    "by hand, on this machine, and never by a project or the browser."
+                )
+            entry["group"] = group
+            entry.pop("runner", None)
+        elif not _already_grouped(entry, config):
+            entry["runner"] = _runner_for_enable(
+                project_id, runner, entry.get("runner"), config, path
+            )
+    elif runner is not None or group is not None:
+        raise DispatchError("--runner and --group are meaningless when disabling a project.")
 
     entry["enabled"] = enabled
 
@@ -658,6 +1075,19 @@ def set_project_enabled(
     updated = load_dispatch_config(home)
     assert updated is not None
     return updated.project(project_id)
+
+
+def _already_grouped(entry: Mapping[str, object], config: DispatchConfig) -> bool:
+    """True when this project already resolves through a group, so no runner is needed.
+
+    A machine-wide ``default_group`` counts. Demanding a runner for a project that is
+    about to resolve through a group would make ``dispatch enable`` the one place in the
+    system that does not understand the precedence ladder the dispatcher uses.
+    """
+    existing = entry.get("group")
+    if isinstance(existing, str) and existing:
+        return True
+    return bool(config.default_group)
 
 
 def _runner_for_enable(
