@@ -23,9 +23,12 @@ This handbook is the canonical source for universal engineering practices across
 
 ### Setup
 ```bash
-poetry install
-poetry run agentjobs init  # If starting fresh
+python scripts/bootstrap.py       # poetry install + npm ci + the Playwright browser
+poetry run agentjobs init         # If starting fresh
 ```
+Run the bootstrap in **any** fresh checkout — a clone or a worktree. It is what makes
+`scripts/check.py` runnable, and it verifies that the environment imports this checkout's
+source rather than a neighbouring one's.
 
 ### Testing
 -   Run the complete repository check before every commit:
@@ -94,8 +97,14 @@ worktree instead of checking out:**
 
 ```bash
 git worktree add ../aj-045 -b feat/task-045-subtask-support
+cd ../aj-045 && python scripts/bootstrap.py   # ~35s; it has no venv or node_modules yet
 git worktree remove ../aj-045      # after the branch merges
 ```
+
+The bootstrap is not optional politeness: a worktree that skips it cannot run
+`scripts/check.py` at all, and borrowing the main clone's virtualenv to get around that
+runs your tests against the main clone's source. See
+[Bootstrapping a worktree](ALLAGENTS.md#bootstrapping-a-worktree).
 
 Agents in this repository are required to do this — see
 [ALLAGENTS.md](ALLAGENTS.md#task-lifecycle) — because several of them routinely run
