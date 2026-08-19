@@ -2,73 +2,13 @@ schema: 2
 id: task-107-task-review-findability-and-outcomes
 title: Make task review searchable and outcome-accurate
 created: '2026-08-13T22:23:56.414109Z'
-updated: '2026-08-19T22:10:23.531226Z'
+updated: '2026-08-19T22:42:15.115759Z'
 lifecycle: active
-ball: human
-ball_reason: input
-ball_prompt: "Dispatched session `7e5fc33c` is parked on a permission prompt and will\
-  \ wait indefinitely. Answer it at https://claude.ai/code/session_018TSD3HmgZgnuMtT8PxsoMt\
-  \ \u2014 that link works from a phone. Or attach locally with `claude attach 7e5fc33c`.\n\
-  \nThe end of its terminal, verbatim:\n\n```\n \u276F 1. Yes\n   2. Yes, allow reading\
-  \ from /c/projects/agentjobs/docs from this project\n   3. No\n Esc to cancel \xB7\
-  \ Tab to amend \xB7 ctrl+e to explain\n \u2590\u259B\u2588\u2588\u2588\u259C\u258C\
-  \   Claude Code v2.1.235\n\u259D\u259C\u2588\u2588\u2588\u2588\u2588\u259B\u2598\
-  \  Opus 5 \xB7 Claude Pro\n  \u2598\u2598 \u259D\u259D    C:\\projects\\agentjobs\\\
-  .claude\\worktrees\\task-107-task-review-findability-and-outcomes\n\u276F You are\
-  \ the agent claude working task task-107-task-review-findability-and-outcomes in\
-  \ project agentjobs (root: C:\\projects\\agentjobs). AgentJobs is serving at http://localhost:8765.\
-  \ Read the task    record and follow the resumption contract in docs/agent-workflow.md.\
-  \ Dispatch run id: run_a6deb292.\n  /remote-control is active \xB7 Continue here,\
-  \ on your phone, or at https://claude.ai/code/session_018TSD3HmgZgnuMtT8PxsoMt\n\
-  \u25CF I'll start by reading the task record.\n  Listing 2 directories, running\
-  \ 1 shell command\u2026\n  \u23BF  $ ls C:/projects/agentjobs/docs/\n\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500 Bash command\n   ls C:/projects/agentjobs/docs/\n   List docs\n Do\
-  \ you want to proceed?\n \u276F 1. Yes\n   2. Yes, allow reading from /c/projects/agentjobs/docs\
-  \ from this project\n   3. No\n Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain\n\
-  \e[<u\n \u2590\u259B\u2588\u2588\u2588\u259C\u258C   Claude Code v2.1.235\n\u259D\
-  \u259C\u2588\u2588\u2588\u2588\u2588\u259B\u2598  Opus 5 \xB7 Claude Pro\n  \u2598\
-  \u2598 \u259D\u259D    C:\\projects\\agentjobs\\.claude\\worktrees\\task-107-task-review-findability-and-outcomes\n\
-  \u276F You are the agent claude working task task-107-task-review-findability-and-outcomes\
-  \ in project agentjobs (root: C:\\projects\\agentjobs). AgentJobs is serving at\
-  \ http://localhost:8765. Read the task    record and follow the resumption contract\
-  \ in docs/agent-workflow.md. Dispatch run id: run_a6deb292.\n  /remote-control is\
-  \ active \xB7 Continue here, on your phone, or at https://claude.ai/code/session_018TSD3HmgZgnuMtT8PxsoMt\n\
-  \u25CF I'll start by reading the task record.\n  Listing 2 directories, running\
-  \ 1 shell command\u2026\n  \u23BF  $ ls C:/projects/agentjobs/docs/\n\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500 Bash command\n   ls C:/projects/agentjobs/docs/\n   List docs\n Do\
-  \ you want to proceed?\n \u276F 1. Yes\n   2. Yes, allow reading from /c/projects/agentjobs/docs\
-  \ from this project\n   3. No\n Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain\n\
-  \e[>4m\e[>4m\e[<u\e[>4m\e[<u\e[>4m\e[<u\nResume this session with:\nclaude --worktree\
-  \ task-107-task-review-findability-and-outcomes --resume 7e5fc33c-12b9-4cf9-b6fe-171b94ac309f\n\
-  ```"
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
 category: ux
@@ -572,3 +512,244 @@ log:
         eligible: true
       - runner: chatgpt-sol
         eligible: true
+- id: 14
+  ts: '2026-08-19T22:35:14.883241Z'
+  actor: claude
+  type: progress
+  body: 'Probe: checking whether this record is writable. Log entry 13 carries `posture:
+    auto`, a DispatchPosture value that does not exist on main (it is added by the
+    unmerged branch feat/task-020-auto-posture), so main''s models reject the file.'
+  data:
+    operation:
+      id: 1a5e7c02-9b34-4d18-8f60-3c2d9e7a4b11
+      kind: log_append
+      fingerprint: 3e2f4430fae4f032f8f027409ae46308
+- id: 15
+  ts: '2026-08-19T22:37:23.031780Z'
+  actor: claude
+  type: progress
+  body: "Run 3 (run_e452d6f8, session 903af6cf) under the `auto` posture did the work.\
+    \ Runs 1 and 2 never got past a permission dialog.\n\nBranch: `feat/task-107-review-findability-and-outcomes`\
+    \ in worktree C:\\projects\\agentjobs\\.claude\\worktrees\\task-107-task-review-findability-and-outcomes.\
+    \ Two commits: 16c2ec4 (the change) and c6256d9 (a .gitignore fix for pytest-xdist\
+    \ coverage fragments). Renamed from the dispatcher's default `worktree-task-107-...`\
+    \ to match the ENGINEERING.md branch convention.\n\nWHAT CHANGED\n\nac-1/ac-2\
+    \ \u2014 id search. `TaskStorage.search_tasks` now searches `task.id` alongside\
+    \ title/spec/prompt/tags, so `/api/search?q=058` finds task-058-multi-project-gui.\
+    \ `matchesTask` in TaskList.tsx matches id as well as title. The list deliberately\
+    \ does NOT match summary/description: a row matching on text the row does not\
+    \ display reads as a bug, and /api/search remains the full-text surface. Placeholder\
+    \ now reads \"Search title or id (e.g. 058)\".\n\nac-3 \u2014 expand-all. The\
+    \ Log section header carries an \"Expand all entries\" / \"Collapse long entries\"\
+    \ toggle. Each entry's <details> takes `key={String(expandAll)}`, so React remounts\
+    \ it and the new state wins even over an entry the reader had collapsed by hand\
+    \ \u2014 a plain `open` prop does not, which is the failure mode a test covers\
+    \ explicitly.\n\nac-4 \u2014 outcomes. `dependencyState` no longer returns the\
+    \ literal \"Done\" for closed tasks; it returns `task.display_status` (the backend's\
+    \ canonical Completed/Superseded/Cancelled/Duplicate, with \"(archived)\" when\
+    \ it applies) and a distinct `unfinished` colour for any outcome that is not `completed`.\
+    \ One component covers all four surfaces named in the constraints: dashboard,\
+    \ task list, DependencyGraph, task detail. Two further collapses found and fixed:\
+    \ the detail page's \"This task needs\" panel said \"it is done\" for any closed\
+    \ prerequisite and now says \"it is closed as superseded\"; the dashboard tile\
+    \ labelled \"Done\" is now \"Completed\", which is what its count has always been\
+    \ (`outcome is Outcome.COMPLETED`).\n\nNothing derives a label of its own, and\
+    \ no outcome semantics changed \u2014 the DependencyRelation `state` field and\
+    \ whether a superseded blocker satisfies a need are untouched, deliberately, as\
+    \ out_of_scope requires.\n\nac-5 \u2014 tests. New: `frontend/src/components/DependencyState.test.tsx`\
+    \ (all four outcomes, the archived suffix, and that an unfinished outcome is tinted\
+    \ differently); id-search and superseded-vs-completed cases in TaskList.test.tsx;\
+    \ two expand-all cases in TaskDetail.test.tsx including the hand-collapsed one;\
+    \ parametrised id-search cases in tests/test_storage.py; id-search and needs-outcome\
+    \ cases in tests/test_api.py.\n\nac-6 \u2014 real browser. `frontend/e2e/review-findability.spec.ts`\
+    \ adds three Playwright tests to the gate (14 pass, up from 11). Beyond that I\
+    \ served a throwaway copy of the live corpus and checked the two tasks the spec\
+    \ names: searching \"058\" returned task-058-multi-project-gui with a violet \"\
+    Superseded\" badge, its detail page's Work state reads Superseded and its needs\
+    \ panel reads \"it is closed as completed\", and task-103's collapsed log entries\
+    \ all opened on one click.\n\nVERIFICATION\n\n`poetry run python scripts/check.py`\
+    \ exit 0 \u2014 Black, Ruff, MyPy, 1861 Python tests, generated-client check,\
+    \ ESLint, 128 Vitest tests, production build, 14 Playwright tests.\n\nREVIEW SERVER\
+    \ (Jeff's standing rule)\n\nRunning at http://localhost:8899/app/ on a throwaway\
+    \ copy of the corpus at C:/ai/scratch/aj-task107-review \u2014 click anything,\
+    \ including the destructive controls; it is not the live records. Both states\
+    \ are seeded because the real corpus contains them: task-058 is superseded, task-103\
+    \ is completed with a long log. Stop it with `AGENTJOBS_HOME=C:/ai/scratch/aj-task107-review/home\
+    \ poetry run agentjobs stop`, or leave it and I will.\n\nNOT DONE / FOR THE REVIEWER\n\
+    \n- The dashboard \"Completed\" tile is a rename, not a new breakdown. Closed-but-not-completed\
+    \ tasks still appear only in Total. A per-outcome breakdown would be a separate\
+    \ task.\n- The `.gitignore` commit is adjacent to this task rather than part of\
+    \ it. Drop c6256d9 if you would rather it went in on its own."
+  data:
+    operation:
+      id: 4d81b6ff-2e57-4a0c-9b3d-71ce8f0a2d64
+      kind: log_append
+      fingerprint: 3e6ccb64b94acd03827b3b643364ef5f
+- id: 16
+  ts: '2026-08-19T22:38:48.518215Z'
+  actor: claude
+  type: progress
+  body: 'Run 3 (run_e452d6f8, session 903af6cf) under the `auto` posture did the work.
+    Runs 1 and 2 never got past a permission dialog.
+
+
+    Branch: `feat/task-107-review-findability-and-outcomes` in worktree C:/projects/agentjobs/.claude/worktrees/task-107-task-review-findability-and-outcomes.
+    Two commits: 16c2ec4 (the change) and c6256d9 (a .gitignore fix for pytest-xdist
+    coverage fragments). Renamed from the dispatcher''s default `worktree-task-107-...`
+    to match the ENGINEERING.md branch convention.
+
+
+    WHAT CHANGED
+
+
+    ac-1/ac-2 - id search. `TaskStorage.search_tasks` now searches `task.id` alongside
+    title/spec/prompt/tags, so `/api/search?q=058` finds task-058-multi-project-gui.
+    `matchesTask` in TaskList.tsx matches id as well as title. The list deliberately
+    does NOT match summary/description: a row matching on text the row does not display
+    reads as a bug, and /api/search remains the full-text surface. Placeholder now
+    reads "Search title or id (e.g. 058)".
+
+
+    ac-3 - expand-all. The Log section header carries an "Expand all entries" / "Collapse
+    long entries" toggle. Each entry''s <details> takes `key={String(expandAll)}`,
+    so React remounts it and the new state wins even over an entry the reader had
+    collapsed by hand - a plain `open` prop does not, which is the failure mode a
+    test covers explicitly.
+
+
+    ac-4 - outcomes. `dependencyState` no longer returns the literal "Done" for closed
+    tasks; it returns `task.display_status` (the backend''s canonical Completed/Superseded/Cancelled/Duplicate,
+    with "(archived)" when it applies) and a distinct `unfinished` colour for any
+    outcome that is not `completed`. One component covers all four surfaces named
+    in the constraints: dashboard, task list, DependencyGraph, task detail. Two further
+    collapses found and fixed: the detail page''s "This task needs" panel said "it
+    is done" for any closed prerequisite and now says "it is closed as superseded";
+    the dashboard tile labelled "Done" is now "Completed", which is what its count
+    has always been (`outcome is Outcome.COMPLETED`).
+
+
+    Nothing derives a label of its own, and no outcome semantics changed - the DependencyRelation
+    `state` field and whether a superseded blocker satisfies a need are untouched,
+    deliberately, as out_of_scope requires.
+
+
+    ac-5 - tests. New: `frontend/src/components/DependencyState.test.tsx` (all four
+    outcomes, the archived suffix, and that an unfinished outcome is tinted differently);
+    id-search and superseded-vs-completed cases in TaskList.test.tsx; two expand-all
+    cases in TaskDetail.test.tsx including the hand-collapsed one; parametrised id-search
+    cases in tests/test_storage.py; id-search and needs-outcome cases in tests/test_api.py.
+
+
+    ac-6 - real browser. `frontend/e2e/review-findability.spec.ts` adds three Playwright
+    tests to the gate (14 pass, up from 11). Beyond that I served a throwaway copy
+    of the live corpus and checked the two tasks the spec names: searching "058" returned
+    task-058-multi-project-gui with a violet "Superseded" badge, its detail page''s
+    Work state reads Superseded and its needs panel reads "it is closed as completed",
+    and task-103''s collapsed log entries all opened on one click.
+
+
+    VERIFICATION
+
+
+    `poetry run python scripts/check.py` exit 0 - Black, Ruff, MyPy, 1861 Python tests,
+    generated-client check, ESLint, 128 Vitest tests, production build, 14 Playwright
+    tests.
+
+
+    REVIEW SERVER (Jeff''s standing rule)
+
+
+    Running at http://localhost:8899/app/ on a throwaway copy of the corpus at C:/ai/scratch/aj-task107-review
+    - click anything, including the destructive controls; it is not the live records.
+    Both states are seeded because the real corpus contains them: task-058 is superseded,
+    task-103 is completed with a long log. Stop it with `AGENTJOBS_HOME=C:/ai/scratch/aj-task107-review/home
+    poetry run agentjobs stop`.
+
+
+    NOT DONE / FOR THE REVIEWER
+
+
+    - The dashboard "Completed" tile is a rename, not a new breakdown. Closed-but-not-completed
+    tasks still appear only in Total. A per-outcome breakdown would be a separate
+    task.
+
+    - The `.gitignore` commit is adjacent to this task rather than part of it. Drop
+    c6256d9 if you would rather it went in on its own.
+
+
+    NOTE ON THIS ENTRY: written through the HTTP API on port 8876 rather than the
+    MCP tools. The session''s MCP server process predates the task-020 merge, so it
+    rejects log entry 13''s `posture: auto` and every mutation through it fails. Reading
+    works; writing does not.'
+  data:
+    operation:
+      id: b7c9143a-5f2e-4d86-a01b-6e39d5c47f28
+      kind: log_append
+      fingerprint: 3fc33214da0c8f0ca3b4cf5653e181e7
+- id: 17
+  ts: '2026-08-19T22:39:13.139944Z'
+  actor: claude
+  type: handoff
+  body: 'Review branch `feat/task-107-review-findability-and-outcomes` (commits 16c2ec4
+    and c6256d9) and approve or send it back. All six acceptance criteria are met;
+    `poetry run python scripts/check.py` exits 0.
+
+
+    Look at it in a browser first: http://localhost:8899/app/ is a review server on
+    a throwaway copy of the live corpus (C:/ai/scratch/aj-task107-review). Click anything,
+    including the destructive controls.
+
+
+    1. Search `058` on the Tasks page with status=All. It returns task-058-multi-project-gui,
+    whose title contains no digits, and the Status column reads Superseded in violet
+    rather than Done.
+
+    2. Open task-058. The header badge, the Work state box and the needs panel all
+    name the real outcome: Superseded, and `it is closed as completed` for each prerequisite.
+
+    3. Open task-103 and press `Expand all entries` in the Log header. Every collapsed
+    entry opens, so Ctrl+F and select-all-copy reach the whole log. Press again to
+    collapse.
+
+
+    Then stop it: `AGENTJOBS_HOME=C:/ai/scratch/aj-task107-review/home poetry run
+    agentjobs stop`.
+
+
+    Two things to decide:
+
+    - The dashboard tile called `Done` is now called `Completed`, because its count
+    has only ever included outcome == completed. Superseded/cancelled/duplicate tasks
+    still show up only in Total. Say if you want a per-outcome breakdown instead;
+    that is a separate task.
+
+    - Commit c6256d9 adds `.coverage.*` to .gitignore. It is adjacent to this task
+    rather than part of it, kept in its own commit so you can drop it. One run of
+    the gate leaves a few hundred untracked coverage fragments, which buries real
+    changes in `git status` and trips the dispatch clean-tree check.
+
+
+    On approval I will rebase onto main, merge --no-ff, mark the branch merged and
+    close the task. Nothing is pushed.
+
+
+    One thing you should know independently of this task: this session''s `agentjobs`
+    MCP server process predates the task-020 merge, so every mutation through it fails
+    on log entry 13''s `posture: auto`. Reads work. This entry and the progress entry
+    before it were written through the HTTP API on port 8876 instead. Any other session
+    started before that merge has the same broken write path.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: e2f4a719-8c05-4b3d-91a7-0d6c8e35b942
+      kind: handoff
+      fingerprint: 2a5f4d3626217d6be08dcd8ce58c1692
+- id: 18
+  ts: '2026-08-19T22:42:15.115564Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
