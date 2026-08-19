@@ -179,6 +179,37 @@ describe("refusals", () => {
     );
   });
 
+  it("points a task with nothing on its log at the control that writes one", () => {
+    renderPanel({
+      dispatchRefusal: {
+        reason: "no_causing_entry",
+        message: "task-107 has no log entries, so there is nothing a dispatch could be caused by.",
+        // What the CLI and MCP are told. Correct for them and useless here: it names an
+        // act, not a control, and this reader is looking at a page.
+        suggestedAction: "Write the note or handoff that authorises this run first.",
+      },
+    });
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("has no log entries");
+    expect(alert).toHaveTextContent(/use “Add a note” below/i);
+    expect(alert).not.toHaveTextContent("Write the note or handoff that authorises this run first.");
+  });
+
+  it("points an agent-filed task at the same control rather than at a concept", () => {
+    renderPanel({
+      dispatchRefusal: {
+        reason: "not_human_clocked",
+        message: "Log entry 1 (transition) was written by 'claude', an agent.",
+        suggestedAction: "Act on the task yourself, then dispatch. This rule is not configurable.",
+      },
+    });
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(/use “Add a note” below/i);
+    expect(alert).toHaveTextContent(/not configurable/i);
+  });
+
   it("says something useful even when the server could not be reached at all", () => {
     renderPanel({
       dispatchRefusal: {
