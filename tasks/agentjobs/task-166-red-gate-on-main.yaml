@@ -3,10 +3,83 @@ id: task-166-red-gate-on-main
 title: The repository's own gate is red on main, and correcting the records that make
   it red is harder than it should be
 created: '2026-08-19T17:21:02.547272Z'
-updated: '2026-08-19T17:28:47.437978Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-19T18:09:05.222436Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: "The gate is green end to end on `fix/task-166-red-gate`. Nothing is\
+  \ merged and nothing is pushed. Please review and merge.\n\n```\npoetry run python\
+  \ scripts/check.py     ->  exit 0\n  1779 passed, 154 warnings in 212.33s (0:03:32)\n\
+  \  Test Files  20 passed (20) / Tests  124 passed (124)      [vitest]\n  11 passed\
+  \ (12.4s)                                          [playwright]\n\npoetry run mypy\
+  \ .   ->  Success: no issues found in 143 source files\npoetry run ruff check .\
+  \  ->  clean\npoetry run black --check .  ->  143 files unchanged\n```\n\n## Already\
+  \ on `main` \u2014 the record fixes (`2aba6c8`)\n\nFour context pointers, all through\
+  \ the managed `PATCH` API, each verified as a one-line content diff with `git diff`\
+  \ before committing. `task-017` and `task-161` were renames. `task-076`'s and `task-146`'s\
+  \ pointers were dropped \u2014 reasons in the commit message and in log entry 4.\n\
+  \n**`task-076` is closed and the API accepted the edit.** That answers the question\
+  \ the spec raised rather than assuming it; see the decision in log entry 7.\n\n\
+  ## On the branch \u2014 three commits, in review order\n\n**`0f620fb fix(e2e): give\
+  \ the dispatch runner an actor the project configures`** \u2014 one line plus a\
+  \ comment, and the one to read first.\n\nThe dispatch e2e was **not** the ledger,\
+  \ the poller, or a bad assertion. Task-159's guard (`31b2198`, 2026-08-19) refuses\
+  \ a dispatch whose runner would act as an identity outside the project's `actors:`.\
+  \ `frontend/e2e/run_server.py` declares a runner named `e2e-sleeper` with no `actor:`,\
+  \ so the guard refused it, no run was ever created, and the spec timed out waiting\
+  \ for a list item that could not exist \u2014 which is why it read as a product\
+  \ bug. That commit fixed the four Python fixtures with exactly this change and missed\
+  \ the fifth, which is YAML inside the Playwright harness. The guard and the assertions\
+  \ are both correct; the fixture was a day stale.\n\n**`50ebbac chore(mypy): make\
+  \ the type check runnable at all`** \u2014 adds `scripts/__init__.py`. `poetry run\
+  \ mypy .` was aborting on `Source file found twice under different module names`\
+  \ before checking anything, so the command ENGINEERING.md lists under Pre-commit\
+  \ has never type-checked a line of this repository.\n\n**`d5bb357 fix(types): clear\
+  \ the 42 errors mypy could not previously reach`** \u2014 19 files, 64 insertions.\
+  \ This is the biggest diff and the least interesting one; it is what the first real\
+  \ mypy run found. 42 of 43 are in `tests/` and tooling, `src/` had one (`_Snapshot.tasks`\
+  \ typed `Dict[str, Any]` where only three types are ever stored). Nothing is silenced\
+  \ that could be fixed: nine unused `# type: ignore`s removed, eight `yaml.safe_load`/`json.loads`\
+  \ returns given the narrowing their annotations already claimed, six `Task | None`\
+  \ accesses given the `is not None` assert so a failure names the missing task instead\
+  \ of raising `AttributeError`. One new ignore, on `build_release.py`'s deliberate\
+  \ runtime-fallback import.\n\n`black` also reformatted one signature in `tests/test_cli.py`\
+  \ that was **already drifted on `main`** before this branch.\n\n## The one thing\
+  \ I want your call on\n\n`scripts/check.py` runs exactly two things: `pytest` and\
+  \ `npm run check`. It runs neither `black`, nor `ruff`, nor `mypy` \u2014 all three\
+  \ of which ENGINEERING.md lists under **Pre-commit**. That is how both of this task's\
+  \ defects survived on `main`: a mypy invocation broken badly enough to check nothing,\
+  \ and a `black` drift nobody saw.\n\nAdding `mypy` to the gate costs **2.9 seconds\
+  \ warm** against a four-and-a-half-minute gate.\n\nI did not do it. It changes what\
+  \ \"the gate\" means for every agent here, and the task asked me to fix the invocation,\
+  \ not to redefine the gate \u2014 that is your call, not mine. If you want it, it\
+  \ is a three-line change to `scripts/check.py` and should be its own commit. Reasoning\
+  \ and the rejected alternative are in log entry 8.\n\n## Decisions recorded (entries\
+  \ 6, 7, 8)\n\n- **Corpus tests keep asserting on live records, and keep failing\
+  \ rather than warning.** The premise that they are fragile because agents rewrite\
+  \ records daily is plausible but is not what happened: the pointers rotted and *nobody\
+  \ saw the red gate*, because until task-165 a worktree could not run it at all.\
+  \ Warning was rejected as making a caught defect uncaught; open-tasks-only was rejected\
+  \ because `task-076` is the counterexample \u2014 closed, and its pointer was never\
+  \ valid rather than rotted.\n- **Whole-object spec patches stay; partial patches\
+  \ rejected.** The retyping hazard is real and is a property of how an agent does\
+  \ the write, not of the contract \u2014 all four fixes here were done by a script\
+  \ with no prose passing through a model. Whole-object plus `expected_revision` is\
+  \ what forces a read-modify-write and makes a lost update impossible. The ergonomic\
+  \ gap should be closed with a helper that fetches, applies one field change, **shows\
+  \ the diff**, and resends \u2014 not by loosening the API.\n- **Closed records stay\
+  \ editable.** Immutability would make a permanently-red gate caused by a closed\
+  \ record fixable only by hand-editing YAML, which is the exact thing the managed\
+  \ interface exists to prevent.\n\n## Follow-ups I did not file (say the word and\
+  \ I will)\n\n1. Add `mypy`/`ruff`/`black --check` to `scripts/check.py` \u2014 the\
+  \ question above.\n2. A `dangling-context-path` rule in `src/agentjobs/validation.py`,\
+  \ beside the existing `absolute-path` rule, so a bad pointer is refused at the write\
+  \ by the agent who introduced it rather than at some later agent's gate run. It\
+  \ does not replace the corpus test \u2014 that one catches pointers broken later\
+  \ by a rename \u2014 but it would remove most of the volume.\n3. Promote this task's\
+  \ read-modify-write-with-diff script into the CLI/MCP layer, per the second decision.\n\
+  \n## Worktree\n\n`C:/projects/aj-166`, branch `fix/task-166-red-gate`, four commits\
+  \ ahead of the `main` it was rebased onto. Clean tree. Not pushed.\n"
 archived: false
 priority: high
 category: infrastructure
@@ -16,6 +89,7 @@ tags:
 - developer_experience
 effort: small for the four record fixes; the API question behind them is larger
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: '`poetry run python scripts/check.py` fails on `main` as of 2026-08-19,
@@ -130,22 +204,31 @@ acceptance:
 - id: sc-1
   text: poetry run python scripts/check.py passes on main in a checkout with nothing
     pre-built
-  status: pending
+  verify: 'poetry run python scripts/check.py -> exit 0 on fix/task-166-red-gate:
+    1779 pytest passed in 212.33s, 124 Vitest, 11 Playwright.'
+  status: met
 - id: sc-2
   text: All four records are corrected through the managed API, including the closed
     one or an explicit decision about why it cannot be
-  status: pending
+  verify: All four PATCHed through the managed API, incl. the closed task-076; committed
+    to main as 2aba6c8. The closed record accepted the edit.
+  status: met
 - id: sc-3
   text: A decision is recorded on whether spec patches may be partial, and on whether
     the corpus tests should assert on live records
-  status: pending
+  verify: 'Log entries 6, 7 and 8: partial spec patches, live-corpus assertions, closed-record
+    editability, and the mypy/gate question.'
+  status: met
 - id: sc-4
   text: poetry run mypy . either runs clean or ENGINEERING.md stops naming it
-  status: pending
+  verify: 'poetry run mypy . -> Success: no issues found in 143 source files.'
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-166-red-gate
+  status: active
 log:
 - id: 1
   ts: '2026-08-19T17:21:02.547317Z'
@@ -191,3 +274,326 @@ log:
       id: d2c8b649-5e17-4f38-9a03-7b1e4d5c6166
       kind: log_append
       fingerprint: 3ca0bc63ece54e3cfb5a475f54fb06dd
+- id: 3
+  ts: '2026-08-19T17:42:14.805003Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 1c9ef97d-b2d3-48d5-bb67-f9f4371cc57f
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 4
+  ts: '2026-08-19T17:45:42.092562Z'
+  actor: claude
+  type: progress
+  body: "**The four records are corrected, and the dispatch e2e failure is diagnosed.\
+    \ Cause below \u2014 it is the product's guard doing exactly what it was built\
+    \ to do, against a fixture nobody updated.**\n\n## The dispatch e2e failure: cause\n\
+    \n`frontend/e2e/dispatch.spec.ts:58` fails because **the dispatch is refused,\
+    \ correctly, and the panel says so.** The failure snapshot (`frontend/test-results/.../error-context.md`)\
+    \ shows an alert in the Dispatch region:\n\n> Runner 'e2e-sleeper' would act as\
+    \ 'e2e-sleeper', which this project does not configure as an actor. Configured\
+    \ actors: E2E Human, claude, codex. A dispatched agent must be able to log progress\
+    \ and hand off under the identity that owns its task, and it cannot do that as\
+    \ an unknown actor. Set 'actor:' on runner 'e2e-sleeper' in ~/.agentjobs/dispatch.yaml\
+    \ to one of them, or add 'e2e-sleeper' to 'actors:' in .agentjobs/config.yaml.\n\
+    \nThat is `UnknownRunnerActorError` from `assert_runner_actor_known` in `src/agentjobs/dispatch/guards.py`.\
+    \ No run is ever created, so the run list has no `listitem` and the assertion\
+    \ times out on an element that does not exist rather than on wrong text.\n\n**Timeline.**\
+    \ `35018ad test(e2e): drive the whole dispatch loop through a live server` landed\
+    \ 2026-08-18. `31b2198 fix(dispatch): act as a configured actor, not as the runner's\
+    \ name` \u2014 task-159's guard \u2014 landed 2026-08-19. Its own commit message\
+    \ says *\"The test fixtures needed the same fix, which is the defect in miniature:\
+    \ they named a runner 'fake' in a project configuring only Jeff Posey, claude\
+    \ and codex.\"* It fixed `tests/test_dispatch_guards.py`, `test_dispatch_api.py`,\
+    \ `test_dispatch_cli.py` and `test_auto_dispatch.py` by adding `\"actor\": \"\
+    claude\"` to the runner. It did not fix the fifth fixture, `frontend/e2e/run_server.py`,\
+    \ which declares the same shape in YAML rather than in Python and is the only\
+    \ one no Python-side search for `\"runners\"` would surface.\n\n**So it is not\
+    \ the ledger, not the poller, and not a test bug in the assertions.** The assertions\
+    \ are right and the guard is right; the harness config is a day stale. This is\
+    \ the same class of miss as task-060 log 15 (the guard silently breaking the dispatch\
+    \ review sandbox), one commit later.\n\n**Fix:** give the `e2e-sleeper` runner\
+    \ an `actor:` the e2e project configures, exactly as the Python fixtures were\
+    \ fixed. The runner keeps its name, because the spec asserts on `runner: e2e-sleeper`\
+    \ in two places and the whole point of task-159 was that a runner name and an\
+    \ actor identity are different facts.\n\n## Records\n\nAll four corrected through\
+    \ the managed `PATCH /api/projects/agentjobs/tasks/{id}` endpoint, committed to\
+    \ `main` as `2aba6c8`:\n\n| Task | Was | Now |\n| --- | --- | --- |\n| `task-017`\
+    \ | `src/agentjobs/models.py` | `src/agentjobs/models_v2.py` |\n| `task-161` |\
+    \ `tasks/agentjobs/task-153-dispatcher-actor-advice.yaml` | `...-refusal-message.yaml`\
+    \ |\n| `task-076` **(closed)** | `.claude/settings.json` | pointer dropped |\n\
+    | `task-146` | `C:/projects/job-hunting/tools/triage/web` | pointer dropped |\n\
+    \n`task-076`'s pointer was dropped rather than redirected to `.claude/settings.local.json`:\
+    \ that file is ignored by Jeff's *global* gitignore (`C:/Users/jpose/.config/git/ignore`),\
+    \ not this repository's, so the corpus test's git-ignored exemption would clear\
+    \ it on this machine and fail on every other checkout. A read-this-first pointer\
+    \ at an untracked machine-local file is not readable by the audience it is written\
+    \ for.\n\n**The closed record accepted the edit.** `PATCH` returned 200 on `task-076`\
+    \ with no special handling. Recorded as a decision separately.\n"
+  data:
+    operation:
+      id: 94ee33de-8c1b-4eea-8bd5-5b139a9e86ca
+      kind: log_append
+      fingerprint: ccc84760dc03dbab80fc0886f70719a1
+- id: 5
+  ts: '2026-08-19T17:46:04.690469Z'
+  actor: system
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 4742c781-8710-4c8a-a6ea-fb92c004f963
+      kind: update_content
+      fingerprint: 2949ec4431089de89d2edc42049baebc
+- id: 6
+  ts: '2026-08-19T18:07:51.240218Z'
+  actor: claude
+  type: decision
+  body: "**Decision \u2014 the corpus tests keep asserting on live task records, and\
+    \ keep failing rather than warning.**\n\nSpec question 3. Options considered:\
+    \ keep as is; warn rather than fail; check only open tasks.\n\n**Kept as is.**\
+    \ The reasoning turns on what actually went wrong here, which is not the thing\
+    \ the question assumes.\n\nThe premise of the question is that these tests are\
+    \ fragile because agents rewrite task records many times a day, so a bad pointer\
+    \ turns the gate red for everyone. That risk is real but it is *not* what happened.\
+    \ What happened is that four bad pointers accumulated over an unknown period and\
+    \ **nobody saw the red gate at all** \u2014 because until task-165 landed, an\
+    \ agent in a worktree could not run `scripts/check.py`, so the population most\
+    \ likely to file a task with a since-renamed path was the population that never\
+    \ ran the check. The observed failure mode is a gate nobody ran, not a gate that\
+    \ cried wolf. Loosening it would treat a symptom that has not occurred and worsen\
+    \ the one that has.\n\n**Warn rather than fail \u2014 rejected.** The gate emits\
+    \ roughly two thousand lines and takes four minutes. A warning inside that is\
+    \ not read by anyone, ever. This converts a defect that is currently caught into\
+    \ one that is not, which is precisely what `spec.constraints` forbids: *\"Do not\
+    \ make the tests toothless to make them quiet.\"*\n\n**Check only open tasks \u2014\
+    \ rejected.** It sounds right \u2014 a closed task's pointers are archaeology\
+    \ \u2014 and it is wrong on this evidence. `task-076` is closed and its pointer\
+    \ at `.claude/settings.json` was **never** valid, not rotted; scoping to open\
+    \ tasks would have buried a defect that was always there rather than surfacing\
+    \ it. It also does not target the actual rot: pointers go stale when the code\
+    \ they name is renamed, and the tasks pointing at actively-renamed code are open\
+    \ ones. It exempts the records where a wrong pointer is cheapest and keeps checking\
+    \ the ones that break most.\n\n**What makes keeping it tolerable** is already\
+    \ in place and worth stating so nobody re-opens this on ergonomic grounds: the\
+    \ test reports every bad pointer at once rather than one per four-minute run (task-165),\
+    \ it exempts a task's own pending deliverables and git-ignored generated output,\
+    \ and the failure message names the task id and the path. The cost of a red gate\
+    \ is one managed API call. The benefit is that \"read this first\" stays true,\
+    \ which is load-bearing for the resumption contract.\n\n**Follow-up worth filing,\
+    \ not done here.** The better place to catch this is the write, not the gate:\
+    \ a `dangling-context-path` rule in `src/agentjobs/validation.py`, beside the\
+    \ existing `absolute-path` rule, would refuse a context pointer at the moment\
+    \ an agent creates it \u2014 caught by the agent who introduced it, in the tool\
+    \ they were already using, seconds after they wrote it. That would not replace\
+    \ this test, because it cannot catch a pointer that was valid when written and\
+    \ broken later by a rename. It would remove most of the volume.\n"
+  data:
+    operation:
+      id: 62b23959-1e2b-4416-922f-fbfd653c7254
+      kind: log_append
+      fingerprint: e900eeecc9763dfb59eda50e46d79dff
+- id: 7
+  ts: '2026-08-19T18:07:52.338644Z'
+  actor: claude
+  type: decision
+  body: "**Decision \u2014 `task_update_content` keeps the whole-object spec contract.\
+    \ Partial spec patches are rejected.**\n\nSpec question 2. The task frames the\
+    \ whole-object contract as *\"defensible for authoring and hostile for correction\"\
+    *, on the grounds that a one-character path fix means resending a very long description\
+    \ *\"retyped by an agent, with no diff shown before it lands.\"*\n\n**The framing\
+    \ is right about the hazard and wrong about its cause.** Nothing in the contract\
+    \ requires retyping. All four corrections here were made by a 40-line script that\
+    \ fetches the task, mutates one field of the returned spec object, and resends\
+    \ it with `expected_revision`. Each produced a one-line content diff, confirmed\
+    \ with `git diff` on the record afterwards, and no prose passed through a model\
+    \ at any point. The hazard is an agent choosing to reconstruct a description from\
+    \ memory; a partial patch does not remove that temptation, it just narrows the\
+    \ blast radius when the agent takes it.\n\n**Why whole-object earns its keep.**\
+    \ Combined with `expected_revision`, it forces a read-modify-write: a caller *cannot*\
+    \ write the spec without having read the current one. That is what makes a lost\
+    \ update impossible. A partial merge would let a caller write `spec.context` having\
+    \ never read `spec.description`, and `expected_revision` would then be guarding\
+    \ fields the caller never looked at \u2014 the appearance of optimistic concurrency\
+    \ without the substance. It also drags merge semantics into an interface whose\
+    \ value is that it has none: given a partial `context` list, is that a replace,\
+    \ an append, or a keyed merge? Every answer is defensible and callers will assume\
+    \ different ones.\n\n**Rejected alternative, stated plainly:** accept a partial\
+    \ `spec` that merges field-wise into the stored spec. Rejected for the two reasons\
+    \ above \u2014 it weakens `expected_revision` into decoration and it introduces\
+    \ ambiguity that whole-object does not have.\n\n**The ergonomic gap is real and\
+    \ should be closed the other way.** The right fix is not a looser API but a tool\
+    \ that does the safe thing for you: a CLI/MCP helper that fetches the task, applies\
+    \ a named field change, **shows the diff**, and resends with `expected_revision`\
+    \ \u2014 which is exactly the script written for this task, promoted into the\
+    \ product. That gives whole-object's safety with a patch's ergonomics, and the\
+    \ diff-before-write that the task correctly identifies as missing today. Worth\
+    \ its own task; not built here.\n\n---\n\n**Decision \u2014 a closed record stays\
+    \ editable through the managed API.**\n\nThe task asks whether a closed record\
+    \ should be editable at all, *\"and if not, how does a permanently-red gate caused\
+    \ by a closed record ever get fixed?\"*\n\n**Empirically it already is.** `PATCH`\
+    \ on the closed, completed `task-076` returned 200 with no special handling, appended\
+    \ its own `update_content` log entry, and left `lifecycle: closed` untouched.\
+    \ So the question is whether that should change.\n\n**It should not.** A closed\
+    \ record is not inert: it is still read as the archaeology the resumption contract\
+    \ depends on, and it is still asserted on by the corpus tests \u2014 `task-076`\
+    \ held the gate red for the whole repository while closed. Making closed records\
+    \ immutable would make that state unfixable through the managed path, and the\
+    \ only remaining route is hand-editing the YAML, which is the exact failure the\
+    \ managed interface exists to prevent. A rule whose enforcement forces the behaviour\
+    \ it was written to stop is not a safety rule.\n\nWhat makes the edit safe is\
+    \ the audit trail, not immutability: every change appends an entry naming the\
+    \ operation, its fingerprint and the fields touched, so a closed record that was\
+    \ corrected says so on its face.\n\n**Rejected alternative:** immutable-when-closed,\
+    \ with a reopen-fix-reclose path. It costs two lifecycle transitions and rewrites\
+    \ the task's own history \u2014 `closed \u2192 active \u2192 closed`, with the\
+    \ transitions in the log \u2014 to correct a typo in a file path. That makes the\
+    \ record less honest about what happened to it, not more.\n"
+  data:
+    operation:
+      id: 7387d75c-5c31-4cea-8ffd-a6b586b47580
+      kind: log_append
+      fingerprint: f538a68ab7df629595fd51c75e68b7f8
+- id: 8
+  ts: '2026-08-19T18:07:53.451152Z'
+  actor: claude
+  type: decision
+  body: "**Decision \u2014 mypy is fixed rather than dropped from ENGINEERING.md,\
+    \ but is NOT added to `scripts/check.py` in this branch.**\n\nSpec question 4,\
+    \ and acceptance sc-4 (*\"`poetry run mypy .` either runs clean or ENGINEERING.md\
+    \ stops naming it\"*).\n\n**Fixed.** `poetry run mypy .` now reports `Success:\
+    \ no issues found in 143 source files`. It got there in two steps: a `scripts/__init__.py`\
+    \ so `scripts/build_frontend.py` has exactly one module name (the collision aborted\
+    \ mypy before it checked a single file, so nothing in this repository had **ever**\
+    \ been type-checked by the command the handbook tells you to run), then the 43\
+    \ errors that first real run surfaced. 42 of the 43 were in `tests/` and tooling;\
+    \ `src/` had one. ENGINEERING.md needs no change.\n\n**Not added to the gate \u2014\
+    \ and this is the part worth a second opinion.** `scripts/check.py` runs exactly\
+    \ two things: `pytest`, and `npm run check`. It runs neither `black`, nor `ruff`,\
+    \ nor `mypy`, all three of which ENGINEERING.md lists under **Pre-commit**. That\
+    \ is how both defects in this task survived on `main`: a mypy invocation broken\
+    \ badly enough to check nothing, and a `black` formatting drift in `tests/test_cli.py`\
+    \ that was already there before this branch (this branch's `black` run happens\
+    \ to clear it). A pre-commit list nothing enforces is documentation of an intention.\n\
+    \nAdding `mypy` to the gate would close that, and it is nearly free: **2.9 seconds\
+    \ warm**, against a gate that takes about four and a half minutes.\n\n**It is\
+    \ deliberately left undone** because it changes what \"the gate\" means for every\
+    \ agent in this repository, and the task asked to fix or document the invocation,\
+    \ not to redefine the gate. Widening the gate is the repository owner's call,\
+    \ not a thing to slip into a branch about red tests. Raised in the handoff instead,\
+    \ where one word approves it.\n\n**Rejected alternative:** add `mypy`, `ruff`\
+    \ and `black --check` to `check.py` here on the reasoning that it prevents recurrence.\
+    \ Rejected as unrequested scope \u2014 but if the answer is yes, it is a three-line\
+    \ change to `scripts/check.py` and should be its own commit, not folded into this\
+    \ one.\n"
+  data:
+    operation:
+      id: a2065a4c-10d2-4bb0-8109-54c6cdef65cc
+      kind: log_append
+      fingerprint: 2e8ad9fecb4bdc90cf8e5297210a6fd7
+- id: 9
+  ts: '2026-08-19T18:08:20.654825Z'
+  actor: system
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 692ec9df-1a18-4ba0-8fba-d8ed5b4ac969
+      kind: update_content
+      fingerprint: 77166e153c34cfcfef624b310ed37f06
+- id: 10
+  ts: '2026-08-19T18:09:05.222258Z'
+  actor: claude
+  type: handoff
+  body: "The gate is green end to end on `fix/task-166-red-gate`. Nothing is merged\
+    \ and nothing is pushed. Please review and merge.\n\n```\npoetry run python scripts/check.py\
+    \     ->  exit 0\n  1779 passed, 154 warnings in 212.33s (0:03:32)\n  Test Files\
+    \  20 passed (20) / Tests  124 passed (124)      [vitest]\n  11 passed (12.4s)\
+    \                                          [playwright]\n\npoetry run mypy . \
+    \  ->  Success: no issues found in 143 source files\npoetry run ruff check . \
+    \ ->  clean\npoetry run black --check .  ->  143 files unchanged\n```\n\n## Already\
+    \ on `main` \u2014 the record fixes (`2aba6c8`)\n\nFour context pointers, all\
+    \ through the managed `PATCH` API, each verified as a one-line content diff with\
+    \ `git diff` before committing. `task-017` and `task-161` were renames. `task-076`'s\
+    \ and `task-146`'s pointers were dropped \u2014 reasons in the commit message\
+    \ and in log entry 4.\n\n**`task-076` is closed and the API accepted the edit.**\
+    \ That answers the question the spec raised rather than assuming it; see the decision\
+    \ in log entry 7.\n\n## On the branch \u2014 three commits, in review order\n\n\
+    **`0f620fb fix(e2e): give the dispatch runner an actor the project configures`**\
+    \ \u2014 one line plus a comment, and the one to read first.\n\nThe dispatch e2e\
+    \ was **not** the ledger, the poller, or a bad assertion. Task-159's guard (`31b2198`,\
+    \ 2026-08-19) refuses a dispatch whose runner would act as an identity outside\
+    \ the project's `actors:`. `frontend/e2e/run_server.py` declares a runner named\
+    \ `e2e-sleeper` with no `actor:`, so the guard refused it, no run was ever created,\
+    \ and the spec timed out waiting for a list item that could not exist \u2014 which\
+    \ is why it read as a product bug. That commit fixed the four Python fixtures\
+    \ with exactly this change and missed the fifth, which is YAML inside the Playwright\
+    \ harness. The guard and the assertions are both correct; the fixture was a day\
+    \ stale.\n\n**`50ebbac chore(mypy): make the type check runnable at all`** \u2014\
+    \ adds `scripts/__init__.py`. `poetry run mypy .` was aborting on `Source file\
+    \ found twice under different module names` before checking anything, so the command\
+    \ ENGINEERING.md lists under Pre-commit has never type-checked a line of this\
+    \ repository.\n\n**`d5bb357 fix(types): clear the 42 errors mypy could not previously\
+    \ reach`** \u2014 19 files, 64 insertions. This is the biggest diff and the least\
+    \ interesting one; it is what the first real mypy run found. 42 of 43 are in `tests/`\
+    \ and tooling, `src/` had one (`_Snapshot.tasks` typed `Dict[str, Any]` where\
+    \ only three types are ever stored). Nothing is silenced that could be fixed:\
+    \ nine unused `# type: ignore`s removed, eight `yaml.safe_load`/`json.loads` returns\
+    \ given the narrowing their annotations already claimed, six `Task | None` accesses\
+    \ given the `is not None` assert so a failure names the missing task instead of\
+    \ raising `AttributeError`. One new ignore, on `build_release.py`'s deliberate\
+    \ runtime-fallback import.\n\n`black` also reformatted one signature in `tests/test_cli.py`\
+    \ that was **already drifted on `main`** before this branch.\n\n## The one thing\
+    \ I want your call on\n\n`scripts/check.py` runs exactly two things: `pytest`\
+    \ and `npm run check`. It runs neither `black`, nor `ruff`, nor `mypy` \u2014\
+    \ all three of which ENGINEERING.md lists under **Pre-commit**. That is how both\
+    \ of this task's defects survived on `main`: a mypy invocation broken badly enough\
+    \ to check nothing, and a `black` drift nobody saw.\n\nAdding `mypy` to the gate\
+    \ costs **2.9 seconds warm** against a four-and-a-half-minute gate.\n\nI did not\
+    \ do it. It changes what \"the gate\" means for every agent here, and the task\
+    \ asked me to fix the invocation, not to redefine the gate \u2014 that is your\
+    \ call, not mine. If you want it, it is a three-line change to `scripts/check.py`\
+    \ and should be its own commit. Reasoning and the rejected alternative are in\
+    \ log entry 8.\n\n## Decisions recorded (entries 6, 7, 8)\n\n- **Corpus tests\
+    \ keep asserting on live records, and keep failing rather than warning.** The\
+    \ premise that they are fragile because agents rewrite records daily is plausible\
+    \ but is not what happened: the pointers rotted and *nobody saw the red gate*,\
+    \ because until task-165 a worktree could not run it at all. Warning was rejected\
+    \ as making a caught defect uncaught; open-tasks-only was rejected because `task-076`\
+    \ is the counterexample \u2014 closed, and its pointer was never valid rather\
+    \ than rotted.\n- **Whole-object spec patches stay; partial patches rejected.**\
+    \ The retyping hazard is real and is a property of how an agent does the write,\
+    \ not of the contract \u2014 all four fixes here were done by a script with no\
+    \ prose passing through a model. Whole-object plus `expected_revision` is what\
+    \ forces a read-modify-write and makes a lost update impossible. The ergonomic\
+    \ gap should be closed with a helper that fetches, applies one field change, **shows\
+    \ the diff**, and resends \u2014 not by loosening the API.\n- **Closed records\
+    \ stay editable.** Immutability would make a permanently-red gate caused by a\
+    \ closed record fixable only by hand-editing YAML, which is the exact thing the\
+    \ managed interface exists to prevent.\n\n## Follow-ups I did not file (say the\
+    \ word and I will)\n\n1. Add `mypy`/`ruff`/`black --check` to `scripts/check.py`\
+    \ \u2014 the question above.\n2. A `dangling-context-path` rule in `src/agentjobs/validation.py`,\
+    \ beside the existing `absolute-path` rule, so a bad pointer is refused at the\
+    \ write by the agent who introduced it rather than at some later agent's gate\
+    \ run. It does not replace the corpus test \u2014 that one catches pointers broken\
+    \ later by a rename \u2014 but it would remove most of the volume.\n3. Promote\
+    \ this task's read-modify-write-with-diff script into the CLI/MCP layer, per the\
+    \ second decision.\n\n## Worktree\n\n`C:/projects/aj-166`, branch `fix/task-166-red-gate`,\
+    \ four commits ahead of the `main` it was rebased onto. Clean tree. Not pushed.\n"
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 38913bee-2a9d-4f70-8293-2c29b3c82c91
+      kind: handoff
+      fingerprint: b6b0df4034b7e59fc2f5909426150afa
