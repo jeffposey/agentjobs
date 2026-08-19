@@ -2,50 +2,13 @@ schema: 2
 id: task-177-runner-groups
 title: 'Runner groups: a dispatch names a group, the dispatcher picks a member'
 created: '2026-08-19T19:11:40.932936Z'
-updated: '2026-08-19T20:47:56.844390Z'
+updated: '2026-08-19T20:58:29.708266Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Revision done; branch ready for a second look. Two new commits on feat/task-177-runner-groups\
-  \ (0b0922b scaffold + design, 7363de0 the guard), gate re-run and exits 0. Nothing\
-  \ merged, nothing pushed, worktree still at C:/projects/aj-177.\n\n**The evidence\
-  \ you asked for.** Four real dispatches from the scaffolded config, in a throwaway\
-  \ AGENTJOBS_HOME against a throwaway repo -- one per group, so every flag the example\
-  \ ships was executed rather than read:\n\n- `run_e4482d3f` -- group `standard`,\
-  \ runner `claude-standard`, session `4a58c075`\n- `run_f8b4c272` -- group `deep`,\
-  \ `--effort high`, session `221cb55e`\n- `run_ec9c5b17` -- group `quick`, `--model\
-  \ haiku`, session `660cb2e3`\n- `run_29f1a541` -- group `review`, batch, exit 0,\
-  \ $0.76 against its $5 ceiling\n\nThe transcript line, from `runs/run_e4482d3f/transcript.log`\
-  \ as AgentJobs captured it:\n\n```\n/remote-control is active \xB7 Continue here,\
-  \ on your phone, or at https://claude.ai/code/session_01ERHMmJiZp5Rj8ELTXFZEDp\n\
-  ```\n\nAnd it got all the way to where you would meet it: the poller read the run\
-  \ as parked and moved the sandbox task's ball to human/input with *\"Answer it at\
-  \ https://claude.ai/code/session_01ERHMmJiZp5Rj8ELTXFZEDp \u2014 that link works\
-  \ from a phone.\"* Recorded argv had exactly one `-w`, supplied by `posture_flags`.\
-  \ All three sessions and their worktrees removed afterwards; `~/.agentjobs` untouched\
-  \ throughout.\n\n**Two calls worth your attention before merging**, both in D6 rather\
-  \ than assumed:\n\n1. The `codex` runner's argv is **removed**, not corrected --\
-  \ codex is not installed here, so nothing about it could be checked, and the example\
-  \ is the one file where a plausible-but-unrun flag propagates. The disabled group\
-  \ member stays and now also demonstrates that a member may name a runner you have\
-  \ not written yet. A verified Claude batch runner (`claude-review`) takes over the\
-  \ batch demonstration so that mode is still shown.\n2. Design section 4's **batch**\
-  \ row was wrong too: `-p --output-format stream-json` is refused without `--verbose`.\
-  \ Corrected in the same commit, along with a note that `-w` comes from the posture\
-  \ and must never be written into a template.\n\n**The guard** is D5: `tests/test_dispatch_example_config.py`\
-  \ dispatches the unmodified example through gates, selection, argv composition,\
-  \ launch, poll and handoff, against a shim installed on PATH as `claude` that withholds\
-  \ the Remote Control URL unless it was actually launched with `--remote-control`.\
-  \ Verified by re-breaking the scaffold -- the shipped argv fails six tests, and\
-  \ dropping only `--remote-control` fails exactly the phone-link one.\n\n**Three\
-  \ pre-existing things running it turned up**, none touched here, all written up\
-  \ at the end of the progress entry: `require_clean_tree: true` is unusable when\
-  \ a project's task files live in the dispatched repo (the claim dirties the tree\
-  \ between the gate and the spawn); a batch run started from the one-shot CLI always\
-  \ ends `interrupted` because its supervisor is a daemon thread in a process that\
-  \ has already exited; and a `-p` stream-json run emits a `rate_limit_event` that\
-  \ is adjacent to D1 but does not overturn it. Say the word and I will file any of\
-  \ them."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 category: architecture
@@ -810,3 +773,11 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 14
+  ts: '2026-08-19T20:58:29.708134Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work

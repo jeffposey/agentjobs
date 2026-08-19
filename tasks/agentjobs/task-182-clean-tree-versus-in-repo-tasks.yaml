@@ -3,7 +3,7 @@ id: task-182-clean-tree-versus-in-repo-tasks
 title: require_clean_tree refuses every dispatch in a project whose task files live
   in its own repo
 created: '2026-08-19T20:50:13.107702Z'
-updated: '2026-08-19T20:50:13.108410Z'
+updated: '2026-08-19T20:54:46.088798Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -89,3 +89,51 @@ log:
       id: 1a2b3c4d-5e6f-4a70-8b91-2c3d4e5f0182
       kind: create
       fingerprint: 7fd485e08669049560beeabdf4fe10ff
+- id: 2
+  ts: '2026-08-19T20:54:46.088684Z'
+  actor: claude
+  type: note
+  body: "Recommended fix, from reading the two call sites. Not binding \u2014 the\
+    \ task still requires a decision entry \u2014 but this is the shape I would start\
+    \ from, and the reason the popular alternative is worse.\n\n## There are two checks,\
+    \ and only one of them has a reason\n\n- `src/agentjobs/dispatch/guards.py:343`\
+    \ \u2014 checked **before** anything is written. This is the meaningful one.\n\
+    - `src/agentjobs/dispatch/runner.py:619`, in `_assert_spawnable` \u2014 checked\
+    \ **after** the claim has written the task YAML. This is the one that refuses.\n\
+    \nRead `_assert_spawnable`'s own docstring: it justifies re-checking **the sentinel**\
+    \ at spawn time \u2014 \"it is the panic button, and the whole point is that creating\
+    \ the file stops the *next* run\". That argument is correct and specific to the\
+    \ sentinel. The tree check sits beside it with no argument of its own, and it\
+    \ is the one that cannot survive the sequence it is part of.\n\n## Recommendation:\
+    \ check the tree once, keep the sentinel re-check\n\nDrop the tree from `_assert_spawnable`;\
+    \ leave the sentinel exactly as it is.\n\nWhat the second tree check defends is\
+    \ a change arriving between the gate and the spawn. In that window the only writer\
+    \ is **dispatch itself**, doing the claim it was always going to do. A human cannot\
+    \ realistically edit a file in it, and if one did, the run's `git_head` still\
+    \ records what the diff should be attributed to.\n\nThat makes the fix a deletion\
+    \ rather than an exclusion, which is why I prefer it: nothing becomes invisible\
+    \ to the check, and nothing new has to be maintained.\n\n**Consequence to state\
+    \ in the design:** for a project whose tasks live in its own repo, the dispatched\
+    \ agent now starts while that repo holds exactly one uncommitted file \u2014 its\
+    \ own task record \u2014 in the shared clone. That is already the normal state\
+    \ of this workflow, since task writes land in the main clone and a human commits\
+    \ them there, and the agent works in a separate worktree.\n\n## Rejected: exclude\
+    \ the tasks directory from `working_tree_clean`\n\nThe obvious fix, and the one\
+    \ this task's description reached for first. It is worse: the exclusion applies\
+    \ to **both** call sites, including the meaningful pre-claim one, so a human's\
+    \ genuinely uncommitted hand edit to a task file would stop blocking a dispatch\
+    \ permanently \u2014 not just for the millisecond the bug is actually about. It\
+    \ also adds a project-shaped parameter to a function that currently just asks\
+    \ git a question.\n\n## Rejected: commit the claim before the re-check\n\nMakes\
+    \ dispatch author commits in the user's repository on its own initiative. Not\
+    \ something this system should ever do silently, and it would put an agent's claim\
+    \ in history as a commit nobody wrote.\n\n## Worth checking while in there\n\n\
+    Whether `guards.py:343` should move to *after* `assert_dispatch_permitted`'s other\
+    \ gates but still before the claim \u2014 it already is \u2014 and whether any\
+    \ other caller relies on `_tree_is_clean` being re-derived. `auto.py` goes through\
+    \ the same `dispatch_task`, so it inherits whatever is decided here."
+  data:
+    operation:
+      id: 3c4d5e6f-7081-4c92-ad13-4e5f60710184
+      kind: log_append
+      fingerprint: efdd249a52439bcd8d9b55a93a75ec51
