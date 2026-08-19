@@ -224,6 +224,112 @@ class TestDispatchEndpoint:
         assert all(path.endswith("/dispatch") for path in dispatching)
 
 
+class TestTheNoteThatAuthorisesARun:
+    """Task-185: the exact sequence the browser performs on an agent-filed task.
+
+    Every task an agent files has one log entry -- its own creation transition -- so the
+    human-clocked rule refuses it, correctly, and the remedy is to write a human entry.
+    The browser now has a control that does that, so the refusal names something the
+    reader can press. These pin what that control may and may not achieve.
+
+    The one that matters is the middle test. The new control writes an ordinary log
+    entry, and log entries accept any configured actor id, so it would be a plausible
+    reading that *any* fresh entry unblocks a dispatch. It does not: an agent writing a
+    note leaves the task exactly as un-dispatchable as it was. That is the property the
+    whole rule exists for, restated against the surface that was just added.
+    """
+
+    def agent_filed_task(self, root: Path) -> str:
+        """A ready task whose only entry is the creation transition an agent wrote."""
+        manager = TaskManager(TaskStorage(root / "tasks"))
+        task = manager.create_task(
+            title="Filed by an agent",
+            category="general",
+            summary="Every task an agent files starts like this.",
+            description="Its newest -- and only -- log entry belongs to an agent.",
+            lifecycle=Lifecycle.READY,
+            actor="claude",
+        )
+        return task.id
+
+    def note(self, client: TestClient, task_id: str, *, actor: str, body: str):
+        """What the browser's note control sends."""
+        return client.post(
+            f"/api/projects/sandbox/tasks/{task_id}/log",
+            json={"actor": actor, "type": "note", "body": body},
+        )
+
+    def test_an_agent_filed_task_is_refused_before_anyone_writes_anything(
+        self, served, tmp_path: Path
+    ) -> None:
+        client, root, home = served
+        enable_dispatch(home, tmp_path)
+        task_id = self.agent_filed_task(root)
+
+        response = client.post(f"/api/projects/sandbox/tasks/{task_id}/dispatch", json={})
+
+        assert response.status_code == 403
+        assert response.json()["code"] == "not_human_clocked"
+
+    def test_a_note_written_by_an_agent_does_not_authorise_a_run(
+        self, served, tmp_path: Path
+    ) -> None:
+        client, root, home = served
+        enable_dispatch(home, tmp_path)
+        task_id = self.agent_filed_task(root)
+
+        written = self.note(client, task_id, actor="claude", body="Ready to go, I think.")
+        assert written.status_code == 200, written.text
+
+        response = client.post(f"/api/projects/sandbox/tasks/{task_id}/dispatch", json={})
+
+        assert response.status_code == 403
+        assert response.json()["code"] == "not_human_clocked"
+
+    def test_a_note_written_by_the_human_authorises_exactly_that_run(
+        self, served, tmp_path: Path
+    ) -> None:
+        client, root, home = served
+        enable_dispatch(home, tmp_path)
+        task_id = self.agent_filed_task(root)
+
+        written = self.note(client, task_id, actor="Jeff Posey", body="Go ahead, start it.")
+        assert written.status_code == 200, written.text
+        authorising = written.json()["log"][-1]
+        assert authorising["actor"] == "Jeff Posey"
+
+        response = client.post(f"/api/projects/sandbox/tasks/{task_id}/dispatch", json={})
+
+        assert response.status_code == 202, response.text
+        # The run is attributed to the entry the human actually wrote, so the record
+        # says what caused it rather than merely that something did.
+        assert response.json()["caused_by"] == authorising["id"]
+
+    def test_a_task_with_no_log_at_all_is_refused_under_its_own_code(
+        self, served, tmp_path: Path
+    ) -> None:
+        """The other half of task-185: tasks predating the creation entry have none."""
+        client, root, home = served
+        enable_dispatch(home, tmp_path)
+        manager = TaskManager(TaskStorage(root / "tasks"))
+        task = manager.create_task(
+            title="Filed before creation entries existed",
+            category="general",
+            summary="Its log is empty.",
+            description="No entry, so nothing a dispatch could be caused by.",
+            lifecycle=Lifecycle.READY,
+        )
+
+        refused = client.post(f"/api/projects/sandbox/tasks/{task.id}/dispatch", json={})
+        assert refused.status_code == 409
+        assert refused.json()["code"] == "no_causing_entry"
+
+        self.note(client, task.id, actor="Jeff Posey", body="Authorising this run.")
+        permitted = client.post(f"/api/projects/sandbox/tasks/{task.id}/dispatch", json={})
+
+        assert permitted.status_code == 202, permitted.text
+
+
 def wait_for(predicate, *, timeout: float = 15.0, interval: float = 0.05) -> bool:
     """Poll until ``predicate`` is true, or give up. Batch runs conclude on a thread."""
     deadline = time.monotonic() + timeout
