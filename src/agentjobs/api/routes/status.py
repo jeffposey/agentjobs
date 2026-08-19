@@ -421,6 +421,8 @@ _DISPATCH_STATUS: dict = {
     "sentinel": status.HTTP_409_CONFLICT,
     "project_not_enabled": status.HTTP_409_CONFLICT,
     "unknown_runner": status.HTTP_409_CONFLICT,
+    "unknown_group": status.HTTP_409_CONFLICT,
+    "no_eligible_runner": status.HTTP_409_CONFLICT,
     "invalid_config": status.HTTP_500_INTERNAL_SERVER_ERROR,
     "not_human_clocked": status.HTTP_403_FORBIDDEN,
     "no_causing_entry": status.HTTP_409_CONFLICT,
@@ -438,6 +440,10 @@ _DISPATCH_ACTION: dict = {
     "sentinel": "Delete ~/.agentjobs/DISPATCH_DISABLED to re-enable dispatch.",
     "project_not_enabled": "Run 'agentjobs dispatch enable <project>'.",
     "unknown_runner": "Point the project at a runner this machine defines.",
+    "unknown_group": "Name a runner group defined in ~/.agentjobs/dispatch.yaml.",
+    "no_eligible_runner": (
+        "Enable a member of the group by hand, or install the CLI one of them needs."
+    ),
     "not_human_clocked": (
         "Act on the task yourself, then dispatch. This rule is not configurable."
     ),
@@ -476,7 +482,9 @@ async def dispatch_task_endpoint(
             manager=manager,
             project=project,
             project_config=project_config(project),
-            request=DispatchRequest(task_id=task_id, caused_by=payload.caused_by),
+            request=DispatchRequest(
+                task_id=task_id, caused_by=payload.caused_by, group=payload.group
+            ),
         )
     except DispatchRunError as exc:
         raise _error(
@@ -497,6 +505,8 @@ async def dispatch_task_endpoint(
         posture=str(meta.get("posture") or ""),
         task_id=task_id,
         caused_by=_as_int(meta.get("caused_by")),
+        runner=handle.runner,
+        group=handle.group,
     )
 
 

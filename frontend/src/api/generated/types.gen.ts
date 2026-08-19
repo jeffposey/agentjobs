@@ -498,6 +498,12 @@ export type DispatchCancelResult = {
  */
 export type DispatchEnableRequest = {
     /**
+     * Group
+     *
+     * Runner group to point this project at, instead of a single runner. Names an existing group; it never creates one. Mutually exclusive with `runner`.
+     */
+    group?: string | null;
+    /**
      * Runner
      */
     runner?: string | null;
@@ -545,6 +551,12 @@ export type DispatchRequestBody = {
      * Log entry id authorising this dispatch. Defaults to the newest entry. Its actor must be a configured human.
      */
     caused_by?: number | null;
+    /**
+     * Group
+     *
+     * Runner group to choose from, overriding the project's. Names a group this machine already defines; it never creates one, and it cannot open a gate that is closed.
+     */
+    group?: string | null;
 };
 
 /**
@@ -674,6 +686,12 @@ export type DispatchStarted = {
      */
     caused_by: number;
     /**
+     * Group
+     *
+     * Runner group it was selected from, when one participated.
+     */
+    group?: string | null;
+    /**
      * Mode
      *
      * session or batch.
@@ -691,6 +709,12 @@ export type DispatchStarted = {
      * AgentJobs' identifier for this run.
      */
     run_id: string;
+    /**
+     * Runner
+     *
+     * Runner that was selected and started.
+     */
+    runner?: string | null;
     /**
      * Session Id
      *
@@ -718,6 +742,12 @@ export type DispatchStateView = {
      */
     auto_dispatch?: boolean;
     /**
+     * Available Groups
+     *
+     * Runner group names this machine defines. Read-only on the same terms as available_runners: pointing a project at an existing group is selecting among machine-local definitions, and authoring one is not reachable here.
+     */
+    available_groups?: Array<string>;
+    /**
      * Available Runners
      *
      * Runner names this machine defines. Read-only: the browser may point a project at one of these and can never create one.
@@ -741,6 +771,18 @@ export type DispatchStateView = {
      * A dispatch.yaml exists on this machine.
      */
     configured: boolean;
+    /**
+     * Default Group
+     *
+     * Machine-wide group, used by any project that names none of its own.
+     */
+    default_group?: string | null;
+    /**
+     * Group
+     *
+     * Runner group this project is pointed at, if any.
+     */
+    group?: string | null;
     /**
      * Master Enabled
      *

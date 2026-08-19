@@ -404,6 +404,56 @@ class Attachment(StrictModel):
     label: str = Field(..., description="Accessible label; alt text where it renders.")
 
 
+class DispatchCandidateData(StrictModel):
+    """One runner a group offered, and what the selector concluded about it.
+
+    Every member of the group appears, winner included, in the order the file declares
+    them. A candidate listed after the winner is marked eligible and carries no reason:
+    "considered and not reached" is a different fact from "considered and rejected", and
+    a reader three weeks later needs to be able to tell them apart.
+    """
+
+    runner: str = Field(..., description="Runner name from the group's member list.")
+    eligible: bool = Field(..., description="Nothing disqualified it.")
+    skipped_because: Optional[str] = Field(
+        default=None,
+        description=(
+            "Why it was passed over: disabled, undefined_runner, or "
+            "executable_not_found. Absent on an eligible candidate."
+        ),
+    )
+    detail: Optional[str] = Field(
+        default=None,
+        description="The member's own note, or what specifically was missing.",
+    )
+
+
+class DispatchSelectionData(StrictModel):
+    """How a runner group chose the runner that ran (task-177).
+
+    Present only when a group participated. A machine with a flat ``runners:`` map
+    resolves through ``projects.<id>.runner`` exactly as it always has and writes no
+    selection at all, so nothing about a config that has never heard of groups changes
+    shape in git.
+
+    The winner is the ``runner`` field of the entry this hangs off, not a field here --
+    one name for the thing that ran, in the place every existing reader already looks.
+    """
+
+    group: str = Field(..., description="Runner group the candidates came from.")
+    source: str = Field(
+        ...,
+        description=(
+            "Which rung of the precedence ladder named the group: dispatch, project, " "or machine."
+        ),
+    )
+    candidates: List[DispatchCandidateData] = Field(
+        ...,
+        min_length=1,
+        description="Every member of the group, in declared order, with its verdict.",
+    )
+
+
 class DispatchData(StrictModel):
     """Payload of a ``dispatch`` entry: what was started, by whose authority, against what.
 
@@ -442,6 +492,13 @@ class DispatchData(StrictModel):
         description=(
             "Session mode only, and never assigned by us: `--bg` manages the id itself "
             "and the dispatcher captures it afterwards, so it can be absent."
+        ),
+    )
+    selection: Optional[DispatchSelectionData] = Field(
+        default=None,
+        description=(
+            "How a runner group chose `runner` (task-177). Absent when no group "
+            "participated, which is every dispatch on a flat configuration."
         ),
     )
 

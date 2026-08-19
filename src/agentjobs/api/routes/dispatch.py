@@ -97,6 +97,9 @@ class DispatchStateView(BaseModel):
     sentinel_active: bool = Field(..., description="DISPATCH_DISABLED exists; all runs refused.")
     project_enabled: bool = Field(..., description="This project is enabled for dispatch.")
     runner: Optional[str] = Field(default=None, description="Runner this project is pointed at.")
+    group: Optional[str] = Field(
+        default=None, description="Runner group this project is pointed at, if any."
+    )
     posture: Optional[str] = Field(default=None, description="What a run here may do.")
     auto_dispatch: bool = Field(default=False, description="Auto-dispatch on approval (task-074).")
     available_runners: List[str] = Field(
@@ -105,6 +108,18 @@ class DispatchStateView(BaseModel):
             "Runner names this machine defines. Read-only: the browser may point a "
             "project at one of these and can never create one."
         ),
+    )
+    available_groups: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Runner group names this machine defines. Read-only on the same terms as "
+            "available_runners: pointing a project at an existing group is selecting "
+            "among machine-local definitions, and authoring one is not reachable here."
+        ),
+    )
+    default_group: Optional[str] = Field(
+        default=None,
+        description="Machine-wide group, used by any project that names none of its own.",
     )
     can_dispatch: bool = Field(..., description="Every gate is open right now.")
     refusal: Optional[DispatchRefusalView] = Field(
@@ -183,6 +198,14 @@ class DispatchEnableRequest(BaseModel):
     """
 
     runner: Optional[str] = Field(default=None, min_length=1)
+    group: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "Runner group to point this project at, instead of a single runner. Names "
+            "an existing group; it never creates one. Mutually exclusive with `runner`."
+        ),
+    )
 
 
 # ----- helpers ----------------------------------------------------------------
@@ -326,9 +349,12 @@ def _state(project: Project) -> DispatchStateView:
         sentinel_active=sentinel_active(home),
         project_enabled=bool(settings and settings.enabled),
         runner=settings.runner if settings else None,
+        group=settings.group if settings else None,
         posture=settings.posture.value if settings else None,
         auto_dispatch=bool(settings and settings.auto_dispatch),
         available_runners=sorted(config.runners) if config else [],
+        available_groups=sorted(config.runner_groups) if config else [],
+        default_group=config.default_group if config else None,
         can_dispatch=can_dispatch,
         refusal=refusal,
         config_path=str(dispatch_config_path(home)),
@@ -361,6 +387,7 @@ def _refusal_error(exc: DispatchError) -> MutationError:
 _TOGGLE_ACTION = {
     "not_configured": "Create ~/.agentjobs/dispatch.yaml and define a runner first.",
     "unknown_runner": "Pick a runner this machine already defines, or add one by hand.",
+    "unknown_group": "Pick a runner group this machine already defines, or write one by hand.",
     "invalid_config": "Fix the YAML in ~/.agentjobs/dispatch.yaml, then try again.",
 }
 
@@ -381,7 +408,9 @@ async def enable_dispatch(
 ) -> DispatchStateView:
     """Enable dispatch for this project against an already-defined runner."""
     try:
-        set_project_enabled(project.id, True, runner=payload.runner, home=_home())
+        set_project_enabled(
+            project.id, True, runner=payload.runner, group=payload.group, home=_home()
+        )
     except DispatchError as exc:
         raise _refusal_error(exc) from exc
     return _state(project)

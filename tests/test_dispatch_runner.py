@@ -33,7 +33,11 @@ from agentjobs.dispatch.config import (
     DispatchRunner as RunnerConfig,
     Posture,
     ProjectDispatchSettings,
+    RunnerCandidate,
     RunnerMode,
+    RunnerSelection,
+    SelectionSource,
+    SkipReason,
 )
 from agentjobs.dispatch.runner import (
     GUIDE_PATH,
@@ -917,3 +921,101 @@ class TestRepaintCollapsing:
         text = "one\ntwo\nthree"
 
         assert drop_repainted_lines(text) == text
+
+
+# ----- the group audit trail (task-177) ---------------------------------------
+
+
+def grouped_resolution(argv: List[str]) -> DispatchResolution:
+    """A resolution as the group selector produces one: a winner plus its rivals."""
+    winner = RunnerConfig(name="second", argv=argv, env={}, mode=RunnerMode.BATCH)
+    settings = ProjectDispatchSettings(
+        project_id="sandbox", enabled=True, group="default", require_clean_tree=False
+    )
+    limits = DispatchLimits()
+    selection = RunnerSelection(
+        runner=winner,
+        source=SelectionSource.DISPATCH,
+        group="default",
+        candidates=[
+            RunnerCandidate(
+                runner="first",
+                eligible=False,
+                skipped_because=SkipReason.DISABLED,
+                detail="no key on this machine yet",
+            ),
+            RunnerCandidate(runner="second", eligible=True),
+            RunnerCandidate(runner="third", eligible=True),
+        ],
+    )
+    return DispatchResolution(
+        project_id="sandbox",
+        runner=winner,
+        settings=settings,
+        limits=limits,
+        config=DispatchConfig(enabled=True, limits=limits),
+        selection=selection,
+    )
+
+
+class TestSelectionIsRecorded:
+    """sc-3: the dispatch entry answers "why that runner" without the local run dir."""
+
+    def test_the_entry_names_the_group_the_winner_and_the_rivals(
+        self, workspace: Path, manager: TaskManager, task
+    ) -> None:
+        script = write_script(workspace / "ok.py", "print('done')")
+        runner = build(
+            workspace, manager, grouped_resolution([sys.executable, str(script), "{prompt}"])
+        )
+
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        if handle.supervisor:
+            handle.supervisor.join(timeout=30)
+
+        after = manager.get_task(task.id)
+        assert after is not None
+        entry = [e for e in after.log if e.type is LogEntryType.DISPATCH][0]
+        selection = entry.data["selection"]
+        assert entry.data["runner"] == "second"
+        assert selection["group"] == "default"
+        assert selection["source"] == "dispatch"
+        assert [c["runner"] for c in selection["candidates"]] == ["first", "second", "third"]
+        skipped = selection["candidates"][0]
+        assert skipped["eligible"] is False
+        assert skipped["skipped_because"] == "disabled"
+        assert skipped["detail"] == "no key on this machine yet"
+
+    def test_the_handle_says_what_was_chosen_and_from_where(
+        self, workspace: Path, manager: TaskManager, task
+    ) -> None:
+        script = write_script(workspace / "ok2.py", "print('done')")
+        runner = build(
+            workspace, manager, grouped_resolution([sys.executable, str(script), "{prompt}"])
+        )
+
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        if handle.supervisor:
+            handle.supervisor.join(timeout=30)
+
+        assert handle.runner == "second"
+        assert handle.group == "default"
+
+    def test_a_flat_resolution_writes_no_selection_key_at_all(
+        self, workspace: Path, manager: TaskManager, task
+    ) -> None:
+        """The compatibility claim, asserted on the bytes rather than on intent."""
+        script = write_script(workspace / "ok3.py", "print('done')")
+        runner = build(
+            workspace, manager, make_resolution([sys.executable, str(script), "{prompt}"])
+        )
+
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        if handle.supervisor:
+            handle.supervisor.join(timeout=30)
+
+        after = manager.get_task(task.id)
+        assert after is not None
+        entry = [e for e in after.log if e.type is LogEntryType.DISPATCH][0]
+        assert "selection" not in entry.data
+        assert handle.group is None
