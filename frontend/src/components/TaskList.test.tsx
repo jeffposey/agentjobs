@@ -90,6 +90,31 @@ describe("TaskList filtering", () => {
     expect(url).toContain("scope=test");
   });
 
+  it.each(["task-058", "058", "TASK-058"])("finds a task by its id typed as %s", (query) => {
+    renderList([
+      task("task-058-multi-project-gui", { title: "Nothing in this title is numeric" }),
+      task("task-101-unrelated"),
+    ], "/p/inbox/tasks?status=all");
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search tasks" }), { target: { value: query } });
+
+    const table = screen.getByRole("region", { name: "Tasks" });
+    expect(within(table).getByText("task-058-multi-project-gui")).toBeVisible();
+    expect(within(table).queryByText("task-101-unrelated")).not.toBeInTheDocument();
+  });
+
+  it("keeps a superseded task distinguishable from a completed one on the list", () => {
+    renderList([
+      task("task-058-superseded", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "superseded", display_status: "Superseded" }),
+      task("task-059-completed", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "completed", display_status: "Completed" }),
+    ], "/p/inbox/tasks?status=closed");
+
+    const table = screen.getByRole("region", { name: "Tasks" });
+    expect(within(table).getByText("Superseded")).toBeVisible();
+    expect(within(table).getByText("Completed")).toBeVisible();
+    expect(within(table).queryByText("Done")).not.toBeInTheDocument();
+  });
+
   it("surfaces unreadable task files above the list", () => {
     renderList([], "/p/inbox/tasks", [{
       task_id: "task-broken",

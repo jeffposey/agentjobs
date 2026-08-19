@@ -71,7 +71,14 @@ export function buildTaskRows(tasks: Array<TaskRead>): Array<TaskRow> {
 
 function matchesTask(task: TaskRead, search: string, status: string, priority: string, scope: string) {
   const term = search.trim().toLowerCase();
-  const titleMatches = term === "" || task.title.toLowerCase().includes(term);
+  // The id is searched as well as the title because the id is what people quote:
+  // "058" and "task-058" both have to find task-058-multi-project-gui. Summary and
+  // description are deliberately left out -- this box filters a visible list, and a
+  // row matching on text the row does not show reads as a bug. The API's /api/search
+  // is the full-text surface.
+  const titleMatches = term === ""
+    || task.title.toLowerCase().includes(term)
+    || task.id.toLowerCase().includes(term);
   const statusMatches = status === "all"
     || (status === "open" && task.lifecycle !== "closed")
     || task.lifecycle === status
@@ -141,7 +148,7 @@ export function TaskList({
             type="search"
             value={search}
             onChange={(event) => updateParam("q", event.target.value, "")}
-            placeholder="Search tasks..."
+            placeholder="Search title or id (e.g. 058)"
             className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-4 text-dark-text focus:border-blue-500 focus:outline-none"
           />
           <label className="sr-only" htmlFor="status-filter">Status</label>

@@ -128,6 +128,57 @@ describe("TaskDetail resumption contract", () => {
     expect(screen.getByText("open question", { exact: true })).toBeVisible();
   });
 
+  it("opens every collapsed log body with one control, and closes them again", () => {
+    // A long entry is collapsed by default, which keeps a hundred-entry log scannable
+    // but hides its text from browser find and from select-all-and-copy. Auditing a
+    // long task is exactly when a reviewer needs all of it at once.
+    const long = "x".repeat(500);
+    renderDetail({
+      ...detail,
+      task: task("task-long-log", {
+        log: [
+          { id: 1, ts: "2026-08-13T08:00:00Z", actor: "codex", type: "progress", body: `first ${long}` },
+          { id: 2, ts: "2026-08-13T08:30:00Z", actor: "codex", type: "progress", body: `second ${long}` },
+          { id: 3, ts: "2026-08-13T09:00:00Z", actor: "codex", type: "handoff", body: "Ready for review." },
+        ],
+      }),
+    });
+
+    const log = screen.getByRole("region", { name: "Task log" });
+    const bodies = () => Array.from(log.querySelectorAll("details"));
+    // Entry 3 is newest and stays open; entries 2 and 1 are long and start collapsed.
+    expect(bodies().map((node) => node.open)).toEqual([true, false, false]);
+
+    const toggle = screen.getByRole("button", { name: "Expand all entries" });
+    fireEvent.click(toggle);
+    expect(bodies().every((node) => node.open)).toBe(true);
+    expect(screen.getByRole("button", { name: "Collapse long entries" })).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse long entries" }));
+    expect(bodies().map((node) => node.open)).toEqual([true, false, false]);
+  });
+
+  it("re-opens an entry the reader had closed by hand when expand-all is pressed", () => {
+    const long = "y".repeat(500);
+    renderDetail({
+      ...detail,
+      task: task("task-hand-toggled", {
+        log: [
+          { id: 1, ts: "2026-08-13T08:00:00Z", actor: "codex", type: "progress", body: `only ${long}` },
+        ],
+      }),
+    });
+
+    const log = screen.getByRole("region", { name: "Task log" });
+    const entry = () => log.querySelector("details") as HTMLDetailsElement;
+    // Newest entry, so it starts open; the reader collapses it themselves.
+    entry().open = false;
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand all entries" }));
+
+    expect(entry().open).toBe(true);
+  });
+
   it("submits configured-identity approval and change requests", async () => {
     const actions = renderDetail();
 

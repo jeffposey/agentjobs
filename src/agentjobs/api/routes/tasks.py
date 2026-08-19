@@ -74,6 +74,27 @@ def _relation(
     )
 
 
+def _needs_reason(task_id: str, *, by_id: Dict[str, Task]) -> str:
+    """Say, in words, why a prerequisite is or is not satisfied.
+
+    A closed prerequisite used to read "it is done" whatever its outcome, so a task
+    whose blocker had been *superseded* -- abandoned, its work never carried out --
+    reported the same sentence as one whose blocker was finished. The outcome is the
+    fact worth carrying here, and the reader is exactly the person who has to decide
+    whether the dependency still means anything.
+
+    ``state`` is left alone deliberately: whether a non-completed outcome satisfies a
+    need is a semantics question, and this only fixes what the sentence claims.
+    """
+    target = by_id.get(task_id)
+    if target is None:
+        return f"Needs {task_id}; it is not a task in this project."
+    if target.is_open:
+        return f"Needs {task_id}; it is still open."
+    outcome = (target.outcome or Outcome.COMPLETED).value
+    return f"Needs {task_id}; it is closed as {outcome}."
+
+
 def acting_user(project: Any, user: str) -> str:
     """The actor id to record, refused if this project does not define it.
 
@@ -187,15 +208,7 @@ async def get_task_detail(
             dependency.task,
             by_id=by_id,
             note=dependency.note,
-            reason=(
-                f"Needs {dependency.task}; it is not a task in this project."
-                if dependency.task not in by_id
-                else (
-                    f"Needs {dependency.task}; it is still open."
-                    if by_id[dependency.task].is_open
-                    else f"Needs {dependency.task}; it is done."
-                )
-            ),
+            reason=_needs_reason(dependency.task, by_id=by_id),
         )
         for dependency in task.dependencies
         if dependency.type is DependencyType.NEEDS

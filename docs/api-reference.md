@@ -30,7 +30,7 @@ the scoped form so switching projects never depends on the server's current dire
 | `GET` | `/api/tasks/{task_id}` | Return one task record |
 | `GET` | `/api/tasks/{task_id}/detail` | Return the full review/resumption view with relationships |
 | `GET` | `/api/tasks/broken` | Report task files that exist but fail validation |
-| `GET` | `/api/search?q=...` | Search task content |
+| `GET` | `/api/search?q=...` | Search task id, title, spec, ball prompt and tags |
 | `GET` | `/api/dashboard` | Return dashboard counts and activity |
 | `GET` | `/api/revision` | Return the project revision used for client refresh |
 

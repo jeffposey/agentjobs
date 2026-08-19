@@ -245,19 +245,35 @@ function EntryAttachments({
 }
 
 function Log({ entries, projectId, taskId }: { entries: Array<LogEntry>; projectId: string; taskId: string }) {
-  if (entries.length === 0) return null;
+  // Per-entry disclosures keep a hundred-entry log scannable, but they also hide the
+  // text from Ctrl+F and from select-all-and-copy, which is exactly what a reviewer
+  // auditing a long task needs. One control opens every one of them; the `key` carries
+  // the flag so React remounts each <details> and the new state wins even over an
+  // entry the reader had toggled by hand.
+  const [expandAll, setExpandAll] = useState(false);
   const answered = new Set(entries.filter((entry) => entry.type === "answer" && entry.re).map((entry) => entry.re));
   const ordered = [...entries].sort((left, right) => right.id - left.id);
+  if (entries.length === 0) return null;
   return (
     <section className="rounded-lg border border-dark-border bg-dark-surface" aria-label="Task log">
-      <h2 className="border-b border-dark-border p-4 text-lg font-semibold">Log</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-dark-border p-4">
+        <h2 className="text-lg font-semibold">Log</h2>
+        <button
+          type="button"
+          aria-pressed={expandAll}
+          onClick={() => setExpandAll((current) => !current)}
+          className="touch-target rounded-lg border border-dark-border bg-dark-bg px-3 text-xs text-blue-300 hover:border-blue-500"
+        >
+          {expandAll ? "Collapse long entries" : "Expand all entries"}
+        </button>
+      </div>
       <div className="space-y-4 p-4 min-[820px]:p-6">
         {ordered.map((entry, index) => {
           const openQuestion = entry.type === "question" && !answered.has(entry.id);
           return (
             <article className={`border-l-2 pl-4 ${LOG_CLASSES[entry.type] ?? "border-blue-500"}`} key={entry.id} data-log-id={entry.id}>
               <div className="flex flex-wrap items-center gap-2 text-xs uppercase text-dark-muted"><span>#{entry.id}</span><span>•</span><span>{entry.actor}</span><span>•</span><time dateTime={entry.ts}>{new Date(entry.ts).toLocaleString()}</time><span className="rounded border border-dark-border bg-dark-bg px-2 py-0.5 lowercase">{openQuestion ? "open question" : entry.type}</span>{entry.re && <span>re #{entry.re}</span>}</div>
-              {entry.body && <details open={index === 0 || entry.body.length <= 400} className="mt-2"><summary className="touch-target cursor-pointer text-xs text-blue-300">{entry.body.length > 400 ? "Entry details" : "Entry"}</summary><SpecText muted>{entry.body}</SpecText></details>}
+              {entry.body && <details key={String(expandAll)} open={expandAll || index === 0 || entry.body.length <= 400} className="mt-2"><summary className="touch-target cursor-pointer text-xs text-blue-300">{entry.body.length > 400 ? "Entry details" : "Entry"}</summary><SpecText muted>{entry.body}</SpecText></details>}
               <EntryAttachments entry={entry} projectId={projectId} taskId={taskId} />
             </article>
           );
