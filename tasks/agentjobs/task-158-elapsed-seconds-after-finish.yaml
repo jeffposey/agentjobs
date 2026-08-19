@@ -2,10 +2,40 @@ schema: 2
 id: task-158-elapsed-seconds-after-finish
 title: Stop a finished run's elapsed time from counting forever
 created: '2026-08-18T21:53:32.353465Z'
-updated: '2026-08-18T21:53:32.354325Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-19T16:40:39.725980Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: 'Review branch `fix/task-158-elapsed-after-finish` (worktree `C:/projects/aj-158`,
+  commit `7771e78`) and say whether to merge. Not merged, not pushed -- the autonomy
+  grant from 2026-08-18 expired and was not renewed.
+
+
+  **Look at it running:** http://127.0.0.1:8901/app/p/review-project -> the Dispatch
+  page. Three runs are seeded to show every state at once: `run_review01` reads 42s
+  and stays 42s (it read 11.6 hours before this fix), `run_review00` reads "unknown"
+  because it has no recorded finish time, and any run you start yourself counts up
+  while live and freezes the moment it ends. Press Dispatch on task-001 or task-002
+  to see the live case -- it starts a real Claude session in a throwaway repo, and
+  Cancel works. Say when you are done and I will stop the sandbox.
+
+
+  **The judgement call worth your eye:** a concluded run with no recorded finish time
+  reports null, rendered "unknown", rather than a guess. That is every run that existed
+  before this change. The alternative was to keep measuring those from the current
+  clock, which is the bug itself, so unknown seemed the only honest answer -- but
+  it does mean your existing run list will show "unknown" for its older rows until
+  they age out.
+
+
+  The other choice: the finish stamp lives inside the two functions that write run
+  metadata rather than at the several call sites that can end a run, so no path --
+  including one added later -- can forget it. Slightly magic, deliberately.
+
+
+  On approval I will rebase onto main, merge --no-ff, close this, and remove the worktree.
+  This is the last open child of task-060, so its approval also clears the epic to
+  close.'
 archived: false
 priority: medium
 category: reliability
@@ -15,6 +45,7 @@ tags:
 - frontend
 effort: small
 assignment:
+  owner: claude
   eligible: []
 parent: task-060-agent-dispatch
 spec:
@@ -53,25 +84,37 @@ acceptance:
 - id: sc-1
   text: A terminal run reports a duration that does not change between two requests
     separated by real time
-  status: pending
+  status: met
 - id: sc-2
   text: A finished run's reported duration agrees with the duration_seconds recorded
     on its task
-  status: pending
+  status: met
 - id: sc-3
   text: A live run still reports a duration that grows
-  status: pending
+  status: met
 - id: sc-4
   text: A run with no recorded finish time reports something that cannot be mistaken
     for a live duration, and the choice is stated in the code
-  status: pending
+  status: met
 deliverables:
+- path: src/agentjobs/dispatch/runner.py
+  note: finished_at stamped by the write that ends a run; both finishing paths use
+    the instant they report
+  status: done
+- path: src/agentjobs/dispatch/ledger.py
+  note: RunRecord.finished_at, and elapsed_seconds measured to it once a run is terminal
+  status: done
 - path: src/agentjobs/api/routes/dispatch.py
-  note: Duration from finish time, not now
-  status: pending
+  note: Field description states the null case
+  status: done
+- path: tests/test_dispatch_lifecycle.py
+  note: TestDuration, one test per acceptance criterion
+  status: done
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-158-elapsed-after-finish
+  status: active
 log:
 - id: 1
   ts: '2026-08-18T21:53:32.353520Z'
@@ -84,3 +127,175 @@ log:
       id: 1580aa11-2b33-4c55-8d77-e9f0a1b2c158
       kind: create
       fingerprint: 13016b5b9170a85dc60dd2343dad9556
+- id: 2
+  ts: '2026-08-19T16:19:31.101875Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 6f2a1c74-1b53-4a2f-9c31-8d0e5f7a1580
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-19T16:19:37.866439Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 2b7d4e19-3c60-4a8b-95f2-71c0a6d3e158
+      kind: update_content
+      fingerprint: e617bc6f29627772cc4ec9bba42b3142
+- id: 4
+  ts: '2026-08-19T16:39:59.958051Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, deliverables.
+  data:
+    fields:
+    - acceptance
+    - deliverables
+    operation:
+      id: 9d3c58f1-4a72-4b06-8e91-2c5f7b0d1583
+      kind: update_content
+      fingerprint: 7d497e0dfd291a99f9aef743334fd5c2
+- id: 5
+  ts: '2026-08-19T16:40:23.017996Z'
+  actor: claude
+  type: progress
+  body: 'Fixed on `fix/task-158-elapsed-after-finish`, worktree `C:/projects/aj-158`,
+    commit `7771e78`. Not merged, not pushed.
+
+
+    ## What changed
+
+
+    Runs now record `finished_at`, and `RunRecord.elapsed_seconds()` measures a concluded
+    run to it. A live run is still measured to now, so it keeps counting.
+
+
+    **The stamp lives in the two functions that write run metadata** -- `RunDirectory.update_meta`
+    and `ledger.write_status` -- not at the several call sites that can end a run
+    (launcher failure, no session id, supervisor exit, cancel, reconcile). Any write
+    that sets a terminal status stamps the finish time, so no existing path can omit
+    it and neither can one written later. An explicit `finished_at` in the fields
+    wins, and the two finishing paths pass exactly the instant they computed the task
+    log''s `duration_seconds` from, so the run record and the task record cannot disagree.
+
+
+    **A concluded run with no recorded finish time reports `None`** -- "unknown" in
+    the browser, `-` in the CLI. That is runs from before this was recorded, and runs
+    that ended without anything writing it down. Measuring those from now is the bug
+    being fixed; a plausible invented number would be worse than admitting the record
+    does not say. Stated in the docstring on `elapsed_seconds`.
+
+
+    Also moved `TERMINAL_STATUSES` from `ledger` to `runner` (ledger already imports
+    from runner, not the reverse) so both meta writers share one definition instead
+    of `runner` carrying three inline copies of the same set.
+
+
+    ## Verified against a running server, not only in tests
+
+
+    Sandbox on :8901 with the branch''s code, three runs seeded to show every state
+    at once:
+
+
+    | Run | State | Reported |
+
+    |---|---|---|
+
+    | `run_review01` | finished, task log says `duration_seconds: 42.0` | **42.0**,
+    and unchanged 30s later |
+
+    | `run_71b14d53` | a real dispatched session, cancelled mid-run | grew 4.7s ->
+    39.5s while live; froze at **40.197609**, identical on a read 30s later |
+
+    | `run_review00` | finished, no finish time recorded | **null** -> "unknown" |
+
+
+    `run_71b14d53`''s frozen 40.197609 is the same value to the microsecond as the
+    `duration_seconds` on task-001''s `dispatch_result` entry -- sc-2 demonstrated
+    end to end rather than only unit-tested.
+
+
+    Before the fix, `run_review01` reported 41877.2 seconds for a 42-second run.
+
+
+    ## Tests
+
+
+    `TestDuration` in `tests/test_dispatch_lifecycle.py`, one test per criterion plus
+    two on the stamp itself (a terminal write stamps even when the caller forgets;
+    a `running` write does not stamp). Full suite: **1738 passed, 2 failed** -- `test_agentjobs_context_paths_exist`
+    and the `absolute-path` tolerated-drift assertion, both already red on `main`
+    and unrelated. Black, ruff clean; mypy has the one pre-existing `storage.py:268`
+    error that `main` also has.
+
+
+    Regenerated `openapi.json` and `types.gen.ts` for the changed field description.
+
+
+    ## Two sandbox repairs, in `C:/ai/scratch/agentjobs-dispatch-review-sandbox.py`
+    (not in the repo)
+
+
+    1. Its runners had no `actor:`, so **every dispatch from the sandbox was refused**
+    by the guard task-159 landed hours earlier. Set to `claude` on all three. Without
+    this the review harness cannot dispatch at all.
+
+    2. Seeded `run_review00` and gave `run_review01` a finish time, so both duration
+    cases are visible side by side.'
+  data:
+    operation:
+      id: c41b8e0a-77d5-4a63-b2f8-3a9e5c126158
+      kind: log_append
+      fingerprint: 08f2f4088100a37d66efd49beb29cee2
+- id: 6
+  ts: '2026-08-19T16:40:39.725851Z'
+  actor: claude
+  type: handoff
+  body: 'Review branch `fix/task-158-elapsed-after-finish` (worktree `C:/projects/aj-158`,
+    commit `7771e78`) and say whether to merge. Not merged, not pushed -- the autonomy
+    grant from 2026-08-18 expired and was not renewed.
+
+
+    **Look at it running:** http://127.0.0.1:8901/app/p/review-project -> the Dispatch
+    page. Three runs are seeded to show every state at once: `run_review01` reads
+    42s and stays 42s (it read 11.6 hours before this fix), `run_review00` reads "unknown"
+    because it has no recorded finish time, and any run you start yourself counts
+    up while live and freezes the moment it ends. Press Dispatch on task-001 or task-002
+    to see the live case -- it starts a real Claude session in a throwaway repo, and
+    Cancel works. Say when you are done and I will stop the sandbox.
+
+
+    **The judgement call worth your eye:** a concluded run with no recorded finish
+    time reports null, rendered "unknown", rather than a guess. That is every run
+    that existed before this change. The alternative was to keep measuring those from
+    the current clock, which is the bug itself, so unknown seemed the only honest
+    answer -- but it does mean your existing run list will show "unknown" for its
+    older rows until they age out.
+
+
+    The other choice: the finish stamp lives inside the two functions that write run
+    metadata rather than at the several call sites that can end a run, so no path
+    -- including one added later -- can forget it. Slightly magic, deliberately.
+
+
+    On approval I will rebase onto main, merge --no-ff, close this, and remove the
+    worktree. This is the last open child of task-060, so its approval also clears
+    the epic to close.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: e70a2d64-9c18-4b35-a5f7-6b2d3e841580
+      kind: handoff
+      fingerprint: 5bc1df6e24157ac29fc74b1c98428f84
