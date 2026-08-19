@@ -152,7 +152,29 @@ Work does not merge itself. When a branch is complete and verified:
 3.  On approval: rebase onto `main`, then merge with `--no-ff` (the merge commit is the
     reviewable unit of work, so fast-forward is not acceptable).
 4.  Mark the branch `merged` in `branches[]` and set the task `completed`.
-5.  Delete the local branch once merged.
+5.  Delete the local branch once merged, and remove the worktree.
+6.  **Put the merged code in front of the human.** Rebuild the frontend if the change
+    touched it, then restart the server. Merging is not delivering: `frontend_dist/` is
+    gitignored and a running server holds its code in memory, so until you do this the
+    person who approved the work is still looking at the version they approved it to
+    replace. Verify the change is actually live before you say you are done.
+
+    ```bash
+    cd frontend && npm run build     # only if the change touched the frontend
+    ```
+
+    Then restart. **On this machine the server is not yours to start with the CLI** — it
+    runs on port 8876 behind a tailnet proxy, started by
+    `C:/ai/shared/launchers/open-agentjobs.ps1`. `agentjobs restart` would bind the
+    default 8765 and leave the real dashboard stale. Re-run the launcher instead; it
+    restarts a server whose code changed underneath it:
+
+    ```bash
+    powershell -File C:/ai/shared/launchers/open-agentjobs.ps1 -NoOpen
+    ```
+
+    Elsewhere, `agentjobs restart` is the right command. Either way the step is the
+    same: the human ends up on the merged version, and you checked.
 
 AgentJobs does not yet deliver durable out-of-session notifications. The intended
 extension point is the existing HMAC-signed webhook system in

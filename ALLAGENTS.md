@@ -62,6 +62,13 @@ user authorizes it.
     it. **Stop there** — do not merge.
 6.  **On approval**: Rebase onto `main`, merge `--no-ff`, mark the branch `merged`,
     `close` the task with `outcome: completed`, and `git worktree remove` your worktree.
+7.  **Then put it in front of them.** Rebuild the frontend if you touched it, restart the
+    server, and confirm the change is live. You are not finished when the merge commit
+    exists — you are finished when the person who approved the work can see it. Leaving
+    them on the version they just approved you to replace is the default outcome if you
+    skip this, and they will find out before you do. See
+    [The Merge Gate](ENGINEERING.md#the-merge-gate) for the commands, including which
+    server is yours to restart and which is not.
 
 ### The Resumption Contract
 
