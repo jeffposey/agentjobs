@@ -3,7 +3,7 @@ id: task-166-red-gate-on-main
 title: The repository's own gate is red on main, and correcting the records that make
   it red is harder than it should be
 created: '2026-08-19T17:21:02.547272Z'
-updated: '2026-08-19T17:21:02.548025Z'
+updated: '2026-08-19T17:28:47.437978Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -158,3 +158,36 @@ log:
       id: b8e2f14a-9c73-4a52-81d6-3f7e5c2a9166
       kind: create
       fingerprint: a62a2ad203c19cfda74af9cf8cc42e96
+- id: 2
+  ts: '2026-08-19T17:28:47.437865Z'
+  actor: claude
+  type: progress
+  body: "**A third failure, in the other half of the gate: the dispatch end-to-end\
+    \ test.**\n\nThe description above was written before the frontend half of `check.py`\
+    \ had ever been reached \u2014 the pytest failures abort the gate before `npm\
+    \ run check` starts. Running the two halves separately shows the frontend half\
+    \ is red too.\n\n`frontend/e2e/dispatch.spec.ts:16` \u2014 *\"turns dispatch on,\
+    \ starts a real agent process, cancels it, and turns it off\"*:\n\n```\nError:\
+    \ expect(locator).toContainText(expected) failed\nLocator: getByRole('region',\
+    \ { name: 'Dispatch' }).getByRole('listitem').first()\nExpected substring: \"\
+    Running\"\nTimeout: 15000ms\nError: element(s) not found\n  at e2e/dispatch.spec.ts:58:21\n\
+    ```\n\nThe run never appears in the dispatch panel's list. Everything before that\
+    \ assertion passes: the machine-wide switch reads Open, the project reads Closed,\
+    \ enabling it flips the project to Open with `runner: e2e-sleeper`, and the task\
+    \ is created and dispatched.\n\n**Reproduced identically in the main clone** (`C:/projects/agentjobs`),\
+    \ so it is not worktree-related either. The other 10 Playwright tests pass, as\
+    \ do 124 Vitest component tests, the API-client generation check, the icon check,\
+    \ the lint, and the production build.\n\nThis one matters more than the corpus\
+    \ pointers. Its own docstring says it is *\"the only place any of that is exercised\
+    \ against a live server\"*, and the dispatch epic (task-060) was closed as complete\
+    \ on 2026-08-19 \u2014 the same day. Whatever broke it is not covered anywhere\
+    \ else.\n\nDo not assume it is a test bug. It may be the product: the run ledger,\
+    \ the poller that reports a live run, or the guard added by task-159 refusing\
+    \ the `e2e-sleeper` runner's actor \u2014 task-060's log entry 15 records that\
+    \ same guard silently breaking the dispatch review sandbox, which is a suggestive\
+    \ precedent."
+  data:
+    operation:
+      id: d2c8b649-5e17-4f38-9a03-7b1e4d5c6166
+      kind: log_append
+      fingerprint: 3ca0bc63ece54e3cfb5a475f54fb06dd

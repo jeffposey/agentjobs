@@ -3,11 +3,21 @@ id: task-165-worktree-bootstrap
 title: A fresh worktree can run scripts/check.py, by a documented bootstrap that is
   demonstrated
 created: '2026-08-19T16:54:34.843687Z'
-updated: '2026-08-19T16:54:52.208173Z'
+updated: '2026-08-19T17:29:28.321128Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: 'Review branch `chore/task-165-worktree-bootstrap` (4 commits, worktree
+  `C:/projects/aj-165`) and approve or reject the merge. Three of four acceptance
+  criteria are met; **sc-1 is not, and cannot be met by this branch** -- the gate
+  is red on `main` for reasons that have nothing to do with worktrees, now filed as
+  task-166. Decide whether that blocks this merge or whether task-166 carries it.
+
+
+  One question for you: task-166 needs four task records corrected (three stale context
+  pointers plus one absolute path). I did not touch them because correcting one pointer
+  through `task_update_content` means resending the task''s entire spec, and one of
+  the four is closed. Say the word and I will do it carefully, or leave it to task-166.'
 archived: false
 priority: high
 category: developer_experience
@@ -120,7 +130,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: chore/task-165-worktree-bootstrap
+  status: active
 log:
 - id: 1
   ts: '2026-08-19T16:54:34.843729Z'
@@ -146,3 +158,190 @@ log:
       id: 7b21e0d5-4c8a-4b3e-9f61-2a4d6c8e1165
       kind: claim
       fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-19T17:04:30.324816Z'
+  actor: claude
+  type: decision
+  body: '**Decided: the bootstrap installs a real environment per worktree. Both cheap
+    sharing tricks are rejected.**
+
+
+    Measured first, on this machine, 2026-08-19, in a worktree created from scratch:
+
+
+    - `poetry install` -- **21s**. Poetry''s artifact cache is already warm, so this
+    is mostly file copying into a new cache-dir virtualenv.
+
+    - `npm ci` in `frontend/` -- **11s**, for the full 191 MB tree, from the npm cache.
+
+    - `npx playwright install chromium` -- **1s**, already in the user-level browser
+    cache.
+
+    - Whole bootstrap, wall clock: **30s**.
+
+
+    **Rejected: junctioning `frontend/node_modules` from the main clone.** This is
+    what the previous session did by hand, and it buys 11 seconds. Against that: two
+    worktrees would share one mutable 191 MB tree, including Vite''s `node_modules/.vite`
+    pre-bundle cache, which two concurrent gates would write at once. This repository''s
+    entire worktree rule exists because agents collide invisibly in shared state;
+    adding a shared directory back to save 11 seconds inverts it. If `npm ci` were
+    two minutes the trade would be worth revisiting -- reopen this if the measurement
+    changes.
+
+
+    **Rejected, and rejected harder: reusing the main clone''s Poetry virtualenv.**
+    `poetry install` installs the root package in editable mode pointing at *that
+    clone''s* `src/`, so `pytest` run from a worktree against that environment imports
+    code from `main` rather than the branch under test. It reports a green suite for
+    source it never executed, and nothing in the output says so. The prior workaround
+    compensated with a `PYTHONPATH` override, which is correct only for as long as
+    someone remembers it.
+
+
+    That failure mode is not hypothetical here. Running `python scripts/check.py`
+    with the system interpreter in the un-bootstrapped demo worktree resolved `agentjobs`
+    to `C:\projects\agentjobs\src\agentjobs` -- the main clone. So the guard added
+    to `check.py` judges the import by **location**, not by importability; the first
+    version of that guard only checked importability and was satisfied by exactly
+    this wrong answer.
+
+
+    **Rejected: a documented list of steps instead of a script.** The steps were already
+    derivable and were still not followed. `scripts/bootstrap.py` also does the thing
+    prose cannot: it verifies afterwards that the environment imports the worktree''s
+    own `src/`.'
+  data:
+    operation:
+      id: c4d9a70e-31f2-4b6d-8a55-6e0f3b912165
+      kind: log_append
+      fingerprint: 8e5d457c2ddce513a45ab39e38d9dfbc
+- id: 4
+  ts: '2026-08-19T17:29:00.383552Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: e5a71c39-4b82-4d16-95c0-8f2b7d4e1165
+      kind: update_content
+      fingerprint: c2ce821c81b6555963496a61146f582f
+- id: 5
+  ts: '2026-08-19T17:29:28.320989Z'
+  actor: claude
+  type: handoff
+  body: '## What was built
+
+
+    **`scripts/bootstrap.py`** -- one command that takes a just-created worktree (or
+    a fresh clone) to a state where it can run the gate: `poetry install`, `npm ci`
+    in `frontend/`, `playwright install chromium`, then a verification step that the
+    environment imports **this** checkout''s `src/`.
+
+
+    **`scripts/check.py`** now refuses to run in a checkout that cannot verify itself,
+    naming what is missing and pointing at the bootstrap, rather than failing inside
+    pytest collection or npm''s resolver.
+
+
+    **`ALLAGENTS.md` / `ENGINEERING.md`** carry the bootstrap command at the two places
+    that tell a reader to make a worktree, with the measured cost and an explicit
+    warning against borrowing the main clone''s virtualenv.
+
+
+    **`tests/test_worktree_bootstrap.py`** -- 5 tests over the guard''s logic and
+    the documentation contract.
+
+
+    **`tests/test_task_corpus.py`** -- the pointer check no longer requires built
+    output to exist (see below), and now reports every bad pointer at once instead
+    of one per gate run.
+
+
+    ## Measurements (2026-08-19, this machine)
+
+
+    | | |
+
+    | --- | --- |
+
+    | Bootstrap, brand-new worktree | **30s** (poetry 21s, npm ci 11s, playwright
+    1s) |
+
+    | Bootstrap, re-run in a bootstrapped worktree | **13s** |
+
+    | `pytest` | **3m52s**, 1755 tests |
+
+    | `npm run check` | **73s** -- API-client generation check, icons, lint, 124 Vitest
+    tests in 20 files, production build, 11 Playwright tests against a live server
+    |
+
+    | Whole gate | **about 5 minutes** |
+
+
+    ## Verification, done the way a user would
+
+
+    A second worktree (`C:/projects/aj-165-demo`) was created from scratch, bootstrapped
+    by the documented command **only**, and used for every measurement above. Before
+    bootstrapping, `python scripts/check.py` there printed:
+
+
+    > `This checkout cannot verify itself: agentjobs imports from C:\projects\agentjobs\src\agentjobs,
+    outside this checkout; frontend/node_modules is missing.`
+
+
+    That message is itself the evidence for **sc-2**: the interpreter really did resolve
+    `agentjobs` to the *main clone''s* source in an unrelated checkout. The first
+    version of this guard only asked whether `agentjobs` was importable, and that
+    version passed there -- silently green, testing another branch''s code. After
+    bootstrapping, the same worktree printed `Imports resolve to C:\projects\aj-165-demo\src\agentjobs
+    -- this checkout''s own source.`
+
+
+    ## Acceptance
+
+
+    - **sc-2 met** -- guard judges the import by location; demonstrated catching the
+    real case above.
+
+    - **sc-3 met** -- cold 30s, warm 13s, gate ~5 minutes, all measured rather than
+    estimated.
+
+    - **sc-4 met** -- both documents changed at the point of the worktree instructions.
+
+    - **sc-1 not met.** A bootstrapped worktree now runs the entire gate end to end,
+    but it does not reach a *pass*, because `main` is red. Three failures, all reproduced
+    identically in the main clone: two task-corpus tests failing on four stale/invalid
+    context pointers, and `frontend/e2e/dispatch.spec.ts` -- the only live-server
+    test of dispatch -- failing because a started run never appears in the panel.
+    Filed as **task-166** with the full evidence. `poetry run mypy .` is also broken
+    on `main`, for a module-mapping reason, and is in that task too.
+
+
+    ## One in-scope fix that was made
+
+
+    `test_agentjobs_context_paths_exist` required every context pointer to exist on
+    disk, so task-013''s pointer at `src/agentjobs/frontend_dist/` passed in a clone
+    where someone had run `npm run build` and failed in every fresh worktree -- and
+    since the gate itself builds that directory, the first run failed and a second
+    passed. Git-ignored paths are now exempt. That is the same disk-state dependency
+    the test''s own docstring rejects, so this was fixing the test''s stated intent
+    rather than widening it.
+
+
+    ## Loose end
+
+
+    The demonstration worktree `C:/projects/aj-165-demo` has been removed. `C:/projects/aj-165`
+    stays until this merges.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: f9b45d21-6a38-4c7e-b0d9-1c2e8a7f3165
+      kind: handoff
+      fingerprint: 42ec06112ef6b813eed041732e0a1127
