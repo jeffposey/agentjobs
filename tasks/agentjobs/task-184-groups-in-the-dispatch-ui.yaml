@@ -1,0 +1,110 @@
+schema: 2
+id: task-184-groups-in-the-dispatch-ui
+title: The Dispatch page does not know groups exist, and says "no runner chosen" when
+  one is in use
+created: '2026-08-19T21:10:06.422156Z'
+updated: '2026-08-19T21:10:06.422912Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- dispatch
+- ux
+- frontend
+- runner-groups
+effort: small
+assignment:
+  eligible: []
+parent: task-160-dispatch-phase-two
+spec:
+  summary: "task-177 shipped runner groups through the config, the CLI and the API,\
+    \ but no frontend. A project configured with a group renders \"no runner chosen\"\
+    \ beside an Open gate, the page never names the group, and a dispatch cannot pick\
+    \ one \u2014 so the whole feature is CLI-only from the browser."
+  intent: "Groups exist so a request can say which class of runner it wants. The browser\
+    \ is where dispatches actually get started, and it is the one surface that cannot\
+    \ express it \u2014 while also reporting the configuration as incomplete when\
+    \ it is not."
+  description: "Observed 2026-08-19 on the live dashboard at\n`http://localhost:8876/app/p/agentjobs/dispatch`,\
+    \ immediately after task-177 merged and\nthe machine's config was rewritten to\
+    \ use groups.\n\n## The wrong caption\n\nThe THIS PROJECT tile renders **Open**\
+    \ with the detail text *\"no runner chosen\"*. Both\nhalves come from the same\
+    \ state: `can_dispatch` is true, and `runner` is null because the\nproject now\
+    \ names `group: default` rather than `runner: <name>`. The page has no notion\n\
+    of a group, so it describes a fully configured project as unconfigured.\n\n`DispatchStateView`\
+    \ already carries `available_groups` and `default_group`, and\n`frontend/src/components/DispatchPanel.tsx`\
+    \ does not contain the string \"group\" at all.\n\n## What is missing, in the\
+    \ order it hurts\n\n1. **The caption.** Show the group and the member it would\
+    \ resolve to. \"Open \u2014 group\n   `default` \u2192 `claude-opus-5`\" is the\
+    \ honest version of what the CLI already prints.\n2. **Naming a group on a dispatch.**\
+    \ `POST /tasks/{id}/dispatch` accepts `{\"group\": ...}`\n   and `agentjobs dispatch\
+    \ run --group` exists, but the Dispatch button on a task cannot\n   send one.\
+    \ Picking the group is the entire point of the feature from a human's side \u2014\
+    \n   \"audit this one with the big model\" is a decision made at the moment of\
+    \ dispatching.\n3. **Enable/disable.** The enable control offers `available_runners`\
+    \ only. **Verify\n   before changing anything**: if enabling from the browser\
+    \ writes `runner:` while a\n   `group:` is present, a disable/enable round-trip\
+    \ through the UI could silently change\n   which runner a project uses. That was\
+    \ not tested, because testing it means mutating a\n   live config; reproduce it\
+    \ against a throwaway `AGENTJOBS_HOME`.\n\n## Not in scope\n\nAuthoring groups\
+    \ or runners from the browser. That stays out \u2014 see task-178 and design\n\
+    section 6 gate 3. This task is about *displaying* what the machine already defines\
+    \ and\n*choosing among* it, which is the same act the page already performs for\
+    \ runners."
+  constraints: "- Read-only over the config's contents: the page may show groups and\
+    \ let a dispatch name one, and may never create, edit or delete a group or a runner.\n\
+    - Do not test the enable/disable round-trip against the real `~/.agentjobs/dispatch.yaml`.\
+    \ Use a throwaway `AGENTJOBS_HOME`.\n- Assert on rendered values, not on the presence\
+    \ of markup \u2014 a test that checks a group element exists while it renders\
+    \ the wrong text is the failure mode this repository has already been bitten by."
+  out_of_scope: Creating or editing runners and groups from the browser (task-178).
+    The difficulty-to-group wiring, which needs the difficulty field first (task-156).
+  context:
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: The page. Contains no reference to groups; the refusal-copy map and the runner
+      select both live here.
+  - path: src/agentjobs/api/routes/dispatch.py
+    why: DispatchStateView already returns available_groups and default_group; the
+      enable endpoint takes a group.
+  - path: src/agentjobs/cli.py
+    why: "`dispatch config` already prints groups, members and the resolved winner\
+      \ \u2014 the wording is worth reusing rather than reinventing."
+acceptance:
+- id: sc-1
+  text: A project configured with a group never renders "no runner chosen"; the page
+    names the group and the member that would run
+  status: pending
+- id: sc-2
+  text: A dispatch started from the browser can name a group, and the choice reaches
+    the API
+  status: pending
+- id: sc-3
+  text: Whether a browser enable/disable round-trip can drop or change a project's
+    group is established against a throwaway home, and fixed if it can
+  status: pending
+- id: sc-4
+  text: A project with no groups configured at all renders exactly as it did before
+    task-177
+  status: pending
+- id: sc-5
+  text: poetry run python scripts/check.py passes
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T21:10:06.422202Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 6f708192-a3b4-4fc5-d046-718293a4c3d7
+      kind: create
+      fingerprint: 621308ca8c33c220af5bfb813ecd1e02
