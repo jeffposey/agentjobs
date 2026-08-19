@@ -11,7 +11,7 @@ from agentjobs.api.dependencies import get_task_manager, reset_dependency_cache
 from agentjobs.api.main import app
 from agentjobs.api.routes.status import get_acting_project
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Lifecycle, Priority
+from agentjobs.models_v2 import Dependency, DependencyType, Lifecycle, Outcome, Priority
 from agentjobs.projects import Project
 from agentjobs.storage import TaskStorage
 
@@ -430,6 +430,52 @@ def test_search_tasks(api_client) -> None:
     body = response.json()
     assert len(body) == 1
     assert "documentation" in body[0]["tags"]
+
+
+def test_search_finds_a_task_by_its_id(api_client) -> None:
+    """A reviewer searching the number they were quoted must land on the task."""
+    client, manager = api_client
+    created = manager.create_task(
+        title="Multi project GUI",
+        description="Nothing here mentions the number.",
+        priority=Priority.MEDIUM,
+        category="ux",
+    )
+    manager.create_task(
+        title="Unrelated",
+        description="Also silent about the number.",
+        priority=Priority.MEDIUM,
+        category="ux",
+    )
+    number = created.id.split("-")[1]
+
+    for query in (created.id, number):
+        response = client.get("/api/search", params={"q": query})
+        assert response.status_code == 200
+        assert [task["id"] for task in response.json()] == [created.id]
+
+
+def test_a_needs_relation_names_the_outcome_it_was_closed_with(api_client) -> None:
+    """A closed blocker said `it is done` whether it was finished or abandoned."""
+    client, manager = api_client
+    blocker = manager.create_task(
+        title="Blocker",
+        description="Replaced by a later design.",
+        priority=Priority.MEDIUM,
+        category="ux",
+    )
+    dependent = manager.create_task(
+        title="Dependent",
+        description="Waits on the blocker.",
+        priority=Priority.MEDIUM,
+        category="ux",
+        dependencies=[Dependency(task=blocker.id, type=DependencyType.NEEDS)],
+    )
+    manager.close_task(blocker.id, actor="test-agent", outcome=Outcome.SUPERSEDED)
+
+    payload = client.get(f"/api/tasks/{dependent.id}/detail").json()
+
+    assert payload["needs"][0]["reason"] == f"Needs {blocker.id}; it is closed as superseded."
 
 
 def test_get_next_task_none(api_client) -> None:

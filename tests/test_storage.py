@@ -122,6 +122,17 @@ def test_list_and_search_tasks(tmp_path: Path) -> None:
     assert matches[0].id == "task-002"
 
 
+@pytest.mark.parametrize("query", ["task-058", "058", "TASK-058"])
+def test_search_matches_the_task_id(tmp_path: Path, query: str) -> None:
+    """The id is the handle people quote, so a bare number has to find its task."""
+    storage = TaskStorage(tmp_path)
+    storage.save_task(_build_task("task-058-multi-project-gui", title="Multi project GUI"))
+    storage.save_task(_build_task("task-101-unrelated", title="Something else"))
+
+    matches = storage.search_tasks(query)
+    assert [task.id for task in matches] == ["task-058-multi-project-gui"]
+
+
 def test_project_revision_tracks_direct_same_count_rewrites(tmp_path: Path) -> None:
     """A direct writer is visible even when count, size, and mtime are unchanged."""
     storage = TaskStorage(tmp_path)

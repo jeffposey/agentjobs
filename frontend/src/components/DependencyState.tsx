@@ -6,6 +6,10 @@ const STATE_CLASSES = {
   cycle: "border-amber-600 bg-amber-950/40 text-amber-200",
   done: "border-slate-600 bg-slate-900 text-slate-300",
   flight: "border-blue-700 bg-blue-950/40 text-blue-300",
+  // A task that was superseded, cancelled or duplicated is closed but was not
+  // finished, and the difference is the whole point of recording an outcome. Its own
+  // colour so a scan of the list catches it without reading every label.
+  unfinished: "border-violet-700 bg-violet-950/40 text-violet-300",
   waiting: "border-dark-border bg-dark-bg text-dark-muted",
 } as const;
 
@@ -18,7 +22,16 @@ export function dependencyState(task: TaskRead) {
     };
   }
   if (task.lifecycle === "closed") {
-    return { kind: "done" as const, label: "Done", reasons: [] };
+    // `display_status` is the backend's canonical label -- Completed, Superseded,
+    // Cancelled, Duplicate, each with "(archived)" when it applies. Collapsing all
+    // four to "Done" told a reviewer that a superseded task had been finished, which
+    // is the opposite of what its record says. Derive nothing here; show that.
+    const finished = (task.outcome ?? "completed") === "completed";
+    return {
+      kind: finished ? ("done" as const) : ("unfinished" as const),
+      label: task.display_status,
+      reasons: [],
+    };
   }
   if ((task.unmet_needs?.length ?? 0) > 0) {
     return {

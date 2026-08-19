@@ -567,11 +567,18 @@ class TaskStorage:
         return True
 
     def search_tasks(self, query: str) -> List[Task]:
-        """Full-text search across tasks."""
+        """Full-text search across tasks.
+
+        ``task.id`` is searched first because it is the handle people actually quote
+        to each other. A reviewer asking about "058" means task-058, and a search
+        that reads every prose field but not the identifier answers "no such task"
+        to the one query it should always get right.
+        """
         normalized = query.lower()
         results: List[Task] = []
         for task in self.list_tasks():
             haystacks = [
+                task.id,
                 task.title,
                 task.spec.summary,
                 task.spec.intent,

@@ -215,7 +215,10 @@ export function Dashboard({ dashboard, projectId }: DashboardProps) {
     ["Needs you", dashboard.stats.waiting_for_human, "text-orange-400"],
     ["In Progress", dashboard.stats.in_progress, ""],
     ["Blocked", dashboard.stats.blocked, "text-red-400"],
-    ["Done", dashboard.stats.completed, "text-green-400"],
+    // "Completed", not "Done": the backend counts outcome == completed only, so a
+    // superseded or cancelled task is closed but is not in this number. Calling it
+    // Done invited the reader to subtract it from Total and find tasks missing.
+    ["Completed", dashboard.stats.completed, "text-green-400"],
     ["Total", dashboard.stats.total, ""],
   ] as const;
 
