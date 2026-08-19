@@ -1,8 +1,8 @@
 schema: 2
 id: task-170-dispatch-in-the-menu
-title: Start an agent on this project from the menu, wherever you are in the app
+title: 'Dispatch from the menu: start a run, and reach its settings'
 created: '2026-08-19T17:36:45.040978Z'
-updated: '2026-08-19T17:36:45.041822Z'
+updated: '2026-08-19T17:42:18.208219Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -18,85 +18,133 @@ assignment:
   eligible: []
 parent: task-167-agentjobs-menu
 spec:
-  summary: Add project-wide dispatch to the menu, so starting an agent on whatever
-    is next does not require navigating to the dispatch page first. The kill switch
-    and its dedicated nav entry stay exactly where they are.
-  intent: 'Dispatch is the action most worth having one tap away: the value of "start
-    an agent on the next thing" is highest at the moment you decide the current thing
-    is fine, and that moment happens on a task page or a dashboard, not on the dispatch
-    settings screen.
+  summary: "Put dispatch in the menu \u2014 both halves. Starting a project-wide run,\
+    \ and the settings that govern whether runs happen at all, reachable from any\
+    \ page in the app and from a host app that has no AgentJobs routes to navigate\
+    \ to."
+  intent: "Dispatch is the action most worth having one tap away: the value of \"\
+    start an agent on the next thing\" is highest at the moment you decide the current\
+    \ thing is fine, and that moment happens on a task page or a dashboard, not on\
+    \ the dispatch settings screen.\n\nThe settings belong there for a different reason.\
+    \ Today they are a route, which is fine inside AgentJobs and useless in an embedded\
+    \ host app \u2014 a host has no `/dispatch` page to navigate to, so \"turn dispatch\
+    \ off\" from inside the app you are building means opening another tab. A menu\
+    \ that travels with the component solves both surfaces at once.\n\nThe care needed\
+    \ here is why this is its own task rather than one line in the shell. Dispatch\
+    \ spends money on Jeff's machine unattended. A menu makes it cheaper to trigger,\
+    \ which is the goal, and cheaper to trigger by accident, which is not \u2014 and\
+    \ the same menu now also holds the switch that stops it."
+  description: "Two menu entries, one task, because they are the same subject and\
+    \ the second is what makes the first safe to offer.\n\n## Start a run\n\nA **Dispatch**\
+    \ entry that starts task-161's project-wide dispatch: pick whatever is next by\
+    \ the existing selection rules, and start a run on it.\n\nIt is a menu item, so\
+    \ there is room for one line of state and none for a panel. It states what will\
+    \ be dispatched and by which runner, and every refusal reaches the human as its\
+    \ own sentence \u2014 `REFUSAL_ACTIONS` in `DispatchPanel.tsx` already maps each\
+    \ guard code to what to do about it, and this entry reuses that map rather than\
+    \ collapsing everything into \"dispatch failed\".\n\nWhen dispatch is unavailable\
+    \ \u2014 not configured, machine switch off, sentinel file present, project not\
+    \ enabled \u2014 the entry is visibly disabled and says which of those it is,\
+    \ with a route to the settings. It is never silently missing: someone looking\
+    \ for it should learn why it will not work, not conclude the feature does not\
+    \ exist.\n\n**Confirmation.** Decide whether the entry dispatches on tap or asks\
+    \ first, and record the decision with its alternative. The relevant facts: this\
+    \ is one tap from anywhere including a phone in a pocket, a run costs money, and\
+    \ task-162 may add a prompt-authoring step that supplies a natural confirmation\
+    \ moment.\n\n## Reach the settings\n\nA **Dispatch settings** entry giving access\
+    \ to what `DispatchSettings` already renders: whether this project is enabled,\
+    \ which runner it names, and the state of the machine-wide switch and the sentinel\
+    \ kill-switch file.\n\n**Inside AgentJobs** it may simply navigate to the existing\
+    \ `/dispatch` route \u2014 there is a working page, and duplicating it inside\
+    \ a popup would be a second implementation of a panel that already exists.\n\n\
+    **In a host app** there is no such route, so the entry either renders the panel\
+    \ in the popup or deep-links to the AgentJobs server in a new tab. Decide which,\
+    \ and prefer whichever keeps one implementation of the panel rather than two.\
+    \ If the answer differs between the two surfaces, say so explicitly \u2014 a menu\
+    \ whose entry means \"navigate\" in one host and \"open a panel\" in another is\
+    \ defensible, but only if it was chosen.\n\n**What the menu may never do** is\
+    \ unchanged and is not softened by being closer to hand: the browser may point\
+    \ a project at a runner a human already wrote into `~/.agentjobs/dispatch.yaml`,\
+    \ and may switch dispatch on and off. It may never describe, create or edit a\
+    \ runner. The API refuses it too.\n\n## The nav entry\n\nThe Dispatch link in\
+    \ the primary nav stays unless there is a reason beyond tidiness to remove it,\
+    \ and removing it is Jeff's call rather than the implementer's. The comment above\
+    \ it in `App.tsx` argues the kill switch must not be buried in a menu; a menu\
+    \ present on every page and reachable in one tap arguably satisfies that better\
+    \ than a nav link that disappears on the project-less pages \u2014 but that argument\
+    \ holds only once the menu really is on every page, which is task-168's business.\
+    \ If you conclude the nav entry should go, raise it as a question rather than\
+    \ deleting it."
+  constraints: '- The Dispatch nav entry is not removed in this task. If it should
+    be, that is a question for Jeff, not a decision.
 
-
-    The care needed here is the reason this is its own task rather than one line in
-    the shell. Dispatch spends money on Jeff''s machine unattended. A menu entry makes
-    it cheaper to trigger, which is the goal, and also cheaper to trigger by accident,
-    which is not.'
-  description: "Add a **Dispatch** entry to the menu that starts task-161's project-wide\
-    \ dispatch: pick whatever is next by the existing selection rules, and start a\
-    \ run on it.\n\n**What the entry must show before it acts.** It is a menu item,\
-    \ so there is room for one line of state and no room for a settings panel. It\
-    \ states what will be dispatched and by which runner, and every refusal reaches\
-    \ the human as its own sentence \u2014 `REFUSAL_ACTIONS` in `DispatchPanel.tsx`\
-    \ already maps the guard codes to what to do about each, and this entry reuses\
-    \ that map rather than collapsing everything to \"dispatch failed\".\n\n**When\
-    \ dispatch is unavailable** \u2014 not configured, machine switch off, sentinel\
-    \ file present, project not enabled \u2014 the entry is visibly disabled and says\
-    \ which of those it is, with a link to the Dispatch page. It is never silently\
-    \ missing: a person looking for it should learn why it will not work, not conclude\
-    \ the feature does not exist.\n\n**Confirmation.** Decide whether the entry dispatches\
-    \ on tap or asks first, and record the decision with its alternative. The relevant\
-    \ facts: this is one tap from anywhere including a phone in a pocket, a run costs\
-    \ money, and task-160's children may add a prompt-authoring step (task-162) that\
-    \ supplies a natural confirmation moment.\n\n**What does not change.** The Dispatch\
-    \ link in the primary nav stays. It is where the kill switch lives and `App.tsx`\
-    \ carries a comment saying why it is not buried in a menu \u2014 that comment\
-    \ describes the switch, not the action, and both statements are true at once:\
-    \ the switch stays reachable in one click, the action gains a shortcut."
-  constraints: '- The Dispatch nav entry is not removed, moved, or demoted.
-
-    - The menu never invents or edits a runner. It may only start what a human already
-    configured in `~/.agentjobs/dispatch.yaml`.
+    - The menu never invents, describes or edits a runner. It may only enable, disable,
+    and point at what a human already configured.
 
     - Guard refusals surface individually, using the existing `REFUSAL_ACTIONS` mapping;
     no generic failure message.
 
+    - One implementation of the settings panel. Reuse `DispatchSettings`; do not fork
+    a popup-sized copy of it.
+
     - The human-clocked rule is not weakened. A human choosing this entry is a human
     act; nothing about being in a menu changes what may follow it.
 
-    - No polling from the menu. Read dispatch availability when the menu opens.'
-  out_of_scope: "- Dispatch from an embedded host app (task-143).\n- Authoring the\
-    \ dispatch prompt (task-162) \u2014 consume it if it has landed.\n- Any change\
-    \ to dispatch guards, config, or the runner.\n- Run output or progress display\
-    \ inside the menu. Starting a run navigates to where runs are already shown."
+    - No polling from the menu. Read dispatch availability when the menu opens.
+
+    - The kill switch remains reachable in one interaction from any page.'
+  out_of_scope: "- Dispatch from an embedded host app (task-143) \u2014 this task\
+    \ makes the menu entries; that task settles whether a host may start runs at all.\n\
+    - Authoring the dispatch prompt (task-162) \u2014 consume it if it has landed.\n\
+    - Any change to dispatch guards, the config file format, or the runner.\n- Editing\
+    \ runner definitions from the browser. Permanently out of scope, everywhere.\n\
+    - Run output or progress inside the menu. Starting a run navigates to where runs\
+    \ are already shown."
   context:
   - path: frontend/src/components/DispatchPanel.tsx
-    why: REFUSAL_ACTIONS, the D1 decision that dispatch is not approve, and the rule
-      that the browser may never describe a runner.
+    why: DispatchSettings itself, REFUSAL_ACTIONS, the D1 decision that dispatch is
+      not approve, and the rule that the browser may never describe a runner.
   - path: frontend/src/App.tsx
-    why: useTaskDispatch shows how a dispatch call, its refusal handling and its polling
-      are already wired.
+    why: DispatchSettingsPage shows how the panel is currently wired; useTaskDispatch
+      shows how a dispatch call and its refusals are handled. The comment above the
+      Dispatch nav link is the argument this task must answer.
   - path: tasks/agentjobs/task-161-project-level-dispatch.yaml
-    why: What this entry starts.
+    why: What the start entry starts.
+  - path: tasks/agentjobs/task-144-embed-security-posture.yaml
+    why: What an embedded surface is permitted to do -- directly relevant to offering
+      the enable/disable switch from a host app.
 acceptance:
 - id: ac-1
   text: A Dispatch entry in the menu starts a project-wide run from any page in the
     app.
   status: pending
 - id: ac-2
-  text: With dispatch unconfigured, disabled, sentinel-blocked, or not enabled for
-    the project, the entry is disabled and names which one, with a route to fix it.
+  text: A Dispatch settings entry in the menu reaches the enable/disable switch, the
+    project's runner, and the machine-wide and sentinel switch states.
   status: pending
 - id: ac-3
+  text: With dispatch unconfigured, disabled, sentinel-blocked, or not enabled for
+    the project, the start entry is disabled and names which one, with a route to
+    the settings.
+  status: pending
+- id: ac-4
   text: Each guard refusal produces its own sentence from the existing refusal map,
     verified for at least three distinct codes.
   status: pending
-- id: ac-4
-  text: The Dispatch link remains in the primary nav and reaches the kill switch in
-    one click.
-  status: pending
 - id: ac-5
-  text: The confirm-or-not decision is recorded as a decision entry with its rejected
-    alternative.
+  text: There is one implementation of the settings panel, shared with the existing
+    /dispatch route.
+  status: pending
+- id: ac-6
+  text: The browser still cannot create or edit a runner from anywhere in the menu,
+    verified against the API's refusal as well as the UI.
+  status: pending
+- id: ac-7
+  text: The kill switch is reachable in one interaction from any page in the app.
+  status: pending
+- id: ac-8
+  text: The confirm-or-not decision, and the settings-entry behaviour in a host app,
+    are both recorded as decision entries with their rejected alternatives.
   status: pending
 deliverables: []
 dependencies:
@@ -120,3 +168,17 @@ log:
       id: 2e5b8a71-4c69-4d13-a0f7-8b1c6e2d94af
       kind: create
       fingerprint: 06333efbaecbf347f4bee6cfead719e2
+- id: 2
+  ts: '2026-08-19T17:42:18.207987Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, spec, title.
+  data:
+    fields:
+    - acceptance
+    - spec
+    - title
+    operation:
+      id: e17c04b8-2a56-4f39-b7d2-95c3e0a86d41
+      kind: update_content
+      fingerprint: 9f23788df285a528e12a64a1298efa69

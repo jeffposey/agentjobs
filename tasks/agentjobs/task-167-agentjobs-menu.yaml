@@ -3,7 +3,7 @@ id: task-167-agentjobs-menu
 title: 'The AgentJobs menu: one reusable control for every frontend, and forms fast
   enough to fill on a phone'
 created: '2026-08-19T17:34:04.201284Z'
-updated: '2026-08-19T17:40:00.345350Z'
+updated: '2026-08-19T17:43:05.423308Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -24,9 +24,10 @@ assignment:
 spec:
   summary: "Report Issue is a lone floating button in the bottom-right corner of the\
     \ AgentJobs app. Replace it with a single AgentJobs menu in the top-right that\
-    \ holds every AgentJobs action \u2014 report an issue, dispatch, About \u2014\
-    \ build that menu as a component any project's React frontend can embed, and make\
-    \ the free-text fields behind it dictatable by voice and completable by a model."
+    \ holds every AgentJobs action \u2014 report an issue, dispatch and its settings,\
+    \ About \u2014 build that menu as a component any project's React frontend can\
+    \ embed, and make the free-text fields behind it dictatable by voice and completable\
+    \ by a model."
   intent: "Two problems, one control.\n\nThe first is placement. \"Report issue\"\
     \ is a bottom-right floating button that names one action, so every additional\
     \ AgentJobs action either becomes another floating button or gets buried in a\
@@ -58,43 +59,54 @@ spec:
     \ on the AgentJobs server.\n\n**Menu contents**, one line each:\n\n- **Report\
     \ issue** \u2014 the existing reporter, moved from its own floating button into\
     \ the menu.\n- **Dispatch** \u2014 project-wide dispatch (task-161), started from\
-    \ wherever you are.\n- **About** \u2014 version of the running server, and enough\
-    \ of what it is pointed at to answer \"which AgentJobs am I looking at\" from\
-    \ a phone.\n- **AgentJobs dashboard** \u2014 embedded hosts only; a no-op inside\
-    \ AgentJobs, which is already the dashboard.\n\n**Behind the menu**, the forms:\n\
-    \n- Every free-text field the menu can reach \u2014 issue title and details, the\
-    \ dispatch prompt, the create-task fields \u2014 takes **dictation**, using whatever\
-    \ the device already has. No user-installed transcription software.\n- Create-task\
-    \ grows **draft with AI**: expand a one-liner into a real spec, for a human to\
-    \ edit before it is saved.\n- Create-task grows **dispatch on create**: file it\
-    \ and start an agent on it in one action.\n\n## Relationship to task-137\n\nTask-137\
-    \ (embedded helper UI) already promised a host-app launcher whose menu offers\
-    \ Open in AgentJobs, Report issue, dispatch and settings \u2014 this epic is that\
-    \ launcher's actual shape, plus the recognition that the AgentJobs app should\
-    \ be its first consumer rather than a separate implementation. **The overlap with\
-    \ task-141 is unresolved and is a question on this epic.** The intended resolution\
-    \ is that task-141 narrows to host-side integration of the component built here,\
-    \ and this epic depends on 137's groundwork children (138 distribution, 139 host-agnostic\
-    \ reporter core, 140 server surface) rather than redoing them. Do not start the\
-    \ embedding child until that is settled.\n\n## Children\n\n- **task-168** \u2014\
-    \ the menu shell in the AgentJobs app: burger, top-right, Report issue moved into\
-    \ it, About with the version.\n- **task-169** \u2014 the same menu as a component\
-    \ another project's React app embeds.\n- **task-170** \u2014 project-wide dispatch\
-    \ as a menu entry.\n- **task-171** \u2014 decide how dictation works, from evidence\
-    \ on real devices.\n- **task-172** \u2014 the dictation control, wired into every\
-    \ field the menu reaches.\n- **task-173** \u2014 a server-side transcription fallback,\
-    \ only if 171 says one is needed.\n- **task-174** \u2014 decide how AgentJobs\
-    \ is allowed to call a model at all.\n- **task-175** \u2014 draft with AI on the\
-    \ create and report forms.\n- **task-176** \u2014 dispatch the task you just created."
+    \ wherever you are.\n- **Dispatch settings** \u2014 whether this project is enabled,\
+    \ which runner it names, and the machine-wide and sentinel switches. Today those\
+    \ live only on a route, which is fine inside AgentJobs and unreachable from a\
+    \ host app that has no AgentJobs routes.\n- **About** \u2014 version of the running\
+    \ server, and enough of what it is pointed at to answer \"which AgentJobs am I\
+    \ looking at\" from a phone.\n- **AgentJobs dashboard** \u2014 embedded hosts\
+    \ only; a no-op inside AgentJobs, which is already the dashboard.\n\n**Behind\
+    \ the menu**, the forms:\n\n- Every free-text field the menu can reach \u2014\
+    \ issue title and details, the dispatch prompt, the create-task fields \u2014\
+    \ takes **dictation**, using whatever the device already has. No user-installed\
+    \ transcription software.\n- Create-task grows **draft with AI**: expand a one-liner\
+    \ into a real spec, for a human to edit before it is saved.\n- Create-task grows\
+    \ **dispatch on create**: file it and start an agent on it in one action.\n\n\
+    ## Relationship to task-137\n\nTask-137 (embedded helper UI) already promised\
+    \ a host-app launcher whose menu offers Open in AgentJobs, Report issue, dispatch\
+    \ and settings \u2014 this epic is that launcher's actual shape, plus the recognition\
+    \ that the AgentJobs app should be its first consumer rather than a separate implementation.\
+    \ **The overlap with task-141 is unresolved and is a question on this epic.**\
+    \ The intended resolution is that task-141 narrows to host-side integration of\
+    \ the component built here, and this epic depends on 137's groundwork children\
+    \ (138 distribution, 139 host-agnostic reporter core, 140 server surface) rather\
+    \ than redoing them. Do not start the embedding child until that is settled.\n\
+    \n## Children\n\n- **task-168** \u2014 the menu shell in the AgentJobs app: burger,\
+    \ top-right, Report issue moved into it, About with the version.\n- **task-169**\
+    \ \u2014 the same menu as a component another project's React app embeds.\n- **task-170**\
+    \ \u2014 project-wide dispatch and its settings as menu entries.\n- **task-171**\
+    \ \u2014 decide how dictation works, from evidence on real devices.\n- **task-172**\
+    \ \u2014 the dictation control, wired into every field the menu reaches.\n- **task-173**\
+    \ \u2014 a server-side transcription fallback, only if 171 says one is needed.\n\
+    - **task-174** \u2014 decide how AgentJobs is allowed to call a model at all.\n\
+    - **task-175** \u2014 draft with AI on the create and report forms.\n- **task-176**\
+    \ \u2014 dispatch the task you just created."
   constraints: '- **One menu implementation.** The AgentJobs app renders the same
     component a host app renders, differing only by configuration. Two copies is a
     fork and will drift, which is the exact failure task-139 exists to prevent for
     the reporter.
 
-    - **The Dispatch nav entry stays where it is.** `frontend/src/App.tsx` carries
-    a deliberate comment: dispatch has its own nav entry because the machine-wide
-    kill switch lives there, and a kill switch you cannot reach is not one. Adding
-    dispatch to the menu is an addition, never a replacement for that link.
+    - **The kill switch stays one interaction away from any page.** `frontend/src/App.tsx`
+    carries a deliberate comment: dispatch has its own nav entry because the machine-wide
+    switch lives there, and a switch you cannot reach is not one. Putting the settings
+    in the menu satisfies that only if the menu is genuinely on every page. The Dispatch
+    nav link is not removed by any child of this epic; if it should go, that is Jeff''s
+    call, raised as a question.
+
+    - **The browser still may never describe a runner.** Bringing dispatch settings
+    closer to hand does not widen what they can do: enable, disable, and point at
+    a runner a human already wrote into `~/.agentjobs/dispatch.yaml`. Nothing more,
+    on any surface.
 
     - **Reachable on a phone.** Jeff uses this from a phone and a tablet over Tailscale.
     Touch targets, thumb reach, and a popup that does not require a hover.
@@ -133,7 +145,10 @@ spec:
     only job here is filling in a form the human then edits.
 
     - Rebuilding the dispatch runner, the dispatch config file, or its guards. The
-    menu points at what task-160''s children build.'
+    menu points at what task-160''s children build.
+
+    - Editing runner definitions from a browser, on any surface. That refusal is enforced
+    in the API as well as the UI and is not in play here.'
   context:
   - path: frontend/src/components/IssueReporter.tsx
     why: The control being replaced. Its header comment argues why the reporter renders
@@ -142,6 +157,9 @@ spec:
   - path: frontend/src/App.tsx
     why: The header nav the menu is added to, the comment explaining why Dispatch
       is not in a menu, and the placement of <IssueReporter /> outside the routes.
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: DispatchSettings is the panel the menu has to reach without forking, and
+      the file states the rules that closer access must not soften.
   - path: tasks/agentjobs/task-137-embedded-helper-ui.yaml
     why: The embedding epic this overlaps. Read its description and children before
       starting the embedding child.
@@ -178,6 +196,10 @@ acceptance:
 - id: ac-7
   text: About states the running server's version and which server and project the
     UI is pointed at.
+  status: pending
+- id: ac-8
+  text: Dispatch can be started and switched off entirely from the menu, from any
+    page, without the browser gaining the ability to describe a runner.
   status: pending
 deliverables: []
 dependencies: []
@@ -224,3 +246,16 @@ log:
       id: b3e07a29-64f5-4d81-9c02-7a5e83b1df46
       kind: log_append
       fingerprint: 44b9818e39f4c67e7d03e92f960a7b11
+- id: 3
+  ts: '2026-08-19T17:43:05.423134Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, spec.
+  data:
+    fields:
+    - acceptance
+    - spec
+    operation:
+      id: a5d38b16-7f24-4e90-b3c8-61e07a2d4f95
+      kind: update_content
+      fingerprint: 630205e21c49cacedab9eed69d5fb2ac

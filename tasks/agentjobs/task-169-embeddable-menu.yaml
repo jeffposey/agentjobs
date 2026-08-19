@@ -2,7 +2,7 @@ schema: 2
 id: task-169-embeddable-menu
 title: The same menu, in somebody else's React app, in one import
 created: '2026-08-19T17:36:17.527963Z'
-updated: '2026-08-19T17:36:17.528699Z'
+updated: '2026-08-19T17:43:43.336897Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -26,32 +26,38 @@ spec:
     \ an agent can follow without reading the source."
   intent: "The menu is the whole embedded product in one control. Everything in task-137's\
     \ epic that a host app actually touches arrives through it: the link back to the\
-    \ backlog, the reporter, and later dispatch.\n\nThe measure here is integration\
-    \ cost, not features. If wiring it into a project takes an afternoon of reading\
-    \ source, no project will adopt it \u2014 including Jeff's own, which is the point\
-    \ of building it. The specific bar is that an agent, given a project with a React\
-    \ frontend and a written recipe, adds the menu correctly on the first attempt.\n\
-    \n**Read this before starting.** Task-141 in the task-137 epic was written to\
-    \ build a host-app launcher of its own. That overlap is unresolved and is an open\
-    \ question on task-167. Settle it \u2014 most likely by narrowing task-141 to\
-    \ host-side integration of this component \u2014 before writing code, so two launchers\
-    \ do not get built."
+    \ backlog, the reporter, and dispatch with its settings.\n\nThe measure here is\
+    \ integration cost, not features. If wiring it into a project takes an afternoon\
+    \ of reading source, no project will adopt it \u2014 including Jeff's own, which\
+    \ is the point of building it. The specific bar is that an agent, given a project\
+    \ with a React frontend and a written recipe, adds the menu correctly on the first\
+    \ attempt.\n\n**Read this before starting.** Task-141 in the task-137 epic was\
+    \ written to build a host-app launcher of its own. That overlap is unresolved\
+    \ and is an open question on task-167. Settle it \u2014 most likely by narrowing\
+    \ task-141 to host-side integration of this component \u2014 before writing code,\
+    \ so two launchers do not get built."
   description: "## What changes between the two hosts\n\nOne component, configured,\
     \ not two components:\n\n| | AgentJobs' own app | A host project's app |\n|---|---|---|\n\
     | Icon | Burger | The AgentJobs mark (`frontend/assets/app-icon.svg`) |\n| Report\
     \ issue | Yes | Yes, with the host page's context |\n| About | Yes | Yes |\n|\
-    \ Dispatch | Yes (task-170) | Per task-143 |\n| AgentJobs dashboard | Absent \u2014\
-    \ you are in it | Deep link to `/app/p/<project>/tasks`, new tab |\n\n**Why the\
-    \ logo outside and the burger inside:** in a host app the icon's job is to say\
-    \ which system this control belongs to, and the mark does that at a glance where\
-    \ a burger would look like the host's own menu. Inside AgentJobs the mark says\
-    \ nothing you did not already know.\n\n## Integration, which is the actual deliverable\n\
-    \nThe recipe is: install one thing, render one component. Something on the order\
-    \ of\n\n```tsx\nimport { AgentJobsMenu } from \"@agentjobs/menu\";\n<AgentJobsMenu\
-    \ />\n```\n\nwith project id and server URL discovered rather than typed where\
-    \ task-145 makes that possible, and passable as props where it does not. Write\
-    \ `docs/` guidance an agent can follow verbatim, and prove it by having an agent\
-    \ follow it into a real project's frontend without the recipe being edited afterwards.\n\
+    \ Dispatch | Yes (task-170) | Per task-143 |\n| Dispatch settings | Navigates\
+    \ to `/dispatch` | No such route exists \u2014 panel or deep link, per task-170\
+    \ |\n| AgentJobs dashboard | Absent \u2014 you are in it | Deep link to `/app/p/<project>/tasks`,\
+    \ new tab |\n\n**Why the logo outside and the burger inside:** in a host app the\
+    \ icon's job is to say which system this control belongs to, and the mark does\
+    \ that at a glance where a burger would look like the host's own menu. Inside\
+    \ AgentJobs the mark says nothing you did not already know.\n\n**The settings\
+    \ row is the one that most needs this component to exist.** Inside AgentJobs the\
+    \ settings are a route and the menu is a convenience. In a host app there is no\
+    \ route, so the menu is the only way to reach the switch that stops runs without\
+    \ opening another tab. Task-170 decides the mechanism; this task is where it has\
+    \ to actually work.\n\n## Integration, which is the actual deliverable\n\nThe\
+    \ recipe is: install one thing, render one component. Something on the order of\n\
+    \n```tsx\nimport { AgentJobsMenu } from \"@agentjobs/menu\";\n<AgentJobsMenu />\n\
+    ```\n\nwith project id and server URL discovered rather than typed where task-145\
+    \ makes that possible, and passable as props where it does not. Write `docs/`\
+    \ guidance an agent can follow verbatim, and prove it by having an agent follow\
+    \ it into a real project's frontend without the recipe being edited afterwards.\n\
     \n## Not breaking the host\n\n- No global style leakage in either direction. The\
     \ mechanism (shadow DOM, scoped classes, whatever) follows from task-138.\n- No\
     \ React Router requirement, no second copy of React, no assumption about the host's\
@@ -75,18 +81,27 @@ spec:
     - The menu must be absent or inert in a host''s production build unless that project
     opts in explicitly.
 
-    - Do not require the host to install Tailwind or adopt AgentJobs'' theme.'
-  out_of_scope: "- Settings and reporter identity (task-142).\n- Dispatch from a host\
-    \ app (task-143).\n- Zero-config discovery (task-145) \u2014 consume it if it\
-    \ has landed, do not build it here.\n- The security posture decision (task-144).\
-    \ If it has not landed, note what this assumes and do not quietly widen CORS.\n\
-    - Non-React hosts."
+    - Do not require the host to install Tailwind or adopt AgentJobs'' theme.
+
+    - Whatever dispatch surface a host app gets, the browser still cannot describe
+    or edit a runner. That refusal is enforced server-side and is not relaxed for
+    embedded callers.'
+  out_of_scope: "- Settings and reporter identity (task-142). The dispatch settings\
+    \ entry is task-170's; widget-level settings are not this task.\n- Whether a host\
+    \ app may start dispatch runs at all (task-143 and task-144). Render what those\
+    \ tasks permit; do not decide it here.\n- Zero-config discovery (task-145) \u2014\
+    \ consume it if it has landed, do not build it here.\n- The security posture decision\
+    \ (task-144). If it has not landed, note what this assumes and do not quietly\
+    \ widen CORS.\n- Non-React hosts."
   context:
   - path: tasks/agentjobs/task-141-embed-launcher-and-project-link.yaml
     why: The overlapping task. Read it first and settle the overlap before writing
       code.
   - path: tasks/agentjobs/task-137-embedded-helper-ui.yaml
     why: The embedding epic whose groundwork children this depends on.
+  - path: tasks/agentjobs/task-144-embed-security-posture.yaml
+    why: What an embedded surface may do -- directly binding on offering the dispatch
+      enable/disable switch from a host app.
   - path: frontend/assets/app-icon.svg
     why: The mark used as the trigger icon in a host app.
 acceptance:
@@ -103,18 +118,22 @@ acceptance:
     with the same tagging as one filed from the AgentJobs UI.
   status: pending
 - id: ac-4
+  text: Dispatch settings are reachable from inside the host app, without navigating
+    away from it, to whatever extent task-144 permits.
+  status: pending
+- id: ac-5
   text: With the AgentJobs server stopped, the host app has no console errors, no
     unhandled rejections, and the menu explains the situation in one line.
   status: pending
-- id: ac-5
+- id: ac-6
   text: A written recipe exists and an agent followed it into a real project's frontend
     successfully without the recipe needing edits afterwards.
   status: pending
-- id: ac-6
+- id: ac-7
   text: Mounting and unmounting the menu leaves no listeners, timers, or DOM behind,
     demonstrated by a test.
   status: pending
-- id: ac-7
+- id: ac-8
   text: The task-141 overlap is resolved and the resolution is recorded on both task-141
     and task-167.
   status: pending
@@ -149,3 +168,16 @@ log:
       id: 9d0c6f42-8a13-4e57-b6d9-2f4a71c8e503
       kind: create
       fingerprint: 0fa5790c923e88a11b95056963c3aa87
+- id: 2
+  ts: '2026-08-19T17:43:43.336727Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, spec.
+  data:
+    fields:
+    - acceptance
+    - spec
+    operation:
+      id: d92f6b05-8e13-4a7c-9052-3f6a1d84c7be
+      kind: update_content
+      fingerprint: b674c194ee1e18ca6bcbe45382fae379
