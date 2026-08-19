@@ -192,6 +192,54 @@ class TestPosture:
         assert flags[:2] == ["--permission-mode", "bypassPermissions"]
         assert "--settings" not in flags
 
+    def test_auto_gets_the_auto_mode_a_worktree_and_the_allow_list(self) -> None:
+        """The default posture, per task-020.
+
+        The mode string matters more than it looks: ``auto`` is the one mode that gates
+        every action without needing a terminal to answer with. Getting ``acceptEdits``
+        here instead would park the run on its first unlisted command, which is the
+        defect this posture exists to fix, and nothing in a passing suite would say so.
+        """
+        flags = posture_flags(Posture.AUTO, "task-070")
+
+        assert flags[:2] == ["--permission-mode", "auto"]
+        assert "-w" in flags and "task-070" in flags
+        settings = json.loads(flags[flags.index("--settings") + 1])
+        assert settings["permissions"]["allow"] == allow_rules()
+
+    def test_every_posture_that_can_write_gets_its_own_worktree(self) -> None:
+        """read_only is the only posture without ``-w``; the rest must be contained."""
+        for posture in (Posture.AUTO, Posture.SUPERVISED, Posture.AUTONOMOUS):
+            flags = posture_flags(posture, "task-070")
+
+            assert flags[flags.index("-w") + 1] == "task-070", posture
+
+    def test_the_config_and_schema_posture_enums_stay_in_step(self) -> None:
+        """Two enums spell the same concept, and a run needs both.
+
+        ``runner._record_dispatch`` converts the config posture into the schema one by
+        value, so a posture present in only one of them raises at dispatch time rather
+        than at import. Adding ``auto`` to the config enum alone did exactly that.
+        """
+        from agentjobs.models_v2 import DispatchPosture
+
+        assert {posture.value for posture in Posture} == {
+            posture.value for posture in DispatchPosture
+        }
+
+    def test_each_posture_composes_a_distinct_permission_mode(self) -> None:
+        """A posture that silently collapsed onto another's mode would look fine."""
+        modes = {
+            posture: posture_flags(posture, "task-070")[1]
+            for posture in (Posture.AUTO, Posture.SUPERVISED, Posture.AUTONOMOUS)
+        }
+
+        assert modes == {
+            Posture.AUTO: "auto",
+            Posture.SUPERVISED: "acceptEdits",
+            Posture.AUTONOMOUS: "bypassPermissions",
+        }
+
 
 class TestArgvComposition:
     def test_posture_flags_land_before_the_prompt(self) -> None:

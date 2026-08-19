@@ -175,9 +175,18 @@ class RunnerMode(str, Enum):
 
 
 class Posture(str, Enum):
-    """What a dispatched agent may do once running (design section 4, task-076)."""
+    """What a dispatched agent may do once running (design section 4, task-076).
+
+    ``AUTO`` is the default, per task-020. ``SUPERVISED`` held that role until
+    2026-08-19, when a real dispatch parked on its first shell command -- ``ls`` on the
+    repository's own docs directory -- because the allow-list covers nine prefixes and
+    nothing else. A ``--bg`` session has no terminal to answer with, so the run sat at
+    ``state: blocked`` until it was cancelled. Supervised remains right for a run
+    somebody is actually watching; it is no longer what an unattended one gets.
+    """
 
     READ_ONLY = "read_only"
+    AUTO = "auto"
     SUPERVISED = "supervised"
     AUTONOMOUS = "autonomous"
 
@@ -310,7 +319,7 @@ class ProjectDispatchSettings:
     group: Optional[str] = None
     require_clean_tree: bool = True
     auto_dispatch: bool = False
-    posture: Posture = Posture.SUPERVISED
+    posture: Posture = Posture.AUTO
 
 
 @dataclass(frozen=True)
@@ -605,7 +614,7 @@ def _parse_project(project_id: str, raw: object, path: Path) -> ProjectDispatchS
             "one of runner_groups."
         )
 
-    posture_raw = mapping.get("posture", Posture.SUPERVISED.value)
+    posture_raw = mapping.get("posture", Posture.AUTO.value)
     try:
         posture = Posture(posture_raw)
     except ValueError as exc:

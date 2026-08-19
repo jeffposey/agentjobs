@@ -223,7 +223,7 @@ that survives. See [agent-dispatch-design.md](agent-dispatch-design.md).
     agent: claude
     runner: claude
     mode: session              # session | batch
-    posture: supervised        # read_only | supervised | autonomous
+    posture: auto              # read_only | auto | supervised | autonomous
     trigger: manual            # manual | auto
     caused_by: 6               # log entry whose actor authorises this dispatch
     argv: ["claude", "--bg", "--remote-control", "-p", "..."]

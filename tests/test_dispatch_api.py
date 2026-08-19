@@ -189,7 +189,7 @@ class TestDispatchEndpoint:
         body = response.json()
         assert body["run_id"].startswith("run_")
         assert body["mode"] == "batch"
-        assert body["posture"] == "supervised"
+        assert body["posture"] == "auto"
         assert body["task_id"] == task_id
         assert body["caused_by"] >= 1
 
@@ -261,7 +261,7 @@ class TestDispatchState:
         assert body["refusal"] is None
         assert body["project_enabled"] is True
         assert body["runner"] == "fake"
-        assert body["posture"] == "supervised"
+        assert body["posture"] == "auto"
         assert body["available_runners"] == ["fake"]
 
     def test_the_sentinel_is_reported_by_name_so_the_gui_can_say_which_file(

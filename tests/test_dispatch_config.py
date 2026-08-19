@@ -91,8 +91,26 @@ class TestLoading:
         assert config.runners["claude"].mode is RunnerMode.BATCH
         assert config.runners["codex"].mode is RunnerMode.SESSION
 
-    def test_posture_defaults_to_supervised(self) -> None:
+    def test_posture_defaults_to_auto(self) -> None:
+        """Changed from supervised on 2026-08-19; see task-020.
+
+        A project that names no posture gets the one that can actually finish work
+        unattended. Supervised parks on the first command outside its allow-list.
+        """
         write_config()
+
+        config = load_dispatch_config()
+
+        assert config is not None
+        assert config.project("agentjobs").posture is Posture.AUTO
+
+    def test_an_explicitly_named_posture_still_wins_over_the_default(self) -> None:
+        """Changing the default must not quietly re-point projects that chose one."""
+        write_config(
+            projects={
+                "agentjobs": {"enabled": True, "runner": "claude", "posture": "supervised"},
+            }
+        )
 
         config = load_dispatch_config()
 

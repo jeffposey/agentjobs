@@ -59,7 +59,7 @@ class TestDispatchCli:
         assert "claude" in result.output
         assert "batch" in result.output
         assert "session" in result.output
-        assert "posture=supervised" in result.output
+        assert "posture=auto" in result.output
         assert "max_concurrent_runs=1" in result.output
 
     def test_config_for_one_project_reports_the_refusing_gate(self) -> None:
@@ -76,7 +76,7 @@ class TestDispatchCli:
         result = runner.invoke(app, ["dispatch", "config", "--project", "agentjobs"])
 
         assert "permitted" in result.output
-        assert "supervised" in result.output
+        assert "posture=auto" in result.output
 
     def test_enable_refuses_an_unregistered_project(self, tmp_path: Path) -> None:
         write_config()

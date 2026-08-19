@@ -151,7 +151,16 @@ default_group: standard
 #   agentjobs:
 #     enabled: true
 #     group: standard          # or `runner: claude-standard` for a single runner
-#     posture: supervised      # read_only | supervised | autonomous
+#     posture: auto            # read_only | auto | supervised | autonomous
+#
+#       auto        the default, and what you want. A classifier reviews each action,
+#                   so the run keeps a gate and still never needs a terminal.
+#       read_only   no shell at all, and no worktree. Review, triage, defect reports.
+#       supervised  acceptEdits plus an allow-list of nine command prefixes. Anything
+#                   outside them PARKS waiting for a human, so this only suits a run
+#                   you are watching and willing to answer from your phone.
+#       autonomous  bypassPermissions. No gate whatsoever. Opt in per project.
+#
 #     require_clean_tree: true
 #     auto_dispatch: false
 projects: {}

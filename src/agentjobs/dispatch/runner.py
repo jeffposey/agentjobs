@@ -175,6 +175,19 @@ def posture_flags(posture: Posture, task_id: str) -> List[str]:
     whoever copies the example first.
 
     ``read_only`` gets no worktree because it cannot write anything to one.
+
+    ``auto`` is the default (task-020). Its mode has a classifier review each action
+    instead of a human, which is the only one of these that both keeps a gate and never
+    needs a terminal. ``supervised`` was the default until 2026-08-19 and could not
+    finish work: ``acceptEdits`` still prompts for Bash, the allow-list covers nine
+    prefixes, and the first command outside them parks a session nobody can answer.
+
+    ``auto`` keeps the allow-list. The rules can only pre-approve, never widen beyond
+    what the classifier would already permit, and every one of them names a command the
+    run is certain to need -- so they cost nothing and spare the classifier the whole
+    test suite. Rejected the alternative of dropping it, which would have made ``auto``
+    differ from ``supervised`` in two ways at once and left the first ``pytest`` of every
+    run waiting on a classifier round-trip for no benefit.
     """
     if posture is Posture.READ_ONLY:
         return ["--tools", "Read,Glob,Grep,WebFetch"]
@@ -182,7 +195,7 @@ def posture_flags(posture: Posture, task_id: str) -> List[str]:
         return ["--permission-mode", "bypassPermissions", "-w", task_id]
     return [
         "--permission-mode",
-        "acceptEdits",
+        "auto" if posture is Posture.AUTO else "acceptEdits",
         "-w",
         task_id,
         "--settings",
