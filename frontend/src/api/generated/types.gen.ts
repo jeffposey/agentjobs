@@ -608,7 +608,7 @@ export type DispatchRunView = {
     /**
      * Elapsed Seconds
      *
-     * Seconds since start for a live run; total duration once it ended.
+     * Seconds since start for a live run; the total it ran for once it ended, measured to its finish time so it stops moving. Null when a concluded run has no recorded finish time -- render that as unknown, never as a number.
      */
     elapsed_seconds?: number | null;
     /**

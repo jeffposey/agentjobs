@@ -18,6 +18,7 @@ import sys
 import textwrap
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List
 
@@ -104,6 +105,7 @@ def seed_run(
     session_id: str | None = None,
     pid: int | None = None,
     started_at: str = "2026-08-18T08:00:00+00:00",
+    finished_at: str | None = None,
 ) -> RunDirectory:
     """A run directory in whatever state the test needs, without spawning anything."""
     meta: Dict[str, object] = {
@@ -121,6 +123,8 @@ def seed_run(
         meta["session_id"] = session_id
     if pid is not None:
         meta["pid"] = pid
+    if finished_at is not None:
+        meta["finished_at"] = finished_at
     return RunDirectory.create(home, run_id, meta)
 
 
@@ -247,6 +251,86 @@ class TestStatus:
         with pytest.raises(LedgerError) as caught:
             find_run(home, "run_imaginary")
         assert "run_real" in str(caught.value)
+
+
+# ----- how long it took -------------------------------------------------------
+
+
+class TestDuration:
+    """A concluded run's duration is a fact about the past and must stop moving.
+
+    It did not: elapsed time was ``now - started_at`` whatever the run's state, so a run
+    that took 42 seconds reported 11.6 hours the next morning, and every duration in the
+    UI was wrong by an amount that depended on when you looked (task-158).
+    """
+
+    def test_a_finished_run_reports_the_same_duration_however_late_you_read_it(
+        self, home: Path, task
+    ) -> None:
+        seed_run(
+            home,
+            task.id,
+            status="finished",
+            started_at="2026-08-18T08:00:00+00:00",
+            finished_at="2026-08-18T08:00:42+00:00",
+        )
+
+        record = list_runs(home)[0]
+
+        assert record.elapsed_seconds() == 42.0
+        assert record.elapsed_seconds(now=datetime(2027, 1, 1, tzinfo=timezone.utc)) == 42.0
+
+    def test_a_live_run_still_counts_up(self, home: Path, task) -> None:
+        seed_run(home, task.id, status="running", started_at="2026-08-18T08:00:00+00:00")
+
+        record = list_runs(home)[0]
+        earlier = record.elapsed_seconds(now=datetime(2026, 8, 18, 8, 0, 30, tzinfo=timezone.utc))
+        later = record.elapsed_seconds(now=datetime(2026, 8, 18, 8, 1, 0, tzinfo=timezone.utc))
+
+        assert earlier == 30.0
+        assert later == 60.0
+
+    def test_a_concluded_run_with_no_finish_time_reports_unknown(self, home: Path, task) -> None:
+        """Runs from before finish times were recorded. Better unknown than invented."""
+        seed_run(home, task.id, status="failed", finished_at=None)
+
+        assert list_runs(home)[0].elapsed_seconds() is None
+
+    def test_ending_a_run_stamps_the_finish_time_even_when_the_caller_forgets(
+        self, home: Path, task
+    ) -> None:
+        """The stamp lives in the write, so no path out of a live run can omit it."""
+        directory = seed_run(home, task.id, status="running")
+
+        directory.update_meta(status="failed", error="launcher exploded")
+        by_update_meta = read_run(directory.path).elapsed_seconds()
+
+        write_status(seed_run(home, task.id, run_id="run_two"), status="cancelled")
+        by_write_status = read_run(home / "runs" / "run_two").elapsed_seconds()
+
+        assert by_update_meta is not None and by_update_meta > 0
+        assert by_write_status is not None and by_write_status > 0
+
+    def test_a_running_run_is_not_stamped(self, home: Path, task) -> None:
+        directory = seed_run(home, task.id, status="unknown")
+
+        directory.update_meta(status="running", pid=4242)
+
+        assert "finished_at" not in directory.read_meta()
+
+    def test_the_run_and_the_task_agree_on_how_long_it_took(
+        self, home: Path, task, manager: TaskManager, fake_session_cli: Path
+    ) -> None:
+        """sc-2: one instant, written to both places, so the two records cannot diverge."""
+        dispatch_entry(manager, task.id, "run_test0001")
+        seed_run(home, task.id, mode="session", session_id="b55b35ad")
+        set_sessions(fake_session_cli, [{"id": "b55b35ad", "status": "busy", "state": "working"}])
+
+        ledger_with(home, fake_session_cli).cancel("run_test0001")
+
+        on_the_run = find_run(home, "run_test0001").elapsed_seconds()
+        on_the_task = results_on(manager, task.id)[0].data["duration_seconds"]
+        assert on_the_run == on_the_task
 
 
 # ----- the run lock -----------------------------------------------------------

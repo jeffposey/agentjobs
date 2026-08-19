@@ -40,6 +40,8 @@ import yaml
 from agentjobs.dispatch.config import sentinel_path
 from agentjobs.dispatch.runner import (
     META_FILENAME,
+    TERMINAL_STATUSES,
+    finish_stamped,
     resolve_executable,
     runs_root,
 )
@@ -50,9 +52,6 @@ from agentjobs.storage import TaskStorage
 
 LOCKS_DIRNAME = ".locks"
 """Run locks live under the runs root. A leading dot cannot collide with a run id."""
-
-TERMINAL_STATUSES = frozenset({"finished", "cancelled", "failed"})
-"""Statuses meaning nothing is executing. Everything else counts as live."""
 
 LOCK_TIMEOUT_SECONDS = 10.0
 LOCK_POLL_SECONDS = 0.01
@@ -172,6 +171,7 @@ class RunRecord:
     session_id: Optional[str] = None
     pid: Optional[int] = None
     started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
     caused_by: Optional[int] = None
     argv: List[str] = field(default_factory=list)
 
@@ -185,11 +185,42 @@ class RunRecord:
         return self.mode == DispatchMode.SESSION.value
 
     def elapsed_seconds(self, now: Optional[datetime] = None) -> Optional[float]:
-        """How long this run has been going, or ran for."""
+        """How long this run has been going, or how long it ran for.
+
+        A concluded run is measured to its finish time, never to the current clock: its
+        duration is a fact about the past and must read the same however long afterwards
+        you look at it.
+
+        A concluded run with no recorded finish time reports ``None`` -- "unknown" in the
+        web UI, ``-`` in the CLI. Those are runs that ended before finish times were
+        recorded, or ended in a way nothing wrote down. Measuring them from now would be
+        the bug this method exists to fix, and inventing a plausible number would be
+        worse than admitting the record does not say.
+        """
         if self.started_at is None:
             return None
-        moment = now or datetime.now(timezone.utc)
-        return (moment - self.started_at).total_seconds()
+        if self.is_live:
+            moment = now or datetime.now(timezone.utc)
+            return (moment - self.started_at).total_seconds()
+        if self.finished_at is None:
+            return None
+        return (self.finished_at - self.started_at).total_seconds()
+
+
+def _as_moment(value: object) -> Optional[datetime]:
+    """Read a timestamp out of run metadata, naive values read as UTC.
+
+    An unparseable timestamp is absent rather than an error: run metadata is a file on
+    disk that a person may have edited, and one bad field should not make the run
+    unreadable.
+    """
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 def _as_optional_int(value: object) -> Optional[int]:
@@ -212,15 +243,6 @@ def read_run(directory: Path) -> RunRecord:
                 meta = loaded
         except (OSError, yaml.YAMLError):
             meta = {}
-    started = meta.get("started_at")
-    parsed: Optional[datetime] = None
-    if isinstance(started, str):
-        try:
-            parsed = datetime.fromisoformat(started)
-        except ValueError:
-            parsed = None
-        if parsed is not None and parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
     argv = meta.get("argv")
     return RunRecord(
         run_id=str(meta.get("run_id") or directory.name),
@@ -233,7 +255,8 @@ def read_run(directory: Path) -> RunRecord:
         outcome=str(meta["outcome"]) if meta.get("outcome") else None,
         session_id=str(meta["session_id"]) if meta.get("session_id") else None,
         pid=_as_optional_int(meta.get("pid")),
-        started_at=parsed,
+        started_at=_as_moment(meta.get("started_at")),
+        finished_at=_as_moment(meta.get("finished_at")),
         caused_by=_as_optional_int(meta.get("caused_by")),
         argv=[str(item) for item in argv] if isinstance(argv, list) else [],
     )
@@ -281,9 +304,9 @@ def write_status(record: RunRecord, **fields: object) -> None:
                 meta = loaded
         except (OSError, yaml.YAMLError):
             meta = {}
-    meta.update(fields)
     meta_path.write_text(
-        yaml.safe_dump(meta, sort_keys=False, allow_unicode=False), encoding="utf-8"
+        yaml.safe_dump(finish_stamped(meta, fields), sort_keys=False, allow_unicode=False),
+        encoding="utf-8",
     )
 
 
@@ -571,7 +594,13 @@ class DispatchLedger:
         resolved -- in which case the run's own meta records why, and the run at least
         stops counting as live.
         """
-        write_status(record, status="cancelled", outcome=outcome.value)
+        finished = datetime.now(timezone.utc)
+        write_status(
+            record,
+            status="cancelled",
+            outcome=outcome.value,
+            finished_at=finished.isoformat(),
+        )
         manager = self.manager_for(record)
         if manager is None or not record.task_id:
             write_status(record, unattributed=f"no task record for {record.task_id!r}")
@@ -581,7 +610,13 @@ class DispatchLedger:
             write_status(record, unattributed=f"task {record.task_id!r} not found")
             return
 
-        duration = record.elapsed_seconds()
+        # From the instant just written to the run, not from the record in hand: that
+        # record was read before the status changed and still describes a live run.
+        duration = (
+            (finished - record.started_at).total_seconds()
+            if record.started_at is not None
+            else None
+        )
         manager.record_dispatch_result(
             record.task_id,
             actor=actor,
