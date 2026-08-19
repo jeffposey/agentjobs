@@ -33,6 +33,7 @@ from agentjobs.dispatch.config import (
     DispatchResolution,
     assert_dispatch_permitted,
 )
+from agentjobs.dispatch.config import DispatchRunner as ConfigRunner
 from agentjobs.dispatch.ledger import RunLockTimeout, acquire_run_lock
 from agentjobs.dispatch.runner import (
     META_FILENAME,
@@ -74,6 +75,18 @@ class CausingActorNotHumanError(DispatchRefused):
     """The entry that would cause this dispatch was written by an agent."""
 
     reason = "not_human_clocked"
+
+
+class UnknownRunnerActorError(DispatchRefused):
+    """The runner would act as an identity this project does not configure.
+
+    Checked before the claim rather than discovered afterwards. The claim itself never
+    validated the id, so a dispatch used to succeed and leave the task owned by an actor
+    that no managed write could act as -- the agent could not log progress, hand off or
+    close under the identity that owned its own work.
+    """
+
+    reason = "unknown_runner_actor"
 
 
 class TaskClosedError(DispatchRefused):
@@ -134,6 +147,32 @@ def resolve_causing_entry(task: Task, caused_by: Optional[int] = None) -> LogEnt
             return entry
     raise NoCausingEntryError(
         f"{task.id} has no log entry {caused_by}. Newest is {task.log[-1].id}."
+    )
+
+
+def assert_runner_actor_known(config: Dict[str, object], runner: ConfigRunner) -> None:
+    """Refuse unless the identity this runner writes as is a configured actor.
+
+    A project that has configured *no* actors accepts any id -- the same allowance
+    ``validate_actor`` makes for a freshly initialised project, and refusing here would
+    make dispatch impossible on one. Where a vocabulary exists, an id outside it is
+    refused *now* rather than at the first write the dispatched agent attempts.
+    """
+    actors = load_actors(config)
+    if not actors:
+        return
+    if runner.actor_id in actors:
+        return
+    known = ", ".join(sorted(actors)) or "none"
+    hint = (
+        f"Set 'actor:' on runner {runner.name!r} in ~/.agentjobs/dispatch.yaml to one of "
+        f"them, or add {runner.actor_id!r} to 'actors:' in .agentjobs/config.yaml."
+    )
+    raise UnknownRunnerActorError(
+        f"Runner {runner.name!r} would act as {runner.actor_id!r}, which this project "
+        f"does not configure as an actor. Configured actors: {known}. A dispatched agent "
+        f"must be able to log progress and hand off under the identity that owns its "
+        f"task, and it cannot do that as an unknown actor. {hint}"
     )
 
 
@@ -274,6 +313,7 @@ def dispatch_task(
 
     causing = resolve_causing_entry(task, request.caused_by)
     assert_human_clocked(project_config, causing)
+    assert_runner_actor_known(project_config, resolution.runner)
 
     running = live_runs(_home(home, resolution))
     for run in running:
@@ -311,7 +351,7 @@ def dispatch_task(
         raise LiveRunExistsError(str(exc)) from exc
 
     try:
-        task = _claim_or_verify(manager, task, resolution.runner.name)
+        task = _claim_or_verify(manager, task, resolution.runner.actor_id)
 
         runner = DispatchRunner(
             manager=manager,

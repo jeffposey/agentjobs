@@ -125,7 +125,14 @@ def write_dispatch_config(
     config = {
         "version": 1,
         "enabled": enabled,
-        "runners": {"fake": {"argv": [sys.executable, str(fake_runner), "{prompt}"]}},
+        "runners": {
+            "fake": {
+                "argv": [sys.executable, str(fake_runner), "{prompt}"],
+                # The runner is named for the invocation; `actor` is the identity it
+                # writes as, and it must be one this project configures.
+                "actor": "claude",
+            }
+        },
         "projects": {"sandbox": entry},
     }
     path = home / "dispatch.yaml"
@@ -454,7 +461,9 @@ class TestClaimBeforeSpawn:
         task = manager.get_task(ready_task.id)
         assert task is not None
         assert task.lifecycle is Lifecycle.ACTIVE
-        assert task.assignment.owner == "fake"
+        # Claimed as the runner's *actor*, not its name. The runner is called "fake";
+        # the identity it acts as is "claude", which this project configures.
+        assert task.assignment.owner == "claude"
         types = [e.type for e in task.log]
         assert types.index(LogEntryType.TRANSITION) < types.index(LogEntryType.DISPATCH)
 
@@ -462,7 +471,7 @@ class TestClaimBeforeSpawn:
         self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
     ) -> None:
         write_dispatch_config(home, fake_runner, require_clean_tree=False)
-        manager.claim_task(ready_task.id, agent="fake")
+        manager.claim_task(ready_task.id, agent="claude")
         manager.add_log_entry(
             ready_task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Again please."
         )
