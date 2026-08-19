@@ -1,0 +1,105 @@
+schema: 2
+id: task-019
+title: 'Dispatch cannot start in a project with a .mcp.json: the session blocks on
+  an approval dialog nobody can answer'
+created: '2026-08-19T21:46:46.999513Z'
+updated: '2026-08-19T21:46:47.000263Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+category: infrastructure
+tags:
+- dispatch
+- mcp
+- defect
+effort: an hour
+assignment:
+  eligible: []
+spec:
+  summary: A dispatched session starts in a fresh worktree and hits Claude Code's
+    project-scoped .mcp.json approval dialog. A --bg session has no TTY, so it parks
+    at startup forever and the run burns its whole timeout without doing any work.
+    Dispatch already passes --settings, which is one of the three approval sources
+    that always applies, so the fix belongs there.
+  intent: "The first real dispatch ever attempted (run_08ddfa02, 2026-08-19) did zero\
+    \ work for this reason. Any project that ships a .mcp.json \u2014 including AgentJobs\
+    \ itself, which ships one so agents can reach the managed task tools \u2014 cannot\
+    \ currently be dispatched to at all."
+  description: "Observed 2026-08-19 on Claude Code 2.1.235.\n\n`posture_flags()` appends\
+    \ `-w <task_id>`, so the dispatched session starts in a brand-new worktree directory.\
+    \ Claude Code prompts for approval of project-scoped `.mcp.json` servers, and\
+    \ the session renders:\n\n    New MCP server found in this project: agentjobs\n\
+    \    1. Use this MCP server\n    2. Use this and all future MCP servers in this\
+    \ project\n    3. Continue without using this MCP server\n\nA `--bg` session has\
+    \ no terminal attached, so nothing can answer. `claude agents --json` reports\
+    \ `state: \"blocked\"`. run_08ddfa02 sat there ~913s until it was stopped manually.\n\
+    \nThis is NOT the workspace-trust dialog. Workspace trust for worktrees was fixed\
+    \ upstream on 2026-08-17 (anthropics/claude-code#23109) and is keyed on the repository's\
+    \ main checkout, which is already trusted here. `.mcp.json` server approval is\
+    \ a separate gate that trust does not grant; it only governs whether repo-committed\
+    \ approvals are honoured.\n\nThere is no CLI verb to approve non-interactively\
+    \ (`claude mcp` has only add/remove/list/get/reset-project-choices; anthropics/claude-code#10447\
+    \ is the open request). Upstream anthropics/claude-code#72430 is the same wall\
+    \ for cloud routines and is unfixed.\n\nThe fix: Claude Code's MCP docs name three\
+    \ approval sources that apply regardless of folder trust \u2014 the user's `~/.claude/settings.json`,\
+    \ managed settings, and **settings passed with `--settings`**. Dispatch already\
+    \ builds a `--settings` JSON in `allow_list_settings()`. Add the project's `.mcp.json`\
+    \ server names to it under `enabledMcpjsonServers`, so approval travels with the\
+    \ dispatch and is scoped to that process only.\n\nPrefer `enabledMcpjsonServers`\
+    \ (a name list, read from the project's own `.mcp.json`) over `enableAllProjectMcpServers:\
+    \ true`, which approves any server in any project and is a much broader grant\
+    \ than dispatch needs.\n\nInterim workaround in place on this machine only: `enabledMcpjsonServers:\
+    \ [\"agentjobs\"]` was added to `~/.claude/settings.json` on 2026-08-19, which\
+    \ unblocked run_a6deb292. That is machine-local and does nothing for anyone else,\
+    \ so it is not a fix."
+  constraints: "- Read server names from the project's own .mcp.json rather than hardcoding\
+    \ \"agentjobs\"; a dispatched project is not necessarily this one.\n- Do not use\
+    \ enableAllProjectMcpServers: true \u2014 it grants far more than dispatch needs.\n\
+    - A project with no .mcp.json must produce unchanged argv.\n- Assert on the composed\
+    \ --settings JSON in a test. The existing allow_rules() docstring records an hour\
+    \ lost on 2026-08-18 to a rule that matched nothing, so a test that only checks\
+    \ the key exists is not enough."
+  out_of_scope: Changing the posture model or which permission mode dispatch uses;
+    that is a separate defect. Fixing the wrong server address in the generated prompt
+    (task-154).
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: posture_flags() adds -w and builds the --settings JSON in allow_list_settings();
+      this is where enabledMcpjsonServers belongs.
+  - path: .mcp.json
+    why: The project-scoped server whose approval blocks the run; its keys are the
+      names to enable.
+acceptance:
+- id: ac-1
+  text: dispatch's --settings JSON carries enabledMcpjsonServers listing the dispatched
+    project's own .mcp.json server names
+  status: pending
+- id: ac-2
+  text: a project with no .mcp.json produces argv identical to today's
+  status: pending
+- id: ac-3
+  text: a test asserts the composed --settings JSON content, not merely that a key
+    is present
+  status: pending
+- id: ac-4
+  text: a real dispatch into a project with a .mcp.json reaches working state without
+    any approval dialog, verified with claude agents --json
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T21:46:46.999563Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 2d4f6a18-9c3b-4e05-8a71-6f9d0c3b5e42
+      kind: create
+      fingerprint: a92eeb126dadd712543179d18a995481

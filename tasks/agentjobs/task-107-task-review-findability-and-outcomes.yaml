@@ -2,10 +2,86 @@ schema: 2
 id: task-107-task-review-findability-and-outcomes
 title: Make task review searchable and outcome-accurate
 created: '2026-08-13T22:23:56.414109Z'
-updated: '2026-08-19T21:23:14.835078Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-19T21:42:15.199088Z'
+lifecycle: active
+ball: human
+ball_reason: input
+ball_prompt: "Dispatched session `7e5fc33c` is parked on a permission prompt and will\
+  \ wait indefinitely. Answer it at https://claude.ai/code/session_018TSD3HmgZgnuMtT8PxsoMt\
+  \ \u2014 that link works from a phone. Or attach locally with `claude attach 7e5fc33c`.\n\
+  \nThe end of its terminal, verbatim:\n\n```\n\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Bash command\n\
+  \   ls C:/projects/agentjobs/docs/\n   List docs\n Do you want to proceed?\n \u276F\
+  \ 1. Yes\n   2. Yes, allow reading from /c/projects/agentjobs/docs from this project\n\
+  \   3. No\n Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain\n \u2590\u259B\
+  \u2588\u2588\u2588\u259C\u258C   Claude Code v2.1.235\n\u259D\u259C\u2588\u2588\u2588\
+  \u2588\u2588\u259B\u2598  Opus 5 \xB7 Claude Pro\n  \u2598\u2598 \u259D\u259D  \
+  \  C:\\projects\\agentjobs\\.claude\\worktrees\\task-107-task-review-findability-and-outcomes\n\
+  \u276F You are the agent claude working task task-107-task-review-findability-and-outcomes\
+  \ in project agentjobs (root: C:\\projects\\agentjobs). AgentJobs is serving at\
+  \ http://localhost:8765. Read the task    record and follow the resumption contract\
+  \ in docs/agent-workflow.md. Dispatch run id: run_a6deb292.\n  /remote-control is\
+  \ active \xB7 Continue here, on your phone, or at https://claude.ai/code/session_018TSD3HmgZgnuMtT8PxsoMt\n\
+  \u25CF I'll start by reading the task record.\n\u25CF Listing 2 directories, running\
+  \ 1 shell command\u2026\n  \u23BF  $ ls C:/projects/agentjobs/docs/\n\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500 Bash command\n   ls C:/projects/agentjobs/docs/\n   List docs\n Do\
+  \ you want to proceed?\n \u276F 1. Yes\n   2. Yes, allow reading from /c/projects/agentjobs/docs\
+  \ from this project\n   3. No\n Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain\n\
+  \ \u2590\u259B\u2588\u2588\u2588\u259C\u258C   Claude Code v2.1.235\n\u259D\u259C\
+  \u2588\u2588\u2588\u2588\u2588\u259B\u2598  Opus 5 \xB7 Claude Pro\n  \u2598\u2598\
+  \ \u259D\u259D    C:\\projects\\agentjobs\\.claude\\worktrees\\task-107-task-review-findability-and-outcomes\n\
+  \u276F You are the agent claude working task task-107-task-review-findability-and-outcomes\
+  \ in project agentjobs (root: C:\\projects\\agentjobs). AgentJobs is serving at\
+  \ http://localhost:8765. Read the task    record and follow the resumption contract\
+  \ in docs/agent-workflow.md. Dispatch run id: run_a6deb292.\n  /remote-control is\
+  \ active \xB7 Continue here, on your phone, or at https://claude.ai/code/session_018TSD3HmgZgnuMtT8PxsoMt\n\
+  \u25CF I'll start by reading the task record.\n  Listing 2 directories, running\
+  \ 1 shell command\u2026\n  \u23BF  $ ls C:/projects/agentjobs/docs/\n\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500 Bash command\n   ls C:/projects/agentjobs/docs/\n   List docs\n Do\
+  \ you want to proceed?\n \u276F 1. Yes\n   2. Yes, allow reading from /c/projects/agentjobs/docs\
+  \ from this project\n   3. No\n Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain\n\
+  ```"
 archived: false
 priority: critical
 category: ux
@@ -16,6 +92,7 @@ tags:
 - outcomes
 effort: half a day
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: 'Fix the review problems exposed by the task-corpus audit: task-number
@@ -116,3 +193,224 @@ log:
       id: 3f9c1d24-7b8a-4e51-9d0c-2a6f5e18b471
       kind: log_append
       fingerprint: 353289994f4e7c5e94df3b21f045cb64
+- id: 3
+  ts: '2026-08-19T21:24:20.409227Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 4
+  ts: '2026-08-19T21:24:21.997375Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_08ddfa02
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: supervised
+    trigger: manual
+    caused_by: 2
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - acceptEdits
+    - -w
+    - task-107-task-review-findability-and-outcomes
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}}'
+    - 'You are the agent `claude` working task `task-107-task-review-findability-and-outcomes`
+      in project `agentjobs` (root: C:\projects\agentjobs). AgentJobs is serving at
+      http://localhost:8765. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_08ddfa02.'
+    cwd: C:\projects\agentjobs
+    git_head: a1c807e
+    session_id: 33b8d1bb
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 5
+  ts: '2026-08-19T21:39:33.010788Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: The session is no longer in the ledger, so it cannot be followed or resumed.
+    Whatever it did is in its own transcript, not here.
+  re: 4
+  data:
+    run_id: run_08ddfa02
+    outcome: interrupted
+    duration_seconds: 912.582253
+    log_path: C:\Users\jpose\.agentjobs\runs\run_08ddfa02
+- id: 6
+  ts: '2026-08-19T21:41:25.883280Z'
+  actor: Jeff Posey
+  type: note
+  body: "Jeff Posey re-authorises dispatch after the first run was interrupted. Asked\
+    \ for explicitly in chat on 2026-08-19.\n\nRun run_08ddfa02 never did any work:\
+    \ the session blocked at startup on the `.mcp.json` approval dialog for the project-scoped\
+    \ `agentjobs` MCP server and had no TTY to answer it. It was stopped and reconciled\
+    \ after ~913s. Fixed by adding `enabledMcpjsonServers: [\"agentjobs\"]` to the\
+    \ machine's user settings, which the MCP docs list as an approval source that\
+    \ applies regardless of folder trust.\n\nThis entry is again a workaround for\
+    \ the missing UI control (task-185). It is also needed a second time because dispatch's\
+    \ own `dispatch_result` entry (log entry 5) was written by actor `dispatcher`,\
+    \ which this project does not configure, and the human-attribution guard reads\
+    \ the newest entry without filtering by type \u2014 so a finished run locks its\
+    \ own task out of re-dispatch. Filed separately."
+  data:
+    operation:
+      id: c81e7a35-64d9-4b02-9f3a-0d5b2e77aa16
+      kind: log_append
+      fingerprint: 8db2b6143e19db33d987cbe25107ebc5
+- id: 7
+  ts: '2026-08-19T21:42:05.398161Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_a6deb292
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: supervised
+    trigger: manual
+    caused_by: 6
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - acceptEdits
+    - -w
+    - task-107-task-review-findability-and-outcomes
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}}'
+    - 'You are the agent `claude` working task `task-107-task-review-findability-and-outcomes`
+      in project `agentjobs` (root: C:\projects\agentjobs). AgentJobs is serving at
+      http://localhost:8765. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_a6deb292.'
+    cwd: C:\projects\agentjobs
+    git_head: a1c807e
+    session_id: 7e5fc33c
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 8
+  ts: '2026-08-19T21:42:15.198934Z'
+  actor: dispatcher
+  type: handoff
+  body: "Dispatched session `7e5fc33c` is parked on a permission prompt and will wait\
+    \ indefinitely. Answer it at https://claude.ai/code/session_018TSD3HmgZgnuMtT8PxsoMt\
+    \ \u2014 that link works from a phone. Or attach locally with `claude attach 7e5fc33c`.\n\
+    \nThe end of its terminal, verbatim:\n\n```\n\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Bash\
+    \ command\n   ls C:/projects/agentjobs/docs/\n   List docs\n Do you want to proceed?\n\
+    \ \u276F 1. Yes\n   2. Yes, allow reading from /c/projects/agentjobs/docs from\
+    \ this project\n   3. No\n Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain\n\
+    \ \u2590\u259B\u2588\u2588\u2588\u259C\u258C   Claude Code v2.1.235\n\u259D\u259C\
+    \u2588\u2588\u2588\u2588\u2588\u259B\u2598  Opus 5 \xB7 Claude Pro\n  \u2598\u2598\
+    \ \u259D\u259D    C:\\projects\\agentjobs\\.claude\\worktrees\\task-107-task-review-findability-and-outcomes\n\
+    \u276F You are the agent claude working task task-107-task-review-findability-and-outcomes\
+    \ in project agentjobs (root: C:\\projects\\agentjobs). AgentJobs is serving at\
+    \ http://localhost:8765. Read the task    record and follow the resumption contract\
+    \ in docs/agent-workflow.md. Dispatch run id: run_a6deb292.\n  /remote-control\
+    \ is active \xB7 Continue here, on your phone, or at https://claude.ai/code/session_018TSD3HmgZgnuMtT8PxsoMt\n\
+    \u25CF I'll start by reading the task record.\n\u25CF Listing 2 directories, running\
+    \ 1 shell command\u2026\n  \u23BF  $ ls C:/projects/agentjobs/docs/\n\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500 Bash command\n   ls C:/projects/agentjobs/docs/\n   List docs\n\
+    \ Do you want to proceed?\n \u276F 1. Yes\n   2. Yes, allow reading from /c/projects/agentjobs/docs\
+    \ from this project\n   3. No\n Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to\
+    \ explain\n \u2590\u259B\u2588\u2588\u2588\u259C\u258C   Claude Code v2.1.235\n\
+    \u259D\u259C\u2588\u2588\u2588\u2588\u2588\u259B\u2598  Opus 5 \xB7 Claude Pro\n\
+    \  \u2598\u2598 \u259D\u259D    C:\\projects\\agentjobs\\.claude\\worktrees\\\
+    task-107-task-review-findability-and-outcomes\n\u276F You are the agent claude\
+    \ working task task-107-task-review-findability-and-outcomes in project agentjobs\
+    \ (root: C:\\projects\\agentjobs). AgentJobs is serving at http://localhost:8765.\
+    \ Read the task    record and follow the resumption contract in docs/agent-workflow.md.\
+    \ Dispatch run id: run_a6deb292.\n  /remote-control is active \xB7 Continue here,\
+    \ on your phone, or at https://claude.ai/code/session_018TSD3HmgZgnuMtT8PxsoMt\n\
+    \u25CF I'll start by reading the task record.\n  Listing 2 directories, running\
+    \ 1 shell command\u2026\n  \u23BF  $ ls C:/projects/agentjobs/docs/\n\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500 Bash command\n   ls C:/projects/agentjobs/docs/\n   List docs\n\
+    \ Do you want to proceed?\n \u276F 1. Yes\n   2. Yes, allow reading from /c/projects/agentjobs/docs\
+    \ from this project\n   3. No\n Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to\
+    \ explain\n```"
+  data:
+    ball: human
+    ball_reason: input
