@@ -3,7 +3,7 @@ id: task-168-menu-shell
 title: 'Retire the floating button: a burger menu in the top-right that Report issue
   lives inside'
 created: '2026-08-19T17:34:59.227729Z'
-updated: '2026-08-19T17:34:59.228804Z'
+updated: '2026-08-19T17:44:39.102886Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -143,3 +143,35 @@ log:
       id: 7b2e4d18-1c9a-4f60-8b21-5d3e6a0f9c41
       kind: create
       fingerprint: b75b36900a594067778b39fe7077665a
+- id: 2
+  ts: '2026-08-19T17:44:39.102756Z'
+  actor: claude
+  type: decision
+  body: "Top-right popup, not a top-left sidebar drawer. Jeff raised the drawer, then\
+    \ said to start simple; this records why simple also happens to be right, so it\
+    \ is not reopened by taste alone.\n\n**Rejected: burger top-left opening a full-height\
+    \ drawer.** It is a real convention, but it is the convention for *navigation*\
+    \ \u2014 Material's nav drawer holds an app's sections. This menu holds actions\
+    \ and app-level items: report an issue, dispatch, dispatch settings, About. AgentJobs\
+    \ already has navigation in the header (Dashboard, Tasks, Create, Dispatch), so\
+    \ a left drawer would either duplicate it or absorb it, and absorbing it is a\
+    \ nav rewrite this epic put out of scope. An actions menu sitting where a user\
+    \ expects navigation is a worse lie than an unfamiliar corner.\n\n**The decisive\
+    \ argument is task-169.** The same component has to render inside somebody else's\
+    \ app, and there it cannot own the top-left \u2014 that corner is the host's own\
+    \ logo and nav. A full-height panel sliding across an app AgentJobs does not own\
+    \ is invasive in a way a small popup anchored to its own trigger is not. A placement\
+    \ that only works on one of the two surfaces breaks the one-implementation premise\
+    \ the whole epic rests on.\n\n**It is also the reversible choice.** A popup can\
+    \ become a drawer later. A drawer that has swallowed the app's navigation is expensive\
+    \ to unwind.\n\n**Reopen if:** the primary nav moves into a drawer for small screens\
+    \ as its own piece of work, at which point this menu's relationship to that drawer\
+    \ is a live question again. Related but separate: the header nav is `flex-wrap`\
+    \ with six links plus the project switcher and wraps to multiple rows on a phone.\
+    \ That is a real problem and a left-hand nav drawer is a reasonable answer to\
+    \ it \u2014 but it is navigation work, not this menu, and no task covers it yet."
+  data:
+    operation:
+      id: f60b8d47-3e91-4c25-8a06-2b7d94e15c38
+      kind: log_append
+      fingerprint: c01833b0b2f417e1297834206a527e8d
