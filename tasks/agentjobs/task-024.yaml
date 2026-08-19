@@ -3,10 +3,11 @@ id: task-024
 title: A widened enum breaks every running client, because each one re-validates the
   server's JSON against its own copy of the schema
 created: '2026-08-19T22:46:26.152753Z'
-updated: '2026-08-19T22:46:26.153428Z'
-lifecycle: ready
+updated: '2026-08-19T23:45:26.496296Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 category: architecture
@@ -17,6 +18,7 @@ tags:
 - defect
 effort: half a day
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: 'Adding one member to DispatchPosture made task-107 unreadable to every
@@ -120,7 +122,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-024-client-tolerant-reads
+  status: active
 log:
 - id: 1
   ts: '2026-08-19T22:46:26.152794Z'
@@ -133,3 +137,83 @@ log:
       id: d5b81f47-3c60-4e29-a094-71fb2e6c8035
       kind: create
       fingerprint: dd8c61bc011aee0c1f6d874e177e57c8
+- id: 2
+  ts: '2026-08-19T23:44:50.306871Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: c27b8c8a-2015-41cd-9b3e-340f56a1fbd8
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-19T23:45:26.496208Z'
+  actor: claude
+  type: decision
+  body: 'Approach chosen: opt-in enum tolerance in the client, at the single parse
+    choke point.
+
+
+    **Where the defect actually bites.** Every typed client read and *every* mutation
+    funnels through `TaskClient._parse_task` (client.py:605) -> `Task.model_validate`.
+    The MCP read tools already pass the server''s JSON straight through (`read_tasks`,
+    `read_task_detail`, `read_search`, `read_next_task`), so the reads that broke
+    were the *mutation* responses: `operations.*` -> `_mutation()` -> `_parse_task(data[''task''])`.
+    That is exactly why `task_handoff` failed with `retryable:false` while a plain
+    curl of the same task returned 200. One choke point therefore covers the MCP client
+    and every other consumer of client.py.
+
+
+    **Mechanism.** `ValueEnum` (models_v2.py:46) gains a `_missing_` hook that, *only
+    while a client-scoped context manager is active*, returns an unregistered pseudo-member
+    carrying the unknown string. Verified against pydantic 2.12.4: pydantic-core calls
+    `_missing_`, the result validates, `model_dump(mode=''json'')` serialises it back
+    as the raw string, and `Enum._member_map_` is not polluted. Outside that context
+    the enum rejects unknown values exactly as today.
+
+
+    **Rejected alternative 1: make `ValueEnum` tolerant unconditionally.** Simpler,
+    but it relaxes the write path and `storage.load_task` too, so `posture: banana`
+    would be storable and a corrupt file would stop being loud. That contradicts the
+    constraints and task-049. The switch is off by default and turned on only by `client.py`.
+
+
+    **Rejected alternative 2: build a parallel tolerant model tree with `create_model`.**
+    No global switch, but it is a second schema implementation generated from the
+    first -- which is the same class of problem the task is about -- and it silently
+    drops the `@model_validator` consistency rules.
+
+
+    **Rejected alternative 3: sanitise the payload using pydantic''s reported errors.**
+    Would have to substitute a *known* member for the unknown one, which falsifies
+    the record.
+
+
+    **One consequence, handled.** Consistency rule 2 in `Task._check_consistency`
+    indexes `BALL_REASONS[self.ball]`. An unknown `ball` pseudo-member is not a key
+    there, so tolerance would turn a clean rejection into an uncaught `KeyError`.
+    It becomes a `.get()` that skips the vocabulary check when the holder is not a
+    member this reader knows -- unreachable on the server, where every ball is a real
+    member, and the correct degrade in a client that is not the authority on validity
+    anyway.
+
+
+    **Skew stays detectable without failing.** The context manager collects the unknown
+    values it met; `_parse_task` logs one warning per unknown value naming the enum,
+    the value and the task. That is the record''s ''warn rather than fail every call''
+    direction, without building a version handshake (explicitly out of scope).
+
+
+    **Test strategy for ac-5.** Both processes are the same process in a test, so
+    skew is represented at the transport: a wrapping `httpx.BaseTransport` serves
+    the real FastAPI app and then rewrites a dispatch entry''s `posture` to a value
+    absent from this reader''s `DispatchPosture`. That reproduces the original failure
+    exactly -- an unknown value inside `log[].data`, reached through `LogEntry._check_typed_payload`
+    -> `DispatchData`, which is where `log.12.posture` came from -- and because the
+    mutation response travels the same transport, an unrelated mutation on that task
+    exercises ac-2.'
+  data: {}
