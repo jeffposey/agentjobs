@@ -2,66 +2,9 @@ schema: 2
 id: task-157-session-run-observability
 title: Notice when a dispatched session ends, and let its output be read
 created: '2026-08-18T21:53:32.107442Z'
-updated: '2026-08-18T22:55:26.851225Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "# Ready for review. Five commits on `fix/task-157-session-run-observability`,\
-  \ verified end to end against a real dispatched session. Not merged, not pushed.\n\
-  \n## Look at it running first -- it is standing up now\n\n**http://127.0.0.1:8902/app/p/review-project**\
-  \ -- a review sandbox on its own port, own\nAgentJobs home, own throwaway repo,\
-  \ serving this branch. Your 8901 sandbox was left alone\n(it still runs `main`'s\
-  \ code; stopping a process is not permitted from my session).\n\n- **task-001**\
-  \ has a real finished session run. Open its **Output** panel: 284,785 bytes\n  of\
-  \ the session's actual terminal. The same run's `stdout.log` is 263 bytes of launcher\n\
-  \  banner, which is everything \"View output\" could ever have shown before.\n-\
-  \ **task-003** has a batch run in the same panel, showing `--- stdout.log ---` unchanged.\n\
-  \  That is the other side: session and batch differ on purpose.\n- **To see it live**,\
-  \ press Dispatch on task-002. The panel is expanded by default while\n  a run is\
-  \ live and tails it every 10 seconds. That spends tokens, so it is your call\n \
-  \ rather than something I left running.\n\nStop it by killing the process on port\
-  \ 8902. Reset it by deleting\n`C:/Users/jpose/AppData/Local/Temp/agentjobs-157-review`.\n\
-  \n## What changed\n\n1. **The scheduler** (`04e26bd`). `lifespan` runs `poll_live_sessions`\
-  \ every 10 seconds\n   in a thread, cancelled on shutdown. It polls before it first\
-  \ sleeps, which settles a\n   session that ended while AgentJobs was down -- so\
-  \ `reconcile()` is untouched, as your\n   handoff prompt's correction called for.\
-  \ Reversing the \"no scheduler\" position in\n   `_reap_finished_sessions` is recorded\
-  \ as a decision entry, and that docstring now says\n   so instead of contradicting\
-  \ the code.\n2. **Transcript capture** (`e7e52bb`). `poll_session` copies the session's\
-  \ output into\n   `<run>/transcript.log` *before* it acts. This is the part not\
-  \ in the plan and it is\n   load-bearing: settling a clean finish reaps the session,\
-  \ and a reaped session's logs\n   read empty, so fetching on demand would have shown\
-  \ nothing for exactly the runs worth\n   reading.\n3. **The output route serves\
-  \ it** (`eb7ddd9`), plus a bounded\n   `GET /dispatch/runs/{id}/tail`. Neither spawns\
-  \ a subprocess -- both read the file the\n   poller wrote, so fifty people watching\
-  \ costs what nobody watching costs.\n4. **The collapsible panel** (`c594ea5`) on\
-  \ each run row, expanded while live, staying\n   expanded when that run finishes,\
-  \ collapsed for runs already over on page load.\n5. **Repaint collapsing** (`3b9787f`),\
-  \ found by looking at the real thing: a TUI repaints\n   its whole screen, so 40\
-  \ lines of tail were 13 distinct lines painted three times.\n   Rendering only,\
-  \ session transcripts only. Also a decision entry.\n\n## What needs your judgement\n\
-  \n- **The `_local` trap stayed a loud report, as instructed.** `run_52c47791` in\
-  \ your 8901\n  sandbox is stamped `_local`, which the registry does not hold, so\
-  \ this poller will\n  print that it cannot follow it and will leave it live rather\
-  \ than guess. Your original\n  sandbox's stuck run therefore stays stuck. That is\
-  \ the decided behaviour, not an\n  oversight -- but it means the *most common* sandbox\
-  \ case is still unobservable, and if\n  you want implicit projects resolved that\
-  \ is its own task.\n- **Two acceptance criteria are unit-verified rather than live**:\
-  \ sc-3 (ended while\n  AgentJobs was down) and sc-2 (a parked session). Both would\
-  \ cost a second real session\n  to reproduce, sc-2 also needs the posture switched\
-  \ to `supervised`. Reasoning in the\n  progress entry above; say the word and I\
-  \ will do either.\n- **10 seconds** is the poll interval and the browser's tail\
-  \ interval. Stated in both\n  places with reasoning. Change it if you want a snappier\
-  \ tail -- the cost is one\n  subprocess per project per tick.\n- **Expanded-while-live**\
-  \ is the collapse default. It makes a task page taller for a live\n  run, which\
-  \ is the trade you asked for when you said you should not have to ask to see\n \
-  \ a live run.\n\n## State of the tree\n\n`pytest`: 1732 passed, 2 failed -- both\
-  \ already red on `main` (`test_agentjobs_context_paths_exist`,\nthe absolute-path\
-  \ assertion in `test_validate.py`). `frontend/` `npm run check` passes in\nfull,\
-  \ including the generated-client check and the 11 Playwright specs. `mypy` reports\n\
-  one pre-existing error in `storage.py`.\n\n**Not merged and not pushed.** The autonomy\
-  \ grant on task-060 has expired, so this stops\nhere. Worktree `C:/projects/aj-157`\
-  \ is clean; nothing on `main` but this task record."
+updated: '2026-08-19T06:30:23.375643Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: reliability
@@ -71,7 +14,6 @@ tags:
 - reliability
 effort: medium
 assignment:
-  owner: claude
   eligible: []
 parent: task-060-agent-dispatch
 spec:
@@ -821,3 +763,28 @@ log:
   data:
     ball: human
     ball_reason: review
+- id: 13
+  ts: '2026-08-19T06:30:23.375378Z'
+  actor: claude
+  type: transition
+  body: 'Merged --no-ff after Jeff reviewed it in the 8902 sandbox: the tail embedded,
+    updated live, and the run reached a terminal state on its own.
+
+
+    Two observations from his review, deferred rather than fixed here: the transcript
+    is hard to read even after repaint collapsing, and it does not look like the same
+    volume of output the desktop app shows for the same session. Neither is a regression
+    of this task -- before it there was no session output at all -- but both are real
+    and want their own task.
+
+
+    sc-2 (a parked session) and sc-3 (a session that ended while AgentJobs was down)
+    remain unit-verified rather than reproduced live. sc-6 was verified end to end
+    against a real dispatched session.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 1576aa11-2b33-4c55-8d77-e9f0a1b2c157
+      kind: close
+      fingerprint: 60d97683a774e4fc39b9c2b34e8d8799
