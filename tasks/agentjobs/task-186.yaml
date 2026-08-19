@@ -3,10 +3,11 @@ id: task-186
 title: A dispatched run can never commit its task record or merge its own work, because
   -w isolates it from the shared clone
 created: '2026-08-19T23:27:49.910749Z'
-updated: '2026-08-19T23:27:49.911593Z'
-lifecycle: ready
+updated: '2026-08-19T23:49:13.048813Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 category: infrastructure
@@ -17,6 +18,7 @@ tags:
 - defect
 effort: a few hours
 assignment:
+  owner: claude
   eligible: []
 parent: task-181-dispatch-phase-one-hardening
 spec:
@@ -150,7 +152,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-186-dispatch-worktree-isolation
+  status: active
 log:
 - id: 1
   ts: '2026-08-19T23:27:49.910809Z'
@@ -163,3 +167,177 @@ log:
       id: 3f5a1c92-6d84-4e07-9b13-8a2c7d0e5f41
       kind: create
       fingerprint: a5b4040ef2cf0b2fe2358beafc0ddbcd
+- id: 2
+  ts: '2026-08-19T23:46:21.909940Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 3
+  ts: '2026-08-19T23:47:21.025057Z'
+  actor: claude
+  type: progress
+  body: "Reproduced the -w guard on a clean repo, and verified by running it that\
+    \ the proposed fix actually works\n\nAll four probes run 2026-08-19 on Claude\
+    \ Code 2.1.235, in a throwaway repo created for the purpose (C:/ai/scratch/wt186,\
+    \ since deleted). Recorded here because the whole decision rests on them and none\
+    \ of it is recoverable from the diff.\n\n**1. The guard is real, and it is not\
+    \ a user hook.** `claude -p --permission-mode auto -w probe1 \"...git -C <repo>\
+    \ status --porcelain\"` was refused verbatim: \"This session is isolated in the\
+    \ worktree ...\\.claude\\worktrees\\probe1, but this command redirects git to\
+    \ the shared checkout via -C. Refusing to run it.\" The refusal is reported by\
+    \ the session as *hook output*, and nothing in ~/.claude/settings.json defines\
+    \ it, so it ships inside the CLI. There is no flag, setting or --add-dir that\
+    \ lifts it (--add-dir was already re-probed on 2026-08-19 and made no difference).\
+    \ This confirms the reproduction in the task description on a repo with no AgentJobs\
+    \ configuration in it at all.\n\n**2. The proposed fix works, with no extra flags.**\
+    \ With `-w` omitted, cwd = the repository root, `--permission-mode auto`, a session\
+    \ was asked to run the full shape of a dispatched run's closeout. All five steps\
+    \ succeeded with no refusal and no permission prompt:\n  - `git worktree add ../aj-999\
+    \ -b feat/probe` -> exit 0\n  - writing `../aj-999/probe.txt` -> exit 0, content\
+    \ read back\n  - `git -C <sibling worktree> add` / `commit` -> exit 0, commit\
+    \ 357ae42 on feat/probe\n  - `git -C <repo root> status --porcelain` -> exit 0,\
+    \ and the root tree was untouched\n\n  The load-bearing part is that **writing\
+    \ into a sibling directory outside cwd needed no `--add-dir`**. That was the one\
+    \ thing that could have made this fix cost a new flag, and it does not.\n\n**3.\
+    \ `claude rm` still does real work on a worktree-less session.** Started `claude\
+    \ --bg --permission-mode auto` with no `-w`; `claude rm <id>` printed \"removed\
+    \ <id>\", exit 0. So reap does not silently become a no-op -- it still removes\
+    \ the session row and frees the pid it holds. What it loses is the *refusal*,\
+    \ which is the part that has to be written down.\n\n**4. Dropping `-w` does not\
+    \ disturb the poller's project scoping.** `claude agents --json --cwd <repo root>`\
+    \ lists a `-w` session even though that session reports its cwd as the worktree,\
+    \ so the scoping matches by containment rather than equality and works under either\
+    \ shape. Worth knowing because \xA78 of the design doc argues cwd must stay the\
+    \ project root partly on this ground; that argument survives, it just was not\
+    \ at risk.\n\nOne incidental observation, recorded so it is not mistaken for a\
+    \ systemic property later: the first `claude rm` of the `-w` session was refused\
+    \ with \"failed to delete ...worktrees/probe2: Permission denied\" -- a Windows\
+    \ file handle that had not been released yet, not uncommitted changes. Re-running\
+    \ it seconds later succeeded. That is a transient, not a finding."
+  data: {}
+- id: 4
+  ts: '2026-08-19T23:49:13.048574Z'
+  actor: claude
+  type: decision
+  body: 'Dispatch stops passing `-w`. Containment becomes the dispatched agent''s
+    own act, and the instruction to take it moves into the prompt stub.
+
+
+    ## The trade, stated as the task framed it
+
+
+    Guaranteed containment that can never complete a task, versus agent-taken containment
+    that can. Chosen: the second.
+
+
+    `-w` bought one property -- a dispatched run could not fail to take a worktree
+    -- at the cost of making the run structurally unable to perform the two steps
+    this repository''s own process requires: committing its task record to `main`
+    in the shared clone (ENGINEERING.md, "Task files live on main, always") and completing
+    the merge gate. The guard enforcing the isolation is built into Claude Code 2.1.235,
+    reported as hook output, and is not configurable by any flag or setting. It is
+    also not a shallow `-C` check: probed on 2026-08-19, `cd <shared clone> && git
+    status` is refused with a message naming the `cd` specifically. So there is no
+    evasion available, and designing one would be circumventing a safety mechanism
+    rather than fixing anything.
+
+
+    A property that guarantees the run cannot finish is not containment, it is a stall
+    with good intentions. Every dispatched run to date has ended with an uncommitted
+    task record sitting in the shared clone waiting for a human -- observed on run_0c91653d,
+    the first dispatched run to reach a closeout at all.
+
+
+    ## What replaces it
+
+
+    The discipline every other agent in this repository already follows: `git worktree
+    add ../aj-<nnn> -b <type>/task-<nnn>-<slug>` before writing anything (ALLAGENTS.md,
+    "Why you get your own worktree"). Verified by running it, not by reading about
+    it: with `-w` omitted and cwd at the repository root, a session under `--permission-mode
+    auto` created a sibling worktree, wrote into it, committed into it with `git -C`,
+    and read the shared clone''s status -- all with no refusal, no permission prompt,
+    and notably **no `--add-dir`**. Writing outside cwd was the one thing that could
+    have made this cost a new flag; it does not.
+
+
+    ## Where the responsibility is stated, per the task''s constraint
+
+
+    Two places, deliberately:
+
+
+    1. **`PROMPT_STUB`** carries one imperative clause naming the requirement. This
+    duplicates a line of the guide, which the stub''s own docstring argues against
+    -- and the exception is earned, because containment is the only instruction that
+    must be obeyed *before* the agent reads anything at all, including before it reads
+    the guide. A pointer cannot carry an instruction that must precede following the
+    pointer.
+
+    2. **`docs/agent-workflow.md`** states it in full, at the top of the loop, as
+    a general property of dispatch rather than a fact about this repository: a dispatched
+    run starts in the project''s shared working tree and is not isolated for it.
+
+
+    And one backstop that is a mechanism rather than a sentence: `require_clean_tree`
+    (task-182) already refuses to spawn when the project root has uncommitted changes.
+    If a dispatched run does write the shared tree, the *next* dispatch refuses loudly
+    instead of entangling two runs'' work. It detects rather than prevents; it is
+    named here so nobody mistakes the new arrangement for having no mechanism at all.
+
+
+    ## Rejected, with what rejecting them costs
+
+
+    - **Keep `-w`; AgentJobs commits the task record itself at reap time.** Loses
+    nothing about containment and would actually work for the record. Rejected on
+    two counts: it makes the tool author commits in the user''s repository on its
+    own initiative, which task-182''s analysis already argued against, and it does
+    nothing for the merge gate -- the run still cannot rebase or merge, so task-021''s
+    autonomous-posture merge stays unimplementable.
+
+    - **Keep `-w`; let task records ride the feature branch.** The cheapest change
+    of all. Rejected because it contradicts the central rule of ENGINEERING.md and
+    reintroduces exactly the failure that rule was written to stop: a handoff committed
+    to a branch is invisible to the human it is addressed to, so the merge gate silently
+    stops gating. The task''s constraints forbid this explicitly.
+
+    - **Keep `-w` and set cwd to a worktree AgentJobs pre-creates.** This is the worktree
+    pool, rejected in task-075 and named out of scope here. It would also not help:
+    the guard is about where git operations point, not about cwd, so a session in
+    an AgentJobs-made worktree started with `-w` would be refused identically.
+
+    - **Drop `-w` only for `autonomous`, keeping it where no merge happens.** Superficially
+    minimal. Rejected because the record-commit half of the problem applies to *every*
+    writing posture -- `auto` and `supervised` runs write task records too, and cannot
+    commit them either. It would leave the defect in place for the default posture
+    and make the postures differ in a way nothing about them explains.
+
+    - **Wrap git to evade the guard.** Rejected before probing and confirmed unavailable
+    by probing: the guard catches `cd` as well as `-C`.
+
+
+    ## What is genuinely lost, stated so it is not rediscovered as a bug
+
+
+    An accident is no longer automatically confined. Under `-w`, a confused run wrote
+    to a git-locked worktree nobody else had checked out; now it writes wherever it
+    is told to, and "take a worktree first" is an instruction rather than a fact.
+    The design doc''s own words already limited what `-w` was worth here -- "a worktree
+    is not a sandbox" -- and the containment argument that made `acceptEdits` defensible
+    as a default has since been superseded anyway: `auto` is the default as of task-020,
+    and its gate is a classifier evaluating every action, not the worktree.
+
+
+    Also lost: `claude rm`''s refusal to delete a worktree holding uncommitted changes,
+    which the ledger''s `reap` treated as a signal that a run produced work nobody
+    had looked at. See the reap note in the design doc; `reap` keeps a real job (it
+    removes the session row and frees its pid, verified exit 0 on a worktree-less
+    session) and loses that signal.'
+  data:
+    task: task-186
+    supersedes: task-075 working-tree isolation section
