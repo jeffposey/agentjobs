@@ -1,0 +1,114 @@
+schema: 2
+id: task-185-dispatch-needs-an-entry-the-ui-cannot-write
+title: Dispatch refuses a task with no human log entry, and the page gives you no
+  way to write one
+created: '2026-08-19T21:16:19.646150Z'
+updated: '2026-08-19T21:16:19.646889Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- dispatch
+- ux
+- guards
+- frontend
+effort: small
+assignment:
+  eligible: []
+parent: task-181-dispatch-phase-one-hardening
+spec:
+  summary: "A dispatch must be caused by a human-written log entry. A ready, unclaimed\
+    \ task whose log is empty therefore cannot be dispatched \u2014 and its page offers\
+    \ only the Dispatch button, with no control to add the note the refusal asks for.\
+    \ The message names a remedy the interface does not provide."
+  intent: The human-clocked rule is right and is not in question. What is wrong is
+    that the only surface where someone meets it hands them a refusal, tells them
+    what to write, and gives them nowhere to write it.
+  description: "Hit by Jeff on 2026-08-19, clicking Dispatch on `task-107-task-review-findability-and-outcomes`:\n\
+    \n> task-107-task-review-findability-and-outcomes has no log entries, so there\
+    \ is nothing a\n> dispatch could be caused by. Every dispatch traces to a human\
+    \ act (design section 2).\n> Write the note or handoff that authorises this run\
+    \ first.\n\nThe refusal is correct. `resolve_causing_entry` finds nothing to attribute\
+    \ the run to, so\n`NoCausingEntryError` fires before anything is spent.\n\n##\
+    \ The dead end\n\nRead the task page for a `ready` / `agent` / `available` task.\
+    \ Its only controls are the\nproject nav, \"Back to Tasks\", **Dispatch**, and\
+    \ \"Report issue\". There is no note field, no\ncomment box, no handoff control\
+    \ \u2014 the review panel's controls appear when the ball is with\na human, and\
+    \ on a ready task it is not. So the remedy the message names is reachable only\n\
+    from the CLI or a raw API call.\n\n## Which tasks are affected\n\nAny whose log\
+    \ has no human-written entry:\n\n- Tasks created before the manager wrote a `transition`\
+    \ entry on create \u2014 task-107 dates\n  from 2026-08-13 and has **zero** entries.\n\
+    - Tasks created by an agent: entry 1 is `Created ready by claude`, which is an\
+    \ agent's\n  entry, so the newest entry is not a human's and the same rule refuses.\
+    \ Every task filed\n  by an agent is therefore un-dispatchable from the browser\
+    \ until a human writes something\n  on it.\n\nThat second case is the bigger one,\
+    \ and it is not a legacy-data problem \u2014 it happens to\nevery new task an\
+    \ agent files.\n\n## What to decide\n\n1. **Give the page a way to write the authorising\
+    \ entry.** A note control on the task page\n   is the smallest thing that closes\
+    \ the loop, and it is useful well beyond dispatch.\n   Whatever it is, the refusal\
+    \ copy should point at it rather than at a concept.\n2. **Or reconsider what counts\
+    \ as the causing act for a browser dispatch.** A human\n   pressing the button\
+    \ in a browser *is* a human act; requiring a pre-existing human log\n   entry\
+    \ is a proxy for it. If the click can be recorded as the causing entry \u2014\
+    \ written as\n   the human who clicked, with a real audit trail \u2014 the rule\
+    \ is satisfied by construction\n   rather than by ceremony. **This one touches\
+    \ design section 2 and must be a recorded\n   decision before it is built**, not\
+    \ an implementation choice made in passing.\n\nOption 1 is safe and small. Option\
+    \ 2 is better UX and a change to the safety story. They\nare not exclusive; option\
+    \ 1 can ship first regardless."
+  constraints: '- The human-clocked rule itself is not up for relitigation as a piece
+    of implementation. If option 2 is taken, it is a design decision recorded in docs/agent-dispatch-design.md
+    section 2, with the failure it admits stated plainly.
+
+    - Whatever ships, an agent must still never be able to cause a dispatch. That
+    is the property the rule exists for, and it survives both options.
+
+    - The refusal copy must name a control that exists, in the surface the reader
+    is looking at.'
+  out_of_scope: Backfilling log entries onto old tasks. The task-search defect Jeff
+    hit alongside this, which is already task-107.
+  context:
+  - path: src/agentjobs/dispatch/guards.py
+    why: 'resolve_causing_entry and assert_human_clocked: where the refusal comes
+      from.'
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: The refusal copy, and the panel that would host or point at a note control.
+  - path: frontend/src/components/TaskDetail.tsx
+    why: 'Shows which controls a ready task offers today: dispatch and nothing else.'
+  - path: docs/agent-dispatch-design.md
+    why: Section 2, the human-clocked rule, which option 2 would amend.
+acceptance:
+- id: sc-1
+  text: A human looking at a ready task with an empty log can get it dispatched without
+    leaving the browser
+  status: pending
+- id: sc-2
+  text: An agent still cannot cause a dispatch, pinned by a test that survives whichever
+    option was chosen
+  status: pending
+- id: sc-3
+  text: If the causing act is redefined, the design document says so and a decision
+    entry records the failure it admits
+  status: pending
+- id: sc-4
+  text: The refusal copy names a control that exists on the page the reader is on
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T21:16:19.646191Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 708192a3-b4c5-4d06-e157-8293a4b5d4e8
+      kind: create
+      fingerprint: 800e3260c26633908fa8543ebcc3601d
