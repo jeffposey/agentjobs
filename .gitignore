@@ -30,6 +30,10 @@ env/
 # Testing
 .pytest_cache/
 .coverage
+# pytest-xdist writes one .coverage.<host>.<pid>.<rand> fragment per worker, so a
+# single gate run leaves hundreds of untracked files behind -- enough to make
+# `git status` unreadable and to trip dispatch's clean-tree check.
+.coverage.*
 htmlcov/
 .tox/
 frontend/playwright-report/
