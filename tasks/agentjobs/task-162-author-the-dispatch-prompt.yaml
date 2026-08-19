@@ -1,0 +1,110 @@
+schema: 2
+id: task-162-author-the-dispatch-prompt
+title: Say something to the agent you are dispatching
+created: '2026-08-19T16:43:00.485932Z'
+updated: '2026-08-19T16:43:00.486826Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: developer_experience
+tags:
+- dispatch
+- api
+- frontend
+- ux
+effort: small to medium
+assignment:
+  eligible: []
+parent: task-160-dispatch-phase-two
+spec:
+  summary: Dispatch generates a fixed prompt stub pointing the agent at the task record,
+    with no way for the human pressing the button to add anything. Let them edit or
+    extend it at dispatch time, on both the per-task and the project-level button.
+  description: "Jeff, 2026-08-19: *\"you should be able to edit the prompt yourself,\
+    \ when dispatching,\ngiving extra info, both when dispatching on specific task\
+    \ and for entire project.\"*\n\n`DispatchRunner.build_prompt` renders a fixed\
+    \ stub from a template: which agent, which\ntask, which project, where the API\
+    \ is. Deliberately *\"a pointer to the record, never a\ncopy of it\"* -- that\
+    \ principle is right and stays. What is missing is the thing a person\nsays out\
+    \ loud when handing work over: *start with the failing test*, *the sandbox is\n\
+    already running on 8901*, *do not touch the migration*.\n\nToday that has nowhere\
+    \ to go. The alternative a human is left with is editing the task\nrecord to say\
+    \ something that is not really part of the spec, which pollutes a durable\nrecord\
+    \ with a transient instruction.\n\n## Design questions\n\n1. **Extend or replace?**\
+    \ Appending an operator note preserves the stub's invariants\n   (the agent is\
+    \ always told where its record is). Letting the whole prompt be rewritten\n  \
+    \ is more flexible and can produce a run with no pointer to anything. Recommend\n\
+    \   append-with-preview and record the rejection.\n2. **Where does the text live\
+    \ afterwards?** The `dispatch` log entry already records\n   `argv` verbatim,\
+    \ so the note is durable by accident. Decide whether it is also\n   recorded as\
+    \ its own field -- an operator note is a fact about why a run was started\n  \
+    \ and reads badly buried in an argv array.\n3. **Does it survive a re-dispatch?**\
+    \ If a run fails and is dispatched again, silently\n   reusing the last note is\
+    \ surprising and silently dropping it is annoying. Pick one and\n   say why.\n\
+    4. **Project-level dispatch has no task at prompt-composition time.** The note\
+    \ has to be\n   attached before the task is resolved, which the implementation\
+    \ must accommodate.\n\n## A caution worth stating\n\nPrompt text is the one part\
+    \ of a dispatch a human writes freehand, and it goes straight\ninto an argv that\
+    \ starts a process. `compose_argv` placeholder substitution and quoting\nare the\
+    \ surface to check. This is a place where a test that only asserts the note appears\n\
+    in the prompt would miss the interesting failures."
+  constraints: '- The generated stub''s pointer to the task record must survive whatever
+    the human types. An agent that does not know where its own record is cannot log,
+    claim, or hand off.
+
+    - Never log the composed prompt anywhere the runner''s `env` secrets could reach
+    it; argv is already recorded verbatim and env deliberately is not.
+
+    - Works identically for per-task and project-level dispatch, or the feature is
+    half-built.'
+  out_of_scope: Prompt templating per runner (that is the profile layer in the design's
+    section 4, accepted-but-unbuilt). Storing reusable prompt snippets.
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: build_prompt, build_argv and compose_argv -- where the prompt is assembled
+      and substituted into argv.
+  - path: src/agentjobs/api/routes/dispatch.py
+    why: The dispatch request model this has to carry a note on.
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: The button that needs somewhere to type.
+acceptance:
+- id: sc-1
+  text: A human can add text at dispatch time from the web UI, and a dispatched agent
+    demonstrably receives it -- shown by a real run, not a mocked argv
+  status: pending
+- id: sc-2
+  text: The task-record pointer is present in the final prompt no matter what was
+    typed, with a test that tries to remove it
+  status: pending
+- id: sc-3
+  text: Quoting and placeholder substitution are tested against text containing braces,
+    quotes and newlines
+  status: pending
+- id: sc-4
+  text: Where the note is recorded, and whether it survives a re-dispatch, are decided
+    in decision entries with the rejected alternative
+  status: pending
+- id: sc-5
+  text: Available on the project-level dispatch path as well as the per-task one
+  status: pending
+deliverables: []
+dependencies:
+- task: task-161-project-level-dispatch
+  type: needs
+  note: sc-5 needs that button to exist before it can carry a note
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T16:43:00.485991Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c3f2e5b9-7086-4d34-9ba5-2e9f4a138162
+      kind: create
+      fingerprint: bc8c5aaa886bc2f42dcd26335c55e6d2

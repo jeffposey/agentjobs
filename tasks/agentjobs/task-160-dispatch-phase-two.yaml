@@ -1,0 +1,105 @@
+schema: 2
+id: task-160-dispatch-phase-two
+title: 'Dispatch phase two: who can cause one, what it can be told, and what it does
+  with an epic'
+created: '2026-08-19T16:42:02.307827Z'
+updated: '2026-08-19T16:42:02.308651Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: architecture
+tags:
+- dispatch
+- architecture
+- agent-dx
+effort: four children, two of them small
+assignment:
+  eligible: []
+spec:
+  summary: 'Umbrella for four asks Jeff raised on 2026-08-19 while task-060 was being
+    closed out. Phase one built dispatch as a human pressing a button on one task
+    with a fixed prompt. Each of these widens exactly one of those assumptions: who
+    causes a dispatch, what it is dispatched against, what it is told, and what it
+    does when the task has children.'
+  description: "Raised by Jeff on 2026-08-19, in four messages during the session\
+    \ that closed out\ntask-060. His words, in order:\n\n1. *\"'make a human decision\
+    \ actually start an agent' makes me think the implementation\n   is too specific...\
+    \ it should support, if you configure it to, one agent finishing an\n   implementation,\
+    \ setting a task to needs code review, and kicking off another agent to\n   do\
+    \ the code review... not that I want to do that just yet\"*\n2. *\"since we'll\
+    \ have very clear 'next task' or 'next priority thing for an agent to do'\n  \
+    \ in agentjobs, there should probably be a dispatch button for the entire project,\n\
+    \   which tells an agent to pick next task\"*\n3. *\"you should be able to edit\
+    \ the prompt yourself, when dispatching, giving extra info,\n   both when dispatching\
+    \ on specific task and for entire project\"*\n4. *\"if that agent picks up a multi\
+    \ step task, or epic task, it should use the spawn\n   session skill to run agents\
+    \ for the sub-tasks, and keep running as the primary\n   agent\"* -- and separately,\
+    \ that this should be a standing rule in AGENTS.md for\n   interactive sessions\
+    \ too.\n\n## What these have in common\n\nPhase one (task-060 and its children)\
+    \ built one shape: **a human presses Dispatch on one\ntask, and a fixed prompt\
+    \ stub is generated pointing the agent at that task's record.**\nEvery assumption\
+    \ in that sentence is now under question, one per child:\n\n| Child | Assumption\
+    \ it widens |\n|---|---|\n| Agent-caused dispatch | *a human presses* |\n| Project-level\
+    \ dispatch | *on one task* |\n| Author the prompt | *a fixed prompt stub* |\n\
+    | Epic orchestration | *one agent, one task* |\n\nThey are filed separately because\
+    \ they are independently reviewable and only loosely\nordered. The prompt-authoring\
+    \ child touches both dispatch entry points, so it is easiest\nafter the project-level\
+    \ one exists.\n\n## What is already decided and must not be relitigated\n\n- **`docs/agent-dispatch-design.md`\
+    \ section 2a (decision D5, 2026-08-11) already answers\n  the general form of\
+    \ ask 1.** The governing rule is *no autonomous cycle runs unbounded*,\n  not\
+    \ *a human must cause every dispatch*. A chain may proceed without a human per\
+    \ turn\n  if a human authorized it in advance with a bound the loop can evaluate\
+    \ itself. The\n  human-clocked rule in section 2 is explicitly superseded.\n-\
+    \ What is **not** covered there is a *role* dispatch: agent A finishes, the task\
+    \ moves to\n  a different kind of work, and a *different* runner picks it up.\
+    \ Section 2a's chains\n  iterate on one task against its own acceptance checks.\
+    \ That gap is the first child's\n  subject.\n- Chain authorization mechanism is\
+    \ designed in task-078 and specced as task-150. Do not\n  design a second authorization\
+    \ mechanism beside it."
+  constraints: '- Nothing here may weaken the boundedness property in `docs/agent-dispatch-design.md`
+    section 2a. Widening who may cause a dispatch is exactly where an unbounded cycle
+    would come from.
+
+    - The budget caps, cooldown, kill-switch sentinel and run lock built in task-068/071/072
+    apply to every new dispatch path without exception. A new entry point that skips
+    the guard layer is not acceptable.
+
+    - Amend the design document in the same branch as the child that changes its meaning.
+    A design that describes phase one while phase two ships is worse than no design.'
+  out_of_scope: Building the loop driver or the executable acceptance checks -- those
+    are task-147 through task-152 under task-078, and this umbrella depends on them
+    rather than duplicating them.
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: The phase-one design. Section 2a is the governing rule; section 4 covers
+      profiles.
+  - path: src/agentjobs/dispatch/guards.py
+    why: The guard layer every dispatch path must pass through.
+  - path: src/agentjobs/dispatch/runner.py
+    why: build_prompt and build_argv -- where a dispatch's prompt is assembled today.
+acceptance:
+- id: sc-1
+  text: All four children are closed or explicitly cancelled with a reason
+  status: pending
+- id: sc-2
+  text: The design document describes the dispatch system as it then is, with no section
+    still describing only the one-human-one-task shape
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T16:42:02.307867Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: a1f0c3d7-5e64-4a12-9b83-0c7d2e916002
+      kind: create
+      fingerprint: 20e31f8137e1371b0a85cd908209ca9d

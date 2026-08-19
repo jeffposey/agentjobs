@@ -1,0 +1,109 @@
+schema: 2
+id: task-161-project-level-dispatch
+title: 'Dispatch a project, not a task: one button that starts an agent on whatever
+  is next'
+created: '2026-08-19T16:42:31.089654Z'
+updated: '2026-08-19T16:42:31.090643Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- dispatch
+- api
+- frontend
+- ux
+effort: medium
+assignment:
+  eligible: []
+parent: task-160-dispatch-phase-two
+spec:
+  summary: Dispatch today requires choosing a task first. AgentJobs already computes
+    what an agent should work on next, so a project-level Dispatch button should start
+    an agent against that answer without a human picking anything.
+  description: "Jeff, 2026-08-19: *\"since we'll have very clear 'next task' or 'next\
+    \ priority thing for\nan agent to do' in agentjobs, there should probably be a\
+    \ dispatch button for the entire\nproject, which tells an agent to pick next task.\"\
+    *\n\n`get_next_task()` already exists and already applies the rules that matter\
+    \ -- only\n`ready` tasks, no unmet `needs` dependencies, no parent holding open\
+    \ children. The\ndispatch machinery already exists. What is missing is the join:\
+    \ a `POST` that resolves\nnext and dispatches it, and a button on the project\
+    \ page that calls it.\n\n## The design questions this has to answer, not skip\n\
+    \n1. **Which task is \"next\", and does dispatch get to disagree with the list?**\
+    \ The\n   project page and this button must not resolve next by different rules,\
+    \ or the button\n   starts an agent on something other than what the page says\
+    \ is next -- which reads as a\n   bug even when both answers are defensible. Reuse\
+    \ `get_next_task()`; do not write a\n   second ranking.\n2. **What happens when\
+    \ there is no next task.** A refusal that says *\"nothing is ready\"*\n   is a\
+    \ different thing from a failure, and the button should say which rather than\n\
+    \   erroring.\n3. **What happens when the resolved task is already running.**\
+    \ The per-task run lock\n   already refuses a second run. Whether the project\
+    \ button then falls through to the\n   next candidate or reports the collision\
+    \ is a real choice -- falling through means one\n   click can start work on a\
+    \ task nobody looked at, and that deserves to be a decision\n   with its reasoning\
+    \ recorded, not an implementation detail.\n4. **The human-clocked / caused-by\
+    \ rule.** Every dispatch is attributed to the log entry\n   that caused it. A\
+    \ project-level dispatch has no such entry on any task until one is\n   chosen.\
+    \ Decide what `caused_by` means here and record it -- this is the same guard\n\
+    \   task-153 found advice against, so read that task before choosing.\n\n## Relationship\
+    \ to the sibling task\n\nThe prompt-authoring child covers letting a human add\
+    \ instructions at dispatch time, for\nboth this button and the per-task one. Build\
+    \ this one first with the existing generated\nprompt; do not grow a prompt box\
+    \ here."
+  constraints: '- Resolve "next" through the existing `get_next_task()`. A second
+    ranking that can disagree with the task list is the failure mode to avoid.
+
+    - The full guard layer applies: budget caps, cooldown, sentinel, clean-tree, run
+    lock. No new path around `assert_dispatch_permitted`.
+
+    - Record the decisions named above as `decision` entries with the rejected alternative,
+    not as comments in the diff.'
+  out_of_scope: Editing or augmenting the prompt (its own sibling task). Changing
+    how `get_next_task()` ranks. Dispatching several tasks at once -- one click starts
+    one agent.
+  context:
+  - path: src/agentjobs/manager.py
+    why: get_next_task -- the existing definition of what is next, which this must
+      reuse.
+  - path: src/agentjobs/api/routes/dispatch.py
+    why: The per-task dispatch endpoint this parallels.
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: The existing dispatch UI and its run list.
+  - path: tasks/agentjobs/task-153-dispatcher-actor-advice.yaml
+    why: The caused-by / human-clocked guard and the advice it currently gives, which
+      question 4 turns on.
+acceptance:
+- id: sc-1
+  text: A project-level dispatch starts an agent on the same task the project page
+    names as next, verified against a running server rather than only in a unit test
+  status: pending
+- id: sc-2
+  text: With nothing ready, the button reports that nothing is ready and starts no
+    process
+  status: pending
+- id: sc-3
+  text: Every guard that refuses a per-task dispatch also refuses a project-level
+    one, with a test per guard
+  status: pending
+- id: sc-4
+  text: The caused-by attribution for a project-level dispatch is decided, recorded
+    as a decision entry, and enforced
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T16:42:31.089711Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: b2e1d4a8-6f75-4c23-8a94-1d8e3f027161
+      kind: create
+      fingerprint: 3ef8560b77c871c9fd2f4fec6606e25f

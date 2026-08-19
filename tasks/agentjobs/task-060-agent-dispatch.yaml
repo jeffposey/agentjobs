@@ -2,10 +2,9 @@ schema: 2
 id: task-060-agent-dispatch
 title: 'Close the loop: make a human decision actually start an agent (design pass)'
 created: '2026-08-10T07:40:19Z'
-updated: '2026-08-18T22:23:48.851892Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-19T16:45:28.875818Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: architecture
@@ -862,3 +861,135 @@ log:
       id: 0600cc11-2b33-4c55-8d77-e9f0a1b2c060
       kind: log_append
       fingerprint: 1878f36c834c76160b0fcdc0f2d76538
+- id: 15
+  ts: '2026-08-19T16:45:20.183183Z'
+  actor: claude
+  type: progress
+  body: '# Closing entry, 2026-08-19. What this epic delivered, and what it did not.
+
+
+    Continues entry 14. Jeff asked to wrap the epic up. Reading this alone should
+    tell you where dispatch stands.
+
+
+    ## The loop is closed
+
+
+    The gap this task was filed against on 2026-08-10 -- *"the human is the message
+    bus"* -- is gone. Pressing Dispatch on a task in the React app starts a real agent
+    session, in its own worktree, which claims the task, works it, logs as itself,
+    and reports back into the record. AgentJobs notices when it ends. The human is
+    no longer the transport.
+
+
+    Fifteen children, all closed:
+
+
+    | | |
+
+    |---|---|
+
+    | **068-072** | Config and the four gates, the log entries, the runner in two
+    modes, the API and guard layer, the run ledger with cancel and startup reconciliation
+    |
+
+    | **073-075** | The button and live run status in the React app, opt-in auto-dispatch
+    on human approval, task-specific worktrees |
+
+    | **076, 077, 080** | The three decisions: permission posture, session versus
+    batch, model and difficulty profiles |
+
+    | **078** | Agent-loops design pass, six implementation tasks derived (**147-152**,
+    still open under it) |
+
+    | **157-159** | The three defects a real dispatched run exposed: nothing noticed
+    a session ending, durations grew forever, and a dispatched agent could not log
+    as itself |
+
+
+    `task-158` closed today: a concluded run is measured to its finish time, so a
+    42-second run stops reporting 11.6 hours. Merged `--no-ff`, approved by Jeff after
+    looking at it running.
+
+
+    ## All seven acceptance criteria were met, and the design is the deliverable
+
+
+    `docs/agent-dispatch-design.md` holds the decisions with their rejected alternatives,
+    amended twice since (D5 on 2026-08-11, section 4 on 2026-08-18). Two things in
+    it are worth knowing before you touch dispatch:
+
+
+    - **Section 2''s human-clocked rule is superseded by section 2a.** What governs
+    is *boundedness*, not human causation. People still quote section 2 because it
+    comes first.
+
+    - **Section 4''s profile layer is accepted but unbuilt**, with three written reopen
+    triggers. Difficulty (`routine`/`standard`/`hard`) is specced as task-156, unbuilt.
+
+
+    ## What is still open, and where it went
+
+
+    Closing this parent does **not** mean dispatch is finished. Open work descended
+    from here now lives in two places:
+
+
+    - **task-078''s children, task-147 through task-152** -- executable acceptance
+    checks, the check evaluator, chain authorization, the loop driver, the GUI. This
+    is what makes a bounded autonomous chain real. 147 is the only one unblocked.
+
+    - **task-160, `Dispatch phase two`** -- filed today from four things Jeff raised
+    while this was being closed out. Phase one assumed *a human presses Dispatch on
+    one task with a fixed prompt*, and each child widens one word of that: **161**
+    project-level dispatch of whatever is next, **162** authoring the prompt at dispatch
+    time, **163** one agent''s handoff starting a differently-roled agent (design
+    only; Jeff explicitly does not want it built yet), **164** an agent working an
+    epic running its children as separate supervised sessions.
+
+    - **task-153, 154, 155, 156, 015** remain filed and unparented from entry 14.
+    **task-154 is the one that bites**: `api_base` is never plumbed, so every dispatched
+    agent is told AgentJobs is at `localhost:8765` whatever port is actually serving.
+    The review sandbox papers over it with a correction appended to the prompt.
+
+
+    ## Two things found today that are not in any task
+
+
+    1. **The review sandbox could not dispatch at all.** Its runners had no `actor:`,
+    and the guard task-159 landed hours earlier refuses a runner whose actor the project
+    does not configure. Fixed in `C:/ai/scratch/agentjobs-dispatch-review-sandbox.py`
+    (not in the repo). Worth knowing that a guard landing in the product silently
+    broke the harness used to review the product.
+
+    2. **A fresh worktree still cannot run `scripts/check.py`** -- no `.venv`, no
+    `node_modules`. Today''s child was verified by pointing `PYTHONPATH` at the worktree
+    while using the main clone''s Poetry environment, and by junctioning `node_modules`
+    in to regenerate the API client. That workaround is undocumented and is now the
+    load-bearing unknown in task-164, which proposes that every child task get its
+    own session.'
+  data:
+    operation:
+      id: 1b8e7d2c-c530-4289-ad71-7e4f9a683060
+      kind: log_append
+      fingerprint: 9fb09bd38bb6f84dcb00e4d967503358
+- id: 16
+  ts: '2026-08-19T16:45:28.875632Z'
+  actor: claude
+  type: transition
+  body: 'Closed at Jeff''s request, 2026-08-19. All seven acceptance criteria met,
+    the design document delivered and twice amended, and all fifteen children closed
+    -- the last of them, task-158, merged and approved today.
+
+
+    Continuing work is not lost: task-147 through task-152 remain open under task-078
+    (bounded autonomous loops), and task-160 `Dispatch phase two` was filed today
+    for the four asks Jeff raised while this was being wrapped up. See log entry 15
+    for the full inventory of what is still open and where it went.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 2c9f8e3d-d641-4390-be82-8f5a0b794060
+      kind: close
+      fingerprint: a5675f26e25b44010bb6d90e643207cb

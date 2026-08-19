@@ -1,0 +1,132 @@
+schema: 2
+id: task-163-role-dispatch
+title: One agent's handoff starting a different agent, when a human configured it
+  to
+created: '2026-08-19T16:43:37.673031Z'
+updated: '2026-08-19T16:43:37.673838Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: architecture
+tags:
+- dispatch
+- architecture
+- design
+- safety
+effort: a research and design pass, then implementation tasks derived from it
+assignment:
+  eligible: []
+parent: task-160-dispatch-phase-two
+spec:
+  summary: 'Research and design: an implementation agent finishes, hands the task
+    to review, and a reviewing agent starts on it, with no human in between. The design
+    already permits bounded autonomous chains, but only iterating on one task against
+    its own checks -- a handoff to a different role and a different runner is not
+    covered. Answer whether it should be, and how it stays bounded.'
+  description: "Jeff, 2026-08-19, on reading task-060's title: *\"'make a human decision\
+    \ actually start\nan agent' makes me think the implementation is too specific...\
+    \ it should support, if you\nconfigure it to, one agent finishing an implementation,\
+    \ setting a task to needs code\nreview, and kicks off another agent to do the\
+    \ code review... not that I want to do that\njust yet.\"*\n\nHe is right that\
+    \ the framing was too narrow, and half right that the implementation is.\n\n##\
+    \ What already exists -- read this before designing anything\n\n`docs/agent-dispatch-design.md`\
+    \ section 2 states the human-clocked rule: *a dispatch may\nonly be caused by\
+    \ a log entry whose actor is a human*. **Section 2a supersedes it**\n(decision\
+    \ D5, 2026-08-11). The property that actually governs is **boundedness**, not\n\
+    human causation: a chain may proceed without a human per turn if a human authorized\
+    \ it in\nadvance, with a terminating condition the loop can evaluate itself, a\
+    \ maximum iteration\ncount, and a wall-clock or budget ceiling. Mechanism designed\
+    \ in task-078, specced as\ntask-147 through task-152, unbuilt.\n\nSo *agent causes\
+    \ agent* is already permitted in principle. **Do not relitigate D5.**\n\n## The\
+    \ actual gap\n\nSection 2a's chain is *one task, iterating against its own acceptance\
+    \ checks until they\npass*. Jeff's example is a different shape:\n\n- the work\
+    \ changes **role** -- implementation, then review\n- the runner changes -- possibly\
+    \ a different model, posture, or permission set\n- the terminating condition is\
+    \ not \"the checks pass\"; the reviewer's job is to *judge*,\n  and its output\
+    \ is an opinion, not an exit code\n\nThat last point is the hard one and the reason\
+    \ this is a design task rather than a small\nfeature. Section 2a is explicit that\
+    \ authorized chains *\"pay off exactly where a cheap\nobjective oracle exists\
+    \ (tests, lint, typecheck) and not where 'good' requires taste\"*. A\ncode review\
+    \ is taste. So either role dispatch is bounded by something other than an\noracle,\
+    \ or it is a different mechanism with a different bound, or a reviewing agent's\n\
+    output must terminate at a human every time -- which is still useful and much\
+    \ cheaper to\nbuild.\n\n## What this task must produce\n\nA design section amending\
+    \ `docs/agent-dispatch-design.md`, plus derived implementation\ntasks, answering\
+    \ at least:\n\n1. Is a role dispatch a chain under section 2a, or its own mechanism?\
+    \ What bounds it?\n2. What configures it -- a per-project mapping from `ball_reason`\
+    \ to a runner? Something\n   on the task? Off by default, obviously, but off by\
+    \ default *where*?\n3. How does the reviewing agent terminate? If a review can\
+    \ only ever end at a human, say\n   so plainly: it still removes the step where\
+    \ a human has to go start the reviewer.\n4. What stops A dispatching B dispatching\
+    \ A? The per-task cooldown and lifetime cap are\n   the existing backstop; check\
+    \ they actually bind across a role change, since the\n   per-day cap counts authorized\
+    \ chains rather than dispatches (task-078 decision L7).\n5. What does a dispatched\
+    \ reviewer see? It reviews a branch, in a worktree it did not\n   create. task-075\
+    \ decided worktree handling for implementation runs and that decision\n   may\
+    \ not transfer.\n\n**Jeff explicitly said he does not want this built yet.** Produce\
+    \ the design and the\nderived tasks, hand back for a decision, and do not start\
+    \ implementation."
+  constraints: '- Decision D5 in `docs/agent-dispatch-design.md` section 2a is binding.
+    Design within it or state precisely why role dispatch needs an exception, with
+    the failure it would allow.
+
+    - Do not design a second authorization mechanism beside task-150''s chain authorization;
+    extend it or explain why it does not fit.
+
+    - Off by default, per project, and visible in the UI when on. A human must be
+    able to see that agents can start agents here.
+
+    - Design only. Hand back with `ball: human` / `decision` before any implementation
+    task is claimed.'
+  out_of_scope: Building it. Deciding what a good code review is, or writing a review
+    runner's prompt.
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: Sections 2 and 2a -- the superseded human-clocked rule and the bounded-autonomy
+      rule that replaced it. Section 7 for the caps.
+  - path: tasks/agentjobs/task-078-agent-loops.yaml
+    why: The chain design this either extends or deliberately does not; decision L7
+      on how the caps count.
+  - path: tasks/agentjobs/task-150-chain-authorization.yaml
+    why: The authorization mechanism already specced. Do not build a rival.
+  - path: src/agentjobs/dispatch/guards.py
+    why: The caused-by attribution and the actor-kind check a role dispatch has to
+      get past.
+acceptance:
+- id: sc-1
+  text: The design says whether role dispatch is a section-2a chain or its own mechanism,
+    and names what bounds it
+  status: pending
+- id: sc-2
+  text: The taste problem is answered explicitly -- what terminates a reviewing agent
+    that has no objective oracle
+  status: pending
+- id: sc-3
+  text: A dispatches B dispatches A is shown to be bounded by a specific existing
+    or new limit, not asserted to be unlikely
+  status: pending
+- id: sc-4
+  text: Configuration surface named, off by default, and visible when enabled
+  status: pending
+- id: sc-5
+  text: Implementation tasks derived, each independently reviewable, and the ball
+    handed to a human for the go/no-go
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T16:43:37.673069Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: d4a3f6ca-8197-4e45-ac16-3f0a5b249163
+      kind: create
+      fingerprint: e419dcc33771bced77ce1dc3518098f7

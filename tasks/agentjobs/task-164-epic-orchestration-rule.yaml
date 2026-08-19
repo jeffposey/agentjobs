@@ -1,0 +1,131 @@
+schema: 2
+id: task-164-epic-orchestration-rule
+title: An agent working an epic runs its children as separate sessions and supervises
+  them
+created: '2026-08-19T16:44:19.421276Z'
+updated: '2026-08-19T16:44:19.422056Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- dispatch
+- process
+- agent-dx
+- documentation
+effort: medium -- a documented rule, then the runner behaviour that follows it
+assignment:
+  eligible: []
+parent: task-160-dispatch-phase-two
+spec:
+  summary: Make it the documented rule that whoever works a parent task -- an interactive
+    session or a dispatched agent -- spawns a separate session per child rather than
+    doing every child itself, and stays running as the supervisor. Today a single
+    session works children serially in its own context, which is why a long epic ends
+    as one enormous transcript nobody can resume from.
+  description: "Jeff, 2026-08-19, twice in one session:\n\n> *\"if that agent picks\
+    \ up a multi step task, or epic task, it should use the spawn\n> session skill\
+    \ to run agents for the sub-tasks, and keep running as the primary agent\"*\n\n\
+    > *\"it should be part of the core AGENTS.md for agentjobs that in sessions like\
+    \ these,\n> when I say, work on epic 060, you always create new remote controllable\
+    \ sessions for\n> individual task work... anything that is starting with a new\
+    \ worktree, should be in a\n> new session and the parent session watches for it\
+    \ to be done\"*\n\n## Why this is worth writing down\n\n`ALLAGENTS.md` already\
+    \ has a **Parent Task Loop**: read the parent, work one eligible\nchild at a time,\
+    \ hand off at each review gate. What it does not say is *who* works the\nchild.\
+    \ Today the answer is \"the same session\", and that has three costs:\n\n1. **One\
+    \ context holds every child.** By the fourth child the session that started the\n\
+    \   epic is carrying four children's worth of exploration, and the transcript\
+    \ that a\n   handoff should have replaced is exactly what a new session cannot\
+    \ read. Task-060's own\n   log entry 14 says it outright: *\"the previous conversation\
+    \ was very long and is not\n   available.\"*\n2. **The worktree rule already implies\
+    \ a session boundary.** `ALLAGENTS.md` requires a\n   fresh worktree per child,\
+    \ because agents share one clone. A worktree is an isolated\n   checkout; a session\
+    \ working two of them in sequence is the thing that boundary exists\n   to prevent.\n\
+    3. **AgentJobs has the machinery and does not use it on itself.** Dispatch starts\n\
+    \   remote-controllable sessions, task-157 landed the polling that notices one\
+    \ ending, and\n   the run ledger reaps them. The tool's own epics are worked the\
+    \ old way.\n\n## What this task decides and then does\n\n1. **Where the rule lives.**\
+    \ `ALLAGENTS.md`'s Parent Task Loop is the natural home;\n   `AGENTS.md` is an\
+    \ index. Jeff said \"core AGENTS.md\" meaning the repo's agent\n   instructions,\
+    \ not necessarily that file.\n2. **When it binds and when it does not.** A blanket\
+    \ \"every child gets a session\" is\n   wrong at the small end: the child that\
+    \ closed out task-060 was a one-file fix\n   verified in twenty minutes, and a\
+    \ spawned session for it would have cost more than it\n   saved. Propose a threshold\
+    \ and justify it -- a candidate is *anything that takes a\n   worktree*, which\
+    \ is Jeff's own formulation and has the virtue of being checkable.\n3. **The setup\
+    \ cost that will otherwise sink it.** A fresh worktree cannot run\n   `scripts/check.py`:\
+    \ it has no `.venv` and no `node_modules`. The parent session\n   currently works\
+    \ around this by hand. If every child is a session, that workaround has\n   to\
+    \ become a documented bootstrap or the rule produces children that cannot verify\n\
+    \   their own work. **This is the load-bearing part of the task, not a detail.**\n\
+    4. **What supervising means concretely.** How the parent notices a child finished,\
+    \ what\n   it does when a child parks on a question, what it does when a child\
+    \ dies, and what it\n   does with its own turn while waiting.\n5. **Whether a\
+    \ dispatched agent does this too**, which is Jeff's first formulation --\n   a\
+    \ dispatched agent that claims a parent task should orchestrate rather than work\
+    \ it.\n   That is the part with code in it.\n\n## An honest caveat to design against\n\
+    \nEvery layer here is an agent that can be wrong. A supervisor whose only job\
+    \ is to start\nchildren and read their handoffs is cheap; a supervisor that re-derives\
+    \ each child's\ncontext to check it is not, and is close to just doing the work.\
+    \ Say which one is\nintended."
+  constraints: '- The worktree and shared-clone rules in `ALLAGENTS.md` are binding
+    and this must strengthen them, not carve an exception.
+
+    - Task records still go to `main` from the main clone, whichever session writes
+    them. A child session in a worktree writing task files to its branch is the failure
+    `ENGINEERING.md` documents at length.
+
+    - No child session may merge without the approval its own task''s review gate
+    requires. Parallelism does not dilute the merge gate.
+
+    - The bootstrap for a fresh worktree must be written down and shown to work, not
+    assumed.'
+  out_of_scope: Changing what a worktree is for or how tasks are claimed. Building
+    a scheduler that runs several children at once -- start with one child at a time,
+    which is what the Parent Task Loop already requires.
+  context:
+  - path: ALLAGENTS.md
+    why: The Parent Task Loop and the worktree rule this amends.
+  - path: ENGINEERING.md
+    why: The merge gate and the task-files-on-main rule a child session must not break.
+  - path: src/agentjobs/dispatch/poller.py
+    why: How a finished session is noticed today -- the mechanism a supervisor would
+      use.
+  - path: tasks/agentjobs/task-075-agent-worktree-isolation.yaml
+    why: The worktree decision for dispatched runs, and the reaping that follows it.
+acceptance:
+- id: sc-1
+  text: The rule is written into the repo's agent instructions, stating when it binds
+    and when it does not, with the reasoning for the threshold
+  status: pending
+- id: sc-2
+  text: A fresh worktree can run scripts/check.py by following a documented bootstrap,
+    demonstrated once end to end
+  status: pending
+- id: sc-3
+  text: 'Supervision is specified for all four cases: child finished, child parked,
+    child died, parent idle'
+  status: pending
+- id: sc-4
+  text: Whether a dispatched agent orchestrates a parent task is decided, and if yes,
+    implemented and shown working on a real parent with at least two children
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T16:44:19.421315Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: e5b4a7db-9208-4f56-bd27-4a1b6c35a164
+      kind: create
+      fingerprint: f183a41c3f73755f3f22d165f329e13a
