@@ -1,0 +1,165 @@
+schema: 2
+id: task-186
+title: A dispatched run can never commit its task record or merge its own work, because
+  -w isolates it from the shared clone
+created: '2026-08-19T23:27:49.910749Z'
+updated: '2026-08-19T23:27:49.911593Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+category: infrastructure
+tags:
+- dispatch
+- posture
+- worktree
+- defect
+effort: a few hours
+assignment:
+  eligible: []
+parent: task-181-dispatch-phase-one-hardening
+spec:
+  summary: "posture_flags() passes `-w <task_id>` on every writing posture, so a dispatched\
+    \ Claude Code session is worktree-isolated. That isolation carries a hard, non-configurable\
+    \ guard: the session refuses any `git -C <shared clone>` command. ENGINEERING.md\
+    \ requires every task-record write to be committed to `main` in the shared clone,\
+    \ and the merge gate requires merging there too \u2014 so under `-w` a dispatched\
+    \ run structurally cannot finish the workflow AgentJobs itself defines."
+  intent: "Observed 2026-08-19 on run_0c91653d, the first dispatched run to get all\
+    \ the way to a closeout. It did the work, wrote the record through the API, and\
+    \ then reported: \"This session is worktree-isolated and a guard refuses git -C\
+    \ <shared clone>.\" Jeff had to commit the record by hand afterwards. This is\
+    \ not an edge case \u2014 it is the terminal step of every dispatched run."
+  description: "## The guard, reproduced\n\nProbed directly on 2026-08-19 in a throwaway\
+    \ repo (`C:/ai/scratch/wtprobe`), on Claude Code 2.1.235:\n\n```\nclaude -p --permission-mode\
+    \ auto -w probe1 \"run: git -C C:/ai/scratch/wtprobe status --porcelain\"\n```\n\
+    \nreturns, without the command reaching git:\n\n> This session is isolated in\
+    \ the worktree C:\\ai\\scratch\\wtprobe\\.claude\\worktrees\\probe1,\n> but this\
+    \ command redirects git to the shared checkout via -C. Refusing to run it \u2014\
+    \ a\n> worktree-isolated session's git operations must target its own worktree.\
+    \ Run the\n> equivalent from ...\\worktrees\\probe1 without the redirect.\n\n\
+    Re-probed with `--add-dir <repo root>` added: **identical refusal**. The guard\
+    \ is about\ngit redirection, not filesystem access, and there is no flag that\
+    \ lifts it. `claude --help`\nexposes only `-w, --worktree [name]` and `--tmux`;\
+    \ nothing configures the isolation.\n\n## Why this breaks the whole workflow,\
+    \ not one step\n\nTwo separate requirements in this repository both need git against\
+    \ the shared clone:\n\n1. **ENGINEERING.md, \"Task files live on `main`, always\"\
+    ** \u2014 every claim, progress entry,\n   handoff and close is committed to `main`\
+    \ in the shared clone, explicitly with\n   `git -C <path-to-main-clone>`. A `-w`\
+    \ session cannot run that command at all.\n2. **The merge gate** \u2014 rebase\
+    \ onto `main` and merge `--no-ff`. Merging into `main`\n   means operating on\
+    \ the main checkout. A `-w` session cannot do that either, which\n   also makes\
+    \ task-021's \"autonomous posture merges by itself\" unimplementable as long\n\
+    \   as `-w` is passed.\n\nThe consequence today is that **every** dispatched run\
+    \ ends with an uncommitted task\nrecord sitting in the shared clone, waiting for\
+    \ a human to notice and commit it. The\ndashboard shows the right thing (the file\
+    \ is on disk) so nothing looks broken until\nsomeone reads `git status`.\n\n##\
+    \ What the design currently says, and what has to give\n\n`docs/agent-dispatch-design.md`\
+    \ \xA7\"Working-tree isolation\" (added 2026-08-18, task-075)\nis explicit that\
+    \ `-w` is deliberate: \"isolation ... is supplied by AgentJobs rather than\nleft\
+    \ to the agent to remember \u2014 `posture_flags()` adds `-w`, so a dispatched\
+    \ run cannot\nfail to take a worktree the way a human-driven agent can.\" That\
+    \ reasoning was sound when\nit was written; what it did not know is that the isolation\
+    \ is enforced by a guard that\nalso forbids the commits this project's own process\
+    \ requires.\n\nSo the trade is now explicit: **guaranteed containment that can\
+    \ never complete a task,\nversus agent-taken containment that can.** Pick one\
+    \ and write it down.\n\n### Direction, not prescription\n\nThe straightforward\
+    \ fix is to stop passing `-w` and let the dispatched agent take its own\nworktree\
+    \ the way every other agent in this repository is already required to\n(ALLAGENTS.md,\
+    \ \"Why you get your own worktree\": `git worktree add ../aj-<nnn> -b ...`).\n\
+    The session then starts in the shared clone, which is where `cwd` already points,\
+    \ keeps\nfull git access, and can both commit task records to `main` and run the\
+    \ merge gate.\n\nIf that is the choice, several things follow and must be handled\
+    \ rather than discovered:\n\n- **The prompt stub becomes load-bearing.** `PROMPT_STUB`\
+    \ in `runner.py` is deliberately\n  minimal and points at `docs/agent-workflow.md`.\
+    \ If containment is now the agent's job,\n  the guide it points at has to say\
+    \ so unmissably at the top, or the stub has to name it.\n- **Reaping changes shape.**\
+    \ `ledger.reap` relies on `claude rm` deleting the session's\n  worktree and refusing\
+    \ when it holds uncommitted changes. With no `-w`, there is no\n  session-owned\
+    \ worktree to delete \u2014 the agent's own `../aj-<nnn>` is outside the\n  runner's\
+    \ knowledge. Decide what reap means now and make it not silently degrade.\n- **`docs/agent-dispatch-design.md`\
+    \ \xA7\"Working-tree isolation\" must be amended in place**\n  with the evidence\
+    \ above, not deleted; its cwd conclusion is still correct.\n\nAlternatives worth\
+    \ a sentence each before choosing, so the rejected ones are on record:\nkeeping\
+    \ `-w` and having AgentJobs commit the record itself at reap time (makes the tool\n\
+    author commits in the user's repo on its own initiative, which task-182's analysis\n\
+    already argued against, and still leaves the merge gate impossible); keeping `-w`\
+    \ and\nletting task records ride the feature branch (contradicts ENGINEERING.md's\
+    \ central rule\nand reintroduces the invisible-handoff failure it was written\
+    \ to stop).\n\n## Test it the way it failed\n\nA unit test on composed argv is\
+    \ necessary but not sufficient \u2014 the failure was a runtime\nrefusal, not\
+    \ a wrong flag. Verify with a real dispatched run that reaches a closeout and\n\
+    commits its own task record to `main` in the shared clone."
+  constraints: '- Do not solve this by relaxing "task files live on main, always".
+    That rule exists because a handoff committed to a branch is invisible to the human
+    it is addressed to.
+
+    - Whatever replaces `-w`, two dispatched runs must not end up writing the same
+    working tree. If containment becomes the agent''s responsibility, say where that
+    responsibility is stated and make it impossible to miss.
+
+    - The choice and the rejected alternatives go in a `decision` log entry AND in
+    docs/agent-dispatch-design.md; the isolation section there currently asserts the
+    opposite.
+
+    - `read_only` must keep getting no worktree.
+
+    - Check `ledger.reap` and `dispatch reap` still do something coherent. A reap
+    that silently becomes a no-op is worse than one that changed on purpose.'
+  out_of_scope: Task-021's posture-carries-merge-policy work. Task-182's clean-tree
+    check. Task-154's api_base. Building a worktree pool (rejected in task-075).
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: posture_flags() adds `-w <task_id>` on auto, supervised and autonomous; PROMPT_STUB
+      is the other half of the fix.
+  - path: docs/agent-dispatch-design.md
+    why: The "Working-tree isolation" section argues for -w on grounds that no longer
+      hold; amend in place.
+  - path: src/agentjobs/dispatch/ledger.py
+    why: reap() delegates worktree removal to `claude rm`, which assumes the session
+      owns a worktree.
+  - path: ALLAGENTS.md
+    why: '"Why you get your own worktree" is the discipline a dispatched agent would
+      inherit instead.'
+acceptance:
+- id: ac-1
+  text: A dispatched run can commit its own task record to main in the shared clone,
+    verified by a real run whose closeout commit exists in main's history
+  status: pending
+- id: ac-2
+  text: A dispatched run can complete the merge gate (rebase onto main, merge --no-ff)
+    without a human running git for it
+  status: pending
+- id: ac-3
+  text: Tests assert the composed argv for every posture after the change, including
+    that read_only still gets no worktree
+  status: pending
+- id: ac-4
+  text: Two dispatched runs still cannot write the same working tree, and the mechanism
+    that ensures it is named in the design doc
+  status: pending
+- id: ac-5
+  text: docs/agent-dispatch-design.md's working-tree isolation section is amended
+    with the guard evidence and the new decision, and a decision log entry records
+    the rejected alternatives
+  status: pending
+- id: ac-6
+  text: ledger.reap still behaves coherently, with its new meaning stated and tested
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T23:27:49.910809Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3f5a1c92-6d84-4e07-9b13-8a2c7d0e5f41
+      kind: create
+      fingerprint: a5b4040ef2cf0b2fe2358beafc0ddbcd
