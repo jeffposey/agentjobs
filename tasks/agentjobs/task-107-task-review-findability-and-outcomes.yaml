@@ -2,13 +2,9 @@ schema: 2
 id: task-107-task-review-findability-and-outcomes
 title: Make task review searchable and outcome-accurate
 created: '2026-08-13T22:23:56.414109Z'
-updated: '2026-08-19T22:42:15.115759Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-19T22:47:37.528350Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: ux
@@ -19,7 +15,6 @@ tags:
 - outcomes
 effort: half a day
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'Fix the review problems exposed by the task-corpus audit: task-number
@@ -88,7 +83,9 @@ dependencies:
   type: related
   note: Jeff reported all three issues while reviewing the completed corpus audit.
 links: []
-branches: []
+branches:
+- name: feat/task-107-review-findability-and-outcomes
+  status: merged
 log:
 - id: 1
   ts: '2026-08-19T21:22:54.658610Z'
@@ -753,3 +750,70 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 19
+  ts: '2026-08-19T22:44:17.408608Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: stopped session 903af6cf
+  re: 13
+  data:
+    run_id: run_e452d6f8
+    outcome: cancelled
+    duration_seconds: 2035.529837
+    log_path: C:\Users\jpose\.agentjobs\runs\run_e452d6f8
+- id: 20
+  ts: '2026-08-19T22:44:17.450636Z'
+  actor: dispatcher
+  type: handoff
+  body: Run run_e452d6f8 ended `cancelled` and nobody was told what this task needs.
+    Read the dispatch_result entry, then either dispatch again or take it on yourself.
+  data:
+    ball: human
+    ball_reason: decision
+- id: 21
+  ts: '2026-08-19T22:47:37.482952Z'
+  actor: system
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: e2f4a806-71cb-4d39-b5e0-9c3a5d182f47
+      kind: update_content
+      fingerprint: 9e2a5c4717748b828aa61043500d1694
+- id: 22
+  ts: '2026-08-19T22:47:37.528093Z'
+  actor: claude
+  type: transition
+  body: 'Merged to main as 093a247 (merge commit), carrying 16c2ec4 and c6256d9.
+
+
+    Worked by dispatched run run_e452d6f8 under the `auto` posture added by task-020.
+    Runs 1 and 2 never got past a permission dialog: run_08ddfa02 blocked on the project''s
+    .mcp.json approval prompt (task-019), and run_a6deb292 parked asking to run `ls`
+    on the repository''s own docs directory, which is the `supervised` posture behaving
+    as built (task-020).
+
+
+    Reviewed and approved by Jeff through the web UI against a throwaway corpus on
+    port 8899 -- log entry 18. Verification: scripts/check.py exit 0, 1861 Python
+    tests, 128 Vitest, 14 Playwright (3 new).
+
+
+    Two follow-ups the run raised and Jeff has not ruled on: whether the dashboard''s
+    renamed `Completed` tile should instead break down per outcome, and the .gitignore
+    commit for pytest-xdist coverage fragments, which was kept separate so it could
+    be dropped and was merged with the rest.
+
+
+    Closed through the REST API rather than MCP, because this session''s MCP process
+    predates the task-020 merge and rejects `posture: auto` in this task''s own log.
+    That is task-024.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 1b7c93de-5a20-4f86-9e14-83d0b6f2a5c9
+      kind: close
+      fingerprint: a60f5207672285316a2354c3c4a4fff3

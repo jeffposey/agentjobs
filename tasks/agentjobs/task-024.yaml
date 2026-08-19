@@ -1,0 +1,135 @@
+schema: 2
+id: task-024
+title: A widened enum breaks every running client, because each one re-validates the
+  server's JSON against its own copy of the schema
+created: '2026-08-19T22:46:26.152753Z'
+updated: '2026-08-19T22:46:26.153428Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+category: architecture
+tags:
+- mcp
+- schema
+- reliability
+- defect
+effort: half a day
+assignment:
+  eligible: []
+spec:
+  summary: 'Adding one member to DispatchPosture made task-107 unreadable to every
+    process started before the change: the dashboard showed "task could not be loaded",
+    and the working agent''s mutations failed with retryable:false. The MCP server
+    is an HTTP client, so the data was fine and the server served it fine -- but client.py
+    re-parses the response with its own in-process Pydantic models, and an older copy
+    rejects a value it does not know.'
+  intent: 'Jeff, 2026-08-19, after watching it happen twice in one evening: "man,
+    wtf is up with stale mcp servers? how about we not do that?" It cost a live dashboard,
+    a dispatched agent''s ability to write its own record, and a merge that had to
+    be rushed to restore service.'
+  description: "## What actually happened, 2026-08-19\n\ntask-020 added `AUTO = \"\
+    auto\"` to `DispatchPosture`. A dispatch then wrote `posture: auto`\ninto task-107's\
+    \ log. Every process holding pre-merge code immediately broke on that file:\n\n\
+    - The dashboard on 8876 reported `task-107 ... could not be loaded: log.12.posture:\
+    \ Input\n  should be 'read_only', 'supervised' or 'autonomous'` and dropped the\
+    \ task from the board.\n- The dispatched agent's `task_handoff` failed with the\
+    \ same message and\n  `retryable: false`, so it could not record 25 minutes of\
+    \ finished work. It fell back to\n  the REST API by hand.\n- Reconnecting the\
+    \ MCP server did not fix it, and the agent said so in its handoff.\n\n## The mechanism,\
+    \ which is not what it looks like\n\nIt looks like a stale-server problem of the\
+    \ kind ENGINEERING.md already warns about. It is\nnot. **The MCP server does not\
+    \ read task YAML at all** -- it is an HTTP client\n(`src/agentjobs/client.py`,\
+    \ httpx) of the server on 8876, and `.mcp.json` points it there.\n\nThe server\
+    \ was restarted and served task-107 correctly the whole time; a plain `curl`\n\
+    returned HTTP 200. What failed is line 15 of `client.py`:\n\n    from .models_v2\
+    \ import Ball, BallReason, Lifecycle, LogEntryType, Outcome, Priority, Task\n\n\
+    The client **re-validates the server's already-validated JSON against its own\
+    \ in-process\ncopy of the schema.** So every MCP process is a second schema implementation\
+    \ that must be\nversion-matched to the server, and a value the server considers\
+    \ legal is rejected in the\nclient.\n\n## Why this is the wrong shape\n\n1. **The\
+    \ re-validation buys nothing.** The server is the authority on task validity;\
+    \ it\n   validated on write and again on read. A client that re-checks can only\
+    \ produce false\n   negatives -- never catch a real problem the server missed.\n\
+    2. **It converts a compatible change into a breaking one.** Adding an enum member\
+    \ is\n   backward-compatible by construction: old data stays valid. A strict reader\
+    \ inverts\n   that, so widening any enum is a fleet-wide breaking change requiring\
+    \ every session to\n   restart. That is a serious tax on a project whose own philosophy\
+    \ is that schema\n   changes should be cheap.\n3. **The failure is total rather\
+    \ than partial.** One unknown value in one log entry does\n   not degrade that\
+    \ entry -- it makes the whole task vanish from every surface. task-049\n   made\
+    \ load errors loud on purpose, and that was right, but \"loud\" should not mean\
+    \ \"the\n   record is gone\".\n\n## Directions, roughly in order of preference\n\
+    \n**Stop re-validating in the client.** For pass-through reads, hand back the\
+    \ server's JSON,\nor parse permissively. The typed model is a convenience for\
+    \ callers, not a safety\nboundary, and it is not the boundary that protects the\
+    \ data.\n\n**Make unknown enum members degrade, not explode.** A reader that meets\
+    \ a value it does not\nknow should keep it as an opaque string and carry on. Pydantic\
+    \ can do this with a fallback\nmember or a validator. Then an old client shows\
+    \ `posture: auto` as text it cannot interpret\nand everything else about the task\
+    \ still works -- which is the behaviour anyone would\nexpect from a log field\
+    \ it has no opinion about.\n\n**Consider whether the strictness belongs on the\
+    \ write path only.** Refusing to *write* an\nunknown posture is correct. Refusing\
+    \ to *read* one is what broke the board.\n\nIf a version skew must still be detectable,\
+    \ have the client compare a schema version the\nserver reports and warn, rather\
+    \ than failing every call.\n\n## Test this the way it actually failed\n\nNot with\
+    \ a unit test that adds an enum member. Load a task file containing a value the\n\
+    running code does not know, through the MCP client, and assert the task still\
+    \ reads and\nthat unrelated mutations still succeed."
+  constraints: '- Writing an unknown enum value must still be refused. This is about
+    reading and about clients, not about relaxing what may be stored.
+
+    - Do not undo task-049. Load failures stay loud; they just must not be total.
+
+    - The fix has to hold for a client process older than the server, which is the
+    case that broke. A change only helping matched versions fixes nothing.
+
+    - Cover the MCP client and any other consumer of client.py, not just one call
+    path.'
+  out_of_scope: Changing DispatchPosture or any other enum's members. Restart tooling
+    or process supervision -- the point is that a restart should not have been necessary.
+  context:
+  - path: src/agentjobs/client.py
+    why: Line 15 imports the models the client re-validates with; this is the defect's
+      location.
+  - path: src/agentjobs/models_v2.py
+    why: The enums whose widening triggers it; DispatchPosture is the one that did.
+  - path: src/agentjobs/mcp/routing.py
+    why: Builds on TaskClient, so every MCP tool inherits the behaviour.
+  - path: src/agentjobs/storage.py
+    why: The server-side load path, where strictness is appropriate and should stay.
+acceptance:
+- id: ac-1
+  text: a client process older than the server can read a task containing an enum
+    value it does not know
+  status: pending
+- id: ac-2
+  text: that client can still perform unrelated mutations on that task
+  status: pending
+- id: ac-3
+  text: writing an unknown enum value is still refused
+  status: pending
+- id: ac-4
+  text: an unreadable file is still reported loudly, per task-049
+  status: pending
+- id: ac-5
+  text: 'a test reproduces the original failure: a value absent from the reader''s
+    enum, exercised through the MCP client'
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T22:46:26.152794Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: d5b81f47-3c60-4e29-a094-71fb2e6c8035
+      kind: create
+      fingerprint: dd8c61bc011aee0c1f6d874e177e57c8
