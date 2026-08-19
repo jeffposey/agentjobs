@@ -2,18 +2,50 @@ schema: 2
 id: task-177-runner-groups
 title: 'Runner groups: a dispatch names a group, the dispatcher picks a member'
 created: '2026-08-19T19:11:40.932936Z'
-updated: '2026-08-19T20:18:05.316288Z'
+updated: '2026-08-19T20:47:56.844390Z'
 lifecycle: active
-ball: agent
-ball_reason: revise
-ball_prompt: "Fix the scaffolded runner argv: session runners must use the design's\
-  \ session invocation (--bg --remote-control) rather than -p, and every flag the\
-  \ example ships must be one you confirmed exists. Then actually dispatch a run from\
-  \ the scaffolded config in a throwaway home and show it reaching a live session\
-  \ with a Remote Control URL \u2014 the previous pass verified only that the example\
-  \ parses. Add a check that keeps an unexercised example from shipping again. D1-D4\
-  \ are accepted; do not relitigate them. Same branch and worktree; hand back to human/review\
-  \ with the run id and the transcript line as evidence. Do not merge or push."
+ball: human
+ball_reason: review
+ball_prompt: "Revision done; branch ready for a second look. Two new commits on feat/task-177-runner-groups\
+  \ (0b0922b scaffold + design, 7363de0 the guard), gate re-run and exits 0. Nothing\
+  \ merged, nothing pushed, worktree still at C:/projects/aj-177.\n\n**The evidence\
+  \ you asked for.** Four real dispatches from the scaffolded config, in a throwaway\
+  \ AGENTJOBS_HOME against a throwaway repo -- one per group, so every flag the example\
+  \ ships was executed rather than read:\n\n- `run_e4482d3f` -- group `standard`,\
+  \ runner `claude-standard`, session `4a58c075`\n- `run_f8b4c272` -- group `deep`,\
+  \ `--effort high`, session `221cb55e`\n- `run_ec9c5b17` -- group `quick`, `--model\
+  \ haiku`, session `660cb2e3`\n- `run_29f1a541` -- group `review`, batch, exit 0,\
+  \ $0.76 against its $5 ceiling\n\nThe transcript line, from `runs/run_e4482d3f/transcript.log`\
+  \ as AgentJobs captured it:\n\n```\n/remote-control is active \xB7 Continue here,\
+  \ on your phone, or at https://claude.ai/code/session_01ERHMmJiZp5Rj8ELTXFZEDp\n\
+  ```\n\nAnd it got all the way to where you would meet it: the poller read the run\
+  \ as parked and moved the sandbox task's ball to human/input with *\"Answer it at\
+  \ https://claude.ai/code/session_01ERHMmJiZp5Rj8ELTXFZEDp \u2014 that link works\
+  \ from a phone.\"* Recorded argv had exactly one `-w`, supplied by `posture_flags`.\
+  \ All three sessions and their worktrees removed afterwards; `~/.agentjobs` untouched\
+  \ throughout.\n\n**Two calls worth your attention before merging**, both in D6 rather\
+  \ than assumed:\n\n1. The `codex` runner's argv is **removed**, not corrected --\
+  \ codex is not installed here, so nothing about it could be checked, and the example\
+  \ is the one file where a plausible-but-unrun flag propagates. The disabled group\
+  \ member stays and now also demonstrates that a member may name a runner you have\
+  \ not written yet. A verified Claude batch runner (`claude-review`) takes over the\
+  \ batch demonstration so that mode is still shown.\n2. Design section 4's **batch**\
+  \ row was wrong too: `-p --output-format stream-json` is refused without `--verbose`.\
+  \ Corrected in the same commit, along with a note that `-w` comes from the posture\
+  \ and must never be written into a template.\n\n**The guard** is D5: `tests/test_dispatch_example_config.py`\
+  \ dispatches the unmodified example through gates, selection, argv composition,\
+  \ launch, poll and handoff, against a shim installed on PATH as `claude` that withholds\
+  \ the Remote Control URL unless it was actually launched with `--remote-control`.\
+  \ Verified by re-breaking the scaffold -- the shipped argv fails six tests, and\
+  \ dropping only `--remote-control` fails exactly the phone-link one.\n\n**Three\
+  \ pre-existing things running it turned up**, none touched here, all written up\
+  \ at the end of the progress entry: `require_clean_tree: true` is unusable when\
+  \ a project's task files live in the dispatched repo (the claim dirties the tree\
+  \ between the gate and the spawn); a batch run started from the one-shot CLI always\
+  \ ends `interrupted` because its supervisor is a daemon thread in a process that\
+  \ has already exited; and a `-p` stream-json run emits a `rate_limit_event` that\
+  \ is adjacent to D1 but does not overturn it. Say the word and I will file any of\
+  \ them."
 archived: false
 priority: high
 category: architecture
@@ -501,3 +533,280 @@ log:
       id: 9d4b7e21-8c15-4a63-b0f7-3e6d2c5a0186
       kind: handoff
       fingerprint: 1ce1be700c33aeff72507504d981216e
+- id: 10
+  ts: '2026-08-19T20:40:46.066286Z'
+  actor: claude
+  type: decision
+  body: 'D5: The guard against shipping an unexercised example is a test that **dispatches**
+    the unmodified example, against a shim installed on PATH under the name the example
+    uses. `tests/test_dispatch_example_config.py`, commit 7363de0.
+
+
+    The review''s question was not "is this argv wrong" but "why did nothing catch
+    it". It was not caught because every check stopped at *does the example load*:
+    it parsed, its groups resolved, and its flags all existed. The defect was that
+    the argv was for a different mode than the runner declared, and no static reading
+    of the file distinguishes those.
+
+
+    **What was built.** The test writes `EXAMPLE_CONFIG` through `write_example_config`,
+    makes the two edits a human makes -- the master switch and one project entry --
+    and then drives it through the real path a dispatch takes: `assert_dispatch_permitted`
+    -> `resolve_runner` -> `build_argv` -> `start` -> `poll_session` -> the handoff
+    a person reads. One test asserts the `runners:` and `runner_groups:` blocks are
+    byte-identical to what ships, so the fixture cannot quietly fix the thing under
+    test.
+
+
+    **The shim is deliberately unforgiving.** It prints a `backgrounded` id only when
+    launched with `--bg` and *not* `-p`, and it prints a Remote Control URL in its
+    transcript only when it was launched with `--remote-control`. So the final assertion
+    is on the symptom a person would meet -- the parked run''s `ball_prompt` carries
+    a link that works from a phone -- and not on a flag appearing in a list. **Verified
+    by re-breaking it**: restoring the shipped argv fails six of these tests; restoring
+    only the missing `--remote-control` fails exactly the phone-link one, with the
+    message "Answer it wherever the session is open" in the diff.
+
+
+    It is installed as `claude` on PATH rather than spawned as an absolute `sys.executable`,
+    which also exercises `resolve_executable`''s Windows `.CMD` lookup -- the path
+    `runner.py`''s own docstring records as never having been covered by the fake-runner
+    tests.
+
+
+    **Plus the half a shim structurally cannot answer.** `TestTheFlagsExistOnTheInstalledCli`
+    reads the example''s flags out of the config, groups them by the program they
+    are handed to, and checks each against that program''s own `--help` -- skipping
+    where the program is absent. CI never has an agent CLI; a machine editing this
+    example always does. That is the check for "a flag that does not exist", which
+    the shim cannot make because a fake accepts anything.
+
+
+    **Rejected: a static assertion over the argv** (session runners must contain `--bg`
+    and not `-p`). Cheap, and it would have caught this one instance. Rejected because
+    it is the same class of check that already passed -- it encodes today''s known
+    defect as a rule and catches nothing about the next mode-and-invocation mismatch,
+    and it would not have caught the missing `--remote-control` at all, since an argv
+    without it is well-formed.
+
+
+    **Rejected: run the real `claude` in the gate.** The most faithful thing possible,
+    and unusable: it costs money per gate run, needs an authenticated CLI, cannot
+    run in CI, and on a machine without the CLI it would skip -- leaving the example
+    unexercised in exactly the state this decision exists to prevent. The real CLI
+    is exercised by hand instead, once per change, with the evidence in the task record.
+
+
+    **Rejected: asserting the composed argv against a fixed expected list.** Brittle
+    against every future posture-flag change, and it tests `compose_argv`, which already
+    has its own tests, rather than testing the example.'
+  data:
+    acceptance: sc-5
+    commit: 7363de0
+- id: 11
+  ts: '2026-08-19T20:40:46.163918Z'
+  actor: claude
+  type: decision
+  body: 'D6: The example ships no runner for a CLI this machine cannot check. The
+    `codex` runner definition is gone; the disabled `codex` **member** stays, and
+    a verified Claude batch runner takes over the batch demonstration.
+
+
+    The review asked that every flag in the example be one confirmed to exist on the
+    CLI it names. `codex` is not installed here (nor are gemini, cursor-agent, copilot,
+    amp, opencode), so `argv: ["codex", "exec", "{prompt}"]` could not be checked
+    by any means available. It was plausible, and plausible is what put `-p` on a
+    session runner.
+
+
+    **What ships instead:**
+
+
+    - The group member `- runner: codex / enabled: false` stays, with its note rewritten
+    to say the runner gets written once codex is installed and its flags checked.
+    This costs nothing and gains something: it now demonstrates *two* first-class
+    states at once -- a member that is disabled, and a member that names a runner
+    which does not exist yet. Both were already supported and neither was shown.
+
+    - `claude-review` (`mode: batch`) replaces it as the batch example, because removing
+    codex would otherwise have left half the design -- batch mode -- named in the
+    file and never illustrated. Its flags were run: `claude -p --output-format stream-json
+    --verbose --max-budget-usd 1 --model haiku` exits 0.
+
+    - A comment where the codex runner used to be says where a second vendor goes
+    and why nothing is shipped for you.
+
+
+    **Flags checked by running them, claude 2.1.235, 2026-08-19:**
+
+
+    - `--effort <level>` exists (low, medium, high, xhigh, max) and composes with
+    `--bg --remote-control`.
+
+    - `--model haiku` resolves -- a `-p` run reports `modelUsage: claude-haiku-4-5-20251001`.
+    The help text names only `fable`, `opus` and `sonnet` as example aliases, so this
+    one was worth running rather than assuming.
+
+    - **`--output-format stream-json` is refused without `--verbose`**: *"When using
+    --print, --output-format=stream-json requires --verbose"*, and nothing starts.
+    So design section 4''s batch row was itself an invocation that does not run. Corrected
+    there in the same commit, along with a note that `-w` comes from `posture_flags`
+    and must not be written into a template.
+
+    - `-p` with `-w <name>` works, so the batch runner is compatible with the supervised
+    posture''s worktree flag.
+
+
+    **Rejected: ship `codex exec` with a comment saying it is unverified.** Keeps
+    the cross-vendor illustration. Rejected because the example is copied, not read
+    -- a caveat in a comment does not survive a copy-paste, and this is the one file
+    where being wrong propagates to every new setup.
+
+
+    **Rejected: install codex to verify it.** It would answer the question properly,
+    and it is a machine change made to satisfy a documentation constraint, well outside
+    this task. Adding a second vendor as working configuration is also explicitly
+    out of scope on this task''s spec.
+
+
+    **Rejected: drop the batch mode example entirely.** Simplest diff. Rejected because
+    a config example that names two modes and demonstrates one teaches the wrong half,
+    and `--max-budget-usd` -- the only spend ceiling dispatch has -- would then appear
+    nowhere a person setting up would see it.'
+  data:
+    acceptance: sc-5
+    commit: 0b0922b
+    cli_version: claude 2.1.235
+    verified_on: '2026-08-19'
+- id: 12
+  ts: '2026-08-19T20:47:48.370879Z'
+  actor: claude
+  type: progress
+  body: "Revision pass on the review. Two commits on `feat/task-177-runner-groups`\
+    \ (now seven), gate green, nothing merged or pushed.\n\n## The defect, corrected\n\
+    \n`src/agentjobs/dispatch/scaffold.py`, commit `0b0922b`. The three session runners\
+    \ are now `[\"claude\", \"--bg\", \"--remote-control\", ...]` with no `-p` and\
+    \ no `-w`. Every remaining flag was checked by running it against claude 2.1.235\
+    \ -- including two things that were wrong beyond the argv, both written up in\
+    \ D6: `--output-format stream-json` is *refused* without `--verbose`, so design\
+    \ section 4's batch row named an invocation that does not start, and the `codex`\
+    \ runner's argv could not be checked on this machine, so it is gone rather than\
+    \ shipped on faith. Section 4 amended in the same commit, plus a section 13 note.\n\
+    \n## The run that proves it -- four real dispatches from the scaffolded config\n\
+    \nThrowaway `AGENTJOBS_HOME`, throwaway git repo, `dispatch example --write`,\
+    \ master switch flipped by hand, `dispatch enable sandbox --group standard`. Nothing\
+    \ touched `~/.agentjobs`; the real registry and dispatch config are byte-for-byte\
+    \ as they were.\n\n| Run | Group | Runner | Result |\n|---|---|---|---|\n| `run_e4482d3f`\
+    \ | standard | claude-standard | session `4a58c075`, Remote Control live |\n|\
+    \ `run_f8b4c272` | deep | claude-deep (`--effort high`) | session `221cb55e`,\
+    \ Remote Control live |\n| `run_ec9c5b17` | quick | claude-quick (`--model haiku`)\
+    \ | session `660cb2e3`, Remote Control live |\n| `run_29f1a541` | review | claude-review\
+    \ (batch) | exit 0, `\"subtype\":\"success\"`, 25 turns, $0.76 against the $5\
+    \ ceiling |\n\n**The line the review asked for**, from `~/.agentjobs/runs/run_e4482d3f/transcript.log`\
+    \ as AgentJobs captured it:\n\n```\n/remote-control is active \xB7 Continue here,\
+    \ on your phone, or at https://claude.ai/code/session_01ERHMmJiZp5Rj8ELTXFZEDp\n\
+    ```\n\nThe other two sessions produced `session_01BjZ9yc8qMKmdezUrAukDSb` and\
+    \ `session_01QB4E3wuLf2bbhkopriS2Ch` the same way, so `--effort` and `--model`\
+    \ are confirmed to compose with `--bg --remote-control` rather than assumed to.\n\
+    \n**It went the whole way round, not just to launch.** `poll_live_sessions` read\
+    \ `run_e4482d3f` as `parked`, and the sandbox task's ball moved to `human`/`input`\
+    \ with:\n\n> Dispatched session `4a58c075` is parked on a permission prompt and\
+    \ will wait indefinitely. **Answer it at https://claude.ai/code/session_01ERHMmJiZp5Rj8ELTXFZEDp\
+    \ \u2014 that link works from a phone.**\n\nThat is the capability the shipped\
+    \ argv removed, observed arriving where a person would meet it.\n\nThe recorded\
+    \ argv, verbatim from the dispatch entry: `claude.CMD --bg --remote-control --permission-mode\
+    \ acceptEdits -w task-001-live-check --settings <json> <prompt>` -- one `-w`,\
+    \ supplied by `posture_flags`, none from the template. Selection recorded `group:\
+    \ standard`, `source: project`, candidates `claude-standard` then `codex`.\n\n\
+    **Cleaned up:** all three sessions `claude rm`'d with their worktrees, the batch\
+    \ run reconciled, the throwaway home and repo discarded. `claude agents --json\
+    \ --all` reports nothing under the sandbox path.\n\n## The guard against a repeat\n\
+    \n`tests/test_dispatch_example_config.py`, commit `7363de0` -- 14 tests that dispatch\
+    \ the unmodified example against a shim installed on PATH as `claude`. Full reasoning\
+    \ and rejected alternatives in D5. It was verified by re-breaking the scaffold:\
+    \ the shipped argv fails six of them, and dropping only `--remote-control` fails\
+    \ exactly the one that checks the phone link.\n\n## Three things found by running\
+    \ it that are NOT fixed here\n\nAll pre-existing, none introduced or touched by\
+    \ runner groups. Recorded so they are not rediscovered as new.\n\n1. **`require_clean_tree:\
+    \ true` cannot work when a project's task files live in the dispatched repo.**\
+    \ `assert_dispatch_permitted` passes, `dispatch_task` then claims the task --\
+    \ which writes the task YAML into that same tree -- and the spawn-time re-check\
+    \ refuses `dirty_tree`. Reproduced on the sandbox before switching it off. `working_tree_clean`\
+    \ runs a bare `git status --porcelain` with no exclusion for the tasks directory.\
+    \ This bites `agentjobs` itself, since its tasks are in its own repo.\n2. **`agentjobs\
+    \ dispatch run` on a batch runner always ends as `interrupted`, however well the\
+    \ run went.** The supervisor is a daemon thread inside the CLI process, and that\
+    \ process returns as soon as the child is spawned. `run_29f1a541`'s child completed\
+    \ with exit 0 and a success result; its record stayed `running` until reconciliation\
+    \ declared it interrupted. The ledger's module docstring says batch runs do not\
+    \ outlive their supervisor, which is the design -- but from the one-shot CLI that\
+    \ is guaranteed rather than exceptional, and there is nothing in the CLI output\
+    \ saying so.\n3. **A `-p --output-format stream-json` run emits a `rate_limit_event`\
+    \ as its first line** -- `rateLimitType: five_hour`, `status: allowed`, `resetsAt`,\
+    \ `overageStatus`, `isUsingOverage`. This does not disturb D1 and is not its follow-up\
+    \ trigger: it arrives *inside* a run already paid for, only in batch mode, and\
+    \ says allowed-or-not rather than how much is left. Noted so a later reader knows\
+    \ it was seen and weighed.\n\n## Gate\n\n`poetry run python scripts/check.py`\
+    \ from `C:/projects/aj-177`, one run, output captured on that run rather than\
+    \ by repeating it. **Exit 0.**\n\n```\nblack --check / ruff        All done!\n\
+    mypy                        Success: no issues found in 145 source files\npytest\
+    \                      1842 passed, 154 warnings in 218.52s (0:03:38)\nvitest\
+    \                      Test Files 20 passed (20) | Tests 124 passed (124)\nvite\
+    \ build                  built in 182ms\nplaywright                  11 passed\
+    \ (11.8s)   -- includes e2e/dispatch.spec.ts\n```\n\n1842 Python tests, up from\
+    \ 1828 on the previous pass: the 14 new ones are `tests/test_dispatch_example_config.py`.\
+    \ The full gate output is kept at `C:/ai/inbox/aj-177-gate-2026-08-19.log` (289\
+    \ lines, ANSI stripped)."
+  data:
+    branch: feat/task-177-runner-groups
+    commits:
+    - 0b0922b
+    - 7363de0
+    acceptance: sc-5
+- id: 13
+  ts: '2026-08-19T20:47:56.844240Z'
+  actor: claude
+  type: handoff
+  body: "Revision done; branch ready for a second look. Two new commits on feat/task-177-runner-groups\
+    \ (0b0922b scaffold + design, 7363de0 the guard), gate re-run and exits 0. Nothing\
+    \ merged, nothing pushed, worktree still at C:/projects/aj-177.\n\n**The evidence\
+    \ you asked for.** Four real dispatches from the scaffolded config, in a throwaway\
+    \ AGENTJOBS_HOME against a throwaway repo -- one per group, so every flag the\
+    \ example ships was executed rather than read:\n\n- `run_e4482d3f` -- group `standard`,\
+    \ runner `claude-standard`, session `4a58c075`\n- `run_f8b4c272` -- group `deep`,\
+    \ `--effort high`, session `221cb55e`\n- `run_ec9c5b17` -- group `quick`, `--model\
+    \ haiku`, session `660cb2e3`\n- `run_29f1a541` -- group `review`, batch, exit\
+    \ 0, $0.76 against its $5 ceiling\n\nThe transcript line, from `runs/run_e4482d3f/transcript.log`\
+    \ as AgentJobs captured it:\n\n```\n/remote-control is active \xB7 Continue here,\
+    \ on your phone, or at https://claude.ai/code/session_01ERHMmJiZp5Rj8ELTXFZEDp\n\
+    ```\n\nAnd it got all the way to where you would meet it: the poller read the\
+    \ run as parked and moved the sandbox task's ball to human/input with *\"Answer\
+    \ it at https://claude.ai/code/session_01ERHMmJiZp5Rj8ELTXFZEDp \u2014 that link\
+    \ works from a phone.\"* Recorded argv had exactly one `-w`, supplied by `posture_flags`.\
+    \ All three sessions and their worktrees removed afterwards; `~/.agentjobs` untouched\
+    \ throughout.\n\n**Two calls worth your attention before merging**, both in D6\
+    \ rather than assumed:\n\n1. The `codex` runner's argv is **removed**, not corrected\
+    \ -- codex is not installed here, so nothing about it could be checked, and the\
+    \ example is the one file where a plausible-but-unrun flag propagates. The disabled\
+    \ group member stays and now also demonstrates that a member may name a runner\
+    \ you have not written yet. A verified Claude batch runner (`claude-review`) takes\
+    \ over the batch demonstration so that mode is still shown.\n2. Design section\
+    \ 4's **batch** row was wrong too: `-p --output-format stream-json` is refused\
+    \ without `--verbose`. Corrected in the same commit, along with a note that `-w`\
+    \ comes from the posture and must never be written into a template.\n\n**The guard**\
+    \ is D5: `tests/test_dispatch_example_config.py` dispatches the unmodified example\
+    \ through gates, selection, argv composition, launch, poll and handoff, against\
+    \ a shim installed on PATH as `claude` that withholds the Remote Control URL unless\
+    \ it was actually launched with `--remote-control`. Verified by re-breaking the\
+    \ scaffold -- the shipped argv fails six tests, and dropping only `--remote-control`\
+    \ fails exactly the phone-link one.\n\n**Three pre-existing things running it\
+    \ turned up**, none touched here, all written up at the end of the progress entry:\
+    \ `require_clean_tree: true` is unusable when a project's task files live in the\
+    \ dispatched repo (the claim dirties the tree between the gate and the spawn);\
+    \ a batch run started from the one-shot CLI always ends `interrupted` because\
+    \ its supervisor is a daemon thread in a process that has already exited; and\
+    \ a `-p` stream-json run emits a `rate_limit_event` that is adjacent to D1 but\
+    \ does not overturn it. Say the word and I will file any of them."
+  data:
+    ball: human
+    ball_reason: review
