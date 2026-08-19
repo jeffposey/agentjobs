@@ -2,11 +2,53 @@ schema: 2
 id: task-177-runner-groups
 title: 'Runner groups: a dispatch names a group, the dispatcher picks a member'
 created: '2026-08-19T19:11:40.932936Z'
-updated: '2026-08-19T19:23:11.297390Z'
+updated: '2026-08-19T20:09:12.562418Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Review `feat/task-177-runner-groups` in the worktree at C:/projects/aj-177\
+  \ (branched from main at 4f40173, five commits, nothing pushed). All seven acceptance\
+  \ criteria met; `poetry run python scripts/check.py` exits 0.\n\n**What to look\
+  \ at, in the order I would**\n\n1. **`docs/agent-dispatch-design.md` section 4**\
+  \ \u2014 the design judgement is the deliverable here. It now says a *group* is\
+  \ the candidate list and a *profile* is the mapping, gives them one precedence ladder\
+  \ with the profile rungs reserved rather than occupied, and records what the CLIs\
+  \ actually expose.\n2. **`src/agentjobs/dispatch/config.py`** \u2014 `resolve_runner`\
+  \ (the ladder) and `select_runner` (the choice and its account). Selection lives\
+  \ inside `assert_dispatch_permitted`, after all four gates.\n3. **`src/agentjobs/dispatch/scaffold.py`**\
+  \ \u2014 the starting config a human is shown. This is the one thing that puts a\
+  \ dispatch config on disk; check you agree with the shape it recommends and with\
+  \ the runners it names.\n\n**Three things I decided that you may want to overrule**\n\
+  \n- **D2 \u2014 an exhausted group refuses rather than falling back to the project's\
+  \ plain runner.** Every other hole in the ladder falls back and says so; this one\
+  \ does not, because substituting a runner from outside the group spends money on\
+  \ a model nobody asked for. If you would rather it fell back loudly, that is a small\
+  \ change and I will make it.\n- **D3 \u2014 `default_group:` is an explicit key,\
+  \ not a magic group named `default`.** The task's sketch had the magic name. Consequence,\
+  \ stated in the design: adding `default_group` overrides a project's plain `runner`,\
+  \ because it sits above it on the ladder.\n- **D4 \u2014 I fixed an unrelated pre-existing\
+  \ gate failure.** The suite could not be collected at all on a clean checkout of\
+  \ main in this worktree (pywin32 claims the `scripts` package name; full mechanism\
+  \ in D4). Two lines of test-only change in its own commit, `d98e00a`, with existing\
+  \ precedent in the same directory. If you would rather that landed separately, it\
+  \ cherry-picks cleanly and the rest of the branch does not depend on it.\n\n**Verified\
+  \ beyond the suite** on this machine through the real CLI against a throwaway AGENTJOBS_HOME:\
+  \ `dispatch example --write` wrote once and refused the second time; `dispatch config`\
+  \ listed the groups with `[off] codex  # Second option; ...`; `dispatch config --project\
+  \ agentjobs` resolved to `claude-standard from group 'standard' (project)`; and\
+  \ with `claude-standard` disabled and the genuinely-uninstalled `codex` enabled\
+  \ it refused with both skip reasons named. Both skip paths were exercised against\
+  \ real machine state, not fixtures.\n\n**Deliberately left out, so you are not surprised\
+  \ by their absence**\n\n- The difficulty \u2192 profile table. Out of scope by the\
+  \ spec. **It is a natural follow-up and I have not filed a task for it** \u2014\
+  \ say the word.\n- A `strict` mode for groups, so section 4's inherited open question\
+  \ (what a strict refusal does for an unattended caller) is still open and still\
+  \ flagged. Nothing here forced an answer.\n- Any frontend UI. The API now returns\
+  \ `available_groups` and `default_group` and accepts a group on enable and on dispatch,\
+  \ and the generated client is regenerated and committed, but no React was written\
+  \ \u2014 browser authoring of groups is out of scope and collides with gate 3.\n\
+  \n**On approval**: rebase onto main, merge --no-ff, mark the branch merged, close,\
+  \ and remove the worktree. I have not merged, not pushed, and not deleted anything."
 archived: false
 priority: high
 category: architecture
@@ -148,32 +190,55 @@ acceptance:
   text: dispatch.yaml supports named runner groups holding an ordered list of runners,
     with per-member enable/disable, and an existing flat-runner config still loads
     and dispatches unchanged
-  status: pending
+  verify: tests/test_dispatch_config.py::TestGroupParsing and ::TestFlatConfigIsUntouched;
+    a flat config records no `selection` key at all (test_dispatch_runner.py::TestSelectionIsRecorded::test_a_flat_resolution_writes_no_selection_key_at_all)
+  status: met
 - id: sc-2
   text: A dispatch can name a group; precedence between a group named on the dispatch,
     on the project, and machine-wide is implemented and documented
-  status: pending
+  verify: 'POST /tasks/{id}/dispatch {"group": ...} and `agentjobs dispatch run --group`;
+    tests/test_dispatch_config.py::TestGroupPrecedence and tests/test_dispatch_api.py::TestDispatchAgainstAGroup;
+    ladder documented in docs/agent-dispatch-design.md section 4 (decision D3)'
+  status: met
 - id: sc-3
   text: The dispatcher selects a member deterministically and the dispatch log entry
     records the group, the candidates, the winner, and why each other candidate was
     skipped
-  status: pending
+  verify: DispatchData.selection in models_v2; tests/test_dispatch_runner.py::TestSelectionIsRecorded
+    and tests/test_dispatch_api.py::test_the_dispatch_entry_records_the_candidates;
+    determinism in test_dispatch_config.py::test_selection_is_deterministic (decision
+    D2)
+  status: met
 - id: sc-4
   text: Whether usage-limit headroom is observable from the installed CLIs is answered
     by running them, and the answer is recorded as a decision with what it implies
     for selection
-  status: pending
+  verify: 'Decision D1 (log entry 3): answered no, by running claude 2.1.235 -- no
+    usage verb, auth status --json is identity only, agents --json has no accounting,
+    /usage is not executed in -p mode. The ~/.claude.json cache that holds it was
+    8d21h stale here. Selection built on order, enabled, defined, resolvable'
+  status: met
 - id: sc-5
   text: A recommended starting set of groups is available to someone setting dispatch
     up, by a route that never writes config nobody asked for
-  status: pending
+  verify: '`agentjobs dispatch example` prints; `--write` writes only on an explicit
+    flag and refuses if anything exists. src/agentjobs/dispatch/scaffold.py; tests/test_dispatch_cli.py::TestTheExampleConfig,
+    including one that loads the printed example through the real parser. Exercised
+    on this machine against a throwaway AGENTJOBS_HOME'
+  status: met
 - id: sc-6
   text: docs/agent-dispatch-design.md section 4 describes groups and profiles as one
     mechanism, with no text still describing a flat runner list as the whole story
-  status: pending
+  verify: 'Commit bce4550: section 4 rewritten (group = candidate list, profile =
+    mapping, one ladder, one audit vocabulary), plus section 3''s config example and
+    nouns table, section 6 gates 2 and 3, and a section 13 entry'
+  status: met
 - id: sc-7
   text: poetry run python scripts/check.py passes
-  status: pending
+  verify: 'Exit 0: 1828 Python tests, 124 Vitest, production build, 11 Playwright
+    tests. Required fixing a pre-existing collection failure unrelated to this work
+    -- see decision D4 and commit d98e00a'
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -255,3 +320,165 @@ log:
     acceptance: sc-4
     cli_version: claude 2.1.235
     verified_on: '2026-08-19'
+- id: 4
+  ts: '2026-08-19T20:07:06.609844Z'
+  actor: claude
+  type: decision
+  body: "D2: An exhausted group refuses the dispatch. It never falls back to a runner\
+    \ outside the group.\n\nThe precedence ladder ends at `projects.<id>.runner`,\
+    \ and design section 4's rule is fallback-and-say-so. That rule applies to a *resolution\
+    \ hole* \u2014 no group applies at all, so the plain runner is reached normally.\
+    \ It deliberately does **not** apply when a group applies and every member of\
+    \ it is disabled, undefined, or has no executable on PATH.\n\n**Why:** a group\
+    \ is the operator's statement about which runners are interchangeable *for this\
+    \ kind of work*. Substituting one from outside it runs a model the requester did\
+    \ not ask for, at a cost they did not choose \u2014 which is exactly reopen trigger\
+    \ 2 of section 4, the trigger this task fired. Falling back would make the group\
+    \ layer capable of causing the failure it was built to prevent.\n\n**Rejected:\
+    \ fall back to the project's plain runner and log it loudly.** Consistent with\
+    \ the rest of the ladder and genuinely tempting, because a refused dispatch is\
+    \ visible and an expensive one is not. Rejected because the two failures are not\
+    \ symmetric: a refusal costs a message and a hand edit, and a wrong-cost run costs\
+    \ money and cannot be undone. The refusal names every candidate and why it was\
+    \ passed over, so it is actionable rather than merely correct.\n\n**Verified on\
+    \ this machine, not only in tests:** with `standard` holding a disabled `claude-standard`\
+    \ and an enabled `codex` that is not installed, `agentjobs dispatch config --project\
+    \ agentjobs` prints `refused (no_eligible_runner) - Runner group 'standard' has\
+    \ no member that can run: claude-standard (disabled); codex (executable_not_found:\
+    \ 'codex' is not on PATH.)`."
+  data:
+    acceptance: sc-3
+- id: 5
+  ts: '2026-08-19T20:07:06.678882Z'
+  actor: claude
+  type: decision
+  body: "D3: The machine-wide default group is an explicit `default_group:` key, not\
+    \ a group named `default`.\n\nThe task's illustrative YAML had a group literally\
+    \ called `default`, described as \"what a dispatch gets when it names nothing\"\
+    . Built instead as a separate top-level key naming any group.\n\n**Why:** a reserved\
+    \ name is invisible magic. With it, renaming a group changes the machine's behaviour\
+    \ and nothing in the file says so; two people can disagree about whether `default`\
+    \ is special; and there is no way to have a group called `default` that is merely\
+    \ one option among several. An explicit key does the same job, reads as configuration,\
+    \ and can be commented out to put every project back on its own explicit `runner:`\
+    \ or `group:`.\n\n**Rejected: the magic name.** Shorter by one line, and the line\
+    \ it saves is the one that explains what is happening.\n\n**Consequence stated\
+    \ in the design so it is not rediscovered as a bug:** `default_group` sits above\
+    \ `projects.<id>.runner` on the ladder, so adding it takes effect for every project\
+    \ that has not named a group of its own \u2014 including projects that name a\
+    \ plain runner. That is what a machine default means; a project that wants its\
+    \ runner regardless should name its own group."
+  data:
+    acceptance: sc-2
+- id: 6
+  ts: '2026-08-19T20:07:06.754797Z'
+  actor: claude
+  type: decision
+  body: "D4: Fixed an unrelated pre-existing gate failure on this branch rather than\
+    \ routing around it, because sc-7 could not otherwise be met.\n\n`poetry run python\
+    \ scripts/check.py` could not collect the test suite **at all** on a clean checkout\
+    \ of main in this worktree: `ModuleNotFoundError: No module named 'scripts.bench'`,\
+    \ deterministically, before my first edit. Confirmed by stashing the branch and\
+    \ running the full suite on the untouched tree.\n\n**Mechanism**, which is worth\
+    \ recording because it will recur: `scripts/build_release.py` opens with `from\
+    \ scripts.build_frontend import ...` under a try/except. `tests/test_frontend_packaging.py`\
+    \ execs that file by path with the repository root off `sys.path`. On Windows\
+    \ the `import scripts` half succeeds anyway \u2014 against **pywin32's** `site-packages/win32/scripts`,\
+    \ which pywin32's `.pth` puts on the path \u2014 so the fallback branch works,\
+    \ nobody notices, and `sys.modules['scripts']` is left pointing at pywin32 for\
+    \ the rest of the session. `tests/test_performance_budgets.py` is collected after\
+    \ it, inserts the repo root, and does `from scripts.bench import build_corpus`,\
+    \ which now resolves into a directory with no `bench` in it. Collecting the two\
+    \ files in that order reproduces it in isolation; reversing the order does not.\n\
+    \n**Fix:** `test_performance_budgets.py` now loads `scripts/bench.py` by file\
+    \ location, which is already how `test_frontend_packaging.py` and `test_worktree_bootstrap.py`\
+    \ read repository scripts. One file, tests only, in its own commit (`d98e00a`).\n\
+    \n**Rejected: `sys.modules.pop('scripts', None)` before the import.** Shorter,\
+    \ and it makes one test responsible for cleaning up after another \u2014 the next\
+    \ test to import a repository script by package name breaks it again.\n\n**Rejected:\
+    \ leaving it and reporting sc-7 as blocked.** The gate is the acceptance criterion;\
+    \ a branch that cannot run it is not reviewable. The fix is two lines of test-only\
+    \ change with existing precedent in the same directory.\n\n**Worth a follow-up\
+    \ task, not filed:** `scripts/build_release.py`'s try/except is the actual root\
+    \ cause and it is still there \u2014 it will silently take the pywin32 branch\
+    \ again for anything else that imports it by path. Nothing depends on that today."
+  data:
+    acceptance: sc-7
+    commit: d98e00a
+- id: 7
+  ts: '2026-08-19T20:08:15.544523Z'
+  actor: claude
+  type: progress
+  body: "Runner groups built end to end on `feat/task-177-runner-groups`, branched\
+    \ from main at 4f40173. Five commits, gate green.\n\n**What ships**\n\n- `runner_groups:`\
+    \ in `~/.agentjobs/dispatch.yaml` \u2014 a named, ordered list of members. A member\
+    \ is a bare runner name, or a mapping with `enabled: false` and a free-text `note`\
+    \ saying why. Members may name a runner that does not exist yet; that is deferred\
+    \ to selection, exactly like a project naming an unknown runner, so \"write the\
+    \ second option now, enable it once you have set it up\" is a legal state rather\
+    \ than a file that will not load.\n- `default_group:` \u2014 the machine-wide\
+    \ group (D3).\n- `projects.<id>.group` \u2014 a project's own group, beside the\
+    \ existing `runner`.\n- **Selection**: first member that can run, wins. Skipped\
+    \ for `enabled: false`, for naming a runner absent from `runners:`, or for `argv[0]`\
+    \ not resolving on PATH. Nothing is probed and nothing is timed (D1). Deterministic\
+    \ by construction.\n- **Precedence**, narrowest first: dispatch group \u2192 *(unbuilt:\
+    \ dispatch profile)* \u2192 project group \u2192 *(unbuilt: machine profile)*\
+    \ \u2192 `default_group` \u2192 `projects.<id>.runner`. Section 4's ladder with\
+    \ the profile rungs reserved rather than occupied.\n- **Audit**: the `dispatch`\
+    \ log entry gains `selection` \u2014 group, which rung named it, and every member\
+    \ in declared order with its verdict. Members after the winner are eligible with\
+    \ no reason, because \"considered and not reached\" is a different fact from \"\
+    considered and rejected\".\n- **Naming a group on a dispatch**: `POST /tasks/{id}/dispatch\
+    \ {\"group\": ...}` and `agentjobs dispatch run --group`. The response now reports\
+    \ the runner and group that were chosen.\n- **CLI**: `dispatch enable --group`,\
+    \ group listing in `dispatch config` with per-member on/off and notes, and per-candidate\
+    \ skip reasons when asked about a project.\n- **`agentjobs dispatch example`**\
+    \ \u2014 sc-5. Prints a commented starting config; `--write` writes it and refuses\
+    \ if anything is there. Switched off at every level, so `--write` cannot leave\
+    \ a machine able to dispatch that was not able to before.\n- **`docs/agent-dispatch-design.md`\
+    \ section 4** rewritten as one mechanism (sc-6), plus section 3's config example\
+    \ and nouns table, section 6 gates 2 and 3, and a section 13 entry.\n\n**Selection\
+    \ sits inside `assert_dispatch_permitted`, after all four gates**, never around\
+    \ them. A test names a group with the `DISPATCH_DISABLED` sentinel in place and\
+    \ still gets `sentinel` back.\n\n**Backwards compatibility, asserted rather than\
+    \ intended.** A flat config loads, resolves and dispatches unchanged, exposes\
+    \ no groups, and writes **no `selection` key at all** \u2014 asserted on the entry's\
+    \ `data`, not on prose. `TestFlatConfigIsUntouched` in `tests/test_dispatch_config.py`,\
+    \ plus `test_a_flat_resolution_writes_no_selection_key_at_all` in `tests/test_dispatch_runner.py`.\n\
+    \n**Verified beyond the suite**, on this machine, through the real CLI against\
+    \ a throwaway `AGENTJOBS_HOME`:\n\n- `dispatch example --write` wrote the config;\
+    \ running it again refused and left the file untouched.\n- With the example armed,\
+    \ `dispatch config` listed all three groups, marked `standard` as the machine\
+    \ default, and showed `[off] codex  # Second option; enable once codex is installed\
+    \ and signed in.`\n- `dispatch config --project agentjobs` resolved to `runner\
+    \ 'claude-standard' from group 'standard' (project)`.\n- Disabling `claude-standard`\
+    \ and enabling the genuinely-uninstalled `codex` produced `refused (no_eligible_runner)\
+    \ - ... claude-standard (disabled); codex (executable_not_found: 'codex' is not\
+    \ on PATH.)` \u2014 both skip reasons exercised against real state, not fixtures.\n\
+    \n**Gate**: `poetry run python scripts/check.py` exits 0 \u2014 1828 Python tests,\
+    \ 124 Vitest, the build, and 11 Playwright tests including the existing dispatch\
+    \ e2e path.\n\n**Deliberately not done**\n\n- The difficulty \u2192 profile table.\
+    \ Explicitly out of scope; the ladder reserves its rungs and section 4 restates\
+    \ its reopen triggers. **A follow-up task, not filed** \u2014 say the word and\
+    \ I will file it.\n- A `strict` mode for groups. Section 4's inherited open question\
+    \ (what a strict refusal does for an unattended caller) is therefore still open\
+    \ and still flagged, because nothing in this task forced an answer.\n- Authoring\
+    \ groups from the browser. Out of scope and collides with gate 3. The browser\
+    \ can now *read* `available_groups`/`default_group` and point a project at an\
+    \ existing group, which is the same act as pointing at an existing runner; no\
+    \ frontend UI was written for it.\n- Limit-aware selection. There is nothing observable\
+    \ to build it on (D1)."
+  data: {}
+- id: 8
+  ts: '2026-08-19T20:09:12.562316Z'
+  actor: claude
+  type: handoff
+  body: 'Runner groups are built and verified; branch ready for review. Five commits
+    on feat/task-177-runner-groups, gate green, nothing merged or pushed. Three decisions
+    worth a look before merging: an exhausted group refuses rather than falling back
+    (D2), default_group is an explicit key rather than a magic name (D3), and I fixed
+    an unrelated pre-existing collection failure that was blocking the gate (D4, commit
+    d98e00a, cherry-pickable if you want it separate).'
+  data:
+    ball: human
+    ball_reason: review
