@@ -35,13 +35,22 @@ source rather than a neighbouring one's.
     ```bash
     poetry run python scripts/check.py
     ```
--   This single gate runs pytest, verifies the generated frontend API client, lints,
-    runs the Vitest component suite in jsdom, builds the React app, and exercises one
-    real-server browser path with Playwright. Use focused pytest or npm commands while
-    iterating, but do not substitute them for the gate.
--   Budget **about five minutes**, measured 2026-08-19: 1755 Python tests in 3m52s,
-    then 73s for the frontend half — 124 Vitest component tests, the production build,
-    and 11 Playwright tests against a live server.
+-   This single gate runs Black, Ruff and MyPy, then pytest, then verifies the
+    generated frontend API client, lints, runs the Vitest component suite in jsdom,
+    builds the React app, and exercises one real-server browser path with Playwright.
+    Use focused pytest or npm commands while iterating, but do not substitute them for
+    the gate.
+-   Format, lint and types come first because they take about seven seconds together
+    and catch what pytest never will; there is no reason to spend four minutes finding
+    a misformatted file. They are *in* the gate rather than only in the pre-commit list
+    below because a list nothing enforces is a statement of intent. Task-166 found
+    `poetry run mypy .` had been aborting on a module-name collision before it checked
+    a single file, and a Black drift sitting on `main`, both surviving for exactly that
+    reason.
+-   Budget **about five minutes**, measured 2026-08-19: ~7s for Black, Ruff and MyPy,
+    1779 Python tests in 3m25s, then about 70s for the frontend half — 124 Vitest
+    component tests, the production build, and 11 Playwright tests against a live
+    server.
 -   Ensure high test coverage for core logic (`manager.py`, `storage.py`).
 
 ### Measuring performance
@@ -57,9 +66,10 @@ source rather than a neighbouring one's.
 -   **Formatter**: Black
 -   **Linter**: Ruff
 -   **Type Checking**: MyPy
--   **Pre-commit**:
+-   **While iterating** — the gate runs all three for you, so these are for fixing
+    rather than for checking:
     ```bash
-    poetry run black .
+    poetry run black .          # rewrites; the gate runs `black --check`
     poetry run ruff check .
     poetry run mypy .
     ```
