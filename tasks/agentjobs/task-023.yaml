@@ -1,0 +1,138 @@
+schema: 2
+id: task-023
+title: Dispatch output is a raw terminal dump; render the session's structured transcript
+  instead
+created: '2026-08-19T22:31:46.196691Z'
+updated: '2026-08-19T22:31:46.197452Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- dispatch
+- react-frontend
+- ux
+effort: half a day
+assignment:
+  eligible: []
+parent: task-160-dispatch-phase-two
+spec:
+  summary: The Dispatch page's live Output panel tails the dispatched session's terminal
+    paint and shows the last 40 lines of it. Words run together because the TUI draws
+    spaces by moving the cursor, and there is no structure -- no separation between
+    what the agent said, what it ran, and what changed. The Claude app shows the same
+    session as readable narration with collapsed tool groups and diff counts, from
+    a structured transcript that is already on disk.
+  intent: 'Jeff, 2026-08-19, watching run_e452d6f8 from both surfaces at once: "add
+    task for making dispatch console output look more like claude, at least easier
+    to read". Earlier the same evening the mangling actively cost time -- he could
+    have diagnosed a blocked run faster, but the panel rendered the approval dialog
+    as `NewMCPserverfoundinthisproject:agentjobs` and it was not readable.'
+  description: "## What the panel does now\n\nThe Output panel is labelled \"The session's\
+    \ own transcript. Last 40 lines.\" and renders\nthat text raw in a monospace box.\
+    \ Two separate problems:\n\n**1. Spacing and line breaks are destroyed.** The\
+    \ stream is a TUI *repaint*, not a log. It\ndraws a space by emitting `ESC[1C`\
+    \ (cursor-forward-one-column) and a newline-plus-indent by\nemitting `ESC[5;3H`\
+    \ (absolute cursor position). It rarely emits `U+0020` at all. Anything\nthat\
+    \ strips escape sequences and keeps the remaining characters therefore deletes\
+    \ every\nspace and every line break. Observed verbatim in the panel:\n\n    NewMCPserverfoundinthisproject:agentjobsMCPserversmayexecutecodeoraccess...\n\
+    \nThe raw bytes behind that: `New[1CMCP[1Cserver[1Cfound[1Cin[1Cthis[1Cproject:[1Cagentjobs`.\n\
+    \n**2. There is no structure, because a repaint has none.** Since it is the last\
+    \ 40 lines of\na screen rather than a sequence of events, the panel also shows\
+    \ the box borders, the\n\"Percolating...\" spinner, the context-percentage footer,\
+    \ and the same frame two or three\ntimes over. What it cannot show is which files\
+    \ were edited or what a command returned.\n\n## The fix, and why the obvious one\
+    \ is second best\n\n**A better regex is not the answer.** Replaying the stream\
+    \ into a virtual screen buffer\n(`pyte` server-side, or xterm.js's serialize addon\
+    \ client-side) does fix problem 1 and is a\nlegitimate fallback -- it is what\
+    \ a terminal does, and it produces the readable frame.\n\n**But the structured\
+    \ transcript already exists**, and it is what the Claude app renders.\nVerified\
+    \ against this very run:\n\n    C:/Users/jpose/.claude/projects/<project-slug>/<session-id>.jsonl\n\
+    \nFor session 903af6cf that file held 764 JSONL events: 207 `assistant` and 141\
+    \ `user`\nrecords, with `message.content` blocks including `tool_use` entries\
+    \ -- Bash x120, Edit x14,\nWrite x3, plus the MCP calls. Everything the Claude\
+    \ app displays is derivable from it:\nthe assistant's narration text, the tool\
+    \ name and its input, and file edits.\n\nThe slug is the working directory with\
+    \ separators replaced, so a dispatched run's path is\ncomputable from the worktree\
+    \ that `posture_flags()` already names.\n\n## What good looks like\n\nJeff's side-by-side,\
+    \ same run, same moment. The Claude app renders:\n\n    Edited DependencyState.tsx,\
+    \ ran 4 commands   +14 -1  >\n    Now the Playwright spec:\n    Ran 5 commands,\
+    \ created review-findability.spec.ts   +101 -0  >\n    Gate passed (exit 0) before\
+    \ the new Playwright spec...\n\nNarration in prose, consecutive tool calls collapsed\
+    \ into one summary line with a\ndisclosure, and diff counts. That is the target\
+    \ -- not pixel-matching the Claude app, but\nmatching what it makes legible: **what\
+    \ the agent is doing, what it touched, and whether\nanything failed.**\n\n## Worth\
+    \ deciding\n\n- Does the panel poll the JSONL, or does the server tail it and\
+    \ push? It already polls\n  something; reuse that shape unless it is too slow.\n\
+    - Truncation: \"last 40 lines\" is meaningless for structured events. Propose\
+    \ last N *turns*,\n  newest last, with the whole thing scrollable.\n- Keep a raw\
+    \ view behind a toggle. When a session dies in a way the structured renderer\n\
+    \  does not model, the unparsed bytes are the only evidence -- and that is the\
+    \ case where\n  the screen-buffer replay earns its place.\n- A failed tool call\
+    \ must be visibly failed. The current panel gives no signal at all, and\n  a run\
+    \ that is quietly erroring looks exactly like one that is working."
+  constraints: '- Do not strip ANSI with a regex and render what is left. That is
+    the current defect, not a simplification of it.
+
+    - The structured transcript is written by Claude Code and its shape is not ours
+    to depend on blindly; tolerate unknown event types and unknown content blocks
+    rather than failing the panel.
+
+    - A session with no readable transcript must degrade to something, not to an empty
+    box.
+
+    - Assert on rendered text in tests, not on the presence of markup -- ENGINEERING.md''s
+    verification rule, and this is exactly the surface it was written about.'
+  out_of_scope: Changing what dispatch runs or how it is gated. Building a general
+    terminal emulator. Replicating the Claude app's styling for its own sake.
+  context:
+  - path: frontend/src
+    why: The Dispatch page and its Output panel; the component that renders the last-40-lines
+      box.
+  - path: src/agentjobs/dispatch/runner.py
+    why: Knows the session id and the worktree path, which together give the transcript's
+      location.
+  - path: C:/Users/jpose/.agentjobs/runs
+    why: Run directories hold meta.yaml and stdout.log -- the raw stream the panel
+      currently shows.
+acceptance:
+- id: ac-1
+  text: 'words and line breaks survive: a rendered approval dialog reads as sentences,
+    not as one run-together string'
+  status: pending
+- id: ac-2
+  text: the panel distinguishes assistant narration, tool invocations, and their results
+  status: pending
+- id: ac-3
+  text: consecutive tool calls are summarized rather than dumped, with the detail
+    available on demand
+  status: pending
+- id: ac-4
+  text: a failed command is visibly distinguishable from a successful one
+  status: pending
+- id: ac-5
+  text: a session whose transcript is missing or unparseable still renders something
+    useful
+  status: pending
+- id: ac-6
+  text: tests assert on rendered text, and one real dispatched run is read end to
+    end through the panel
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T22:31:46.196746Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c4e93b78-1d52-4a06-8f74-9b3d201ea6c1
+      kind: create
+      fingerprint: e4efe721173ca74762d5bf2bf3f2e27d
