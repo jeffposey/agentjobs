@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
 import {
+  appendLogEntryApiProjectsProjectIdTasksTaskIdLogPostMutation,
   cancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostMutation,
   disableDispatchApiProjectsProjectIdDispatchDisablePostMutation,
   enableDispatchApiProjectsProjectIdDispatchEnablePostMutation,
@@ -261,6 +262,8 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
   const changes = useMutation(requestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostMutation());
   const reject = useMutation(rejectTaskApiProjectsProjectIdTasksTaskIdRejectPostMutation());
   const promote = useMutation(promoteTaskApiProjectsProjectIdTasksTaskIdPromotePostMutation());
+  const addNote = useMutation(appendLogEntryApiProjectsProjectIdTasksTaskIdLogPostMutation());
+  const [noteError, setNoteError] = useState<string | null>(null);
   // Held here rather than read off promote.error because a revision conflict is not
   // a failure to report and forget: the page reloads and the human is asked again,
   // so the explanation has to outlive the mutation that produced it.
@@ -286,6 +289,28 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
       onApprove={async () => { if (!user) return; await approve.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user } }); await refresh(); }}
       onRequestChanges={async (feedback, attachments) => { if (!user) return; await changes.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, feedback, attachments } }); await refresh(); }}
       onReject={async (reason) => { if (!user) return; await reject.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, reason } }); await navigate(`/p/${encodeURIComponent(projectId)}/tasks`, { replace: true }); }}
+      noteBusy={addNote.isPending}
+      noteError={noteError}
+      onAddNote={async (body) => {
+        if (!user) return;
+        setNoteError(null);
+        try {
+          // No expected_revision: appending is not a decision taken against content
+          // that could have changed underneath it, so a concurrent write is not a
+          // reason to throw the note away and make the human retype it.
+          await addNote.mutateAsync({
+            path: { project_id: projectId, task_id: taskId },
+            body: { actor: user, type: "note", body },
+          });
+        } catch (error) {
+          const refusal = readRefusal(error);
+          setNoteError(refusal ? refusal.message : "The note could not be saved. Reload the page and try again.");
+          // Rethrown so the composer keeps the form open with the text still in it. A
+          // note that failed to save and vanished from the box is a note retyped.
+          throw error;
+        }
+        await refresh();
+      }}
       onPromote={async (note) => {
         if (!user) return;
         setPromoteError(null);

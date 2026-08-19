@@ -61,6 +61,7 @@ function renderDetail(value = detail, extra: { promoteError?: string | null; pro
     ),
     onReject: vi.fn(async () => undefined),
     onPromote: vi.fn(async () => undefined),
+    onAddNote: vi.fn(async (_body: string) => undefined),
   };
   render(<MemoryRouter><TaskDetail detail={value} projectId="inbox" {...actions} {...extra} /></MemoryRouter>);
   return actions;
@@ -194,7 +195,11 @@ describe("TaskDetail resumption contract", () => {
   it("blocks every review action when identity is unclear", () => {
     renderDetail({ ...detail, identity: { ok: false, user: null, problem: "multiple", detail: "Cannot choose safely." } });
 
-    expect(screen.getByText("Cannot choose safely.")).toBeVisible();
+    // Scoped to the review panel: the note composer states the same identity problem
+    // for the same reason, so an unscoped query now matches twice.
+    expect(
+      within(screen.getByRole("region", { name: "Review actions" })).getByText("Cannot choose safely."),
+    ).toBeVisible();
     expect(screen.queryByRole("button", { name: /Approve/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Request Changes/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Reject/ })).not.toBeInTheDocument();
@@ -361,5 +366,50 @@ describe("TaskDetail action panel speaks the phase it is in", () => {
     expect(within(panel).getByText("No user configured in this project.")).toBeVisible();
     expect(within(panel).queryByRole("button", { name: /Promote/ })).not.toBeInTheDocument();
     expect(within(panel).queryByRole("button", { name: /Send feedback/ })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Task-185: a `ready` task whose ball is with an agent shows only Dispatch, and a
+ * dispatch it refuses tells the reader to write an authorising entry. The control that
+ * writes one has to be on this page, on this state, or the refusal is a dead end again.
+ */
+describe("TaskDetail offers a way to write on the record", () => {
+  const readyDetail: TaskDetailResponse = {
+    ...detail,
+    task: task("task-ready", {
+      lifecycle: "ready",
+      ball: "agent",
+      ball_reason: "available",
+      ball_prompt: null,
+      display_status: "Ready",
+      assignment: { owner: null, eligible: [] },
+      log: [
+        { id: 1, ts: "2026-08-19T21:16:19Z", actor: "claude", type: "transition", body: "Created ready by claude." },
+      ],
+    }),
+    parent_task: null,
+    children: [],
+    needs: [],
+    blocks: [],
+    child_dependency_edges: [],
+  };
+
+  it("puts the note control on a ready task, where no review action is offered", () => {
+    renderDetail(readyDetail);
+
+    expect(screen.queryByRole("region", { name: /actions$/ })).not.toBeInTheDocument();
+    const notes = screen.getByRole("region", { name: "Notes" });
+    expect(within(notes).getByRole("button", { name: /add a note/i })).toBeVisible();
+  });
+
+  it("sends the note the reader typed", async () => {
+    const actions = renderDetail(readyDetail);
+
+    fireEvent.click(screen.getByRole("button", { name: /add a note/i }));
+    fireEvent.change(screen.getByLabelText("Note"), { target: { value: "Go ahead." } });
+    fireEvent.click(screen.getByRole("button", { name: "Save note" }));
+
+    await waitFor(() => expect(actions.onAddNote).toHaveBeenCalledWith("Go ahead."));
   });
 });
