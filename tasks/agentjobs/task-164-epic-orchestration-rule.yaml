@@ -3,7 +3,7 @@ id: task-164-epic-orchestration-rule
 title: An agent working an epic runs its children as separate sessions and supervises
   them
 created: '2026-08-19T16:44:19.421276Z'
-updated: '2026-08-19T16:44:19.422056Z'
+updated: '2026-08-19T18:31:34.910782Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -129,3 +129,48 @@ log:
       id: e5b4a7db-9208-4f56-bd27-4a1b6c35a164
       kind: create
       fingerprint: f183a41c3f73755f3f22d165f329e13a
+- id: 2
+  ts: '2026-08-19T18:31:34.910657Z'
+  actor: claude
+  type: decision
+  body: "**Evidence for sc-3 (\"supervision is specified for all four cases\"), from\
+    \ running the thing for real on 2026-08-19.**\n\ntask-165 (the bootstrap) was\
+    \ merged, then task-166 was worked by a separate spawned session \u2014 the first\
+    \ time this repository's own work was actually done the way this task proposes.\
+    \ Two of the four supervision cases were exercised, and the parent got one of\
+    \ them wrong in a way worth writing into the rule rather than rediscovering.\n\
+    \n**Child parked.** task-166 stopped at `ball: human` / `review`, as instructed.\
+    \ **The parent did not notice**, because the parent had ended its turn after saying\
+    \ it would \"check back on a slow cadence\" \u2014 a sentence with no mechanism\
+    \ behind it. Jeff noticed the parked task himself and sent the review feedback\
+    \ that the parent owed. The child then needed that iteration and ran a further\
+    \ 45 minutes.\n\n**Two rules follow, and they are the load-bearing part of sc-3:**\n\
+    \n1. **Watching is a mechanism, not an intention.** A parent that ends its turn\
+    \ is not supervising; it is asleep. Supervision has to be a backgrounded wait\
+    \ that exits on the condition, or an event stream. Anything else is a claim the\
+    \ human cannot audit, and Jeff's objection was exactly that he could not tell\
+    \ a real poll from a stated one.\n\n2. **The signal is the task record, not the\
+    \ process.** `idle`/`done` on the session is the wrong thing to watch: a child\
+    \ can be parked on review with its process still alive, and that is precisely\
+    \ the state that needs the parent. Poll `ball` on the task \u2014 `agent` means\
+    \ keep waiting, `human`/`review` means act now, `closed` with an outcome means\
+    \ done. This is worth stating because the obvious instinct is to watch the process,\
+    \ and the obvious instinct silently misses the one transition that requires the\
+    \ parent to do something.\n\n**Child finished** was exercised and is easy: the\
+    \ task closes with an outcome, and the parent verifies from durable output (record,\
+    \ branch, diff) rather than the child's transcript.\n\n**Child died** and **parent\
+    \ idle** were not exercised and remain open for this task.\n\nOne more datum for\
+    \ the threshold question in the description: this child took **45 minutes**, ran\
+    \ the full gate repeatedly, needed one round of human feedback, and produced four\
+    \ commits including a mypy fix nobody had asked for. A session was clearly the\
+    \ right unit for it. The rejected alternative \u2014 the parent doing it inline\
+    \ \u2014 would have put all of that in the parent's context, which is the cost\
+    \ this task exists to avoid.\n\nRules 1 and 2 are already written into Jeff's\
+    \ `spawn-session` skill (section: \"Watching is a mechanism, not an intention\"\
+    ). They are recorded here because that skill is personal tooling and this task\
+    \ owns the repository's version of the rule."
+  data:
+    operation:
+      id: 6d1a9b47-8e35-4c72-9f06-2b8d4e7c1164
+      kind: log_append
+      fingerprint: 6d78089bcd9a4f6b5555b286e81afffa

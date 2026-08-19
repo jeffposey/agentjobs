@@ -3,15 +3,9 @@ id: task-165-worktree-bootstrap
 title: A fresh worktree can run scripts/check.py, by a documented bootstrap that is
   demonstrated
 created: '2026-08-19T16:54:34.843687Z'
-updated: '2026-08-19T17:36:12.293560Z'
-lifecycle: active
-ball: external
-ball_reason: dependency
-ball_prompt: 'Blocked on task-166 only. When task-166 has made `main` green, run `poetry
-  run python scripts/check.py` once in a worktree bootstrapped by `python scripts/bootstrap.py`
-  alone, quote the passing result here as sc-1''s evidence, then close this task as
-  completed. Nothing else is outstanding: the branch is merged, the worktree is removed,
-  and sc-2 / sc-3 / sc-4 are already evidenced in the handoff at log entry 5.'
+updated: '2026-08-19T18:37:26.970394Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -22,7 +16,6 @@ tags:
 - documentation
 effort: small -- one bootstrap command, the docs around it, and one end-to-end demonstration
 assignment:
-  owner: claude
   eligible: []
 parent: task-164-epic-orchestration-rule
 spec:
@@ -394,3 +387,90 @@ log:
       id: 3c9f5e18-4a26-4b73-9d84-8e2f1a6b3165
       kind: handoff
       fingerprint: fc3f5aeb52bd97789a3dc9747a95473d
+- id: 9
+  ts: '2026-08-19T18:37:26.970175Z'
+  actor: claude
+  type: transition
+  body: '**sc-1 met. Closing completed.**
+
+
+    The dependency on task-166 cleared when it closed at 18:23 with `main` green.
+    A worktree was then created from `main` at `15d2112` and bootstrapped by the documented
+    command alone -- `python scripts/bootstrap.py`, 34s -- and the gate was run in
+    it:
+
+
+    ```
+
+    GATE_EXIT=0   GATE_SECONDS=359
+
+    ```
+
+
+    Step by step, all from that one bootstrap:
+
+
+    | Step | Result |
+
+    | --- | --- |
+
+    | `black --check .` | clean |
+
+    | `ruff check .` | clean |
+
+    | `mypy .` | **Success: no issues found in 143 source files** |
+
+    | `pytest` | **1779 passed** in 4m22s |
+
+    | `check:api` (schema + generated client), `check:icons`, `lint` | clean |
+
+    | Vitest | **124 passed** in 20 files |
+
+    | `vite build` | built |
+
+    | Playwright | **11 passed** |
+
+
+    The gate is bigger than when this task started: task-166 added black, ruff and
+    mypy to it, and pytest grew from 1755 to 1779 tests. It now takes **6 minutes**
+    rather than the 5 recorded earlier in this log, which is worth knowing but is
+    not this task''s number to fix.
+
+
+    **All four criteria are now evidenced:**
+
+
+    - **sc-1** -- above.
+
+    - **sc-2** -- the guard judges the agentjobs import by location. Demonstrated
+    catching the real case: before bootstrapping, the same class of worktree resolved
+    `agentjobs` to `C:\projects\agentjobs\src\agentjobs`, the main clone. An importability-only
+    check passed there; the location check refuses.
+
+    - **sc-3** -- bootstrap 30s cold / 13s warm / 34-35s in the two later worktrees;
+    gate 6 minutes. All measured.
+
+    - **sc-4** -- `ALLAGENTS.md` and `ENGINEERING.md` both carry the command at the
+    point they tell a reader to make a worktree, with the cost and the warning against
+    borrowing another checkout''s virtualenv.
+
+
+    Merged as `c5ef6fa`. Worktrees `aj-165`, `aj-165-demo` and `aj-165-verify` all
+    removed; the clone is the only working tree again.
+
+
+    **Worth carrying forward, since it is the real lesson of this task:** the bootstrap
+    gap had been hiding a gate that was red on `main` in four places, one of them
+    the only live-server test of dispatch, on a repository whose written rule is that
+    the gate passes before every commit. Nobody was skipping the rule dishonestly
+    -- agents in worktrees simply could not run it, so they ran focused tests instead
+    and never saw the whole picture. A verification step that cannot be run is not
+    a weaker gate than one that is run; it is no gate at all, and it hides its own
+    absence.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 8f4c2a91-5b73-4e28-a6d0-9c1e7b3f5165
+      kind: close
+      fingerprint: a37b8456e8bfa29ccd78242150fb7cf3
