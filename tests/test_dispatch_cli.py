@@ -17,14 +17,16 @@ from typer.testing import CliRunner
 
 from agentjobs.cli import app
 from agentjobs.dispatch.config import (
+    CONFIG_FILENAME,
     SENTINEL_FILENAME,
     ProjectNotEnabledError,
     assert_dispatch_permitted,
     load_dispatch_config,
 )
+from agentjobs.dispatch.scaffold import EXAMPLE_CONFIG
 from agentjobs.projects import ProjectRegistry
 
-from test_dispatch_config import home, write_config
+from test_dispatch_config import home, write_config, write_grouped_config
 
 runner = CliRunner()
 
@@ -272,3 +274,133 @@ class TestDispatchReapCommand:
         assert "uncommitted changes" in result.stdout
         assert "1 worktree(s) kept" in result.stdout
         assert "Look at what is in them" in result.stdout
+
+
+# ----- runner groups on the command line (task-177) ---------------------------
+
+
+class TestGroupsOnTheCommandLine:
+    """What a human setting dispatch up actually types, and what they are told."""
+
+    def make_project(self, tmp_path: Path, project_id: str) -> Path:
+        return TestDispatchCli().make_project(tmp_path, project_id)
+
+    def test_config_lists_groups_their_members_and_the_disabled_ones(self) -> None:
+        write_grouped_config(
+            runner_groups={
+                "default": {
+                    "members": [
+                        "small",
+                        {"runner": "spare", "enabled": False, "note": "kept in reserve"},
+                    ]
+                }
+            },
+        )
+
+        result = runner.invoke(app, ["dispatch", "config"])
+
+        assert result.exit_code == 0, result.output
+        assert "Runner groups:" in result.output
+        assert "[on ] small" in result.output
+        assert "[off] spare" in result.output
+
+    def test_config_explains_which_candidates_were_skipped_and_why(self) -> None:
+        write_grouped_config(
+            runner_groups={
+                "default": {
+                    "members": [
+                        "big",
+                        {"runner": "spare", "enabled": False, "note": "kept in reserve"},
+                        "small",
+                    ]
+                }
+            },
+        )
+
+        result = runner.invoke(app, ["dispatch", "config", "--project", "agentjobs"])
+
+        assert result.exit_code == 0, result.output
+        assert "from group 'default'" in result.output
+        assert "skipped big: executable_not_found" in result.output
+        assert "skipped spare: disabled" in result.output
+
+    def test_a_flat_config_never_mentions_groups(self) -> None:
+        """Someone who does not use groups should not learn from the CLI that they exist."""
+        write_config()
+
+        result = runner.invoke(app, ["dispatch", "config"])
+
+        assert result.exit_code == 0, result.output
+        assert "Runner groups:" not in result.output
+
+    def test_enable_points_a_project_at_a_group(self, tmp_path: Path) -> None:
+        write_grouped_config(projects={})
+        self.make_project(tmp_path, "grouped")
+
+        result = runner.invoke(app, ["dispatch", "enable", "grouped", "--group", "default"])
+
+        assert result.exit_code == 0, result.output
+        assert "using group 'default'" in result.output
+        config = load_dispatch_config(home())
+        assert config is not None
+        assert config.project("grouped").group == "default"
+
+    def test_enable_refuses_a_group_the_machine_does_not_define(self, tmp_path: Path) -> None:
+        write_grouped_config(projects={})
+        self.make_project(tmp_path, "grouped")
+
+        result = runner.invoke(app, ["dispatch", "enable", "grouped", "--group", "invented"])
+
+        assert result.exit_code == 1
+        assert "written by hand" in result.output
+
+
+class TestTheExampleConfig:
+    """sc-5: a starting point exists, and nothing writes config nobody asked for."""
+
+    def test_it_prints_without_writing_anything(self) -> None:
+        result = runner.invoke(app, ["dispatch", "example"])
+
+        assert result.exit_code == 0, result.output
+        assert "runner_groups:" in result.output
+        assert not (home() / CONFIG_FILENAME).exists()
+
+    def test_what_it_prints_is_a_config_this_build_can_load(self) -> None:
+        """A worked example that does not parse is worse than none at all."""
+        path = home() / CONFIG_FILENAME
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(EXAMPLE_CONFIG, encoding="utf-8")
+
+        config = load_dispatch_config(home())
+
+        assert config is not None
+        assert set(config.runner_groups) == {"standard", "deep", "quick"}
+        assert config.default_group == "standard"
+
+    def test_the_example_is_switched_off_at_every_level(self) -> None:
+        """--write must not be able to leave a machine able to dispatch."""
+        path = home() / CONFIG_FILENAME
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(EXAMPLE_CONFIG, encoding="utf-8")
+
+        config = load_dispatch_config(home())
+
+        assert config is not None
+        assert config.enabled is False
+        assert config.projects == {}
+
+    def test_it_writes_only_when_asked(self) -> None:
+        result = runner.invoke(app, ["dispatch", "example", "--write"])
+
+        assert result.exit_code == 0, result.output
+        assert (home() / CONFIG_FILENAME).read_text(encoding="utf-8") == EXAMPLE_CONFIG
+
+    def test_it_refuses_to_overwrite_an_existing_config(self) -> None:
+        write_config()
+        before = (home() / CONFIG_FILENAME).read_text(encoding="utf-8")
+
+        result = runner.invoke(app, ["dispatch", "example", "--write"])
+
+        assert result.exit_code == 1
+        assert "already exists" in result.output
+        assert (home() / CONFIG_FILENAME).read_text(encoding="utf-8") == before
