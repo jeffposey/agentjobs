@@ -3,7 +3,7 @@ id: task-023
 title: Dispatch output is a raw terminal dump; render the session's structured transcript
   instead
 created: '2026-08-19T22:31:46.196691Z'
-updated: '2026-08-19T22:31:46.197452Z'
+updated: '2026-08-19T23:34:52.951747Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -93,10 +93,9 @@ spec:
       box.
   - path: src/agentjobs/dispatch/runner.py
     why: Knows the session id and the worktree path, which together give the transcript's
-      location.
-  - path: C:/Users/jpose/.agentjobs/runs
-    why: Run directories hold meta.yaml and stdout.log -- the raw stream the panel
-      currently shows.
+      location. RUNS_DIRNAME here also resolves the machine-local run directory under
+      the user's home (.agentjobs/runs/<run_id>), whose meta.yaml and stdout.log are
+      the raw stream the panel currently shows.
 acceptance:
 - id: ac-1
   text: 'words and line breaks survive: a rendered approval dialog reads as sentences,
@@ -136,3 +135,42 @@ log:
       id: c4e93b78-1d52-4a06-8f74-9b3d201ea6c1
       kind: create
       fingerprint: e4efe721173ca74762d5bf2bf3f2e27d
+- id: 2
+  ts: '2026-08-19T23:34:21.237149Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 7b21e4c8-9a35-4f16-b0d2-6e83f1c5a094
+      kind: update_content
+      fingerprint: 205ef5b1d983319eec407ef9ce458634
+- id: 3
+  ts: '2026-08-19T23:34:52.951629Z'
+  actor: claude
+  type: note
+  body: "Edited this task's `context` without claiming it, because it was failing\
+    \ the gate on `main` for everyone.\n\n`tests/test_validate.py::TestRealCorpus::test_the_tolerated_drift_is_only_taxonomy_and_serialization`\
+    \ asserts the only rules firing on the real corpus are `unknown-category`, `unknown-actor`\
+    \ and `non-canonical-serialization`. This task's third context entry was an absolute\
+    \ machine path under the maintainer's home directory, which made `absolute-path`\
+    \ fire and turned a green suite red on `main` from the moment the task was filed\
+    \ (657d9bd, 2026-08-19). The task-020 closeout run hit it and correctly declined\
+    \ to fix it silently.\n\nFixed by folding that entry into the `runner.py` one:\
+    \ the run directory is described in prose in the `why`, so the information a reader\
+    \ needs survives while `path` stays repository-relative. Nothing about the task's\
+    \ scope, intent or acceptance changed.\n\nRejected widening the validator's tolerated\
+    \ set. `absolute-path` is a rule this repository wants \u2014 task-155 exists\
+    \ precisely to get the maintainer's machine out of the public repo \u2014 so silencing\
+    \ it to accommodate one context entry would have traded a real signal for a formatting\
+    \ convenience. Rejected also leaving it for whoever claims this task: it was blocking\
+    \ every other branch's gate run, which is not a cost this task's owner should\
+    \ get to choose to impose.\n\nVerified: `poetry run pytest tests/test_validate.py::TestRealCorpus\
+    \ -q` \u2014 2 passed."
+  data:
+    operation:
+      id: c81d4a67-2f93-4b05-8e71-9d3c60a4f2b8
+      kind: log_append
+      fingerprint: 0c30d8cd30689c9939a5c32d3eb59d68
