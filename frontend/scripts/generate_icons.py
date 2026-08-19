@@ -22,7 +22,8 @@ class Shape(NamedTuple):
 
 def _color(value: str) -> tuple[int, int, int, int]:
     value = value.removeprefix("#")
-    return tuple(int(value[index : index + 2], 16) for index in (0, 2, 4)) + (255,)
+    red, green, blue = (int(value[index : index + 2], 16) for index in (0, 2, 4))
+    return (red, green, blue, 255)
 
 
 def _shapes() -> list[Shape]:

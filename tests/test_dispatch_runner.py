@@ -695,7 +695,7 @@ class TestSessionMode:
         argv_seen: List[str] = []
         original = subprocess.run
 
-        def capture(argv, *args, **kwargs):  # type: ignore[no-untyped-def]
+        def capture(argv, *args, **kwargs):
             argv_seen.extend(argv)
             return original(argv, *args, **kwargs)
 
@@ -705,7 +705,7 @@ class TestSessionMode:
         try:
             runner.ledger()
         finally:
-            runner_module.subprocess.run = original  # type: ignore[assignment]
+            runner_module.subprocess.run = original
 
         assert "--cwd" in argv_seen
         assert str(workspace / "project") in argv_seen

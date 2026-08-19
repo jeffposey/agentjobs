@@ -63,10 +63,10 @@ def entry(entry_id: int, entry_type: LogEntryType, **kwargs: object) -> LogEntry
     """One log entry, defaulting everything the test does not care about."""
     return LogEntry(
         id=entry_id,
-        ts=kwargs.pop("ts", utcnow()),  # type: ignore[arg-type]
-        actor=kwargs.pop("actor", "claude"),  # type: ignore[arg-type]
+        ts=kwargs.pop("ts", utcnow()),
+        actor=kwargs.pop("actor", "claude"),
         type=entry_type,
-        **kwargs,  # type: ignore[arg-type]
+        **kwargs,
     )
 
 

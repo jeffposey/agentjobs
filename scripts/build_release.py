@@ -17,7 +17,9 @@ from tempfile import TemporaryDirectory
 try:
     from scripts.build_frontend import REQUIRED_FILES, build
 except ModuleNotFoundError:  # Direct execution adds scripts/, not the repository root.
-    from build_frontend import REQUIRED_FILES, build
+    # mypy resolves the file only as `scripts.build_frontend` -- `scripts` is a package
+    # precisely so it has exactly one name -- and cannot see this runtime fallback.
+    from build_frontend import REQUIRED_FILES, build  # type: ignore[import-not-found,no-redef]
 
 
 ROOT = Path(__file__).resolve().parents[1]

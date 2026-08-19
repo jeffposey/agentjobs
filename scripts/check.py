@@ -51,7 +51,19 @@ def setup_problems(root: Path, origin: Path | None) -> list[str]:
 
 
 def main() -> int:
-    """Run pytest followed by the frontend's generated, lint, test, and build checks."""
+    """Run the Python checks, then the frontend's generated, lint, test and build ones.
+
+    Format, lint and types run before pytest: together they take about seven seconds
+    and they fail on things pytest will never notice, so paying four minutes to find a
+    misformatted file is the wrong order.
+
+    They are in the gate rather than only in ENGINEERING.md's pre-commit list because
+    that list is documentation of an intention and this is the thing anyone actually
+    runs. Task-166 found `poetry run mypy .` aborting on a module-name collision before
+    it checked a single file -- it had never type-checked a line of this repository --
+    and a `black` drift on `main`, both of which had survived precisely because nothing
+    enforced them.
+    """
     npm = shutil.which("npm.cmd") or shutil.which("npm")
     if npm is None:
         print("npm is required to run the frontend checks.", file=sys.stderr)
@@ -67,6 +79,9 @@ def main() -> int:
         return 1
 
     try:
+        run([sys.executable, "-m", "black", "--check", "."], cwd=ROOT)
+        run([sys.executable, "-m", "ruff", "check", "."], cwd=ROOT)
+        run([sys.executable, "-m", "mypy", "."], cwd=ROOT)
         run([sys.executable, "-m", "pytest"], cwd=ROOT)
         run([npm, "run", "check"], cwd=ROOT / "frontend")
     except subprocess.CalledProcessError as exc:

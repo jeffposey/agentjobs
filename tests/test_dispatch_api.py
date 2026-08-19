@@ -231,7 +231,7 @@ def wait_for(predicate, *, timeout: float = 15.0, interval: float = 0.05) -> boo
         if predicate():
             return True
         time.sleep(interval)
-    return predicate()
+    return bool(predicate())
 
 
 class TestDispatchState:

@@ -127,7 +127,9 @@ def _results(home: Path, run_id: str):
 
 
 def _run_meta(home: Path, run_id: str) -> dict:
-    return yaml.safe_load((home / "runs" / run_id / "meta.yaml").read_text(encoding="utf-8"))
+    meta = yaml.safe_load((home / "runs" / run_id / "meta.yaml").read_text(encoding="utf-8"))
+    assert isinstance(meta, dict)
+    return meta
 
 
 # ----- the gap this task was filed for ----------------------------------------
@@ -364,7 +366,12 @@ class TestTheServerStartsIt:
         monkeypatch.setenv("AGENTJOBS_HOME", str(home))
         reset_dependency_cache()
         polled: List[Path] = []
-        monkeypatch.setattr(poller, "poll_live_sessions", lambda where: polled.append(where) or [])
+
+        def record(where: Path) -> List[object]:
+            polled.append(where)
+            return []
+
+        monkeypatch.setattr(poller, "poll_live_sessions", record)
 
         with TestClient(app) as client:
             for _ in range(200):

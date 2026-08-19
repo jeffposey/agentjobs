@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from dataclasses import field as dc_field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 import yaml
 from pydantic import ValidationError
@@ -96,7 +96,7 @@ class _Snapshot:
     file would be parsed twice -- once alone, once again as part of the corpus walk.
     """
 
-    tasks: Dict[str, Any] = dc_field(default_factory=dict)
+    tasks: Dict[str, Union[Task, TaskLoadError, None]] = dc_field(default_factory=dict)
     result: Optional["LoadResult"] = None
 
 
