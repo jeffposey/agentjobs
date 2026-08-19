@@ -3,10 +3,11 @@ id: task-185-dispatch-needs-an-entry-the-ui-cannot-write
 title: Dispatch refuses a task with no human log entry, and the page gives you no
   way to write one
 created: '2026-08-19T21:16:19.646150Z'
-updated: '2026-08-19T21:22:56.984961Z'
-lifecycle: ready
+updated: '2026-08-19T23:44:47.188650Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 category: ux
@@ -17,6 +18,7 @@ tags:
 - frontend
 effort: small
 assignment:
+  owner: claude
   eligible: []
 parent: task-181-dispatch-phase-one-hardening
 spec:
@@ -99,7 +101,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-185-authorising-note
+  status: active
 log:
 - id: 1
   ts: '2026-08-19T21:16:19.646191Z'
@@ -124,3 +128,12 @@ log:
       id: 92a3b4c5-d6e7-4f28-a379-a4b5c6d7f6a0
       kind: update_content
       fingerprint: 6bc867db7efae818c23f58513b8140c5
+- id: 3
+  ts: '2026-08-19T23:44:20.986519Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
