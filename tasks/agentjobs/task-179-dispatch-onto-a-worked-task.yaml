@@ -3,7 +3,7 @@ id: task-179-dispatch-onto-a-worked-task
 title: Dispatch is offered on a task an agent is already working, and the guards would
   allow it
 created: '2026-08-19T19:22:34.834865Z'
-updated: '2026-08-19T19:22:34.835758Z'
+updated: '2026-08-19T19:26:06.224850Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -18,6 +18,7 @@ tags:
 effort: small in code, one decision in the middle of it
 assignment:
   eligible: []
+parent: task-181-dispatch-phase-one-hardening
 spec:
   summary: "A task that is claimed and actively being worked still shows an enabled\
     \ Dispatch button, and the guard layer would let the click through \u2014 because\
@@ -145,3 +146,15 @@ log:
       id: c4a7f2b9-1d6e-4830-95c1-7e3b0a2d0179
       kind: create
       fingerprint: ff6aefd11eb4e4ab23031493a2cec3cf
+- id: 2
+  ts: '2026-08-19T19:26:06.224755Z'
+  actor: claude
+  type: note
+  body: Updated parent.
+  data:
+    fields:
+    - parent
+    operation:
+      id: b2f7a1c5-4c63-4d99-8f28-6e3a9b7d0182
+      kind: update_content
+      fingerprint: 8c1be9ef5eecbe709eb7d00d814bf8a6

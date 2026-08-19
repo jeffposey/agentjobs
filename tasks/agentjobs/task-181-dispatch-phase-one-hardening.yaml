@@ -1,0 +1,91 @@
+schema: 2
+id: task-181-dispatch-phase-one-hardening
+title: 'Dispatch phase one hardening: the holes found by using it for real'
+created: '2026-08-19T19:25:59.686244Z'
+updated: '2026-08-19T19:25:59.686952Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: reliability
+tags:
+- dispatch
+- reliability
+- epic
+effort: three small children, independently mergeable
+assignment:
+  eligible: []
+spec:
+  summary: Umbrella for the defects that turned up once dispatch was exercised on
+    a real machine rather than in tests. Each child is a small, independently mergeable
+    fix to shipped phase-one behaviour. Distinct from task-160, which widens what
+    dispatch can do; this one closes holes in what it already does.
+  intent: Three open dispatch defects were sitting unparented, which made them invisible
+    as a group and gave nobody a single thing to pick up. They are the same kind of
+    work, found the same way, and they should be finished before dispatch is widened
+    on top of them.
+  description: "Created 2026-08-19, when Jeff asked why a newly filed dispatch defect\
+    \ was another loose\ntask. The answer was that no open epic fitted it, which was\
+    \ true and was itself the\nproblem worth fixing.\n\n## Why not task-160\n\n`task-160-dispatch-phase-two`\
+    \ has a specific thesis: phase one built *a human pressing a\nbutton on one task\
+    \ with a fixed prompt*, and each of its children **widens** exactly one\nof those\
+    \ assumptions. A defect in shipped behaviour does not widen anything \u2014 it\
+    \ narrows.\nFiling hardening work there would blur the one thing that makes that\
+    \ epic legible.\n\nSo the split is deliberate and is the whole reason this epic\
+    \ exists:\n\n| Epic | Direction |\n|---|---|\n| `task-160-dispatch-phase-two`\
+    \ | What dispatch should also be able to do |\n| this one | What dispatch already\
+    \ does, wrongly |\n\n## Why not task-060\n\n`task-060-agent-dispatch` is the phase-one\
+    \ epic and is **closed**. Its children include\ndefects found while it was open.\
+    \ Hanging new open children off a closed parent would\nreopen it in substance\
+    \ while leaving it closed in the record.\n\n## What these three have in common\n\
+    \nAll were found by *using* dispatch on a real machine, not by a test:\n\n- **task-153**\
+    \ \u2014 a refusal message names a fix that does not apply, sending the reader\
+    \ to\n  configure the wrong thing.\n- **task-154** \u2014 every dispatched agent\
+    \ is told the API is at a port that is usually not\n  listening, so it cannot\
+    \ read its own task or write progress back.\n- **task-179** \u2014 dispatch is\
+    \ offered, and would be permitted, on a task another agent is\n  already working.\n\
+    \nThey are independent: no ordering between them, and each is separately reviewable\
+    \ and\nseparately mergeable. This epic exists to make them one thing to pick up,\
+    \ not to sequence\nthem.\n\n## Scope rule\n\nA dispatch defect in shipped phase-one\
+    \ behaviour belongs here. A new capability belongs\nunder task-160. If a fix turns\
+    \ out to need a design decision that widens dispatch, split\nit: land the narrow\
+    \ fix here and file the widening there."
+  constraints: "- Each child stands alone. Do not couple them into one branch \u2014\
+    \ the point of the epic is visibility, not a merge train.\n- Nothing here weakens\
+    \ a safety property to make a fix simpler. These are all guard-layer or honesty-of-message\
+    \ defects, which is precisely where a convenient shortcut costs the most."
+  out_of_scope: "Anything that widens what dispatch can do \u2014 that is task-160\
+    \ and its children. Registering externally started agent sessions in the dispatch\
+    \ ledger, which task-179 explicitly parks as its own larger idea."
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: The design these fixes must keep true; sections 6 and 7 hold the guarantees
+      at stake.
+  - path: src/agentjobs/dispatch/
+    why: Every child lands somewhere in here.
+acceptance:
+- id: sc-1
+  text: Every child is closed, or explicitly cancelled with a reason recorded on it
+  status: pending
+- id: sc-2
+  text: A dispatch run started from the AgentJobs UI on this machine reaches an agent
+    that can read its own task record and write progress back, verified end to end
+    rather than from tests
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T19:25:59.686281Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: a1e6d0f4-3b52-4c88-9e17-5d2f8a6c0181
+      kind: create
+      fingerprint: a1bca012424ccaabd0982506281a74f4

@@ -3,7 +3,7 @@ id: task-160-dispatch-phase-two
 title: 'Dispatch phase two: who can cause one, what it can be told, and what it does
   with an epic'
 created: '2026-08-19T16:42:02.307827Z'
-updated: '2026-08-19T16:42:02.308651Z'
+updated: '2026-08-19T19:26:20.590362Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -14,7 +14,7 @@ tags:
 - dispatch
 - architecture
 - agent-dx
-effort: four children, two of them small
+effort: six children, several of them small
 assignment:
   eligible: []
 spec:
@@ -81,7 +81,10 @@ spec:
     why: build_prompt and build_argv -- where a dispatch's prompt is assembled today.
 acceptance:
 - id: sc-1
-  text: All four children are closed or explicitly cancelled with a reason
+  text: Every child is closed or explicitly cancelled with a reason. It began as the
+    four asks of 2026-08-19 and has since taken runner groups (task-177) and its GUI
+    follow-up (task-178), which widen which runner a dispatch reaches; count the children,
+    do not trust this number
   status: pending
 - id: sc-2
   text: The design document describes the dispatch system as it then is, with no section
@@ -103,3 +106,16 @@ log:
       id: a1f0c3d7-5e64-4a12-9b83-0c7d2e916002
       kind: create
       fingerprint: 20e31f8137e1371b0a85cd908209ca9d
+- id: 2
+  ts: '2026-08-19T19:26:20.590255Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, effort.
+  data:
+    fields:
+    - acceptance
+    - effort
+    operation:
+      id: c6ea5d18-7f96-4a32-b25a-915d2e0f0185
+      kind: update_content
+      fingerprint: 2957b2ca295624dbc9b04d3288ff86a1

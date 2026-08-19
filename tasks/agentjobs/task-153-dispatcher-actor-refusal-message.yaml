@@ -2,7 +2,7 @@ schema: 2
 id: task-153-dispatcher-actor-refusal-message
 title: Stop the dispatch refusal telling you to configure the dispatcher as a human
 created: '2026-08-18T21:02:17.186936Z'
-updated: '2026-08-18T21:02:17.187800Z'
+updated: '2026-08-19T19:26:09.362402Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -17,6 +17,7 @@ tags:
 effort: small
 assignment:
   eligible: []
+parent: task-181-dispatch-phase-one-hardening
 spec:
   summary: 'Dispatching a task a second time refuses with not_human_clocked and advises
     adding the reserved ''dispatcher'' actor to the project''s actors: with kind:
@@ -185,3 +186,15 @@ log:
       id: 1530aa11-2b33-4c55-8d77-e9f0a1b2c153
       kind: create
       fingerprint: 171a137471f45a0946832981e43fef5f
+- id: 2
+  ts: '2026-08-19T19:26:09.362302Z'
+  actor: claude
+  type: note
+  body: Updated parent.
+  data:
+    fields:
+    - parent
+    operation:
+      id: e3c8b2d6-5d74-4e10-9038-7f4b0c8e0183
+      kind: update_content
+      fingerprint: 8c1be9ef5eecbe709eb7d00d814bf8a6
