@@ -1,0 +1,145 @@
+schema: 2
+id: task-168-menu-shell
+title: 'Retire the floating button: a burger menu in the top-right that Report issue
+  lives inside'
+created: '2026-08-19T17:34:59.227729Z'
+updated: '2026-08-19T17:34:59.228804Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- menu
+- issue-reporter
+- react-frontend
+- about
+effort: medium
+assignment:
+  eligible: []
+parent: task-167-agentjobs-menu
+spec:
+  summary: "Replace the bottom-right \"Report issue\" floating button with a burger-icon\
+    \ menu in the top-right of the AgentJobs header. It opens a transient popup listing\
+    \ AgentJobs' actions \u2014 Report issue and About to begin with \u2014 and is\
+    \ the shell every later menu entry is added to."
+  intent: 'This is the container the rest of the epic fills. Until it exists, every
+    new AgentJobs action is either another fixed-position button in a corner or a
+    link crammed into a nav bar that already has six.
+
+
+    Doing it first also settles the questions everything else inherits: how the popup
+    opens and closes, how it behaves under a thumb on a phone, where focus goes, and
+    what an entry looks like. A later child adding "Dispatch" should be adding one
+    line to a list, not designing a menu.'
+  description: "## The trigger\n\nA burger icon, top-right of the header in `frontend/src/App.tsx`,\
+    \ aligned with the primary nav.\n\n**Why a burger and not the AgentJobs mark:**\
+    \ inside AgentJobs, an AgentJobs logo labels the app you are already looking at.\
+    \ It tells you nothing about what pressing it does, and it competes with the \"\
+    AgentJobs\" wordmark already in the header. The burger is the conventional \"\
+    there are more actions here\" affordance and reads correctly to someone who has\
+    \ never seen this app. Outside AgentJobs \u2014 task-169 \u2014 the logo becomes\
+    \ the right choice for exactly the inverse reason.\n\n## The popup\n\nTransient:\
+    \ opens on click/tap, closes on Escape, on a click outside, on route change, and\
+    \ after an item is chosen. It is not a drawer, not a persistent panel, and it\
+    \ never requires hover to open a submenu.\n\nEntries in this task:\n\n- **Report\
+    \ issue** \u2014 opens the existing reporter dialog. The dialog itself is unchanged\
+    \ in this task except for how it is opened.\n- **About** \u2014 see below.\n\n\
+    Entries other children add: Dispatch (task-170), AgentJobs dashboard (task-169,\
+    \ embedded hosts only).\n\n## About\n\nA small panel, not a route, answering \"\
+    which AgentJobs am I looking at\" from a phone:\n\n- The running server's version.\
+    \ `src/agentjobs/__version__.py` holds it and `api/main.py` already passes it\
+    \ to FastAPI as the OpenAPI `version`, but there is no endpoint a client can read\
+    \ it from. Add one \u2014 a small `GET /api/version` or an equivalent field on\
+    \ an existing bootstrap-shaped response \u2014 and note that task-140 is separately\
+    \ adding a bootstrap call for embedded clients. Prefer converging on one response\
+    \ over adding a second endpoint that says nearly the same thing; if you add a\
+    \ standalone endpoint, say in a decision entry why.\n- The server origin the UI\
+    \ is talking to, and the current project id.\n- A link to the API docs, which\
+    \ currently occupies a slot in the primary nav that a menu can hold better.\n\n\
+    ## Placement of the reporter mount\n\n`<IssueReporter />` currently renders outside\
+    \ the routes in `App.tsx`, deliberately: findings are noticed on any page, including\
+    \ the ones that render before a project resolves. The menu lives in `ProjectApp`'s\
+    \ header, which those pages do not render. Decide and record which of these you\
+    \ did:\n\n1. The menu also renders on the project-less status pages, or\n2. The\
+    \ reporter's presence on those pages is dropped, and you argue why it does not\
+    \ matter.\n\nDo not silently lose the coverage the header comment in `IssueReporter.tsx`\
+    \ exists to protect.\n\n## Verification\n\nStand up a review server on its own\
+    \ port with seeded throwaway data. Show the menu open on a desktop width and at\
+    \ a phone width. Jeff will look at it on his phone over the tailnet, so make sure\
+    \ it works there."
+  constraints: "- The Dispatch nav link stays in the primary nav; see the epic's constraints\
+    \ and the comment above it in `App.tsx`.\n- Keyboard accessible: the trigger is\
+    \ a real button, the popup is reachable and dismissible by keyboard, focus returns\
+    \ to the trigger on close.\n- Touch targets keep the existing `touch-target` sizing\
+    \ convention.\n- The menu must not shift or reflow the header on open.\n- Do not\
+    \ restyle the reporter dialog in this task. Moving how it opens is the change;\
+    \ redesigning it is not.\n- Version comes from the server, never from a constant\
+    \ compiled into the frontend bundle \u2014 a stale bundle reporting its own build's\
+    \ version is worse than no version at all."
+  out_of_scope: '- The embeddable/host-app version of the menu (task-169).
+
+    - Dispatch entry (task-170), voice (task-172), AI drafting (task-175).
+
+    - Any change to what the reporter form collects or how it files a task.
+
+    - A settings surface. Task-142 owns settings.'
+  context:
+  - path: frontend/src/components/IssueReporter.tsx
+    why: The floating button being retired is the first 20 lines; the header comment
+      explains the placement decision that must survive the move.
+  - path: frontend/src/App.tsx
+    why: ProjectApp's header is where the burger goes; the file also mounts IssueReporter
+      outside the routes and carries the why-Dispatch-is-not-in-a-menu comment.
+  - path: src/agentjobs/api/main.py
+    why: Already imports __version__ for the OpenAPI metadata; the version endpoint
+      belongs near it.
+  - path: frontend/src/components/ProjectSwitcher.tsx
+    why: The header's existing popup-ish control -- match its interaction behaviour
+      rather than inventing a second pattern.
+acceptance:
+- id: ac-1
+  text: No fixed-position button remains in the bottom-right corner of any page in
+    the AgentJobs app.
+  status: pending
+- id: ac-2
+  text: A burger trigger in the top-right opens a popup menu containing Report issue
+    and About, and closes on Escape, outside click, route change, and item selection.
+  status: pending
+- id: ac-3
+  text: Report issue from the menu files a task exactly as the old button did, proven
+    by the existing e2e spec passing after it is updated to the new entry point.
+  status: pending
+- id: ac-4
+  text: About shows the running server's version, read from the server at runtime,
+    plus the server origin and current project.
+  status: pending
+- id: ac-5
+  text: The menu opens and every entry is tappable at a 375px-wide viewport, verified
+    on Jeff's phone over the tailnet, not only in a resized desktop browser.
+  status: pending
+- id: ac-6
+  text: 'Keyboard: the trigger is focusable, the menu is navigable and Escape-dismissible,
+    and focus returns to the trigger.'
+  status: pending
+- id: ac-7
+  text: The decision about reporter coverage on project-less pages is recorded as
+    a decision log entry with its rejected alternative.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T17:34:59.227787Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7b2e4d18-1c9a-4f60-8b21-5d3e6a0f9c41
+      kind: create
+      fingerprint: b75b36900a594067778b39fe7077665a

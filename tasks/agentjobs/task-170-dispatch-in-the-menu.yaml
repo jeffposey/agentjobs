@@ -1,0 +1,122 @@
+schema: 2
+id: task-170-dispatch-in-the-menu
+title: Start an agent on this project from the menu, wherever you are in the app
+created: '2026-08-19T17:36:45.040978Z'
+updated: '2026-08-19T17:36:45.041822Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: ux
+tags:
+- menu
+- dispatch
+- react-frontend
+effort: small
+assignment:
+  eligible: []
+parent: task-167-agentjobs-menu
+spec:
+  summary: Add project-wide dispatch to the menu, so starting an agent on whatever
+    is next does not require navigating to the dispatch page first. The kill switch
+    and its dedicated nav entry stay exactly where they are.
+  intent: 'Dispatch is the action most worth having one tap away: the value of "start
+    an agent on the next thing" is highest at the moment you decide the current thing
+    is fine, and that moment happens on a task page or a dashboard, not on the dispatch
+    settings screen.
+
+
+    The care needed here is the reason this is its own task rather than one line in
+    the shell. Dispatch spends money on Jeff''s machine unattended. A menu entry makes
+    it cheaper to trigger, which is the goal, and also cheaper to trigger by accident,
+    which is not.'
+  description: "Add a **Dispatch** entry to the menu that starts task-161's project-wide\
+    \ dispatch: pick whatever is next by the existing selection rules, and start a\
+    \ run on it.\n\n**What the entry must show before it acts.** It is a menu item,\
+    \ so there is room for one line of state and no room for a settings panel. It\
+    \ states what will be dispatched and by which runner, and every refusal reaches\
+    \ the human as its own sentence \u2014 `REFUSAL_ACTIONS` in `DispatchPanel.tsx`\
+    \ already maps the guard codes to what to do about each, and this entry reuses\
+    \ that map rather than collapsing everything to \"dispatch failed\".\n\n**When\
+    \ dispatch is unavailable** \u2014 not configured, machine switch off, sentinel\
+    \ file present, project not enabled \u2014 the entry is visibly disabled and says\
+    \ which of those it is, with a link to the Dispatch page. It is never silently\
+    \ missing: a person looking for it should learn why it will not work, not conclude\
+    \ the feature does not exist.\n\n**Confirmation.** Decide whether the entry dispatches\
+    \ on tap or asks first, and record the decision with its alternative. The relevant\
+    \ facts: this is one tap from anywhere including a phone in a pocket, a run costs\
+    \ money, and task-160's children may add a prompt-authoring step (task-162) that\
+    \ supplies a natural confirmation moment.\n\n**What does not change.** The Dispatch\
+    \ link in the primary nav stays. It is where the kill switch lives and `App.tsx`\
+    \ carries a comment saying why it is not buried in a menu \u2014 that comment\
+    \ describes the switch, not the action, and both statements are true at once:\
+    \ the switch stays reachable in one click, the action gains a shortcut."
+  constraints: '- The Dispatch nav entry is not removed, moved, or demoted.
+
+    - The menu never invents or edits a runner. It may only start what a human already
+    configured in `~/.agentjobs/dispatch.yaml`.
+
+    - Guard refusals surface individually, using the existing `REFUSAL_ACTIONS` mapping;
+    no generic failure message.
+
+    - The human-clocked rule is not weakened. A human choosing this entry is a human
+    act; nothing about being in a menu changes what may follow it.
+
+    - No polling from the menu. Read dispatch availability when the menu opens.'
+  out_of_scope: "- Dispatch from an embedded host app (task-143).\n- Authoring the\
+    \ dispatch prompt (task-162) \u2014 consume it if it has landed.\n- Any change\
+    \ to dispatch guards, config, or the runner.\n- Run output or progress display\
+    \ inside the menu. Starting a run navigates to where runs are already shown."
+  context:
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: REFUSAL_ACTIONS, the D1 decision that dispatch is not approve, and the rule
+      that the browser may never describe a runner.
+  - path: frontend/src/App.tsx
+    why: useTaskDispatch shows how a dispatch call, its refusal handling and its polling
+      are already wired.
+  - path: tasks/agentjobs/task-161-project-level-dispatch.yaml
+    why: What this entry starts.
+acceptance:
+- id: ac-1
+  text: A Dispatch entry in the menu starts a project-wide run from any page in the
+    app.
+  status: pending
+- id: ac-2
+  text: With dispatch unconfigured, disabled, sentinel-blocked, or not enabled for
+    the project, the entry is disabled and names which one, with a route to fix it.
+  status: pending
+- id: ac-3
+  text: Each guard refusal produces its own sentence from the existing refusal map,
+    verified for at least three distinct codes.
+  status: pending
+- id: ac-4
+  text: The Dispatch link remains in the primary nav and reaches the kill switch in
+    one click.
+  status: pending
+- id: ac-5
+  text: The confirm-or-not decision is recorded as a decision entry with its rejected
+    alternative.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-168-menu-shell
+  type: needs
+  note: The menu is the container.
+- task: task-161-project-level-dispatch
+  type: needs
+  note: Project-wide dispatch has to exist before a menu entry can start one.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T17:36:45.041059Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 2e5b8a71-4c69-4d13-a0f7-8b1c6e2d94af
+      kind: create
+      fingerprint: 06333efbaecbf347f4bee6cfead719e2

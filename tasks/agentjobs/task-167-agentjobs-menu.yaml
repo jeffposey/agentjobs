@@ -1,0 +1,226 @@
+schema: 2
+id: task-167-agentjobs-menu
+title: 'The AgentJobs menu: one reusable control for every frontend, and forms fast
+  enough to fill on a phone'
+created: '2026-08-19T17:34:04.201284Z'
+updated: '2026-08-19T17:40:00.345350Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- menu
+- issue-reporter
+- embedding
+- voice-input
+- react-frontend
+- dispatch
+- developer-experience
+effort: multi-task program
+assignment:
+  eligible: []
+spec:
+  summary: "Report Issue is a lone floating button in the bottom-right corner of the\
+    \ AgentJobs app. Replace it with a single AgentJobs menu in the top-right that\
+    \ holds every AgentJobs action \u2014 report an issue, dispatch, About \u2014\
+    \ build that menu as a component any project's React frontend can embed, and make\
+    \ the free-text fields behind it dictatable by voice and completable by a model."
+  intent: "Two problems, one control.\n\nThe first is placement. \"Report issue\"\
+    \ is a bottom-right floating button that names one action, so every additional\
+    \ AgentJobs action either becomes another floating button or gets buried in a\
+    \ page. A menu in the top-right \u2014 where an application menu belongs \u2014\
+    \ is a container that grows: About today, dispatch tomorrow, whatever the product\
+    \ needs after that, without the chrome degrading into a pile of fixed-position\
+    \ buttons.\n\nThe second is reach. The same menu is the whole embedded story:\
+    \ a project using AgentJobs should carry an AgentJobs menu in its own app, offering\
+    \ the same report-an-issue and a link into its own backlog. Building the menu\
+    \ once, as a component that does not assume the AgentJobs app around it, is what\
+    \ makes \"add AgentJobs to your frontend\" a one-import job rather than a port.\
+    \ Adding it must be trivial for an agent following a written recipe.\n\nBehind\
+    \ both is the capture argument that motivated the reporter in the first place:\
+    \ the moment a problem is cheapest to record is the moment it is noticed, and\
+    \ every second of friction between noticing and filing is a task that never gets\
+    \ written. Typing a spec into a phone is friction. Dictating it, and having a\
+    \ model turn three sentences into a task with acceptance criteria, is the same\
+    \ argument carried to its end."
+  description: "Implementation umbrella. It is finished by its children and must not\
+    \ become a parallel implementation workstream.\n\n## The shape being built\n\n\
+    **Inside the AgentJobs app.** The bottom-right \"Report issue\" button goes away.\
+    \ A burger icon sits in the top-right of the header \u2014 a burger and not the\
+    \ AgentJobs mark, because inside AgentJobs an AgentJobs logo names the app you\
+    \ are already in and says nothing about what the button does. It opens a transient\
+    \ popup menu listing every AgentJobs action.\n\n**Inside somebody else's app.**\
+    \ The same component, with the AgentJobs mark as its icon, because there the logo\
+    \ *is* the information \u2014 it says which system this control belongs to. Its\
+    \ menu gains **AgentJobs dashboard**, a deep link into that project's backlog\
+    \ on the AgentJobs server.\n\n**Menu contents**, one line each:\n\n- **Report\
+    \ issue** \u2014 the existing reporter, moved from its own floating button into\
+    \ the menu.\n- **Dispatch** \u2014 project-wide dispatch (task-161), started from\
+    \ wherever you are.\n- **About** \u2014 version of the running server, and enough\
+    \ of what it is pointed at to answer \"which AgentJobs am I looking at\" from\
+    \ a phone.\n- **AgentJobs dashboard** \u2014 embedded hosts only; a no-op inside\
+    \ AgentJobs, which is already the dashboard.\n\n**Behind the menu**, the forms:\n\
+    \n- Every free-text field the menu can reach \u2014 issue title and details, the\
+    \ dispatch prompt, the create-task fields \u2014 takes **dictation**, using whatever\
+    \ the device already has. No user-installed transcription software.\n- Create-task\
+    \ grows **draft with AI**: expand a one-liner into a real spec, for a human to\
+    \ edit before it is saved.\n- Create-task grows **dispatch on create**: file it\
+    \ and start an agent on it in one action.\n\n## Relationship to task-137\n\nTask-137\
+    \ (embedded helper UI) already promised a host-app launcher whose menu offers\
+    \ Open in AgentJobs, Report issue, dispatch and settings \u2014 this epic is that\
+    \ launcher's actual shape, plus the recognition that the AgentJobs app should\
+    \ be its first consumer rather than a separate implementation. **The overlap with\
+    \ task-141 is unresolved and is a question on this epic.** The intended resolution\
+    \ is that task-141 narrows to host-side integration of the component built here,\
+    \ and this epic depends on 137's groundwork children (138 distribution, 139 host-agnostic\
+    \ reporter core, 140 server surface) rather than redoing them. Do not start the\
+    \ embedding child until that is settled.\n\n## Children\n\n- **task-168** \u2014\
+    \ the menu shell in the AgentJobs app: burger, top-right, Report issue moved into\
+    \ it, About with the version.\n- **task-169** \u2014 the same menu as a component\
+    \ another project's React app embeds.\n- **task-170** \u2014 project-wide dispatch\
+    \ as a menu entry.\n- **task-171** \u2014 decide how dictation works, from evidence\
+    \ on real devices.\n- **task-172** \u2014 the dictation control, wired into every\
+    \ field the menu reaches.\n- **task-173** \u2014 a server-side transcription fallback,\
+    \ only if 171 says one is needed.\n- **task-174** \u2014 decide how AgentJobs\
+    \ is allowed to call a model at all.\n- **task-175** \u2014 draft with AI on the\
+    \ create and report forms.\n- **task-176** \u2014 dispatch the task you just created."
+  constraints: '- **One menu implementation.** The AgentJobs app renders the same
+    component a host app renders, differing only by configuration. Two copies is a
+    fork and will drift, which is the exact failure task-139 exists to prevent for
+    the reporter.
+
+    - **The Dispatch nav entry stays where it is.** `frontend/src/App.tsx` carries
+    a deliberate comment: dispatch has its own nav entry because the machine-wide
+    kill switch lives there, and a kill switch you cannot reach is not one. Adding
+    dispatch to the menu is an addition, never a replacement for that link.
+
+    - **Reachable on a phone.** Jeff uses this from a phone and a tablet over Tailscale.
+    Touch targets, thumb reach, and a popup that does not require a hover.
+
+    - **The menu never breaks its host**: no global style leakage in either direction,
+    no document listeners left behind on unmount, no console noise when the server
+    is unreachable, no interference with the host''s routing or keyboard handling.
+
+    - **Dictation requires no install.** If a device needs the user to obtain a transcription
+    tool, that device is not supported by the feature and says so plainly.
+
+    - **Audio is not stored.** Whatever the transcription path, recorded audio is
+    not persisted server-side or attached to tasks unless a child explicitly specifies
+    it and Jeff approves it.
+
+    - **A model never files a task on its own.** Drafting produces text a human reviews
+    and edits in the form. The human presses the button that creates the task.
+
+    - Task creation continues to go through the managed API/TaskManager path. No parallel
+    issue store, ever.
+
+    - Every visible child stands up a review server on its own port with seeded throwaway
+    data, per the standing UI-review rule.'
+  out_of_scope: '- Non-React hosts: plain script tag, web component, Vue, Svelte,
+    native SDKs. (React 19 hosts only, per task-137.)
+
+    - Replacing the app''s primary navigation. This is an actions menu, not a nav
+    rewrite; Dashboard, Tasks, Create and Dispatch stay in the header.
+
+    - End-user feedback collection for a shipped product, anonymous reporters, or
+    ingestion from the public internet.
+
+    - Text-to-speech, read-aloud, or any voice output. Input only.
+
+    - A general in-app assistant, chat surface, or model-driven task triage. The model''s
+    only job here is filling in a form the human then edits.
+
+    - Rebuilding the dispatch runner, the dispatch config file, or its guards. The
+    menu points at what task-160''s children build.'
+  context:
+  - path: frontend/src/components/IssueReporter.tsx
+    why: The control being replaced. Its header comment argues why the reporter renders
+      beside the router rather than inside a page -- that reasoning survives the move
+      into a menu and must not be lost.
+  - path: frontend/src/App.tsx
+    why: The header nav the menu is added to, the comment explaining why Dispatch
+      is not in a menu, and the placement of <IssueReporter /> outside the routes.
+  - path: tasks/agentjobs/task-137-embedded-helper-ui.yaml
+    why: The embedding epic this overlaps. Read its description and children before
+      starting the embedding child.
+  - path: frontend/assets/app-icon.svg
+    why: The AgentJobs mark, which is the menu icon in a host app.
+  - path: frontend/src/components/TaskCreate.tsx
+    why: The create form that grows AI drafting and dispatch-on-create.
+acceptance:
+- id: ac-1
+  text: No floating bottom-right button remains in the AgentJobs app; every action
+    it offered is reachable from the top-right menu.
+  status: pending
+- id: ac-2
+  text: The same menu component is rendered by both the AgentJobs app and at least
+    one other project's React app, from one implementation.
+  status: pending
+- id: ac-3
+  text: A written recipe exists that an agent can follow to add the menu to a project's
+    frontend, and it was followed successfully without editing the recipe afterwards.
+  status: pending
+- id: ac-4
+  text: An issue can be filed end to end by voice, from Jeff's phone and from his
+    tablet, with no software installed for the purpose.
+  status: pending
+- id: ac-5
+  text: A one-line description can be expanded by a model into a task spec the human
+    edits before saving, and the task that results is indistinguishable in structure
+    from a hand-written one.
+  status: pending
+- id: ac-6
+  text: A task can be created and dispatched in one action, without the human-clocked
+    dispatch rule being weakened to allow it.
+  status: pending
+- id: ac-7
+  text: About states the running server's version and which server and project the
+    UI is pointed at.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T17:34:04.201330Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3f1a9c20-6d41-4b7e-9a83-0c5e1a7b2d10
+      kind: create
+      fingerprint: 114c3555b429702b68fb02016142eed9
+- id: 2
+  ts: '2026-08-19T17:40:00.345238Z'
+  actor: claude
+  type: question
+  body: "Does task-141 narrow to host-side integration of the menu built here, or\
+    \ does this epic's task-169 fold into task-141 instead?\n\nThe overlap is substantial\
+    \ and not accidental. Task-137's epic already describes a host-app launcher whose\
+    \ menu offers Open in AgentJobs, Report issue, dispatch and settings, and task-141\
+    \ was written to build it. This epic arrives at the same control from the other\
+    \ direction \u2014 the AgentJobs app's own chrome \u2014 and concludes the two\
+    \ should be one component, which they should.\n\nThe three ways out:\n\n1. **task-141\
+    \ narrows** to \"integrate the shared menu into a host app\", and task-169 owns\
+    \ building the shared component. Recommended: the menu is chrome for AgentJobs\
+    \ first and embeddable second, and building it inside the app where it can be\
+    \ exercised daily is the cheaper order. It also means the embedding epic's groundwork\
+    \ children (138 distribution, 139 host-agnostic reporter, 140 server surface)\
+    \ stay exactly as written and stay on the critical path.\n2. **task-169 is closed**\
+    \ and its content merged into task-141. Keeps the embedding epic whole, at the\
+    \ cost of blocking every visible piece of this epic behind four children of another\
+    \ epic.\n3. Both are built. Rejected \u2014 two launchers is the failure the epic\
+    \ constraints exist to prevent.\n\nNothing here is blocked while this is open:\
+    \ task-168 (the menu shell inside AgentJobs), task-171/172 (dictation) and task-174/175\
+    \ (AI drafting) are all independent of the answer. Only task-169 waits, and its\
+    \ own ac-7 requires this resolved before code is written."
+  data:
+    operation:
+      id: b3e07a29-64f5-4d81-9c02-7a5e83b1df46
+      kind: log_append
+      fingerprint: 44b9818e39f4c67e7d03e92f960a7b11

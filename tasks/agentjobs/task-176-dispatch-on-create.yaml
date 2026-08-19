@@ -1,0 +1,123 @@
+schema: 2
+id: task-176-dispatch-on-create
+title: Start an agent on the task you just created, off by default
+created: '2026-08-19T17:39:38.488193Z'
+updated: '2026-08-19T17:39:38.489099Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: ux
+tags:
+- dispatch
+- task-creation
+- react-frontend
+- issue-reporter
+effort: small
+assignment:
+  eligible: []
+parent: task-167-agentjobs-menu
+spec:
+  summary: "A checkbox on the create and report forms \u2014 unchecked by default\
+    \ \u2014 that dispatches the new task the moment it is filed. Notice, describe,\
+    \ and have an agent working on it without a second visit to the task."
+  intent: "The gap this closes is between filing and starting. A task filed and not\
+    \ started is a task that waits for someone to come back and decide, and for a\
+    \ small obvious fix that decision was already made at the moment of noticing.\n\
+    \nIt is off by default because starting an agent spends money on Jeff's machine\
+    \ unattended, and the moment of filing is the moment you know least about whether\
+    \ the task is ready to be worked. Someone who wants it wants it deliberately,\
+    \ per task.\n\nNote the tension with task-175: a task worth auto-dispatching is\
+    \ one whose spec is good enough for an agent to act on, and a spec written in\
+    \ ten seconds on a phone usually is not. The two features are complements \u2014\
+    \ draft it properly, then start it \u2014 and the implementation should make that\
+    \ sequence natural rather than offering dispatch on a one-line stub with nothing\
+    \ in it."
+  description: "A checkbox \u2014 **unchecked by default** \u2014 beside the create\
+    \ button on the create-task form and the issue reporter. Checked, the task is\
+    \ created and immediately dispatched.\n\n**The causation rule holds without exception.**\
+    \ A human filling in a form and pressing create is a human act, so a dispatch\
+    \ may follow it \u2014 the existing human-clocked rule is satisfied by the creation\
+    \ itself, and nothing about it needs to change or be exempted. The run's own resulting\
+    \ handoff is an agent act and causes nothing further. If the implementation finds\
+    \ itself wanting to relax a dispatch guard to make this work, stop: that is the\
+    \ signal that this is being built wrong.\n\n**When dispatch is unavailable**,\
+    \ the checkbox is absent or disabled with the reason, using the same refusal vocabulary\
+    \ as everywhere else (`REFUSAL_ACTIONS`). Task-074 already added an `auto_dispatch`\
+    \ project setting for approval-triggered dispatch; decide whether this checkbox\
+    \ is governed by that setting, is independent of it, or should reuse it, and record\
+    \ the decision rather than adding a third overlapping switch by accident.\n\n\
+    **When creation succeeds and dispatch is refused**, the task still exists and\
+    \ the human is told exactly that: filed, not started, and why. Never roll back\
+    \ the task, and never report success for both when only one happened.\n\nThe confirmation\
+    \ state names both outcomes and links to the task, where the run is visible."
+  constraints: "- **Default unchecked.** Jeff's call, 2026-08-19. Do not make it sticky,\
+    \ remembered, or defaulted on per project without asking.\n- No dispatch guard\
+    \ is relaxed, exempted, or widened for this. Every existing refusal applies.\n\
+    - Creation and dispatch are reported separately. A task that was filed but not\
+    \ started says so.\n- Never roll back or delete a created task because dispatch\
+    \ was refused.\n- The checkbox is disabled with a reason when dispatch is unavailable\
+    \ \u2014 never silently absent, and never enabled-then-failing."
+  out_of_scope: '- Dispatch from an embedded host app (task-143), which covers the
+    same idea on that surface.
+
+    - Changing dispatch guards, config, or the runner.
+
+    - Auto-dispatch on approval (task-074, already shipped).
+
+    - Choosing which agent or model runs. The configured runner is the runner.
+
+    - Authoring a prompt for the run (task-162).'
+  context:
+  - path: tasks/agentjobs/task-074-auto-dispatch.yaml
+    why: The existing auto_dispatch project setting and the human-clocked argument
+      in full. Read before adding a second switch.
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: REFUSAL_ACTIONS and the dispatch-is-not-approve decision.
+  - path: frontend/src/components/TaskCreate.tsx
+    why: The form and its submit path.
+acceptance:
+- id: ac-1
+  text: The checkbox is present and unchecked by default on both the create form and
+    the issue reporter.
+  status: pending
+- id: ac-2
+  text: Checked, a created task is dispatched immediately and the confirmation links
+    to the task with its run visible.
+  status: pending
+- id: ac-3
+  text: No dispatch guard was modified; a test proves the agent handoff ending such
+    a run causes no further dispatch.
+  status: pending
+- id: ac-4
+  text: When dispatch is refused after a successful create, the task exists, the human
+    is told it was filed but not started, and the reason is the specific refusal.
+  status: pending
+- id: ac-5
+  text: The relationship to the existing auto_dispatch setting is decided and recorded,
+    with no third overlapping switch introduced.
+  status: pending
+- id: ac-6
+  text: With dispatch unavailable, the checkbox is disabled and names which guard
+    is stopping it.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-168-menu-shell
+  type: needs
+  note: The reporter's new home; this rides the same forms.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T17:39:38.488238Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 4d8a1f65-9c07-4b23-a6e1-0f2b7d5c83e9
+      kind: create
+      fingerprint: a65cdfcabffddedf638a7c656fcf2988

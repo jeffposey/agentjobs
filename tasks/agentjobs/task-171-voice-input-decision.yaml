@@ -1,0 +1,143 @@
+schema: 2
+id: task-171-voice-input-decision
+title: Decide how dictation works, on the devices it actually has to work on
+created: '2026-08-19T17:35:36.165977Z'
+updated: '2026-08-19T17:35:36.166792Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- voice-input
+- spike
+- decision
+- mobile
+effort: small
+assignment:
+  eligible: []
+parent: task-167-agentjobs-menu
+spec:
+  summary: Three defensible ways to get speech into a text field in a browser, with
+    different device coverage and different install costs. Settle which combination
+    AgentJobs uses by testing them on Jeff's actual phone, tablet and desktop, and
+    record the answer before anything is built on it.
+  intent: "The requirement is not \"add a mic button\". It is \"typing a task into\
+    \ a phone is the reason tasks do not get filed, and the fix must not ask anyone\
+    \ to install dictation software.\" Which implementation satisfies that depends\
+    \ on facts about specific devices and browsers that are cheap to check and expensive\
+    \ to guess wrong \u2014 a mic button that silently does nothing in Firefox, or\
+    \ that ships audio to a third party without saying so, is worse than no mic button.\n\
+    \nThis is a spike that ends in a decision, so the implementation child can be\
+    \ written rather than researched."
+  description: "## The three paths\n\n**1. The OS keyboard's own dictation.** Costs\
+    \ nothing and already works: iOS and iPadOS put a mic key on the system keyboard,\
+    \ Gboard on Android does the same, Windows has Win+H voice typing and macOS has\
+    \ Fn-Fn dictation. Any plain `<textarea>` accepts all of it today. It covers the\
+    \ phone and tablet cases in the request completely, on-device on modern iOS, with\
+    \ zero code.\n\nIts weaknesses: there is no in-page affordance, so a user has\
+    \ to know it exists; nothing in the app can start or stop it; and on desktop it\
+    \ is behind a shortcut most people never learned. **Whatever else is built, this\
+    \ path must not be broken** \u2014 a custom input control that intercepts keystrokes\
+    \ or replaces the textarea can disable it.\n\n**2. Web Speech API** (`SpeechRecognition`\
+    \ / `webkitSpeechRecognition`) \u2014 a real mic button inside the page. State\
+    \ as of 2026-08:\n\n- Chrome, Edge and Opera support it on desktop and Android.\
+    \ Safari supports it prefixed from 14.1 on macOS and 14.5 on iOS/iPadOS.\n- **Firefox\
+    \ does not.** It exists behind `dom.webspeech.recognition.enable` in about:config,\
+    \ off by default, so treat it as absent.\n- Historically Chrome streamed audio\
+    \ to a Google service. Chrome 139 (August 2025) shipped on-device recognition:\
+    \ `SpeechRecognition.available({ processLocally: true, langs: [...] })` reports\
+    \ whether a language pack is present and `SpeechRecognition.install()` fetches\
+    \ one, gated by the `on-device-speech-recognition` Permissions-Policy. Starting\
+    \ with `processLocally = true` and no pack fails with `language-not-supported`.\
+    \ Safari can also run recognition on-device once the language pack is installed.\
+    \ There are reported platform-specific bugs in this area \u2014 a Chromium issue\
+    \ for `available()` on macOS, and a Brave issue where the on-device component\
+    \ never installs \u2014 so verify rather than trust the spec.\n- Requires a secure\
+    \ context and a user gesture. localhost and the `https://` tailnet address both\
+    \ qualify; a plain-http LAN address does not, which matters for how Jeff reaches\
+    \ this from a tablet.\n- On iOS recognition ends per utterance, so continuous\
+    \ dictation means restarting the recogniser and stitching results.\n\n**3. MediaRecorder\
+    \ \u2192 server-side transcription.** Record in any browser, post the audio to\
+    \ AgentJobs, transcribe with a local model. This is the only path that covers\
+    \ Firefox and any browser without the Web Speech API, and the only one where AgentJobs\
+    \ controls where the audio goes. It moves the install cost from the user to the\
+    \ server host \u2014 which is Jeff's own machine, so it may still satisfy the\
+    \ requirement, and that is a judgement call for this task to make explicitly rather\
+    \ than assume. Task-173 exists to build it, or to be closed unbuilt.\n\n## What\
+    \ to actually do\n\n1. Build a throwaway page \u2014 not production code \u2014\
+    \ with a mic button on a textarea, served over the tailnet HTTPS origin, and exercise\
+    \ it on: Jeff's phone, Jeff's tablet, his Windows desktop in Chrome, and one Firefox.\
+    \ Record what each did.\n2. For each, note: did the browser support it, did on-device\
+    \ apply, was audio leaving the machine, did permission prompt behaviour make sense,\
+    \ and how good was the transcript on a paragraph of task-shaped prose containing\
+    \ terms like \"task-167\", \"YAML\" and \"worktree\".\n3. Confirm the OS keyboard\
+    \ mic still works in a plain field on iOS and Android over the same origin.\n\
+    4. Write the decision: which paths ship, how the UI tells the user which one is\
+    \ running, what happens on a browser with none of them, and whether audio ever\
+    \ leaves the device.\n\n## Deliverable\n\nA `decision` log entry on this task\
+    \ with the rejected alternatives, plus a short section in the repo's docs if the\
+    \ answer is non-obvious enough to be re-litigated later. Evidence, not a recommendation:\
+    \ state what each device did."
+  constraints: "- No user-installed transcription software. If a device cannot do\
+    \ it without one, the answer for that device is \"the OS keyboard mic, and the\
+    \ UI says so\" \u2014 not \"install something\".\n- Test over the real HTTPS tailnet\
+    \ origin as well as localhost. Secure-context behaviour is the whole question\
+    \ on mobile.\n- Do not send audio to any third-party service in the prototype\
+    \ without saying so in the write-up, and do not build a cloud-STT path (Deepgram,\
+    \ AssemblyAI, OpenAI, Google) into the decision. Adding a paid external dependency\
+    \ to file a bug report is out of scope for this epic.\n- The prototype is throwaway\
+    \ and does not ship. It must not land in `frontend/src/` as production code."
+  out_of_scope: '- Building the shipped control (task-172).
+
+    - Building the server-side fallback (task-173).
+
+    - Voice output, read-aloud, or voice commands/navigation. Dictation into a text
+    field only.
+
+    - Speaker identification, wake words, or hands-free operation.'
+  context:
+  - path: frontend/src/components/IssueReporter.tsx
+    why: 'The fields dictation is ultimately for: title and details.'
+  - path: frontend/src/pwa.ts
+    why: How the app already handles being installed and used from a phone; the same
+      devices are the test matrix here.
+acceptance:
+- id: ac-1
+  text: 'A results table exists covering at minimum: Jeff''s phone, Jeff''s tablet,
+    desktop Chrome and desktop Firefox, each stating support, on-device or not, and
+    transcript quality on task-shaped prose.'
+  status: pending
+- id: ac-2
+  text: It is stated, from observation rather than from documentation, whether audio
+    left the device in each tested configuration.
+  status: pending
+- id: ac-3
+  text: The OS keyboard mic is confirmed still working in a plain field on both mobile
+    platforms over the tailnet origin.
+  status: pending
+- id: ac-4
+  text: A decision log entry names the shipping paths, the fallback behaviour for
+    unsupported browsers, and the rejected alternatives with reasons.
+  status: pending
+- id: ac-5
+  text: The decision says explicitly whether task-173 should be built, and that recommendation
+    is recorded on task-173.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T17:35:36.166016Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c4a71e93-2f58-4d0b-9e17-6b8c2a5f31d7
+      kind: create
+      fingerprint: 7be1e289eb381b8b6df894b0390464d4

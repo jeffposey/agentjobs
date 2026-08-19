@@ -1,0 +1,114 @@
+schema: 2
+id: task-173-transcription-fallback
+title: "A transcription path for browsers with no speech API \u2014 build it or close\
+  \ it"
+created: '2026-08-19T17:37:53.991715Z'
+updated: '2026-08-19T17:37:53.992428Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: low
+category: infrastructure
+tags:
+- voice-input
+- transcription
+- fallback
+effort: medium
+assignment:
+  eligible: []
+parent: task-167-agentjobs-menu
+spec:
+  summary: 'Record audio in the browser and transcribe it on the AgentJobs server,
+    covering Firefox and anything else without the Web Speech API. Exists to be decided
+    as much as built: if task-171 finds the native paths cover the devices that matter,
+    close this unbuilt with the reasoning.'
+  intent: "The native browser paths have a hole: Firefox ships no speech recognition\
+    \ by default, and any browser can decline the permission or lack a language pack.\
+    \ A server-side path closes that hole and is the only option where AgentJobs,\
+    \ rather than the browser vendor, decides where the audio goes.\n\nIt is filed\
+    \ at low priority and explicitly cancellable because the cost is real \u2014 a\
+    \ transcription model on the server, a new dependency, an upload path for audio\
+    \ \u2014 and the benefit may be zero if nobody using this is on Firefox. Building\
+    \ it because it is architecturally tidy would be the wrong call. Deciding not\
+    \ to build it, in writing, with a trigger for revisiting, is a legitimate outcome\
+    \ and should be closed as `wont_do` rather than left open forever."
+  description: "**Read task-171's decision first.** If it concluded the native paths\
+    \ are sufficient, close this `wont_do` with that reasoning and a stated trigger\
+    \ for reopening \u2014 for example, a second person using AgentJobs on a browser\
+    \ without the Web Speech API.\n\nIf it is to be built:\n\n- `MediaRecorder` in\
+    \ the browser captures a clip while the mic is held open, behind the same control\
+    \ task-172 built. The user sees one mic button; which engine served it is an implementation\
+    \ detail surfaced only where it changes behaviour (for example, results arriving\
+    \ at the end rather than as you speak).\n- The clip posts to an AgentJobs endpoint\
+    \ that transcribes it locally \u2014 whisper.cpp, faster-whisper, or whatever\
+    \ the implementation finds is installable and fast enough on Jeff's machine \u2014\
+    \ and returns text.\n- **The model is a server-host dependency, not a user dependency.**\
+    \ Detect its absence and refuse clearly: \"this server has no transcription model\
+    \ configured\", never a hang or a 500.\n- **Audio is transient.** Held only as\
+    \ long as the request needs it, never written into `tasks/`, never attached to\
+    \ a task, never logged. Say in the code where it dies.\n- Latency is the product\
+    \ risk. A clip that takes twenty seconds to come back is worse than typing. Measure\
+    \ it and state the number; if it is bad, that is a finding worth reporting rather\
+    \ than shipping.\n\nWhichever way it goes, record the outcome as a decision entry\
+    \ with the rejected alternative."
+  constraints: "- No third-party or cloud STT service. Local transcription or nothing\
+    \ \u2014 the point is that audio does not leave the machine.\n- Audio is never\
+    \ persisted. Not to disk, not to a task, not to a log.\n- The endpoint refuses\
+    \ cleanly when no model is configured, with a message naming what is missing.\n\
+    - This is a source behind task-172's control, not a second mic button.\n- Do not\
+    \ make the transcription model a hard install requirement for running AgentJobs.\
+    \ Absent means the feature is absent, not that the server fails to start."
+  out_of_scope: '- Cloud transcription of any kind.
+
+    - Diarization, timestamps, translation, or transcript editing tools.
+
+    - Storing recordings as task attachments. If that is ever wanted it is a separate
+    task with its own privacy argument.
+
+    - Streaming/partial results. A clip in, text out, is enough for a fallback.'
+  context:
+  - path: src/agentjobs/attachments.py
+    why: How binary payloads already reach the server, and the size and validation
+      conventions to follow.
+acceptance:
+- id: ac-1
+  text: Either the feature works end to end in Firefox, or the task is closed wont_do
+    with the reasoning and a stated reopen trigger.
+  status: pending
+- id: ac-2
+  text: 'If built: audio never reaches disk or a task record, demonstrated by a test
+    or by an explicit walk of the code path.'
+  status: pending
+- id: ac-3
+  text: 'If built: with no model configured the endpoint refuses with a message naming
+    what is missing, and the UI shows that sentence.'
+  status: pending
+- id: ac-4
+  text: 'If built: round-trip latency for a 30-second clip is measured and stated.'
+  status: pending
+- id: ac-5
+  text: The outcome is recorded as a decision entry with its rejected alternative.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-171-voice-input-decision
+  type: needs
+  note: The decision that says whether this is worth building, and for which browsers.
+- task: task-172-dictation-control
+  type: needs
+  note: This is a second source behind an existing control, not a second control.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T17:37:53.991755Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 8c3d5e77-9b02-4a16-8e94-1d7f6b3a05c2
+      kind: create
+      fingerprint: d5ba5e1863cb56a996f8b9d7392e764b

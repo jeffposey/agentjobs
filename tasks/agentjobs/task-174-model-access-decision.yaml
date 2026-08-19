@@ -1,0 +1,136 @@
+schema: 2
+id: task-174-model-access-decision
+title: Decide how AgentJobs is allowed to call a model at all
+created: '2026-08-19T17:38:28.122685Z'
+updated: '2026-08-19T17:38:28.123495Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: infrastructure
+tags:
+- decision
+- ai-assist
+- dispatch
+- architecture
+effort: small
+assignment:
+  eligible: []
+parent: task-167-agentjobs-menu
+spec:
+  summary: "AgentJobs starts coding agents but has never called a model itself. \"\
+    Flesh this out with AI\" needs one, and how that call is made \u2014 through the\
+    \ existing dispatch runner, or through a direct API with a key \u2014 is an architectural\
+    \ fork worth settling once, before any feature depends on the answer."
+  intent: "Today AgentJobs' entire relationship with models is \"run a command a human\
+    \ configured, in a working tree, unattended\". It holds no API key, has no notion\
+    \ of tokens or cost per call, and every guard in the dispatch layer is built around\
+    \ the idea that model work is a *run* \u2014 something that takes minutes, produces\
+    \ a transcript, and is subject to a kill switch.\n\nFilling in a form field is\
+    \ none of those things. It takes seconds, a human is staring at a spinner, and\
+    \ there is no working tree involved. Forcing it through the run machinery may\
+    \ be the right answer anyway, because it inherits every guard already written.\
+    \ Bolting on a direct API client may be the right answer instead, because the\
+    \ latency of spawning a whole agent session to rewrite a paragraph is user-hostile.\n\
+    \nGetting this wrong is expensive in both directions: a second, ungoverned way\
+    \ for AgentJobs to spend money, or a feature so slow nobody uses it. Decide before\
+    \ task-175 is written."
+  description: "## The options\n\n**A. Reuse the dispatch runner.** A one-shot, non-interactive\
+    \ invocation of the agent CLI a human already configured in `~/.agentjobs/dispatch.yaml`.\
+    \ No new dependency, no key for AgentJobs to hold, and every existing guard and\
+    \ kill switch applies unchanged. Costs: process-spawn latency measured in tens\
+    \ of seconds while someone waits in a form; the runner is configured for repository\
+    \ work, not for answering a prompt; and the dispatch guards \u2014 human-clocked\
+    \ causation, dirty tree, concurrency slots \u2014 either apply and get in the\
+    \ way, or must be exempted, and every exemption is a hole in the argument that\
+    \ dispatch is fully governed.\n\n**B. A direct API call from the server.** AgentJobs\
+    \ holds a key, from config or the environment, and calls a model directly. Fast,\
+    \ appropriately sized for the job, and controllable. Costs: a key to store and\
+    \ to keep out of task files, logs and the frontend bundle; a new dependency; per-call\
+    \ spend with no existing accounting; and a second path by which AgentJobs spends\
+    \ money, which the dispatch design deliberately kept to one.\n\n**C. A local model.**\
+    \ Ollama or similar. No key, no per-call cost, no data leaving the machine. Costs:\
+    \ an install requirement, quality that may not survive turning a one-liner into\
+    \ a usable spec, and a hard dependency for a convenience feature.\n\n**D. Do it\
+    \ in the browser.** Rejected before you start \u2014 it means a key in a client\
+    \ bundle. Recorded here so nobody re-proposes it.\n\n## What to produce\n\nA decision\
+    \ naming the chosen path, with:\n\n- **Latency measured, not estimated.** Prototype\
+    \ the winner far enough to time one real \"expand this sentence into a task spec\"\
+    \ round trip. This is a person waiting in a form; the number decides whether the\
+    \ feature is worth having.\n- **Where the credential lives**, if there is one,\
+    \ and the explicit rule that it never reaches a task file, a log entry, an error\
+    \ message, or the frontend bundle.\n- **What governs spend.** Whether the machine-wide\
+    \ dispatch switch and the sentinel kill-switch file also stop model calls. Argue\
+    \ it either way, but decide it \u2014 a kill switch that stops runs while another\
+    \ feature keeps spending is not a kill switch.\n- **Whether the model is named\
+    \ in config**, so the choice can move as models change, rather than compiled into\
+    \ the source.\n- Whether this path is available to embedded host apps or only\
+    \ inside AgentJobs.\n\nModel ids, pricing and parameters move; check them at implementation\
+    \ time rather than copying them out of this task."
+  constraints: '- No API key in the frontend bundle, in a task file, in a log entry,
+    or in an error message. This is not negotiable and is the reason option D is dead
+    on arrival.
+
+    - The machine-wide dispatch kill switch''s authority is decided explicitly, not
+    left implicit.
+
+    - Whatever is chosen must degrade to "the feature is unavailable, here is why"
+    when unconfigured. AgentJobs runs with no model access at all and that stays true.
+
+    - Do not widen the dispatch guards to accommodate this. If option A requires an
+    exemption, that exemption is named, bounded, and argued.'
+  out_of_scope: '- Building the drafting feature (task-175).
+
+    - A general in-app assistant, chat, or agentic loop inside the server. This decision
+    covers short, bounded, human-triggered model calls only.
+
+    - Model-driven triage, prioritisation, or automatic task edits.
+
+    - Replacing or redesigning dispatch.'
+  context:
+  - path: src/agentjobs/dispatch/
+    why: The only existing path by which AgentJobs causes model work, and every guard
+      that governs it.
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: The stated rules -- the browser may never describe a runner, dispatch is
+      not approve -- that this decision must not quietly undo.
+  - path: docs/agent-dispatch-design.md
+    why: The design this decision either extends or deliberately sits beside.
+acceptance:
+- id: ac-1
+  text: A decision entry names the chosen path and the rejected alternatives with
+    reasons.
+  status: pending
+- id: ac-2
+  text: A measured round-trip latency for one realistic drafting prompt is recorded,
+    from a prototype rather than an estimate.
+  status: pending
+- id: ac-3
+  text: Credential handling is specified, including the explicit rule about task files,
+    logs, errors and the bundle.
+  status: pending
+- id: ac-4
+  text: It is stated whether the dispatch kill switch also stops model calls, with
+    the reasoning.
+  status: pending
+- id: ac-5
+  text: 'The unconfigured behaviour is specified: the feature is unavailable and says
+    why, and nothing else about AgentJobs changes.'
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T17:38:28.122723Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 6f4b2a08-3d75-4c92-b18e-7a0d59e3c614
+      kind: create
+      fingerprint: 1b34ae3246c067185d97c32eee51266d

@@ -1,0 +1,148 @@
+schema: 2
+id: task-175-flesh-out-with-ai
+title: Flesh out the task with AI before it is created, on by default
+created: '2026-08-19T17:39:11.691344Z'
+updated: '2026-08-19T17:39:11.692132Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- ai-assist
+- task-creation
+- react-frontend
+- issue-reporter
+effort: medium
+assignment:
+  eligible: []
+parent: task-167-agentjobs-menu
+spec:
+  summary: "A checkbox on the create and report forms \u2014 checked by default \u2014\
+    \ that has a model expand what you typed into a real task spec: summary, intent,\
+    \ description, acceptance criteria. The draft lands in the form for the human\
+    \ to edit, and the human is still the one who presses create."
+  intent: "The Resumption Contract asks a lot of whoever files a task: a summary that\
+    \ orients a zero-context reader, an intent that explains why, a description that\
+    \ is a working spec, acceptance criteria that mean something. Written properly\
+    \ that is ten minutes. Written from a phone it does not happen, so tasks get filed\
+    \ as one-liners and the next session pays for it \u2014 which is the exact failure\
+    \ the contract exists to prevent.\n\nA model is good at precisely this transformation:\
+    \ it has the repository conventions in front of it and turns three sentences into\
+    \ the shape those conventions demand. It is bad at knowing what Jeff actually\
+    \ wants, which is why the output is a draft in a form and never a filed task.\n\
+    \nDefault on is a deliberate bet that the drafts are more often worth editing\
+    \ than skipping. It is provisional and should be revisited once there is real\
+    \ experience with the output."
+  description: "## The control\n\nA checkbox \u2014 **checked by default** \u2014\
+    \ on the create-task form and on the issue reporter. Label it for what it does:\
+    \ the model expands what you wrote into a full task before you file it.\n\nSequence:\
+    \ the human types (or dictates) a title and a rough description \u2192 presses\
+    \ the button \u2192 the draft comes back **into the form fields, editable** \u2192\
+    \ the human reads, fixes, and presses create. Two steps, with a human between\
+    \ them.\n\n## What the model gets and produces\n\nIt is given what the human typed,\
+    \ the destination project, and enough of the repository's task conventions to\
+    \ produce a record that matches \u2014 `docs/task-schema.md` and the Resumption\
+    \ Contract in `ALLAGENTS.md` are the standard the output is judged against. It\
+    \ produces the spec fields: summary, intent, description, constraints, out of\
+    \ scope, acceptance criteria.\n\nIt does **not** invent state. Lifecycle, ball,\
+    \ priority, parent, dependencies and actor are the human's, not the model's \u2014\
+    \ a model guessing a dependency graph produces a task that looks authoritative\
+    \ and is wrong.\n\n## What it must not do\n\n- It never creates the task. It fills\
+    \ fields. The create button is untouched.\n- It never overwrites text the human\
+    \ wrote without that being visible and reversible. Show what changed, or put the\
+    \ draft where the human can compare it to what they typed. Losing the one true\
+    \ sentence someone dictated, inside a wall of generated prose, is the failure\
+    \ mode that would kill this feature.\n- It is not a chat. One press, one draft,\
+    \ editable output. If it is wrong, the human edits it or unticks the box and writes\
+    \ it themselves.\n\n## When it is unavailable\n\nPer task-174: no model configured\
+    \ means the checkbox is absent or disabled with one sentence saying why. The form\
+    \ works exactly as it does today. Being unable to call a model never blocks filing\
+    \ a task.\n\n## Latency\n\nA person is waiting. Show progress, keep the form usable\
+    \ underneath, and allow cancelling. If the chosen path from task-174 is slow enough\
+    \ that this feels bad, say so rather than shipping it and hoping."
+  constraints: "- **Default checked.** Jeff's call, 2026-08-19, and explicitly provisional:\
+    \ revisit once there is experience with the drafts. Record it as a decision so\
+    \ a later reader knows it was chosen rather than inherited.\n- A model never files\
+    \ a task. The human presses create, always.\n- Generated text is fully editable\
+    \ before saving and is never written to a task file without passing through the\
+    \ form.\n- The model does not set lifecycle, ball, outcome, priority, parent,\
+    \ dependencies, or actor.\n- The created task must be indistinguishable in structure\
+    \ from a hand-written one \u2014 same schema, same managed API path, no marker\
+    \ field that makes AI-drafted tasks a second class of record. If provenance is\
+    \ wanted, it is a log entry, not a schema change.\n- Failure to draft never blocks\
+    \ creating the task by hand."
+  out_of_scope: '- Deciding how the model is called (task-174).
+
+    - Auto-dispatch on create (task-176).
+
+    - Editing or improving existing tasks with a model, bulk backlog grooming, or
+    rewriting a task after it is filed.
+
+    - Model-suggested dependencies, parents, priorities, or scheduling.
+
+    - A conversational refine-it loop. One press, one draft.'
+  context:
+  - path: frontend/src/components/TaskCreate.tsx
+    why: The form being extended, including its FormData-based reads which a fill-the-fields
+      flow has to work with.
+  - path: docs/task-schema.md
+    why: The schema the generated spec must satisfy.
+  - path: ALLAGENTS.md
+    why: The Resumption Contract -- what a summary, an intent and a ball_prompt are
+      each for. This is the standard the drafts are judged against.
+  - path: frontend/src/report/issueReport.ts
+    why: How a reported issue is currently turned into a task request; drafting has
+      to compose with it rather than bypass it.
+acceptance:
+- id: ac-1
+  text: The checkbox is present and checked by default on both the create form and
+    the issue reporter.
+  status: pending
+- id: ac-2
+  text: A one-line description produces a draft with summary, intent, description
+    and acceptance criteria that satisfy the Resumption Contract, judged against a
+    real example.
+  status: pending
+- id: ac-3
+  text: The draft arrives in editable form fields; nothing is saved until the human
+    presses create.
+  status: pending
+- id: ac-4
+  text: Text the human wrote is either preserved or its replacement is visible and
+    reversible; demonstrated with a field that already had content.
+  status: pending
+- id: ac-5
+  text: The model sets no lifecycle, ball, priority, parent, dependency or actor value.
+  status: pending
+- id: ac-6
+  text: With no model configured, the form behaves exactly as it does today and says
+    why the option is unavailable.
+  status: pending
+- id: ac-7
+  text: A resulting task file is structurally indistinguishable from a hand-written
+    one.
+  status: pending
+- id: ac-8
+  text: The default-checked choice is recorded as a decision entry noting it is provisional.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-174-model-access-decision
+  type: needs
+  note: How the server is allowed to call a model, and what governs the spend.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T17:39:11.691392Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 1b7e9d34-5a86-4f02-9c73-4e8b0a2d75f6
+      kind: create
+      fingerprint: 399eec163b48a77374965289ef7a2e1a

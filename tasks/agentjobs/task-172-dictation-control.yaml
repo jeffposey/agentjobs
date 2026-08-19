@@ -1,0 +1,135 @@
+schema: 2
+id: task-172-dictation-control
+title: Talk into any AgentJobs text field
+created: '2026-08-19T17:37:17.567509Z'
+updated: '2026-08-19T17:37:17.568386Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: ux
+tags:
+- voice-input
+- react-frontend
+- mobile
+- accessibility
+effort: medium
+assignment:
+  eligible: []
+parent: task-167-agentjobs-menu
+spec:
+  summary: 'Build the dictation control task-171 chose and wire it into every free-text
+    field behind the menu: the issue title and details, the dispatch prompt, and the
+    create-task fields. One control, used everywhere, degrading honestly on devices
+    that cannot do it.'
+  intent: "A task you can speak in thirty seconds gets filed. The same task, typed\
+    \ with two thumbs into a phone at a red light, does not \u2014 it becomes a thing\
+    \ you meant to write down. This is the same capture argument that justified the\
+    \ reporter, applied to the one remaining piece of friction.\n\nIt is one control\
+    \ rather than per-form code because the number of AgentJobs text fields only goes\
+    \ up, and a second implementation would be the one that forgets to preserve the\
+    \ OS keyboard mic."
+  description: "## The control\n\nOne component wrapping a text input or textarea,\
+    \ giving it a mic affordance. It composes with an ordinary controlled field \u2014\
+    \ it does **not** replace the field with a custom editor, because doing so is\
+    \ how the OS keyboard's own mic key stops working.\n\nBehaviour:\n\n- Press to\
+    \ start, press to stop. Not push-and-hold: that is unusable on a phone in one\
+    \ hand and impossible with a keyboard.\n- **Interim results are visible while\
+    \ speaking**, distinguishable from committed text, so a person can see it is working\
+    \ and stop when it goes wrong.\n- Speech is **appended at the cursor**, not substituted\
+    \ for the field's contents. Dictating into a half-typed sentence must not destroy\
+    \ it.\n- Stopping leaves plain editable text. Nothing is locked, nothing is re-transcribed,\
+    \ and undo works.\n- On iOS the recogniser ends per utterance; restart and stitch\
+    \ so a long dictation does not silently truncate mid-paragraph.\n- Errors are\
+    \ stated in the field: permission denied, no speech heard, network path unavailable.\
+    \ Never a silent no-op.\n\n## Where it goes\n\n- Issue reporter: title, details.\n\
+    - Dispatch prompt, if task-162 has landed. If not, note it as follow-on rather\
+    \ than blocking.\n- Create task: at minimum summary, description, intent, constraints,\
+    \ out of scope, acceptance.\n\n## Devices that cannot\n\nPer task-171's decision.\
+    \ If a browser has no supported path, the mic is absent or disabled with one sentence\
+    \ saying why and \u2014 on mobile \u2014 pointing at the keyboard's own mic key,\
+    \ which works regardless. The fields stay plain, typeable and dictatable by the\
+    \ OS everywhere.\n\n## Verification\n\nStand up a review server on its own port\
+    \ with throwaway data. File one issue entirely by voice from Jeff's phone and\
+    \ one from his tablet, over the tailnet. Then do it in Firefox and confirm the\
+    \ degraded path reads sensibly rather than looking broken."
+  constraints: '- **Do not break OS keyboard dictation.** No key interception, no
+    contenteditable substitution, no controlled-value handling that fights the IME
+    or the system dictation buffer. Test it explicitly.
+
+    - Permission is requested on the user''s press, never on page load or field focus.
+
+    - Audio is not uploaded or persisted by this task. If the chosen path involves
+    a server round trip, that belongs to task-173.
+
+    - Accessible: the mic is a real button with a label and state announced to a screen
+    reader; recording state is not conveyed by colour alone.
+
+    - Nothing about this may make a field slower to type into or harder to submit
+    for someone who never touches the mic.
+
+    - If the transcript is empty, the field is untouched.'
+  out_of_scope: "- The server-side transcription fallback (task-173).\n- Voice commands\
+    \ or navigation by voice \u2014 \"open task 42\", \"submit\". Dictation into a\
+    \ field only.\n- Read-aloud or any voice output.\n- Automatic language detection\
+    \ or multi-language UI. One configured language is enough.\n- Punctuation post-processing\
+    \ or model-based cleanup of the transcript. Cleaning text up is task-175's job."
+  context:
+  - path: frontend/src/components/IssueReporter.tsx
+    why: The first fields to get it, and the inputClass convention the control has
+      to sit inside without looking bolted on.
+  - path: frontend/src/components/TaskCreate.tsx
+    why: The larger set of fields; note it reads values from FormData rather than
+      controlled state, which the control must not break.
+  - path: frontend/src/components/AttachmentPicker.tsx
+    why: The existing example of a device-capability control inside a form -- match
+      its shape rather than inventing a second pattern.
+acceptance:
+- id: ac-1
+  text: One dictation component exists and is used by the reporter and the create
+    form; there is no second implementation.
+  status: pending
+- id: ac-2
+  text: An issue is filed end to end by voice from Jeff's phone and from his tablet
+    over the tailnet, with nothing installed for the purpose.
+  status: pending
+- id: ac-3
+  text: Dictating into a field that already contains text appends at the cursor and
+    never replaces the existing content.
+  status: pending
+- id: ac-4
+  text: Interim text is visible while speaking and visually distinct from committed
+    text.
+  status: pending
+- id: ac-5
+  text: In a browser with no supported path, the fields still work, the mic does not
+    silently no-op, and the explanation names the OS keyboard mic on mobile.
+  status: pending
+- id: ac-6
+  text: The OS keyboard mic still types into every field the control touches, verified
+    on iOS and Android after the change.
+  status: pending
+- id: ac-7
+  text: Permission is requested only on a user press, verified by loading the page
+    and confirming no prompt appears.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-171-voice-input-decision
+  type: needs
+  note: Which paths ship, and the fallback behaviour, are decided there.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T17:37:17.567572Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 5a9f3c60-7e28-4b41-9d05-3c7e8a1b62d4
+      kind: create
+      fingerprint: 4cab47591bfa948987e86e7828992b8f
