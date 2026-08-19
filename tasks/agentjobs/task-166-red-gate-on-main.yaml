@@ -1,0 +1,160 @@
+schema: 2
+id: task-166-red-gate-on-main
+title: The repository's own gate is red on main, and correcting the records that make
+  it red is harder than it should be
+created: '2026-08-19T17:21:02.547272Z'
+updated: '2026-08-19T17:21:02.548025Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: infrastructure
+tags:
+- quality
+- task-corpus
+- developer_experience
+effort: small for the four record fixes; the API question behind them is larger
+assignment:
+  eligible: []
+spec:
+  summary: '`poetry run python scripts/check.py` fails on `main` as of 2026-08-19,
+    in two tests, because four task records point at files that do not exist or sit
+    outside the repository. ENGINEERING.md requires that gate to pass before every
+    commit, so either it is being skipped or it has been red for a while unnoticed.'
+  intent: Get the gate green on main and decide what stops the same rot recurring,
+    given that these tests assert on live task records that agents rewrite many times
+    a day.
+  description: 'Found while working task-165 (the fresh-worktree bootstrap), by running
+    the gate for the first time in a checkout that had nothing built in it. Reproduced
+    identically in the main clone, so none of it is worktree-related.
+
+
+    ## What is red
+
+
+    `tests/test_task_corpus.py::test_agentjobs_context_paths_exist` -- three context
+    pointers name paths that do not exist:
+
+
+    | Task | Pointer | Reality |
+
+    | --- | --- | --- |
+
+    | `task-017` | `src/agentjobs/models.py` | The module is `models_v2.py` since
+    the schema migration. |
+
+    | `task-076-dispatch-permission-posture` | `.claude/settings.json` | Never existed
+    in the repository; the local file is `.claude/settings.local.json`. **This task
+    is closed.** |
+
+    | `task-161-project-level-dispatch` | `tasks/agentjobs/task-153-dispatcher-actor-advice.yaml`
+    | The record is `task-153-dispatcher-actor-refusal-message.yaml`. |
+
+
+    `tests/test_validate.py::TestRealCorpus::test_the_tolerated_drift_is_only_taxonomy_and_serialization`
+    -- one `absolute-path` finding: `task-146-embed-reference-integration` has the
+    context path `C:/projects/job-hunting/tools/triage/web`, which is another project
+    on one machine. The same path is already stated in that task''s description prose,
+    so the context entry is redundant as well as invalid.
+
+
+    Separately, and not part of `check.py`: `poetry run mypy .`, which ENGINEERING.md
+    lists under pre-commit, fails on `main` with *"Source file found twice under different
+    module names: build_frontend and scripts.build_frontend"*. It is a configuration
+    problem, not a type error, and it prevents mypy from checking anything at all.
+
+
+    ## Why this is not a two-minute fix
+
+
+    Correcting one context pointer through the managed API replaces the **entire**
+    spec: `task_update_content` rejected a patch of `spec.context` alone with `spec.summary:
+    Field required`. So a one-character path correction means resending a task''s
+    whole summary, intent, description, constraints and out_of_scope -- for `task-076`
+    that is a very long description, retyped by an agent, with no diff shown before
+    it lands. That is a bad ratio of risk to change, and it is why task-165 did not
+    simply fix these in passing.
+
+
+    `task-076` is also **closed**, which raises a question this task should answer
+    rather than assume: should a closed record be editable at all, and if not, how
+    does a permanently-red gate caused by a closed record ever get fixed?
+
+
+    ## What to decide
+
+
+    1. Fix the four records, however that is done safely.
+
+    2. Decide whether `task_update_content` should accept a partial `spec` patch.
+    The current whole-object contract is defensible for authoring and hostile for
+    correction.
+
+    3. Decide whether these tests should assert on the live corpus at all. They are
+    the only tests in the suite whose result depends on records that change several
+    times a day for reasons unrelated to the code -- any agent filing a task with
+    a since-renamed path turns the gate red for everyone. Options include keeping
+    it as is (rot is caught early), warning rather than failing, or checking only
+    open tasks. State the reasoning; do not just pick.
+
+    4. Fix or document the mypy invocation.
+
+
+    ## Note on how it stayed hidden
+
+
+    Until task-165 landed, a fresh worktree could not run `scripts/check.py` at all
+    -- no virtualenv, no `node_modules`. Agents in worktrees were verifying with focused
+    test runs instead of the gate, which is exactly the population that would have
+    caught this.'
+  constraints: '- Task records are managed state: change them through the MCP tools,
+    the CLI or the API, never by editing YAML by hand.
+
+    - Any change to what the corpus tests assert must keep catching a genuinely dangling
+    pointer. Do not make the tests toothless to make them quiet.
+
+    - Task-record commits go to `main` as `chore(tasks):` commits.'
+  out_of_scope: Rewriting the task schema, and the worktree bootstrap itself (task-165).
+  context:
+  - path: tests/test_task_corpus.py
+    why: The failing pointer test, and the git-ignored exemption task-165 added to
+      it.
+  - path: tests/test_validate.py
+    why: The tolerated-drift assertion that the absolute-path finding breaks.
+  - path: src/agentjobs/validation.py
+    why: Where the absolute-path rule lives.
+  - path: scripts/check.py
+    why: The gate that is red.
+acceptance:
+- id: sc-1
+  text: poetry run python scripts/check.py passes on main in a checkout with nothing
+    pre-built
+  status: pending
+- id: sc-2
+  text: All four records are corrected through the managed API, including the closed
+    one or an explicit decision about why it cannot be
+  status: pending
+- id: sc-3
+  text: A decision is recorded on whether spec patches may be partial, and on whether
+    the corpus tests should assert on live records
+  status: pending
+- id: sc-4
+  text: poetry run mypy . either runs clean or ENGINEERING.md stops naming it
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T17:21:02.547317Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: b8e2f14a-9c73-4a52-81d6-3f7e5c2a9166
+      kind: create
+      fingerprint: a62a2ad203c19cfda74af9cf8cc42e96
