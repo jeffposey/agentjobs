@@ -2,46 +2,9 @@ schema: 2
 id: task-020
 title: Dispatch needs an auto posture, and it should be the default
 created: '2026-08-19T21:48:44.443055Z'
-updated: '2026-08-19T22:11:13.738023Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review branch feat/task-020-auto-posture (worktree C:/projects/aj-020,
-  commit 17d0108, 10 files, +152/-19). Do not merge without saying so explicitly.
-
-
-  What to look at, in the order that matters:
-
-
-  1. `posture_flags()` in src/agentjobs/dispatch/runner.py -- the one-line change
-  from a fixed "acceptEdits" to `"auto" if posture is Posture.AUTO else "acceptEdits"`.
-  That single string is the whole risk boundary of the feature.
-
-  2. The default moved to AUTO in two places in dispatch/config.py. Your ~/.agentjobs/dispatch.yaml
-  named `supervised` explicitly, so it was changed to `auto` there too (machine-local,
-  with a comment saying why). Any project that names a posture explicitly still gets
-  it -- there is a test.
-
-  3. docs/agent-dispatch-design.md section 4. It carried a decision dated 2026-08-18
-  that made supervised the default. That decision was not overwritten: the reasoning
-  is left in place, an admonition records what the evidence changed, and the verified-behaviour
-  table''s misleading row is corrected rather than deleted. Read this if you want
-  to check I did not quietly relitigate a settled call.
-
-
-  Evidence: scripts/check.py exit 0 (1863 Python tests, Vitest, build, 11 Playwright).
-  Live: run_e452d6f8 dispatched task-107 under the new posture, argv shows --permission-mode
-  auto, session 903af6cf reached state "working" and ran shell commands with no prompt
-  -- where the two supervised runs before it both parked.
-
-
-  Separately, and NOT in this branch: you have asked for posture to also carry workflow
-  policy -- merge and push behaviour, and an autonomous run driving a parent task
-  through all its children. That is a larger design than this task and is captured
-  on its own record rather than smuggled in here. It also runs into the merge gate
-  in ENGINEERING.md, which currently says work never merges itself and absence of
-  objection is not approval; that document needs an intentional edit before any agent
-  auto-merges anything.'
+updated: '2026-08-19T23:13:06.776816Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: infrastructure
@@ -51,7 +14,6 @@ tags:
 - defect
 effort: an hour
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: The three existing postures are read_only (no shell, no worktree), supervised
@@ -112,29 +74,31 @@ acceptance:
 - id: ac-1
   text: a fourth posture exists and composes --permission-mode auto together with
     -w
-  status: pending
+  status: met
 - id: ac-2
   text: it is the default both on ProjectDispatchSettings and in the config parser's
     fallback
-  status: pending
+  status: met
 - id: ac-3
   text: an explicit posture in dispatch.yaml still resolves to that posture
-  status: pending
+  status: met
 - id: ac-4
   text: the dispatch example scaffold and posture documentation name the new default
     and say what it does
-  status: pending
+  status: met
 - id: ac-5
   text: tests assert the composed argv for every posture, including the new one
-  status: pending
+  status: met
 - id: ac-6
   text: a real dispatch under the new posture runs a shell command without prompting,
     verified by the session reaching working state and doing file work
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-020-auto-posture
+  status: merged
 log:
 - id: 1
   ts: '2026-08-19T21:48:44.443096Z'
@@ -215,3 +179,173 @@ log:
       id: b6f0d382-59c4-41a7-9e2b-30ac8175ed19
       kind: handoff
       fingerprint: 28eb8b2b11449302a879164af10af6e1
+- id: 5
+  ts: '2026-08-19T23:02:08.631008Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 6
+  ts: '2026-08-19T23:02:14.791177Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_0c91653d
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 5
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - -w
+    - task-020
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}}'
+    - 'You are the agent `claude` working task `task-020` in project `agentjobs` (root:
+      C:\projects\agentjobs). AgentJobs is serving at http://localhost:8765. Read
+      the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_0c91653d.'
+    cwd: C:\projects\agentjobs
+    git_head: 8b186b6
+    session_id: 12b55e70
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 7
+  ts: '2026-08-19T23:10:52.843870Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 9f2c41ab-73de-4a15-8c60-1b5e07d94f22
+      kind: update_content
+      fingerprint: 927aff53f00cd9c1ac5504101fabfb97
+- id: 8
+  ts: '2026-08-19T23:11:14.092033Z'
+  actor: claude
+  type: progress
+  body: "Closeout pass (run_0c91653d). The ball_prompt said \"no merge has happened\
+    \ yet\" \u2014 that was not accurate by the time this run read it. The merge was\
+    \ already in main.\n\nState found:\n- `d9b46ed Merge branch 'feat/task-020-auto-posture'`\
+    \ is in main, authored and committed by Jeff Posey at 2026-08-19 17:16:40 -0500\
+    \ (22:16 UTC). That is 5 minutes after the handoff (22:11 UTC) and 46 minutes\
+    \ before the UI approval (23:02 UTC) \u2014 Jeff merged by hand to get the fix\
+    \ live, then approved afterwards. `--no-ff` was used, so the merge commit is intact\
+    \ and the merge gate's shape held; only the ordering differed.\n- main has since\
+    \ moved to 8b186b6 with task-107's work and three task-record commits on top.\n\
+    - Nothing was left to rebase or merge: `git rev-list --count main..feat/task-020-auto-posture`\
+    \ is 0.\n\nWhat this run did:\n- Verified the merged code is what task-020 specified,\
+    \ reading it from main rather than the branch: `Posture.AUTO = \"auto\"` at config.py:189,\
+    \ `posture: Posture = Posture.AUTO` at 322, `mapping.get(\"posture\", Posture.AUTO.value)`\
+    \ at 617, and runner.py:198 emitting `\"auto\" if posture is Posture.AUTO else\
+    \ \"acceptEdits\"` alongside `-w`.\n- ac-6 has stronger evidence than the record\
+    \ held: **this session is itself the proof**. Log entry 6's argv carries `--permission-mode\
+    \ auto -w task-020`, and this run read files, ran greps, bootstrapped a worktree\
+    \ and ran the full gate \u2014 no prompt, no park. The earlier evidence was a\
+    \ dispatch observed reaching `state: \"working\"`; this is a dispatched auto-posture\
+    \ run completing a task end to end.\n- Ran `poetry run python scripts/check.py`\
+    \ against the merged main state in a freshly bootstrapped worktree (C:/projects/agentjobs/.claude/worktrees/task-020,\
+    \ 8b186b6). Result: **1877 passed, 1 failed** in 3m50s. Log: C:/Users/jpose/.claude/jobs/12b55e70/tmp/gate-main-020.log.\n\
+    \nThe one failure is not task-020's and predates this run:\n`tests/test_validate.py::TestRealCorpus::test_the_tolerated_drift_is_only_taxonomy_and_serialization`\
+    \ \u2014 the `absolute-path` rule now fires on the real corpus, which the tolerated\
+    \ set does not include. Source is a single finding on **task-023**: \"path 'C:/Users/jpose/.agentjobs/runs'\
+    \ should be repository-relative\". task-023 was filed in 657d9bd, after task-020\
+    \ merged, and its context path is deliberately outside the repository because\
+    \ the run directory is. So the fix is a judgement call between rewriting that\
+    \ context entry and widening the validator's tolerated set, which belongs to whoever\
+    \ owns task-023 \u2014 not to this closeout. Recorded here and reported to Jeff\
+    \ rather than fixed silently.\n\nCleanup: worktree C:/projects/aj-020 confirmed\
+    \ clean and removed; branch feat/task-020-auto-posture deleted. No frontend rebuild\
+    \ needed (the change touched dispatch config/runner/scaffold, docs and tests only\
+    \ \u2014 no frontend files). The server on 8876 was restarted via the launcher\
+    \ so it runs the merged dispatch code."
+  data:
+    operation:
+      id: c3d8f107-4b62-49ae-9d31-52a7e6c8b013
+      kind: log_append
+      fingerprint: c5414bcfed8801c40de4f2a66dfde1cf
+- id: 9
+  ts: '2026-08-19T23:11:33.483078Z'
+  actor: claude
+  type: transition
+  body: "Merged (d9b46ed, --no-ff) and live. All six acceptance criteria met; branch\
+    \ feat/task-020-auto-posture deleted and worktree C:/projects/aj-020 removed.\
+    \ `auto` is now the default dispatch posture. The single remaining gate failure\
+    \ on main is task-023's absolute path, not this work \u2014 see entry 8."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: e71a95c4-6d38-4f02-8b19-a4c0d2e35f86
+      kind: close
+      fingerprint: dff8be3fdd88387b0d95f03453b6970e
+- id: 10
+  ts: '2026-08-19T23:12:11.134415Z'
+  actor: claude
+  type: note
+  body: "Two corrections to entry 8, both about the delivery step rather than the\
+    \ work.\n\n1. **No server restart happened, and none was needed.** Entry 8's last\
+    \ line said the 8876 server \"was restarted via the launcher\"; that was written\
+    \ ahead of the action and the action turned out to be unnecessary, so it never\
+    \ ran. The server on 8876 (pid 351652) started 2026-08-19 17:52:47 -0500, which\
+    \ is 36 minutes *after* the merge at 17:16:40 \u2014 it already imports the merged\
+    \ dispatch code. Independent proof from this task's own record: log entry 6 shows\
+    \ that server composing this run's argv with `--permission-mode auto`, a flag\
+    \ that only exists post-merge. Nothing stale is being served, and the merge-gate\
+    \ \"put it in front of them\" step is satisfied without further action. No frontend\
+    \ rebuild either \u2014 the change touched no frontend files.\n\n2. **This run\
+    \ could not commit the task record to main.** Everything from entry 7 onward \u2014\
+    \ acceptance statuses, branches[], entries 8 and 9, the close \u2014 is written\
+    \ to C:/projects/agentjobs/tasks/agentjobs/task-020.yaml through the API, so it\
+    \ is on disk and the dashboard shows it. But committing it requires a git operation\
+    \ in the shared checkout, and this session is isolated in the worktree C:/projects/agentjobs/.claude/worktrees/task-020\
+    \ with a guard that refuses `git -C <shared clone>`. That guard exists to stop\
+    \ a worktree session from clobbering a peer's checkout, so routing around it with\
+    \ another shell would be defeating a safety rail rather than following the process.\
+    \ Left uncommitted deliberately and reported to Jeff instead. The outstanding\
+    \ command, to be run from the main clone:\n\n       git add tasks/agentjobs/task-020.yaml\n\
+    \       git commit -m \"chore(task-020): close completed; auto posture merged\
+    \ and live\"\n\n   Until that runs, task-020's closed state lives in the working\
+    \ tree but not in history. Nothing else is pending on this task."
+  re: 8
+  data:
+    operation:
+      id: a52f6b90-8c14-4d73-9e05-3f7a1b2c4d68
+      kind: log_append
+      fingerprint: f9b2e82fa00ce210f8ab9adacb344ce3
+- id: 11
+  ts: '2026-08-19T23:13:06.776679Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 6
+  data:
+    run_id: run_0c91653d
+    outcome: completed
+    duration_seconds: 653.354258
+    log_path: C:\Users\jpose\.agentjobs\runs\run_0c91653d
