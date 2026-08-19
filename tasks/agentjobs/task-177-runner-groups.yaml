@@ -2,10 +2,11 @@ schema: 2
 id: task-177-runner-groups
 title: 'Runner groups: a dispatch names a group, the dispatcher picks a member'
 created: '2026-08-19T19:11:40.932936Z'
-updated: '2026-08-19T19:11:40.933677Z'
-lifecycle: ready
+updated: '2026-08-19T19:18:36.761547Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: architecture
@@ -17,6 +18,7 @@ tags:
 effort: "medium \u2014 a config-schema change, a resolver, an audit trail, and CLI\
   \ surfacing"
 assignment:
+  owner: claude
   eligible: []
 parent: task-160-dispatch-phase-two
 spec:
@@ -175,7 +177,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-177-runner-groups
+  status: active
 log:
 - id: 1
   ts: '2026-08-19T19:11:40.932980Z'
@@ -188,3 +192,12 @@ log:
       id: 3f9c1a24-7b8e-4d51-9a02-6c1e5b7f0177
       kind: create
       fingerprint: 593be828615a598f8b4e7f271727e25f
+- id: 2
+  ts: '2026-08-19T19:17:58.720596Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
