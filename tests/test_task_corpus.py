@@ -8,7 +8,8 @@ stamp is named rather than silently treated as v1.
 
 from __future__ import annotations
 
-from pathlib import Path
+import subprocess
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Iterator
 
 import pytest
@@ -24,6 +25,38 @@ def corpus_files() -> Iterator[Path]:
     """Yield every task YAML file tracked as part of the corpus."""
     for rel in CORPUS_DIRS:
         yield from sorted((REPO_ROOT / rel).glob("*.yaml"))
+
+
+def is_absolute(path: str) -> bool:
+    """True for a path anchored outside the repository, in either OS's spelling."""
+    return PurePosixPath(path).is_absolute() or PureWindowsPath(path).is_absolute()
+
+
+def ignored_by_git(paths: set[str]) -> set[str]:
+    """Return the subset of `paths` git ignores, i.e. generated rather than checked in.
+
+    Deliberately byte-oriented: `text=True` would translate each `\\n` to `\\r\\n` on
+    Windows, git would receive every path with a trailing carriage return, and it
+    would echo back names that match nothing here. Falls back to treating nothing as
+    generated when git cannot answer -- outside a checkout, the stricter behaviour is
+    the safe one.
+    """
+    candidates = sorted(path for path in paths if not is_absolute(path))
+    if not candidates:
+        return set()
+
+    result = subprocess.run(
+        ["git", "check-ignore", "--stdin"],
+        input="\n".join(candidates).encode("utf-8"),
+        cwd=REPO_ROOT,
+        capture_output=True,
+    )
+    # 0: at least one path is ignored. 1: none are. Anything else: git could not answer.
+    if result.returncode not in (0, 1):
+        return set()
+
+    lines = result.stdout.decode("utf-8", errors="replace").splitlines()
+    return {line.strip().replace("\\", "/") for line in lines if line.strip()}
 
 
 def agentjobs_tasks() -> list[Task]:
@@ -82,8 +115,7 @@ def test_agentjobs_task_ids_and_relationships_are_not_dangling() -> None:
             assert task.parent in known, f"{task.id} has missing parent {task.parent}"
         for dependency in task.dependencies:
             assert dependency.task in known, (
-                f"{task.id} has missing {dependency.type.value} dependency "
-                f"{dependency.task}"
+                f"{task.id} has missing {dependency.type.value} dependency " f"{dependency.task}"
             )
 
 
@@ -97,7 +129,17 @@ def test_agentjobs_context_paths_exist() -> None:
     already created the file by hand, and fail in every worktree and every fresh
     clone. That is a test asserting the state of one developer's disk rather than the
     state of the repository.
+
+    Generated output is exempt for the same reason, arriving by a different door:
+    `src/agentjobs/frontend_dist/` exists only after `npm run build`, so a pointer at
+    it passed in a clone where someone had built the frontend and failed in every
+    fresh worktree. Worse, the gate builds it -- so the first run failed and the
+    second passed.
+
+    Every bad pointer is reported at once. Stopping at the first turns corpus rot into
+    one fix per full gate run, and the gate takes four and a half minutes.
     """
+    pointers: list[tuple[str, str]] = []
     for task in agentjobs_tasks():
         pending_deliverables = {
             deliverable.path.rstrip("/")
@@ -110,7 +152,21 @@ def test_agentjobs_context_paths_exist() -> None:
                 continue
             if path in pending_deliverables:
                 continue
-            assert (REPO_ROOT / path).exists(), f"{task.id} has missing context path {path}"
+            # An absolute path is the validator's `absolute-path` rule to report, and
+            # checking it here would ask whether one machine happens to have that
+            # directory -- `REPO_ROOT / "C:/elsewhere"` resolves to `C:/elsewhere`.
+            if is_absolute(path):
+                continue
+            pointers.append((task.id, path))
+
+    generated = ignored_by_git({path for _, path in pointers})
+    missing = [
+        f"{task_id} -> {path}"
+        for task_id, path in pointers
+        if path not in generated and not (REPO_ROOT / path).exists()
+    ]
+
+    assert not missing, "context pointers name paths that do not exist: " + ", ".join(missing)
 
 
 def test_open_ui_tasks_do_not_target_legacy_templates() -> None:
@@ -121,11 +177,11 @@ def test_open_ui_tasks_do_not_target_legacy_templates() -> None:
 
         paths = [pointer.path for pointer in task.spec.context]
         paths.extend(deliverable.path for deliverable in task.deliverables)
-        assert not any(path.startswith("src/agentjobs/api/templates") for path in paths), (
-            f"{task.id} still directs open UI work to the legacy template tree"
-        )
+        assert not any(
+            path.startswith("src/agentjobs/api/templates") for path in paths
+        ), f"{task.id} still directs open UI work to the legacy template tree"
 
         current_summary = task.spec.summary.lower()
-        assert "web ui is server-rendered" not in current_summary, (
-            f"{task.id} presents server rendering as the current UI"
-        )
+        assert (
+            "web ui is server-rendered" not in current_summary
+        ), f"{task.id} presents server rendering as the current UI"

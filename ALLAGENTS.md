@@ -42,6 +42,13 @@ user authorizes it.
     and work there — **this is your first act, before anything is written.** Then `claim`
     the task and record the branch in `branches[]`. In that order, so no work is ever
     committed outside a branch. See [Why you get your own worktree](#why-you-get-your-own-worktree).
+    Then **bootstrap it** — a worktree has no virtualenv and no `node_modules`, so it
+    cannot verify anything until you do:
+
+    ```bash
+    python scripts/bootstrap.py     # ~30s; see Bootstrapping a worktree
+    ```
+
     **Your task-record commits go to `main`, not to your branch** — see
     [Task files live on main](ENGINEERING.md#task-files-live-on-main-always). Your branch
     carries code; it never touches `tasks/`.
@@ -117,6 +124,29 @@ Three failures on 2026-08-11, all in one afternoon, all from skipping this:
     not see a task waiting for review, and reasonably concluded the product was broken.
     It was not: **tasks are YAML files here, so the checked-out branch decides what the
     React UI shows.** Before reporting that a task is missing, check what is checked out.
+
+### Bootstrapping a worktree
+
+`git worktree add` copies tracked files. The Poetry virtualenv and
+`frontend/node_modules` are not tracked, so a new worktree cannot run
+`scripts/check.py` — the gate you are required to pass before every commit. One command
+fixes that, from inside the worktree:
+
+```bash
+python scripts/bootstrap.py
+```
+
+It runs `poetry install`, `npm ci`, and `playwright install chromium`, then confirms the
+environment imports the worktree's own `src/`. **30 seconds** in a brand-new worktree,
+**13 seconds** to re-run in one that already has both — measured 2026-08-19, 21s of the
+first figure being Poetry. That is not a reason to skip the worktree. It is longer on a
+machine whose Poetry and npm caches are cold, because those caches fill on the way past.
+
+**Do not borrow the main clone's virtualenv instead.** `poetry install` puts the *main
+clone's* `src/` on that environment's path, so `pytest` run from your worktree against it
+imports the code on `main`, not the code on your branch, and reports a green suite for
+source it never executed. Nothing in the test output reveals this. `check.py` refuses to
+run when the import resolves outside its own checkout, for exactly that reason.
 
 ### Logging Work to the Task
 The task record — not the surrounding conversation — is the source of truth for where
