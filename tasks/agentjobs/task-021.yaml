@@ -1,0 +1,155 @@
+schema: 2
+id: task-021
+title: Posture should decide whether a run merges and pushes, not only what it may
+  execute
+created: '2026-08-19T22:28:28.717331Z'
+updated: '2026-08-19T22:28:28.718096Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: architecture
+tags:
+- dispatch
+- posture
+- merge-gate
+- design
+effort: half a day
+assignment:
+  eligible: []
+parent: task-160-dispatch-phase-two
+spec:
+  summary: 'Posture today maps to a Claude Code permission mode and nothing else --
+    it says what commands a run may execute. Jeff wants it to also carry workflow
+    policy: whether the run stops for human review before merging, and whether it
+    may push. Under `auto` a run still stops for approval; under `autonomous` it merges
+    by itself when it finds no serious problem. Push stays a separate per-project
+    switch, off for agentjobs and on for some of his other projects.'
+  intent: 'Jeff, 2026-08-19, after task-020 made `auto` the default: "auto posture
+    should be default, and uses auto and then obeys default project setting like with
+    agentjobs which is wait for approval before merging tasks, and do not push....
+    autonomous posture should I guess use bypass, but even more importantly, should
+    not wait for human review if there is no serious issue detected by the agent,
+    and it should merge automatically, but still not push here in agentjobs, based
+    on that setting... my other projects I let push automatically, and in that case
+    it would, but not here in agentjobs"'
+  description: "## What posture means today, and what it would have to mean\n\n`posture_flags()`\
+    \ maps a posture to argv and stops there:\n\n- `read_only` -> `--tools Read,Glob,Grep,WebFetch`\n\
+    - `auto` -> `--permission-mode auto -w <task>` + allow-list  (default since task-020)\n\
+    - `supervised` -> `--permission-mode acceptEdits -w <task>` + allow-list\n- `autonomous`\
+    \ -> `--permission-mode bypassPermissions -w <task>`\n\nEvery one of those is\
+    \ about **what the process may execute**. Nothing in dispatch says\nanything about\
+    \ what happens to the *branch* afterwards. That is currently governed by\nprose\
+    \ in ENGINEERING.md's merge gate, which every agent is expected to read and obey.\n\
+    \nJeff wants posture to carry both. Concretely:\n\n| Posture | Executes | Merge\
+    \ | Push |\n|---|---|---|---|\n| `read_only` | nothing | n/a | n/a |\n| `auto`\
+    \ | classifier-gated | stop, hand off for human approval | per project |\n| `supervised`\
+    \ | allow-list, parks otherwise | stop, hand off for human approval | per project\
+    \ |\n| `autonomous` | bypass | merge itself when it finds no serious problem |\
+    \ per project |\n\nPush is deliberately **not** a posture property. It is a per-project\
+    \ switch, because the\nsame posture should push in one of Jeff's repos and never\
+    \ push in this one. agentjobs is\n`push: false`. `vault` must never gain a remote\
+    \ at all.\n\n## The part that needs a decision before any code\n\n**This contradicts\
+    \ ENGINEERING.md, and the contradiction must be resolved in the document,\nnot\
+    \ silently by a config key.** The merge gate currently reads: *\"Work does not\
+    \ merge\nitself\"*, *\"Wait for explicit human approval. Absence of objection\
+    \ is not approval.\"*\nALLAGENTS.md repeats it: *\"When a child reaches human\
+    \ review, hand it off and stop. Never\nmerge without explicit approval for that\
+    \ child.\"*\n\nIf `autonomous` merges on its own, those sentences become false\
+    \ for one posture. Every\nagent in this repository reads them as unconditional.\
+    \ Leaving them unqualified while a\nconfig flag overrides them produces agents\
+    \ whose behaviour depends on which document they\nbelieved, which is worse than\
+    \ either rule alone. So: amend the merge gate to say it binds\n*unless the run's\
+    \ posture releases it*, and say which posture does.\n\n## The weak point, stated\
+    \ plainly\n\n\"No serious issue detected by the agent\" is the agent grading its\
+    \ own homework, which is\nthe least reliable gate available. It should not be\
+    \ the only one. Recommend an objective\nfloor the agent cannot talk itself past\
+    \ -- `scripts/check.py` exit 0 -- **and** the\nagent's own judgement, with either\
+    \ one failing meaning it stops and hands off.\n\nDecide and record what happens\
+    \ when the agent is wrong and merges something bad. The\nhonest answer is probably\
+    \ \"it is recoverable because nothing was pushed and main is\nlocal\", which is\
+    \ exactly why `push: false` matters more here than the merge policy does.\n\n\
+    ## Open questions for the implementer\n\n- Does `supervised` differ from `auto`\
+    \ on merge at all, or only on execution? Proposed:\n  identical merge behaviour,\
+    \ since both are \"a human is in the loop\" postures.\n- Where does the policy\
+    \ travel? The generated prompt is the only channel that reaches the\n  agent's\
+    \ own decision-making. A config key the agent never reads changes nothing.\n-\
+    \ Does an autonomous run still write the review handoff before merging, so the\
+    \ record\n  shows what it decided, or does it go straight to `closed`? Proposed:\
+    \ it must still log\n  the evidence; a merge with no reviewable record defeats\
+    \ the point of the task log."
+  constraints: '- Do not weaken the merge gate for postures that are supposed to stop.
+    auto and supervised must still hand off and wait.
+
+    - Push is per project and defaults to false. agentjobs never pushes.
+
+    - The policy has to reach the agent, not just the config file. An agent that cannot
+    see the policy cannot obey it.
+
+    - Amend ENGINEERING.md and ALLAGENTS.md in the same change that implements this.
+    A config key that contradicts the written rule is the failure mode to avoid.
+
+    - An objective check the agent cannot self-assess past must gate an automatic
+    merge.'
+  out_of_scope: Building the epic walk itself -- that is task-164 and its sibling.
+    Changing what the permission modes do. Adding a remote to any project, or pushing
+    from agentjobs.
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: posture_flags() is where posture currently ends; the generated prompt is
+      built nearby and is the only channel that reaches the agent.
+  - path: src/agentjobs/dispatch/config.py
+    why: ProjectDispatchSettings is where a per-project push switch belongs, alongside
+      require_clean_tree and auto_dispatch.
+  - path: ENGINEERING.md
+    why: The merge gate this contradicts. Section 'The Merge Gate'.
+  - path: ALLAGENTS.md
+    why: Repeats the never-merge-without-approval rule in the task lifecycle and the
+      parent task loop.
+  - path: docs/agent-dispatch-design.md
+    why: Section 4 is the posture decision record; it currently frames posture purely
+      as a permission boundary.
+acceptance:
+- id: ac-1
+  text: posture carries a documented merge policy, and a per-project push switch exists
+    that defaults to false
+  status: pending
+- id: ac-2
+  text: ENGINEERING.md's merge gate and ALLAGENTS.md's lifecycle are amended in the
+    same change, so no document still states the rule unconditionally
+  status: pending
+- id: ac-3
+  text: the policy reaches the dispatched agent through the generated prompt, verified
+    by reading a real run's argv
+  status: pending
+- id: ac-4
+  text: an automatic merge requires an objective check passing, not only the agent's
+    own assessment
+  status: pending
+- id: ac-5
+  text: an autonomous run still records its evidence on the task before merging
+  status: pending
+- id: ac-6
+  text: agentjobs is configured never to push, and a test asserts the default is false
+  status: pending
+deliverables: []
+dependencies:
+- task: task-020
+  type: related
+  note: Added the auto posture and made it the default. This task extends what a posture
+    means.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T22:28:28.717386Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: f10a5c62-8d47-4b93-a2e1-6c084b7f9d35
+      kind: create
+      fingerprint: d91df474da81d99e7b0e844e2d6b2b17

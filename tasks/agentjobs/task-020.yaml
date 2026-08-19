@@ -1,0 +1,217 @@
+schema: 2
+id: task-020
+title: Dispatch needs an auto posture, and it should be the default
+created: '2026-08-19T21:48:44.443055Z'
+updated: '2026-08-19T22:11:13.738023Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: 'Review branch feat/task-020-auto-posture (worktree C:/projects/aj-020,
+  commit 17d0108, 10 files, +152/-19). Do not merge without saying so explicitly.
+
+
+  What to look at, in the order that matters:
+
+
+  1. `posture_flags()` in src/agentjobs/dispatch/runner.py -- the one-line change
+  from a fixed "acceptEdits" to `"auto" if posture is Posture.AUTO else "acceptEdits"`.
+  That single string is the whole risk boundary of the feature.
+
+  2. The default moved to AUTO in two places in dispatch/config.py. Your ~/.agentjobs/dispatch.yaml
+  named `supervised` explicitly, so it was changed to `auto` there too (machine-local,
+  with a comment saying why). Any project that names a posture explicitly still gets
+  it -- there is a test.
+
+  3. docs/agent-dispatch-design.md section 4. It carried a decision dated 2026-08-18
+  that made supervised the default. That decision was not overwritten: the reasoning
+  is left in place, an admonition records what the evidence changed, and the verified-behaviour
+  table''s misleading row is corrected rather than deleted. Read this if you want
+  to check I did not quietly relitigate a settled call.
+
+
+  Evidence: scripts/check.py exit 0 (1863 Python tests, Vitest, build, 11 Playwright).
+  Live: run_e452d6f8 dispatched task-107 under the new posture, argv shows --permission-mode
+  auto, session 903af6cf reached state "working" and ran shell commands with no prompt
+  -- where the two supervised runs before it both parked.
+
+
+  Separately, and NOT in this branch: you have asked for posture to also carry workflow
+  policy -- merge and push behaviour, and an autonomous run driving a parent task
+  through all its children. That is a larger design than this task and is captured
+  on its own record rather than smuggled in here. It also runs into the merge gate
+  in ENGINEERING.md, which currently says work never merges itself and absence of
+  objection is not approval; that document needs an intentional edit before any agent
+  auto-merges anything.'
+archived: false
+priority: critical
+category: infrastructure
+tags:
+- dispatch
+- posture
+- defect
+effort: an hour
+assignment:
+  owner: claude
+  eligible: []
+spec:
+  summary: The three existing postures are read_only (no shell, no worktree), supervised
+    (acceptEdits plus a six-prefix allowlist), and autonomous (bypassPermissions).
+    Supervised is the default and cannot finish any task, because a background session
+    parks on the first Bash command outside the allowlist with no TTY to answer. Claude
+    Code's `auto` permission mode has a classifier review each action instead of a
+    human, which is the posture a dispatched run actually wants.
+  intent: Dispatch's default posture cannot complete work. run_a6deb292 (2026-08-19)
+    got past startup, read its task, then parked asking permission to run `ls` on
+    the repository's own docs directory, and stayed parked until it was cancelled.
+    The choice today is between a posture that blocks constantly and one with no gate
+    at all; the useful middle is missing.
+  description: "Observed 2026-08-19 on Claude Code 2.1.235.\n\n`Posture` in `src/agentjobs/dispatch/config.py`\
+    \ has exactly three members, and `posture_flags()` in `src/agentjobs/dispatch/runner.py`\
+    \ maps them to:\n\n- `read_only`   -> `--tools Read,Glob,Grep,WebFetch`, no worktree\n\
+    - `supervised`  -> `--permission-mode acceptEdits`, `-w`, plus `--settings` carrying\
+    \ an allowlist built from six command prefixes (pytest, ruff, black, mypy, npm,\
+    \ git)\n- `autonomous`  -> `--permission-mode bypassPermissions`, `-w`\n\nNothing\
+    \ emits `--permission-mode auto`, so that mode is unreachable from dispatch.\n\
+    \nWhy supervised is unworkable for a dispatched run: `acceptEdits` auto-accepts\
+    \ file edits but still prompts for Bash. The allowlist covers six prefixes, so\
+    \ the first command outside them \u2014 `ls`, `cat`, `find`, `grep`, `sed`, anything\
+    \ \u2014 raises a permission prompt. A `--bg` session has no terminal, so the\
+    \ prompt cannot be answered and the run parks until its timeout. This is not a\
+    \ rare edge: run_a6deb292 hit it on its first shell command.\n\nThe fix: add a\
+    \ fourth posture that emits `--permission-mode auto` plus `-w`, and make it the\
+    \ default for new projects and the fallback for an unspecified posture. In `auto`\
+    \ mode a classifier reviews each action rather than a human, so a background run\
+    \ proceeds without prompts while keeping a gate \u2014 which is what `supervised`\
+    \ was reaching for and failed to deliver.\n\nKeep the existing three. `read_only`\
+    \ and `autonomous` are still meaningful endpoints, and `supervised` remains correct\
+    \ for a run someone is actually watching and willing to answer.\n\nDecide and\
+    \ record whether the `--settings` allowlist still belongs on `auto`. It is harmless\
+    \ (it can only pre-approve) and it saves the classifier some work, so carrying\
+    \ it forward is the cheaper default, but say so explicitly rather than leaving\
+    \ it implied."
+  constraints: "- Do not remove or repurpose read_only, supervised, or autonomous;\
+    \ add to the set.\n- The new posture must pass -w, like supervised and autonomous\
+    \ do.\n- Changing the default changes the risk boundary of every future dispatch,\
+    \ so state it in the dispatch example scaffold and in whatever docs name the postures\
+    \ \u2014 not only in the enum.\n- A config that names a posture explicitly must\
+    \ keep getting that posture.\n- Test the composed argv, not just the enum member.\
+    \ The allow_rules() docstring records an hour lost on 2026-08-18 to a rule that\
+    \ matched nothing."
+  out_of_scope: The .mcp.json approval defect (task-019). The wrong server address
+    in the generated prompt (task-154). Rewriting the allowlist's contents.
+  context:
+  - path: src/agentjobs/dispatch/config.py
+    why: Posture enum at line 177; the default appears twice, on ProjectDispatchSettings.posture
+      and in _parse_project's mapping.get fallback.
+  - path: src/agentjobs/dispatch/runner.py
+    why: posture_flags() is the mapping from posture to argv, and the docstring says
+      AgentJobs owns these flags rather than the operator.
+  - path: src/agentjobs/dispatch/scaffold.py
+    why: The commented example lists the postures a user copies from; line 154.
+acceptance:
+- id: ac-1
+  text: a fourth posture exists and composes --permission-mode auto together with
+    -w
+  status: pending
+- id: ac-2
+  text: it is the default both on ProjectDispatchSettings and in the config parser's
+    fallback
+  status: pending
+- id: ac-3
+  text: an explicit posture in dispatch.yaml still resolves to that posture
+  status: pending
+- id: ac-4
+  text: the dispatch example scaffold and posture documentation name the new default
+    and say what it does
+  status: pending
+- id: ac-5
+  text: tests assert the composed argv for every posture, including the new one
+  status: pending
+- id: ac-6
+  text: a real dispatch under the new posture runs a shell command without prompting,
+    verified by the session reaching working state and doing file work
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T21:48:44.443096Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7b3e9f42-1a6c-4d80-95e3-c2f8b71d0a54
+      kind: create
+      fingerprint: 54cd5055dec5f1bf36c79220ac2252e7
+- id: 2
+  ts: '2026-08-19T21:48:59.664912Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: e5a71c93-8b2d-4f60-a1c8-7d93b4e05f18
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-19T22:10:56.735914Z'
+  actor: claude
+  type: progress
+  body: "Implemented on branch feat/task-020-auto-posture, worktree C:/projects/aj-020,\
+    \ commit 17d0108.\n\nWhat changed:\n- `Posture.AUTO` added in dispatch/config.py;\
+    \ `posture_flags()` composes `--permission-mode auto -w <task>` plus the same\
+    \ allow-list supervised gets.\n- Default moved to AUTO in both places it lives:\
+    \ the `ProjectDispatchSettings.posture` field default and the `mapping.get(\"\
+    posture\", ...)` fallback in `_parse_project`.\n- `DispatchPosture` in models_v2.py\
+    \ gained the same member. This was not optional and the suite caught it: `_record_dispatch`\
+    \ converts config posture to schema posture *by value*, so AUTO existing in only\
+    \ one enum raised ValueError at dispatch time, not at import. Two tests in TestSelectionIsRecorded\
+    \ failed with `'auto' is not a valid DispatchPosture`.\n- Docs: design doc section\
+    \ 4 amended, task-schema.md dispatch entry example, and the dispatch.yaml scaffold\
+    \ comment users copy from.\n\nDecision on the allow-list under `auto` (ac was\
+    \ silent, spec asked for it explicit): kept. The rules can only pre-approve, never\
+    \ widen past what the classifier would allow anyway, and each names a command\
+    \ a run is certain to need. Rejected dropping it \u2014 that would have made auto\
+    \ differ from supervised in two ways at once and left the first `pytest` of every\
+    \ run waiting on a classifier round-trip for nothing.\n\nDesign-doc correction\
+    \ worth its own note: section 4's verified table claimed `acceptEdits` + allow-list\
+    \ runs an arbitrary command with \"no prompt\". That was measured with allow-listed\
+    \ commands only and generalised to a column headed *arbitrary command*, which\
+    \ is where the bad default came from. Corrected in place with the run_a6deb292\
+    \ evidence rather than deleted, and the section's actual decisions (bypassPermissions\
+    \ rejected as default, dontAsk rejected, no auto-escalation) are left standing\
+    \ \u2014 `auto` gates every action through a classifier, so it is a gate, not\
+    \ the absence of one.\n\nVerification:\n- `poetry run python scripts/check.py`\
+    \ exit 0 in the worktree: 1863 Python tests, Black/Ruff/MyPy, generated client\
+    \ check, 124 Vitest tests, production build, 11 Playwright tests against a live\
+    \ server. Log at scratchpad/gate-020b.log.\n- ac-6, live: dispatched task-107\
+    \ from this worktree as run_e452d6f8. meta.yaml argv carries `--permission-mode\
+    \ auto`, and `claude agents --json` reports session 903af6cf `state: \"working\"\
+    ` \u2014 it ran shell commands with no prompt and no park. The two runs before\
+    \ it, under supervised, both parked (run_08ddfa02 on the MCP dialog, run_a6deb292\
+    \ on `ls`).\n\nAll six acceptance criteria met. Not merged \u2014 awaiting review\
+    \ per the merge gate."
+  data:
+    operation:
+      id: 4c8b1e57-2a93-4d16-b0f7-8e5a3c9d6042
+      kind: log_append
+      fingerprint: 5af3bfb95d5f6b4909adb43d4cf60d57
+- id: 4
+  ts: '2026-08-19T22:11:13.737782Z'
+  actor: claude
+  type: handoff
+  body: Complete as scoped and gate-green. Handing back for review; not merging.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: b6f0d382-59c4-41a7-9e2b-30ac8175ed19
+      kind: handoff
+      fingerprint: 28eb8b2b11449302a879164af10af6e1

@@ -1,0 +1,147 @@
+schema: 2
+id: task-022
+title: Dispatch an epic as autonomous and it finishes the whole thing, child by child,
+  unattended
+created: '2026-08-19T22:29:17.039117Z'
+updated: '2026-08-19T22:29:17.039804Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: architecture
+tags:
+- dispatch
+- epic
+- autonomy
+- design
+effort: a day
+assignment:
+  eligible: []
+parent: task-160-dispatch-phase-two
+spec:
+  summary: 'The end state Jeff described: press Dispatch on a parent task, choose
+    autonomous, walk away, and come back to every child merged into main and the parent
+    closed. Each child gets its own session and worktree, is verified, merges itself
+    when clean, and the next one starts -- stopping only for something the agent genuinely
+    cannot solve. Nothing is pushed from agentjobs. This is the behaviour that ties
+    task-164''s orchestration to its sibling''s merge policy.'
+  intent: 'Jeff, 2026-08-19: "expectation is then, if I dispatch an epic task and
+    choose autonomous, it will go through all sub-tasks, automatically merging each
+    into main and moving on to the next, (assuming no major issue it can''t solve
+    itself), until all subtasks are done and then finishing the epic"'
+  description: "## Why this is its own task and not a line in either sibling\n\nTwo\
+    \ tasks already own half of this each, and neither delivers the behaviour on its\
+    \ own:\n\n- **task-164** decides that whoever works a parent spawns a session\
+    \ per child and\n  supervises it. It is silent on what happens to a finished child's\
+    \ branch, and its ac-4\n  leaves open whether a *dispatched* agent orchestrates\
+    \ at all.\n- **its sibling on posture and merge policy** decides that an `autonomous`\
+    \ run may merge\n  itself. It says nothing about doing that repeatedly across\
+    \ a set of children.\n\nThe thing Jeff asked for is the composition: an unattended\
+    \ run that keeps going. Composition\nis where this gets its risk, because the\
+    \ failure mode is not one bad merge -- it is a run\nthat merges a bad child and\
+    \ then builds four more on top of it.\n\n## The loop, as specified\n\n`ALLAGENTS.md`'s\
+    \ Parent Task Loop already describes every step but one. Steps 1-3 and 5-6\nstand\
+    \ unchanged. Step 4 currently reads that approval releases a checkpoint and the\
+    \ loop\ncontinues. Under `autonomous`, the run supplies its own approval when\
+    \ the child is clean.\n\nPer child, in order:\n1. Pick the next eligible child\
+    \ by `dependencies[]`.\n2. Spawn a session with its own worktree, per task-164.\n\
+    3. Supervise it to a finish: done, parked, or dead.\n4. Gate it. Objective check\
+    \ green **and** no serious problem the agent found.\n5. Clean -> rebase, merge\
+    \ `--no-ff`, mark the branch merged, close the child, remove the\n   worktree.\
+    \ Not clean -> hand the child to a human and **stop the whole loop**.\n6. Next\
+    \ child.\n\nWhen no unfinished child remains, evaluate the parent's acceptance\
+    \ criteria and close it.\n\n## What has to be decided\n\n**Does one bad child\
+    \ stop everything, or only itself?** Recommend stopping the loop\noutright. A\
+    \ sibling that depended on the failed child is now building on a gap, and an\n\
+    unattended run has nobody to notice. The cost is a run that halts at 3am on a\
+    \ child a\nhuman would have waved through; that is the cheaper mistake.\n\n**How\
+    \ many failures before it gives up entirely?** A child that fails, gets retried,\
+    \ and\nfails again should not consume the night. Propose one retry per child,\
+    \ then stop.\n\n**What does it do with a child that needs a human decision** --\
+    \ a `question` with no\nanswer, a spec ambiguity? It cannot answer for Jeff. It\
+    \ stops and hands off.\n\n**Does the parent's own session do the merging, or the\
+    \ child's?** Recommend the parent,\nbecause it is the only one with a view of\
+    \ the whole set and it is already awake.\n\n## The thing to be honest about\n\n\
+    This is the highest-consequence behaviour in the dispatch feature. Every gate\
+    \ in section 6\nof the design doc exists so that a human act starts a run; this\
+    \ makes one human act start\nan arbitrarily long chain of merges into `main`.\
+    \ The protections that remain are: the\nobjective check, the fact that nothing\
+    \ is pushed, and `main` being local and therefore\nrecoverable with `git reset`.\
+    \ Say so in the design doc rather than discovering it later.\n\nDemonstrate it\
+    \ on a real parent with at least two children before calling it done. A\npassing\
+    \ test suite is not evidence this works."
+  constraints: '- Nothing is pushed from agentjobs, whatever the posture. Recoverability
+    depends on main staying local.
+
+    - A child that is not clean stops the loop; it does not get skipped.
+
+    - Every child''s evidence lands on its task record before the merge, not after.
+    If the loop dies, the record must still say what happened.
+
+    - The parent is only closed when its own acceptance criteria are supported by
+    child evidence, not merely because no children remain open.
+
+    - Bound the retries. An unattended loop that retries forever is the runaway the
+    budget limits exist to prevent.'
+  out_of_scope: Running children in parallel -- one at a time, as the Parent Task
+    Loop already requires. Auto-dispatch triggering this without a human. Changing
+    dependency semantics.
+  context:
+  - path: ALLAGENTS.md
+    why: The Parent Task Loop is the specification this extends; step 4 is the one
+      that changes.
+  - path: src/agentjobs/dispatch/runner.py
+    why: Where a dispatch is composed, and where a parent-aware prompt would be generated.
+  - path: docs/agent-dispatch-design.md
+    why: Section 6's gates and section 7's budget limits are the protections this
+      leans on; the honest risk note belongs here.
+acceptance:
+- id: ac-1
+  text: dispatching a parent under autonomous works its children one at a time in
+    dependency order, without further human input
+  status: pending
+- id: ac-2
+  text: each clean child is merged --no-ff, its branch marked merged, its task closed,
+    and its worktree removed
+  status: pending
+- id: ac-3
+  text: a child that fails its objective check or raises a real problem stops the
+    loop and hands off, rather than being skipped
+  status: pending
+- id: ac-4
+  text: retries are bounded and the bound is documented
+  status: pending
+- id: ac-5
+  text: the parent closes only when its own acceptance criteria are supported by durable
+    child evidence
+  status: pending
+- id: ac-6
+  text: nothing is pushed, verified on a real run
+  status: pending
+- id: ac-7
+  text: demonstrated end to end on a real parent with at least two children, with
+    the run ledger and task records as evidence
+  status: pending
+deliverables: []
+dependencies:
+- task: task-164-epic-orchestration-rule
+  type: needs
+  note: Supplies the per-child session and supervision model this loop drives.
+- task: task-021
+  type: needs
+  note: Supplies the merge policy that lets an autonomous child merge without a human.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T22:29:17.039164Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: a37d6e94-05b1-4c28-9f36-2b8e71c40da7
+      kind: create
+      fingerprint: b069ec35be4b48d400319c0c746b53af
