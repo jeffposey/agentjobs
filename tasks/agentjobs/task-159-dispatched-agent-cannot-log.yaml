@@ -2,10 +2,9 @@ schema: 2
 id: task-159-dispatched-agent-cannot-log
 title: Let a dispatched agent log progress under the identity it was dispatched as
 created: '2026-08-18T21:53:32.594437Z'
-updated: '2026-08-18T21:53:32.595382Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-19T06:52:04.894430Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: reliability
@@ -108,3 +107,54 @@ log:
       id: 1590aa11-2b33-4c55-8d77-e9f0a1b2c159
       kind: create
       fingerprint: f401ff62bcf0bbbdf845f3cb66f85cfd
+- id: 2
+  ts: '2026-08-19T06:52:04.894292Z'
+  actor: claude
+  type: transition
+  body: 'Fixed and merged --no-ff on Jeff''s instruction to fix it directly rather
+    than work it as a full task.
+
+
+    **Chosen: a runner declares `actor:`, defaulting to its own name.** The claim
+    and the `agent` identity on dispatch entries use it; the dispatch entry still
+    records `runner:` separately, because which recipe ran and who it acted as are
+    different facts worth keeping apart.
+
+
+    **Rejected: registering a runner id as an actor automatically.** It removes a
+    setup step but widens what can create actors, and actors are a trust vocabulary
+    -- the same vocabulary the human-clocked rule reads to decide whether a dispatch
+    may happen at all. Growing it as a side effect of dispatch is the wrong direction
+    for a field that gates spending money.
+
+
+    Also added, satisfying sc-1''s second branch: a runner whose actor is outside
+    the project''s vocabulary is refused **at dispatch** with a message naming both
+    fixes, rather than the dispatch succeeding and the agent discovering it at its
+    first write. A project that configures no actors still accepts any id, matching
+    the allowance `validate_actor` already makes for a freshly initialised project
+    -- otherwise a fresh `agentjobs init` could not dispatch at all.
+
+
+    **The test fixtures had the same defect**, which is the clearest evidence it was
+    real: they named a runner `fake` in projects configuring only `Jeff Posey`, `claude`
+    and `codex`. Every one of them described a dispatch that could not have logged
+    its own progress. Twenty tests failed on the new guard and were corrected rather
+    than the guard relaxed.
+
+
+    Verified: 1732 passed, with only the two failures already red on `main` (`test_agentjobs_context_paths_exist`,
+    and the absolute-path tolerated-drift assertion). `black`, `ruff` and `mypy` clean
+    on everything touched.
+
+
+    sc-5 -- a real dispatched session logging progress as itself -- is not reproduced
+    live. The unit path is covered and the sandbox was taken down at Jeff''s request
+    before this landed.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 1591aa11-2b33-4c55-8d77-e9f0a1b2c159
+      kind: close
+      fingerprint: 7f62611ddc8052400878a4a72fbd702b
