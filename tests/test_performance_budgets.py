@@ -33,9 +33,9 @@ import yaml
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 
-from bench import build_corpus  # noqa: E402  - the shared synthetic-corpus generator
+from scripts.bench import build_corpus  # noqa: E402  - the shared synthetic-corpus generator
 
 from agentjobs.api.dependencies import reset_dependency_cache  # noqa: E402
 from agentjobs.api.main import PARSE_COUNT_HEADER, app  # noqa: E402

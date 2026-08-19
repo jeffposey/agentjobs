@@ -106,7 +106,7 @@ class Recorder:
                 summary=content[0].text if content else "",
             )
         )
-        return structured
+        return dict(structured)
 
     async def expect_refusal(self, tool: str, arguments: Mapping[str, Any]) -> Dict[str, Any]:
         """Invoke a tool expecting a structured refusal, recording the call.

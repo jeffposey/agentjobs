@@ -29,7 +29,7 @@ from agentjobs.validation import (
     validate_corpus,
 )
 
-CONFIG = {
+CONFIG: dict[str, object] = {
     "project_name": "Fixture",
     "tasks_directory": "tasks",
     "categories": ["general", "infrastructure"],

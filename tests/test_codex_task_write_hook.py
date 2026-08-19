@@ -76,7 +76,8 @@ class TestHookProtocol:
             env={**os.environ, **env},
         )
         assert completed.returncode == 0, completed.stderr
-        return json.loads(completed.stdout)
+        decision: Dict[str, Any] = json.loads(completed.stdout)
+        return decision
 
     def test_a_denial_round_trips_through_stdin_and_stdout(self, project):
         decision = self._run(

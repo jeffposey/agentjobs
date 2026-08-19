@@ -331,7 +331,9 @@ def _only_task(tmp_path: Path) -> dict:
     import yaml
 
     task_file = next((tmp_path / "tasks").glob("*.yaml"))
-    return yaml.safe_load(task_file.read_text(encoding="utf-8"))
+    loaded = yaml.safe_load(task_file.read_text(encoding="utf-8"))
+    assert isinstance(loaded, dict)
+    return loaded
 
 
 def test_promote_moves_draft_to_ready(tmp_path: Path, monkeypatch) -> None:
@@ -413,9 +415,7 @@ def test_promote_missing_task_reports_not_found(tmp_path: Path, monkeypatch) -> 
     assert "Task 'task-nope' not found" in result.stdout
 
 
-def test_promote_without_an_actor_refuses_rather_than_guessing(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_promote_without_an_actor_refuses_rather_than_guessing(tmp_path: Path, monkeypatch) -> None:
     """With no default_user and no --actor, refuse instead of writing an anonymous
     transition -- an unattributed state change is worse than a refused one."""
     monkeypatch.chdir(tmp_path)

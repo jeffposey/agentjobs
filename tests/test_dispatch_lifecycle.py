@@ -305,7 +305,8 @@ class TestDuration:
         directory.update_meta(status="failed", error="launcher exploded")
         by_update_meta = read_run(directory.path).elapsed_seconds()
 
-        write_status(seed_run(home, task.id, run_id="run_two"), status="cancelled")
+        second = seed_run(home, task.id, run_id="run_two")
+        write_status(read_run(second.path), status="cancelled")
         by_write_status = read_run(home / "runs" / "run_two").elapsed_seconds()
 
         assert by_update_meta is not None and by_update_meta > 0
@@ -433,11 +434,11 @@ class TestCancel:
         import agentjobs.dispatch.runner as runner_module
 
         original = runner_module._kill_tree
-        runner_module._kill_tree = lambda pid: killed.append(pid)  # type: ignore[assignment]
+        runner_module._kill_tree = lambda pid: killed.append(pid)
         try:
             ledger.cancel("run_test0001")
         finally:
-            runner_module._kill_tree = original  # type: ignore[assignment]
+            runner_module._kill_tree = original
 
         assert killed == [], "a session cancel must not kill a process tree"
 
@@ -508,11 +509,11 @@ class TestStopEverything:
 
         original = ledger._stop
 
-        def observe(record):  # type: ignore[no-untyped-def]
+        def observe(record):
             seen.append(sentinel_path(home).exists())
             return original(record)
 
-        ledger._stop = observe  # type: ignore[assignment]
+        ledger._stop = observe  # type: ignore[method-assign]
         ledger.stop_everything()
 
         assert seen == [True]

@@ -44,8 +44,8 @@ import task_write_guard as guard  # noqa: E402
 def load_hook(path: Path):
     """Import one entry point as a module, so its serialiser can be called directly."""
     spec = importlib.util.spec_from_file_location(path.stem, path)
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
     spec.loader.exec_module(module)
     return module
 
@@ -80,7 +80,7 @@ def _codex_denial(payload: Optional[str]) -> Optional[str]:
     decision = json.loads(payload)
     if decision.get("permission_decision") != "deny":
         return None
-    return decision["permission_decision_reason"]
+    return str(decision["permission_decision_reason"])
 
 
 def _claude_denial(payload: Optional[str]) -> Optional[str]:
@@ -90,7 +90,7 @@ def _claude_denial(payload: Optional[str]) -> Optional[str]:
     output = json.loads(payload)["hookSpecificOutput"]
     if output.get("permissionDecision") != "deny":
         return None
-    return output["permissionDecisionReason"]
+    return str(output["permissionDecisionReason"])
 
 
 CODEX = Client("codex", CODEX_HOOK, load_hook(CODEX_HOOK).serialise, _codex_denial)

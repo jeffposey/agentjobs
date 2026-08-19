@@ -47,7 +47,7 @@ from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outco
 from agentjobs.projects import Project
 from agentjobs.storage import TaskStorage
 
-PROJECT_CONFIG = {
+PROJECT_CONFIG: dict[str, object] = {
     "project_name": "Sandbox",
     "tasks_directory": "tasks",
     "actors": [
@@ -475,7 +475,9 @@ class TestClaimBeforeSpawn:
         manager.add_log_entry(
             ready_task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Again please."
         )
-        before = len(manager.get_task(ready_task.id).log)
+        claimed = manager.get_task(ready_task.id)
+        assert claimed is not None
+        before = len(claimed.log)
 
         handle = run(manager, project, home, ready_task.id)
         settle(handle)

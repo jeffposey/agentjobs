@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Iterator, List, Tuple
+from typing import Any, Iterator, List, Tuple
 
 import pytest
 import yaml
@@ -38,7 +38,7 @@ def _manager(tmp_path: Path) -> TaskManager:
     return TaskManager(TaskStorage(tmp_path))
 
 
-def _ready(manager: TaskManager, task_id: str, title: str, **kwargs: object) -> None:
+def _ready(manager: TaskManager, task_id: str, title: str, **kwargs: Any) -> None:
     """Create a ready task -- the only state from which claimability is interesting."""
     manager.create_task(
         id=task_id,
@@ -119,7 +119,8 @@ class TestUmbrellaIsNotClaimable:
 
         message = str(excinfo.value)
         assert CHILD_A in message and CHILD_B in message
-        assert manager.get_task(UMBRELLA).lifecycle is Lifecycle.READY
+        umbrella = manager.get_task(UMBRELLA)
+        assert umbrella is not None and umbrella.lifecycle is Lifecycle.READY
 
     def test_it_becomes_claimable_once_every_child_is_closed(self, tmp_path: Path) -> None:
         manager = _manager(tmp_path)
@@ -128,7 +129,8 @@ class TestUmbrellaIsNotClaimable:
             manager.claim_task(child, agent="codex")
             manager.close_task(child, actor="codex", outcome=Outcome.COMPLETED)
 
-        assert manager.get_next_task().id == UMBRELLA
+        next_task = manager.get_next_task()
+        assert next_task is not None and next_task.id == UMBRELLA
         assert manager.claim_task(UMBRELLA, agent="claude").lifecycle is Lifecycle.ACTIVE
 
     def test_one_open_child_is_enough_to_block_it(self, tmp_path: Path) -> None:
@@ -181,7 +183,8 @@ class TestParentValidation:
 
         chain = f"{UMBRELLA} -> {CHILD_A} -> task-103-grandchild"
         assert chain in str(excinfo.value)
-        assert manager.get_task(UMBRELLA).parent is None
+        umbrella = manager.get_task(UMBRELLA)
+        assert umbrella is not None and umbrella.parent is None
 
     def test_a_valid_reparent_is_applied(self, tmp_path: Path) -> None:
         manager = _manager(tmp_path)
@@ -297,7 +300,8 @@ class TestParentOverTheApi:
 
         assert response.status_code == 400
         assert "cycle" in response.json()["detail"]
-        assert manager.get_task(UMBRELLA).parent is None
+        umbrella = manager.get_task(UMBRELLA)
+        assert umbrella is not None and umbrella.parent is None
 
     def test_a_bad_parent_on_a_task_that_does_not_exist_is_still_a_404(self, api_client) -> None:
         """The addressed task is what decides 404; the payload only ever decides 400."""

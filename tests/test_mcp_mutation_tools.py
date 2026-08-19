@@ -114,7 +114,8 @@ def refuse(registry: ToolRegistry, name: str, arguments: Mapping[str, Any]) -> T
             await registry.get(name).handler(arguments)
         return caught.value
 
-    return anyio.run(run)
+    error: ToolError = anyio.run(run)
+    return error
 
 
 def schema_rejects(registry: ToolRegistry, name: str, arguments: Mapping[str, Any]) -> bool:

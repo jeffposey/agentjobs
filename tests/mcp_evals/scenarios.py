@@ -379,7 +379,12 @@ async def scenario_07_direct_write_attempt(harness: Harness) -> ScenarioResult:
     current = await recorder.call("task_get", {"project_id": "alpha", "task_id": task_id})
 
     attempts: List[Dict[str, Any]] = []
-    for patch in ({"log": []}, {"id": "task-999-renamed"}, {"updated": "2026-01-01T00:00:00Z"}):
+    patches: List[Dict[str, Any]] = [
+        {"log": []},
+        {"id": "task-999-renamed"},
+        {"updated": "2026-01-01T00:00:00Z"},
+    ]
+    for patch in patches:
         attempts.append(
             await recorder.expect_refusal(
                 "task_update_content",

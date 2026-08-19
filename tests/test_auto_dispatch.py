@@ -35,7 +35,7 @@ from agentjobs.models_v2 import (
 from agentjobs.projects import ProjectRegistry
 from agentjobs.storage import TaskStorage
 
-CONFIG = {
+CONFIG: dict[str, object] = {
     "project_name": "Sandbox",
     "tasks_directory": "tasks",
     "actors": [
