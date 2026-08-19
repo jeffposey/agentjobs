@@ -3,11 +3,9 @@ id: task-166-red-gate-on-main
 title: The repository's own gate is red on main, and correcting the records that make
   it red is harder than it should be
 created: '2026-08-19T17:21:02.547272Z'
-updated: '2026-08-19T18:10:52.773278Z'
-lifecycle: active
-ball: agent
-ball_reason: revise
-ball_prompt: yes, make it run the checks that it should, then merge
+updated: '2026-08-19T18:23:34.165169Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: infrastructure
@@ -17,7 +15,6 @@ tags:
 - developer_experience
 effort: small for the four record fixes; the API question behind them is larger
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: '`poetry run python scripts/check.py` fails on `main` as of 2026-08-19,
@@ -156,7 +153,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-166-red-gate
-  status: active
+  status: merged
+  merged_at: '2026-08-19T18:30:00Z'
 log:
 - id: 1
   ts: '2026-08-19T17:21:02.547317Z'
@@ -536,3 +534,78 @@ log:
   data:
     ball: agent
     ball_reason: revise
+- id: 12
+  ts: '2026-08-19T18:23:16.433033Z'
+  actor: claude
+  type: progress
+  body: "**Changes requested applied, and merged. The gate is green on `main` itself.**\n\
+    \nJeff's ask on entry 11 \u2014 *\"yes, make it run the checks that it should,\
+    \ then merge\"* \u2014 releases the question left open in decision entry 8.\n\n\
+    ## The gate now runs the checks ENGINEERING.md always claimed it did\n\n`8e79e3e\
+    \ chore(gate): run black, ruff and mypy before pytest`. `scripts/check.py` ran\
+    \ exactly `pytest` and `npm run check`; `black`, `ruff` and `mypy` were listed\
+    \ under **Pre-commit** in ENGINEERING.md and enforced by nothing. Both defects\
+    \ this task fixed had survived on `main` for that reason.\n\nThey run **first**,\
+    \ before pytest: together about seven seconds, failing on things pytest will never\
+    \ notice. Spending four minutes to discover a misformatted file is the wrong order.\
+    \ Invoked as `python -m` through `sys.executable`, matching the existing pytest\
+    \ step, so they run in the interpreter whose import location the gate already\
+    \ verifies.\n\nENGINEERING.md updated in the same commit: the gate's description\
+    \ now names the three steps, the pre-commit block is retitled *\"While iterating\"\
+    * with a note that `black .` rewrites while the gate runs `black --check`, and\
+    \ the budget line carries today's measurement.\n\n## Merged\n\n`66f6895 Merge\
+    \ branch 'fix/task-166-red-gate'`, `--no-ff`, after rebasing onto `b3d3a37`. Four\
+    \ commits: the e2e runner actor, the mypy package marker, the 42 type fixes, the\
+    \ widened gate. **Not pushed** \u2014 merge approval is not push approval.\n\n\
+    ## Verification, run in the main clone `C:/projects/agentjobs` on merged `main`\n\
+    \n```\npoetry run python scripts/check.py     ->  EXIT=0\n\n  python -m black\
+    \ --check .   ->  All done, 143 files unchanged\n  python -m ruff check .    \
+    \  ->  clean\n  python -m mypy .            ->  Success: no issues found in 143\
+    \ source files\n  python -m pytest            ->  1779 passed, 154 warnings in\
+    \ 208.11s (0:03:28)\n  npm run check               ->  check:api, check:icons,\
+    \ lint,\n                                  Test Files 20 passed (20) / Tests 124\
+    \ passed (124),\n                                  build, 11 Playwright passed\
+    \ (12.2s)\n```\n\nThat is the task's goal statement satisfied literally: not \"\
+    green on the branch\", but green on `main`, in the shared clone, end to end.\n\
+    \nThe corpus tests were re-run separately after the rebase (`180 passed in 9.77s`),\
+    \ because a rebase onto `main` pulls in task records written by other agents and\
+    \ those are exactly what these two tests assert on.\n\n## What was deliberately\
+    \ not done\n\nStill not pushed, and no follow-up tasks filed. The three named\
+    \ in the handoff remain unfiled and unclaimed:\n\n1. A `dangling-context-path`\
+    \ rule in `src/agentjobs/validation.py`, so a bad pointer is refused at the write\
+    \ rather than at a later agent's gate run.\n2. Promoting this task's read-modify-write-with-diff\
+    \ script into the CLI/MCP layer, per decision entry 7.\n3. Nothing further on\
+    \ the gate \u2014 `black`, `ruff` and `mypy` are now in it; adding anything else\
+    \ is a fresh decision.\n"
+  data:
+    operation:
+      id: 35343b5c-6548-4069-a02e-c9eb55813efc
+      kind: log_append
+      fingerprint: cb54e77a9665385b8ae2bfd55e7f8bd1
+- id: 13
+  ts: '2026-08-19T18:23:34.121873Z'
+  actor: system
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: f875fa15-e9f1-4413-93e9-aaf35ce8ed0c
+      kind: update_content
+      fingerprint: f75906801e945d0689c339feaf19729c
+- id: 14
+  ts: '2026-08-19T18:23:34.165043Z'
+  actor: claude
+  type: transition
+  body: 'Merged as 66f6895 after Jeff''s approval on entry 11. `poetry run python
+    scripts/check.py` exits 0 on `main` in the shared clone: black/ruff/mypy clean,
+    1779 pytest in 3m28s, 124 Vitest, 11 Playwright. The gate now runs the three checks
+    ENGINEERING.md had only ever listed. Not pushed.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: b525eab8-49c5-48dd-864b-8e95a5a4f671
+      kind: close
+      fingerprint: c040fa8a1bb00d4701fd83632ef3c907
