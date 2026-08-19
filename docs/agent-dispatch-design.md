@@ -199,6 +199,8 @@ runners:
   claude:
     argv: ["claude", "-p", "{prompt}"]     # flags are the operator's business, not AgentJobs'
     env: {}                                 # additive over the server's environment
+    # no `mode:` means batch. A session runner is `mode: session` AND `--bg
+    # --remote-control` -- the two have to agree; see §4.
   codex:
     argv: ["codex", "exec", "{prompt}"]
 
@@ -400,12 +402,32 @@ not become a Claude-shaped hole no other CLI can fill.
 
 | Mode | Invocation | For | Gets |
 |---|---|---|---|
-| `session` | `--bg --remote-control -w <task-slug>` | Work you might redirect: implementation, anything long, anything that may need a permission answered | Steerable from any device, worktree containment, park-and-ask |
-| `batch` | `-p --output-format=stream-json --max-budget-usd N` | Bounded reports: review, triage, defect hunts | Spend ceiling, structured output, real exit code |
+| `session` | `--bg --remote-control` *(+ `-w <task-slug>` from the posture, not the template)* | Work you might redirect: implementation, anything long, anything that may need a permission answered | Steerable from any device, worktree containment, park-and-ask |
+| `batch` | `-p --output-format=stream-json --verbose --max-budget-usd N` | Bounded reports: review, triage, defect hunts | Spend ceiling, structured output, real exit code |
 
 `batch` is **not** merely a fallback for a CLI without a session manager, though it
 serves as one. It is the better mode for a whole class of dispatch, and it keeps the
 argv-template runner of (c) above intact.
+
+Two corrections to that table, both found by **running** the invocations rather than
+reading them, on 2.1.235, 2026-08-19 — the same failure mode as the August flag table
+above, and worth the same warning:
+
+- **`--verbose` is not optional in the batch row.** `claude -p --output-format
+  stream-json` exits with *"When using --print, --output-format=stream-json requires
+  --verbose"* and starts nothing. A batch runner written from the original row does not
+  run at all.
+- **The worktree flag is AgentJobs', not the operator's.** `-w <task-slug>` is spliced in
+  by `posture_flags` for `supervised` and `autonomous` (see the posture section below), so
+  a runner template that also writes `-w` hands one run two worktree flags. The session
+  row keeps it only to describe what the composed command looks like.
+
+A third thing the same exercise settled: `--remote-control` takes an *optional* name, and
+what stops it swallowing the prompt is that AgentJobs splices the posture flags in
+immediately before the prompt element. A session template ending
+`["claude", "--bg", "--remote-control", "{prompt}"]` is therefore correct, and the
+composed argv is `claude --bg --remote-control --permission-mode acceptEdits -w <slug>
+--settings <json> <prompt>`.
 
 #### Rejected, with what rejecting them costs
 
@@ -1338,6 +1360,11 @@ live with; 7 is the automation, deliberately last.
    dispatch, deterministic selection recorded in the task log, and
    `agentjobs dispatch example` as the setup route. See §4. The difficulty → profile
    table remains unbuilt, with its reopen triggers restated there.
+   **Revised 2026-08-19** after review: the example's session runners carried `-p` and no
+   `--remote-control`, so the config every new setup inherits could not have started a
+   steerable session. Corrected, the §4 mode table corrected with it, and the example is
+   now dispatched end to end by `tests/test_dispatch_example_config.py` rather than only
+   parsed.
 
 7. **Auto-dispatch (opt-in).** `auto_dispatch: true` per project, the budget caps from
    §7 with their ball-moving refusals, and the audit that a dispatch caused by an

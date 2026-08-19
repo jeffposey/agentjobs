@@ -54,28 +54,47 @@ enabled: false
 # builds a command from a label -- so whichever model or effort a runner uses is
 # whatever its argv says.
 #
+# Two flags are NOT yours, and writing them here is a bug: AgentJobs splices the
+# project's posture in front of the prompt itself, and that is where `--permission-mode`
+# / `--tools` and the worktree flag `-w` come from. A second `-w` here would give one run
+# two worktrees.
+#
+# `mode:` must match the invocation. A session is `--bg --remote-control` and returns a
+# short id AgentJobs then polls; a batch run is `-p` and blocks until it exits. `-p` on a
+# runner declared `mode: session` asks for print-and-exit while AgentJobs waits for a
+# session id that will never come.
+#
 # argv is recorded verbatim in the task's dispatch entry. Secrets go in `env:`, which is
 # never logged.
 runners:
   claude-standard:
-    argv: ["claude", "--bg", "-p", "{prompt}"]
+    argv: ["claude", "--bg", "--remote-control", "{prompt}"]
     mode: session
     actor: claude          # the identity it writes as, from the project's actors:
 
   claude-deep:
-    argv: ["claude", "--bg", "--effort", "high", "-p", "{prompt}"]
+    argv: ["claude", "--bg", "--remote-control", "--effort", "high", "{prompt}"]
     mode: session
     actor: claude
 
   claude-quick:
-    argv: ["claude", "--bg", "--model", "haiku", "-p", "{prompt}"]
+    argv: ["claude", "--bg", "--remote-control", "--model", "haiku", "{prompt}"]
     mode: session
     actor: claude
 
-  codex:
-    argv: ["codex", "exec", "{prompt}"]
+  # Batch: bounded work that produces a report rather than a conversation. This is the
+  # only mode with a spend ceiling -- `--max-budget-usd` is refused outside `--print`.
+  # `--output-format stream-json` is refused without `--verbose`.
+  claude-review:
+    argv: ["claude", "-p", "--output-format", "stream-json", "--verbose",
+           "--max-budget-usd", "5", "{prompt}"]
     mode: batch
-    actor: codex
+    actor: claude
+
+  # A second vendor goes here, written against its own CLI's flags once you have that
+  # CLI installed and can check them. Nothing is shipped for you, because a flag nobody
+  # ran is a flag that does not work; see the disabled member below for how to record
+  # the intention in the meantime.
 
 # ----- runner groups: which runners are interchangeable for a kind of work ----
 #
@@ -98,7 +117,9 @@ runner_groups:
       - runner: claude-standard
       - runner: codex
         enabled: false
-        note: Second option; enable once codex is installed and signed in.
+        note: Second option. Write the runner once codex is installed and its flags
+          checked -- a member may name a runner that does not exist yet, which is how
+          you record the intention without pretending to know the command.
 
   deep:
     description: Architecture, review, anything worth the slower model.
@@ -111,6 +132,11 @@ runner_groups:
     members:
       - claude-quick
       - claude-standard
+
+  review:
+    description: Bounded reports. Batch mode, so it has a spend ceiling and an exit code.
+    members:
+      - claude-review
 
 # Used by any project that names no group of its own. Comment it out to keep every
 # project on its own explicit `runner:` or `group:`.

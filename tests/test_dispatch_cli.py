@@ -374,7 +374,7 @@ class TestTheExampleConfig:
         config = load_dispatch_config(home())
 
         assert config is not None
-        assert set(config.runner_groups) == {"standard", "deep", "quick"}
+        assert set(config.runner_groups) == {"standard", "deep", "quick", "review"}
         assert config.default_group == "standard"
 
     def test_the_example_is_switched_off_at_every_level(self) -> None:
