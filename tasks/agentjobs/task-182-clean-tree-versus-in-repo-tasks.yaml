@@ -3,12 +3,12 @@ id: task-182-clean-tree-versus-in-repo-tasks
 title: require_clean_tree refuses every dispatch in a project whose task files live
   in its own repo
 created: '2026-08-19T20:50:13.107702Z'
-updated: '2026-08-19T20:54:46.088798Z'
+updated: '2026-08-19T21:22:58.897690Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: high
+priority: critical
 category: reliability
 tags:
 - dispatch
@@ -137,3 +137,15 @@ log:
       id: 3c4d5e6f-7081-4c92-ad13-4e5f60710184
       kind: log_append
       fingerprint: efdd249a52439bcd8d9b55a93a75ec51
+- id: 3
+  ts: '2026-08-19T21:22:58.897601Z'
+  actor: Jeff Posey
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: a3b4c5d6-e7f8-4039-b48a-b5c6d7e8a7b1
+      kind: update_content
+      fingerprint: 6bc867db7efae818c23f58513b8140c5

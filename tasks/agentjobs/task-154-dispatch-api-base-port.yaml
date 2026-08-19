@@ -2,12 +2,12 @@ schema: 2
 id: task-154-dispatch-api-base-port
 title: Tell a dispatched agent the address AgentJobs is actually serving on
 created: '2026-08-18T21:21:58.341616Z'
-updated: '2026-08-19T19:26:11.392955Z'
+updated: '2026-08-19T21:23:01.946974Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: high
+priority: critical
 category: reliability
 tags:
 - dispatch
@@ -201,3 +201,15 @@ log:
       id: f4d9c3e7-6e85-4f21-a149-804c1d9f0184
       kind: update_content
       fingerprint: 8c1be9ef5eecbe709eb7d00d814bf8a6
+- id: 3
+  ts: '2026-08-19T21:23:01.946870Z'
+  actor: Jeff Posey
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: b4c5d6e7-f8a9-414a-c59b-c6d7e8f9b8c2
+      kind: update_content
+      fingerprint: 6bc867db7efae818c23f58513b8140c5

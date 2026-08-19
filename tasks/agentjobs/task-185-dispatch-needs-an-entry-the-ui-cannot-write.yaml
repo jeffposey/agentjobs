@@ -3,12 +3,12 @@ id: task-185-dispatch-needs-an-entry-the-ui-cannot-write
 title: Dispatch refuses a task with no human log entry, and the page gives you no
   way to write one
 created: '2026-08-19T21:16:19.646150Z'
-updated: '2026-08-19T21:16:19.646889Z'
+updated: '2026-08-19T21:22:56.984961Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: high
+priority: critical
 category: ux
 tags:
 - dispatch
@@ -112,3 +112,15 @@ log:
       id: 708192a3-b4c5-4d06-e157-8293a4b5d4e8
       kind: create
       fingerprint: 800e3260c26633908fa8543ebcc3601d
+- id: 2
+  ts: '2026-08-19T21:22:56.984874Z'
+  actor: Jeff Posey
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: 92a3b4c5-d6e7-4f28-a379-a4b5c6d7f6a0
+      kind: update_content
+      fingerprint: 6bc867db7efae818c23f58513b8140c5
