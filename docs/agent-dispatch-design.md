@@ -178,7 +178,8 @@ will do about it* is machine-local and disposable.
 | Noun | What it is | Where it lives | Versioned? |
 |---|---|---|---|
 | **Runner** | Named recipe for starting an agent: an argv template and optional env | `~/.agentjobs/dispatch.yaml` | No — machine-local |
-| **Enablement** | Whether a given project may dispatch, and with which runner | `~/.agentjobs/dispatch.yaml` | No — machine-local |
+| **Runner group** | Ordered list of runners that are interchangeable for one kind of work | `~/.agentjobs/dispatch.yaml` | No — machine-local |
+| **Enablement** | Whether a given project may dispatch, and with which runner or group | `~/.agentjobs/dispatch.yaml` | No — machine-local |
 | **Run** | One live or finished agent process: id, pid, status, output | `~/.agentjobs/runs/<run_id>/` | No — machine-local |
 | **Dispatch record** | That a run happened, who authorized it, and how it ended | Task `log[]` | **Yes — git** |
 
@@ -198,13 +199,27 @@ runners:
   claude:
     argv: ["claude", "-p", "{prompt}"]     # flags are the operator's business, not AgentJobs'
     env: {}                                 # additive over the server's environment
+    # no `mode:` means batch. A session runner is `mode: session` AND `--bg
+    # --remote-control` -- the two have to agree; see §4.
   codex:
     argv: ["codex", "exec", "{prompt}"]
+
+# Optional (task-177). Absent, everything below behaves exactly as it did: a project
+# names one runner and that runner runs. See §4 for selection and precedence.
+runner_groups:
+  standard:
+    description: Ordinary work. What most dispatches should get.
+    members:
+      - runner: claude
+      - runner: codex
+        enabled: false             # written now, in play once it is set up
+        note: Enable after codex is installed and signed in.
+default_group: standard            # any project that names no group of its own
 
 projects:
   agentjobs:
     enabled: true
-    runner: claude
+    group: standard                # or `runner: claude` for exactly one
     require_clean_tree: true
     auto_dispatch: false           # §5; off until the manual path is boring
 
@@ -255,6 +270,10 @@ to route around (schema-design §9).
     duration_seconds: 1049
     log_path: ~/.agentjobs/runs/run_a1b2c3d4/
 ```
+
+When a runner group chose the runner, the entry also carries a `selection` block naming
+the group, which precedence rung named it, and every candidate with its verdict (§4).
+It is absent otherwise, so a flat configuration's entries are unchanged.
 
 `argv` is recorded verbatim, which means **secrets must never appear in a runner's
 argv** — put them in `env`, which is never logged. Stated here because the recording is
@@ -383,12 +402,32 @@ not become a Claude-shaped hole no other CLI can fill.
 
 | Mode | Invocation | For | Gets |
 |---|---|---|---|
-| `session` | `--bg --remote-control -w <task-slug>` | Work you might redirect: implementation, anything long, anything that may need a permission answered | Steerable from any device, worktree containment, park-and-ask |
-| `batch` | `-p --output-format=stream-json --max-budget-usd N` | Bounded reports: review, triage, defect hunts | Spend ceiling, structured output, real exit code |
+| `session` | `--bg --remote-control` *(+ `-w <task-slug>` from the posture, not the template)* | Work you might redirect: implementation, anything long, anything that may need a permission answered | Steerable from any device, worktree containment, park-and-ask |
+| `batch` | `-p --output-format=stream-json --verbose --max-budget-usd N` | Bounded reports: review, triage, defect hunts | Spend ceiling, structured output, real exit code |
 
 `batch` is **not** merely a fallback for a CLI without a session manager, though it
 serves as one. It is the better mode for a whole class of dispatch, and it keeps the
 argv-template runner of (c) above intact.
+
+Two corrections to that table, both found by **running** the invocations rather than
+reading them, on 2.1.235, 2026-08-19 — the same failure mode as the August flag table
+above, and worth the same warning:
+
+- **`--verbose` is not optional in the batch row.** `claude -p --output-format
+  stream-json` exits with *"When using --print, --output-format=stream-json requires
+  --verbose"* and starts nothing. A batch runner written from the original row does not
+  run at all.
+- **The worktree flag is AgentJobs', not the operator's.** `-w <task-slug>` is spliced in
+  by `posture_flags` for `supervised` and `autonomous` (see the posture section below), so
+  a runner template that also writes `-w` hands one run two worktree flags. The session
+  row keeps it only to describe what the composed command looks like.
+
+A third thing the same exercise settled: `--remote-control` takes an *optional* name, and
+what stops it swallowing the prompt is that AgentJobs splices the posture flags in
+immediately before the prompt element. A session template ending
+`["claude", "--bg", "--remote-control", "{prompt}"]` is therefore correct, and the
+composed argv is `claude --bg --remote-control --permission-mode acceptEdits -w <slug>
+--settings <json> <prompt>`.
 
 #### Rejected, with what rejecting them costs
 
@@ -532,7 +571,10 @@ govern a **usage window, not a per-token bill** — worth knowing when choosing 
 
 Raised because easy work and hard architecture work should not automatically consume the
 same model. Decided by Jeff on `task-080-dispatch-model-profiles` after the two CLI
-surfaces were read rather than assumed. **Only the first part below is being built.**
+surfaces were read rather than assumed, and extended by `task-177-runner-groups`, which
+built the candidate-list half of it. **`difficulty` and runner groups are built; the
+difficulty → profile table is not** — see the reopen triggers at the end of this
+section.
 
 #### What the CLIs actually offer, since it changed the answer
 
@@ -574,30 +616,131 @@ field for a broken one.
 scale with two dead values. *Rejected: t-shirt sizes* — they read as *effort*, the one
 field difficulty must not be confused with.
 
-#### Dispatch profiles — decided, deliberately unbuilt
+#### Runner groups and profiles are one mechanism (groups built 2026-08-19, task-177)
 
-A profile maps difficulty to **an existing runner**:
+Two nouns, and it is worth being exact about which does what, because they were designed
+eighteen days apart and the obvious mistake is to build them as two competing layers:
+
+- a **group** is the *candidate list* — which runners are interchangeable for this kind
+  of work;
+- a **profile** is the *mapping* — which group or runner a given `difficulty` gets.
+
+A group is an ordered list of runners plus a per-member on/off switch. A profile is a
+table from difficulty to one of those groups. They share one resolver, one precedence
+ladder, and one audit vocabulary. **Groups are built. The difficulty → profile table is
+not**, and the ladder below has its rungs reserved rather than occupied.
 
 ```yaml
-profiles:
-  balanced:
-    routine:  claude-sonnet
-    standard: claude-opus
-    hard:     claude-opus-max
+# ~/.agentjobs/dispatch.yaml — machine-local, exactly like runners and for the same reason
+runner_groups:
+  standard:
+    description: Ordinary work. What most dispatches should get.
+    members:
+      - runner: claude-standard
+      - runner: codex
+        enabled: false
+        note: Second option; enable once codex is installed and signed in.
+  deep:
+    description: Architecture, review, anything worth the slower model.
+    members:
+      - claude-deep
+      - claude-standard        # fall back rather than fail
+
+default_group: standard        # any project that names no group of its own
 ```
 
-Each value names an ordinary runner whose argv already says what it says. AgentJobs never
-learns what a model is, never maintains an effort vocabulary, and never fights Codex's
-`-p`. **Argv remains the only thing that launches.**
+Each member names an ordinary runner whose argv already says what it says. **Argv remains
+the only thing that launches.** AgentJobs never learns what a model is, never maintains
+an effort vocabulary, and never fights Codex's `-p`.
+
+`enabled: false` is a first-class state, not a comment with extra steps. Writing the
+runner you have not configured yet and leaving it off is how someone records *this is the
+second option once I set it up*; the `note` beside it is why. Enabling is a hand edit,
+always, and a disabled member is never selected under any circumstance.
+
+##### Selection: what the dispatcher can actually see
+
+The motivation for a list rather than a single runner was "current session limits and
+such". That was checked rather than assumed, on 2026-08-19, by running the installed CLIs
+rather than reading their help — and the answer changed the design.
+
+**No installed agent CLI reports remaining usage headroom in any scriptable form.**
+`claude` 2.1.235 has no `usage` verb; `auth status --json` returns identity and plan tier
+only; `agents --json` returns live sessions with no accounting. `/usage` is an
+interactive built-in — run as `claude -p "/usage"` it is not executed at all, it reaches
+the model as prompt text and comes back as a chat reply, having cost a model turn to
+learn nothing. A `-p` run's own `--output-format json` reports what *that call* consumed,
+after the money is spent.
+
+The numbers do exist machine-locally, as a cache: `~/.claude.json` holds a private
+`cachedUsageUtilization` with five-hour and seven-day percentages and reset timestamps.
+**Reading it would be a bug.** On the machine this was designed on it was 8 days 21 hours
+stale, reporting 98% of a five-hour window that had reset nine days earlier — a
+dispatcher trusting it would have skipped the preferred runner every time, for a limit
+that no longer existed. It is also undocumented private state with internal codename keys,
+and it is account-wide, so it cannot distinguish one runner's headroom from another's,
+which is the exact discrimination a group would need.
+
+So selection is built on what is local, free, deterministic, and incapable of hanging:
+
+1. **declared order** — the first member that can run, wins;
+2. **`enabled`** — a disabled member is skipped;
+3. **defined** — a member naming a runner absent from `runners:` is skipped;
+4. **resolvable** — a member whose `argv[0]` is not on PATH is skipped.
+
+Nothing is probed over the network and nothing is timed. *Rejected: probing the CLI for
+headroom* — there is nothing to probe. *Rejected: reading `cachedUsageUtilization`* — it
+was wrong by nine days on the machine it would have shipped from, and a stale answer here
+does not degrade gracefully, it inverts. **Reopen when a first-party agent CLI ships a
+documented command that prints remaining headroom as structured output.**
+
+##### What a group refuses to do
+
+**A group that applies and has no eligible member refuses the dispatch.** It does not fall
+back to the project's plain runner. This is the one place the ladder's
+fallback-and-say-so rule does not apply, and the distinction is worth stating precisely:
+
+- *no group applies at all* → the plain `runner` is the last rung, reached normally;
+- *a group applies and is exhausted* → refusal naming every candidate and why.
+
+Substituting a runner from outside the group would run a model the requester did not ask
+for, at a cost they did not choose, which is the failure the group layer exists to
+prevent. The refusal names each member and its reason, so it is actionable rather than
+merely correct.
+
+##### Precedence, narrowest first
+
+1. a **group named on this dispatch** — `POST /tasks/{id}/dispatch {"group": ...}`, or
+   `agentjobs dispatch run --group`;
+2. *(unbuilt)* a **profile named on this dispatch**, mapping `difficulty` to a group;
+3. **`projects.<id>.group`**;
+4. *(unbuilt)* a **machine default profile**;
+5. **`default_group:`**, the machine-wide group;
+6. **`projects.<id>.runner`** — today's behaviour, and the fallback.
+
+Every level that participated is recorded, including which won. An unmatched difficulty,
+or a hole in a profile table, **falls back to the plain runner and says so** rather than
+refusing: a dispatch that dies because a config table has a gap is the worse failure. A
+per-profile **`strict`** setting inverts that — refuse instead, naming the profile, the
+difficulty and the missing rule. Strict is opt-in and off by default, because deliberate
+spend is the whole point of the feature and someone who chose a conservative profile and
+silently got a frontier model was failed quietly.
+
+One consequence of rung 5 sitting above rung 6, stated so it is not rediscovered as a
+bug: **adding `default_group` takes effect for every project that has not named a group
+of its own**, including projects that name a plain `runner`. That is what a machine
+default means. A project that wants its runner regardless should name its own group, or
+the file should not have a `default_group`.
+
+##### Labels, and what they are worth
 
 A runner may additionally declare optional descriptive `model` and `effort` **labels**.
 These are authored metadata for display and audit only: **never parsed out of argv, never
 used to construct a command, never validated against a provider vocabulary.** They buy
-back the explanation that runner-only selection gives up — `difficulty hard → profile
-balanced → runner claude-opus-max (labels: opus / max)` — at an accepted cost: *a label
-can drift from the argv beside it.* That is a documentation defect, not a dispatch
-defect, and any UI must present labels as the runner author's claim, not as something
-AgentJobs verified.
+back the explanation that runner-only selection gives up — `difficulty hard → group deep
+→ runner claude-deep (labels: opus / high)` — at an accepted cost: *a label can drift
+from the argv beside it.* That is a documentation defect, not a dispatch defect, and any
+UI must present labels as the runner author's claim, not as something AgentJobs verified.
 
 *Rejected: `{model}`/`{effort}` placeholders plus a difficulty → (model, effort) table.*
 It needs a per-runner effort vocabulary anyway, because the two CLIs disagree — which is
@@ -606,40 +749,82 @@ change. *Rejected: runner-only with no labels.* The saving is zero and it leaves
 audit trail unable to answer "why did this run cost that much" in the terms the question
 is asked in.
 
-**Precedence, narrowest first:** one-run override → profile named on this dispatch →
-project default profile → machine default profile → the project's plain `runner` (today's
-behaviour, and the fallback). Every level that participated is recorded, including which
-won.
+*Rejected: a group literally named `default` being magic.* The first sketch had the group
+called `default` be what a dispatch gets when it names nothing. An explicit
+`default_group:` key does the same job without a reserved name, and nobody has to
+discover that renaming a group changed the machine's behaviour.
 
-An unmatched difficulty, or a hole in the table, **falls back to the plain runner and
-says so** rather than refusing — a dispatch that dies because a config table has a gap is
-the worse failure. A per-profile **`strict`** setting inverts that: refuse instead of
-falling back, naming the profile, the difficulty and the missing rule. Strict is opt-in
-and off by default, because deliberate spend is the whole point of the feature and
-someone who chose a conservative profile and silently got a frontier model was failed
-quietly.
+##### The audit trail is the feature
+
+Selection is deterministic given the same inputs, and the account of it lands in the
+task's git-tracked `dispatch` entry — not only in a machine-local run directory, which is
+disposable:
+
+```yaml
+data:
+  runner: claude-standard        # the winner
+  selection:
+    group: standard
+    source: project              # dispatch | project | machine
+    candidates:
+      - runner: codex
+        eligible: false
+        skipped_because: disabled
+        detail: Second option; enable once codex is installed and signed in.
+      - runner: claude-standard
+        eligible: true
+      - runner: claude-deep      # after the winner: considered, not reached
+        eligible: true
+```
+
+`selection` is **absent** when no group participated. A machine with a flat `runners:`
+map and `projects.<id>.runner` writes exactly the entry it always wrote, needs no
+migration, and gets no warning. Someone who never wants a group should not learn from
+their own task files that groups exist.
+
+##### Where this sits relative to the gates
+
+Group selection happens **inside** `assert_dispatch_permitted`, after all four gates have
+opened — never around them. Naming a group is a request about cost and capability, never
+about permission: there is no group name that makes a refused dispatch proceed, and one
+naming a group this machine does not define is refused rather than quietly falling back.
+Groups are machine-local for the same reason runners are (§6, gate 2): nothing in a
+project repository may define or extend one.
+
+##### Setting it up
+
+`agentjobs dispatch example` prints a commented starting configuration with groups and
+every option explained; `--write` writes it and refuses if anything is already there.
+That is the only route by which AgentJobs will put a dispatch config on disk, and it
+takes a human typing it. **AgentJobs never synthesises a `dispatch.yaml` and never adds
+an entry nobody typed** — a file that appeared on its own would defeat the gate that
+makes the file the record of what may execute here. What `--write` writes is switched off
+at every level, so it cannot leave a machine able to dispatch that was not able to
+before.
 
 > **Open, not decided:** what a strict refusal does when the caller is *unattended* —
 > auto-dispatch or a bounded loop. A refusal that only returns an error is a silent stall
 > there; it likely has to move the ball to `human`/`decision`. Raised by claude
-> 2026-08-18, not yet answered.
+> 2026-08-18, and still open: task-177 built groups without a strict mode, so nothing
+> forced an answer.
 
-#### Why this is written down but not built
+#### Why the profile table is still unbuilt
 
-`difficulty` is cheap, useful immediately, and carries no risk. The profile layer is a
-config-schema change plus a resolver plus CLI and GUI surfaces, and its value is
-proportional to how often dispatch is actually used — which, as of this decision, is
-barely at all. The shape above is **accepted, not merely discussed**: it is recorded here
-so the next session does not re-derive it.
+`difficulty` is cheap, useful immediately, and carries no risk. Groups earned their build
+because a real machine had a real second runner to fall back to. The difficulty → group
+table is the remaining piece, and it is a config-schema change plus a table plus CLI and
+GUI surfaces whose value is proportional to how often dispatch is used with a mixed
+backlog. The shape above is **accepted, not merely discussed**: it is recorded here so
+the next session does not re-derive it.
 
 **Reopen when any one of these is true:**
 
 1. 20 real dispatches have run; or
-2. a dispatch is first observed consuming a materially wrong-cost model for the work, in
-   either direction; or
+2. a dispatch is observed consuming a materially wrong-cost model for the work, in either
+   direction, *that naming a group on the dispatch would not have fixed*; or
 3. auto-dispatch or bounded loops (`task-078-agent-loops`) begin dispatching unattended —
-   an unattended loop with no cost policy is a different risk class than a manual
-   dispatch, and it should not be the thing that discovers this.
+   an unattended loop picks its own group from nothing, which is exactly the case a
+   difficulty mapping exists for.
 
 ---
 
@@ -704,11 +889,14 @@ be read before every change to this subsystem.
    why runners are not in the versioned `.agentjobs/config.yaml`**: if they were,
    `git clone` of any repository would carry a "run this command on Jeff's machine"
    payload that the project's own config file legitimises. The one thing dispatch must
-   never do is let a repository choose what executes.
+   never do is let a repository choose what executes. **Runner groups are covered by the
+   same rule and for the same reason**: a group is a name over runners, nothing in a
+   repository may define or extend one, and naming a group this machine does not define
+   is a refusal rather than a fallback.
 3. **Per-project enablement.** `projects.<id>.enabled`, off by default, set either by
    `agentjobs dispatch enable <project>` or by the GUI toggle (D2). The GUI may flip a
-   project between enabled and disabled among runners already configured on the machine;
-   it may **not** define or edit a runner's argv. So the browser-reachable surface can
+   project between enabled and disabled among runners *and groups* already configured on
+   the machine; it may **not** define or edit a runner's argv, or create a group. So the browser-reachable surface can
    turn a known capability on and off, but cannot introduce a new command to execute —
    which keeps the RCE surface exactly as wide as the machine-local file says it is.
    Disabling is always available from the GUI without ceremony; a kill switch you cannot
@@ -1166,6 +1354,17 @@ live with; 7 is the automation, deliberately last.
    poll for sessions and keeps its supervisor for batch, and item 5 keeps its ledger,
    because `claude agents --json` has no run-to-task mapping and no history once a
    session is removed.
+
+7c. **Runner groups (task-177).** ~~Part of the deferred profile layer.~~ **Built
+   2026-08-19** — `runner_groups:` with per-member enable/disable, a group nameable on a
+   dispatch, deterministic selection recorded in the task log, and
+   `agentjobs dispatch example` as the setup route. See §4. The difficulty → profile
+   table remains unbuilt, with its reopen triggers restated there.
+   **Revised 2026-08-19** after review: the example's session runners carried `-p` and no
+   `--remote-control`, so the config every new setup inherits could not have started a
+   steerable session. Corrected, the §4 mode table corrected with it, and the example is
+   now dispatched end to end by `tests/test_dispatch_example_config.py` rather than only
+   parsed.
 
 7. **Auto-dispatch (opt-in).** `auto_dispatch: true` per project, the budget caps from
    §7 with their ball-moving refusals, and the audit that a dispatch caused by an

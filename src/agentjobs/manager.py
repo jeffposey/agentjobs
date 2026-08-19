@@ -31,6 +31,7 @@ from .models_v2 import (
     DeliverableStatus,
     DependencyType,
     DispatchData,
+    DispatchSelectionData,
     DispatchMode,
     DispatchOutcome,
     DispatchPosture,
@@ -1044,6 +1045,7 @@ class TaskManager:
         cwd: str,
         git_head: str,
         session_id: Optional[str] = None,
+        selection: Optional[DispatchSelectionData] = None,
         body: Optional[str] = None,
         operation_id: Optional[str] = None,
     ) -> Task:
@@ -1052,6 +1054,10 @@ class TaskManager:
         ``actor`` is the human who authorised it, never the agent that is about to run:
         the loop is human-clocked (D4), and this entry plus ``caused_by`` are the
         evidence. ``argv`` is stored verbatim, so a runner must keep secrets in ``env``.
+
+        ``selection`` is present only when a runner group chose ``runner`` (task-177).
+        A flat configuration passes nothing and the entry keeps the shape it has always
+        had.
         """
         payload = DispatchData(
             run_id=run_id,
@@ -1065,6 +1071,7 @@ class TaskManager:
             cwd=cwd,
             git_head=git_head,
             session_id=session_id,
+            selection=selection,
         )
         operation = self._operation(
             operation_id, "dispatch", actor, {"run_id": run_id, "argv": list(argv)}

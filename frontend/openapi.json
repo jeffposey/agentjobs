@@ -679,6 +679,19 @@
       "DispatchEnableRequest": {
         "description": "Point a project at a runner this machine already defines, and turn it on.\n\n``runner`` names an existing runner; it never creates one. Omitted, the project\nkeeps the runner it already names, or takes the only one defined -- the same rule\n``agentjobs dispatch enable`` follows, so the two surfaces cannot disagree.",
         "properties": {
+          "group": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Runner group to point this project at, instead of a single runner. Names an existing group; it never creates one. Mutually exclusive with `runner`.",
+            "title": "Group"
+          },
           "runner": {
             "anyOf": [
               {
@@ -730,6 +743,19 @@
             ],
             "description": "Log entry id authorising this dispatch. Defaults to the newest entry. Its actor must be a configured human.",
             "title": "Caused By"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Runner group to choose from, overriding the project's. Names a group this machine already defines; it never creates one, and it cannot open a gate that is closed.",
+            "title": "Group"
           }
         },
         "title": "DispatchRequestBody",
@@ -901,6 +927,18 @@
             "title": "Caused By",
             "type": "integer"
           },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Runner group it was selected from, when one participated.",
+            "title": "Group"
+          },
           "mode": {
             "description": "session or batch.",
             "title": "Mode",
@@ -915,6 +953,18 @@
             "description": "AgentJobs' identifier for this run.",
             "title": "Run Id",
             "type": "string"
+          },
+          "runner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Runner that was selected and started.",
+            "title": "Runner"
           },
           "session_id": {
             "anyOf": [
@@ -953,6 +1003,14 @@
             "title": "Auto Dispatch",
             "type": "boolean"
           },
+          "available_groups": {
+            "description": "Runner group names this machine defines. Read-only on the same terms as available_runners: pointing a project at an existing group is selecting among machine-local definitions, and authoring one is not reachable here.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Available Groups",
+            "type": "array"
+          },
           "available_runners": {
             "description": "Runner names this machine defines. Read-only: the browser may point a project at one of these and can never create one.",
             "items": {
@@ -975,6 +1033,30 @@
             "description": "A dispatch.yaml exists on this machine.",
             "title": "Configured",
             "type": "boolean"
+          },
+          "default_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Machine-wide group, used by any project that names none of its own.",
+            "title": "Default Group"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Runner group this project is pointed at, if any.",
+            "title": "Group"
           },
           "master_enabled": {
             "description": "The machine-wide 'enabled:' switch.",

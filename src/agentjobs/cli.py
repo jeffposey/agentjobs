@@ -24,6 +24,7 @@ from .dispatch.config import (
 from .dispatch.guards import DispatchRequest, dispatch_task
 from .dispatch.ledger import DispatchLedger, LedgerError, list_runs, live_runs
 from .dispatch.runner import DispatchRunError
+from .dispatch.scaffold import EXAMPLE_CONFIG, write_example_config
 from .manager import TaskManager
 from .mcp.config import BASE_URL_ENV as MCP_BASE_URL_ENV
 from .mcp.config import TIMEOUT_ENV as MCP_TIMEOUT_ENV
@@ -824,16 +825,22 @@ def dispatch_enable(
     runner: Optional[str] = typer.Option(
         None, "--runner", help="Runner name from ~/.agentjobs/dispatch.yaml."
     ),
+    group: Optional[str] = typer.Option(
+        None,
+        "--group",
+        help="Runner group name from ~/.agentjobs/dispatch.yaml. Not with --runner.",
+    ),
 ) -> None:
-    """Allow dispatch for one project, using a runner this machine already defines."""
+    """Allow dispatch for one project, using a runner or group this machine defines."""
     try:
         ProjectRegistry().get(project_id)
-        settings = set_project_enabled(project_id, True, runner=runner)
+        settings = set_project_enabled(project_id, True, runner=runner, group=group)
     except (ProjectError, DispatchError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
-    typer.echo(f"✅ Dispatch enabled for '{project_id}' using runner '{settings.runner}'.")
+    against = f"group '{settings.group}'" if settings.group else f"runner '{settings.runner}'"
+    typer.echo(f"✅ Dispatch enabled for '{project_id}' using {against}.")
     if not (load_dispatch_config() or DispatchConfig()).enabled:
         typer.secho(
             "⚠️  The master switch is still off; nothing will dispatch until "
@@ -871,6 +878,11 @@ def dispatch_run(
         "--caused-by",
         help="Log entry authorising this run. Defaults to the newest; must be a human's.",
     ),
+    group: Optional[str] = typer.Option(
+        None,
+        "--group",
+        help="Runner group to pick from, overriding the project's. Must already exist.",
+    ),
 ) -> None:
     """Start an agent on a task, if every gate permits it."""
     registry = ProjectRegistry()
@@ -886,7 +898,7 @@ def dispatch_run(
             manager=manager,
             project=project,
             project_config=project.load_config(),
-            request=DispatchRequest(task_id=task_id, caused_by=caused_by),
+            request=DispatchRequest(task_id=task_id, caused_by=caused_by, group=group),
         )
     except (DispatchError, DispatchRunError) as exc:
         reason = getattr(exc, "reason", "dispatch_failed")
@@ -894,9 +906,47 @@ def dispatch_run(
         raise typer.Exit(code=1) from exc
 
     typer.echo(f"✅ Dispatched {task_id} as run {handle.run_id} ({handle.mode.value}).")
+    if handle.group:
+        typer.echo(f"   Runner '{handle.runner}', chosen from group '{handle.group}'.")
     if handle.session_id:
         typer.echo(f"   Session {handle.session_id} — the CLI assigned that id, not us.")
     typer.echo(f"   Run directory: {handle.directory.path}")
+
+
+@dispatch_app.command("example")
+def dispatch_example(
+    write: bool = typer.Option(
+        False,
+        "--write",
+        help="Write it to ~/.agentjobs/dispatch.yaml. Refuses if anything is there.",
+    ),
+) -> None:
+    """Show a starting dispatch.yaml, with runner groups and every option commented.
+
+    Prints by default. This is the only route by which AgentJobs will put a dispatch
+    config on disk, it happens only when you type --write, and it refuses to overwrite:
+    a config that appeared on its own would defeat the whole reason this file is the
+    record of what may execute here.
+
+    What it writes is switched off at every level -- no master switch, no projects -- so
+    it cannot leave a machine able to dispatch that was not able to before.
+    """
+    if not write:
+        typer.echo(EXAMPLE_CONFIG)
+        return
+
+    try:
+        path = write_example_config()
+    except DispatchError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(f"✅ Wrote a starting dispatch config to {path}.")
+    typer.secho(
+        "   It is switched off. Edit the runners to match this machine, then set "
+        "'enabled: true'.",
+        fg=typer.colors.YELLOW,
+    )
 
 
 @dispatch_app.command("status")
@@ -1026,13 +1076,28 @@ def dispatch_show_config(
     for name, runner in sorted(config.runners.items()):
         typer.echo(f"  {name:12} {runner.mode.value:8} {runner.argv}")
 
+    if config.runner_groups:
+        typer.echo("\nRunner groups:")
+        for name, group in sorted(config.runner_groups.items()):
+            marker = "  (machine default)" if name == config.default_group else ""
+            typer.echo(f"  {name}{marker}")
+            if group.description:
+                typer.echo(f"    {group.description}")
+            for member in group.members:
+                state = "on " if member.enabled else "off"
+                note = f"  # {member.note}" if member.note else ""
+                typer.echo(f"    [{state}] {member.runner}{note}")
+
     typer.echo("\nProjects:")
     if not config.projects:
         typer.echo("  none configured")
     for pid, settings in sorted(config.projects.items()):
         state = "enabled " if settings.enabled else "disabled"
+        against = (
+            f"group={settings.group}" if settings.group else f"runner={settings.runner or '-'}"
+        )
         typer.echo(
-            f"  {pid:20} {state}  runner={settings.runner or '-'}  "
+            f"  {pid:20} {state}  {against}  "
             f"posture={settings.posture.value}  "
             f"clean_tree={settings.require_clean_tree}  auto={settings.auto_dispatch}"
         )
@@ -1055,10 +1120,20 @@ def dispatch_show_config(
         except DispatchError as exc:
             typer.secho(f"\n{project_id}: refused ({exc.reason}) - {exc}", fg=typer.colors.YELLOW)
         else:
+            chosen = resolution.selection
+            via = f" from group '{chosen.group}' ({chosen.source.value})" if chosen else ""
             typer.echo(
-                f"\n{project_id}: permitted - runner '{resolution.runner.name}' "
+                f"\n{project_id}: permitted - runner '{resolution.runner.name}'{via} "
                 f"({resolution.runner.mode.value}), posture {resolution.settings.posture.value}"
             )
+            if chosen:
+                for candidate in chosen.candidates:
+                    if candidate.skipped_because is not None:
+                        detail = f" - {candidate.detail}" if candidate.detail else ""
+                        typer.echo(
+                            f"    skipped {candidate.runner}: "
+                            f"{candidate.skipped_because.value}{detail}"
+                        )
 
 
 @app.command("migrate-schema")

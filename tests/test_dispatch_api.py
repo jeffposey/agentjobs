@@ -608,3 +608,119 @@ class TestRunOutputAndTail:
             client.get("/api/projects/sandbox/dispatch/runs/run_elsewhere2/tail").status_code == 404
         )
         assert client.get("/api/projects/sandbox/dispatch/runs/run_nope/tail").status_code == 404
+
+
+def enable_grouped_dispatch(home: Path, tmp_path: Path) -> None:
+    """A config whose project resolves through a group, with a first member that cannot run.
+
+    ``dead`` names a program that is certainly not installed, so the selector has to
+    skip it and record why -- which is the behaviour the group layer exists for, and it
+    would be untested against a config where every member works.
+    """
+    runner = tmp_path / "grouped_runner.py"
+    runner.write_text("print('started')\n", encoding="utf-8")
+    argv = [sys.executable, str(runner), "{prompt}"]
+    (home / "dispatch.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "enabled": True,
+                "runners": {
+                    "dead": {"argv": ["agentjobs-no-such-program-xyz", "{prompt}"]},
+                    "fake": {"argv": argv, "actor": "claude"},
+                    "reserve": {"argv": list(argv), "actor": "claude"},
+                },
+                "runner_groups": {
+                    "standard": {"members": ["dead", "fake"]},
+                    "deep": {"members": ["reserve"]},
+                },
+                "projects": {"sandbox": {"enabled": True, "group": "standard"}},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+class TestDispatchAgainstAGroup:
+    """sc-2 and sc-3 over real HTTP."""
+
+    def test_a_grouped_project_dispatches_and_says_what_it_picked(self, served) -> None:
+        client, root, home = served
+        enable_grouped_dispatch(home, root.parent)
+        task_id = seed_task(root)
+
+        response = client.post(f"/api/tasks/{task_id}/dispatch", json={})
+
+        assert response.status_code == 202, response.text
+        assert response.json()["runner"] == "fake"
+        assert response.json()["group"] == "standard"
+
+    def test_the_dispatch_entry_records_the_candidates(self, served) -> None:
+        client, root, home = served
+        enable_grouped_dispatch(home, root.parent)
+        task_id = seed_task(root)
+
+        client.post(f"/api/tasks/{task_id}/dispatch", json={})
+
+        manager = TaskManager(TaskStorage(root / "tasks"))
+        task = manager.get_task(task_id)
+        assert task is not None
+        entry = [e for e in task.log if e.type is LogEntryType.DISPATCH][0]
+        selection = entry.data["selection"]
+        assert selection["group"] == "standard"
+        assert selection["source"] == "project"
+        assert selection["candidates"][0]["skipped_because"] == "executable_not_found"
+
+    def test_a_dispatch_may_name_a_different_group(self, served) -> None:
+        client, root, home = served
+        enable_grouped_dispatch(home, root.parent)
+        task_id = seed_task(root)
+
+        response = client.post(f"/api/tasks/{task_id}/dispatch", json={"group": "deep"})
+
+        assert response.status_code == 202, response.text
+        assert response.json()["runner"] == "reserve"
+        assert response.json()["group"] == "deep"
+
+    def test_naming_an_unknown_group_is_refused_under_its_own_code(self, served) -> None:
+        client, root, home = served
+        enable_grouped_dispatch(home, root.parent)
+        task_id = seed_task(root)
+
+        response = client.post(f"/api/tasks/{task_id}/dispatch", json={"group": "invented"})
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "unknown_group"
+
+    def test_a_group_cannot_open_a_gate_that_is_shut(self, served) -> None:
+        """Naming a group is a request about cost, never about permission."""
+        client, root, home = served
+        enable_grouped_dispatch(home, root.parent)
+        (home / "DISPATCH_DISABLED").write_text("", encoding="utf-8")
+        task_id = seed_task(root)
+
+        response = client.post(f"/api/tasks/{task_id}/dispatch", json={"group": "deep"})
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "sentinel"
+
+    def test_the_state_endpoint_lists_the_groups_this_machine_defines(self, served) -> None:
+        client, root, home = served
+        enable_grouped_dispatch(home, root.parent)
+
+        state = client.get("/api/projects/sandbox/dispatch").json()
+
+        assert state["group"] == "standard"
+        assert state["available_groups"] == ["deep", "standard"]
+        assert state["can_dispatch"] is True
+
+    def test_a_flat_machine_reports_no_groups(self, served) -> None:
+        client, root, home = served
+        enable_dispatch(home, root.parent)
+
+        state = client.get("/api/projects/sandbox/dispatch").json()
+
+        assert state["available_groups"] == []
+        assert state["group"] is None
+        assert state["default_group"] is None

@@ -24,8 +24,10 @@ benchmark run cannot drift apart.
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
+from types import ModuleType
 from typing import Iterator
 
 import pytest
@@ -35,7 +37,34 @@ from fastapi.testclient import TestClient
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from scripts.bench import build_corpus  # noqa: E402  - the shared synthetic-corpus generator
+
+def load_script(name: str) -> ModuleType:
+    """Load a repository script by path, the way the other script-reading tests do.
+
+    ``from scripts.bench import ...`` looks equivalent and is not, because it depends on
+    nothing else having claimed the name ``scripts`` first. Something does:
+    ``scripts/build_release.py`` opens with ``from scripts.build_frontend import ...``
+    under a ``try``, and ``test_frontend_packaging`` execs that file with the repository
+    root off ``sys.path``. On Windows the import then succeeds against **pywin32's**
+    ``site-packages/win32/scripts`` namespace package, the fallback branch quietly
+    works, and ``sys.modules['scripts']`` is left pointing at pywin32 for the rest of
+    the session. This module is collected after that one, so the package-style import
+    resolved to a directory with no ``bench`` in it and the whole suite stopped at
+    collection with ``No module named 'scripts.bench'``.
+
+    Loading by file location cannot be poisoned that way, and it is what
+    ``test_frontend_packaging`` and ``test_worktree_bootstrap`` already do.
+    """
+    spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / f"{name}.py")
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load {name}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+build_corpus = load_script("bench").build_corpus  # the shared synthetic-corpus generator
 
 from agentjobs.api.dependencies import reset_dependency_cache  # noqa: E402
 from agentjobs.api.main import PARSE_COUNT_HEADER, app  # noqa: E402

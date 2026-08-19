@@ -459,6 +459,15 @@ class DispatchRequestBody(BaseModel):
             "actor must be a configured human."
         ),
     )
+    group: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "Runner group to choose from, overriding the project's. Names a group this "
+            "machine already defines; it never creates one, and it cannot open a gate "
+            "that is closed."
+        ),
+    )
 
 
 class DispatchStarted(BaseModel):
@@ -473,3 +482,8 @@ class DispatchStarted(BaseModel):
     posture: str = Field(..., description="What the run is permitted to do.")
     task_id: str = Field(..., description="The task the run is working.")
     caused_by: int = Field(..., description="The log entry this dispatch is attributed to.")
+    runner: Optional[str] = Field(default=None, description="Runner that was selected and started.")
+    group: Optional[str] = Field(
+        default=None,
+        description="Runner group it was selected from, when one participated.",
+    )

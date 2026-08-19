@@ -53,6 +53,7 @@ from agentjobs.dispatch.config import (
     DispatchRunner as RunnerConfig,
     Posture,
     RunnerMode,
+    RunnerSelection,
     sentinel_active,
     substitute_argv,
 )
@@ -60,9 +61,11 @@ from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     Ball,
     BallReason,
+    DispatchCandidateData,
     DispatchMode,
     DispatchOutcome,
     DispatchPosture,
+    DispatchSelectionData,
     DispatchTrigger,
     Task,
     utcnow,
@@ -462,6 +465,36 @@ class DispatchRunError(Exception):
     """A run could not be started. Distinct from a run that started and then failed."""
 
 
+def selection_data(selection: Optional[RunnerSelection]) -> Optional[DispatchSelectionData]:
+    """Turn a resolver selection into the git-tracked payload, or nothing.
+
+    ``None`` in, ``None`` out, which is the whole compatibility story: a flat
+    configuration produces no selection, so its ``dispatch`` entry is byte-identical to
+    the one it produced before groups existed.
+
+    This is the only place the two vocabularies meet. The resolver's enums stay inside
+    the dispatch package; the log entry stores their values as plain strings, because a
+    task file outlives any particular build's idea of what the enum members are.
+    """
+    if selection is None or selection.group is None:
+        return None
+    return DispatchSelectionData(
+        group=selection.group,
+        source=selection.source.value,
+        candidates=[
+            DispatchCandidateData(
+                runner=candidate.runner,
+                eligible=candidate.eligible,
+                skipped_because=(
+                    candidate.skipped_because.value if candidate.skipped_because else None
+                ),
+                detail=candidate.detail,
+            )
+            for candidate in selection.candidates
+        ],
+    )
+
+
 # ----- the runner -------------------------------------------------------------
 
 
@@ -476,6 +509,15 @@ class RunHandle:
     pid: Optional[int] = None
     session_id: Optional[str] = None
     dispatch_entry_id: Optional[int] = None
+    runner: Optional[str] = None
+    """Which runner was started. Surfaced so a caller can say what it got.
+
+    With groups, the answer is no longer "the one you configured": the caller asked for
+    a group and the dispatcher chose within it, so a response that omits this leaves the
+    person who clicked unable to tell which model they are paying for.
+    """
+    group: Optional[str] = None
+    """The group it was chosen from, when one participated."""
     supervisor: Optional[threading.Thread] = field(default=None, repr=False)
     lock: Optional[object] = field(default=None, repr=False)
     """The per-task run lock, held for this run's lifetime and released when it ends."""
@@ -519,6 +561,11 @@ class DispatchRunner:
     def runner(self) -> RunnerConfig:
         """The resolved runner definition."""
         return self.resolution.runner
+
+    def _group_name(self) -> Optional[str]:
+        """The group this run's runner came from, or ``None`` on a flat configuration."""
+        selection = self.resolution.selection
+        return selection.group if selection else None
 
     def build_prompt(self, task_id: str, run_id: str) -> str:
         """The prompt stub. A pointer to the record, never a copy of it."""
@@ -611,6 +658,7 @@ class DispatchRunner:
             cwd=str(self.project_root),
             git_head=self._git_head(),
             session_id=session_id,
+            selection=selection_data(self.resolution.selection),
         )
         return updated.log[-1].id
 
@@ -712,6 +760,8 @@ class DispatchRunner:
             directory=directory,
             session_id=session_id,
             dispatch_entry_id=entry_id,
+            runner=self.runner.name,
+            group=self._group_name(),
         )
 
     @classmethod
@@ -1139,6 +1189,8 @@ class DispatchRunner:
             directory=directory,
             pid=process.pid,
             dispatch_entry_id=entry_id,
+            runner=self.runner.name,
+            group=self._group_name(),
         )
         handle.supervisor = threading.Thread(
             target=self._supervise_batch,

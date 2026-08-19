@@ -273,6 +273,15 @@ class DispatchRequest:
     task_id: str
     caused_by: Optional[int] = None
     trigger: DispatchTrigger = DispatchTrigger.MANUAL
+    group: Optional[str] = None
+    """Runner group this dispatch asks for -- the narrowest rung of the ladder.
+
+    Naming a group is a request about *cost and capability*, never about permission: it
+    is handed to ``assert_dispatch_permitted``, which opens all four gates before it
+    looks at groups at all. There is no group name that makes a refused dispatch
+    proceed, and one that names a group this machine does not define is refused rather
+    than quietly falling back to the project's runner.
+    """
 
 
 def dispatch_task(
@@ -309,7 +318,7 @@ def dispatch_task(
     # Gate 1-4 from task-068, including the sentinel. Re-checked at spawn time by the
     # runner: this proves dispatch was permitted when it was asked, not for the lifetime
     # of the answer.
-    resolution = assert_dispatch_permitted(project.id, home)
+    resolution = assert_dispatch_permitted(project.id, home, group=request.group)
 
     causing = resolve_causing_entry(task, request.caused_by)
     assert_human_clocked(project_config, causing)
