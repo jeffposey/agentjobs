@@ -89,9 +89,9 @@ def enable_dispatch(
     runner = tmp_path / "runner.py"
     runner.write_text(body, encoding="utf-8")
     argv = [sys.executable, str(runner), "{prompt}"]
-    defined: Dict[str, Dict[str, object]] = {"fake": {"argv": argv}}
+    defined: Dict[str, Dict[str, object]] = {"fake": {"argv": argv, "actor": "claude"}}
     for name in extra_runners:
-        defined[name] = {"argv": list(argv)}
+        defined[name] = {"argv": list(argv), "actor": "claude"}
     (home / "dispatch.yaml").write_text(
         yaml.safe_dump(
             {

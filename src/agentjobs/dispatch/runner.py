@@ -500,7 +500,7 @@ class DispatchRunner:
     def build_prompt(self, task_id: str, run_id: str) -> str:
         """The prompt stub. A pointer to the record, never a copy of it."""
         return PROMPT_STUB.format(
-            agent=self.runner.name,
+            agent=self.runner.actor_id,
             task_id=task_id,
             project_id=self.resolution.project_id,
             project_root=self.project_root,
@@ -516,7 +516,7 @@ class DispatchRunner:
             "project_id": self.resolution.project_id,
             "project_root": str(self.project_root),
             "run_id": run_id,
-            "agent": self.runner.name,
+            "agent": self.runner.actor_id,
             "api_base": self.api_base,
         }
         flags = posture_flags(self.resolution.settings.posture, task_id)
@@ -578,7 +578,7 @@ class DispatchRunner:
             task.id,
             actor=actor,
             run_id=run_id,
-            agent=self.runner.name,
+            agent=self.runner.actor_id,
             runner=self.runner.name,
             mode=mode,
             posture=DispatchPosture(self.resolution.settings.posture.value),

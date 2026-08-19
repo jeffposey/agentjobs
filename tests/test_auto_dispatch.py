@@ -86,7 +86,12 @@ def write_dispatch_config(home: Path, tmp_path: Path, *, auto: bool) -> None:
             {
                 "version": 1,
                 "enabled": True,
-                "runners": {"fake": {"argv": [sys.executable, str(runner), "{prompt}"]}},
+                "runners": {
+                    "fake": {
+                        "argv": [sys.executable, str(runner), "{prompt}"],
+                        "actor": "claude",
+                    }
+                },
                 "projects": {"sandbox": {"enabled": True, "runner": "fake", "auto_dispatch": auto}},
             },
             sort_keys=False,

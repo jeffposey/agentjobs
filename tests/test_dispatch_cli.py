@@ -150,7 +150,12 @@ class TestDispatchRun:
         root = self.make_project(tmp_path, "alpha")
         task_id = self.seed(root, last_actor="claude")
         write_config(
-            runners={"fake": {"argv": [sys.executable, "-c", "print(1)", "{prompt}"]}},
+            runners={
+                "fake": {
+                    "argv": [sys.executable, "-c", "print(1)", "{prompt}"],
+                    "actor": "claude",
+                }
+            },
             projects={"alpha": {"enabled": True, "runner": "fake"}},
         )
 

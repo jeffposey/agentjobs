@@ -157,6 +157,21 @@ class DispatchRunner:
     argv: List[str]
     env: Dict[str, str] = field(default_factory=dict)
     mode: RunnerMode = RunnerMode.BATCH
+    actor: Optional[str] = None
+    """Which configured actor this runner writes as. Defaults to the runner's name.
+
+    These are two different things, and conflating them was a real defect. A runner name
+    describes an *invocation* -- ``claude-session``, ``claude-opus-max`` -- and operators
+    name them that way. An actor is an identity in the project's ``actors:`` vocabulary.
+    Dispatch claimed tasks and wrote log entries under the runner name, which the
+    task-write API then refused as unknown, so a dispatched agent could not log progress
+    under the identity that owned its own task.
+    """
+
+    @property
+    def actor_id(self) -> str:
+        """The identity this runner acts as. Never empty."""
+        return self.actor or self.name
 
     def render(self, values: Mapping[str, str]) -> List[str]:
         """Substitute ``values`` into this runner's argv, per element and literally."""
@@ -340,7 +355,14 @@ def _parse_runner(name: str, raw: object, path: Path) -> DispatchRunner:
             f"{_values(RunnerMode)}, not {mode_raw!r}."
         ) from exc
 
-    return DispatchRunner(name=name, argv=list(argv), env=env, mode=mode)
+    actor_raw = mapping.get("actor")
+    if actor_raw is not None and not isinstance(actor_raw, str):
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: {where}.actor must be a string naming "
+            f"an actor in the project's 'actors:', not {actor_raw!r}."
+        )
+
+    return DispatchRunner(name=name, argv=list(argv), env=env, mode=mode, actor=actor_raw or None)
 
 
 def _parse_project(project_id: str, raw: object, path: Path) -> ProjectDispatchSettings:
