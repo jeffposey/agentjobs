@@ -61,6 +61,13 @@ export const NON_TASK_PROJECT_QUERY_IDS = new Map([
       + "No task write can change it, and it is refetched explicitly after the toggle.",
   ],
   [
+    "readDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGet",
+    "The end of a run's output while it is being watched. It changes when the process "
+      + "writes, not when a task file does, and the panel showing it polls on the "
+      + "session poller's own clock -- refetching it on every task write would read the "
+      + "same bytes back sooner and more often for nothing.",
+  ],
+  [
     "readDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGet",
     "A run's captured transcript, opened in its own tab as text rather than fetched "
       + "through the query client. It grows with the process, not with task writes.",

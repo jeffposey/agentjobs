@@ -473,3 +473,138 @@ class TestDispatchRuns:
 
         cancelled = client.post("/api/projects/sandbox/dispatch/runs/run_elsewhere/cancel")
         assert cancelled.status_code == 404
+
+
+class TestRunOutputAndTail:
+    """What a human can actually read while a run is happening, and after it ends.
+
+    The defect these are written against: "View output" on a session run served
+    `stdout.log`, which under `--bg` holds the launcher's backgrounding banner and
+    nothing else. It was structurally incapable of showing what the agent did, and looked
+    exactly like a run that had produced nothing.
+    """
+
+    def _session_run(self, home: Path, *, transcript: str, status: str = "running") -> str:
+        run_id = "run_session1"
+        directory = home / "runs" / run_id
+        directory.mkdir(parents=True)
+        (directory / "meta.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "run_id": run_id,
+                    "task_id": "task-001",
+                    "project_id": "sandbox",
+                    "mode": "session",
+                    "status": status,
+                    "session_id": "b55b35ad",
+                }
+            ),
+            encoding="utf-8",
+        )
+        # What `_start_session` really writes there: the launcher's banner, not the work.
+        (directory / "stdout.log").write_text("backgrounded - b55b35ad - aj-task\n", "utf-8")
+        (directory / "transcript.log").write_text(transcript, encoding="utf-8")
+        return run_id
+
+    def test_a_session_run_serves_its_transcript_rather_than_the_launcher_banner(
+        self, served
+    ) -> None:
+        client, _, home = served
+        run_id = self._session_run(home, transcript="\x1b[1mI read the task record\x1b[m\n")
+
+        response = client.get(f"/api/projects/sandbox/dispatch/runs/{run_id}/output")
+
+        assert response.status_code == 200
+        assert "I read the task record" in response.text
+        assert "backgrounded" not in response.text
+        assert "\x1b[" not in response.text, "escape sequences reached the reader"
+
+    def test_a_batch_run_still_serves_exactly_what_it_captured(self, served, tmp_path) -> None:
+        """Session and batch differ on purpose; a batch run's stdout.log *is* its output."""
+        client, root, home = served
+        enable_dispatch(home, tmp_path, body="print('the agent said this')\n")
+        task_id = seed_task(root)
+        run_id = client.post(f"/api/projects/sandbox/tasks/{task_id}/dispatch", json={}).json()[
+            "run_id"
+        ]
+
+        def finished() -> bool:
+            runs = client.get(
+                "/api/projects/sandbox/dispatch/runs", params={"task_id": task_id}
+            ).json()
+            return bool(runs) and runs[0]["live"] is False
+
+        assert wait_for(finished)
+
+        output = client.get(f"/api/projects/sandbox/dispatch/runs/{run_id}/output")
+        tail = client.get(f"/api/projects/sandbox/dispatch/runs/{run_id}/tail").json()
+
+        assert "--- stdout.log ---" in output.text
+        assert "the agent said this" in output.text
+        assert tail["source"] == "captured-output"
+        assert "the agent said this" in tail["text"]
+
+    def test_the_tail_is_readable_and_bounded_while_the_run_is_still_live(self, served) -> None:
+        """Jeff's requirement: watchable while it goes, not only once it is over."""
+        client, _, home = served
+        run_id = self._session_run(
+            home, transcript="".join(f"line {index}\n" for index in range(500))
+        )
+
+        tail = client.get(
+            f"/api/projects/sandbox/dispatch/runs/{run_id}/tail", params={"lines": 5}
+        ).json()
+
+        assert tail["live"] is True
+        assert tail["source"] == "session-transcript"
+        assert tail["text"].splitlines() == [f"line {index}" for index in range(495, 500)]
+        assert tail["updated_at"], "a live tail without a timestamp cannot show staleness"
+
+    def test_the_same_endpoint_answers_after_the_run_has_finished(self, served) -> None:
+        """One section whose contents change, not two surfaces with a transition."""
+        client, _, home = served
+        run_id = self._session_run(home, transcript="all done here\n", status="finished")
+
+        tail = client.get(f"/api/projects/sandbox/dispatch/runs/{run_id}/tail").json()
+
+        assert tail["live"] is False
+        assert tail["source"] == "session-transcript"
+        assert "all done here" in tail["text"]
+
+    def test_a_session_not_yet_polled_falls_back_to_what_was_captured(self, served) -> None:
+        """Before the first poll the banner is all there is, and it is at least true."""
+        client, _, home = served
+        run_id = self._session_run(home, transcript="")
+
+        tail = client.get(f"/api/projects/sandbox/dispatch/runs/{run_id}/tail").json()
+
+        assert tail["source"] == "captured-output"
+        assert "backgrounded" in tail["text"]
+
+    def test_a_run_with_nothing_at_all_says_so_rather_than_erroring(self, served) -> None:
+        client, _, home = served
+        (home / "runs" / "run_bare").mkdir(parents=True)
+        (home / "runs" / "run_bare" / "meta.yaml").write_text(
+            yaml.safe_dump({"run_id": "run_bare", "project_id": "sandbox", "status": "finished"}),
+            encoding="utf-8",
+        )
+
+        tail = client.get("/api/projects/sandbox/dispatch/runs/run_bare/tail").json()
+
+        assert tail["source"] == "none"
+        assert tail["text"] == ""
+
+    def test_another_projects_run_cannot_be_tailed(self, served) -> None:
+        client, _, home = served
+        (home / "runs" / "run_elsewhere2").mkdir(parents=True)
+        (home / "runs" / "run_elsewhere2" / "meta.yaml").write_text(
+            yaml.safe_dump(
+                {"run_id": "run_elsewhere2", "project_id": "other", "status": "running"}
+            ),
+            encoding="utf-8",
+        )
+
+        assert (
+            client.get("/api/projects/sandbox/dispatch/runs/run_elsewhere2/tail").status_code == 404
+        )
+        assert client.get("/api/projects/sandbox/dispatch/runs/run_nope/tail").status_code == 404

@@ -548,6 +548,52 @@ export type DispatchRequestBody = {
 };
 
 /**
+ * DispatchRunTailView
+ *
+ * The end of a run's output, for a page that is watching it happen.
+ *
+ * Bounded on purpose. A session transcript grows for as long as the session does, and a
+ * pane on the task page that renders all of it turns the page a reader came to for the
+ * task record into a terminal emulator with a task record somewhere above it.
+ */
+export type DispatchRunTailView = {
+    /**
+     * Lines
+     *
+     * How many lines this tail is bounded to.
+     */
+    lines: number;
+    /**
+     * Live
+     *
+     * Nothing has declared this run over.
+     */
+    live: boolean;
+    /**
+     * Run Id
+     */
+    run_id: string;
+    /**
+     * Source
+     *
+     * Where the text came from: 'session-transcript' (the session's own output), 'captured-output' (what the process wrote to stdout/stderr), or 'none'.
+     */
+    source: string;
+    /**
+     * Text
+     *
+     * The tail itself, escape sequences already removed.
+     */
+    text: string;
+    /**
+     * Updated At
+     *
+     * When the file behind this text last changed.
+     */
+    updated_at?: string | null;
+};
+
+/**
  * DispatchRunView
  *
  * One run, as the browser sees it.
@@ -2795,6 +2841,41 @@ export type ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetResponses = {
 
 export type ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetResponse = ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetResponses[keyof ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetResponses];
 
+export type ReadDispatchRunTailApiDispatchRunsRunIdTailGetData = {
+    body?: never;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: {
+        /**
+         * Lines
+         */
+        lines?: number;
+    };
+    url: '/api/dispatch/runs/{run_id}/tail';
+};
+
+export type ReadDispatchRunTailApiDispatchRunsRunIdTailGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadDispatchRunTailApiDispatchRunsRunIdTailGetError = ReadDispatchRunTailApiDispatchRunsRunIdTailGetErrors[keyof ReadDispatchRunTailApiDispatchRunsRunIdTailGetErrors];
+
+export type ReadDispatchRunTailApiDispatchRunsRunIdTailGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchRunTailView;
+};
+
+export type ReadDispatchRunTailApiDispatchRunsRunIdTailGetResponse = ReadDispatchRunTailApiDispatchRunsRunIdTailGetResponses[keyof ReadDispatchRunTailApiDispatchRunsRunIdTailGetResponses];
+
 export type ApiHealthCheckApiHealthGetData = {
     body?: never;
     path?: never;
@@ -3138,6 +3219,45 @@ export type ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetR
 };
 
 export type ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetResponse = ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetResponses[keyof ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetResponses];
+
+export type ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetData = {
+    body?: never;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: {
+        /**
+         * Lines
+         */
+        lines?: number;
+    };
+    url: '/api/projects/{project_id}/dispatch/runs/{run_id}/tail';
+};
+
+export type ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetError = ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetErrors[keyof ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetErrors];
+
+export type ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DispatchRunTailView;
+};
+
+export type ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetResponse = ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetResponses[keyof ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetResponses];
 
 export type GetProjectRevisionApiProjectsProjectIdRevisionGetData = {
     body?: never;

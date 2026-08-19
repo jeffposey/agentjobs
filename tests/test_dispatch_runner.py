@@ -38,12 +38,14 @@ from agentjobs.dispatch.config import (
 from agentjobs.dispatch.runner import (
     GUIDE_PATH,
     REMOTE_CONTROL_URL,
+    TRANSCRIPT_FILENAME,
     DispatchRunner,
     DispatchRunError,
     SessionPhase,
     allow_rules,
     classify_session,
     compose_argv,
+    drop_repainted_lines,
     posture_flags,
     readable_tail,
     resolve_executable,
@@ -709,6 +711,65 @@ class TestSessionMode:
         assert str(workspace / "project") in argv_seen
 
 
+class TestTranscriptCapture:
+    """The run directory has to hold the session's output, because nothing else will.
+
+    ``stdout.log`` for a session run is the launcher's backgrounding banner and can never
+    be anything else, and the session's own transcript lives in a store AgentJobs does
+    not own and does not outlive the reap.
+    """
+
+    def test_a_capture_writes_the_transcript_beside_the_run_metadata(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        runner = build(workspace, manager, session_resolution(fake_cli))
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        runner.capture_transcript(handle)
+
+        written = (handle.directory.path / TRANSCRIPT_FILENAME).read_text(encoding="utf-8")
+        assert "poetry run alembic upgrade head" in written
+        # Raw, escape sequences and all. Stripping happens where it is rendered, so the
+        # stored copy stays the thing the terminal actually showed.
+        assert "\x1b[" in written
+
+    def test_an_unreadable_transcript_does_not_erase_the_last_good_one(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """ "Could not read it just now" is not evidence the session produced nothing."""
+        runner = build(workspace, manager, session_resolution(fake_cli))
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        runner.capture_transcript(handle)
+        original = (handle.directory.path / TRANSCRIPT_FILENAME).read_text(encoding="utf-8")
+
+        runner.transcript = lambda session_id: ""  # type: ignore[method-assign]
+        runner.capture_transcript(handle)
+
+        assert (handle.directory.path / TRANSCRIPT_FILENAME).read_text(encoding="utf-8") == original
+
+    def test_polling_captures_before_it_settles_and_reaps(
+        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+    ) -> None:
+        """Ordering is the whole point: `claude logs` on a reaped session reads nothing,
+        so capturing after settling would leave every completed run blank."""
+        runner = build(workspace, manager, session_resolution(fake_cli))
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        manager.handoff(
+            task.id,
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Done, please look.",
+        )
+        set_ledger(fake_cli, [{"id": "b55b35ad", "status": "idle", "state": "done"}])
+
+        runner.poll_session(handle)
+
+        assert json.loads((fake_cli.parent / "ledger.json").read_text()) == [], "not reaped"
+        kept = (handle.directory.path / TRANSCRIPT_FILENAME).read_text(encoding="utf-8")
+        assert "poetry run alembic upgrade head" in kept
+
+
 class TestTranscriptRendering:
     def test_escape_sequences_are_removed(self) -> None:
         """A ball prompt full of CSI sequences is unusable where it must be answered."""
@@ -831,3 +892,28 @@ class TestShapesRefused:
         # All that is done with `logs` output is hand it back for a human to read.
         assert "json.loads" not in body
         assert "classify" not in body
+
+
+class TestRepaintCollapsing:
+    """A TUI repaints its whole screen, so its pty capture holds the same frame many
+    times. Forty lines of a real session were thirteen distinct lines painted three
+    times over, with the newest work pushed off the end by copies of itself."""
+
+    def test_a_repainted_screen_is_shown_once(self) -> None:
+        frame = "> reading the task record\n  running tests\n"
+
+        collapsed = drop_repainted_lines(frame * 3)
+
+        assert collapsed.splitlines() == ["> reading the task record", "  running tests"]
+
+    def test_the_newest_copy_is_the_one_kept(self) -> None:
+        """Order has to follow the newest frame; keeping the first copy would show the
+        opening screen and drop everything that happened after it."""
+        collapsed = drop_repainted_lines("opened\nstep one\nopened\nstep one\nstep two\n")
+
+        assert collapsed.splitlines() == ["opened", "step one", "step two"]
+
+    def test_nothing_is_lost_when_a_transcript_never_repeats(self) -> None:
+        text = "one\ntwo\nthree"
+
+        assert drop_repainted_lines(text) == text
