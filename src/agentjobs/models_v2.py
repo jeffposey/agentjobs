@@ -29,6 +29,8 @@ from pydantic import (
     model_validator,
 )
 
+from .schema_tolerance import record_unknown_enum_value
+
 SCHEMA_VERSION = 2
 """The version stamp every v2 file carries (design doc D3, section 8)."""
 
@@ -67,6 +69,38 @@ class ValueEnum(str, Enum):
     def __format__(self, format_spec: str) -> str:
         """Format as the value too, so f-strings agree with str()."""
         return str.__format__(self, format_spec)
+
+    @classmethod
+    def _missing_(cls, value: object) -> Optional["ValueEnum"]:
+        """Keep an unknown value as an opaque member, but only for a tolerant reader.
+
+        Adding a member to an enum is backward-compatible for the data: everything
+        already written stays valid. It is only *readers* that turn it into a breaking
+        change, by re-checking a value the service already validated and rejecting the
+        one member they have not heard of. That is how one line in `DispatchPosture`
+        made task-107 vanish from the dashboard and stopped an agent recording its own
+        work (task-024).
+
+        So inside :func:`~agentjobs.schema_tolerance.tolerant_enum_values` -- which
+        only clients enter -- an unrecognised string becomes a pseudo-member carrying
+        that string verbatim. It compares equal to the raw value, ``.value`` returns
+        it, and Pydantic serialises it straight back out, so an old reader shows
+        ``posture: auto`` as text it cannot interpret and everything else about the
+        task still works. The member is deliberately *not* registered in
+        ``_member_map_``: it is a value this code does not know, not one it now
+        supports, and `list(DispatchPosture)` must keep telling the truth.
+
+        Outside that context this returns ``None`` and the value is rejected exactly as
+        before, which is what keeps the write path and ``storage`` strict.
+        """
+        if not isinstance(value, str) or not record_unknown_enum_value(cls.__name__, value):
+            return None
+        unknown = str.__new__(cls, value)
+        unknown._value_ = value
+        # `_name_` is the value rather than an invented identifier so a repr, a
+        # traceback or a log line shows what actually arrived on the wire.
+        unknown._name_ = value
+        return unknown
 
 
 class Lifecycle(ValueEnum):
@@ -683,8 +717,13 @@ class Task(StrictModel):
         else:
             if self.ball_reason is None:
                 raise ValueError(f"ball is '{self.ball.value}', so ball_reason is required")
-            allowed = BALL_REASONS[self.ball]
-            if self.ball_reason not in allowed:
+            # `.get` rather than `[...]`: a tolerant client reader (task-024) can hold
+            # a ball this copy of the enum has never heard of, and that is not a key
+            # here. Skipping a vocabulary check it cannot evaluate is the right degrade
+            # for a reader that is not the authority on validity anyway -- and the
+            # branch is unreachable on the service, where every ball is a real member.
+            allowed = BALL_REASONS.get(self.ball)
+            if allowed is not None and self.ball_reason not in allowed:
                 permitted = ", ".join(sorted(reason.value for reason in allowed))
                 raise ValueError(
                     f"ball_reason '{self.ball_reason.value}' does not belong to "
