@@ -1,0 +1,148 @@
+schema: 2
+id: task-165-worktree-bootstrap
+title: A fresh worktree can run scripts/check.py, by a documented bootstrap that is
+  demonstrated
+created: '2026-08-19T16:54:34.843687Z'
+updated: '2026-08-19T16:54:52.208173Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
+archived: false
+priority: high
+category: developer_experience
+tags:
+- agent-dx
+- process
+- tooling
+- documentation
+effort: small -- one bootstrap command, the docs around it, and one end-to-end demonstration
+assignment:
+  owner: claude
+  eligible: []
+parent: task-164-epic-orchestration-rule
+spec:
+  summary: ALLAGENTS.md requires every agent to take a git worktree before writing
+    anything, but a fresh worktree has no Poetry virtualenv and no frontend/node_modules,
+    so `poetry run python scripts/check.py` -- the repository's single verification
+    gate -- cannot run there. Give the worktree a bootstrap that is written down,
+    costs a known amount of time, and is shown working end to end.
+  intent: Remove the gap between the rule agents are required to follow (work in your
+    own worktree) and the gate they are required to pass (scripts/check.py), so verification
+    stops depending on an undocumented hand-built workaround.
+  description: "## The problem, stated precisely\n\n`ALLAGENTS.md` makes a worktree\
+    \ an agent's *first act*: `git worktree add ../aj-<nnn> -b ...`,\nbefore the claim,\
+    \ before anything is written. `ENGINEERING.md` then requires\n`poetry run python\
+    \ scripts/check.py` to pass before every commit.\n\nA `git worktree add` copies\
+    \ tracked files only. Both of the things that gate needs are\nuntracked and therefore\
+    \ absent:\n\n- **No Poetry virtualenv.** Poetry keys its cache-dir virtualenvs\
+    \ on the project path, so\n  `C:/projects/aj-165` is a different project from\
+    \ `C:/projects/agentjobs` and has no env.\n  `poetry run` in the worktree fails\
+    \ or, worse, silently resolves somewhere unintended.\n- **No `frontend/node_modules`.**\
+    \ ~191 MB, gitignored. `npm run check` cannot start.\n\nThe consequence is not\
+    \ theoretical. Recorded on task-060 (log entry 15, 2026-08-19):\n\n> *\"A fresh\
+    \ worktree still cannot run `scripts/check.py` -- no `.venv`, no `node_modules`.\n\
+    > Today's child was verified by pointing `PYTHONPATH` at the worktree while using\
+    \ the main\n> clone's Poetry environment, and by junctioning `node_modules` in\
+    \ to regenerate the API\n> client. That workaround is undocumented.\"*\n\nSharing\
+    \ the main clone's virtualenv is specifically the dangerous shortcut: `poetry\
+    \ install`\nputs the *main clone's* `src/` on that env's path, so `pytest` run\
+    \ from a worktree against it\nimports the code from `main`, not the branch under\
+    \ test, and reports a green suite for code it\nnever executed. Any solution has\
+    \ to be safe against that, not merely fast.\n\n## What to produce\n\n1. **A bootstrap\
+    \ that one command performs**, runnable from a just-created worktree, that\n \
+    \  leaves it able to run the full gate. Prefer adding it to `scripts/` beside\
+    \ `check.py`\n   rather than a prose list of steps an agent will half-follow.\n\
+    2. **A decision, with reasoning, on the cheap paths.** Reusing the main clone's\n\
+    \   `node_modules` by junction is fast and is what was done by hand; reusing its\
+    \ virtualenv is\n   fast and is unsafe for the reason above. Decide each on its\
+    \ merits, state what makes the\n   reuse valid (identical `package-lock.json`\
+    \ / `poetry.lock`?) and what the bootstrap does\n   when it is not, and record\
+    \ the rejected alternative.\n3. **The measured cost.** An agent choosing whether\
+    \ to take a worktree needs the number:\n   how long the bootstrap takes cold,\
+    \ and how long warm.\n4. **The docs.** `ALLAGENTS.md`'s worktree section and `ENGINEERING.md`'s\
+    \ \"Sharing a clone\"\n   both tell a reader to make a worktree and neither tells\
+    \ them it will not verify. Fix both\n   at the point the reader is standing.\n\
+    5. **A demonstration.** A worktree created from scratch, bootstrapped by the documented\n\
+    \   command only, running `scripts/check.py` to completion -- with the result\
+    \ quoted in this\n   task's log, including how long the gate itself takes and\
+    \ what it covers.\n\n## Why this is its own task\n\n`task-164` names this its\
+    \ \"load-bearing part\" and cannot honestly decide that every child\ntask gets\
+    \ its own session while a child session's first act still leaves it unable to\
+    \ verify\nits own work. This is separable, small, and useful to every agent working\
+    \ the repo today,\nwhether or not `164`'s orchestration rule is ever adopted."
+  constraints: '- Must not make a green `check.py` possible while testing code from
+    a different checkout. If a shared-environment shortcut is taken, it has to be
+    provably reading the worktree''s own `src/`.
+
+    - Must work on Windows with PowerShell 5.1, which is the environment agents here
+    actually run in. Do not assume symlink-creation privileges without saying so;
+    a directory junction does not need them.
+
+    - No new runtime dependency for the package. This is developer tooling.
+
+    - Task records go to `main` from the main clone, as always; the branch carries
+    code and docs only.'
+  out_of_scope: Speeding up `check.py` itself, changing what the gate runs, or reorganizing
+    how agents pick worktree names. Building any part of task-164's supervision behaviour.
+  context:
+  - path: scripts/check.py
+    why: The gate that must run; shows exactly what a bootstrapped worktree has to
+      support (pytest, then npm run check).
+  - path: ALLAGENTS.md
+    why: The worktree rule this fixes the gap in -- 'Why you get your own worktree'.
+  - path: ENGINEERING.md
+    why: '''Sharing a clone'' gives the worktree commands, and the Testing section
+      names the gate.'
+  - path: frontend/package.json
+    why: npm run check chains check:api, lint, test, build and test:e2e -- several
+      steps shell out to `poetry run`, so the Python env must resolve correctly from
+      frontend/ too.
+  - path: tasks/agentjobs/task-164-epic-orchestration-rule.yaml
+    why: The parent; its acceptance sc-2 is this task.
+acceptance:
+- id: sc-1
+  text: A fresh worktree, created and bootstrapped only by the documented command,
+    runs scripts/check.py to a pass -- demonstrated once and quoted in the log
+  status: pending
+- id: sc-2
+  text: The bootstrap cannot produce a green suite that ran the main clone's source
+    instead of the worktree's; the check that rules this out is stated
+  status: pending
+- id: sc-3
+  text: Cold and warm bootstrap durations are measured and recorded, alongside how
+    long check.py itself takes
+  status: pending
+- id: sc-4
+  text: ALLAGENTS.md and ENGINEERING.md tell an agent about the bootstrap at the point
+    where they tell it to create a worktree
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-19T16:54:34.843729Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3f6a1c94-2d55-4a17-9d8e-5b1c0f2a7165
+      kind: create
+      fingerprint: 5534e8581f286b072c34e5d9b276d15d
+- id: 2
+  ts: '2026-08-19T16:54:52.208067Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 7b21e0d5-4c8a-4b3e-9f61-2a4d6c8e1165
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
