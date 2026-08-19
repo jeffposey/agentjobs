@@ -2,13 +2,9 @@ schema: 2
 id: task-177-runner-groups
 title: 'Runner groups: a dispatch names a group, the dispatcher picks a member'
 created: '2026-08-19T19:11:40.932936Z'
-updated: '2026-08-19T20:58:29.708266Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-19T20:59:55.598356Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: architecture
@@ -20,7 +16,6 @@ tags:
 effort: "medium \u2014 a config-schema change, a resolver, an audit trail, and CLI\
   \ surfacing"
 assignment:
-  owner: claude
   eligible: []
 parent: task-160-dispatch-phase-two
 spec:
@@ -204,7 +199,7 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-177-runner-groups
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-19T19:11:40.932980Z'
@@ -781,3 +776,54 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 15
+  ts: '2026-08-19T20:59:41.024495Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 4d5e6f70-8192-4da3-be24-5f60718201a5
+      kind: update_content
+      fingerprint: 3de83bbe7e883c469256f4b24b36ac37
+- id: 16
+  ts: '2026-08-19T20:59:55.598207Z'
+  actor: claude
+  type: transition
+  body: 'Merged to main as 47ae9de (--no-ff), branch marked merged, worktree being
+    removed.
+
+
+    Approved by Jeff Posey in chat and through the web UI (log entry 14). Before merging,
+    the branch was independently re-verified rather than taken on the handoff''s word:
+    `poetry run python scripts/check.py` run from C:/projects/aj-177 by the reviewing
+    session, exit 0, and the corrected scaffold read directly to confirm the session
+    runners now carry `--bg --remote-control` with no `-p`.
+
+
+    All seven acceptance criteria met. Six decisions recorded (D1-D6), none relitigated
+    at merge.
+
+
+    Three pre-existing defects the real dispatch runs turned up are filed rather than
+    left in this record: task-182 (require_clean_tree cannot work when a project''s
+    tasks live in the dispatched repo -- this one blocks dispatching agentjobs itself,
+    and carries a recommended fix), task-183 (a batch run from the one-shot CLI is
+    always reconciled to interrupted). The third, a rate_limit_event inside a batch
+    run''s stream, was weighed in D1 and needs nothing.
+
+
+    Not done, deliberately, and still unfiled: the difficulty -> group wiring. The
+    ladder reserves its rungs and section 4 keeps its reopen triggers, so a later
+    session has what it needs. Groups'' `strict` mode is likewise unbuilt, leaving
+    section 4''s inherited open question -- what a strict refusal does for an unattended
+    caller -- still open and still flagged.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 5e6f7081-92a3-4eb4-cf35-60718293b2c6
+      kind: close
+      fingerprint: 4b0d195534a52496260ed6f2b333c9b3
