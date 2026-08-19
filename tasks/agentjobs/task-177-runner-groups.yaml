@@ -2,7 +2,7 @@ schema: 2
 id: task-177-runner-groups
 title: 'Runner groups: a dispatch names a group, the dispatcher picks a member'
 created: '2026-08-19T19:11:40.932936Z'
-updated: '2026-08-19T19:18:36.761547Z'
+updated: '2026-08-19T19:23:11.297390Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -201,3 +201,57 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 3
+  ts: '2026-08-19T19:23:11.297251Z'
+  actor: claude
+  type: decision
+  body: "D1 (sc-4): Usage-limit headroom is NOT observable from any scriptable CLI\
+    \ surface, so selection is built on declared order, `enabled`, and executable\
+    \ resolution only.\n\n**Verified by running, on 2026-08-19, against the only agent\
+    \ CLI installed on this machine (`claude` 2.1.235; `codex`, `gemini`, `cursor-agent`,\
+    \ `copilot`, `amp`, `opencode` are all absent from PATH):**\n\n- `claude --help`\
+    \ has no `usage`, `limits` or `quota` subcommand. The full command list is: agents,\
+    \ auth, auto-mode, doctor, gateway, import, install, mcp, plugin, project, setup-token,\
+    \ ultrareview, update.\n- `claude auth status --json` returns identity only \u2014\
+    \ loggedIn, authMethod, apiProvider, email, orgId, orgName, subscriptionType.\
+    \ No window, no percentage, no reset time.\n- `claude agents --json` returns live\
+    \ sessions (pid, cwd, kind, startedAt, sessionId, name, status, state). No token\
+    \ or cost accounting at all.\n- `/usage` is an interactive built-in, not a CLI\
+    \ verb. Run as `claude -p \"/usage\" --output-format json` it is **not executed**\
+    \ \u2014 it reaches the model as ordinary prompt text and comes back as a chat\
+    \ reply saying it cannot be run that way. That call cost $0.24, which is itself\
+    \ the point: the only way to ask is to pay for a model turn and still not get\
+    \ the answer.\n- A `-p` run's `--output-format json` does report `usage`/`modelUsage`/`total_cost_usd`\
+    \ \u2014 but that is *what this call consumed*, after the fact. It says nothing\
+    \ about what is left, and it exists only once the money is already spent.\n\n\
+    **The data does exist machine-locally, and reading it would be a bug.** `~/.claude.json`\
+    \ holds a private key `cachedUsageUtilization` with `five_hour`/`seven_day` utilization\
+    \ percentages, `resets_at` timestamps, and an `extra_usage` credit balance. Three\
+    \ reasons it is unusable:\n\n1. **It is stale, badly.** On this machine right\
+    \ now it was fetched 2026-08-10T22:09:36Z \u2014 8 days 21 hours ago \u2014 and\
+    \ reports `five_hour.utilization: 98` against a window whose `resets_at` was 2026-08-10T22:09:59Z.\
+    \ A dispatcher reading it today would skip the preferred runner because of a limit\
+    \ that expired nine days ago. It is refreshed when an interactive session renders\
+    \ /usage, which a dispatcher never does.\n2. **It is undocumented private state**\
+    \ with internal codename keys (`nimbus_quill`, `iguana_necktie`, `omelette_promotional`,\
+    \ `tangelo`) that can change in any patch release. Parsing another program's cache\
+    \ file is not an interface.\n3. **It is account-wide, not runner-wide.** It cannot\
+    \ distinguish the headroom of `claude-opus` from `claude-sonnet`, which is exactly\
+    \ the discrimination a group needs.\n\n**Decision:** selection inputs are (a)\
+    \ declared order within the group, (b) the member's `enabled` flag, (c) whether\
+    \ the runner name is defined in `runners:`, (d) whether its argv[0] resolves on\
+    \ PATH. All four are local, free, deterministic, and cannot hang. First eligible\
+    \ member wins.\n\n**Rejected: probe the CLI for headroom before selecting.** There\
+    \ is nothing to probe. The nearest thing costs a model call and returns prose.\n\
+    \n**Rejected: read `cachedUsageUtilization` from `~/.claude.json`.** Cheap and\
+    \ tempting, and it would have been wrong by nine days on the very machine it was\
+    \ designed on. A stale answer here does not degrade \u2014 it inverts, sending\
+    \ every dispatch to the fallback runner while the preferred one sits idle.\n\n\
+    **Follow-up trigger, not a task yet:** implement limit-aware selection when a\
+    \ first-party agent CLI ships a documented command that prints remaining headroom\
+    \ as structured output (e.g. `claude usage --json`). Until then there is nothing\
+    \ to build against."
+  data:
+    acceptance: sc-4
+    cli_version: claude 2.1.235
+    verified_on: '2026-08-19'
