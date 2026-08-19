@@ -479,15 +479,38 @@ That correction is what makes the posture below possible. The old framing — an
 cannot run `pytest` satisfies nothing, one that can run anything is an unattended shell —
 was a real dilemma only because a batch run has no third move. A session has one: **ask.**
 
-#### Three postures, chosen per project
+#### Four postures, chosen per project
 
 Machine-local in `~/.agentjobs/dispatch.yaml`, like every other dispatch setting.
 
 | Posture | Flags | For |
 |---|---|---|
 | `read_only` | `--tools "Read,Glob,Grep,WebFetch"` | Review, triage, plans, defect reports. Verified enforceable: the agent has no shell at all. |
-| `supervised` **(default)** | `--permission-mode acceptEdits -w <task-slug>` plus the project allow-list via `--settings` | Normal dispatched work. |
+| `auto` **(default)** | `--permission-mode auto -w <task-slug>` plus the project allow-list via `--settings` | Normal dispatched work. A classifier reviews each action, so the run keeps a gate and never needs a terminal. |
+| `supervised` | `--permission-mode acceptEdits -w <task-slug>` plus the project allow-list via `--settings` | A run a human is actually watching and willing to answer. |
 | `autonomous` | `--permission-mode bypassPermissions -w <task-slug>` | Per-project opt-in. Never the default. |
+
+!!! warning "`supervised` was the default until 2026-08-19, and could not finish work"
+    The table below says `acceptEdits` + allow-list runs an arbitrary command with no
+    prompt. That is true only of the nine allow-listed prefixes. **Everything else still
+    parks** — and "everything else" includes `ls`, `cat`, `find`, `grep` and `sed`.
+
+    Observed on the first two real dispatches ever run, both of task-107: run_a6deb292
+    started cleanly, read its task, then parked asking permission to run
+    `ls C:/projects/agentjobs/docs/` — the repository's own docs directory — and stayed
+    parked until cancelled. A `--bg` session has no terminal, so nothing could answer.
+
+    §4 as first written identified the gap precisely — *"there is no permission mode that
+    permits `pytest` but not arbitrary commands"* — and concluded the allow-list had to
+    carry that middle. It does not carry it: an allow-list enumerates what is permitted,
+    and no list of prefixes anticipates what a task will need. `auto` mode is the middle
+    that was missing. It was never evaluated in the table below, which is why it was not
+    chosen at the time.
+
+    This does not disturb the section's actual decisions. `bypassPermissions` is still
+    rejected as a default, `dontAsk` is still rejected for producing untested work, and
+    **no auto-escalation** still holds: `auto` gates every action through a classifier,
+    which is a gate, not the absence of one.
 
 **May a dispatched agent run shell commands unattended? Yes — only those matching its
 project's allow-list.** Everything else parks, and AgentJobs turns a parked session into
@@ -506,14 +529,21 @@ The verified behaviour that determines all of this, every cell run as a `--bg` s
 |---|---|---|---|
 | *(default)* = `manual` | prompt → **parks** | allowed | prompt → **parks** |
 | `acceptEdits` | allowed | allowed | prompt → **parks** |
-| `acceptEdits` + allow-list | allowed | allowed | **runs, no prompt** |
+| `acceptEdits` + allow-list | allowed | allowed | **allow-listed: runs. Anything else: prompt → parks** |
+| `auto` + allow-list | allowed | allowed | **classifier decides; no prompt, no terminal needed** |
 | `dontAsk` | allowed | allowed | **silently denied, run continues** |
 | `--tools "Read,Glob,Grep"` | no tool | no tool | no tool at all |
 
-Note there is **no permission mode that permits `pytest` but not arbitrary commands**.
-That middle exists only as an allow-list, which is why the allow-list is load-bearing
-rather than a convenience. Allow-list rules take the form `Tool(prefix:*)` — the colon
-is not optional, and omitting it silently matches nothing.
+The `acceptEdits` + allow-list row read "runs, no prompt" until 2026-08-19. That was
+measured with allow-listed commands only, and generalised to a column headed *arbitrary
+command*, which is where the default came from. Corrected against run_a6deb292, which
+parked on `ls`.
+
+The `auto` row is why a fourth posture exists. Rather than enumerating permitted
+prefixes, `auto` has a classifier evaluate each action, so it covers commands no list
+anticipated **and** needs no human present — the combination none of the other rows
+offer. Allow-list rules still take the form `Tool(prefix:*)` — the colon is not
+optional, and omitting it silently matches nothing.
 
 #### Containment, and what it is not
 

@@ -235,9 +235,15 @@ class DispatchMode(ValueEnum):
 
 
 class DispatchPosture(ValueEnum):
-    """What the run was permitted to do (design doc section 4, task-076)."""
+    """What the run was permitted to do (design doc section 4, task-076).
+
+    Mirrors ``dispatch.config.Posture``, and must keep mirroring it: this is the value
+    written into the task's dispatch log entry, so a posture missing here cannot be
+    recorded even though a run was started under it. ``auto`` was added by task-020.
+    """
 
     READ_ONLY = "read_only"
+    AUTO = "auto"
     SUPERVISED = "supervised"
     AUTONOMOUS = "autonomous"
 
