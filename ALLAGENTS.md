@@ -46,7 +46,7 @@ user authorizes it.
     cannot verify anything until you do:
 
     ```bash
-    python scripts/bootstrap.py     # about 35s; see Bootstrapping a worktree
+    python scripts/bootstrap.py     # ~30s; see Bootstrapping a worktree
     ```
 
     **Your task-record commits go to `main`, not to your branch** — see
@@ -137,9 +137,10 @@ python scripts/bootstrap.py
 ```
 
 It runs `poetry install`, `npm ci`, and `playwright install chromium`, then confirms the
-environment imports the worktree's own `src/`. **About 35 seconds** with warm Poetry and
-npm caches — measured 2026-08-19, 21s of it Poetry — so it is not a reason to skip the
-worktree. Cold on a new machine it is a few minutes, because the caches fill.
+environment imports the worktree's own `src/`. **30 seconds** in a brand-new worktree,
+**13 seconds** to re-run in one that already has both — measured 2026-08-19, 21s of the
+first figure being Poetry. That is not a reason to skip the worktree. It is longer on a
+machine whose Poetry and npm caches are cold, because those caches fill on the way past.
 
 **Do not borrow the main clone's virtualenv instead.** `poetry install` puts the *main
 clone's* `src/` on that environment's path, so `pytest` run from your worktree against it
