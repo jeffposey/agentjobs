@@ -25,6 +25,13 @@ def write_dispatch_config(home: Path) -> None:
     and the cancel button has something real to stop. ``require_clean_tree`` is off
     because the temporary project is not a git repository at all -- the clean-tree gate
     has its own tests, and standing up a repo here would only test git.
+
+    ``actor`` is not decoration. A runner is named for the invocation and writes as an
+    identity from the project's ``actors:``, and task-159's guard refuses a dispatch
+    whose runner would act as an id the project does not configure. Without it this
+    runner would act as ``e2e-sleeper``, the dispatch is refused before any run exists,
+    and the spec's run list is empty rather than wrong -- which is exactly how this
+    harness broke. ``claude`` is one of the actors ``build_project_config`` writes.
     """
     home.mkdir(parents=True, exist_ok=True)
     (home / "dispatch.yaml").write_text(
@@ -35,6 +42,7 @@ def write_dispatch_config(home: Path) -> None:
                 "runners": {
                     "e2e-sleeper": {
                         "argv": [sys.executable, "-c", "import time; time.sleep(120)"],
+                        "actor": "claude",
                     },
                 },
                 "projects": {"_local": {"enabled": False, "require_clean_tree": False}},
