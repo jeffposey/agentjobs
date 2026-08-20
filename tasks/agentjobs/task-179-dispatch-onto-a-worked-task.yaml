@@ -3,7 +3,7 @@ id: task-179-dispatch-onto-a-worked-task
 title: Dispatch is offered on a task an agent is already working, and the guards would
   allow it
 created: '2026-08-19T19:22:34.834865Z'
-updated: '2026-08-19T19:26:06.224850Z'
+updated: '2026-08-20T06:02:20.557904Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -158,3 +158,47 @@ log:
       id: b2f7a1c5-4c63-4d99-8f28-6e3a9b7d0182
       kind: update_content
       fingerprint: 8c1be9ef5eecbe709eb7d00d814bf8a6
+- id: 3
+  ts: '2026-08-20T06:02:20.557781Z'
+  actor: claude
+  type: note
+  body: "**task-188 removes the accident that is currently protecting this case. Do\
+    \ not let 188 merge without reading this.**\n\nThis task's own description already\
+    \ names the situation: what stopped a second dispatch onto the actively-worked\
+    \ task-177 was `assert_human_clocked` refusing, *\"because the newest log entry\
+    \ was the child's own `claim`, written by `claude`. The refusal was about who\
+    \ wrote the last entry, not about the task being worked.\"* It calls that luck\
+    \ rather than safety, and says the click passes every gate the moment a human\
+    \ entry becomes the newest.\n\n**task-188 makes a human entry the newest on every\
+    \ single dispatch, by design.** Its whole point is that the Dispatch button writes\
+    \ an authorising entry attributed to the person who clicked. So the window this\
+    \ task describes as \"the moment a human comments or approves\" stops being a\
+    \ moment and becomes the permanent state. After 188, `assert_human_clocked` never\
+    \ refuses a browser dispatch again, and this task's guard is the only thing left\
+    \ standing between two agents and one branch.\n\nScope of the exposure, stated\
+    \ precisely, because half of it is already covered:\n\n- **A run dispatch started**\
+    \ is caught, and I verified the code rather than assuming: `guards.py:332` scans\
+    \ `live_runs()` and raises `LiveRunExistsError` before the claim or the spawn.\
+    \ Confirmed live on 2026-08-20 against run_f27d3d88 on task-188. This half is\
+    \ safe today and stays safe after 188.\n- **An agent AgentJobs did not start**\
+    \ \u2014 the spawn-session skill, a human in a terminal, another tool \u2014 writes\
+    \ no ledger row and holds no run lock. Nothing refuses. This half is protected\
+    \ today *only* by the human-clocked accident, and 188 removes it.\n\nThat second\
+    \ half is not hypothetical here: six autonomous sessions were run through the\
+    \ spawn-session skill on 2026-08-19, none of which appear in the run ledger.\n\
+    \nTwo consequences for whoever picks this up:\n\n1. The priority argument changed.\
+    \ This was a UI nicety with a latent guard hole behind it; after 188 it is the\
+    \ guard.\n2. Decision #2 in the spec \u2014 *\"what evidence counts as 'something\
+    \ is alive' for an agent AgentJobs did not start?\"* \u2014 is now the load-bearing\
+    \ question rather than an aside. The spec's own suggested answer (trust `lifecycle:\
+    \ active` plus an owner, and require a deliberate override with its own log entry)\
+    \ looks right precisely because there is no ledger row to consult.\n\nJeff's framing\
+    \ on 2026-08-20, which matches decision #3 and adds the visual point: *\"maybe\
+    \ as an override if it had broken and it didn't know, but it seems like if it\
+    \ thinks it's still running it shouldn't have the same bright obvious 'click me'\
+    \ dispatch button.\"*"
+  data:
+    operation:
+      id: f1a7d206-58b4-4e93-b7c0-2d905e6a31c7
+      kind: log_append
+      fingerprint: f66d7c6b13ffbb3404b1aa33a78b3bc1
