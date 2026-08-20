@@ -104,7 +104,10 @@ is non-empty, say so, because claimable work may be hidden inside those files.
 Two local rules, which the tools cannot enforce for you:
 
 - **Take a git worktree before you start**, not a checkout. Several agents share one
-  clone, and `git checkout` replaces the files under whichever one is mid-task.
+  clone, and `git checkout` replaces the files under whichever one is mid-task. Take it
+  with `git worktree add`, not with Claude Code's `-w`: a `-w` session is isolated by a
+  guard that refuses every git operation aimed at the shared clone, and that is where
+  the rule below requires your task-record commits to land.
 - **Task records are committed to `main`, never to a feature branch.** A handoff
   committed to a branch is invisible to the person it is addressed to, who opens the
   dashboard and reasonably concludes nothing is waiting for them.

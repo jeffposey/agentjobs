@@ -224,3 +224,32 @@ def test_the_readme_points_agents_at_mcp() -> None:
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "## Agents connect over MCP" in text
     assert "docs/mcp.md" in text
+
+
+def test_the_dispatch_design_does_not_still_claim_agentjobs_supplies_isolation() -> None:
+    """task-186. The section argued the opposite, and the correction is the deliverable.
+
+    The trap this guards is a real one: the original wording was persuasive and stayed
+    persuasive after it stopped being true, so a reader deciding whether to reintroduce
+    ``-w`` would have found an argument for it and no record of why it was removed. The
+    assertions below are on the *reasons*, not on a heading, because a heading survives
+    a rewrite that quietly loses them.
+    """
+    text = DISPATCH_DESIGN.read_text(encoding="utf-8")
+
+    assert "AgentJobs no longer passes `-w`" in text
+    # The evidence, so nobody has to re-derive it from a CLI that may have moved on.
+    assert "Refusing to run it" in text
+    assert "`cd <repo> && git status` is refused too" in text
+    assert "--add-dir" in text
+    # And what stops two dispatched runs sharing a tree now that the flag is gone.
+    assert "require_clean_tree" in text
+    assert "git worktree add ../aj-<nnn>" in text
+
+
+def test_the_dispatch_design_states_what_reaping_means_now() -> None:
+    """A reap that quietly became a no-op would be worse than one that changed."""
+    text = DISPATCH_DESIGN.read_text(encoding="utf-8")
+
+    assert "#### Reaping, and what it means now" in text
+    assert "narrowing rather than a silent no-op" in text
