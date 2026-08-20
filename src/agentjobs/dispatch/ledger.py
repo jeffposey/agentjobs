@@ -122,8 +122,9 @@ def process_alive(pid: int) -> bool:
 
     Pid reuse means a ``True`` here can be wrong -- some unrelated process may have
     inherited the number. That is the safe direction: a wrongly-alive answer refuses a
-    lock, and the ledger check above it is what actually clears one. Nothing is
-    reclaimed on this answer alone unless the lock names no run at all.
+    lock rather than clearing one. It is consulted only when the ledger has nothing to
+    say, and a wrongly-*dead* answer is not reachable: a pid that no longer exists is a
+    fact, not an inference.
     """
     if pid <= 0:
         return False
@@ -167,27 +168,35 @@ def stale_lock_reason(home: Path, holder: LockHolder) -> Optional[str]:
        pid is *expected* to be gone while the session runs, and reclaiming on that
        would hand a second agent to a task that already has one. That is the failure
        this lock exists to prevent, and it would be worse than the leak.
-    2. **If the lock names no run, the pid decides.** That is the narrow window between
-       taking the lock and the run existing to be named; a holder that died inside it
-       left a lock for a run that never started.
+    2. **With no run record to consult, the pid decides.** Two ways to get here: the
+       narrow window between taking the lock and the run existing to be named, and a
+       lock naming a run whose directory is no longer on disk. Falling back rather than
+       refusing is deliberate -- a run with no directory cannot be followed, concluded
+       or cancelled by anything, so refusing on it would be the permanent silent block
+       this whole change exists to remove, merely rarer.
 
-    Anything else -- a named run whose directory has gone, a live pid, an unreadable
-    file -- is left alone. "I cannot tell" refuses.
+    A live pid, or a file too mangled to read a pid out of, is left alone. "I cannot
+    tell" refuses, which is the direction that cannot lose work.
 
     Note what is deliberately absent: no clock. Nothing here expires, so there is no
     lease to renew and no window in which a slow run loses a lock it is still using.
-    A lock is cleared only against a positive statement on disk that its run is over.
+    A lock is cleared only against a positive statement on disk -- a terminal run, or
+    an absent process -- never against elapsed time.
     """
     if holder.run_id:
         directory = runs_root(home) / holder.run_id
-        if not directory.is_dir():
-            return None
-        record = read_run(directory)
-        if record.is_live:
-            return None
-        return f"its run {holder.run_id} is {record.outcome or record.status}"
+        if directory.is_dir():
+            record = read_run(directory)
+            if record.is_live:
+                return None
+            return f"its run {holder.run_id} is {record.outcome or record.status}"
     if holder.pid is not None and not process_alive(holder.pid):
-        return f"the process that took it (pid {holder.pid}) is gone, and it named no run"
+        missing = (
+            f"and there is no record of run {holder.run_id}"
+            if holder.run_id
+            else "and it named no run"
+        )
+        return f"the process that took it (pid {holder.pid}) is gone, {missing}"
     return None
 
 

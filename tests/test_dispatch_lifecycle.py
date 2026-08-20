@@ -457,15 +457,24 @@ class TestRunLock:
 
         held.release()
 
-    def test_a_lock_naming_a_run_nobody_has_a_record_of_refuses(self, home: Path) -> None:
-        """ "I cannot tell" refuses. There is no run directory to judge this against."""
+    def test_a_lock_naming_a_run_nobody_has_a_record_of_falls_back_to_the_pid(
+        self, home: Path
+    ) -> None:
+        """A run with no directory cannot be followed, concluded or cancelled by anything.
+
+        Refusing on it forever would be the same permanent silent block, merely rarer.
+        So the weaker evidence is consulted -- and it is still evidence: a living holder
+        keeps the lock either way.
+        """
         held = acquire_run_lock(home, "task-001")
         held.adopt("run_unknown")
 
         with pytest.raises(RunLockTimeout):
             acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.3)
 
-        held.release()
+        held.path.write_text("pid=999999999 run=run_unknown", encoding="ascii")
+        taken = acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.5)
+        taken.release()
 
     def test_the_refusal_never_tells_a_reader_to_delete_a_file(self, home: Path) -> None:
         """ac-5: this text reaches the browser, where that remedy does not exist.
