@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import type { ReviewIdentity } from "../api/generated";
 import type { DispatchRunView, DispatchStateView } from "../api/types";
 import {
   DispatchPanel,
@@ -56,14 +57,24 @@ function run(overrides: Partial<DispatchRunView> = {}): DispatchRunView {
   };
 }
 
+/** A resolvable signed-in human, which is the ordinary case on a configured project. */
+function identity(overrides: Partial<ReviewIdentity> = {}): ReviewIdentity {
+  return { ok: true, user: "Jeff Posey", problem: null, detail: "", ...overrides };
+}
+
 function renderPanel(props: Partial<Parameters<typeof DispatchPanel>[0]> = {}) {
-  const onDispatch = vi.fn(async () => undefined);
+  // Resolves `true`: the default is a dispatch that started. A refusal is `false`, and
+  // the tests that need one say so, because the difference decides whether the human's
+  // typed brief survives.
+  const onDispatch = vi.fn(async (_note?: string) => true);
   const onCancel = vi.fn(async (_runId: string) => undefined);
   render(
     <DispatchPanel
       state={state()}
       runs={[]}
       taskIsDispatchable
+      identity={identity()}
+      recordCanBrief
       onDispatch={onDispatch}
       onCancel={onCancel}
       {...props}
@@ -115,6 +126,131 @@ describe("the Dispatch action", () => {
   });
 });
 
+describe("one click (task-188)", () => {
+  it("dispatches with no text on a task whose record can brief an agent", async () => {
+    // The 97% case. Before this, the human had to know to write a note first, on a task
+    // whose only failing was that an agent had filed it.
+    const { onDispatch } = renderPanel({ recordCanBrief: true });
+
+    expect(screen.queryByRole("textbox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+
+    await waitFor(() => expect(onDispatch).toHaveBeenCalledWith());
+  });
+
+  it("names the person the run will be authorised by, before the click", () => {
+    renderPanel();
+
+    expect(screen.getByRole("region", { name: "Dispatch" })).toHaveTextContent(
+      /authorised by\s*Jeff Posey/i,
+    );
+  });
+
+  it("asks for text only when the record cannot brief an agent", async () => {
+    const { onDispatch } = renderPanel({ recordCanBrief: false });
+
+    const box = screen.getByRole("textbox", { name: /say what the agent should do/i });
+    fireEvent.change(box, { target: { value: "Rip out the old poller." } });
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+
+    await waitFor(() => expect(onDispatch).toHaveBeenCalledWith("Rip out the old poller."));
+  });
+
+  it("will not dispatch an empty brief when it has asked for one", () => {
+    const { onDispatch } = renderPanel({ recordCanBrief: false });
+
+    expect(screen.getByRole("button", { name: /dispatch/i })).toBeDisabled();
+    expect(onDispatch).not.toHaveBeenCalled();
+  });
+
+  it("keeps the typed brief when the dispatch is refused", async () => {
+    // The defect Jeff found by clicking it: he typed a brief, the sandbox's only run
+    // slot was busy, and the textarea came back empty. This is the one path in the
+    // feature where a human has written something that exists nowhere else -- it has
+    // not been saved to the task -- so a refusal that clears it costs the sentence
+    // rather than a click, and after task-172 that sentence may have been dictated.
+    // The handler resolves on a refusal (it renders the reason itself), so the panel
+    // is told by the resolved value rather than by the promise settling.
+    const onDispatch = vi.fn(async (_note?: string) => false);
+    render(
+      <DispatchPanel
+        state={state()}
+        runs={[]}
+        taskIsDispatchable
+        identity={identity()}
+        recordCanBrief={false}
+        onDispatch={onDispatch}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const box = screen.getByRole("textbox", { name: /say what the agent should do/i });
+    fireEvent.change(box, { target: { value: "Port the widget to v2." } });
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+
+    await waitFor(() => expect(onDispatch).toHaveBeenCalledWith("Port the widget to v2."));
+    expect(box).toHaveValue("Port the widget to v2.");
+  });
+
+  it("clears the brief once a run has actually started", async () => {
+    // The other half, and the reason the field is cleared at all: a brief that survived
+    // a successful dispatch would be retyped into the next one by anyone who did not
+    // notice, and re-submitted as a second authorising entry.
+    const onDispatch = vi.fn(async (_note?: string) => true);
+    render(
+      <DispatchPanel
+        state={state()}
+        runs={[]}
+        taskIsDispatchable
+        identity={identity()}
+        recordCanBrief={false}
+        onDispatch={onDispatch}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const box = screen.getByRole("textbox", { name: /say what the agent should do/i });
+    fireEvent.change(box, { target: { value: "Port the widget to v2." } });
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+
+    await waitFor(() => expect(box).toHaveValue(""));
+  });
+
+  it("opens the box when the server says the record is insufficient, even if the page thought otherwise", () => {
+    // The server is the authority on sufficiency. Honouring its answer means a drift
+    // between the two checks costs one round trip rather than showing a button that
+    // can only ever refuse.
+    renderPanel({
+      recordCanBrief: true,
+      dispatchRefusal: {
+        reason: "insufficient_record",
+        message: "task-107 has no spec.description.",
+        suggestedAction: "Say what the agent should do.",
+      },
+    });
+
+    expect(screen.getByRole("textbox", { name: /say what the agent should do/i })).toBeInTheDocument();
+  });
+
+  it("refuses to offer the button at all when nobody is signed in", () => {
+    // Disabled, not pressable-into-a-refusal, and never signed with a config default:
+    // an entry attributed to nobody looks like evidence and is not.
+    renderPanel({
+      identity: {
+        ok: false,
+        user: null,
+        problem: "unconfigured",
+        detail: "No human actor is configured.",
+      },
+    });
+
+    expect(screen.queryByRole("button", { name: /dispatch/i })).toBeNull();
+    const note = screen.getByRole("status");
+    expect(note).toHaveTextContent(/nobody is signed in/i);
+    expect(note).toHaveTextContent("No human actor is configured.");
+  });
+});
+
 describe("refusals", () => {
   it("renders the specific gate that is closed, not 'dispatch failed'", () => {
     renderPanel({
@@ -151,7 +287,12 @@ describe("refusals", () => {
     expect(screen.queryByRole("region", { name: "Dispatch" })).toBeNull();
   });
 
-  it("renders the human-clocked rule in the words that explain why retrying will not help", () => {
+  it("explains a human-clocked refusal as the identity problem it now is", () => {
+    // Since task-188 the button names the person clicking and the server writes their
+    // authorising entry, so this refusal no longer means "your newest entry was an
+    // agent's" -- it means the page had nobody to name. The remedy is therefore
+    // configuration, and the copy that used to say "not configurable" would now be
+    // pointing the reader away from the one thing that fixes it.
     renderPanel({
       dispatchRefusal: {
         reason: "not_human_clocked",
@@ -162,7 +303,8 @@ describe("refusals", () => {
 
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("The newest log entry was written by claude.");
-    expect(alert).toHaveTextContent(/not configurable/i);
+    expect(alert).toHaveTextContent(/cannot tell who is clicking/i);
+    expect(alert).toHaveTextContent(/actors:/i);
   });
 
   it("prefers the server's own suggested action when it sends one", () => {
@@ -201,13 +343,15 @@ describe("refusals", () => {
       dispatchRefusal: {
         reason: "not_human_clocked",
         message: "Log entry 1 (transition) was written by 'claude', an agent.",
+        // What the CLI and MCP are told: correct for them, and it names an act rather
+        // than a control, so the page overrides it. Task-185's rule, unchanged.
         suggestedAction: "Act on the task yourself, then dispatch. This rule is not configurable.",
       },
     });
 
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent(/use “Add a note” below/i);
-    expect(alert).toHaveTextContent(/not configurable/i);
+    expect(alert).not.toHaveTextContent("Act on the task yourself, then dispatch.");
   });
 
   it("says something useful even when the server could not be reached at all", () => {

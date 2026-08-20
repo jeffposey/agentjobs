@@ -63,6 +63,22 @@ Everything else in this document is subordinate to one rule.
     because the reasoning below is still the reasoning; **§2a states what actually
     governs.** Where the two conflict, §2a wins.
 
+!!! warning "The code enforced the superseded rule until 2026-08-20 (task-188)"
+    Stated plainly, because the gap is the whole reason task-188 exists.
+    `assert_human_clocked` was written against §2 as first drafted and never revisited
+    after D5, so for nine days the dispatcher refused any task whose newest stored log
+    entry was not a human's. Measured against this project's own backlog on 2026-08-20:
+    **72 of 74 open tasks were refused**, 68 of them because the `transition` entry the
+    manager writes when an agent files a task is attributed to that agent. Every
+    agent-filed task failed the check from birth, and the remedy — a human writing a
+    note by hand before every run — was ceremony, not safety.
+
+    What changed is *where the entry comes from*, not what is checked. A caller that
+    names the human clicking gets that human's authorising entry **written to the task
+    record**, and the rule below is then evaluated against the stored entry exactly as
+    it always was. Nothing in the forgeability section is relaxed; see
+    [What is checked, and what is merely claimed](#what-is-checked-and-what-is-merely-claimed).
+
 The feared failure mode is the circular one: agent finishes → something starts an agent →
 it finishes → ... unbounded tokens, unbounded writes to a repository. The usual defence
 is counters and cooldowns, which bound the blast radius of a loop that is still, in
@@ -166,6 +182,82 @@ same evidence.
 Raised as an open question by the read-only dispatch experiment on 2026-08-11, which
 declined to decide it alone. Recorded here rather than left to task-071 to rediscover,
 because it is a property of the *rule*, not of the endpoint that enforces it.
+
+
+### What is checked, and what is merely claimed (added 2026-08-20, task-188)
+
+The Dispatch button is one click. Pressing it on a task with a complete spec starts a
+run; the server writes the authorising entry itself, attributed to the person signed in,
+and only then dispatches. **This is not a relaxation of the rule above and it is very
+easy to read it as one**, so the distinction is stated here rather than left in a
+docstring.
+
+Three things happen in this order, and the order is the design:
+
+1. The request names an **identity** — who is clicking. This is a claim, and it is
+   validated, not believed: the id must be an actor the project configures with
+   `kind: human`, the same vocabulary `POST /log` and `POST /approve` have always
+   validated theirs against. An unconfigured id is refused rather than assumed human.
+2. That human's entry is **persisted** to the task file, as an ordinary `note` — exactly
+   what a person writing the authorising note by hand produced before this existed.
+3. The causing entry is then **resolved from the stored task** and put through
+   `assert_human_clocked` like any other. It is re-read through the storage layer, not
+   handed along from the write, so "resolved from the stored task at spawn time, never
+   taken from the request body" is true in the literal sense the sentence means.
+
+**The entry records an authorisation, not an outcome, and that wording is load-bearing.**
+Step 2 happens inside the run lock and *before* the claim, because that ordering is what
+makes the entry evidence rather than decoration — so step 3, the claim, and the spawn can
+all still refuse after it has landed, and an append-only log cannot take it back. The
+composed sentence is therefore "*Jeff Posey* authorised a dispatch of this task from the
+task page", which stays true whether or not a run followed; whether one did is what the
+`dispatch` entry beside it says. Writing "Dispatched by …" would have made a failed spawn
+the one thing this feature could put into a record that was not so. Shrinking the window
+by moving the write later was the rejected alternative: the window *is* the ordering that
+makes the evidence real.
+
+What a request still cannot do is supply its own *justification*. There is no field that
+says "this run is authorised because ..."; there is a field that says who is asking, and
+the consequence of setting it is a visible, permanent row in an append-only log under
+that person's name. A caller who abuses it has not bypassed the record — they have
+written to it, in public, and the run traces to them.
+
+**An agent still cannot cause a dispatch**, and it survives for two independent reasons.
+Structurally: agents do not have browsers. Mechanically: an agent id offered as the
+authoriser is refused before anything is written (`authorizer_not_human`), and the entry
+that *is* written still has to pass the human-clocked check, which reads the actor's
+kind from config rather than from the request. Both are pinned by tests.
+
+**Sufficiency is now asked separately, and directly.** The old check was answering two
+unrelated questions at once — *who authorised this run* (safety) and *does the agent have
+enough to work from* (sufficiency) — and answering the first by proxying through an
+artifact of the second. It got both wrong in the same breath: a task with a complete spec
+and a stale agent note was refused, while a task with an empty spec and a human note
+saying "testing" was allowed. Sufficiency is now `spec.description`, and nothing else:
+
+- **Not `ball_prompt`.** Empty on 69 of 69 `ready` tasks in this project, and correctly
+  so — a `ready`/`agent`/`available` task is in the pool, not handed to anyone, so there
+  is no current ask to state. A check keyed on it fires on 100% of the tasks you dispatch
+  from, which teaches the reader to click through it without reading.
+- **Not an empty `acceptance[]`.** Two of 74 open tasks have none and both have a full
+  description; missing criteria are a grooming gap, not an authorisation one.
+
+Measured 2026-08-20, that trigger fires on **zero** of this project's 74 open tasks. When
+it does fire, the text the human types becomes the body of the authorising entry, so one
+action serves both purposes.
+
+**Where there is no signed-in user — the CLI, MCP, and a project with no human
+configured — nothing changed.** The pre-existing rule applies: the newest stored entry
+(or the one `--caused-by` names) must be a human's, and a task that fails it is refused
+with `not_human_clocked`. The server deliberately does **not** substitute the project's
+`default_user` to get past this. A run has to be signed for by whoever asked for it, and
+a config value standing in for a person produces something that looks like evidence and
+is not. The browser knows this before the click and disables the button rather than
+offering one that can only refuse.
+
+Built by task-188. The manual note control task-185 added stays: it is the right path
+for deliberately writing an instruction onto a task, and it is what keeps the refusal
+copy honest for callers with no button to press.
 
 ---
 
@@ -973,6 +1065,19 @@ agents.
 The trigger is an explicit `POST /api/tasks/{id}/dispatch` — a button in the review UI
 next to Approve, and `agentjobs dispatch run <task-id>` in the CLI. Nothing else starts
 a run.
+
+**The button is one click, and the two callers differ in one field (task-188).** The
+browser sends `user`, naming the person clicking; the server writes their authorising
+entry onto the task, then dispatches on it. So the ordinary case — a task with a
+complete spec, filed by an agent — needs nothing written by hand first. It stops to ask
+for text only when `spec.description` is empty, which is true of none of this project's
+74 open tasks, and the text it asks for becomes that entry's body.
+
+The CLI sends no such field, because a shell has nobody to name; it keeps the original
+rule and is refused with `not_human_clocked` if the newest stored entry is an agent's.
+Neither path takes its justification from the request — see
+[What is checked, and what is merely claimed](#what-is-checked-and-what-is-merely-claimed)
+for why writing an entry and trusting a field are not the same act.
 
 **Auto-dispatch is designed here and built later.** A project may eventually set
 `auto_dispatch: true`, which makes an approval that hands the ball to `agent`

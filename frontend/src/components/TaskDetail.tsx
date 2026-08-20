@@ -310,7 +310,10 @@ export type TaskDetailProps = {
   // Dispatch arrives as its own bundle rather than as loose props, so nothing about
   // starting an agent can be mistaken for part of the review panel's contract.
   // Absent, the page renders exactly as it did before dispatch existed.
-  dispatch?: Omit<DispatchPanelProps, "taskIsDispatchable">;
+  //
+  // Identity and sufficiency are supplied here rather than in the bundle because both
+  // are read straight off the loaded record, which the bundle's hook never sees.
+  dispatch?: Omit<DispatchPanelProps, "taskIsDispatchable" | "identity" | "recordCanBrief">;
 };
 
 export function TaskDetail(props: TaskDetailProps) {
@@ -339,11 +342,19 @@ export function TaskDetail(props: TaskDetailProps) {
         <DispatchPanel
           {...props.dispatch}
           taskIsDispatchable={task.ball === "agent" && task.lifecycle !== "closed"}
+          identity={detail.identity}
+          // The same field the server checks, so the page and the guard agree without a
+          // second round trip. `spec.description` is the working specification; an empty
+          // one is the only state that means there is nothing here to work from. Notably
+          // *not* `ball_prompt`, which is empty on every ready task by design.
+          recordCanBrief={Boolean(task.spec.description?.trim())}
         />
       )}
-      {/* Directly under the dispatch panel on purpose. The refusal a human meets there
-          tells them to write the authorising note, and the control that writes one has
-          to be the next thing they see rather than something they go looking for. */}
+      {/* Directly under the dispatch panel on purpose. Dispatching no longer needs a
+          note written first — the button writes its own authorising entry — but a
+          refusal that can still land there (no signed-in user, or a CLI-shaped task
+          somebody is unpicking) names this control, and a page that names a control it
+          does not show is the defect task-185 closed. */}
       <NoteComposer
         identity={detail.identity}
         busy={props.noteBusy}

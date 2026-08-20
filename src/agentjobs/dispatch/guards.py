@@ -17,6 +17,32 @@ in three places is a rule enforced in two places as soon as someone adds a fourt
 
 The permanent cost is real and worth restating: "agent finishes, the next agent picks up
 automatically" will never work. Every turn of the wheel costs one human click.
+
+**What task-188 changed, and what it deliberately did not.** The rule above is intact
+and is still asserted on every path. What changed is *where the entry it reads comes
+from*: a caller that names the human doing the clicking gets that human's authorising
+entry **written to the task record first**, and the rule is then evaluated against the
+stored entry exactly as before.
+
+Read that twice, because the skim-reading of it is wrong. This is **not** "trust an
+actor supplied by the request". The request supplies an identity claim -- the same claim
+`POST /log` and `POST /approve` have always accepted on this unauthenticated localhost
+API -- and the server validates it against the project's configured actors, refuses
+anything that is not `kind: human`, and *persists* the entry. The evidence
+`assert_human_clocked` reads is still a row in the append-only log on disk, resolved
+from storage at spawn time. Design section 2's forgeability requirement is untouched:
+nothing here lets a request supply its own justification, only cause one to be recorded
+under a name the project already recognises. The difference between those two is the
+whole of this design.
+
+Why it was worth doing: the human-clocked check was standing in for two questions at
+once -- *who authorised this run* and *does the agent have enough to work from* -- and
+answering the first by proxying through an artifact of the second. Measured against this
+project's own backlog on 2026-08-20, it refused 72 of 74 open tasks, because the
+`transition` entry the manager writes when an agent files a task is attributed to that
+agent, so every agent-filed task failed from birth. Sufficiency is now asked directly,
+of the spec (`record_can_brief`), and it is the only thing that stops to ask a human for
+text.
 """
 
 from __future__ import annotations
@@ -44,7 +70,7 @@ from agentjobs.dispatch.runner import (
     uncommitted_paths,
 )
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import DispatchTrigger, Lifecycle, LogEntry, Task
+from agentjobs.models_v2 import DispatchTrigger, Lifecycle, LogEntry, LogEntryType, Task
 from agentjobs.projects import Project
 
 TERMINAL_RUN_STATUSES = frozenset({"finished", "cancelled", "failed"})
@@ -75,6 +101,40 @@ class CausingActorNotHumanError(DispatchRefused):
     """The entry that would cause this dispatch was written by an agent."""
 
     reason = "not_human_clocked"
+
+
+class AuthorizerNotHumanError(DispatchRefused):
+    """The identity a caller offered as the authoriser of this run is not a human.
+
+    Distinct from `not_human_clocked`, which is about an entry that already exists. This
+    one refuses *before* anything is written, so a bad identity never leaves a row in an
+    append-only log. An unconfigured id is refused rather than assumed human, for the
+    same reason `assert_human_clocked` refuses one: "we do not know who this is" must
+    not be able to start a process on someone's machine.
+    """
+
+    reason = "authorizer_not_human"
+
+
+class ConflictingAuthorizationError(DispatchRefused):
+    """The caller both named an existing causing entry and asked to write a new one.
+
+    Refused rather than resolved by precedence. The two mean different things -- *this
+    entry authorised the run* versus *I am authorising it now* -- and silently picking
+    one would record an authorisation the caller did not intend.
+    """
+
+    reason = "conflicting_authorization"
+
+
+class RecordCannotBriefError(DispatchRefused):
+    """The task record has no specification, so there is nothing to brief an agent with.
+
+    The one case that stops to ask a human for text. See `record_can_brief` for what is
+    measured and why it is not `ball_prompt`.
+    """
+
+    reason = "insufficient_record"
 
 
 class UnknownRunnerActorError(DispatchRefused):
@@ -147,6 +207,92 @@ def resolve_causing_entry(task: Task, caused_by: Optional[int] = None) -> LogEnt
             return entry
     raise NoCausingEntryError(
         f"{task.id} has no log entry {caused_by}. Newest is {task.log[-1].id}."
+    )
+
+
+def record_can_brief(task: Task) -> bool:
+    """Whether this record, on its own, could brief an agent that has never seen it.
+
+    **Keyed on `spec.description`, and on nothing else.** That is the working
+    specification -- the field the resumption contract makes load-bearing -- and an
+    empty one is the only state that unambiguously means *there is nothing here to work
+    from*.
+
+    Two other candidates were considered and rejected, both deliberately:
+
+    - **`ball_prompt`.** Empty on every `ready` task in this project's backlog (69 of
+      69) *and correctly so*: a `ready`/`agent`/`available` task has not been handed to
+      anyone, it is in the pool, so there is no current ask to state. A check keyed on
+      it fires on 100% of the tasks you dispatch from, which teaches the human to click
+      through the box without reading it -- the exact failure this function exists to
+      avoid.
+    - **An empty `acceptance[]`.** A genuine call, and the answer is no. Two of this
+      project's 74 open tasks have no acceptance criteria and both have a full
+      description; they are exploratory tasks whose record plainly *can* brief an agent.
+      Firing on them would reintroduce ceremony on tasks that do not need it, to buy a
+      criterion the agent is usually expected to propose anyway. Missing acceptance
+      criteria are a grooming problem, not an authorisation one.
+
+    Measured 2026-08-20 against the live corpus: 0 of 74 open tasks fail this, which is
+    what "special occasion" is supposed to mean.
+    """
+    return bool(task.spec.description.strip())
+
+
+def assert_authorizer_is_human(config: Dict[str, object], actor_id: str) -> Actor:
+    """Refuse unless the id a caller is clicking as is a configured human.
+
+    Checked before any write. The entry this authorises must name a real person: one
+    attributed to nobody, or to whatever `default_user` happens to be regardless of who
+    clicked, is worse than the ceremony it replaces, because it looks like evidence and
+    is not.
+
+    Equality with the project's `default_user` is deliberately *not* required, unlike
+    the review endpoints. Those need to know which person is at the keyboard; this needs
+    to know the entry names a real one. A project that eventually configures several
+    humans (task-066) should be able to dispatch as any of them, and the log entry
+    records which.
+    """
+    actor = actor_kind(config, actor_id)
+    if actor is None:
+        known = ", ".join(sorted(load_actors(config))) or "none"
+        raise AuthorizerNotHumanError(
+            f"{actor_id!r} is not an actor this project configures, so a dispatch "
+            f"authorised by them could not be attributed to anyone. Configured actors: "
+            f"{known}. Add them to 'actors:' in .agentjobs/config.yaml with "
+            "'kind: human'."
+        )
+    if not actor.is_human:
+        raise AuthorizerNotHumanError(
+            f"{actor_id!r} is an agent, and an agent may not authorise a dispatch "
+            "(design section 2). This is not a configuration option, and it is what "
+            "keeps an agent-starts-agent loop impossible rather than merely capped."
+        )
+    return actor
+
+
+def compose_authorization_body(actor: Actor, surface: Optional[str] = None) -> str:
+    """The sentence written when a human dispatches without typing anything.
+
+    Composed here rather than sent by the client, on the same principle that makes
+    `promote` compose its own sentence when a human promotes without a note: the record
+    should read as a record, and a body the caller supplies is a body the caller can get
+    wrong. Naming the surface matters because "who clicked" and "what they clicked" are
+    both part of what a later reader is trying to reconstruct.
+
+    It describes an **authorisation, not an outcome**, and the distinction is the whole
+    reason for the wording. The entry is written inside the run lock and before the
+    claim -- deliberately, because that ordering is what makes it evidence rather than
+    decoration -- so the spawn can still be refused after it lands, and the log is
+    append-only, so nothing can take it back. A body reading "Dispatched by ..." beside
+    no `dispatch` entry would be the one sentence this feature can write into a record
+    that is not true. "... authorised a dispatch" is true either way: the human did
+    authorise it, and whether a run followed is what the entries after it say.
+    """
+    where = f" from {surface}" if surface else ""
+    return (
+        f"{actor.display_name} authorised a dispatch of this task{where}. No extra "
+        "instruction was given: the task record is the brief."
     )
 
 
@@ -283,6 +429,33 @@ class DispatchRequest:
     than quietly falling back to the project's runner.
     """
 
+    authorized_by: Optional[str] = None
+    """Actor id of the human doing the clicking, when there is one.
+
+    Set, the dispatcher **writes** that human's authorising entry onto the task and then
+    resolves the causing entry from the stored record, so ``assert_human_clocked`` reads
+    a real row on disk exactly as it always has. Unset -- the CLI, MCP and
+    auto-dispatch -- the causing entry is whatever the log already holds, unchanged.
+
+    This is an identity claim, not evidence, and the difference is load-bearing. The
+    server validates it against the project's configured actors and refuses anything
+    that is not ``kind: human``; what it never does is take a *justification* from the
+    request. See this module's docstring.
+    """
+
+    authorization_note: Optional[str] = None
+    """What the human typed, when the record could not brief an agent without it.
+
+    Becomes the body of the authorising entry, so one action serves both purposes: the
+    text that was missing is now on the record, and the entry that authorises the run is
+    the one that carries it. Optional in every other case, and never a gate -- task-162
+    owns the affordance for adding instructions to a dispatch you are already making.
+    """
+
+    surface: Optional[str] = None
+    """Where the click happened, for the composed sentence. Prose for a reader, never
+    read back by any check."""
+
 
 def dispatch_task(
     *,
@@ -314,6 +487,15 @@ def dispatch_task(
     if task is None:
         raise DispatchRefused(f"No task {request.task_id!r} in project {project.id!r}.")
 
+    authorizer_id = (request.authorized_by or "").strip() or None
+    note = (request.authorization_note or "").strip() or None
+    if authorizer_id is not None and request.caused_by is not None:
+        raise ConflictingAuthorizationError(
+            f"This dispatch named log entry {request.caused_by} as its cause *and* asked "
+            f"to write a new authorising entry as {authorizer_id!r}. Send one or the "
+            "other: citing an entry and creating one are different acts."
+        )
+
     if task.lifecycle is Lifecycle.CLOSED:
         raise TaskClosedError(
             f"{task.id} is closed ({(task.outcome.value if task.outcome else 'no outcome')}). "
@@ -325,8 +507,33 @@ def dispatch_task(
     # of the answer.
     resolution = assert_dispatch_permitted(project.id, home, group=request.group)
 
-    causing = resolve_causing_entry(task, request.caused_by)
-    assert_human_clocked(project_config, causing)
+    # Two ways in, and they differ only in where the authorising entry comes from.
+    #
+    #   * A caller that names the human clicking (the browser) gets that human's entry
+    #     *written* below, inside the run lock, once every refusal that can be judged
+    #     without a write has passed. Nothing is checked against the request after that:
+    #     the entry is re-read from storage and put through `assert_human_clocked` like
+    #     any other.
+    #   * Everyone else (CLI, MCP, auto-dispatch) resolves the entry the log already
+    #     holds, exactly as before.
+    #
+    # Only what can be judged *before* writing happens here; the write is deferred so a
+    # dispatch refused for a live run or a busy machine leaves no authorisation behind
+    # for a run that never started.
+    causing: Optional[LogEntry] = None
+    authorizer: Optional[Actor] = None
+    if authorizer_id is None:
+        causing = resolve_causing_entry(task, request.caused_by)
+        assert_human_clocked(project_config, causing)
+    else:
+        authorizer = assert_authorizer_is_human(project_config, authorizer_id)
+        if note is None and not record_can_brief(task):
+            raise RecordCannotBriefError(
+                f"{task.id} has no spec.description, so there is nothing for an agent to "
+                "work from and nothing this dispatch could be attributed to beyond the "
+                "click itself. Say what the agent should do, and that becomes both the "
+                "brief and the authorising entry."
+            )
     assert_runner_actor_known(project_config, resolution.runner)
 
     running = live_runs(_home(home, resolution))
@@ -374,6 +581,24 @@ def dispatch_task(
         raise LiveRunExistsError(str(exc)) from exc
 
     try:
+        if authorizer is not None:
+            task, causing = _write_authorizing_entry(
+                manager,
+                task,
+                authorizer=authorizer,
+                note=note,
+                surface=request.surface,
+            )
+        if causing is None:  # pragma: no cover - one branch or the other always sets it
+            raise DispatchRefused(f"{task.id} produced no causing entry to dispatch on.")
+
+        # The invariant, asserted once on the final entry whichever path produced it: a
+        # dispatch is caused by a stored log entry whose actor this project configures
+        # as a human. The authorising-entry path does not bypass this check, it
+        # satisfies it -- which is why an agent still cannot cause a dispatch even
+        # though the dispatcher now writes entries of its own.
+        assert_human_clocked(project_config, causing)
+
         task = _claim_or_verify(manager, task, resolution.runner.actor_id)
 
         runner = DispatchRunner(
@@ -396,6 +621,48 @@ def dispatch_task(
 
     handle.lock = lock
     return handle
+
+
+def _write_authorizing_entry(
+    manager: TaskManager,
+    task: Task,
+    *,
+    authorizer: Actor,
+    note: Optional[str],
+    surface: Optional[str],
+) -> tuple[Task, LogEntry]:
+    """Record the human's authorisation, then read it back out of storage.
+
+    The re-read is the point, and it is not defensive padding. `add_log_entry` hands
+    back the object it just persisted, and resolving from *that* would leave the
+    causing entry one in-memory hop away from the request that asked for it. Going
+    through `manager.get_task` means the entry `assert_human_clocked` judges came off
+    disk, so design section 2's "resolved from the stored task, never taken from the
+    request body" is true in the literal sense the sentence means -- and a change that
+    quietly started trusting the request would have to delete this function to work.
+
+    A `note` entry, not a new type. It is exactly what a human writing the authorising
+    note by hand produced before this existed (task-185's control, which stays), so the
+    record reads the same whichever way the human got there, and nothing downstream has
+    to learn a new type to understand an old task.
+    """
+    body = note or compose_authorization_body(authorizer, surface)
+    manager.add_log_entry(
+        task.id,
+        actor=authorizer.id,
+        type=LogEntryType.NOTE,
+        body=body,
+        # Descriptive only. Nothing reads this back to decide anything -- if it did, a
+        # caller could set it on a hand-written note and the flag would become the
+        # forgeable evidence this whole design avoids.
+        data={"authorizes_dispatch": True, "surface": surface}
+        if surface
+        else {"authorizes_dispatch": True},
+    )
+    stored = manager.get_task(task.id)
+    if stored is None:  # pragma: no cover - the task was read moments ago
+        raise DispatchRefused(f"{task.id} disappeared while authorising a dispatch.")
+    return stored, stored.log[-1]
 
 
 def _claim_or_verify(manager: TaskManager, task: Task, agent: str) -> Task:

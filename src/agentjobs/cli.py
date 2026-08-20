@@ -884,7 +884,23 @@ def dispatch_run(
         help="Runner group to pick from, overriding the project's. Must already exist.",
     ),
 ) -> None:
-    """Start an agent on a task, if every gate permits it."""
+    """Start an agent on a task, if every gate permits it.
+
+    **There is no signed-in user here, so this path is unchanged by task-188.** The
+    browser's Dispatch button names the person clicking it and the server writes their
+    authorising entry before the run; a shell has nobody to name, and inventing one --
+    the project's ``default_user``, or ``$USER`` -- would put a signature on the record
+    that no person put there. So this command keeps the original rule: the task's newest
+    log entry (or the one ``--caused-by`` names) must have been written by a configured
+    human, and a task whose newest entry is an agent's is refused with
+    ``not_human_clocked``.
+
+    To satisfy it, write the entry as yourself first -- the ``Add a note`` control on
+    the task page, or the MCP ``task_log_append`` tool with your own actor id -- then
+    dispatch. Giving the CLI a ``--as`` flag was considered and left alone: it is the
+    same trust model the HTTP path already has, but it is a new surface for authorising
+    runs and nothing currently needs it.
+    """
     registry = ProjectRegistry()
     try:
         project = registry.get(project_id) if project_id else registry.resolve_default()

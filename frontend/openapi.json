@@ -730,7 +730,7 @@
         "type": "object"
       },
       "DispatchRequestBody": {
-        "description": "Ask AgentJobs to start an agent on this task.\n\nThere is no ``actor`` field, and that absence is the design. The actor recorded on a\ndispatch is the author of the log entry that *caused* it, not whoever posted the\nrequest -- otherwise the human-clocked rule would be satisfied by a caller naming a\nhuman, which is not evidence of anything.",
+        "description": "Ask AgentJobs to start an agent on this task.\n\nThere is still no ``actor`` field, and that absence is still the design. The actor\nrecorded on a dispatch is the author of the log entry that *caused* it, never\nwhoever posted the request.\n\n``user`` is not that field, and the distinction is the whole of task-188. It does\nnot name the cause of the dispatch; it names the person whose authorising entry the\nserver should **write** before dispatching. The entry is persisted, then re-read\nfrom storage, then put through the human-clocked check like any other -- so the\nevidence remains a row in the append-only log, and a request that tried to supply\nits own justification still gets nowhere. The identity claim itself is validated\nagainst the project's configured actors and refused unless it is ``kind: human``,\nexactly as ``POST /log`` and ``POST /approve`` have always validated theirs.\n\nOmit ``user`` and nothing changes: the causing entry is whatever the log already\nholds, which is what the CLI, MCP and auto-dispatch do.",
         "properties": {
           "caused_by": {
             "anyOf": [
@@ -756,6 +756,31 @@
             ],
             "description": "Runner group to choose from, overriding the project's. Names a group this machine already defines; it never creates one, and it cannot open a gate that is closed.",
             "title": "Group"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the human typed, when the record could not brief an agent on its own. Becomes the body of the authorising entry. Only meaningful alongside 'user'.",
+            "title": "Note"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The signed-in human clicking Dispatch. Their authorising entry is written to the task before the run starts, and the dispatch is attributed to it. Must be an actor this project configures with 'kind: human'. Mutually exclusive with caused_by.",
+            "title": "User"
           }
         },
         "title": "DispatchRequestBody",
@@ -5451,7 +5476,7 @@
     },
     "/api/projects/{project_id}/tasks/{task_id}/dispatch": {
       "post": {
-        "description": "Start an agent on this task.\n\nDeliberately **not** merged into any approval endpoint. Approving means \"I agree\";\ndispatching means \"spend money now\", and collapsing the two would turn every\napproval into an implicit purchase (design decision D1).\n\n202 rather than 200: the run has started, and how it ends arrives later as\n``dispatch_result`` entries on the task, not in this response.\n\nThe address handed to the agent is this server's own, taken from the socket the\nrequest arrived on. Until 2026-08-19 nothing was passed and the runner's default\nwon, so a dashboard on any other port dispatched agents at ``:8765`` -- an address\nthat, on the machine this was built for, is deliberately dead (task-154).",
+        "description": "Start an agent on this task.\n\nDeliberately **not** merged into any approval endpoint. Approving means \"I agree\";\ndispatching means \"spend money now\", and collapsing the two would turn every\napproval into an implicit purchase (design decision D1).\n\n202 rather than 200: the run has started, and how it ends arrives later as\n``dispatch_result`` entries on the task, not in this response.\n\nThe address handed to the agent is this server's own, taken from the socket the\nrequest arrived on. Until 2026-08-19 nothing was passed and the runner's default\nwon, so a dashboard on any other port dispatched agents at ``:8765`` -- an address\nthat, on the machine this was built for, is deliberately dead (task-154).\n\n**``user`` makes this one click (task-188).** Supplied, the guard layer writes that\nhuman's authorising entry onto the task and dispatches on it, so a person no longer\nhas to know to write a note by hand before every run. It is validated as a\nconfigured human and it is not the dispatch's ``actor``; see\n:class:`DispatchRequestBody` for why those are different things.\n\n**Omitted, this endpoint behaves exactly as it did before.** It does *not* quietly\nsubstitute the project's ``default_user``: a run has to be signed for by whoever\nasked for it, and a server-side default would produce an entry that looks like a\nperson's authorisation and is really just a config value. So a caller with no\nsigned-in user falls back to the pre-existing rule -- the newest stored entry must\nbe a human's -- and is refused with ``not_human_clocked`` if it is not. That is the\nsame answer the CLI gets, and the React app disables the button and says so rather\nthan letting someone press it into a refusal.",
         "operationId": "dispatch_task_endpoint_api_projects__project_id__tasks__task_id__dispatch_post",
         "parameters": [
           {
@@ -7109,7 +7134,7 @@
     },
     "/api/tasks/{task_id}/dispatch": {
       "post": {
-        "description": "Start an agent on this task.\n\nDeliberately **not** merged into any approval endpoint. Approving means \"I agree\";\ndispatching means \"spend money now\", and collapsing the two would turn every\napproval into an implicit purchase (design decision D1).\n\n202 rather than 200: the run has started, and how it ends arrives later as\n``dispatch_result`` entries on the task, not in this response.\n\nThe address handed to the agent is this server's own, taken from the socket the\nrequest arrived on. Until 2026-08-19 nothing was passed and the runner's default\nwon, so a dashboard on any other port dispatched agents at ``:8765`` -- an address\nthat, on the machine this was built for, is deliberately dead (task-154).",
+        "description": "Start an agent on this task.\n\nDeliberately **not** merged into any approval endpoint. Approving means \"I agree\";\ndispatching means \"spend money now\", and collapsing the two would turn every\napproval into an implicit purchase (design decision D1).\n\n202 rather than 200: the run has started, and how it ends arrives later as\n``dispatch_result`` entries on the task, not in this response.\n\nThe address handed to the agent is this server's own, taken from the socket the\nrequest arrived on. Until 2026-08-19 nothing was passed and the runner's default\nwon, so a dashboard on any other port dispatched agents at ``:8765`` -- an address\nthat, on the machine this was built for, is deliberately dead (task-154).\n\n**``user`` makes this one click (task-188).** Supplied, the guard layer writes that\nhuman's authorising entry onto the task and dispatches on it, so a person no longer\nhas to know to write a note by hand before every run. It is validated as a\nconfigured human and it is not the dispatch's ``actor``; see\n:class:`DispatchRequestBody` for why those are different things.\n\n**Omitted, this endpoint behaves exactly as it did before.** It does *not* quietly\nsubstitute the project's ``default_user``: a run has to be signed for by whoever\nasked for it, and a server-side default would produce an entry that looks like a\nperson's authorisation and is really just a config value. So a caller with no\nsigned-in user falls back to the pre-existing rule -- the newest stored entry must\nbe a human's -- and is refused with ``not_human_clocked`` if it is not. That is the\nsame answer the CLI gets, and the React app disables the button and says so rather\nthan letting someone press it into a refusal.",
         "operationId": "dispatch_task_endpoint_api_tasks__task_id__dispatch_post",
         "parameters": [
           {

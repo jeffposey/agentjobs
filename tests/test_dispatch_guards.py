@@ -27,8 +27,10 @@ from agentjobs.dispatch.config import (
     ProjectNotEnabledError,
 )
 from agentjobs.dispatch.guards import (
+    AuthorizerNotHumanError,
     CausingActorNotHumanError,
     ClaimLostError,
+    ConflictingAuthorizationError,
     ConcurrencyLimitError,
     DirtyTreeError,
     DispatchRequest,
@@ -36,12 +38,15 @@ from agentjobs.dispatch.guards import (
     LiveRunExistsError,
     NoCausingEntryError,
     OwnerMismatchError,
+    RecordCannotBriefError,
     TaskClosedError,
     assert_human_clocked,
     dispatch_task,
     live_runs,
+    record_can_brief,
     resolve_causing_entry,
 )
+from agentjobs.dispatch.runner import DispatchRunner
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome
 from agentjobs.projects import Project
@@ -618,3 +623,380 @@ class TestClaimBeforeSpawn:
         # One dispatch entry and one dispatch_result; no second claim transition.
         added = [e.type for e in task.log[before:]]
         assert LogEntryType.TRANSITION not in added
+
+
+# ----- one click: the button writes the authorising entry (task-188) -----------
+
+
+def run_as(
+    manager,
+    project,
+    home,
+    task_id,
+    *,
+    user: Optional[str],
+    note: Optional[str] = None,
+    surface: Optional[str] = "the task page",
+):
+    """Call the guard chain the way the React app's Dispatch button does."""
+    return dispatch_task(
+        manager=manager,
+        project=project,
+        project_config=PROJECT_CONFIG,
+        request=DispatchRequest(
+            task_id=task_id,
+            authorized_by=user,
+            authorization_note=note,
+            surface=surface,
+        ),
+        home=home,
+    )
+
+
+@pytest.fixture
+def agent_filed_task(manager: TaskManager):
+    """The shape 68 of this project's 74 open tasks were in on 2026-08-20.
+
+    A complete spec, filed by an agent, whose newest entry is therefore an agent's
+    `transition`. Before task-188 this was refused, which made the refusal the default
+    state of the backlog rather than the exception.
+    """
+    return manager.create_task(
+        title="Filed by an agent",
+        category="general",
+        summary="A task an agent filed.",
+        description="Do the thing, in detail.",
+        lifecycle=Lifecycle.READY,
+        actor="claude",
+    )
+
+
+class TestAuthorizingEntryIsWritten:
+    def test_a_complete_agent_filed_task_dispatches_with_no_note_written_by_hand(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        agent_filed_task,
+    ) -> None:
+        """ac-1. The case that used to be 97% of the backlog and refused every time."""
+        write_dispatch_config(home, fake_runner)
+        before = manager.get_task(agent_filed_task.id)
+        assert before is not None
+        assert before.log[-1].actor == "claude"
+
+        handle = run_as(manager, project, home, agent_filed_task.id, user="Jeff Posey")
+        settle(handle)
+
+        assert handle.run_id.startswith("run_")
+
+    def test_the_causing_entry_is_a_real_stored_entry_by_the_named_human(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        agent_filed_task,
+    ) -> None:
+        """ac-2. Not a synthesised justification: a row on disk, resolvable by id."""
+        write_dispatch_config(home, fake_runner)
+
+        handle = run_as(manager, project, home, agent_filed_task.id, user="Jeff Posey")
+        settle(handle)
+
+        # Re-read through a fresh manager rather than trusting the handle, because "it
+        # is on disk" is precisely the property under test.
+        stored = TaskManager(TaskStorage(project.root / "tasks")).get_task(agent_filed_task.id)
+        assert stored is not None
+        caused_by = handle.directory.read_meta()["caused_by"]
+        entry = resolve_causing_entry(stored, caused_by)
+        assert entry.actor == "Jeff Posey"
+        assert entry.type is LogEntryType.NOTE
+        assert entry.body is not None
+        assert "Jeff Posey" in entry.body
+        assert "the task page" in entry.body
+
+    def test_the_dispatch_reads_its_evidence_from_storage_not_from_the_request(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        agent_filed_task,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """ac-2, the half that matters.
+
+        The forgeability requirement is that the causing entry is resolved *from the
+        stored task*. Make storage stop handing the written entry back and the dispatch
+        must fail -- there is nowhere else for it to get one. An implementation that
+        quietly started trusting the request body would sail past this.
+        """
+        write_dispatch_config(home, fake_runner)
+        original = TaskManager.get_task
+        reads: List[str] = []
+
+        def forgetful(self, task_id, *args, **kwargs):
+            task = original(self, task_id, *args, **kwargs)
+            reads.append(task_id)
+            if task is not None and len(reads) > 1:
+                # The post-write read the authorising path depends on comes back empty.
+                task.log = []
+            return task
+
+        monkeypatch.setattr(TaskManager, "get_task", forgetful)
+
+        with pytest.raises((DispatchRefused, IndexError)):
+            run_as(manager, project, home, agent_filed_task.id, user="Jeff Posey")
+
+        assert live_runs(home) == []
+
+    def test_an_agent_cannot_authorize_a_dispatch(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        agent_filed_task,
+    ) -> None:
+        """ac-3. The rule survives the change: a name is not enough, the kind decides."""
+        write_dispatch_config(home, fake_runner)
+
+        with pytest.raises(AuthorizerNotHumanError) as caught:
+            run_as(manager, project, home, agent_filed_task.id, user="claude")
+
+        assert caught.value.reason == "authorizer_not_human"
+        assert live_runs(home) == []
+        # And nothing was written. A refused authorisation must not leave a row behind
+        # in a log that is never rewritten.
+        stored = manager.get_task(agent_filed_task.id)
+        assert stored is not None
+        assert not [e for e in stored.log if e.type is LogEntryType.NOTE]
+
+    def test_an_unconfigured_authorizer_is_refused_rather_than_assumed_human(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        agent_filed_task,
+    ) -> None:
+        write_dispatch_config(home, fake_runner)
+
+        with pytest.raises(AuthorizerNotHumanError):
+            run_as(manager, project, home, agent_filed_task.id, user="somebody-new")
+
+        assert live_runs(home) == []
+
+    def test_naming_an_entry_and_writing_one_are_mutually_exclusive(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        ready_task,
+    ) -> None:
+        write_dispatch_config(home, fake_runner)
+
+        with pytest.raises(ConflictingAuthorizationError):
+            dispatch_task(
+                manager=manager,
+                project=project,
+                project_config=PROJECT_CONFIG,
+                request=DispatchRequest(
+                    task_id=ready_task.id, caused_by=1, authorized_by="Jeff Posey"
+                ),
+                home=home,
+            )
+
+    def test_no_authorizing_user_falls_back_to_the_stored_rule(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        agent_filed_task,
+    ) -> None:
+        """ac-6. A dispatch nobody signed for is refused, not signed for by the server.
+
+        The CLI's behaviour, and what the browser would get if no human were configured.
+        The alternative -- quietly attributing it to the project's `default_user` --
+        would put a person's name on a run they did not ask for.
+        """
+        write_dispatch_config(home, fake_runner)
+
+        with pytest.raises(CausingActorNotHumanError) as caught:
+            run_as(manager, project, home, agent_filed_task.id, user=None)
+
+        assert caught.value.reason == "not_human_clocked"
+        assert live_runs(home) == []
+
+    def test_a_refusal_after_the_early_gates_leaves_no_authorization_behind(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        agent_filed_task,
+    ) -> None:
+        """A dirty tree refuses, and the record is untouched.
+
+        The entry is written inside the run lock, after every refusal that can be judged
+        without writing. A task must not accumulate authorisations for runs that never
+        started.
+        """
+        write_dispatch_config(home, fake_runner)
+        (project.root / "scratch.txt").write_text("dirty\n", encoding="utf-8")
+        before = manager.get_task(agent_filed_task.id)
+        assert before is not None
+
+        with pytest.raises(DirtyTreeError):
+            run_as(manager, project, home, agent_filed_task.id, user="Jeff Posey")
+
+        after = manager.get_task(agent_filed_task.id)
+        assert after is not None
+        assert len(after.log) == len(before.log)
+
+    def test_a_spawn_that_fails_leaves_an_authorisation_not_a_claimed_dispatch(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        agent_filed_task,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The composed sentence has to be true when the spawn does not happen.
+
+        The entry is written inside the run lock and before the claim, on purpose --
+        that ordering is what makes it evidence resolved from storage rather than a
+        justification carried on the request. The consequence is that `runner.start`
+        can still fail after it lands, and an append-only log cannot take it back. So
+        the sentence describes the human's act and not the machine's outcome: it says
+        they *authorised* a dispatch, which stays true, rather than that one *happened*,
+        which would be the only untrue thing this feature could write into a record.
+        """
+        write_dispatch_config(home, fake_runner)
+
+        def refuse_to_spawn(self, *args, **kwargs):
+            raise RuntimeError("the runner could not be spawned")
+
+        monkeypatch.setattr(DispatchRunner, "start", refuse_to_spawn)
+
+        with pytest.raises(RuntimeError):
+            run_as(manager, project, home, agent_filed_task.id, user="Jeff Posey")
+
+        stored = manager.get_task(agent_filed_task.id)
+        assert stored is not None
+        notes = [e for e in stored.log if e.type is LogEntryType.NOTE]
+        assert len(notes) == 1
+        body = notes[0].body or ""
+        assert body.startswith("Jeff Posey authorised a dispatch of this task")
+        # And it does not claim a run happened, because none did.
+        assert "Dispatched by" not in body
+        assert [e for e in stored.log if e.type is LogEntryType.DISPATCH] == []
+        assert live_runs(home) == []
+
+
+class TestSufficiency:
+    def test_a_description_is_enough_and_never_asks_for_text(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        agent_filed_task,
+    ) -> None:
+        write_dispatch_config(home, fake_runner)
+        stored = manager.get_task(agent_filed_task.id)
+        assert stored is not None
+        assert record_can_brief(stored) is True
+
+        handle = run_as(manager, project, home, agent_filed_task.id, user="Jeff Posey")
+        settle(handle)
+        assert handle.run_id.startswith("run_")
+
+    def test_an_empty_description_stops_to_ask(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path
+    ) -> None:
+        """ac-4, the trigger. Keyed on the spec, not on ball_prompt."""
+        write_dispatch_config(home, fake_runner)
+        task = manager.create_task(
+            title="Nothing to go on",
+            category="general",
+            summary="A task with no working spec.",
+            description="   ",
+            lifecycle=Lifecycle.READY,
+            actor="claude",
+        )
+
+        with pytest.raises(RecordCannotBriefError) as caught:
+            run_as(manager, project, home, task.id, user="Jeff Posey")
+
+        assert caught.value.reason == "insufficient_record"
+        assert live_runs(home) == []
+
+    def test_the_typed_text_becomes_the_authorizing_entry(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path
+    ) -> None:
+        """ac-4, the rest. One action serves both purposes."""
+        write_dispatch_config(home, fake_runner)
+        task = manager.create_task(
+            title="Nothing to go on",
+            category="general",
+            summary="A task with no working spec.",
+            description="",
+            lifecycle=Lifecycle.READY,
+            actor="claude",
+        )
+
+        handle = run_as(
+            manager,
+            project,
+            home,
+            task.id,
+            user="Jeff Posey",
+            note="Port the widget to v2.",
+        )
+        settle(handle)
+
+        stored = manager.get_task(task.id)
+        assert stored is not None
+        entry = resolve_causing_entry(stored, handle.directory.read_meta()["caused_by"])
+        assert entry.actor == "Jeff Posey"
+        assert entry.body == "Port the widget to v2."
+
+    def test_an_empty_ball_prompt_does_not_trigger_the_ask(self, manager: TaskManager) -> None:
+        """The rejected alternative, pinned.
+
+        Every `ready` task has an empty `ball_prompt` and that is correct -- it is in the
+        pool, not handed to anyone. A check keyed on it would fire on all of them.
+        """
+        task = manager.create_task(
+            title="In the pool",
+            category="general",
+            summary="Ready and unassigned.",
+            description="A full working specification.",
+            lifecycle=Lifecycle.READY,
+            actor="claude",
+        )
+        stored = manager.get_task(task.id)
+        assert stored is not None
+        assert stored.ball_prompt is None
+        assert record_can_brief(stored) is True
+
+    def test_missing_acceptance_criteria_do_not_trigger_the_ask(self, manager: TaskManager) -> None:
+        """The other rejected trigger, pinned. A grooming gap, not an authorisation one."""
+        task = manager.create_task(
+            title="No acceptance criteria",
+            category="general",
+            summary="Exploratory.",
+            description="Find out whether the cache is the problem.",
+            lifecycle=Lifecycle.READY,
+            actor="claude",
+        )
+        stored = manager.get_task(task.id)
+        assert stored is not None
+        assert stored.acceptance == []
+        assert record_can_brief(stored) is True

@@ -426,6 +426,9 @@ _DISPATCH_STATUS: dict = {
     "no_eligible_runner": status.HTTP_409_CONFLICT,
     "invalid_config": status.HTTP_500_INTERNAL_SERVER_ERROR,
     "not_human_clocked": status.HTTP_403_FORBIDDEN,
+    "authorizer_not_human": status.HTTP_403_FORBIDDEN,
+    "conflicting_authorization": status.HTTP_400_BAD_REQUEST,
+    "insufficient_record": status.HTTP_409_CONFLICT,
     "no_causing_entry": status.HTTP_409_CONFLICT,
     "task_closed": status.HTTP_409_CONFLICT,
     "live_run_exists": status.HTTP_409_CONFLICT,
@@ -447,6 +450,13 @@ _DISPATCH_ACTION: dict = {
     ),
     "not_human_clocked": (
         "Act on the task yourself, then dispatch. This rule is not configurable."
+    ),
+    "authorizer_not_human": (
+        "Dispatch as a human this project configures. This rule is not configurable."
+    ),
+    "conflicting_authorization": ("Send either 'caused_by' or 'user', not both."),
+    "insufficient_record": (
+        "Say what the agent should do; it is written onto the task as the authorising " "entry."
     ),
     "no_causing_entry": "Write the note or handoff that authorises this run first.",
     "task_closed": "Reopen the task before dispatching at it.",
@@ -499,6 +509,21 @@ async def dispatch_task_endpoint(
     request arrived on. Until 2026-08-19 nothing was passed and the runner's default
     won, so a dashboard on any other port dispatched agents at ``:8765`` -- an address
     that, on the machine this was built for, is deliberately dead (task-154).
+
+    **``user`` makes this one click (task-188).** Supplied, the guard layer writes that
+    human's authorising entry onto the task and dispatches on it, so a person no longer
+    has to know to write a note by hand before every run. It is validated as a
+    configured human and it is not the dispatch's ``actor``; see
+    :class:`DispatchRequestBody` for why those are different things.
+
+    **Omitted, this endpoint behaves exactly as it did before.** It does *not* quietly
+    substitute the project's ``default_user``: a run has to be signed for by whoever
+    asked for it, and a server-side default would produce an entry that looks like a
+    person's authorisation and is really just a config value. So a caller with no
+    signed-in user falls back to the pre-existing rule -- the newest stored entry must
+    be a human's -- and is refused with ``not_human_clocked`` if it is not. That is the
+    same answer the CLI gets, and the React app disables the button and says so rather
+    than letting someone press it into a refusal.
     """
     try:
         handle = dispatch_task(
@@ -506,7 +531,17 @@ async def dispatch_task_endpoint(
             project=project,
             project_config=project_config(project),
             request=DispatchRequest(
-                task_id=task_id, caused_by=payload.caused_by, group=payload.group
+                task_id=task_id,
+                caused_by=payload.caused_by,
+                group=payload.group,
+                # Passed straight through, and deliberately not defaulted to the
+                # project's `default_user` when the client omits it. A dispatch nobody
+                # signed for must fall back to the entry the log already holds -- which
+                # is what the CLI does -- rather than have this endpoint invent a
+                # signature on the record. See the endpoint docstring.
+                authorized_by=payload.user,
+                authorization_note=payload.note,
+                surface="the task page" if payload.user else None,
             ),
             api_base=serving_api_base(request),
         )
