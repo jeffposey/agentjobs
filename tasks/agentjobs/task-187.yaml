@@ -3,7 +3,7 @@ id: task-187
 title: Two worktrees cannot run the gate at the same time, because Playwright's port
   is a constant
 created: '2026-08-19T23:41:13.123280Z'
-updated: '2026-08-20T05:34:34.244760Z'
+updated: '2026-08-20T05:35:07.179731Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -198,3 +198,13 @@ log:
       id: 7b21e0d9-84fa-4c33-b6a5-9d2f14c7e880
       kind: release
       fingerprint: 0795e8a73e3a85852dbf66bf32a57374
+- id: 7
+  ts: '2026-08-20T05:35:07.179469Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 4
+  data:
+    run_id: run_d7c09293
+    outcome: completed
+    duration_seconds: 79.58998
+    log_path: C:\Users\jpose\.agentjobs\runs\run_d7c09293
