@@ -190,8 +190,15 @@ export type DispatchPanelProps = {
    * There is deliberately no always-present optional box feeding this. Adding an
    * instruction to a dispatch you are already making is task-162's feature, and voice
    * is task-172's; building a second input here would be something they had to remove.
+   *
+   * **Resolves `true` only when a run actually started.** The handler owns the refusal
+   * -- it reads the guard's reason and renders it -- so it resolves rather than throws,
+   * and this panel therefore cannot learn from the promise settling whether the click
+   * worked. It has to be told, because the one thing it does on success is destroy the
+   * only copy of what the human typed. `boolean` rather than `void` is what makes a
+   * caller that forgets to say so a type error instead of a silently emptied textarea.
    */
-  onDispatch: (note?: string) => Promise<void> | void;
+  onDispatch: (note?: string) => Promise<boolean> | boolean;
   onCancel: (runId: string) => Promise<void> | void;
   /**
    * The output panel for one run, supplied rather than imported.
@@ -299,8 +306,16 @@ export function DispatchPanel({
             event.preventDefault();
             const value = brief.trim();
             if (!value) return;
+            // Cleared only when a run started. This text exists nowhere else -- it has
+            // not been saved to the task, and after task-172 it may have been dictated
+            // rather than typed -- so a refusal that empties the box costs the sentence
+            // rather than a click. Which is exactly what shipped and was caught in
+            // review: the handler resolves on refusal too, so a `.then(clear)` cleared
+            // on every outcome and the rejection branch written to prevent it was dead.
             void Promise.resolve(onDispatch(value)).then(
-              () => setBrief(""),
+              (started) => {
+                if (started) setBrief("");
+              },
               () => undefined,
             );
           }}

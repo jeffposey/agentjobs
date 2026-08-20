@@ -63,7 +63,10 @@ function identity(overrides: Partial<ReviewIdentity> = {}): ReviewIdentity {
 }
 
 function renderPanel(props: Partial<Parameters<typeof DispatchPanel>[0]> = {}) {
-  const onDispatch = vi.fn(async (_note?: string) => undefined);
+  // Resolves `true`: the default is a dispatch that started. A refusal is `false`, and
+  // the tests that need one say so, because the difference decides whether the human's
+  // typed brief survives.
+  const onDispatch = vi.fn(async (_note?: string) => true);
   const onCancel = vi.fn(async (_runId: string) => undefined);
   render(
     <DispatchPanel
@@ -158,6 +161,59 @@ describe("one click (task-188)", () => {
 
     expect(screen.getByRole("button", { name: /dispatch/i })).toBeDisabled();
     expect(onDispatch).not.toHaveBeenCalled();
+  });
+
+  it("keeps the typed brief when the dispatch is refused", async () => {
+    // The defect Jeff found by clicking it: he typed a brief, the sandbox's only run
+    // slot was busy, and the textarea came back empty. This is the one path in the
+    // feature where a human has written something that exists nowhere else -- it has
+    // not been saved to the task -- so a refusal that clears it costs the sentence
+    // rather than a click, and after task-172 that sentence may have been dictated.
+    // The handler resolves on a refusal (it renders the reason itself), so the panel
+    // is told by the resolved value rather than by the promise settling.
+    const onDispatch = vi.fn(async (_note?: string) => false);
+    render(
+      <DispatchPanel
+        state={state()}
+        runs={[]}
+        taskIsDispatchable
+        identity={identity()}
+        recordCanBrief={false}
+        onDispatch={onDispatch}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const box = screen.getByRole("textbox", { name: /say what the agent should do/i });
+    fireEvent.change(box, { target: { value: "Port the widget to v2." } });
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+
+    await waitFor(() => expect(onDispatch).toHaveBeenCalledWith("Port the widget to v2."));
+    expect(box).toHaveValue("Port the widget to v2.");
+  });
+
+  it("clears the brief once a run has actually started", async () => {
+    // The other half, and the reason the field is cleared at all: a brief that survived
+    // a successful dispatch would be retyped into the next one by anyone who did not
+    // notice, and re-submitted as a second authorising entry.
+    const onDispatch = vi.fn(async (_note?: string) => true);
+    render(
+      <DispatchPanel
+        state={state()}
+        runs={[]}
+        taskIsDispatchable
+        identity={identity()}
+        recordCanBrief={false}
+        onDispatch={onDispatch}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const box = screen.getByRole("textbox", { name: /say what the agent should do/i });
+    fireEvent.change(box, { target: { value: "Port the widget to v2." } });
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+
+    await waitFor(() => expect(box).toHaveValue(""));
   });
 
   it("opens the box when the server says the record is insufficient, even if the page thought otherwise", () => {
