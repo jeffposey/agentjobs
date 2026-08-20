@@ -3,11 +3,9 @@ id: task-190
 title: 'Run locks leak: release depends on in-memory state, so a server restart blocks
   those tasks forever'
 created: '2026-08-20T07:08:47.960269Z'
-updated: '2026-08-20T18:28:08.305780Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-20T18:29:20.726538Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: reliability
@@ -18,7 +16,6 @@ tags:
 - leak
 effort: small
 assignment:
-  owner: claude
   eligible: []
 parent: task-181-dispatch-phase-one-hardening
 spec:
@@ -173,7 +170,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-190-run-lock-leak
-  status: active
+  status: merged
+  merged_at: '2026-08-20T18:35:00Z'
 log:
 - id: 1
   ts: '2026-08-20T07:08:47.960314Z'
@@ -509,3 +507,33 @@ log:
     \ lock gone when the run\nfinished), and worth stating because it is what narrowed\
     \ the completion-path gap to\nsessions.\n"
   data: {}
+- id: 10
+  ts: '2026-08-20T18:29:20.726386Z'
+  actor: claude
+  type: transition
+  body: 'Merged to main as 9f4f879 (--no-ff), on Jeff''s advance approval of 2026-08-20.
+    Worktree C:/projects/aj-190 removed, branch deleted.
+
+
+    The fix: a run lock now records the run it is held for, closes its descriptor
+    at once, and is reclaimed when that run''s record is terminal -- or, with no run
+    record to consult, when the process that took it is gone. Nothing expires on a
+    clock. The session poller releases the lock as it settles a run, which is the
+    root cause the description suspected and the half neither of the spec''s two directions
+    covered. Startup reconciliation sweeps by the same rule after it concludes orphaned
+    runs, so a restart heals the leak it used to cause.
+
+
+    Gate green: 2042 pytest, 153 Vitest, production build, 16 Playwright, exit 0.
+    ac-3 verified by killing and restarting a real server mid-run twice -- once batch,
+    once with a real claude session -- and ac-6 by reproducing both leak mechanisms
+    on a sandbox home before writing anything.
+
+
+    Two findings were split out rather than absorbed: task-196 (`agentjobs restart`
+    can add a server generation instead of replacing one) and task-197 (the session
+    poller resolves the project''s default runner, not the run''s, so a group dispatch
+    is polled with the wrong executable).'
+  data:
+    lifecycle: closed
+    outcome: completed
