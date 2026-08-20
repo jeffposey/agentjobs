@@ -855,6 +855,21 @@ export const getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetOptions = (opt
  * request arrived on. Until 2026-08-19 nothing was passed and the runner's default
  * won, so a dashboard on any other port dispatched agents at ``:8765`` -- an address
  * that, on the machine this was built for, is deliberately dead (task-154).
+ *
+ * **``user`` makes this one click (task-188).** Supplied, the guard layer writes that
+ * human's authorising entry onto the task and dispatches on it, so a person no longer
+ * has to know to write a note by hand before every run. It is validated as a
+ * configured human and it is not the dispatch's ``actor``; see
+ * :class:`DispatchRequestBody` for why those are different things.
+ *
+ * **Omitted, this endpoint behaves exactly as it did before.** It does *not* quietly
+ * substitute the project's ``default_user``: a run has to be signed for by whoever
+ * asked for it, and a server-side default would produce an entry that looks like a
+ * person's authorisation and is really just a config value. So a caller with no
+ * signed-in user falls back to the pre-existing rule -- the newest stored entry must
+ * be a human's -- and is refused with ``not_human_clocked`` if it is not. That is the
+ * same answer the CLI gets, and the React app disables the button and says so rather
+ * than letting someone press it into a refusal.
  */
 export const dispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostMutation = (options?: Partial<Options<DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostData>>): UseMutationOptions<DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostResponse, DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostError, Options<DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostData>> => {
     const mutationOptions: UseMutationOptions<DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostResponse, DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostError, Options<DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostData>> = {
@@ -1435,6 +1450,21 @@ export const getTaskDetailApiTasksTaskIdDetailGetOptions = (options: Options<Get
  * request arrived on. Until 2026-08-19 nothing was passed and the runner's default
  * won, so a dashboard on any other port dispatched agents at ``:8765`` -- an address
  * that, on the machine this was built for, is deliberately dead (task-154).
+ *
+ * **``user`` makes this one click (task-188).** Supplied, the guard layer writes that
+ * human's authorising entry onto the task and dispatches on it, so a person no longer
+ * has to know to write a note by hand before every run. It is validated as a
+ * configured human and it is not the dispatch's ``actor``; see
+ * :class:`DispatchRequestBody` for why those are different things.
+ *
+ * **Omitted, this endpoint behaves exactly as it did before.** It does *not* quietly
+ * substitute the project's ``default_user``: a run has to be signed for by whoever
+ * asked for it, and a server-side default would produce an entry that looks like a
+ * person's authorisation and is really just a config value. So a caller with no
+ * signed-in user falls back to the pre-existing rule -- the newest stored entry must
+ * be a human's -- and is refused with ``not_human_clocked`` if it is not. That is the
+ * same answer the CLI gets, and the React app disables the button and says so rather
+ * than letting someone press it into a refusal.
  */
 export const dispatchTaskEndpointApiTasksTaskIdDispatchPostMutation = (options?: Partial<Options<DispatchTaskEndpointApiTasksTaskIdDispatchPostData>>): UseMutationOptions<DispatchTaskEndpointApiTasksTaskIdDispatchPostResponse, DispatchTaskEndpointApiTasksTaskIdDispatchPostError, Options<DispatchTaskEndpointApiTasksTaskIdDispatchPostData>> => {
     const mutationOptions: UseMutationOptions<DispatchTaskEndpointApiTasksTaskIdDispatchPostResponse, DispatchTaskEndpointApiTasksTaskIdDispatchPostError, Options<DispatchTaskEndpointApiTasksTaskIdDispatchPostData>> = {

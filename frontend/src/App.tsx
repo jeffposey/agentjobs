@@ -141,7 +141,7 @@ function TaskListPage({ projectId }: { projectId: string }) {
  * run ended. It stops polling the moment nothing is live, so an idle task costs the
  * same as it did before dispatch existed.
  */
-function useTaskDispatch(projectId: string, taskId: string) {
+function useTaskDispatch(projectId: string, taskId: string, user: string | null) {
   const queryClient = useQueryClient();
   const [refusal, setRefusal] = useState<DispatchRefusal | null>(null);
   const [cancellingRunId, setCancellingRunId] = useState<string | null>(null);
@@ -175,10 +175,22 @@ function useTaskDispatch(projectId: string, taskId: string) {
     busy: start.isPending,
     cancellingRunId,
     dispatchRefusal: refusal,
-    onDispatch: async () => {
+    onDispatch: async (note?: string) => {
       setRefusal(null);
       try {
-        await start.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: {} });
+        // `user` names who is clicking, and the server writes their authorising entry
+        // before it starts anything — which is what makes this one click on a task an
+        // agent filed. It is not the dispatch's actor and it is not its justification:
+        // the entry is persisted first and the guard reads it back from storage.
+        //
+        // Null when no human is configured, in which case nothing is sent and the
+        // server falls back to the pre-task-188 rule rather than signing the run with
+        // whatever `default_user` happens to be. The panel disables the button before
+        // it comes to that.
+        await start.mutateAsync({
+          path: { project_id: projectId, task_id: taskId },
+          body: { ...(user ? { user } : {}), ...(note ? { note } : {}) },
+        });
       } catch (error) {
         const read = readRefusal(error);
         // Every guard has its own code and its own sentence. Collapsing them into
@@ -268,7 +280,7 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
   // a failure to report and forget: the page reloads and the human is asked again,
   // so the explanation has to outlive the mutation that produced it.
   const [promoteError, setPromoteError] = useState<string | null>(null);
-  const dispatch = useTaskDispatch(projectId, taskId);
+  const dispatch = useTaskDispatch(projectId, taskId, detailQuery.data?.identity.user ?? null);
 
   if (detailQuery.error instanceof UnsupportedTaskSchemaError) return <StatusCard title="Unsupported task schema">{detailQuery.error.message}</StatusCard>;
   if (detailQuery.isPending) return <StatusCard title="Opening task...">Loading the complete task record.</StatusCard>;
