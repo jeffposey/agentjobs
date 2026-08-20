@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-20T23:17:31.414462Z'
+updated: '2026-08-20T23:34:15.530859Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -279,3 +279,86 @@ log:
         eligible: true
       - runner: chatgpt-sol
         eligible: true
+- id: 7
+  ts: '2026-08-20T23:34:15.530654Z'
+  actor: claude
+  type: progress
+  body: 'Design written and children derived. Branch `design/task-081-queue-position`,
+    worktree `../worktrees/agentjobs-081`.
+
+
+    **Deliverable:** `docs/task-selection-design.md`, registered in `mkdocs.yml` and
+    `docs/index.md`.
+
+
+    **What it settles, beyond restating D1 (log entry 2):**
+
+
+    - Storage: the position lives on the task, not in a project-level `queue.yaml`.
+    A central list would make uniqueness structural and a reorder a one-file diff,
+    but it breaks the resumption contract (a task could not tell you where it sits),
+    it is a merge hotspot for concurrent agents, and it can disagree with the corpus.
+    Rejected with reasons in section 12.
+
+    - Invariant: present if and only if the task is open -- deliberately the same
+    shape as the `ball` rule, so drafts and archived-but-open tasks hold positions
+    and closed tasks do not. Uniqueness is per `(project, priority)` over open tasks,
+    which makes a priority change a queue operation rather than a content patch.
+
+    - Numbering: sparse integers, step 100, midpoint insertion. The load-bearing consequence
+    is that a move writes exactly **one** task file; dense `1..N` would rewrite the
+    band on every move and conflict with everything in flight. Lexicographic keys
+    (LexoRank) were rejected on readability, which is a stated product constraint
+    rather than a preference.
+
+    - Crash safety, which was the one genuinely hard part: a multi-file renumber is
+    not atomic, and a naive rebalance that dies halfway **silently reorders the band**.
+    Fixed by direction -- renumbering upward is applied tail-first, downward head-first,
+    anything else in two passes. Every partial state on disk is then a valid queue
+    in the same order it had before. Section 6 carries the argument; it is child 2''s
+    sc-3.
+
+    - Concurrency: a project `.queue` lock beside the existing `.creation`, with a
+    fixed global order (`.creation` then `.queue` then task locks ascending by id).
+    Create needs both, because id assignment and position assignment are two separate
+    compute-a-maximum races and a create racing a *move* can duplicate a position
+    even with no second create.
+
+    - Corruption raises rather than falling back, with `check`, `list` and `repair`
+    as the deliberate exceptions that keep a broken queue fixable.
+
+    - `explain_next()`: the scheduler now has a defensible answer, so it gives it
+    -- band, position, and what was skipped ahead of the winner with the claimability
+    rule that excluded each.
+
+    - Bands are flat; epic contiguity is served by a `--with-children` group move
+    rather than hierarchical keys. Reopen trigger recorded if the ordered backlog
+    interleaves epics badly.
+
+
+    **Fresh evidence added to the design (measured today, 2026-08-20):** 75 ready
+    tasks, of which 47 are `high` -- so for three quarters of the backlog the priority
+    term separates nothing and the sort key degenerates to the timestamp alone. `GET
+    /api/tasks/next` currently returns task-203, the most recently created task. Separately,
+    the React list sorts by `updated` **first** and consults priority only as a tie-break,
+    so the screen a human reads and the answer the API gives are ordered by two different
+    rules, neither chosen by anyone.
+
+
+    **Children created as drafts under this task** (`ball: human`, `spec`), committed
+    to main as c3d4569: task-204 schema/validation/migration baseline, task-205 manager
+    verbs and selection, task-206 REST/client/CLI, task-207 React, task-208 MCP and
+    agent rules, task-209 the human ordering pass. They are drafts rather than ready
+    because the design they implement has not been approved; each ball_prompt says
+    so and says approval promotes them. Dependencies are 204 to 205 to 206, with 207
+    and 209 after 206 and 208 after 205.
+
+
+    **Not done, and why:** sc-7 cannot be satisfied by this task. The live corpus
+    cannot carry a queue position until the field exists, so the ordering pass is
+    task-209 and this task stays open until it closes.'
+  data:
+    operation:
+      id: 8e3f2c60-3d4f-4b53-9c32-000000000001
+      kind: log_append
+      fingerprint: c78c905e969b31583fa3a6ab96d3d3ea
