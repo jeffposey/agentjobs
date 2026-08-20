@@ -67,6 +67,7 @@ nav:
       - Agent dispatch design: agent-dispatch-design.md
       - Agent loops design: agent-loops-design.md
       - MCP integration design: mcp-integration-design.md
+      - Queue position design: task-selection-design.md
       - Task schema reference (v1 + v2): task-schema.md
       - API reference: api-reference.md
       - Measuring performance: performance.md

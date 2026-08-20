@@ -51,6 +51,8 @@ history; new records and integrations must use v2.
 - [Schema migration](migration-guide.md)
 - [Agent dispatch design](agent-dispatch-design.md) — accepted design record; clearly
   labelled where implementation is still pending
+- [Queue position design](task-selection-design.md) — proposed design for the explicit
+  work order that decides what is next
 
 Everything under `docs/schema/v1/`, `docs/schema/v2/`, and `schema/generated/` is
 generated. Regenerate it from the repository root with:
