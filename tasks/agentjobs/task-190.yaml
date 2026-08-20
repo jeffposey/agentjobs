@@ -3,7 +3,7 @@ id: task-190
 title: 'Run locks leak: release depends on in-memory state, so a server restart blocks
   those tasks forever'
 created: '2026-08-20T07:08:47.960269Z'
-updated: '2026-08-20T18:22:29.666282Z'
+updated: '2026-08-20T18:28:08.305780Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -118,27 +118,56 @@ acceptance:
 - id: ac-1
   text: A task whose runs are all terminal can be dispatched, even if a lock file
     naming it still exists
-  status: pending
+  verify: 'Sandbox server 8917: task-003 carried a leaked lock (pid=999999999 run=)
+    with every run terminal; the React app''s Dispatch button started run_bf01202a
+    with no refusal. Pinned by TestRunLock::test_a_lock_whose_run_has_ended_is_reclaimed.'
+  status: met
 - id: ac-2
   text: A task with a genuinely live run is still refused, pinned by a test that distinguishes
     it from ac-1
-  status: pending
+  verify: 'Sandbox: while run_a9ee8486 was genuinely running, acquire_run_lock refused
+    naming it. Pinned by test_a_lock_whose_run_is_live_still_refuses, which differs
+    from the ac-1 test in exactly one field (the run''s status), plus test_a_live_run_holds_it_even_when_the_recorded_pid_is_gone
+    for the CLI case.'
+  status: met
 - id: ac-3
   text: Restarting the server mid-run does not permanently block the task, verified
     by doing it rather than by unit test
-  status: pending
+  verify: 'Done twice, for real, on sandbox server 8917. Batch: dispatched task-001,
+    killed the server mid-run, restarted; reconcile marked run_34eda108 interrupted
+    then released the lock, and the next dispatch was permitted. Session: dispatched
+    a real claude --bg run on task-002, killed the server mid-run, restarted; the
+    run was re-attached, finished, and re-dispatch was permitted. No unit test involved.'
+  status: met
 - id: ac-4
   text: The completion path releases the lock without depending on an in-memory handle
     surviving
-  status: pending
+  verify: 'poller._handle_from now attaches a RunLock, so _finish_session''s release
+    is real. Demonstrated across processes: run_0fe8da1a''s lock was taken by a server
+    that was then killed, and released by a *different* server''s poller when the
+    session finished. Pinned by TestTheLockIsReleasedByWhateverConcludesTheRun (3
+    tests); reverting the one-line fix turns two of them red.'
+  status: met
 - id: ac-5
   text: A human meeting this refusal in the browser is told something they can act
     on
-  status: pending
+  verify: 'Checked in the browser, not asserted from markup. The refusal that can
+    still happen renders as ''task-003 already has run run_bf01202a in state running''
+    with ''Wait for the run to finish, or cancel it'', directly above the Cancel run
+    button for that run. The lock''s own message no longer names .locks or says ''delete
+    the file''; pinned by test_the_refusal_never_tells_a_reader_to_delete_a_file.
+    The stranded-lock refusal is not reworded but removed: it self-heals at acquisition.'
+  status: met
 - id: ac-6
   text: The four leaked locks present on 2026-08-20 are explained by the diagnosis,
     not merely cleared
-  status: pending
+  verify: All four explained in the progress entry's table, and both mechanisms reproduced
+    from scratch before the fix was written. Rows 1-2 are the process-death path (reproduced
+    as task-003); rows 3-4 are poller._handle_from's lock-less rebuilt handle (reproduced
+    as task-005, a real session settled by the poller with its lock left held by the
+    live server). Batch-through-API was verified NOT to leak, which is what narrowed
+    the completion-path gap to sessions.
+  status: met
 deliverables: []
 dependencies: []
 links: []
