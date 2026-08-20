@@ -3,77 +3,9 @@ id: task-194
 title: The dashboard on 8876 was serving an unmerged branch's code, from a .pth pointing
   at another worktree
 created: '2026-08-20T08:20:08.392609Z'
-updated: '2026-08-20T21:56:25.531835Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review and approve the merge of `fix/task-194-import-path-guard` (2
-  commits, rebased onto main at 9e84f16). Worktree: C:/projects/aj-194 -- created
-  before task-200 moved the convention to ../worktrees/, so it sits beside the clone
-  rather than under it.
-
-
-  What it does
-
-
-  1. `src/agentjobs/environment.py` (new) answers ''which checkout did this process
-  import?'' from `agentjobs.__file__`. The server calls it in the lifespan hook and
-  REFUSES TO START on a mismatch, printing the repair.
-
-  2. `scripts/bootstrap.py` now detaches from an activated virtualenv that holds another
-  checkout''s editable install, so a worktree gets its own environment and cannot
-  repoint anyone. It also prints an absolute interpreter path instead of `poetry run`.
-
-  3. `scripts/check.py`''s refusal names the activated virtualenv when that is what
-  caused it -- its old advice was a loop.
-
-  4. `/api/version` now reports `source_root`, so a running server can be asked without
-  stopping it.
-
-  5. ALLAGENTS.md and ENGINEERING.md record all of it.
-
-
-  The root cause is worth 30 seconds of your attention: VIRTUAL_ENV is set in every
-  dispatched agent''s shell, pointing at the main clone''s venv, and Poetry prefers
-  an activated venv over its path-keyed one. So `python scripts/bootstrap.py` in a
-  worktree -- the mandatory documented first step -- is what rewrote the main clone''s
-  .pth. I reproduced it accidentally two minutes into this session by following ALLAGENTS.md
-  verbatim. Nobody was careless; the instructions were the bug. Log entry 5 has the
-  evidence.
-
-
-  Verification, not just tests
-
-
-  - ac-1: started uvicorn with cwd=C:/projects/agentjobs and the aj-194 interpreter
-  -- the exact shape of the incident. Exit 3, refused, banner named both checkouts
-  and printed `cd C:\projects\agentjobs && poetry install`.
-
-  - ac-2: re-ran the bootstrap in the worktree with VIRTUAL_ENV set to the main clone''s
-  venv, i.e. the sequence that broke it at 21:24. It printed ''Ignoring the activated
-  virtualenv ...'', and the main clone''s .pth read `C:/projects/agentjobs/src` before
-  AND after.
-
-  - Positive case: a server started inside its own worktree starts normally and reports
-  `source_root: C:\projects\aj-194`. Stopped it; 8876 was never touched.
-
-  - Gate green on the rebased branch: 2083 pytest, 154 vitest, 16 Playwright, exit
-  0.
-
-
-  No review server -- there is no visible browser change, only a new JSON field.
-
-
-  One thing to decide, because it affects you directly: after this merges, the dashboard
-  on 8876 will refuse to start if its .pth is ever wrong again. The launcher runs
-  from C:/projects/agentjobs (open-terminal-tool.ps1, Directory = ''C:/projects/agentjobs''),
-  so the healthy case passes -- I checked. But a refusal means no dashboard until
-  `poetry install` is run there. I judged that better than a dashboard quietly serving
-  a branch. Say if you would rather it warned and served.
-
-
-  On approval I will rebase, merge --no-ff, mark the branch merged, close the task,
-  remove the worktree, and re-run the launcher so you are on the merged version.'
+updated: '2026-08-20T22:51:49.198918Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: reliability
@@ -83,7 +15,6 @@ tags:
 - defect
 effort: small
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: '`agentjobs.pth` in the main clone''s Poetry virtualenv read `C:/projects/aj-188/src`,
@@ -141,7 +72,7 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-194-import-path-guard
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-20T08:20:08.392674Z'
@@ -386,3 +317,122 @@ log:
       id: 9e1f3c77-52b0-4d18-b3a4-6c7a90ed11bf
       kind: handoff
       fingerprint: 8f1b946b7dbf804e85db34b5031cd474
+- id: 9
+  ts: '2026-08-20T21:57:49.369453Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 4
+  data:
+    run_id: run_4e04dff9
+    outcome: completed
+    duration_seconds: 2140.083136
+    log_path: C:\Users\jpose\.agentjobs\runs\run_4e04dff9
+- id: 10
+  ts: '2026-08-20T22:43:27.091780Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 11
+  ts: '2026-08-20T22:43:29.448493Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 12
+  ts: '2026-08-20T22:43:30.993129Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_2e59d36d
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 11
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-194` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../<repo>-<nnn>
+      -b <type>/task-194-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_2e59d36d.'
+    cwd: C:\projects\agentjobs
+    git_head: b35540a
+    session_id: 9e93b7c3
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 13
+  ts: '2026-08-20T22:51:34.527389Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 4f2a91c6-7b3d-4e58-9a10-2c6d8f5b3e71
+      kind: update_content
+      fingerprint: 366f333694ba6a401ddc1d6f17b796f5
+- id: 14
+  ts: '2026-08-20T22:51:49.198705Z'
+  actor: claude
+  type: transition
+  body: "Merged on Jeff's approval (log 10). `fix/task-194-import-path-guard` rebased\
+    \ onto\nmain at b35540a and merged --no-ff as 6a28826; the two commits are 725d05c\n\
+    (fix(environment): refuse to run, or to install, from the wrong checkout) and\n\
+    cd66b12 (docs: say why `poetry run` is the wrong way to run the gate in a worktree).\n\
+    \nRe-verified before merging rather than trusting the pre-rebase run: the full\
+    \ gate on\nthe rebased branch, from the worktree's own interpreter\n(agentjobs-PLnZwjZ_-py3.13),\
+    \ exit 0 -- 2083 pytest in 4m37s, 154 vitest across 22\nfiles, 16 Playwright.\
+    \ The only thing main had gained since the earlier run was a\ntasks/ commit, so\
+    \ nothing was expected to move, and nothing did.\n\nWhat is now on main:\n\n-\
+    \ `src/agentjobs/environment.py` resolves which checkout the running process imported\n\
+    \  from `agentjobs.__file__`; the lifespan hook refuses to start on a mismatch\
+    \ and\n  prints the repair. `AGENTJOBS_SKIP_SOURCE_CHECK` is the escape hatch\
+    \ and announces\n  itself.\n- `scripts/bootstrap.py` detaches from an activated\
+    \ virtualenv holding another\n  checkout's editable install, so a worktree can\
+    \ no longer repoint the main clone,\n  and prints an absolute interpreter path.\n\
+    - `scripts/check.py`'s refusal names the activated virtualenv when that is the\
+    \ cause.\n- `/api/version` reports `source_root`.\n- ALLAGENTS.md and ENGINEERING.md\
+    \ record the failure mode and the repair.\n\nBoth acceptance criteria were verified\
+    \ against the real shape of the incident before\nhandoff (log 8); nothing about\
+    \ them changed in the rebase.\n\nPost-merge delivery is recorded in the progress\
+    \ entry that follows this one."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 8d1c4b30-6e29-4f7a-b512-0a93e7c6d284
+      kind: close
+      fingerprint: 0f4bc5c560bb1c4061c5f29232d2433e
