@@ -4,11 +4,18 @@ import { defineConfig } from "@playwright/test";
 // scripts/bench.py has already started AgentJobs over a throwaway project of a stated
 // corpus size, and starting a second one here would measure a different corpus than
 // the API and CLI sections just measured.
+// The port is not fixed here either: scripts/bench.py derives one from its own
+// checkout's path so two worktrees can benchmark at once, and hands the whole address
+// over in this variable. Nothing in this file may guess at it -- a default would let
+// this config drive a server some other checkout started.
 const baseURL = process.env.BENCH_BASE_URL;
 
 if (!baseURL) {
   throw new Error("BENCH_BASE_URL is required; run this config through scripts/bench.py.");
 }
+
+// Echoed so a failure names the server being measured without opening this file.
+console.log(`[bench] measuring ${baseURL}`);
 
 export default defineConfig({
   testDir: "./e2e-bench",
