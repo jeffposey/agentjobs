@@ -1148,11 +1148,21 @@ things, in order of when they act:
 2. **The guide states it in full**, at the top of
    [`docs/agent-workflow.md`](agent-workflow.md) rather than buried beside the claim, and
    as a general property of dispatch rather than a fact about this repository.
-3. **`require_clean_tree` turns a violation into a refused spawn.** Task-182's precondition
+3. **`require_clean_tree` turns a violation into a refused spawn.** The precondition
    already refuses to start a run when the project root has uncommitted changes. If a
    dispatched run does write the shared tree, the *next* dispatch stops loudly instead of
    entangling two runs' work. It detects rather than prevents, and it is named here so the
    new arrangement is not mistaken for having no mechanism at all.
+
+    Stated with the caveat rather than without it: **this backstop does not work today**,
+    for a reason that has nothing to do with worktrees. `working_tree_clean` runs a bare
+    `git status --porcelain` with no exclusion for the project's tasks directory, so
+    dispatch's own writes to a task record trip it — task-182, still open. The verification
+    run for task-186 showed the same thing from the other end: the terminal
+    `dispatch_result` entry is written by the dispatcher *after* the agent's last commit,
+    so a dispatched run always leaves exactly one uncommitted line behind however
+    well-behaved it was. Until task-182 is fixed, mechanism 3 is a statement of intent and
+    mechanisms 1 and 2 are what is actually carrying this.
 
 **What is genuinely lost, so it is not rediscovered as a bug.** An accident is no longer
 automatically confined. Under `-w` a confused run wrote into a git-locked worktree nobody
