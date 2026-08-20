@@ -3,7 +3,7 @@ id: task-188
 title: 'Dispatch is one click: the button writes the authorising entry, and asks for
   text only when the record cannot brief an agent'
 created: '2026-08-20T05:46:50.740562Z'
-updated: '2026-08-20T06:56:07.363070Z'
+updated: '2026-08-20T07:03:24.960273Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -520,3 +520,51 @@ log:
       id: c95f61b8-3d07-4a24-9e56-08b4d2179ac3
       kind: log_append
       fingerprint: 10997205c09c17fd2ecbe8a6d36f84a2
+- id: 10
+  ts: '2026-08-20T07:03:24.960093Z'
+  actor: Jeff Posey
+  type: question
+  body: "**Blocking on review: a refused dispatch deletes the brief the human just\
+    \ typed.**\n\nFound by Jeff clicking the change in the sandbox on 2026-08-20,\
+    \ on `task-102-nothing-to-go-on`. He typed a brief, pressed Dispatch, was refused\
+    \ (`ConcurrencyLimitError` \u2014 the task-101 sleeper held the sandbox's single\
+    \ slot), and the textarea came back empty. His reading of it was \"it no work\"\
+    , which is the correct reading: he did the thing the interface asked and his input\
+    \ vanished.\n\nThe mechanism, confirmed in the code rather than inferred:\n\n\
+    `DispatchPanel.tsx`, the ask-for-brief form:\n\n    void Promise.resolve(onDispatch(value)).then(\n\
+    \      () => setBrief(\"\"),\n      () => undefined,\n    );\n\n`App.tsx`, `onDispatch`:\n\
+    \n    try { await start.mutateAsync({...}); }\n    catch (error) { setRefusal(...);\
+    \ }\n\nThe catch swallows the refusal and the async function **resolves**, so\
+    \ the panel's success branch runs on every refusal and clears the field. The rejection\
+    \ branch that was written to preserve the text is unreachable.\n\n**Why this is\
+    \ worth blocking on rather than filing as a follow-up.** This is the one and only\
+    \ path in the feature where a human has typed something that exists nowhere else.\
+    \ Every other refusal in this panel costs a click to retry; this one costs the\
+    \ sentence. It is also a regression against a behaviour this project already got\
+    \ right and wrote down \u2014 task-185's `NoteComposer` progress entry says it\
+    \ \"keeps the typed text and shows the reason when a save is refused\" \u2014\
+    \ so the new control is worse than the one it supersedes on the axis that matters\
+    \ most. And it compounds: task-172 will make that text dictated, where retyping\
+    \ is the whole cost the feature exists to remove.\n\n**Shape of the fix, not prescribed.**\
+    \ The cleanest is for `onDispatch` to re-raise after recording the refusal, so\
+    \ the panel's existing rejection branch does its job \u2014 but that changes a\
+    \ shared handler used by the one-click path too, so check that the no-brief caller\
+    \ still behaves. Alternatives: have `onDispatch` resolve to a boolean and clear\
+    \ only on `true`; or move the clear into the mutation's own `onSuccess`. Whichever\
+    \ is chosen, it wants a component test that refuses a dispatch and asserts the\
+    \ textarea still holds what was typed \u2014 nothing currently covers the refusal\
+    \ path of this form at all.\n\n**Also worth a look while in there**, lower severity\
+    \ and not blocking: with the gate closed, `offerButton` is false and neither control\
+    \ renders, yet a `dispatchRefusal` from a previous click still renders beneath.\
+    \ A refusal that predates the current page state reads as a response to the click\
+    \ that just happened. `RefusalNote` already takes an `answered` prop, which suggests\
+    \ the distinction was anticipated somewhere.\n\nNothing else found. The guard-side\
+    \ design, the storage-read test, and the sufficiency choice all hold up on reading\
+    \ \u2014 this is a frontend error-path defect, not a problem with the shape of\
+    \ the change."
+  re: 7
+  data:
+    operation:
+      id: 7d2b48f0-6c19-4e35-a870-91f5c3d0b6e2
+      kind: log_append
+      fingerprint: e68d517366ff96c83a37b9e980d8cefe
