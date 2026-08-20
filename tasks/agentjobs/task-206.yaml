@@ -1,0 +1,151 @@
+schema: 2
+id: task-206
+title: 'Queue position: REST, the Python client, and an `agentjobs queue` sub-app'
+created: '2026-08-20T23:31:01.562704Z'
+updated: '2026-08-20T23:32:37.840790Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Nothing needs writing here -- the spec is complete. Child 3 of 6 from
+  the queue-position design (task-081, docs/task-selection-design.md), held as a draft
+  only until that design is approved. Needs task-205 first.
+archived: false
+priority: high
+category: developer_experience
+tags:
+- queue-order
+- api
+- cli
+assignment:
+  eligible: []
+parent: task-081-task-selection-ranking
+spec:
+  summary: 'Expose the queue over HTTP, in the Python client, and on the command line:
+    read the whole ordered backlog, move a task before or after another, reprioritize
+    with a placement, ask why a task is next, and check, repair or compact a band.'
+  intent: The manager owns the order after child 2, but nothing can reach it. This
+    is the surface a human and a scripted agent use, and `agentjobs queue list` is
+    specifically the artefact the human ordering pass (child 6) reviews.
+  description: 'Implements the REST, Python client and CLI rows of section 10 of `docs/task-selection-design.md`.
+
+
+
+    REST, in `src/agentjobs/api/routes/tasks.py` and `projects.py`:
+
+
+
+    - `GET /api/tasks/next` keeps its shape and answers `409 Conflict` on queue corruption,
+    with the offending ids and the repair command in the detail.
+
+    - `GET /api/tasks/next/explain` returns the section 9 structure.
+
+    - `POST /api/tasks/{id}/queue-move` taking `before|after|top|bottom`, `with_children`,
+    `actor`, `operation_id`, `expected_revision`.
+
+    - `POST /api/tasks/{id}/reprioritize` taking the target priority and an optional
+    placement.
+
+    - `GET /api/projects/{id}/queue` returning the whole order, band by band, each
+    entry carrying its claimability and the reason it is not claimable when it is
+    not.
+
+    - `POST /api/projects/{id}/queue/repair` and `.../compact`.
+
+    - `queue_position` appears in the task read models.
+
+
+
+    `queue_position` must not be added to `TaskUpdateRequest`. That allowlist is what
+    keeps the field unreachable by generic patch.
+
+
+
+    Python client: one method per verb, plus `queue()` for the listing. No generic
+    position setter.
+
+
+
+    CLI: a `queue` sub-app in the shape of the existing `dispatch` one -- `list`,
+    `move`, `reprioritize`, `check`, `repair`, `compact` -- and `--why` on the next-task
+    command. `queue list` is meant to be read by a person: band headings, position,
+    id, title, and a marker on anything not claimable.
+
+
+
+    Regenerate the frontend API client after the routes change; the gate verifies
+    it.'
+  constraints: '- Every mutating endpoint takes an actor and an operation_id and goes
+    through the manager verb. No route computes a position itself.
+
+    - The corruption path is exercised end to end, not just unit tested on the manager.
+
+    - `agentjobs queue list` must be legible in a terminal at 80 columns.'
+  out_of_scope: React (child 4) and MCP (child 5).
+  context:
+  - path: docs/task-selection-design.md
+    why: The specification. Section 10 is this task.
+  - path: src/agentjobs/api/models.py
+    why: TaskUpdateRequest is the allowlist that must not gain queue_position.
+acceptance:
+- id: sc-1
+  text: Every verb in design section 10's REST list exists, is covered by a test,
+    and refuses a request with no actor or no operation_id.
+  status: pending
+- id: sc-2
+  text: A corrupt queue produces 409 from `/api/tasks/next` and a non-zero exit with
+    the same message from the CLI, while `queue check` and `queue repair` still succeed
+    against it.
+  status: pending
+- id: sc-3
+  text: '`agentjobs queue list` prints the full backlog in order, band by band, with
+    non-claimable tasks marked and their reason shown.'
+  status: pending
+- id: sc-4
+  text: '`queue_position` is settable through no generic patch path: a test asserts
+    `TaskUpdateRequest` rejects it.'
+  status: pending
+- id: sc-5
+  text: The generated frontend API client is regenerated and the gate's client check
+    passes.
+  status: pending
+deliverables:
+- path: src/agentjobs/api/routes/tasks.py
+  note: next/explain, queue-move, reprioritize
+  status: pending
+- path: src/agentjobs/client.py
+  note: one method per queue verb
+  status: pending
+- path: src/agentjobs/cli.py
+  note: the queue sub-app
+  status: pending
+dependencies:
+- task: task-205
+  type: needs
+  note: There is nothing to expose until the manager owns the verbs.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T23:31:01.562754Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 6c1f0a4e-1b2d-4f31-9a10-000000000003
+      kind: create
+      fingerprint: e63f4569ec3564b95141c62a8de4cf23
+- id: 2
+  ts: '2026-08-20T23:32:37.840661Z'
+  actor: claude
+  type: handoff
+  body: Specified from the task-081 design. Held as a draft pending design approval
+    rather than left half-written.
+  data:
+    ball: human
+    ball_reason: spec
+    operation:
+      id: 7d2e1b5f-2c3e-4a42-8b21-000000000003
+      kind: handoff
+      fingerprint: 219774a750205deb89acc0f5cddd57c0

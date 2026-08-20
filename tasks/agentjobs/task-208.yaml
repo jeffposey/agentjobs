@@ -1,0 +1,133 @@
+schema: 2
+id: task-208
+title: 'Queue position: MCP verbs, the rule agents follow, and the reference docs'
+created: '2026-08-20T23:31:46.849335Z'
+updated: '2026-08-20T23:32:50.345401Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Nothing needs writing here -- the spec is complete. Child 5 of 6 from
+  the queue-position design (task-081, docs/task-selection-design.md), held as a draft
+  only until that design is approved. Needs task-205 first; it can run alongside task-207.
+archived: false
+priority: high
+category: documentation
+tags:
+- queue-order
+- mcp
+- agent-dx
+assignment:
+  eligible: []
+parent: task-081-task-selection-ranking
+spec:
+  summary: 'Put the queue in front of agents: position and the why-this-one explanation
+    in the MCP read results, a `task_queue_move` mutation verb, and the rule in ALLAGENTS.md
+    that an agent with an opinion about order moves the task instead of inventing
+    a dependency.'
+  intent: 'An order is only durable if the people and agents with opinions write them
+    into the record rather than into a chat message. This is the child that closes
+    that loop: an agent can see the order, can change it through a verb, and is told
+    not to work around it.'
+  description: 'Implements the MCP row of section 10 and all of section 11 of `docs/task-selection-design.md`.
+
+
+
+    MCP, in `src/agentjobs/mcp/`:
+
+
+
+    - `task_next` and `tasks_list` results carry band and position; `task_next` carries
+    the section 9 explanation, so an agent handed a task can see what was skipped
+    and why.
+
+    - One new mutation tool, `task_queue_move`, taking `actor` and `operation_id`
+    like every other mutation and calling the manager verb.
+
+    - No generic position setter, consistent with the server''s standing contract
+    that a task moves through domain verbs or not at all. The server instructions
+    text is updated to say so.
+
+
+
+    Rules and docs:
+
+
+
+    - `ALLAGENTS.md` and `docs/agent-workflow.md` gain the section 11 rule: work what
+    the queue says is next, `--why` explains it, move the task if you disagree, never
+    add a `needs` edge to express order, never hand-edit `queue_position`, never rely
+    on a chat instruction to reorder work.
+
+    - `docs/task-schema.md` documents the field, the invariant, and the verbs.
+
+    - The MCP guide names the new tool, as its contract test requires.'
+  constraints: '- The rule must say what to do instead, not only what not to do. "Do
+    not invent a dependency" without "move it in the queue" produces agents that do
+    neither.
+
+    - No tool that sets a position directly.'
+  out_of_scope: The ordering of the live backlog (child 6).
+  context:
+  - path: docs/task-selection-design.md
+    why: The specification. Section 10's MCP row and section 11 are this task.
+  - path: src/agentjobs/mcp/mutation_tools.py
+    why: The header states the no-generic-setter contract this must respect.
+acceptance:
+- id: sc-1
+  text: '`task_next` returns the winner with its band, position and the list of what
+    was skipped ahead of it and why.'
+  status: pending
+- id: sc-2
+  text: '`task_queue_move` exists, requires actor and operation_id, replays on a repeated
+    operation_id, and is named by the MCP guide (the existing contract test enforces
+    the naming).'
+  status: pending
+- id: sc-3
+  text: ALLAGENTS.md and docs/agent-workflow.md state the queue rule, including the
+    dependency prohibition and the move that replaces it.
+  status: pending
+- id: sc-4
+  text: docs/task-schema.md documents queue_position, the open-if-and-only-if invariant,
+    and how the order is changed.
+  status: pending
+deliverables:
+- path: src/agentjobs/mcp/mutation_tools.py
+  note: task_queue_move
+  status: pending
+- path: ALLAGENTS.md
+  note: the queue rule agents follow
+  status: pending
+- path: docs/task-schema.md
+  note: reference documentation for the field
+  status: pending
+dependencies:
+- task: task-205
+  type: needs
+  note: The manager verbs must exist before a tool can call one.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T23:31:46.849380Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 6c1f0a4e-1b2d-4f31-9a10-000000000005
+      kind: create
+      fingerprint: 761b72fa28ecb5393e2a48905fddfd8a
+- id: 2
+  ts: '2026-08-20T23:32:50.345263Z'
+  actor: claude
+  type: handoff
+  body: Specified from the task-081 design. Held as a draft pending design approval
+    rather than left half-written.
+  data:
+    ball: human
+    ball_reason: spec
+    operation:
+      id: 7d2e1b5f-2c3e-4a42-8b21-000000000005
+      kind: handoff
+      fingerprint: 0815058b22c6c157758e77045e79c36b

@@ -1,0 +1,130 @@
+schema: 2
+id: task-209
+title: 'Order the live backlog: put the whole open corpus in a work order Jeff has
+  agreed to'
+created: '2026-08-20T23:32:09.717972Z'
+updated: '2026-08-20T23:32:57.365667Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: 'Nothing needs writing here -- the spec is complete. Child 6 of 6 from
+  the queue-position design (task-081, docs/task-selection-design.md), and the one
+  that closes the program: it is where you read the whole backlog in order and say
+  yes. Held as a draft until the design is approved; it needs task-206 first.'
+archived: false
+priority: high
+category: meta
+tags:
+- queue-order
+- backlog
+assignment:
+  eligible: []
+parent: task-081-task-selection-ranking
+spec:
+  summary: Present every open agentjobs task band by band as a readable list, get
+    Jeff's approval of that list, and write the approved order through the queue verbs.
+    This is the child that makes the backlog's order a decision rather than an artifact
+    of the migration.
+  intent: A mechanical seed satisfies the schema and nothing else. The point of the
+    whole program is that AgentJobs has one durable answer to "what is next" that
+    a human agreed with, and that answer does not exist until somebody reads the backlog
+    in order and says yes. Doing it once also road-tests the verbs on eighty real
+    tasks.
+  description: 'Implements section 15 step 3 of `docs/task-selection-design.md`, and
+    satisfies task-081''s sc-7.
+
+
+
+    1. Produce the ordering proposal with `agentjobs queue list`: every open task,
+    band by band, position, id, title, and a marker for anything not currently claimable
+    with the reason. Roughly eighty tasks at the time of writing, most of them `high`,
+    so the `high` band is the real work.
+
+
+
+    2. Propose an order, with a short reason for each move away from the migration
+    baseline -- not a reason per task, a reason per decision. Epics move with their
+    children.
+
+
+
+    3. Hand it to Jeff as a readable list and wait. His approval of the list is the
+    evidence, and it is recorded on this task, not in chat.
+
+
+
+    4. Write the approved order with `agentjobs queue move`, then re-read the list
+    and confirm it matches what was approved.
+
+
+
+    5. Section 15 step 2''s requested program order is folded into this: task-120
+    (issue reporter) ahead of the queue-ordering implementation children. If Jeff''s
+    review changes that, his review wins and the change is recorded here as a decision.'
+  constraints: '- No `needs` dependency may be added to express order. If two tasks
+    are ordered but not dependent, that is exactly what the queue is for.
+
+    - Every move goes through the verb, so each one is logged. No bulk YAML rewrite.
+
+    - The approved list is recorded on this task before it is applied, so a later
+    reader can see what was agreed and compare it with what exists.
+
+    - Ordering the backlog is not grooming it. Do not close, reprioritize or rewrite
+    tasks along the way; raise anything that looks wrong as a question instead.'
+  out_of_scope: Any code change. Any change to what the tasks say.
+  context:
+  - path: docs/task-selection-design.md
+    why: Section 15 step 3 is this task; section 9 explains the claimability markers
+      in the list.
+acceptance:
+- id: sc-1
+  text: A readable band-by-band list of every open task was presented to Jeff and
+    his approval is recorded on this task.
+  status: pending
+- id: sc-2
+  text: The live corpus matches the approved list, verified by re-reading `agentjobs
+    queue list` after the moves.
+  status: pending
+- id: sc-3
+  text: Every move is a logged `queue_move`; no task file was hand-edited and no dependency
+    was added.
+  status: pending
+- id: sc-4
+  text: task-120 sits ahead of the queue-ordering implementation children, or Jeff's
+    decision to place them differently is recorded here.
+  status: pending
+deliverables:
+- path: tasks/agentjobs/
+  note: the ordered corpus, committed to main
+  status: pending
+dependencies:
+- task: task-206
+  type: needs
+  note: '`queue list` and `queue move` are how the proposal is produced and applied.'
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T23:32:09.718014Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 6c1f0a4e-1b2d-4f31-9a10-000000000006
+      kind: create
+      fingerprint: 59f48fdf77ab381c985a9735b2f4f9f8
+- id: 2
+  ts: '2026-08-20T23:32:57.365542Z'
+  actor: claude
+  type: handoff
+  body: Specified from the task-081 design. Held as a draft pending design approval
+    rather than left half-written. This is the child that satisfies task-081's sc-7.
+  data:
+    ball: human
+    ball_reason: spec
+    operation:
+      id: 7d2e1b5f-2c3e-4a42-8b21-000000000006
+      kind: handoff
+      fingerprint: 909f1b92908c2c7e1bd8216c0151bd43

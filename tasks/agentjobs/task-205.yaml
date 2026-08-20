@@ -1,0 +1,166 @@
+schema: 2
+id: task-205
+title: 'Queue position: assignment, the reorder verbs, and selection that ignores
+  timestamps'
+created: '2026-08-20T23:30:38.205143Z'
+updated: '2026-08-20T23:32:31.867374Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Nothing needs writing here -- the spec is complete. Child 2 of 6 from
+  the queue-position design (task-081, docs/task-selection-design.md), held as a draft
+  only until that design is approved. Approve the design and promote it; it needs
+  task-204 first.
+archived: false
+priority: high
+category: infrastructure
+tags:
+- queue-order
+- scheduling
+- concurrency
+assignment:
+  eligible: []
+parent: task-081-task-selection-ranking
+spec:
+  summary: 'Give the manager the queue: assign a position on create, move and reprioritize
+    as managed verbs under a project queue lock, rebalance safely, refuse a corrupt
+    queue loudly, and make `get_next_task()` sort by (priority, queue_position) with
+    an explanation of why that task won.'
+  intent: This is where the queue starts to mean something. Until now `updated` decided
+    what an agent worked on next, which meant that editing a task promoted it. After
+    this task, the order is whatever a human wrote down, and the only way to change
+    it is to say so.
+  description: 'Implements sections 5 to 9 of `docs/task-selection-design.md`. Read
+    that document first; it is the specification.
+
+
+
+    Deliver, in `src/agentjobs/manager.py` and `src/agentjobs/storage.py`:
+
+
+
+    1. `QUEUE_LOCK = ".queue"` beside the existing `CREATION_LOCK`, with the fixed
+    global lock order `.creation` then `.queue` then task locks ascending by id. Every
+    band read taken under the lock must bypass the snapshot cache.
+
+
+
+    2. Assignment on create: bottom of the band, or an explicit placement. Every path
+    that can produce an open task -- create, import, `load_test_data`, promote out
+    of draft, any reopen -- ends with a valid position.
+
+
+
+    3. `move(task_id, before=|after=|top=|bottom=, with_children=False)` and `reprioritize(task_id,
+    priority, placement)`. Both append a `queue_move` log entry, which is added to
+    `LogEntryType` and to `MANAGER_WRITTEN_LOG_TYPES`. A `priority` change arriving
+    through the generic `update_task` patch is intercepted and routed through `reprioritize`,
+    so no existing caller can break the invariant.
+
+
+
+    4. `close` clears the position in the same write that clears the ball. No queue
+    lock needed.
+
+
+
+    5. Rebalance (automatic, on gap exhaustion) and compaction (explicit), both obeying
+    the direction rule in design section 6: tail-first when renumbering upward, head-first
+    when renumbering downward, two passes otherwise. The property to test is that
+    every partial application read back from disk is a correctly ordered queue with
+    no duplicates.
+
+
+
+    6. `assert_queue_integrity()`, `QueueCorruptionError`, and `repair()`. Selection
+    raises; check, list and repair do not.
+
+
+
+    7. `get_next_task()` sorts by `(priority_rank, queue_position)` after the unchanged
+    claimability filter, and `explain_next()` returns the structure in design section
+    9.'
+  constraints: '- No timestamp, filesystem order or id order may participate in selection,
+    including as a fallback when the queue is broken. The queue refuses instead.
+
+    - Reordering is a managed verb with an operation_id. There is no `set_queue_position`.
+
+    - A move writes exactly one task file, plus the moved children of a group move.
+    If a move is rewriting the band, the numbering scheme has been implemented wrong.
+
+    - Rebalance and compaction write no `queue_move` entries; they record no decision.'
+  out_of_scope: REST, CLI, React and MCP surfaces (child 3, 4 and 5). The program
+    order and the human ordering pass (child 6).
+  context:
+  - path: docs/task-selection-design.md
+    why: The specification. Sections 5 to 9 are this task.
+  - path: src/agentjobs/storage.py
+    why: creation_lock and mutate_task are the patterns the queue lock follows.
+  - path: src/agentjobs/manager.py
+    why: get_next_task's timestamp sort is what this replaces.
+acceptance:
+- id: sc-1
+  text: A test rewrites `updated` on every open task, in an order chosen to invert
+    the old ranking, and proves `get_next_task()` returns the same task before and
+    after. This is the test the whole program exists for.
+  status: pending
+- id: sc-2
+  text: Concurrent creates and moves in one band never produce a duplicate position;
+    a test exercises the race through the real lock rather than by mocking it.
+  status: pending
+- id: sc-3
+  text: Every intermediate state of an interrupted rebalance is a valid, identically
+    ordered queue -- proven by applying the renumber one file at a time and asserting
+    the order after each write.
+  status: pending
+- id: sc-4
+  text: A duplicate or missing position makes `get_next_task()` raise QueueCorruptionError
+    naming the tasks and the repair command; `queue check` and `repair` still work
+    on the same corpus.
+  status: pending
+- id: sc-5
+  text: '`move`, `reprioritize` and create-with-placement each write one `queue_move`-bearing
+    record, replay correctly on a repeated operation_id, and leave the band valid.'
+  status: pending
+- id: sc-6
+  text: '`explain_next()` names the winner''s band and position and lists what was
+    skipped ahead of it, with the claimability rule that excluded each.'
+  status: pending
+deliverables:
+- path: src/agentjobs/manager.py
+  note: assignment, move, reprioritize, rebalance, integrity, selection, explain
+  status: pending
+- path: src/agentjobs/storage.py
+  note: the project queue lock
+  status: pending
+dependencies:
+- task: task-204
+  type: needs
+  note: The field and its invariant must exist before anything assigns or reads it.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T23:30:38.205199Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 6c1f0a4e-1b2d-4f31-9a10-000000000002
+      kind: create
+      fingerprint: b5186a9226eb73dc415723c798c58038
+- id: 2
+  ts: '2026-08-20T23:32:31.867214Z'
+  actor: claude
+  type: handoff
+  body: Specified from the task-081 design. Held as a draft pending design approval
+    rather than left half-written.
+  data:
+    ball: human
+    ball_reason: spec
+    operation:
+      id: 7d2e1b5f-2c3e-4a42-8b21-000000000002
+      kind: handoff
+      fingerprint: b8bc4a2eb7c5ee03dda25e775697ac46

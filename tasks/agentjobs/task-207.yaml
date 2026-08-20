@@ -1,0 +1,141 @@
+schema: 2
+id: task-207
+title: 'Queue position: the React list shows the real order, and you can change it
+  without a mouse'
+created: '2026-08-20T23:31:25.501669Z'
+updated: '2026-08-20T23:32:44.048169Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Nothing needs writing here -- the spec is complete. Child 4 of 6 from
+  the queue-position design (task-081, docs/task-selection-design.md), held as a draft
+  only until that design is approved. Needs task-206 first.
+archived: false
+priority: high
+category: ux
+tags:
+- queue-order
+- frontend
+- accessibility
+assignment:
+  eligible: []
+parent: task-081-task-selection-ranking
+spec:
+  summary: Delete the `updated`-first sort in the React task list, render tasks in
+    queue order with their position, and let a person reorder the backlog by keyboard
+    as well as by drag, including from a phone.
+  intent: The list a human reads is currently ordered by a different rule from the
+    API's answer, and neither rule was chosen by anyone. After this the screen and
+    the scheduler agree, and the screen is where the order is actually decided --
+    reordering a backlog is a thing you do by looking at it.
+  description: 'Implements the React row of section 10 of `docs/task-selection-design.md`.
+
+
+
+    In `frontend/src/components/TaskList.tsx`, `buildTaskRows` currently sorts by
+    `updated` descending and consults priority only as a tie-break. That sort is deleted,
+    not amended: rows come back in `(priority, queue_position)` order from the server
+    and the client preserves it. Position is a visible column.
+
+
+
+    Reordering:
+
+
+
+    - Drag and drop within a band, firing exactly one `queue-move` per drop with an
+    optimistic update and a rollback on failure.
+
+    - Keyboard equivalents that are not a fallback but the primary path: focus a row,
+    `Alt+Up`/`Alt+Down` to step, `Alt+Home`/`Alt+End` for top and bottom. Each fires
+    one move.
+
+    - A cross-band drag reprioritizes with an explicit confirmation, because it is
+    two decisions at once.
+
+
+
+    A drag-only reorder cannot be performed on the phone and tablet this backlog is
+    read from, and cannot be tested without a pointer harness. The keyboard path is
+    what the Playwright test drives.
+
+
+
+    Also: the queue-corrupt state renders as a banner naming the offending tasks and
+    the repair command, with the list refusing to claim an order it cannot justify;
+    and the dashboard''s next action gains a "why this one" disclosure showing the
+    section 9 explanation.
+
+
+
+    Stand up a review server on its own port with seeded sandbox data containing both
+    a healthy queue and a corrupt one, and give Jeff the URL.'
+  constraints: '- Every reorder available to a mouse is available to a keyboard, and
+    the Playwright coverage drives the keyboard path.
+
+    - One move per gesture. No batch reorder that writes the whole band.
+
+    - The client never re-sorts what the server ordered.'
+  out_of_scope: MCP and agent rules (child 5). The actual ordering of the live backlog
+    (child 6).
+  context:
+  - path: docs/task-selection-design.md
+    why: The specification. Section 10's React row is this task.
+  - path: frontend/src/components/TaskList.tsx
+    why: buildTaskRows holds the sort being deleted.
+acceptance:
+- id: sc-1
+  text: The `updated`-first sort is gone from the frontend and a test proves the rendered
+    order matches the server's queue order rather than any client-side rule.
+  status: pending
+- id: sc-2
+  text: A Playwright test reorders the backlog using only the keyboard and the new
+    order survives a reload.
+  status: pending
+- id: sc-3
+  text: A failed move rolls the optimistic update back and surfaces the error rather
+    than leaving the screen disagreeing with the server.
+  status: pending
+- id: sc-4
+  text: A corrupt queue renders as a named, actionable banner, not as a silently mis-ordered
+    list.
+  status: pending
+- id: sc-5
+  text: Jeff has reviewed it on a sandbox server seeded with both a healthy and a
+    corrupt queue.
+  status: pending
+deliverables:
+- path: frontend/src/components/TaskList.tsx
+  note: queue order, position column, keyboard and drag reorder
+  status: pending
+dependencies:
+- task: task-206
+  type: needs
+  note: The reorder endpoints and the generated client come from child 3.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T23:31:25.501714Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 6c1f0a4e-1b2d-4f31-9a10-000000000004
+      kind: create
+      fingerprint: f4113a2147bbdd89400b95439e8e9a2b
+- id: 2
+  ts: '2026-08-20T23:32:44.047985Z'
+  actor: claude
+  type: handoff
+  body: Specified from the task-081 design. Held as a draft pending design approval
+    rather than left half-written.
+  data:
+    ball: human
+    ball_reason: spec
+    operation:
+      id: 7d2e1b5f-2c3e-4a42-8b21-000000000004
+      kind: handoff
+      fingerprint: 1893293f5f923dd9cd2bda33ad5f5713
