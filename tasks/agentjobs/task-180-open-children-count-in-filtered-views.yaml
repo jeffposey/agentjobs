@@ -3,10 +3,11 @@ id: task-180-open-children-count-in-filtered-views
 title: open_children_count is computed over the filtered subset, so a list or search
   under-reports it
 created: '2026-08-19T19:22:58.406965Z'
-updated: '2026-08-19T19:22:58.407770Z'
-lifecycle: ready
+updated: '2026-08-20T20:30:23.769093Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: medium
 category: reliability
@@ -16,6 +17,7 @@ tags:
 - correctness
 effort: small
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: A parent task with six open children reports open_children_count 0 from
@@ -61,18 +63,20 @@ acceptance:
 - id: sc-1
   text: A search or filtered list that excludes a parent's children reports that parent's
     open child count correctly, or omits it, and a test pins the behaviour
-  status: pending
+  status: met
 - id: sc-2
   text: The parse-count impact of the chosen approach is measured and recorded on
     the task
-  status: pending
+  status: met
 - id: sc-3
   text: poetry run python scripts/check.py passes
   status: pending
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-180-open-children-count-corpus-wide
+  status: active
 log:
 - id: 1
   ts: '2026-08-19T19:22:58.407004Z'
@@ -85,3 +89,192 @@ log:
       id: d5b8e3ca-2e47-4941-a6d2-8f4c1b3e0180
       kind: create
       fingerprint: 027d6e281f261a90f37d8465abf9a72c
+- id: 2
+  ts: '2026-08-20T20:10:26.516971Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Dispatched by Claude on 2026-08-20 as task-191''s ac-1 verification: the
+    machine ceiling was raised from 1 to 3 and the criterion is two dispatched runs
+    working two different tasks at the same time, both gates passing, neither interfering.
+    This task was chosen as a low-stakes target -- small, self-contained, no dependencies.
+    Work it normally per ALLAGENTS.md. If this run is stopped before it concludes,
+    that is task-191''s verification finishing rather than anything wrong with this
+    task; task-191''s log records what state it was left in.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 3
+  ts: '2026-08-20T20:10:26.808705Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 4
+  ts: '2026-08-20T20:10:27.746959Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_98fdd579
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 2
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-180-open-children-count-in-filtered-views`
+      in project `agentjobs` (root: C:\projects\agentjobs). You are running in that
+      project''s shared working tree and are NOT isolated. Before writing anything,
+      run `git worktree add ../<repo>-<nnn> -b <type>/task-180-open-children-count-in-filtered-views-<slug>`
+      and work from that path. Use that shell command, not a built-in worktree tool:
+      those relocate the session''s permission root, which parks a background run
+      on a prompt nobody can answer. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_98fdd579.'
+    cwd: C:\projects\agentjobs
+    git_head: ed3c2a7
+    session_id: ff47fb17
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 5
+  ts: '2026-08-20T20:23:10.574616Z'
+  actor: claude
+  type: decision
+  body: "The spec's diagnosis was only half the story. Reproduced against the live\
+    \ server on 8876 before changing anything, and the observed symptom does not come\
+    \ from the subset iteration the spec named.\n\nTwo independent defects produce\
+    \ the same `open_children_count: 0`:\n\n1. **`GET /search` never computed the\
+    \ field at all.** Its `response_model` was `List[Task]` \u2014 the bare stored\
+    \ record, no dependency facts. `TaskRead` (which carries them) is only used by\
+    \ `GET /tasks`. So the key was simply absent from every search row, and `mcp/summaries.task_summary`\
+    \ coerced the absence to `0` with `value if value is not None else 0`. **This\
+    \ is what the reporter saw.** Note it also defaulted `actionable` to `False`,\
+    \ so the spec's premise that \"actionable stays correct\" does not hold on the\
+    \ search path either \u2014 it was right for the wrong reason.\n\n2. **`TaskManager.dependency_facts(subset)`\
+    \ genuinely was page-relative**, as the spec says. Every caller in this repo happens\
+    \ to pass the full corpus or nothing \u2014 `_read_tasks` called `dependency_facts()`\
+    \ with no argument \u2014 so no shipped view was wrong because of it. It was a\
+    \ loaded trap, not the live bug.\n\n**On whether the subset argument was a deliberate\
+    \ cost trade: it was not.** `dependency_facts` already calls `self._open_children()`\
+    \ unconditionally three lines above the subset loop, to compute `actionable`,\
+    \ and `_open_children()` walks the whole corpus. The corpus was already being\
+    \ read on every one of these calls. The subset loop bought nothing.\n\nRejected\
+    \ alternative: making the field nullable and omitting it from views that \"cannot\
+    \ compute it honestly\". Rejected because no such view exists \u2014 every request\
+    \ already parses the corpus inside a `corpus_snapshot()` scope, so an honest count\
+    \ is free everywhere. Nullability would have documented a constraint that is not\
+    \ real.\n\nKept the constraint's other half, though, where it *is* real: `task_summary`\
+    \ and `summaries.dependency_facts` no longer invent a `0` for a record that lacks\
+    \ the key. They pass `None` through and the MCP schemas allow null. That coercion\
+    \ is the line that turned a missing field into a confident wrong answer, and deleting\
+    \ the field's absence at one surface does not stop the next surface reintroducing\
+    \ it."
+  data:
+    operation:
+      id: 3f1c9a2e-7b64-4d18-9f05-2a6e8c1d4b70
+      kind: log_append
+      fingerprint: 31cd3fad31e1118251ec54d3ed3c7025
+- id: 6
+  ts: '2026-08-20T20:25:33.706630Z'
+  actor: claude
+  type: progress
+  body: "## Parse-count measurement (sc-2): zero cost, measured not argued\n\nTwo\
+    \ servers against the identical 194-task corpus \u2014 8876 running `main`, 8899\
+    \ running this branch (`agentjobs serve --port 8899` from the worktree). Three\
+    \ passes per path, last reported, so a cold filesystem cache is not the number.\
+    \ `X-Task-Parses`:\n\n| path | main | branch |\n| --- | --- | --- |\n| `/search?q=dispatch`\
+    \ | 194 | **194** |\n| `/tasks` | 194 | **194** |\n| `/tasks?priority=high` |\
+    \ 194 | **194** |\n\n**No path pays anything.** The constraint asked that a list\
+    \ not be made to pay for a full corpus parse \u2014 it is not, because every request\
+    \ already parses the corpus exactly once inside `storage.corpus_snapshot()`, and\
+    \ both `_open_children()` and the newly-added `dependency_facts()` on `/search`\
+    \ are served from that snapshot. 194 is the corpus size: one parse per file per\
+    \ request, which is what it already was.\n\nWall-clock moved 291\u2192255ms on\
+    \ `/search`, 353\u2192293ms on `/tasks`. That is noise on a single sample, not\
+    \ a claimed improvement; the parse count is the number that means the same thing\
+    \ on every machine.\n\n## Same measurement, the field itself\n\n`task-160-dispatch-phase-two`\
+    \ (9 open children), read from each server:\n\n| surface | main | branch |\n|\
+    \ --- | --- | --- |\n| `/search` | key absent entirely | **9** |\n| `/tasks` |\
+    \ 9 | 9 |\n| `/tasks?priority=high` (children excluded by the filter) | 9 | 9\
+    \ |\n\nAnd through the MCP surface the bug was reported on, `tasks_search` \u2192\
+    \ `summaries.task_summary`:\n\n- against `main`: `open_children_count=None` \u2014\
+    \ null now rather than the old invented `0`, because the summary-layer fix is\
+    \ in the worktree while the service is not\n- against the branch: `open_children_count=9`\n\
+    \n## Changes\n\n- `manager.dependency_facts` \u2014 count from the corpus-wide\
+    \ `_open_children()` already computed for `actionable`; the subset loop is gone.\
+    \ Docstring states what `tasks` does and does not scope.\n- `api/models.TaskRead.from_tasks(manager,\
+    \ tasks)` \u2014 one enrichment path for every row-returning read surface, replacing\
+    \ the private `_read_tasks` in `routes/tasks.py`.\n- `api/routes/search.py` \u2014\
+    \ `response_model=List[TaskRead]`. This is the actual fix for the reported bug.\n\
+    - `mcp/summaries.py` \u2014 a missing `open_children_count` passes through as\
+    \ `None` instead of `0`, in both `task_summary` and `dependency_facts`; both JSON\
+    \ schemas widened to `[\"integer\",\"null\"]`. `actionable` keeps its `False`\
+    \ default, as the spec puts it out of scope.\n- Regenerated `frontend/openapi.json`\
+    \ and the API client \u2014 `/search` now types as `Array<TaskReadOutput>`. `DependencyState.tsx`\
+    \ already guarded with `?? 0`, so no component change.\n\n## Tests (sc-1)\n\n\
+    Five added; each verified to fail against the unpatched source before being kept:\n\
+    \n- `test_manager.py::test_dependency_facts_counts_children_the_subset_left_out`\
+    \ \u2014 fails as `assert 0 == 3` on old code, reproducing the reported shape\
+    \ exactly: `DependencyFacts(..., actionable=False, open_children_count=0)`.\n\
+    - `test_manager.py::test_dependency_facts_reports_zero_children_as_zero` \u2014\
+    \ the counterpart, so the fix cannot be \"always return something nonzero\".\n\
+    - `test_api.py::test_search_reports_open_children_outside_the_result_set` \u2014\
+    \ `KeyError` on old code.\n- `test_api.py::test_filtered_list_reports_open_children_outside_the_filter`\
+    \ \u2014 passes on old code too; `/tasks` was already correct, and this pins it\
+    \ so it stays that way.\n- `test_api.py::test_zero_open_children_means_zero` \u2014\
+    \ `KeyError` on old code.\n- `test_mcp_read_tools.py` \u2014 two: absence is null,\
+    \ and a real 0 is not turned into a null on the way through.\n\nThe API fixture\
+    \ titles the parent \"Zebra\" and its children \"Quokka\", and gives them different\
+    \ priorities, so neither the search nor the priority filter can return a child.\
+    \ Without that separation the test would pass on the broken code.\n\n## Not done,\
+    \ deliberately\n\n`unblocks_count` and `needs_cycles` in the same function are\
+    \ still derived from the `tasks` argument and so are still page-relative \u2014\
+    \ the identical trap, one line away. Every caller in this repo passes the full\
+    \ corpus or nothing, so neither is wrong today. Left alone because this task's\
+    \ scope is the child count, and making cycle detection corpus-wide would change\
+    \ what `validation.py` reports about a subset. Noted in the function's docstring\
+    \ pointing at task-180 so the next reader finds it rather than rediscovering it.\
+    \ Worth a follow-up task if you want it; I have not filed one."
+  data:
+    operation:
+      id: 8d24b7f1-5c93-4e07-a1b2-6f30e9c85d44
+      kind: log_append
+      fingerprint: d485b52ac55875526b8da2f14924fa37
+- id: 7
+  ts: '2026-08-20T20:30:23.768926Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: c0b4e6a9-2d17-4f83-b5c1-7e94a0d36f28
+      kind: update_content
+      fingerprint: b623b3a03e963c4422969a5c472adcf3
