@@ -3,11 +3,9 @@ id: task-182-clean-tree-versus-in-repo-tasks
 title: require_clean_tree refuses every dispatch in a project whose task files live
   in its own repo
 created: '2026-08-19T20:50:13.107702Z'
-updated: '2026-08-20T00:59:27.011874Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-20T01:06:10.131131Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: reliability
@@ -17,7 +15,6 @@ tags:
 - git
 effort: small
 assignment:
-  owner: claude
   eligible: []
 parent: task-181-dispatch-phase-one-hardening
 spec:
@@ -67,20 +64,20 @@ acceptance:
 - id: sc-1
   text: A project whose task files live in the dispatched repository can dispatch
     with require_clean_tree left at its default
-  status: pending
+  status: met
 - id: sc-2
   text: A dispatch is still refused when the repository has uncommitted work that
     dispatch did not create, pinned by its own test
-  status: pending
+  status: met
 - id: sc-3
   text: The choice and its cost are recorded as a decision with the rejected alternatives
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
 branches:
 - name: fix/task-182-clean-tree-check
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-19T20:50:13.107742Z'
@@ -375,3 +372,11 @@ log:
     \ beside it. This is sc-2.\n\n## Acceptance\n\nsc-1, sc-2 and sc-3 all met; sc-3\
     \ is the decision entry above this one.\n\nNothing left over. No follow-up filed."
   data: {}
+- id: 9
+  ts: '2026-08-20T01:06:10.131014Z'
+  actor: claude
+  type: transition
+  body: 'Closed: completed.'
+  data:
+    lifecycle: closed
+    outcome: completed
