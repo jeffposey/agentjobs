@@ -3,10 +3,64 @@ id: task-188
 title: 'Dispatch is one click: the button writes the authorising entry, and asks for
   text only when the record cannot brief an agent'
 created: '2026-08-20T05:46:50.740562Z'
-updated: '2026-08-20T05:47:10.373704Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-20T06:54:23.569798Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: "Ready to review and approve the merge of `feat/task-188-one-click-dispatch`\
+  \ (worktree `C:/projects/aj-188`; commits d40fbd8, 0449171, c581b63, 20e29f7). `poetry\
+  \ run python scripts/check.py` is green: 1994 Python tests, 33 Vitest, 16 Playwright.\n\
+  \n**Click it first, in a sandbox that is safe to break.** A throwaway server is\
+  \ running on **http://127.0.0.1:8899/app/p/review/tasks** \u2014 its own port, its\
+  \ own AgentJobs home, its own git repo, and a `dispatch.yaml` pointing at a runner\
+  \ that just sleeps. None of your real records are reachable from it, so press everything,\
+  \ including Cancel run.\n\n- **task-101** \u2014 filed by an agent, complete spec.\
+  \ This is the change: one click, no box, a run starts. Then read the log \u2014\
+  \ entry #2 is a note by Jeff Posey, `Dispatched by Jeff Posey from the task page`,\
+  \ written by the server. That note is what authorised the run.\n- **task-102** \u2014\
+  \ filed by an agent, empty description. The only case that stops to ask. The button\
+  \ will not start anything until you say what the agent should do, and what you type\
+  \ becomes that note.\n- **task-103** \u2014 already had your note on it. One of\
+  \ the 2-in-76 that dispatched before today, here so you can see the old path is\
+  \ unchanged.\n\nStop it with `agentjobs stop` won't work (different home) \u2014\
+  \ I will kill it when you are done, or `taskkill` the python on 8899.\n\n**The two\
+  \ things to actually look at in the diff.**\n\n1. `guards.py` \u2014 whether you\
+  \ agree the identity/evidence split holds. The request names *who is clicking*;\
+  \ the server validates that against `actors:` and refuses anything not `kind: human`;\
+  \ the note is persisted; then the causing entry is re-read through `manager.get_task`\
+  \ and put through `assert_human_clocked` like any other. The rule is asserted unconditionally\
+  \ on both paths right before `runner.start`. It is not bypassed \u2014 it is satisfied.\
+  \ If that reads as \"we now trust the request\" to you, I would rather know before\
+  \ this merges.\n2. `record_can_brief` \u2014 sufficiency is `spec.description` and\
+  \ nothing else. I rejected `ball_prompt` (empty on all 70 ready tasks by design)\
+  \ and an empty `acceptance[]` (2 of 76, both with full descriptions). Both rejections\
+  \ are pinned by tests. Measured after the change: 76 of 76 open tasks dispatch on\
+  \ one click, 0 prompt for text.\n\n**One consequence you should choose rather than\
+  \ discover** \u2014 this is entry #5 on this task, and I confirmed it against the\
+  \ shipped code rather than taking it on trust. task-179 records that a second dispatch\
+  \ onto an already-worked task is stopped today *only* by luck: `assert_human_clocked`\
+  \ refuses because the working agent's own claim is the newest entry. This task makes\
+  \ a human entry the newest on every dispatch, so that luck is gone permanently.\n\
+  \nWhat is still guarded and what is not, verified:\n- A run **AgentJobs started**\
+  \ is still caught by `LiveRunExistsError` before the claim and before the spawn.\
+  \ Untouched by this branch.\n- A session **AgentJobs did not start** (spawn-session\
+  \ skill, a terminal) writes no ledger row and takes no run lock, so nothing sees\
+  \ it. `_claim_or_verify` passes an already-active task through whenever the owner\
+  \ matches the dispatching runner's actor, which is always here because this project\
+  \ configures one agent actor. After this merges, that case is guarded by nothing\
+  \ until task-179 lands.\n\nI deliberately did not widen this task to fix it \u2014\
+  \ that is task-179's work and it has its own call to make about what state counts\
+  \ as \"already being worked\". A cheap stopgap is possible (refuse `active` + `agent`/`work`)\
+  \ but it would also refuse legitimately re-dispatching a parked task, which is a\
+  \ decision, not a detail. Your call whether task-179 should be raised in priority\
+  \ before or after this merges.\n\n**Also filed at your request: task-189** \u2014\
+  \ the gate runs its four-minute pytest stage before a block of checks worth about\
+  \ fifteen seconds, and `assert-generated-clean.mjs` asserts against HEAD while reporting\
+  \ it as staleness, so following its advice exactly reproduces the same failure.\
+  \ That cost this session ~16 minutes across four runs.\n\nOn approval I will rebase\
+  \ onto main, merge `--no-ff`, rebuild the frontend, re-run `C:/ai/shared/launchers/open-agentjobs.ps1\
+  \ -NoOpen` so 8876 is serving the merged bundle, confirm it is live, close the task\
+  \ and remove the worktree. I have not pushed and will not without you saying so."
 archived: false
 priority: critical
 category: ux
@@ -17,6 +71,7 @@ tags:
 - guards
 effort: half a day
 assignment:
+  owner: claude
   eligible: []
 parent: task-160-dispatch-phase-two
 spec:
@@ -178,7 +233,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-188-one-click-dispatch
+  status: active
 log:
 - id: 1
   ts: '2026-08-20T05:46:50.740636Z'
@@ -226,3 +283,190 @@ log:
       id: b6e04f27-91a3-4c58-8d20-3f7a1c964e05
       kind: log_append
       fingerprint: dd5befa6a46f2769894ea6bc0f2c342d
+- id: 3
+  ts: '2026-08-20T05:58:21.662090Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 4
+  ts: '2026-08-20T05:58:23.213847Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_f27d3d88
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 2
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-188` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated: take your own git worktree before you write anything.
+      AgentJobs is serving at http://127.0.0.1:8876. Read the task record and follow
+      the resumption contract in docs/agent-workflow.md. Dispatch run id: run_f27d3d88.'
+    cwd: C:\projects\agentjobs
+    git_head: 8f6dd00
+    session_id: 8a822c13
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 5
+  ts: '2026-08-20T06:02:42.040357Z'
+  actor: claude
+  type: note
+  body: "Written while run_f27d3d88 is working this task. Not a scope change and not\
+    \ a blocker \u2014 a consequence found after the spec was written, which the reviewer\
+    \ needs and which you should mention in your handoff even if you do nothing about\
+    \ it.\n\n**This change removes an accidental protection that task-179 is currently\
+    \ relying on.**\n\ntask-179 (\"Dispatch is offered on a task an agent is already\
+    \ working, and the guards would allow it\") records that a second dispatch onto\
+    \ an actively-worked task is stopped today *only* because `assert_human_clocked`\
+    \ refuses \u2014 the newest entry being the working agent's own `claim`. Its own\
+    \ words: that is luck rather than safety, and the click passes every gate \"the\
+    \ moment a human entry becomes the newest\".\n\nThis task makes a human entry\
+    \ the newest on **every** dispatch, deliberately. So that moment stops being a\
+    \ moment and becomes the permanent state.\n\nPrecisely how much is exposed, verified\
+    \ in the code rather than assumed:\n\n- **A run dispatch started is still caught.**\
+    \ `guards.py:332` scans `live_runs()` and raises `LiveRunExistsError` before the\
+    \ claim and before the spawn. Confirmed live against run_f27d3d88 \u2014 this\
+    \ run \u2014 on 2026-08-20. Unaffected by this task.\n- **An agent AgentJobs did\
+    \ not start is not caught at all.** A session from the spawn-session skill or\
+    \ a terminal writes no ledger row and takes no run lock, so `live_runs()` and\
+    \ `acquire_run_lock()` both see nothing, and `_claim_or_verify` passes an already-active\
+    \ task through when the owner matches the dispatching runner's actor \u2014 which\
+    \ it always does here, because this project configures exactly one agent actor.\
+    \ Six such sessions ran on 2026-08-19 and none appear in the ledger.\n\nSo after\
+    \ this ships, the second bullet is guarded by nothing until task-179 lands.\n\n\
+    **What to do about it, in preference order.** Do not widen this task to fix task-179\
+    \ \u2014 that is its work and it has its own decisions to make. Do, in your handoff:\
+    \ state this plainly as a consequence of the change, so whoever approves it is\
+    \ choosing it rather than discovering it. If the fix happens to make it cheap\
+    \ to keep a task-state refusal in place, say so and let the reviewer decide; do\
+    \ not build it unasked.\n\nFull analysis is on task-179's log as entry 3."
+  data:
+    operation:
+      id: a48c37e1-90d5-4b62-8f03-1e7264ba9d59
+      kind: log_append
+      fingerprint: ed9bd0e471f650fd5ce03cabcc7677f8
+- id: 6
+  ts: '2026-08-20T06:53:16.721586Z'
+  actor: claude
+  type: progress
+  body: "Built and verified on branch `feat/task-188-one-click-dispatch` (worktree\
+    \ `C:/projects/aj-188`, four commits: d40fbd8, 0449171, c581b63, 20e29f7). Repository\
+    \ gate green end to end \u2014 1994 Python tests, 33 Vitest component tests, 16\
+    \ Playwright specs.\n\n## The shape that shipped\n\n`DispatchRequest` gained `authorized_by`\
+    \ / `authorization_note` / `surface`. When `authorized_by` is set, `dispatch_task`\
+    \ validates it against the project's configured actors, refuses anything that\
+    \ is not `kind: human` (`authorizer_not_human`), and \u2014 inside the run lock,\
+    \ after every refusal that can be judged without a write \u2014 appends a `note`\
+    \ entry as that human, then **re-reads the task through `manager.get_task`** and\
+    \ resolves the causing entry from the stored record. `assert_human_clocked` is\
+    \ then asserted on the resolved entry unconditionally, on both paths, immediately\
+    \ before `runner.start`. The authorising path does not bypass the rule; it satisfies\
+    \ it. A test (`test_the_dispatch_reads_its_evidence_from_storage_not_from_the_request`)\
+    \ makes the post-write storage read return an empty log and asserts the dispatch\
+    \ fails \u2014 it has nowhere else to get an entry, so an implementation that\
+    \ started trusting the request body would have to delete `_write_authorizing_entry`\
+    \ to pass.\n\nComposed body when nothing is typed: `Dispatched by Jeff Posey from\
+    \ the task page. No extra instruction was given: the task record is the brief.`\
+    \ Same precedent as `promote`.\n\n## Decisions taken, with the rejected alternative\n\
+    \n**Sufficiency is keyed on `spec.description` alone.** Rejected `ball_prompt`\
+    \ (empty on 70 of 70 ready tasks by design \u2014 a check on it fires 100% of\
+    \ the time and teaches the reader to click through it) and rejected an empty `acceptance[]`\
+    \ (2 of 76 open tasks have none and both have a full description; missing criteria\
+    \ are a grooming gap, not an authorisation one). Both rejections are pinned by\
+    \ tests so a later reader cannot re-add them by accident. Also considered and\
+    \ rejected treating `spec.summary` as a fallback: a one-line summary orients,\
+    \ it does not specify.\n\n**The authoriser must be a configured human, but need\
+    \ not equal `default_user`.** The review endpoints require that equality because\
+    \ they need to know who is at the keyboard; this needs to know the entry names\
+    \ a real person. Requiring equality would break the moment task-066 configures\
+    \ a second human, and `human_identity` already refuses a multi-human config outright.\n\
+    \n**No signed-in user falls back to the pre-existing rule, and the server never\
+    \ substitutes `default_user`.** That is the CLI's behaviour and MCP's (there is\
+    \ no MCP dispatch tool at all). A config value standing in for a person produces\
+    \ something that looks like evidence and is not. The React panel knows before\
+    \ the click and does not render the button, showing `identity.detail` instead.\n\
+    \n**`caused_by` and `user` are mutually exclusive** \u2014 citing an entry and\
+    \ creating one are different acts, so precedence would record an authorisation\
+    \ the caller did not intend. Refused in the Pydantic model (400 naming the field)\
+    \ and again in the guard (`conflicting_authorization`).\n\n**CLI keeps the old\
+    \ rule and says so** rather than growing an `--as` flag. Same trust model as HTTP,\
+    \ but a new surface for authorising runs that nothing currently needs.\n\n## Measured\
+    \ against the live corpus, after the change\n\n76 open tasks in `agentjobs` on\
+    \ 2026-08-20 (up from 74 when the spec was written; task-188 and task-189 are\
+    \ the additions):\n\n| | before | after |\n|---|---|---|\n| dispatches on one\
+    \ click | 2 | **76** |\n| refused \u2014 newest entry is an agent's | 70 | 0 |\n\
+    | refused \u2014 no log entries at all | 4 | 0 |\n| **prompts for text** | \u2014\
+    \ | **0** |\n| *(would have fired on empty `acceptance[]`)* | \u2014 | *2* |\n\
+    | *(would have fired on empty `ball_prompt`)* | \u2014 | *70 of 70 ready*|\n\n\
+    ac-5 satisfied: the prompt path fires on the tasks that genuinely lack a spec,\
+    \ of which there are none, and on no others. That it *does* fire on one that lacks\
+    \ a spec is pinned at the guard, API, component and e2e levels.\n\n## The e2e\
+    \ spec that had to go\n\n`dispatch-authorising-note.spec.ts` asserted the ceremony\
+    \ this branch removes \u2014 press Dispatch, expect a refusal naming \"Add a note\"\
+    , write one, dispatch. Replaced by `dispatch-one-click.spec.ts` rather than patched,\
+    \ because it tested a behaviour and the behaviour is gone. `dispatch.spec.ts`\
+    \ had been failing only as collateral: the old spec died before its teardown re-disabled\
+    \ the shared `_local` project, and the next spec asserted that project's gate\
+    \ was closed.\n\nTask-185's note control stays, and `TaskDetail`'s comment explaining\
+    \ why it sits under the dispatch panel was rewritten rather than deleted \u2014\
+    \ a refusal can still land there for a caller with no signed-in user.\n\n## Verified\
+    \ through the real path, not only the suite\n\nReview sandbox on **http://127.0.0.1:8899/app/p/review/tasks**\
+    \ \u2014 own port, own AgentJobs home, own git repo, own `dispatch.yaml` pointing\
+    \ at a runner that just sleeps. Clicked task-101 (agent-filed, complete spec):\
+    \ one click, run started, and the log then read `#2 Jeff Posey note \u2014 Dispatched\
+    \ by Jeff Posey from the task page.` between the agent's creation transition and\
+    \ the claim. Opened task-102 (empty description): the textarea is there and the\
+    \ button is disabled until it is answered.\n\nAlso filed **task-189** while working\
+    \ this, at Jeff's request: `scripts/check.py` runs its four-minute pytest stage\
+    \ before a block of checks worth about fifteen seconds, and this session burned\
+    \ roughly sixteen minutes across four full runs because of it \u2014 twice on\
+    \ the identical failure, because `assert-generated-clean.mjs` asserts against\
+    \ HEAD and reports it as staleness."
+  data:
+    operation:
+      id: 8b41d7e2-0c93-4f56-b1a8-2e6d9f3074a5
+      kind: log_append
+      fingerprint: f3390c02de0e586f6976e94d63d20a64
+- id: 7
+  ts: '2026-08-20T06:54:07.847147Z'
+  actor: claude
+  type: handoff
+  body: Built, gate green, verified through the browser on a sandbox. Handing to Jeff
+    for the merge gate.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: c92f6a30-7b18-4d2e-8f45-a1b03e6c5d97
+      kind: handoff
+      fingerprint: 07a4570561988f6dc121377f886c6a5e
