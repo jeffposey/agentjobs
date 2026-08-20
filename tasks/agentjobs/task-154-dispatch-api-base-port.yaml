@@ -2,11 +2,9 @@ schema: 2
 id: task-154-dispatch-api-base-port
 title: Tell a dispatched agent the address AgentJobs is actually serving on
 created: '2026-08-18T21:21:58.341616Z'
-updated: '2026-08-20T01:13:07.082219Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-20T01:19:41.944529Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: reliability
@@ -16,7 +14,6 @@ tags:
 - configuration
 effort: small
 assignment:
-  owner: claude
   eligible: []
 parent: task-181-dispatch-phase-one-hardening
 spec:
@@ -142,31 +139,34 @@ acceptance:
 - id: sc-1
   text: An agent dispatched from a server bound to a non-default port is told that
     server's address, in both the generated prompt and any {api_base} argv placeholder
-  status: pending
+  status: met
 - id: sc-2
   text: The CLI dispatch path resolves an address correctly too, and a test covers
     it rather than only the HTTP endpoint
-  status: pending
+  status: met
 - id: sc-3
   text: Auto-dispatch resolves the same address as manual dispatch; the two paths
     do not carry separate defaults that can drift
-  status: pending
+  status: met
 - id: sc-4
   text: 'Verified end to end: dispatch a real session from a server on a non-8765
     port and confirm from the run record that the address it was given is the one
     serving'
-  status: pending
+  status: met
 - id: sc-5
   text: The prompt-correction workaround in C:/ai/scratch/agentjobs-dispatch-review-sandbox.py
     is removed, and a dispatch from that sandbox still reaches the right address
-  status: pending
+  status: met
 deliverables:
 - path: src/agentjobs/api/routes/status.py
-  note: Endpoint supplies the real serving address
-  status: pending
+  note: Endpoint supplies the real serving address, from the ASGI server scope
+  status: done
 - path: src/agentjobs/dispatch/runner.py
-  note: api_base sourced rather than defaulted
-  status: pending
+  note: api_base resolved through dispatch/address.py rather than defaulted
+  status: done
+- path: src/agentjobs/dispatch/address.py
+  note: The one resolver, and the only copy of the default
+  status: done
 dependencies:
 - task: task-070-dispatch-runner
   type: related
@@ -180,7 +180,7 @@ dependencies:
 links: []
 branches:
 - name: fix/task-154-dispatch-api-base
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-18T21:21:58.341670Z'
@@ -392,3 +392,16 @@ log:
     \ to\n`~/.agentjobs/dispatch.yaml`. That file is machine-local and hand-written\
     \ by design, so\nthis change does not touch it."
   data: {}
+- id: 7
+  ts: '2026-08-20T01:19:41.944420Z'
+  actor: claude
+  type: transition
+  body: 'Merged into main as 1079c29 (--no-ff). All five acceptance criteria met;
+    `poetry run python scripts/check.py` exit 0 after rebasing onto main. Verified
+    end to end against the review sandbox on port 8901: the dispatched session was
+    told http://127.0.0.1:8901 and was observed calling it. The sandbox''s prompt-correction
+    workaround is deleted. Merged under Jeff''s explicit autonomy grant of 2026-08-19;
+    nothing has been pushed.'
+  data:
+    lifecycle: closed
+    outcome: completed
