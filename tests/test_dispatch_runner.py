@@ -55,6 +55,8 @@ from agentjobs.dispatch.runner import (
     readable_tail,
     resolve_executable,
     strip_ansi,
+    uncommitted_paths,
+    working_tree_clean,
 )
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BallReason, DispatchOutcome, Lifecycle, LogEntryType
@@ -976,6 +978,85 @@ class TestSpawnPreconditions:
         with pytest.raises(DispatchRunError) as caught:
             runner.start(task, actor="Jeff Posey", caused_by=1)
         assert "uncommitted" in str(caught.value)
+
+
+class TestUncommittedPaths:
+    """The primitive both clean-tree gates ask, including what it deliberately ignores."""
+
+    @staticmethod
+    def repo(root: Path) -> Path:
+        """A committed repository with a tasks directory tracked inside it."""
+        (root / "tasks").mkdir(parents=True)
+        (root / "src").mkdir()
+        subprocess.run(["git", "init"], cwd=root, capture_output=True, check=True)
+        subprocess.run(["git", "config", "user.email", "t@t.t"], cwd=root, capture_output=True)
+        subprocess.run(["git", "config", "user.name", "t"], cwd=root, capture_output=True)
+        (root / "tasks" / "task-001.yaml").write_text("id: task-001\n", encoding="utf-8")
+        (root / "src" / "app.py").write_text("x = 1\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=root, capture_output=True, check=True)
+        subprocess.run(["git", "commit", "-m", "init"], cwd=root, capture_output=True, check=True)
+        return root
+
+    def test_a_clean_tree_has_no_paths(self, tmp_path: Path) -> None:
+        root = self.repo(tmp_path / "proj")
+        assert uncommitted_paths(root) == []
+        assert working_tree_clean(root)
+
+    def test_git_that_cannot_answer_is_not_clean(self, tmp_path: Path) -> None:
+        """Distinct from "nothing is uncommitted", and it has to refuse rather than pass."""
+        nowhere = tmp_path / "not-a-repo"
+        nowhere.mkdir()
+        assert uncommitted_paths(nowhere) is None
+        assert working_tree_clean(nowhere) is False
+
+    def test_the_ignored_directory_drops_out_and_nothing_else_does(self, tmp_path: Path) -> None:
+        root = self.repo(tmp_path / "proj")
+        (root / "tasks" / "task-001.yaml").write_text(
+            "id: task-001\nclaimed: y\n", encoding="utf-8"
+        )
+        (root / "tasks" / "task-002.yaml").write_text("id: task-002\n", encoding="utf-8")
+        (root / "src" / "app.py").write_text("x = 2\n", encoding="utf-8")
+
+        assert sorted(uncommitted_paths(root) or []) == [
+            "src/app.py",
+            "tasks/task-001.yaml",
+            "tasks/task-002.yaml",
+        ]
+        assert uncommitted_paths(root, ignore=[root / "tasks"]) == ["src/app.py"]
+
+    def test_a_filename_with_a_space_survives_the_parse(self, tmp_path: Path) -> None:
+        """`git status --porcelain` quotes and escapes these; the -z form does not.
+
+        A path this misparsed would be dropped silently from a safety check, so it is
+        pinned rather than left to the format.
+        """
+        root = self.repo(tmp_path / "proj")
+        (root / "src" / "two words.py").write_text("x = 3\n", encoding="utf-8")
+
+        assert uncommitted_paths(root, ignore=[root / "tasks"]) == ["src/two words.py"]
+
+    def test_a_rename_reports_the_new_path_once(self, tmp_path: Path) -> None:
+        """-z emits the original path as a second field, which must not be read as dirt."""
+        root = self.repo(tmp_path / "proj")
+        subprocess.run(
+            ["git", "-C", str(root), "mv", "src/app.py", "src/renamed.py"],
+            capture_output=True,
+            check=True,
+        )
+
+        assert uncommitted_paths(root, ignore=[root / "tasks"]) == ["src/renamed.py"]
+
+    def test_paths_resolve_against_the_repository_root_not_the_directory_asked(
+        self, tmp_path: Path
+    ) -> None:
+        """Porcelain paths are repo-relative wherever git ran, so the exclusion must be too."""
+        root = self.repo(tmp_path / "proj")
+        (root / "tasks" / "task-001.yaml").write_text(
+            "id: task-001\nclaimed: y\n", encoding="utf-8"
+        )
+        (root / "src" / "app.py").write_text("x = 2\n", encoding="utf-8")
+
+        assert uncommitted_paths(root / "src", ignore=[root / "tasks"]) == ["src/app.py"]
 
 
 # ----- the shapes this module refuses to have ---------------------------------

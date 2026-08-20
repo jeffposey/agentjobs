@@ -41,7 +41,7 @@ from agentjobs.dispatch.runner import (
     RunHandle,
     git_head,
     runs_root,
-    working_tree_clean,
+    uncommitted_paths,
 )
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import DispatchTrigger, Lifecycle, LogEntry, Task
@@ -340,12 +340,21 @@ def dispatch_task(
             "is watching. Cancel a run or try again."
         )
 
-    if resolution.settings.require_clean_tree and not working_tree_clean(project.root):
-        raise DirtyTreeError(
-            f"{project.root} has uncommitted changes. An autonomous agent committing on "
-            "top of in-flight work entangles the two, and unpicking that is hardest "
-            f"exactly when you least expect it. Current HEAD is {git_head(project.root)}."
-        )
+    # AgentJobs' own tasks directory is excluded from this. A project that keeps its task
+    # records in the repository being dispatched -- this one does -- has that directory
+    # dirtied by dispatch itself, both before the spawn (the claim) and after the run (the
+    # terminal dispatch_result entry). Counting those refused every dispatch on the
+    # strength of AgentJobs' own writes; see task-182 and the design doc.
+    if resolution.settings.require_clean_tree:
+        dirty = uncommitted_paths(project.root, ignore=[manager.storage.tasks_dir])
+        if dirty is None or dirty:
+            named = ", ".join(sorted(dirty)[:5]) if dirty else "git could not be read"
+            raise DirtyTreeError(
+                f"{project.root} has uncommitted changes ({named}). An autonomous agent "
+                "committing on top of in-flight work entangles the two, and unpicking "
+                "that is hardest exactly when you least expect it. Current HEAD is "
+                f"{git_head(project.root)}."
+            )
 
     # Taken before the claim and held for the run's lifetime. The storage lock the
     # claim uses protects a write lasting microseconds; this one protects a process

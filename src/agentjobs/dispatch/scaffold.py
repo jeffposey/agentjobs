@@ -167,6 +167,13 @@ default_group: standard
 #       autonomous  bypassPermissions. No gate whatsoever. Opt in per project.
 #
 #     require_clean_tree: true
+#
+#       Refuses a dispatch while the project has uncommitted changes, so an autonomous
+#       run never commits on top of in-flight work. The project's own tasks directory is
+#       excluded: AgentJobs writes there itself, before and after every run, so counting
+#       it would refuse every dispatch. A hand edit to a task file therefore does not
+#       block one -- see docs/agent-dispatch-design.md.
+#
 #     auto_dispatch: false
 projects: {}
 

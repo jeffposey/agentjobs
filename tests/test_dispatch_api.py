@@ -53,10 +53,11 @@ def served(tmp_path: Path, monkeypatch) -> Iterator[Tuple[TestClient, Path, Path
     (root / ".agentjobs" / "config.yaml").write_text(yaml.safe_dump(CONFIG), encoding="utf-8")
     (root / "tasks").mkdir()
     (root / "README.md").write_text("hello\n", encoding="utf-8")
-    # AgentJobs writes its own runtime files into the project root -- task YAML, write
-    # receipts, the webhook store -- so a project that does not ignore them can never
-    # satisfy require_clean_tree. This mirrors the repository's own .gitignore.
-    (root / ".gitignore").write_text("tasks/\n.agentjobs/\n", encoding="utf-8")
+    # Only .agentjobs/ is ignored, exactly as `agentjobs init` leaves a project: task
+    # YAML is meant to be committed, and this repository commits its own. That makes the
+    # tasks directory part of the tree the clean-tree gate inspects, which is the shape
+    # task-182 was about -- dispatch dirties that directory itself, at both ends of a run.
+    (root / ".gitignore").write_text(".agentjobs/\n", encoding="utf-8")
     subprocess.run(["git", "init"], cwd=root, capture_output=True, check=True)
     subprocess.run(["git", "config", "user.email", "t@t.t"], cwd=root, capture_output=True)
     subprocess.run(["git", "config", "user.name", "t"], cwd=root, capture_output=True)

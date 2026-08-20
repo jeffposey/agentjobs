@@ -968,6 +968,24 @@ be read before every change to this subsystem.
   agent committing on top of uncommitted human work entangles the two, and the resulting
   mess is hard to unpick precisely when you are least expecting it. `git_head` is
   recorded in the dispatch entry so the diff attributable to a run is always recoverable.
+  The refusal names the offending paths, because otherwise `git status` and the refusal
+  disagree and neither explains the other — see the exclusion below.
+
+    **The project's tasks directory is excluded from this check** (task-182). AgentJobs
+    writes into the very tree it is inspecting, twice per run: the claim writes the task
+    YAML before the spawn, and the terminal `dispatch_result` entry is written after the
+    run's last commit. For a project keeping its task records in the repository being
+    dispatched — which is what `agentjobs init` sets up, and what this repository does —
+    counting those meant dispatch refused on the strength of its own writes, every time,
+    with the second failure guaranteed rather than merely likely.
+
+    **What that costs, stated so it is not rediscovered as a bug:** a human's genuinely
+    uncommitted *hand* edit to a task file no longer blocks a dispatch. That is a real
+    loss and it was taken deliberately. There is no version of this that keeps the tasks
+    directory meaningful here, because the leftover `dispatch_result` entry sits in that
+    directory unconditionally after every completed run; a check that fires every time
+    fires on nothing. Everything outside the tasks directory is inspected exactly as
+    before, and that is where an agent's code commits land.
 - **The causing actor must be human** (§2).
 
 ### Does dispatch ever run with no human present?
@@ -1154,15 +1172,17 @@ things, in order of when they act:
    entangling two runs' work. It detects rather than prevents, and it is named here so the
    new arrangement is not mistaken for having no mechanism at all.
 
-    Stated with the caveat rather than without it: **this backstop does not work today**,
-    for a reason that has nothing to do with worktrees. `working_tree_clean` runs a bare
+    This backstop was inert until task-182. `working_tree_clean` ran a bare
     `git status --porcelain` with no exclusion for the project's tasks directory, so
-    dispatch's own writes to a task record trip it — task-182, still open. The verification
-    run for task-186 showed the same thing from the other end: the terminal
-    `dispatch_result` entry is written by the dispatcher *after* the agent's last commit,
-    so a dispatched run always leaves exactly one uncommitted line behind however
-    well-behaved it was. Until task-182 is fixed, mechanism 3 is a statement of intent and
-    mechanisms 1 and 2 are what is actually carrying this.
+    dispatch's own writes to a task record tripped it — at both ends of a run, the claim
+    before the spawn and the terminal `dispatch_result` entry after the agent's last
+    commit. A check that refuses every dispatch is not a backstop, and in practice it was
+    switched off to get any work done. The tasks directory is now excluded (§6), so the
+    check fires on a dispatched run's stray writes and on nothing else.
+
+    It still detects rather than prevents, and it is blind inside the tasks directory. A
+    run that violates containment by writing *only* task YAML is not caught by mechanism 3;
+    mechanisms 1 and 2 are what carry that case.
 
 **What is genuinely lost, so it is not rediscovered as a bug.** An accident is no longer
 automatically confined. Under `-w` a confused run wrote into a git-locked worktree nobody
