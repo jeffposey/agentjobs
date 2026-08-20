@@ -3,11 +3,9 @@ id: task-192
 title: Taking its own worktree parks every dispatched run on a permission prompt nobody
   can answer
 created: '2026-08-20T07:33:26.996097Z'
-updated: '2026-08-20T08:05:23.208722Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-20T08:13:03.680611Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: reliability
@@ -18,7 +16,6 @@ tags:
 - defect
 effort: small
 assignment:
-  owner: claude
   eligible: []
 parent: task-181-dispatch-phase-one-hardening
 spec:
@@ -99,25 +96,45 @@ acceptance:
 - id: ac-1
   text: A real --bg dispatch takes its own worktree and starts work without any permission
     prompt, verified with claude agents --json showing working rather than blocked
-  status: pending
+  verify: 'run_ab042e6a / session b0609221, dispatched from C:/projects/aj-192 so
+    this branch composed the prompt. `claude agents --json` -> status: busy, state:
+    working. `git worktree list` gained C:/projects/agentjobs-015 on fix/task-015-truncate-ball-prompt-in-lists.
+    Never blocked. Log entry 4.'
+  status: met
 - id: ac-2
   text: The same is true when a worktree for that task already exists from a previous
     run, which is the case actually observed
-  status: pending
+  verify: 'Twice. run_052b10e5 with one existing worktree: busy/working, transcript
+    shows `git worktree add ../aj-015 -b fix/task-015-truncate-ball-prompt-in-list`.
+    run_d74e729e with two: busy/working, transcript shows it noticing them ("Two prior
+    interrupted runs left empty worktrees behind") and inspecting with `git -C ../agentjobs-015
+    status` -- shell, not EnterWorktree. Log entry 4.'
+  status: met
 - id: ac-3
-  text: "The run can still commit its task record to main and run the merge gate \u2014\
-    \ task-186's property is not regressed"
-  status: pending
+  text: The run can still commit its task record to main and run the merge gate --
+    task-186's property is not regressed
+  verify: 'posture_flags is unchanged in behaviour (docstring only); tests/test_dispatch_runner.py:182,227
+    still assert no posture emits -w, green in the full gate. run_d74e729e executed
+    `git -C` against sibling checkouts of the shared clone -- the operation class
+    a -w guard refuses. Full gate `poetry run python scripts/check.py` exit 0: 1984
+    pytest in 4m29s, 15 Playwright, build and Vitest.'
+  status: met
 - id: ac-4
   text: A run that parks despite this is surfaced through the task record with the
     ball moved off the agent
-  status: pending
+  verify: 'Already satisfied before this task; no code written. classify_session ->
+    PARKED -> _park_session -> manager.handoff(ball=HUMAN, ball_reason=INPUT), polled
+    every 10s by poll_sessions_forever started in api/main.py:110. Fired in production
+    on the run this task was filed about: task-188 log entry #13, actor `dispatcher`,
+    2026-08-20 07:27:47Z. Reasoning and rejected alternative in log entry 5.'
+  status: met
 deliverables: []
 dependencies: []
 links: []
 branches:
 - name: fix/task-192-worktree-prompt-parks-dispatch
-  status: active
+  status: merged
+  merged_at: '2026-08-20T00:00:00Z'
 log:
 - id: 1
   ts: '2026-08-20T07:33:26.996144Z'
@@ -241,3 +258,11 @@ log:
     \ describes (\"he could see the run was parked and could not see\nthe prompt\"\
     ) was that the prompt itself is unanswerable, not that it went unreported.\n"
   data: {}
+- id: 6
+  ts: '2026-08-20T08:13:03.680536Z'
+  actor: claude
+  type: transition
+  body: 'Closed: completed.'
+  data:
+    lifecycle: closed
+    outcome: completed
