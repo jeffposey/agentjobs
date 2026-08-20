@@ -555,6 +555,8 @@ class TestPromptStub:
         prompt = runner.build_prompt(task.id, "run_abcd1234")
 
         assert "git worktree add" in prompt
+        # task-200: under `worktrees/`, not loose beside the clone.
+        assert "git worktree add ../worktrees/" in prompt
         # The branch it names is this task's, so the command is runnable as written.
         assert task.id in prompt.split("git worktree add", 1)[1]
         assert "not a built-in worktree tool" in prompt

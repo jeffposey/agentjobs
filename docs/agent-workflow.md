@@ -18,8 +18,12 @@ either of you.
 So this is your first act, before the claim and before anything is written to disk:
 
 ```bash
-git worktree add ../<repo>-<nnn> -b <type>/task-<nnn>-<slug>
+git worktree add ../worktrees/<repo>-<nnn> -b <type>/task-<nnn>-<slug>
 ```
+
+That path is a `worktrees/` directory beside the project rather than a sibling of it, so
+several live worktrees do not bury the projects in a listing of the workspace. `git
+worktree add` creates the directory the first time.
 
 Work there. Remove it once your branch is merged; `git worktree list` is the inventory,
 and one left behind for a closed task is litter.

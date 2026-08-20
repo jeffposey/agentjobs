@@ -244,7 +244,7 @@ def test_the_dispatch_design_does_not_still_claim_agentjobs_supplies_isolation()
     assert "--add-dir" in text
     # And what stops two dispatched runs sharing a tree now that the flag is gone.
     assert "require_clean_tree" in text
-    assert "git worktree add ../aj-<nnn>" in text
+    assert "git worktree add ../worktrees/aj-<nnn>" in text
 
 
 def test_the_dispatch_design_states_what_reaping_means_now() -> None:
@@ -253,3 +253,30 @@ def test_the_dispatch_design_states_what_reaping_means_now() -> None:
 
     assert "#### Reaping, and what it means now" in text
     assert "narrowing rather than a silent no-op" in text
+
+
+WORKTREE_INSTRUCTIONS = (
+    "ENGINEERING.md",
+    "ALLAGENTS.md",
+    "docs/agent-workflow.md",
+    "docs/agent-dispatch-design.md",
+)
+
+
+@pytest.mark.parametrize("path", WORKTREE_INSTRUCTIONS)
+def test_worktree_instructions_name_the_worktrees_directory(path: str) -> None:
+    """task-200. Every `git worktree add` a reader might copy lands under `worktrees/`.
+
+    The path is stated in four documents plus ``PROMPT_STUB`` -- not by accident, but
+    because the instruction has to precede reading the guide (task-192). Four copies
+    drift, and a copy that still says ``../aj-<nnn>`` puts the worktree back in the
+    workspace root, which is the thing this change was for. Asserting the absence of the
+    old form is the half that catches the drift; asserting the presence of the new one
+    only catches a deletion.
+    """
+    text = (ROOT / path).read_text(encoding="utf-8")
+
+    commands = [line for line in text.splitlines() if "git worktree add ../" in line]
+    assert commands, f"{path} no longer states the command at all"
+    for line in commands:
+        assert "git worktree add ../worktrees/" in line, line

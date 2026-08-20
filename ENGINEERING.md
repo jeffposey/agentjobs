@@ -120,10 +120,15 @@ the files under whoever else is in there. **When you are not alone in a clone, t
 worktree instead of checking out:**
 
 ```bash
-git worktree add ../aj-045 -b feat/task-045-subtask-support
-cd ../aj-045 && python scripts/bootstrap.py   # ~30s; it has no venv or node_modules yet
-git worktree remove ../aj-045      # after the branch merges
+git worktree add ../worktrees/aj-045 -b feat/task-045-subtask-support
+cd ../worktrees/aj-045 && python scripts/bootstrap.py   # ~30s; no venv or node_modules yet
+git worktree remove ../worktrees/aj-045      # after the branch merges
 ```
+
+**They go in a `worktrees/` directory beside the clone, not loose beside it.** A worktree
+is transient and there are several at a time, so a listing of the workspace that mixes
+them in with the projects stops being a listing of the projects. `git worktree add`
+creates the directory the first time; nothing else is needed.
 
 The bootstrap is not optional politeness: a worktree that skips it cannot run
 `scripts/check.py` at all, and borrowing the main clone's virtualenv to get around that

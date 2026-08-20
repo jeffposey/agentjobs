@@ -827,7 +827,7 @@ class DispatchLedger:
         worth doing on its own.
 
         What is no longer covered: the worktree a dispatched agent makes for itself
-        (``../aj-<nnn>``, per ALLAGENTS.md) is outside AgentJobs' knowledge entirely.
+        (``../worktrees/aj-<nnn>``, per ALLAGENTS.md) is outside AgentJobs' knowledge entirely.
         Removing it is the agent's own closing step and ``git worktree list`` is the
         inventory. AgentJobs deliberately does not go looking for directories it did not
         create in order to delete them.
