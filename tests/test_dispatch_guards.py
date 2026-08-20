@@ -628,9 +628,7 @@ class TestConcurrency:
                 lifecycle=Lifecycle.READY,
                 actor="Jeff Posey",
             )
-            manager.add_log_entry(
-                task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go."
-            )
+            manager.add_log_entry(task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go.")
             others.append(task.id)
 
         first = run(manager, project, home, ready_task.id)
