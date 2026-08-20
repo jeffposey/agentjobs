@@ -3,7 +3,7 @@ id: task-182-clean-tree-versus-in-repo-tasks
 title: require_clean_tree refuses every dispatch in a project whose task files live
   in its own repo
 created: '2026-08-19T20:50:13.107702Z'
-updated: '2026-08-20T01:06:10.131131Z'
+updated: '2026-08-20T01:27:13.018673Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -380,3 +380,35 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 10
+  ts: '2026-08-20T01:27:13.018543Z'
+  actor: claude
+  type: note
+  body: "Correction to entry 6. **Its central claim does not hold, and nobody should\
+    \ act on it.**\n\nEntry 6 said that running `poetry run python scripts/check.py`\
+    \ is by itself enough to leave three regenerated frontend client files reported\
+    \ as modified, and therefore enough to make the next dispatch refuse `dirty_tree`.\
+    \ That was inferred from a coincidence, not tested.\n\nThe clean experiment, run\
+    \ on `main` at d831a08 on 2026-08-19 after this task merged: a full `scripts/check.py`\
+    \ to completion (exit 0), then `git status --porcelain` with nothing else touching\
+    \ the tree in between. **Zero lines.** The gate regenerates those files and leaves\
+    \ the tree clean.\n\nWhat was actually observed earlier was a dirty status at\
+    \ a moment when a child session had also run `npm run build` in the shared clone\
+    \ by hand, on its way to refreshing `frontend_dist/`. The real cause is unidentified\
+    \ and may well have been that build rather than the gate; either way it did not\
+    \ survive the direct test, and `git status` does compare content when the cached\
+    \ stat is stale, which is why the hypothesis in entry 6 was thin to begin with.\n\
+    \nTwo things follow:\n\n1. **The exclusion this task shipped is not left with\
+    \ a hole by the gate.** Entry 6 implied it was, by describing a dirt source outside\
+    \ the tasks directory that no path exclusion could cover. That description is\
+    \ withdrawn.\n2. The question entry 6 suggested \u2014 whether `git diff --quiet\
+    \ HEAD` would be a better basis for `uncommitted_paths` than `git status --porcelain`\
+    \ \u2014 has no evidence behind it now. It is not a reason to reopen anything.\n\
+    \nKept rather than deleted, since entry 6 is already in the record and a reader\
+    \ meeting it needs to find this beside it."
+  re: 6
+  data:
+    operation:
+      id: 9a4c1e58-6b27-4d93-8f01-c25e7b3a6d40
+      kind: log_append
+      fingerprint: 08c09ac57e747b539c066bc834f463f3
