@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from agentjobs.manager import DependencyFacts
+from agentjobs.manager import DependencyFacts, TaskManager
 from agentjobs.models_v2 import (
     AcceptanceCriterion,
     Ball,
@@ -34,6 +34,19 @@ class TaskRead(Task):
     needs_cycles: List[List[str]] = Field(default_factory=list)
     unblocks_count: int = 0
     open_children_count: int = 0
+
+    @classmethod
+    def from_tasks(cls, manager: TaskManager, tasks: List[Task]) -> List["TaskRead"]:
+        """Enrich a list of tasks with dependency facts computed over the whole corpus.
+
+        The facts are deliberately not computed from ``tasks``. Every read surface that
+        returns rows -- the full list, a filtered list, a search -- goes through here,
+        and a count scoped to whichever rows the filter returned would report 0 for a
+        parent whose children the filter excluded. Inside a request's
+        ``corpus_snapshot`` the corpus is already parsed, so this costs no extra reads.
+        """
+        facts = manager.dependency_facts()
+        return [cls.from_task(task, facts[task.id]) for task in tasks]
 
     @classmethod
     def from_task(cls, task: Task, facts: DependencyFacts) -> "TaskRead":

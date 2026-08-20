@@ -617,6 +617,25 @@ class TestSummaries:
 
         assert row["project_id"] == "alpha"
 
+    def test_an_uncomputed_child_count_is_null_not_zero(self):
+        """Regression for task-180: the absence of a count is not the number zero.
+
+        A read surface that never computed `open_children_count` used to have the
+        summary layer fill the gap with 0, which reads as "this parent has no open
+        children". That is a different claim, it is queryable, and it was wrong.
+        """
+        row = summaries.task_summary({"id": "task-1", "title": "T"}, project_id="alpha")
+
+        assert row["open_children_count"] is None
+        assert summaries.dependency_facts({})["open_children_count"] is None
+
+    def test_a_computed_zero_child_count_survives_as_zero(self):
+        """And a real 0 must not be turned into a null on the way through."""
+        record = {"id": "task-1", "title": "T", "open_children_count": 0}
+
+        assert summaries.task_summary(record, project_id="alpha")["open_children_count"] == 0
+        assert summaries.dependency_facts(record)["open_children_count"] == 0
+
     @pytest.mark.parametrize(
         "count,plural,expected",
         [

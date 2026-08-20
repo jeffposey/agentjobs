@@ -3392,7 +3392,7 @@ export type SearchTasksApiProjectsProjectIdSearchGetResponses = {
      *
      * Successful Response
      */
-    200: Array<Task>;
+    200: Array<TaskReadOutput>;
 };
 
 export type SearchTasksApiProjectsProjectIdSearchGetResponse = SearchTasksApiProjectsProjectIdSearchGetResponses[keyof SearchTasksApiProjectsProjectIdSearchGetResponses];
@@ -4414,7 +4414,7 @@ export type SearchTasksApiSearchGetResponses = {
      *
      * Successful Response
      */
-    200: Array<Task>;
+    200: Array<TaskReadOutput>;
 };
 
 export type SearchTasksApiSearchGetResponse = SearchTasksApiSearchGetResponses[keyof SearchTasksApiSearchGetResponses];

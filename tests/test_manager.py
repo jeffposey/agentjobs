@@ -267,6 +267,54 @@ def test_dependency_facts_share_the_claim_gate_and_reverse_impact(tmp_path: Path
     assert facts["task-028-umbrella"].open_children_count == 1
 
 
+def test_dependency_facts_counts_children_the_subset_left_out(tmp_path: Path) -> None:
+    """`tasks` picks which ids get an entry, not what the child count is measured over.
+
+    Regression for task-180. The count was built by iterating the subset, so a caller
+    passing a filtered page got a number relative to that page. `actionable` on the
+    same record was already corpus-wide, so the two fields contradicted each other
+    inside a single response, with nothing in the API saying one was page-relative.
+    """
+    manager = _manager(tmp_path)
+    umbrella = manager.create_task(
+        id="task-180-umbrella",
+        title="Umbrella",
+        description="Parent.",
+        category="test",
+        lifecycle=Lifecycle.READY,
+    )
+    for index in range(3):
+        manager.create_task(
+            id=f"task-180-child-{index}",
+            title=f"Child {index}",
+            description="Contained work.",
+            category="test",
+            lifecycle=Lifecycle.READY,
+            parent=umbrella.id,
+        )
+
+    # The subset a filtered view would hand over: the parent, none of its children.
+    facts = manager.dependency_facts([umbrella])
+
+    assert facts[umbrella.id].open_children_count == 3
+    assert facts[umbrella.id].actionable is False
+
+
+def test_dependency_facts_reports_zero_children_as_zero(tmp_path: Path) -> None:
+    """The other half of the guarantee: 0 has to be reachable and mean what it says."""
+    manager = _manager(tmp_path)
+    solo = manager.create_task(
+        id="task-180-solo",
+        title="Solo",
+        description="No children.",
+        category="test",
+        lifecycle=Lifecycle.READY,
+    )
+
+    assert manager.dependency_facts([solo])[solo.id].open_children_count == 0
+    assert manager.dependency_facts()[solo.id].open_children_count == 0
+
+
 def test_dependency_facts_surface_cycles_without_recursing(tmp_path: Path) -> None:
     manager = _manager(tmp_path)
     manager.create_task(
