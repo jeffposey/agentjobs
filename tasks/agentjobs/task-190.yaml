@@ -3,7 +3,7 @@ id: task-190
 title: 'Run locks leak: release depends on in-memory state, so a server restart blocks
   those tasks forever'
 created: '2026-08-20T07:08:47.960269Z'
-updated: '2026-08-20T18:29:20.726538Z'
+updated: '2026-08-20T18:32:07.967257Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -537,3 +537,13 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 11
+  ts: '2026-08-20T18:32:07.967151Z'
+  actor: claude
+  type: note
+  body: 'Housekeeping: `C:/projects/aj-190` is unregistered from git (`git worktree
+    list` shows only the main clone) and its contents are deleted, but the empty directory
+    itself could not be removed -- this session''s working directory is inside it,
+    so Windows holds the handle. Same leftover shape as task-187''s. `rmdir C:/projects/aj-190`
+    clears it once this session ends. The branch `fix/task-190-run-lock-leak` is deleted.'
+  data: {}
