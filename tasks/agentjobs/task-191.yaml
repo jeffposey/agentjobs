@@ -1,0 +1,147 @@
+schema: 2
+id: task-191
+title: Run more than one agent at a time, and fix what that breaks
+created: '2026-08-20T07:19:15.553705Z'
+updated: '2026-08-20T07:19:15.554437Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+category: developer_experience
+tags:
+- dispatch
+- throughput
+- developer-experience
+effort: a day, mostly in the things it uncovers
+assignment:
+  eligible: []
+spec:
+  summary: "limits.max_concurrent_runs is 1 on this machine. It is machine-local config\
+    \ and needs no code to change \u2014 but raising it is not a one-line act, because\
+    \ three known defects only bite once two runs overlap, and every one of them was\
+    \ hit during a single evening of running agents in parallel by hand. Raise the\
+    \ ceiling deliberately, with those fixed, and prove the throughput rather than\
+    \ assuming it."
+  intent: 'Jeff, 2026-08-20: "bumping concurrency and working through its issues is
+    a ''next / critical'' thing because I want to speed up development... I really
+    want to work towards a faster dev cycle, I think this is what''s really interesting
+    to me, both in quick prototyping ability and continued development and improvement,
+    from within the app itself." The point is not the number in the config file. It
+    is that the wall-clock cost of a change is currently one agent at a time, and
+    that is the ceiling on everything else this project is for.'
+  description: "## The setting is already there\n\n`~/.agentjobs/dispatch.yaml`:\n\
+    \n```yaml\nlimits:\n  max_concurrent_runs: 1\n```\n\nRead at `config.py:669`,\
+    \ defaulted at `config.py:342`. Nothing in\n`docs/agent-dispatch-design.md` \xA7\
+    8 argues for `1` \u2014 the correctness guarantee against two\nagents on one task\
+    \ is the **per-task run lock**, which is independent of this ceiling.\nThis value\
+    \ is a spend and resource cap, not a safety property. So the change itself is\n\
+    one line.\n\n## Why it is a task and not an edit\n\nThree known defects are invisible\
+    \ at concurrency 1 and certain at concurrency > 1. All\nthree were hit on 2026-08-19/20\
+    \ while running six agents in parallel through the\nspawn-session skill, which\
+    \ is the same load this setting would create through dispatch:\n\n- **task-187**\
+    \ \u2014 `frontend/playwright.config.ts` binds a constant port `18940` with\n\
+    \  `reuseExistingServer: false`. Two gates at once means one fails to bind, four\
+    \ minutes\n  into a five-minute run, with an error naming a port rather than a\
+    \ cause. Observed;\n  task-185's run also logged a poller test flaking for the\
+    \ same reason.\n- **task-190** \u2014 run locks leak, and the leak scales with\
+    \ the number of runs in flight\n  when a restart lands. Also: the file descriptor\
+    \ leaks, so a long-lived server\n  accumulates open handles per run.\n- **task-189**\
+    \ \u2014 the gate runs a four-minute pytest stage before ~15s of cheap checks,\
+    \ so\n  every parallel agent pays the expensive stage to learn something the cheap\
+    \ one knew.\n  This one does not *break* under concurrency, it multiplies the\
+    \ cost of it.\n\nRaising the ceiling with these outstanding produces flaky red\
+    \ gates on branches that are\nfine, which is worse than a slow serial queue: it\
+    \ teaches whoever is watching to distrust\nthe gate.\n\n## What to actually decide\n\
+    \n- **What number, and on what evidence?** Six parallel sessions ran on this machine\
+    \ without\n  resource trouble, but they were not all gating simultaneously. Measure\
+    \ rather than\n  guess: the binding constraint is likely concurrent `scripts/check.py`\
+    \ runs, not agents.\n- **Does the ceiling belong per-machine, per-project, or\
+    \ both?** It is machine-wide today.\n  A project that shares a machine with a\
+    \ heavier one may want its own.\n- **What does the browser do when the ceiling\
+    \ is reached?** Today it refuses with a count\n  and no way to see which runs\
+    \ hold the slots \u2014 the run list on a task page shows only\n  that task's\
+    \ runs. Whatever the number becomes, \"1 run(s) already active\" needs to name\n\
+    \  them, or the refusal is unactionable. Found by Jeff hitting exactly this on\
+    \ 2026-08-20.\n- **Is refusing still right, or does a ceiling imply a queue?**\
+    \ \xA77's refusal-not-queue\n  reasoning is recorded and good (`a queue turns\
+    \ this click into a promise to spend money\n  later, when nobody is watching`)\
+    \ \u2014 if that still holds at a higher ceiling, say so\n  rather than letting\
+    \ it be re-litigated by whoever finds the refusal annoying.\n\n## The wider thing\
+    \ this serves, in Jeff's framing\n\nFaster iteration from inside the app itself:\
+    \ report an issue with voice and a screenshot,\nhave it dispatched, worked, merged\
+    \ and the server restarted, without leaving the surface\nyou noticed the problem\
+    \ on. Most of that is already filed \u2014 task-120/121 (issue reporter),\ntask-171/172\
+    \ (voice), task-176 (dispatch on create), task-021 (posture decides whether a\n\
+    run merges and pushes), task-011 (merging frontend code does not update the running\n\
+    server). This task is the throughput floor under all of it: those features are\
+    \ worth much\nless if the machine will only work one thing at a time.\n\nDo not\
+    \ absorb them here. They are separately filed and separately reviewable."
+  constraints: "- Do not raise the ceiling before task-187 and task-190 are fixed.\
+    \ A red gate that has nothing to do with the branch is more expensive than the\
+    \ serialisation it replaces.\n- The per-task run lock stays exactly as it is.\
+    \ This ceiling is machine-wide throughput; that lock is per-task correctness,\
+    \ and conflating them would let two agents onto one branch.\n- Pick the number\
+    \ from a measurement on this machine, and record what was measured. A number chosen\
+    \ because it looked reasonable will be wrong in the direction that costs a night.\n\
+    - Do not introduce a queue as part of this without addressing the recorded reasoning\
+    \ in the design's \xA77 for refusing instead."
+  out_of_scope: "The issue reporter, voice input, dispatch-on-create, merge posture,\
+    \ and rebuild-on-merge \u2014 all separately filed and none of them blocked by\
+    \ this. Making the gate itself faster beyond what task-189 covers. Parallelism\
+    \ within a single gate run."
+  context:
+  - path: src/agentjobs/dispatch/config.py
+    why: "max_concurrent_runs default at :342 and its parse at :669 \u2014 the whole\
+      \ of the setting."
+  - path: src/agentjobs/dispatch/guards.py
+    why: The ConcurrencyLimitError refusal, and the run-count scan it is derived from.
+  - path: docs/agent-dispatch-design.md
+    why: "\xA78 for what the per-task lock guarantees independently of this ceiling;\
+      \ \xA77 for the recorded refuse-rather-than-queue reasoning."
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: Where a ceiling refusal is shown, and where it currently cannot name the
+      runs holding the slots.
+acceptance:
+- id: ac-1
+  text: Two dispatched runs work two different tasks concurrently, both gates pass,
+    and neither interferes with the other
+  status: pending
+- id: ac-2
+  text: The chosen ceiling is justified by a measurement taken on this machine and
+    recorded with the number
+  status: pending
+- id: ac-3
+  text: A ceiling refusal in the browser names which runs hold the slots, not just
+    how many
+  status: pending
+- id: ac-4
+  text: The per-task run lock still refuses a second run on the same task, pinned
+    by a test that survives the higher ceiling
+  status: pending
+- id: ac-5
+  text: Whether a ceiling implies a queue is answered against the design's recorded
+    reasoning, either way
+  status: pending
+deliverables: []
+dependencies:
+- task: task-187
+  type: needs
+  note: Concurrent gates collide on Playwright's constant port.
+- task: task-190
+  type: needs
+  note: The lock leak scales with runs in flight.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T07:19:15.553749Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: b0d5e397-1f42-4a86-9c73-52e8a1f60c47
+      kind: create
+      fingerprint: b37695c09605b4352edcb3c8a6da4e55

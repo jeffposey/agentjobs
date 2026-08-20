@@ -3,7 +3,7 @@ id: task-190
 title: 'Run locks leak: release depends on in-memory state, so a server restart blocks
   those tasks forever'
 created: '2026-08-20T07:08:47.960269Z'
-updated: '2026-08-20T07:08:47.961094Z'
+updated: '2026-08-20T07:17:04.741394Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -153,3 +153,50 @@ log:
       id: 6b3e08d1-52a7-4c94-8f10-d29c4a7be531
       kind: create
       fingerprint: 3b6291da12f4720480cc454d6981bde5
+- id: 2
+  ts: '2026-08-20T07:17:04.741248Z'
+  actor: claude
+  type: progress
+  body: "Two things found while clearing the four leaked locks by hand on 2026-08-20.\
+    \ Both make the defect worse than the original description, and the second is\
+    \ a separate leak that this task should either absorb or spin out.\n\n## 1. The\
+    \ file descriptor leaks too, so the documented remedy does not work\n\n`acquire_run_lock`\
+    \ does `os.open(...)` and the handle is never closed on the path that strands\
+    \ the file. On Windows an open handle blocks unlink, so:\n\n    rm task-187.lock\n\
+    \    rm: cannot remove 'task-187.lock': Device or resource busy\n\n`RunLockTimeout`'s\
+    \ message tells the reader to \"delete the file to clear it\". While the process\
+    \ that leaked it is alive, **they cannot** \u2014 and that process is the AgentJobs\
+    \ server, so the advice amounts to \"restart the thing you are trying to use\"\
+    . The two locks whose holder pid was already dead deleted without complaint; the\
+    \ two held by a live process did not.\n\nSo a fix that only reconciles lock *files*\
+    \ at startup is insufficient: the descriptor has to be closed too, or a long-lived\
+    \ server accumulates open handles for every run it has ever started.\n\n## 2.\
+    \ `agentjobs restart` leaves the previous server alive\n\nThe actual holder of\
+    \ the two stubborn locks was pid 368228, started 2026-08-19 20:27:43 running `agentjobs\
+    \ restart`. A **second** pair (144376, 364428) had started 2026-08-20 01:50:39\
+    \ running `agentjobs serve` \u2014 the launcher, run by this session. Both generations\
+    \ were alive at the same time, hours apart.\n\nKilling 368228 took port 8876 down\
+    \ with it, which identifies it as the process that was really serving; the newer\
+    \ pair was alive but not bound. So a \"restart\" produced a new process that could\
+    \ not take the port, left the old one serving, and nothing reported the collision.\
+    \ That also explains the two dead-pid locks: those were earlier generations that\
+    \ *were* eventually killed, stranding their files.\n\nConsequences worth stating:\n\
+    - Every `restart` may add a process rather than replace one. On a machine where\
+    \ ENGINEERING.md prescribes restarting after every merge, that accumulates.\n\
+    - Which generation is serving is not knowable from the outside, and a stale generation\
+    \ serving old code is the exact hazard ENGINEERING.md's \"restart the server\"\
+    \ rule exists to prevent \u2014 so the rule can currently produce the failure\
+    \ it was written to stop.\n\nThis may belong in its own task; it is a process-lifecycle\
+    \ defect rather than a locking one, and it was found only because the locking\
+    \ bug forced a look at the process table. Recorded here rather than filed blind\
+    \ so whoever picks this up can make that call with the evidence in hand.\n\n##\
+    \ What was done to the machine\n\nAll four locks are gone and `~/.agentjobs/runs/.locks/`\
+    \ is empty. Pid 368228 was killed with Jeff's explicit go-ahead (\"feel free to\
+    \ stop/start server\"), the launcher was re-run, and the server is verified healthy:\
+    \ `/health` 200, `/app/` 200, task records readable. task-187 and task-188 are\
+    \ dispatchable again.\n\nNone of that is a fix. The leak recurs on the next run."
+  data:
+    operation:
+      id: e37a5c91-08b6-4f24-a350-7c92e1d4b806
+      kind: log_append
+      fingerprint: c22a1eb8df3ef0e33bd4a7cc13617f65
