@@ -295,9 +295,9 @@ class TestSubstitution:
         assert rendered[2].count("\n") == 1
 
     def test_placeholders_inside_a_larger_element_are_substituted(self) -> None:
-        rendered = substitute_argv(["--worktree=aj-{task_id}"], {"task_id": "068"})
+        rendered = substitute_argv(["--session-label=aj-{task_id}"], {"task_id": "068"})
 
-        assert rendered == ["--worktree=aj-068"]
+        assert rendered == ["--session-label=aj-068"]
 
     def test_a_missing_value_is_a_typed_error(self) -> None:
         with pytest.raises(PlaceholderError):

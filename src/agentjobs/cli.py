@@ -1021,15 +1021,19 @@ def dispatch_reconcile() -> None:
 
 @dispatch_app.command("reap")
 def dispatch_reap() -> None:
-    """Remove finished sessions and the task worktrees they still hold.
+    """Remove the job state of finished sessions, freeing the pids they still hold.
 
-    A worktree for a run that ended is litter, and it holds a pid in the session
-    manager's ledger besides. This is the command that clears both.
+    A run that has ended still occupies a row in the session manager's ledger. This is
+    the command that clears it.
 
-    A reap that is **refused** is the useful outcome, not the failure: the session
-    manager will not delete a worktree with uncommitted changes in it, which means that
-    run produced work nobody has looked at. Reported rather than forced -- passing `-f`
-    here would delete exactly the thing worth keeping.
+    It no longer removes worktrees, and the change is deliberate (task-186): dispatch
+    stopped passing `-w`, so a dispatched session owns no worktree. The one a dispatched
+    agent makes for itself is the agent's to remove, and `git worktree list` is the
+    inventory. See `DispatchLedger.reap`.
+
+    A reap that is **refused** is reported rather than forced -- passing `-f` here would
+    delete exactly the thing worth keeping, in the case where a session AgentJobs did not
+    start does own a worktree with work in it.
     """
     results = DispatchLedger(default_home()).reap_finished()
     if not results:
@@ -1043,7 +1047,7 @@ def dispatch_reap() -> None:
             kept += 1
             typer.secho(f"⚠️  {result.run_id}: {result.detail}", fg=typer.colors.YELLOW)
     if kept:
-        typer.echo(f"\n{kept} worktree(s) kept. Look at what is in them before reaping again.")
+        typer.echo(f"\n{kept} session(s) not removed. Read why above before reaping again.")
 
 
 @dispatch_app.command("config")

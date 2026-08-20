@@ -375,7 +375,7 @@ dispatcher; this design predates knowing that.
 | `--remote-control [name]` | Session reachable and **steerable** from any device | Yes — and it composes with `--bg`, despite help text saying "interactive" |
 | `--bg` / `--background` | Start as a background agent, return immediately | Yes |
 | `claude agents --json [--all]` | Sessions as JSON, no TTY required; `--cwd` scopes to a root | Yes |
-| `-w` / `--worktree [name]` | Session gets its own git worktree, git-locked | Yes |
+| `-w` / `--worktree [name]` | Session gets its own git worktree, git-locked — **and refuses every git operation aimed at the shared checkout, so dispatch cannot use it** (task-186, §8) | Yes |
 | `--permission-mode <mode>` | Per-invocation posture | Yes — see the posture section below |
 | `--session-id <uuid>` | ~~Caller assigns the id~~ | **No. `--bg` ignores it** and warns that it manages the id itself |
 | `--max-budget-usd` | Per-run spend ceiling | **`--print` only** — a session has no spend ceiling |
@@ -402,7 +402,7 @@ not become a Claude-shaped hole no other CLI can fill.
 
 | Mode | Invocation | For | Gets |
 |---|---|---|---|
-| `session` | `--bg --remote-control` *(+ `-w <task-slug>` from the posture, not the template)* | Work you might redirect: implementation, anything long, anything that may need a permission answered | Steerable from any device, worktree containment, park-and-ask |
+| `session` | `--bg --remote-control` | Work you might redirect: implementation, anything long, anything that may need a permission answered | Steerable from any device, park-and-ask |
 | `batch` | `-p --output-format=stream-json --verbose --max-budget-usd N` | Bounded reports: review, triage, defect hunts | Spend ceiling, structured output, real exit code |
 
 `batch` is **not** merely a fallback for a CLI without a session manager, though it
@@ -417,16 +417,19 @@ above, and worth the same warning:
   stream-json` exits with *"When using --print, --output-format=stream-json requires
   --verbose"* and starts nothing. A batch runner written from the original row does not
   run at all.
-- **The worktree flag is AgentJobs', not the operator's.** `-w <task-slug>` is spliced in
-  by `posture_flags` for `supervised` and `autonomous` (see the posture section below), so
-  a runner template that also writes `-w` hands one run two worktree flags. The session
-  row keeps it only to describe what the composed command looks like.
+- **The worktree flag is nobody's — do not put `-w` in a runner template.** This bullet
+  originally said the opposite: that `-w <task-slug>` was spliced in by `posture_flags`,
+  so a template writing it too would hand one run two worktree flags. `posture_flags` has
+  not written `-w` since 2026-08-19 (task-186), and the duplicate-flag hazard is replaced
+  by a worse one: a template that writes `-w` produces a run that can do its work and then
+  neither commit its task record nor merge it. §8 has the evidence. A dispatched agent
+  takes its own worktree instead.
 
 A third thing the same exercise settled: `--remote-control` takes an *optional* name, and
 what stops it swallowing the prompt is that AgentJobs splices the posture flags in
 immediately before the prompt element. A session template ending
 `["claude", "--bg", "--remote-control", "{prompt}"]` is therefore correct, and the
-composed argv is `claude --bg --remote-control --permission-mode acceptEdits -w <slug>
+composed argv is `claude --bg --remote-control --permission-mode acceptEdits
 --settings <json> <prompt>`.
 
 #### Rejected, with what rejecting them costs
@@ -486,9 +489,9 @@ Machine-local in `~/.agentjobs/dispatch.yaml`, like every other dispatch setting
 | Posture | Flags | For |
 |---|---|---|
 | `read_only` | `--tools "Read,Glob,Grep,WebFetch"` | Review, triage, plans, defect reports. Verified enforceable: the agent has no shell at all. |
-| `auto` **(default)** | `--permission-mode auto -w <task-slug>` plus the project allow-list via `--settings` | Normal dispatched work. A classifier reviews each action, so the run keeps a gate and never needs a terminal. |
-| `supervised` | `--permission-mode acceptEdits -w <task-slug>` plus the project allow-list via `--settings` | A run a human is actually watching and willing to answer. |
-| `autonomous` | `--permission-mode bypassPermissions -w <task-slug>` | Per-project opt-in. Never the default. |
+| `auto` **(default)** | `--permission-mode auto` plus the project allow-list via `--settings` | Normal dispatched work. A classifier reviews each action, so the run keeps a gate and never needs a terminal. |
+| `supervised` | `--permission-mode acceptEdits` plus the project allow-list via `--settings` | A run a human is actually watching and willing to answer. |
+| `autonomous` | `--permission-mode bypassPermissions` | Per-project opt-in. Never the default. |
 
 !!! warning "`supervised` was the default until 2026-08-19, and could not finish work"
     The table below says `acceptEdits` + allow-list runs an arbitrary command with no
@@ -547,22 +550,35 @@ optional, and omitting it silently matches nothing.
 
 #### Containment, and what it is not
 
-`-w` gives dispatched runs worktree containment for free: `<root>/.claude/worktrees/<name>`
-on branch `worktree-<name>`, **git-locked with a lock reason naming the session and pid**,
-and `claude rm` refuses to discard one holding uncommitted changes. **task-075's layer 2
-is therefore dropped for dispatched runs** — the CLI does it better than we would have.
-Layer 1, the convention for interactive agents, is unaffected.
+!!! warning "Rewritten 2026-08-19 (task-186) — `-w` is no longer passed"
+    This section argued that `-w` gave dispatched runs worktree containment for free:
+    `<root>/.claude/worktrees/<name>` on branch `worktree-<name>`, git-locked with a lock
+    reason naming the session and pid, `claude rm` refusing to discard one holding
+    uncommitted changes, and **task-075's layer 2 therefore dropped for dispatched runs**
+    because the CLI did it better than we would have. Every one of those statements about
+    the CLI is still true. What the section did not know is that the same isolation
+    refuses every git operation aimed at the shared checkout, which is where this project
+    commits task records and runs its merge gate. §8 has the reproduction and the
+    decision. The original text is preserved above rather than deleted, because the
+    argument it makes is the one that has to be answered.
 
-This is what makes `acceptEdits` defensible as a default. In the shared checkout an
-unattended agent commits on top of a peer's in-flight work — the three 2026-08-11
-failures, at machine speed — and `read_only` would be the only defensible default.
-Contained, an accident is confined to a branch nobody else has checked out, and is
-recoverable by deleting the worktree.
+Containment is now the agent's own act — it takes a worktree before writing anything, and
+§8 names the three things that make that hard to skip. Layer 1 of task-075, the convention
+for interactive agents, was always this and is unaffected.
+
+The containment argument was also load-bearing for a default that has since changed. It
+was what made `acceptEdits` defensible: in the shared checkout an unattended agent commits
+on top of a peer's in-flight work — the three 2026-08-11 failures, at machine speed — and
+`read_only` would have been the only defensible default. `auto` has been the default since
+task-020, and what gates it is a classifier evaluating every action, not the working tree.
+So losing mechanical containment does not reopen the question this paragraph settled; the
+default it defended is no longer the default.
 
 **A worktree is not a sandbox.** An agent with shell access can `cd` anywhere on the
 machine. Containment reduces the blast radius of accidents; it does not bound a confused
-or adversarial agent. So it justifies `supervised` as the default and explicitly does
-**not** justify making `autonomous` one.
+or adversarial agent. That was true when containment was mechanical and it is true now.
+It is also why losing the mechanical form costs less than it appears to: it never bounded
+anything, and it still does **not** justify making `autonomous` a default.
 
 #### Rejected postures, with what rejecting them costs
 
@@ -1041,43 +1057,148 @@ Re-dispatch of an already-`active` task (ball `agent`/`revise` after changes wer
 requested) does not claim — it verifies the existing owner matches the runner's agent
 and that no live run holds the task lock.
 
-### Working-tree isolation: cwd stays the project root, and that is not the same question
+### Working-tree isolation: cwd stays the project root, and the agent takes its own worktree
 
-*Added 2026-08-18, resolving task-075's open cwd question.*
+*Added 2026-08-18, resolving task-075's open cwd question. **Amended 2026-08-19
+(task-186): AgentJobs no longer passes `-w`.** The cwd conclusion below is unchanged and
+still correct; the paragraph that said isolation is supplied by AgentJobs is the part
+that was wrong, and it is corrected in place rather than deleted, because the reasoning
+that produced it was sound on the evidence available at the time.*
 
 A run's `cwd` is the shared project root, exactly as the `dispatch` log entry above
 records it. That looks like the failure task-075 exists to prevent — two dispatched runs
 editing one working tree — and it is not, because **cwd and working tree are different
-things here**. The runner is invoked *from* the repository and is passed `-w <task_id>`,
-so it creates and enters its own task-named worktree before doing any work. cwd is where
-the CLI is launched; the worktree is where it writes.
+things here**. The runner is invoked *from* the repository and takes its own task-named
+worktree before doing any work. cwd is where the CLI is launched; the worktree is where
+it writes.
 
 Setting cwd to a worktree instead would be actively wrong. The worktree does not exist
 until the runner makes it, so AgentJobs would have to create one first — which is the
 worktree pool this task considered and rejected (see task-075's decision entry). It also
 breaks `claude agents --json --cwd <project-root>`, which is how §9's poller scopes the
-session listing to one project: sessions launched from a worktree would not be listed
-under the root they belong to.
+session listing to one project.
 
-**Isolation therefore comes from the runner, not from AgentJobs**, and it is supplied by
-AgentJobs rather than left to the agent to remember — `posture_flags()` adds `-w`, so a
-dispatched run cannot fail to take a worktree the way a human-driven agent can.
-`read_only` is the one posture that gets none, because a run that cannot write has
-nothing to isolate.
+#### The `-w` flag cannot be used, and here is the evidence
 
-The limitation this leaves, stated so it is not rediscovered as a bug: a runner driving a
-CLI with no worktree flag gets no isolation, and AgentJobs cannot give it any. Acceptable
-while the shipped default is Claude Code. Revisit the first time a second runner is
-defined for a CLI without one, or the first time two dispatched runs are seen writing to
-the same tree.
+Until 2026-08-19, `posture_flags()` added `-w <task_id>` to every writing posture, on the
+reasoning stated here originally: isolation *"is supplied by AgentJobs rather than left to
+the agent to remember … so a dispatched run cannot fail to take a worktree the way a
+human-driven agent can."* That reasoning was sound and its premise was false. The
+isolation `-w` grants is enforced by a guard, shipped inside Claude Code, that refuses
+every git operation a `-w` session aims at the shared checkout.
 
-**Removing a worktree is part of the run's lifecycle, not a follow-up.** `claude rm`
-deletes a finished session's worktree, and the ledger's `reap` is the path that calls it
-— refusing, deliberately, when the worktree holds uncommitted changes, because that
-refusal means the run produced work nobody has looked at. Reaping happens at server
-startup and on demand via `agentjobs dispatch reap`. It is *not* on a timer: nothing in
-this system schedules background work, and inventing a scheduler to delete directories
-would be the largest new moving part in the subsystem for the smallest reason.
+Probed directly on 2.1.235 in a throwaway repository with no AgentJobs configuration in
+it, 2026-08-19:
+
+```
+claude -p --permission-mode auto -w probe1 "run: git -C <repo> status --porcelain"
+```
+
+> This session is isolated in the worktree …\.claude\worktrees\probe1, but this command
+> redirects git to the shared checkout via -C. Refusing to run it — a worktree-isolated
+> session's git operations must target its own worktree.
+
+Four things about that refusal decide the design:
+
+- **It is not a shallow `-C` check.** `cd <repo> && git status` is refused too, with a
+  message naming the `cd`. There is no wrapping that gets past it, and building one would
+  be circumventing a safety mechanism rather than fixing anything.
+- **It is not configurable.** `--add-dir <repo root>` makes no difference — the guard is
+  about git redirection, not filesystem access. `claude --help` exposes `-w/--worktree`
+  and `--tmux` and nothing that softens either. It is reported as hook output but no user
+  hook defines it; it ships in the CLI.
+- **It forbids exactly the two things this project's process requires.** Every task
+  record is committed to `main` in the shared clone
+  ([ENGINEERING.md, "Task files live on `main`, always"](../ENGINEERING.md)), and the
+  merge gate rebases and merges there. A `-w` run can do the work and then neither record
+  nor merge it.
+- **The cost was being paid, silently.** Every dispatched run to date ended with an
+  uncommitted task record sitting in the shared clone waiting for a human to notice —
+  observed on run_0c91653d, the first dispatched run to reach a closeout at all. Nothing
+  looks broken, because the file is on disk and the dashboard reads it.
+
+The trade is therefore explicit: **guaranteed containment that can never complete a task,
+versus agent-taken containment that can.** A property that guarantees the run cannot
+finish is not containment; it is a stall with good intentions. Task-186 chose the second.
+
+#### Isolation comes from the agent, and where that is stated
+
+The dispatched agent takes its own worktree, exactly as every other agent in this
+repository is already required to
+([ALLAGENTS.md, "Why you get your own worktree"](../ALLAGENTS.md)):
+`git worktree add ../aj-<nnn> -b <type>/task-<nnn>-<slug>`, before anything is written.
+
+Verified by running it rather than by reading about it, 2026-08-19: with `-w` omitted,
+cwd at the repository root and `--permission-mode auto`, a session created a sibling
+worktree, wrote a file into it, committed into it with `git -C`, and read the shared
+clone's status — no refusal, no permission prompt, and **no `--add-dir`**. Writing outside
+cwd was the one thing that could have made this cost a new flag; it does not.
+
+**The mechanism that keeps two dispatched runs out of one working tree** — the question
+task-075 exists to answer, and the one this section must not leave vague — is now three
+things, in order of when they act:
+
+1. **The prompt stub says it, in the sentence guaranteed to be read first.**
+   `PROMPT_STUB` carries one imperative clause: the run is in the project's shared
+   working tree, is not isolated, and must take a worktree before writing anything. This
+   deliberately duplicates a line of the guide, against the stub's own
+   pointer-not-a-composition rule, and the exception is earned: containment is the only
+   instruction that must be obeyed *before* the agent reads anything, the guide included.
+   A pointer cannot carry an instruction that has to precede following the pointer.
+2. **The guide states it in full**, at the top of
+   [`docs/agent-workflow.md`](agent-workflow.md) rather than buried beside the claim, and
+   as a general property of dispatch rather than a fact about this repository.
+3. **`require_clean_tree` turns a violation into a refused spawn.** The precondition
+   already refuses to start a run when the project root has uncommitted changes. If a
+   dispatched run does write the shared tree, the *next* dispatch stops loudly instead of
+   entangling two runs' work. It detects rather than prevents, and it is named here so the
+   new arrangement is not mistaken for having no mechanism at all.
+
+    Stated with the caveat rather than without it: **this backstop does not work today**,
+    for a reason that has nothing to do with worktrees. `working_tree_clean` runs a bare
+    `git status --porcelain` with no exclusion for the project's tasks directory, so
+    dispatch's own writes to a task record trip it — task-182, still open. The verification
+    run for task-186 showed the same thing from the other end: the terminal
+    `dispatch_result` entry is written by the dispatcher *after* the agent's last commit,
+    so a dispatched run always leaves exactly one uncommitted line behind however
+    well-behaved it was. Until task-182 is fixed, mechanism 3 is a statement of intent and
+    mechanisms 1 and 2 are what is actually carrying this.
+
+**What is genuinely lost, so it is not rediscovered as a bug.** An accident is no longer
+automatically confined. Under `-w` a confused run wrote into a git-locked worktree nobody
+else had checked out; now it writes wherever it is told to. This section already limited
+what that was worth — *a worktree is not a sandbox* — and the argument it propped up has
+been superseded besides: worktree containment was what made `acceptEdits` defensible as a
+default, and `auto` has been the default since task-020, gated by a classifier evaluating
+every action rather than by the working tree.
+
+The limitation for other CLIs is unchanged in substance and simpler in form: **no runner
+gets isolation from AgentJobs, whatever CLI it drives.** Revisit the first time two
+dispatched runs are seen writing the same tree.
+
+#### Reaping, and what it means now
+
+**Removing a worktree is no longer part of the run's lifecycle, because a dispatched run
+no longer has a worktree AgentJobs knows about.** `claude rm` still removes a finished
+session's row and frees the pid it holds, and the ledger's `reap` is still the path that
+calls it — verified 2026-08-19 that `claude rm` on a worktree-less background session
+exits 0 and prints `removed <id>`, so this is a narrowing rather than a silent no-op.
+Freeing a pid a finished session holds is real work and worth doing on its own.
+
+What is gone is the *refusal*: `claude rm` declining to delete a worktree with
+uncommitted changes was read here as a signal that a run had produced work nobody had
+looked at. There is nothing for it to fire on now. Refusals are still surfaced and never
+forced, because a session AgentJobs did not start can still own a worktree — and because a
+refusal can also be a transient Windows file handle rather than unreviewed work (observed
+2026-08-19; the retry seconds later succeeded).
+
+The worktree a dispatched agent makes for itself is outside AgentJobs' knowledge
+entirely. Removing it is the agent's own closing step and `git worktree list` is the
+inventory. AgentJobs deliberately does not go hunting for directories it did not create in
+order to delete them.
+
+Reaping happens at server startup, as the poller settles each session, and on demand via
+`agentjobs dispatch reap`.
 
 ---
 
@@ -1111,8 +1232,10 @@ is a silence generator. **Do not repeat that shape.**
   obligation this mode *adds* rather than removes.
 
 Cancellation delegates: `claude stop <id>` stops a session and keeps its conversation;
-`claude rm <id>` also removes the worktree, and refuses when that worktree holds
-uncommitted changes.
+`claude rm <id>` removes the session's row and frees its pid. It would also delete a
+worktree the session owned, and refuse while that worktree held uncommitted changes — but
+a dispatched session owns none since task-186, so neither applies to a run AgentJobs
+started. See §8's reaping note.
 
 ### Batch mode
 

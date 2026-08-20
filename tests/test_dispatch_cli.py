@@ -224,11 +224,15 @@ class TestDispatchRun:
 
 
 class TestDispatchReapCommand:
-    """`dispatch reap` clears finished worktrees, and never forces a refusal.
+    """`dispatch reap` clears finished sessions, and never forces a refusal.
 
     The reaping itself is covered in test_dispatch_lifecycle.py against a fake session
-    manager. What these add is the command's own job: telling a human which worktrees
-    were removed, which were kept, and that a kept one is worth looking at.
+    manager. What these add is the command's own job: telling a human which sessions
+    were removed, which were not, and why that is worth reading.
+
+    These said *worktrees* until task-186. Dispatch no longer passes `-w`, so a
+    dispatched session owns no worktree and the command cannot honestly claim to remove
+    one; what it removes is the session's row and the pid that row holds.
     """
 
     def test_it_says_so_when_there_is_nothing_to_reap(self) -> None:
@@ -237,7 +241,7 @@ class TestDispatchReapCommand:
         assert result.exit_code == 0
         assert "Nothing to reap." in result.stdout
 
-    def test_a_removed_worktree_is_reported(self, monkeypatch) -> None:
+    def test_a_removed_session_is_reported(self, monkeypatch) -> None:
         from agentjobs.dispatch.ledger import DispatchLedger, StopResult
 
         monkeypatch.setattr(
@@ -253,17 +257,15 @@ class TestDispatchReapCommand:
         assert "removed session s1" in result.stdout
         assert "kept" not in result.stdout
 
-    def test_a_kept_worktree_is_flagged_and_counted(self, monkeypatch) -> None:
-        """A refused reap means a run produced work nobody has looked at."""
+    def test_a_session_that_was_not_removed_is_flagged_and_counted(self, monkeypatch) -> None:
+        """A refused reap is never forced, and never counted as success."""
         from agentjobs.dispatch.ledger import DispatchLedger, StopResult
 
         monkeypatch.setattr(
             DispatchLedger,
             "reap_finished",
             lambda self: [
-                StopResult(
-                    "run_kept0001", False, "not removed: worktree holds uncommitted changes"
-                ),
+                StopResult("run_kept0001", False, "not removed: session s1 is still attached"),
                 StopResult("run_gone0002", True, "removed session s2"),
             ],
         )
@@ -271,9 +273,10 @@ class TestDispatchReapCommand:
         result = runner.invoke(app, ["dispatch", "reap"])
 
         assert result.exit_code == 0
-        assert "uncommitted changes" in result.stdout
-        assert "1 worktree(s) kept" in result.stdout
-        assert "Look at what is in them" in result.stdout
+        assert "still attached" in result.stdout
+        assert "1 session(s) not removed" in result.stdout
+        # It must not promise to have removed worktrees it never had. task-186.
+        assert "worktree" not in result.stdout
 
 
 # ----- runner groups on the command line (task-177) ---------------------------

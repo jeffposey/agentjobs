@@ -117,7 +117,14 @@ A human working alone does not need this; they have no peer to collide with. You
 -   **Never `git checkout` in the shared clone** to start work.
 -   Committing task metadata straight to `main` (the narrow exception in ENGINEERING.md)
     does not need one. Anything that goes on a branch does.
--   Your CLI may do this for you — Claude Code takes `--worktree`.
+-   **Do not use Claude Code's `--worktree` / `-w` to get one.** It looks like the CLI
+    doing this for you and it is not the same thing: a `-w` session is isolated by a
+    guard that refuses *every* git operation aimed at the shared clone — `git -C` and
+    `cd` alike — and the shared clone is where your task-record commits and your merge
+    have to happen. You would do the work and then be unable to record or merge it.
+    Take the worktree yourself with `git worktree add`, as above. Probed on Claude Code
+    2.1.235, 2026-08-19; the reproduction is in task-186 and in
+    [the dispatch design](docs/agent-dispatch-design.md).
 
 Three failures on 2026-08-11, all in one afternoon, all from skipping this:
 

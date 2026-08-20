@@ -323,8 +323,12 @@ class TestTheBatchGroupRunsToCompletion:
 class TestTheExampleAndAgentJobsDoNotBothSupplyTheSameFlag:
     """A runner that writes a flag AgentJobs already writes gets two of it.
 
-    ``-w`` is the one that bites: two worktree flags means one run in two worktrees, and
-    nothing about the argv looks wrong until it happens.
+    ``-w`` used to be the one that bit -- two worktree flags meant one run in two
+    worktrees, and nothing about the argv looked wrong until it happened. Since task-186
+    neither side writes it, and the requirement is stronger: a composed argv containing
+    ``-w`` at all is a run that can do its work and then neither commit its task record
+    nor merge it, because a worktree-isolated session refuses every git operation aimed
+    at the shared checkout.
     """
 
     @pytest.mark.parametrize("group", SESSION_GROUPS + ["review"])
@@ -340,8 +344,10 @@ class TestTheExampleAndAgentJobsDoNotBothSupplyTheSameFlag:
 
         argv = runner.build_argv("task-001-example", "run_deadbeef")
 
-        for flag in ("-w", "--worktree", "--permission-mode", "--settings", "--tools"):
+        for flag in ("--permission-mode", "--settings", "--tools"):
             assert argv.count(flag) <= 1, f"{flag} appears more than once in {argv}"
+        for flag in ("-w", "--worktree"):
+            assert flag not in argv, f"{flag} must not appear at all in {argv}"
 
     def test_the_shipped_runners_and_groups_are_what_the_test_ran(self, home: Path) -> None:
         """The fixture edits the switch and the projects entry, and nothing else."""

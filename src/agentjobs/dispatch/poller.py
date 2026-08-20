@@ -8,7 +8,7 @@ called it. A session therefore started, ran, finished, and left its run reading
 
 **This module finds the runs and hands them to that decision. It makes no decisions of
 its own**, which is the whole point: the judgement in ``poll_session`` -- did the ball
-move, has the staleness window passed, should the worktree be reaped -- has no second
+move, has the staleness window passed, should the session be reaped -- has no second
 implementation here to drift away from it.
 
 Sessions only. A batch run is followed by its own supervisor thread inside the process

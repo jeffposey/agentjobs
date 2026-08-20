@@ -546,10 +546,27 @@ class DispatchLedger:
     def reap(self, record: RunRecord) -> StopResult:
         """Remove a finished session's job state, freeing the pid it still holds.
 
-        ``claude rm`` **refuses when the session's worktree holds uncommitted changes**,
-        and that refusal is a signal rather than an obstacle: it means a run produced
-        work nobody has looked at. It is surfaced, never forced -- ``-f`` here would
-        delete exactly the thing worth keeping.
+        **That is now the whole job, and the narrowing is deliberate (task-186).** While
+        dispatch passed ``-w``, a session owned a worktree, ``claude rm`` deleted it, and
+        its *refusal* to delete one holding uncommitted changes was the useful half: it
+        meant a run had produced work nobody had looked at. Dispatch cannot pass ``-w``
+        any more -- see ``posture_flags`` -- so a dispatched session owns no worktree and
+        there is nothing here for that refusal to fire on. Verified rather than assumed:
+        ``claude rm`` on a worktree-less background session exits 0 and prints
+        ``removed <id>``, so this is a narrowing, not a silent no-op. Freeing the pid a
+        finished session still holds in the manager's ledger is real work and remains
+        worth doing on its own.
+
+        What is no longer covered: the worktree a dispatched agent makes for itself
+        (``../aj-<nnn>``, per ALLAGENTS.md) is outside AgentJobs' knowledge entirely.
+        Removing it is the agent's own closing step and ``git worktree list`` is the
+        inventory. AgentJobs deliberately does not go looking for directories it did not
+        create in order to delete them.
+
+        A refusal is still surfaced and never forced -- ``-f`` here would delete exactly
+        the thing worth keeping -- because a session this did not start can still own a
+        worktree, and because a refusal can also be a transient Windows file handle
+        (observed 2026-08-19; the retry seconds later succeeded).
         """
         if not record.session_id:
             return StopResult(record.run_id, False, "no session id recorded")

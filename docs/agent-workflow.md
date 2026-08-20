@@ -7,6 +7,32 @@ session convenient, but it is never required working memory.
 The canonical contract is [schema design section 5](schema-design.md#the-resumption-contract).
 This guide shows how to apply it with the schema-v2 Python client.
 
+## Before you write anything: take your own worktree
+
+**A dispatched run starts in the project's shared working tree, and nothing isolates it
+for you.** Other agents may be working that same tree at the same moment, and none of you
+can see the others. A shared checkout has one `HEAD` and one set of files, so a
+`git checkout` replaces the files under whoever else is mid-task — without an error, for
+either of you.
+
+So this is your first act, before the claim and before anything is written to disk:
+
+```bash
+git worktree add ../<repo>-<nnn> -b <type>/task-<nnn>-<slug>
+```
+
+Work there. Remove it once your branch is merged; `git worktree list` is the inventory,
+and one left behind for a closed task is litter.
+
+This used to be arranged for the agent. Dispatch passed Claude Code's `-w` flag, which
+put the session in a worktree the CLI managed, and containment was mechanical. It cannot
+any more: the isolation that flag grants is enforced by a guard that refuses **every**
+git operation aimed at the shared checkout — by `-C` and by `cd` alike — and task records
+are committed there. A run isolated that way could do the work and then be unable to
+record it. So the containment is unchanged in what it protects; taking it is now your
+first act rather than the launcher's. The full argument, with the reproduction, is in
+[the dispatch design](agent-dispatch-design.md).
+
 ## Task YAML is readable generated state
 
 Read the task files whenever you want; reviewing a task means opening it. But **do not
@@ -101,9 +127,11 @@ The claim is atomic: one eligible agent wins and other claimants receive an erro
 `get_next_task()` returns only ready, eligible tasks with no unmet `needs` dependency
 and no open child tasks.
 
-For AgentJobs repository work, create the worktree and branch before claiming. Task
-metadata is updated and committed on `main`; code and documentation stay on the task
-branch. Repository contributors must also follow `ALLAGENTS.md` and `ENGINEERING.md`.
+The worktree and branch come before the claim — see [above](#before-you-write-anything-take-your-own-worktree).
+For AgentJobs repository work specifically, task metadata is updated and committed on
+`main` while code and documentation stay on the task branch, and the commit that records
+a handoff must land on `main` or the human it is addressed to cannot see it. Repository
+contributors must also follow `ALLAGENTS.md` and `ENGINEERING.md`.
 
 ## Resume an Existing Task
 

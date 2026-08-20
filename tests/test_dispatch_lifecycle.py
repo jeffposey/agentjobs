@@ -154,7 +154,10 @@ import json, sys, pathlib
 
 sys.stdout.reconfigure(encoding="utf-8")
 state = pathlib.Path(__file__).with_name("sessions.json")
+calls = pathlib.Path(__file__).with_name("calls.json")
 argv = sys.argv[1:]
+
+calls.write_text(json.dumps((json.loads(calls.read_text()) if calls.exists() else []) + [argv]))
 
 if argv and argv[0] == "agents":
     print(json.dumps(json.loads(state.read_text())))
@@ -617,10 +620,17 @@ class TestReap:
         assert [r.stopped for r in results] == [True]
         assert read_run(home / "runs" / "run_test0001").path.exists()
 
-    def test_a_reap_blocked_by_uncommitted_changes_says_so(
+    def test_a_refused_reap_says_so_and_is_never_forced(
         self, home: Path, task, fake_session_cli: Path
     ) -> None:
-        """That refusal means a run produced work nobody has looked at. Surface it."""
+        """A refusal is surfaced verbatim rather than retried with force.
+
+        Since task-186 a dispatched session owns no worktree, so this refusal is no
+        longer the routine "a run produced work nobody has looked at" signal it was
+        written for -- a session AgentJobs did not start can still own one, and a
+        refusal can also be a transient file handle. Either way the answer is the same
+        and is the point of the test: report it, do not pass ``-f``.
+        """
         (fake_session_cli.parent / "dirty").write_text("", encoding="utf-8")
         seed_run(home, task.id, mode="session", session_id="s1", status="finished")
 
@@ -641,6 +651,25 @@ class TestReap:
         second = ledger.reap_finished()
 
         assert second == []
+
+    def test_reaping_issues_exactly_one_session_removal_and_nothing_else(
+        self, home: Path, task, fake_session_cli: Path
+    ) -> None:
+        """task-186's coherence check: reap narrowed, it did not become a no-op.
+
+        What it does now is remove the finished session's row, freeing the pid that row
+        holds. What it must *not* have grown is a second step going after directories --
+        the worktree a dispatched agent makes for itself is outside AgentJobs' knowledge
+        and is the agent's to remove. So this asserts the exact call issued, which is
+        the only way to tell "narrowed on purpose" from "quietly does nothing".
+        """
+        seed_run(home, task.id, mode="session", session_id="s1", status="finished")
+
+        results = ledger_with(home, fake_session_cli).reap_finished()
+
+        assert [r.stopped for r in results] == [True]
+        calls = json.loads((fake_session_cli.parent / "calls.json").read_text())
+        assert calls == [["rm", "s1"]]
 
     def test_batch_runs_are_never_reaped(self, home: Path, task, fake_session_cli: Path) -> None:
         """There is no session to remove; the process is already gone."""
