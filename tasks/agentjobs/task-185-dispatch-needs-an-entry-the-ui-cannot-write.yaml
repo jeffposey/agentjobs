@@ -3,11 +3,9 @@ id: task-185-dispatch-needs-an-entry-the-ui-cannot-write
 title: Dispatch refuses a task with no human log entry, and the page gives you no
   way to write one
 created: '2026-08-19T21:16:19.646150Z'
-updated: '2026-08-19T23:59:52.685585Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-20T00:15:47.500854Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: ux
@@ -18,7 +16,6 @@ tags:
 - frontend
 effort: small
 assignment:
-  owner: claude
   eligible: []
 parent: task-181-dispatch-phase-one-hardening
 spec:
@@ -86,24 +83,24 @@ acceptance:
 - id: sc-1
   text: A human looking at a ready task with an empty log can get it dispatched without
     leaving the browser
-  status: pending
+  status: met
 - id: sc-2
   text: An agent still cannot cause a dispatch, pinned by a test that survives whichever
     option was chosen
-  status: pending
+  status: met
 - id: sc-3
   text: If the causing act is redefined, the design document says so and a decision
     entry records the failure it admits
-  status: pending
+  status: dropped
 - id: sc-4
   text: The refusal copy names a control that exists on the page the reader is on
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
 branches:
 - name: feat/task-185-authorising-note
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-19T21:16:19.646191Z'
@@ -245,3 +242,42 @@ log:
     page, and a Vitest case asserts the browser''s copy beats the server''s generic
     sentence for exactly those two reasons.'
   data: {}
+- id: 6
+  ts: '2026-08-20T00:15:47.472659Z'
+  actor: claude
+  type: progress
+  body: 'Merged and delivered.
+
+
+    - Merged into main with --no-ff as d9b0959, under the autonomy grant Jeff gave
+    for this run on 2026-08-19. Rebased twice onto a moving main (two sibling sessions
+    landed task-024 and task-186 records in between); no conflicts either time. Branch
+    marked merged in branches[]. Not pushed -- the grant covered merging only.
+
+    - Frontend rebuilt in the shared clone at C:/projects/agentjobs after the merge,
+    so the bundle on disk is the merged one. The server on 8876 was deliberately NOT
+    restarted: the parent session owns that process. Until it restarts, the running
+    dashboard still serves the pre-merge bundle from memory.
+
+    - Gate after the final rebase: one flake, then green. tests/test_dispatch_poller.py::TestTheScheduler::test_it_reports_a_change_once_rather_than_every_tick
+    failed once with an empty report list -- it gives a subprocess-backed poller a
+    fixed 1.0s of wall clock, and several autonomous sessions were running their gates
+    on this machine at the same time. It passed in isolation immediately after, and
+    a full re-run of the suite on the identical tree was 1886 passed / 0 failed. Nothing
+    in this change touches the poller. Recorded rather than silently re-run.
+
+
+    sc-3 is marked dropped rather than met: it is conditional on redefining the causing
+    act, which the decision entry explains was considered and not done. Nothing about
+    it failed.'
+  data: {}
+- id: 7
+  ts: '2026-08-20T00:15:47.500772Z'
+  actor: claude
+  type: transition
+  body: Option 1 shipped, merged as d9b0959, acceptance sc-1/sc-2/sc-4 met and sc-3
+    not applicable. A ready task an agent filed can now be authorised and dispatched
+    entirely from the browser, and an agent's own note still cannot authorise anything.
+  data:
+    lifecycle: closed
+    outcome: completed
