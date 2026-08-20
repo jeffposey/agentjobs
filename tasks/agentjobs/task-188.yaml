@@ -3,7 +3,7 @@ id: task-188
 title: 'Dispatch is one click: the button writes the authorising entry, and asks for
   text only when the record cannot brief an agent'
 created: '2026-08-20T05:46:50.740562Z'
-updated: '2026-08-20T06:54:23.569798Z'
+updated: '2026-08-20T06:56:07.363070Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -470,3 +470,53 @@ log:
       id: c92f6a30-7b18-4d2e-8f45-a1b03e6c5d97
       kind: handoff
       fingerprint: 07a4570561988f6dc121377f886c6a5e
+- id: 8
+  ts: '2026-08-20T06:55:10.901609Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 4
+  data:
+    run_id: run_f27d3d88
+    outcome: completed
+    duration_seconds: 3409.220554
+    log_path: C:\Users\jpose\.agentjobs\runs\run_f27d3d88
+- id: 9
+  ts: '2026-08-20T06:56:07.362904Z'
+  actor: claude
+  type: question
+  body: "Review finding from reading the branch rather than the handoff. Small, and\
+    \ I do not think it blocks the merge \u2014 but it is a record-accuracy issue\
+    \ in a system whose whole value is that the record is true, so it should be answered\
+    \ rather than discovered.\n\n**The authorising note survives a dispatch that never\
+    \ happens.**\n\nIn `dispatch_task` on this branch, `_write_authorizing_entry`\
+    \ runs at guards.py:576, inside the run lock. Three things after it can still\
+    \ raise:\n\n- `assert_human_clocked` at :591 \u2014 unlikely, the entry was just\
+    \ written as a validated human\n- `_claim_or_verify` at :593 \u2014 `OwnerMismatchError`\
+    \ is reachable\n- `runner.start` at :602 \u2014 the spawn-time re-checks (sentinel,\
+    \ tree) and any spawn failure\n\nThe `except BaseException` at :607 releases the\
+    \ lock and re-raises, which is correct for the lock. It cannot un-write the note,\
+    \ and should not try: the log is append-only by design.\n\nSo a spawn-time refusal\
+    \ leaves the task holding\n\n    Dispatched by Jeff Posey from the task page.\
+    \ No extra instruction was given: the task record is the brief.\n\nwith no `dispatch`\
+    \ entry beside it. A reader \u2014 human or agent \u2014 sees a sentence asserting\
+    \ a dispatch that did not occur. Retrying leaves another. That is the *only* new\
+    \ way this branch can write something untrue into a record, which is why it is\
+    \ worth a sentence even though the window is narrow.\n\n**Two answers look reasonable\
+    \ and I have no strong preference:**\n\n1. **Change the wording so it is true\
+    \ either way.** The note describes a human act, not an outcome \u2014 \"Jeff Posey\
+    \ authorised a dispatch of this task from the task page\" is accurate whether\
+    \ or not the spawn succeeded, and reads correctly beside the `dispatch` entry\
+    \ when it does succeed. Cheapest, no control flow moves.\n2. **Append a second\
+    \ entry on failure**, naming the refusal. More informative, and it makes a failed\
+    \ attempt visible rather than silently identical to a successful one \u2014 but\
+    \ it adds a write on the error path, which is where writes are least welcome.\n\
+    \nWhat I would not do is move the write later to shrink the window. It sits inside\
+    \ the lock and before the claim on purpose, and that ordering is what makes the\
+    \ evidence real.\n\nWhichever is chosen, a test should pin it: force `runner.start`\
+    \ to raise and assert what the record says afterwards. Nothing currently does."
+  re: 7
+  data:
+    operation:
+      id: c95f61b8-3d07-4a24-9e56-08b4d2179ac3
+      kind: log_append
+      fingerprint: 10997205c09c17fd2ecbe8a6d36f84a2
