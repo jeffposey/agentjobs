@@ -3,11 +3,9 @@ id: task-187
 title: Two worktrees cannot run the gate at the same time, because Playwright's port
   is a constant
 created: '2026-08-19T23:41:13.123280Z'
-updated: '2026-08-20T17:28:52.407416Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-20T17:30:27.440841Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: infrastructure
@@ -17,7 +15,6 @@ tags:
 - developer-experience
 effort: small
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: frontend/playwright.config.ts hardcodes port 18940 with reuseExistingServer:false,
@@ -110,7 +107,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-187-playwright-port-collision
-  status: active
+  status: merged
+  merged_at: '2026-08-20T17:30:27.374152Z'
 log:
 - id: 1
   ts: '2026-08-19T23:41:13.123326Z'
@@ -424,3 +422,11 @@ log:
     \ (branch `scratch/task-187-concurrency-proof`) still exists at the time of writing;\
     \ it is removed as part of closing this task.**"
   data: {}
+- id: 14
+  ts: '2026-08-20T17:30:27.440703Z'
+  actor: claude
+  type: transition
+  body: 'Closed: completed.'
+  data:
+    lifecycle: closed
+    outcome: completed
