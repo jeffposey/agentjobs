@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-20T23:34:15.530859Z'
+updated: '2026-08-20T23:36:23.029618Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -362,3 +362,38 @@ log:
       id: 8e3f2c60-3d4f-4b53-9c32-000000000001
       kind: log_append
       fingerprint: c78c905e969b31583fa3a6ab96d3d3ea
+- id: 8
+  ts: '2026-08-20T23:36:23.029445Z'
+  actor: claude
+  type: question
+  body: "Unrelated finding, hit while running the gate for this task, recorded here\
+    \ rather than lost. Not filed as a task because it is outside this task's scope\
+    \ -- say the word and I will file it.\n\n**ALLAGENTS.md's `VIRTUAL_ENV` remedy\
+    \ is incomplete, and the gap is invisible until the last stage of a six-minute\
+    \ gate.**\n\nThe bootstrap section tells you to run the gate with the absolute\
+    \ interpreter path it prints, because `poetry run` from a worktree resolves to\
+    \ the main clone's environment when `VIRTUAL_ENV` is set -- which it is in every\
+    \ dispatched session. Following that verbatim gets you through Black, Ruff, MyPy,\
+    \ 2106 pytest tests, 154 Vitest tests and the production build. Then the Playwright\
+    \ stage fails, because `frontend/playwright.config.ts` starts its server with:\n\
+    \n    webServer: { command: \"poetry run python e2e/run_server.py\", ... }\n\n\
+    That subprocess inherits the ambient `VIRTUAL_ENV`, so it resolves to the main\
+    \ clone's environment, and the source-provenance guard correctly refuses to start\
+    \ -- printing a repair (`cd <worktree> && poetry install`) that is not the actual\
+    \ fix and, if followed, rewrites the main clone's editable install. That is the\
+    \ task-194 failure mode, reached by following the instructions.\n\nObserved 2026-08-20\
+    \ in `worktrees/agentjobs-081`, bootstrapped with `VIRTUAL_ENV` unset as the docs\
+    \ require. Re-running the whole gate with `VIRTUAL_ENV` unset in the shell passes.\n\
+    \nTwo candidate fixes, both cheap: have `scripts/check.py` scrub `VIRTUAL_ENV`\
+    \ from the environment it passes to its children (it already knows which interpreter\
+    \ it is running under, so it can be authoritative rather than deferential), or\
+    \ have the bootstrap print `unset VIRTUAL_ENV &&` as part of the verify line it\
+    \ already prints. The first is better -- it fixes every caller rather than everyone\
+    \ who reads the line. Related to task-189, which is about the gate's feedback\
+    \ being slow: this is the same six minutes spent to learn something knowable at\
+    \ second zero."
+  data:
+    operation:
+      id: 8e3f2c60-3d4f-4b53-9c32-000000000002
+      kind: log_append
+      fingerprint: 2253a0551374a17eeffba8f8021c1ed7
