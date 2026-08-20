@@ -2,10 +2,11 @@ schema: 2
 id: task-191
 title: Run more than one agent at a time, and fix what that breaks
 created: '2026-08-20T07:19:15.553705Z'
-updated: '2026-08-20T07:19:15.554437Z'
-lifecycle: ready
+updated: '2026-08-20T19:17:27.662891Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 category: developer_experience
@@ -15,6 +16,7 @@ tags:
 - developer-experience
 effort: a day, mostly in the things it uncovers
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: "limits.max_concurrent_runs is 1 on this machine. It is machine-local config\
@@ -132,7 +134,9 @@ dependencies:
   type: needs
   note: The lock leak scales with runs in flight.
 links: []
-branches: []
+branches:
+- name: feat/task-191-raise-dispatch-concurrency
+  status: active
 log:
 - id: 1
   ts: '2026-08-20T07:19:15.553749Z'
@@ -145,3 +149,28 @@ log:
       id: b0d5e397-1f42-4a86-9c73-52e8a1f60c47
       kind: create
       fingerprint: b37695c09605b4352edcb3c8a6da4e55
+- id: 2
+  ts: '2026-08-20T19:17:13.927332Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: d9c1a6f3-4e82-4b57-a1f0-8c3e7d2b5a99
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-20T19:17:27.662609Z'
+  actor: system
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: f2b8e4c7-1a93-4d05-b6e8-7c41d9a2e355
+      kind: update_content
+      fingerprint: b44c76372c4b14c4356e28054560e360
