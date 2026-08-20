@@ -1,0 +1,142 @@
+schema: 2
+id: task-198
+title: Enabling dispatch from the UI destroys every comment in dispatch.yaml
+created: '2026-08-20T20:33:06.424323Z'
+updated: '2026-08-20T20:33:06.425105Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: infrastructure
+tags:
+- dispatch
+- config
+- data-loss
+- frontend
+effort: 'small: swap the writer for a round-trip-preserving one, plus a test with
+  a commented fixture'
+assignment:
+  eligible:
+  - codex
+  - claude
+spec:
+  summary: set_project_enabled round-trips the machine-local dispatch config through
+    yaml.safe_dump, so one click on "Enable dispatch for this project" deletes every
+    comment in the file and reflows the rest. The comments are operational documentation
+    about what this machine may execute, and losing them has already caused a wrong
+    diagnosis.
+  description: "Hit by Jeff on 2026-08-20 at 15:23, clicking \"Enable dispatch for\
+    \ this project\" for `job-hunting`.\n\nThe click did what it should to the data:\
+    \ `projects.job-hunting.enabled: true` was added and the entry is correct. It\
+    \ also silently rewrote the whole file and dropped every comment in it. `~/.agentjobs/dispatch.yaml`\
+    \ went from a heavily annotated file to 69 bare lines.\n\n## The defect\n\n`set_project_enabled`\
+    \ at `src/agentjobs/dispatch/config.py:1034` loads the raw mapping, mutates the\
+    \ one entry, and writes the whole document back:\n\n    path.write_text(\n   \
+    \     yaml.safe_dump(raw, sort_keys=False, allow_unicode=False),\n        encoding=\"\
+    utf-8\",\n    )\n\n`yaml.safe_dump` cannot preserve comments; it re-serializes\
+    \ from the parsed mapping. Formatting goes too: argv lists explode from flow to\
+    \ block style, and the `big-dawg` description gets folded and requoted.\n\nThis\
+    \ is the single writer, so the CLI `dispatch enable` / `dispatch disable` verbs\
+    \ destroy the file the same way. One fix covers all three surfaces.\n\n## What\
+    \ was lost\n\nNot decoration. This module's own docstring calls the file the complete\
+    \ list of what AgentJobs may execute on this machine, and every comment in it\
+    \ was an operational note:\n\n- the header stating the file is machine-local and\
+    \ never committed, and that nothing in a project can add to it;\n- the runners\
+    \ note that AgentJobs supplies `--permission-mode`, `-w` and `--settings` itself\
+    \ and they must never be written by hand;\n- the record that every model id was\
+    \ checked by running it on 2026-08-19 against claude 2.1.235;\n- the `chatgpt-sol`\
+    \ placeholder explaining why no runner is written for it yet;\n- the runner_groups\
+    \ explanation of ordering, skipping, and that a group with no runnable member\
+    \ refuses rather than substituting;\n- the reason for `require_clean_tree: false`\
+    \ on the agentjobs project, **including the condition \"Set it back to true once\
+    \ task-182 lands\"**;\n- the posture rationale citing task-020 and the `run_a6deb292`\
+    \ failure that motivated `auto`;\n- the `max_concurrent_runs: 3` note recording\
+    \ that it came from a measurement on this machine rather than a guess (task-191).\n\
+    \n## The cost, concretely\n\nThe `require_clean_tree: false` line survived; the\
+    \ comment saying it was conditional did not. Task-182 had landed at 01:27 that\
+    \ same day, making the line stale. With nothing on the line to say so, a session\
+    \ reading the config diagnosed `job-hunting` as unable to dispatch, and added\
+    \ `require_clean_tree: false` to the new project entry -- disabling a live protection,\
+    \ and doing precisely what task-182's own constraints forbid. Caught by reading\
+    \ the code, and reverted, but the file is the thing that was supposed to carry\
+    \ that knowledge and it no longer could.\n\nThe general shape: this file is edited\
+    \ by hand far more than it is read by a machine. `load_dispatch_config`'s docstring\
+    \ already says as much, as the reason it never caches. A writer that discards\
+    \ hand-written annotation is at odds with that.\n\n## Fix directions\n\nPreferred:\
+    \ write with a round-trip-preserving parser (`ruamel.yaml` in round-trip mode)\
+    \ so comments and formatting on untouched blocks survive and a new entry is appended\
+    \ in place. It is a drop-in for this call site.\n\nAlternative if a new dependency\
+    \ is unwanted: patch the file textually -- locate or append the `projects.<id>:`\
+    \ block and edit only those lines -- and keep `safe_dump` only for the scaffold\
+    \ path that writes a fresh file. This is more code and more edge cases; state\
+    \ the choice as a decision either way.\n\nWorth doing regardless: take a timestamped\
+    \ backup before any rewrite of this file. There is precedent on the machine (`dispatch.yaml.bak-2026-08-19`),\
+    \ created by hand.\n\nRelated but out of scope: the stale `require_clean_tree:\
+    \ false` was removed from the live config by hand on 2026-08-20 after task-182\
+    \ was confirmed complete."
+  constraints: The written config must still parse to exactly the same DispatchConfig
+    as before; this is a formatting-preservation fix, not a schema change. Do not
+    weaken any of the four gates while touching this file's writer. If a round-trip
+    library is added, it is used only for writing this file, not for task records.
+  out_of_scope: Changing what set_project_enabled writes, the gate model, or where
+    the file lives. The scaffold path that writes a brand-new annotated example file
+    already works and is not the defect.
+  context:
+  - path: src/agentjobs/dispatch/config.py
+    why: set_project_enabled at line 1034 and the yaml.safe_dump write at line 1101
+      are the defect.
+  - path: src/agentjobs/cli.py
+    why: dispatch enable / dispatch disable reach the same writer, so they destroy
+      the file the same way.
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: The UI control that triggered it.
+  - path: src/agentjobs/dispatch/scaffold.py
+    why: EXAMPLE_CONFIG shows the annotated shape the writer is expected not to destroy.
+acceptance:
+- id: ac-1
+  text: Toggling dispatch for a project from the browser preserves every comment in
+    ~/.agentjobs/dispatch.yaml, including comments inside the projects block that
+    was not touched.
+  status: pending
+- id: ac-2
+  text: 'Existing formatting on untouched blocks is preserved: argv stays in flow
+    style, descriptions are not refolded or requoted.'
+  status: pending
+- id: ac-3
+  text: A new project entry is appended without reformatting any other entry.
+  status: pending
+- id: ac-4
+  text: The CLI dispatch enable and dispatch disable verbs have the same guarantee,
+    pinned by test.
+  status: pending
+- id: ac-5
+  text: A test uses a fixture config carrying comments in the header, in runners,
+    and inside a project entry, and asserts them present byte-for-byte after a toggle.
+  status: pending
+- id: ac-6
+  text: The config still parses to an identical DispatchConfig after the round trip.
+  status: pending
+deliverables:
+- path: src/agentjobs/dispatch/config.py
+  note: Replace the safe_dump rewrite in set_project_enabled with a comment-preserving
+    write.
+  status: pending
+- path: tests/test_dispatch_config.py
+  note: Commented-fixture round-trip test covering browser and CLI paths.
+  status: pending
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T20:33:06.424376Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 4b7d2f61-3c85-4e19-b2a7-9f0e6d18c534
+      kind: create
+      fingerprint: 9a6a543490a7cf38a166f481f8d40abd
