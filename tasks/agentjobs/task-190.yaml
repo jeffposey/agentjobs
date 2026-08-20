@@ -1,0 +1,155 @@
+schema: 2
+id: task-190
+title: 'Run locks leak: release depends on in-memory state, so a server restart blocks
+  those tasks forever'
+created: '2026-08-20T07:08:47.960269Z'
+updated: '2026-08-20T07:08:47.961094Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+category: reliability
+tags:
+- dispatch
+- reliability
+- guards
+- leak
+effort: small
+assignment:
+  eligible: []
+parent: task-181-dispatch-phase-one-hardening
+spec:
+  summary: "The per-task run lock is a file in ~/.agentjobs/runs/.locks/, but the\
+    \ only code that deletes it is RunHandle.release_lock(), reachable solely through\
+    \ an in-memory handle in the server process. Restart the server \u2014 which this\
+    \ project's own guidance says to do routinely \u2014 and every lock it held is\
+    \ stranded on disk with no owner. The task it names can then never be dispatched\
+    \ again until a human deletes the file by hand."
+  intent: 'Jeff, 2026-08-20, after a dispatch was refused and he could see no live
+    run: "the real problem was that there were no runs still active, and we really
+    really need to not have leaks on this stuff." He was right. Four leaked locks
+    were found on his machine within a day of dispatch being used for real, two of
+    them held by process ids that no longer exist.'
+  description: "## The evidence, from the live machine on 2026-08-20\n\n`~/.agentjobs/runs/.locks/`\
+    \ held four lock files. Every corresponding run had reached a\nterminal status\
+    \ hours earlier:\n\n| lock | recorded holder | pid alive? | its run |\n|---|---|---|---|\n\
+    | `task-020.lock` | pid=351652 | **dead** | run_0c91653d, `finished` 2026-08-19T23:13Z\
+    \ |\n| `task-107-\u2026.lock` | pid=272672 | **dead** | run_e452d6f8, `cancelled`\
+    \ 2026-08-19T22:44Z |\n| `task-187.lock` | pid=368228 | alive (current server)\
+    \ | run_d7c09293, `finished` 2026-08-20T05:35Z |\n| `task-188.lock` | pid=368228\
+    \ | alive (current server) | run_f27d3d88, `finished` 2026-08-20T06:55Z |\n\n\
+    No run leaked \u2014 the ledger is clean, every `meta.yaml` reads `finished` or\
+    \ `cancelled`.\nIt is only the locks.\n\n## The mechanism\n\n`acquire_run_lock`\
+    \ (ledger.py:104) creates the file with `O_CREAT|O_EXCL` and writes\n`pid=\u2026\
+    \ run=\u2026` into it. Deliberately a primitive with **no automatic release**\
+    \ \u2014 the\ndocstring argues for that, and the argument is sound.\n\nThe only\
+    \ deletion path is `RunHandle.release_lock()` (runner.py:714), called from four\n\
+    sites in `runner.py`, every one of which needs the in-memory `RunHandle`. That\
+    \ object\nlives in the server process and nowhere else. So:\n\n- **A server restart\
+    \ strands every lock it was holding.** ENGINEERING.md instructs a\n  restart after\
+    \ merging, after changing models or storage, and after task files change.\n  This\
+    \ is not an exceptional event, it is the documented routine.\n- Two of the four\
+    \ leaks above are exactly that: pids 351652 and 272672 were servers\n  killed\
+    \ by a launcher restart during a normal working session.\n- The other two show\
+    \ the same defect without a crash \u2014 the runs finished and the live\n  server\
+    \ still did not release them, so there is a second gap on the ordinary completion\n\
+    \  path worth finding rather than assuming.\n\n`RunHandle`'s own docstring says\
+    \ the runner *\"Holds no state between runs beyond what is\non disk and in the\
+    \ task record, so a restart loses nothing that mattered.\"* The lock is\nprecisely\
+    \ such state, and losing it matters.\n\n## Why it is critical rather than annoying\n\
+    \nA stranded lock is **permanent and silent**. `dispatch_task` turns `RunLockTimeout`\
+    \ into\n`LiveRunExistsError`, so the browser tells you a run is already active\
+    \ on a task where\nnothing is running and nothing ever will be. The only remedy\
+    \ is knowing that\n`~/.agentjobs/runs/.locks/` exists and deleting a file, which\
+    \ no surface mentions.\n\nAt the time this was filed, **task-188 and task-187\
+    \ could not be dispatched at all** for\nthis reason, and one of them was mid-review.\n\
+    \nIt also compounds with raising `limits.max_concurrent_runs` above 1: more concurrent\n\
+    runs means more locks in flight when a restart lands.\n\n## Directions, none prescribed\n\
+    \n- **Make the lock self-describing enough to be judged stale.** It already records\
+    \ the\n  holding pid. A holder whose process no longer exists is not holding anything,\
+    \ and\n  reclaiming it is safe and checkable. That covers the crash and restart\
+    \ cases and needs\n  no new state. It does *not* cover the live-server-never-released\
+    \ case above, so it is\n  not sufficient alone.\n- **Reconcile locks against the\
+    \ ledger on startup.** The runs directory already knows\n  every run's terminal\
+    \ status; a lock naming a task whose runs are all terminal is\n  garbage. Dispatch\
+    \ already reconciles at startup (\xA79's reap), so there is a place for it.\n\
+    - **Do not add a lease or a heartbeat** without arguing for it \u2014 that is\
+    \ a second set of\n  stale-lock failure modes, which is the thing `acquire_run_lock`'s\
+    \ docstring explicitly\n  chose this primitive to avoid.\n- Whatever ships, the\
+    \ refusal a human sees should name what to do. Today the underlying\n  `RunLockTimeout`\
+    \ message says \"delete the file to clear it\" and that text never reaches\n \
+    \ the browser \u2014 `LiveRunExistsError` replaces it.\n\n## Test it the way it\
+    \ happened\n\nNot with a unit test that deletes a lock. Start a dispatch, restart\
+    \ the server while the\nrun is live, let the run finish, then dispatch that task\
+    \ again and assert it is permitted."
+  constraints: '- Do not solve this by releasing the lock earlier in the run''s life.
+    It exists because a run lasts half an hour and the storage lock does not, and
+    shortening it reintroduces the two-agents-one-task failure it was built to stop.
+
+    - Do not swap the primitive for one with automatic release without addressing
+    acquire_run_lock''s recorded argument for choosing this one.
+
+    - A lock whose holder is genuinely alive and whose run is genuinely going must
+    still refuse. A fix that clears live locks is worse than the leak.
+
+    - The remedy must be reachable from the browser. A human meeting this in the React
+    app cannot be expected to know a hidden directory exists.'
+  out_of_scope: Raising max_concurrent_runs, which is a machine-local config value
+    and needs no code. Registering externally started sessions in the ledger (task-179's
+    out-of-scope note). Changing what the run lock protects.
+  context:
+  - path: src/agentjobs/dispatch/ledger.py
+    why: "acquire_run_lock at :104 \u2014 the O_CREAT|O_EXCL primitive, the pid it\
+      \ records, and the docstring arguing against automatic release."
+  - path: src/agentjobs/dispatch/runner.py
+    why: "RunHandle.release_lock at :714 and its four call sites \u2014 every one\
+      \ needs the in-memory handle. Also RunHandle's claim that a restart loses nothing\
+      \ that mattered."
+  - path: src/agentjobs/dispatch/guards.py
+    why: Where RunLockTimeout becomes LiveRunExistsError, and where the remedy text
+      is lost.
+  - path: docs/agent-dispatch-design.md
+    why: "\xA78 describes the lock as held for the process's lifetime; \xA79's reap\
+      \ is the existing startup reconciliation hook."
+acceptance:
+- id: ac-1
+  text: A task whose runs are all terminal can be dispatched, even if a lock file
+    naming it still exists
+  status: pending
+- id: ac-2
+  text: A task with a genuinely live run is still refused, pinned by a test that distinguishes
+    it from ac-1
+  status: pending
+- id: ac-3
+  text: Restarting the server mid-run does not permanently block the task, verified
+    by doing it rather than by unit test
+  status: pending
+- id: ac-4
+  text: The completion path releases the lock without depending on an in-memory handle
+    surviving
+  status: pending
+- id: ac-5
+  text: A human meeting this refusal in the browser is told something they can act
+    on
+  status: pending
+- id: ac-6
+  text: The four leaked locks present on 2026-08-20 are explained by the diagnosis,
+    not merely cleared
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T07:08:47.960314Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: 6b3e08d1-52a7-4c94-8f10-d29c4a7be531
+      kind: create
+      fingerprint: 3b6291da12f4720480cc454d6981bde5
