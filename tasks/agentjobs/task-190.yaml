@@ -3,10 +3,11 @@ id: task-190
 title: 'Run locks leak: release depends on in-memory state, so a server restart blocks
   those tasks forever'
 created: '2026-08-20T07:08:47.960269Z'
-updated: '2026-08-20T08:20:08.408112Z'
-lifecycle: ready
+updated: '2026-08-20T17:35:37.233647Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 category: reliability
@@ -17,6 +18,7 @@ tags:
 - leak
 effort: small
 assignment:
+  owner: claude
   eligible: []
 parent: task-181-dispatch-phase-one-hardening
 spec:
@@ -140,7 +142,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-190-run-lock-leak
+  status: active
 log:
 - id: 1
   ts: '2026-08-20T07:08:47.960314Z'
@@ -220,3 +224,28 @@ log:
     In every case the run was terminal -- `claude stop`ped, and the poller had already
     written its `dispatch_result` -- before the lock was found still held.'
   data: {}
+- id: 4
+  ts: '2026-08-20T17:35:29.468923Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: e5b3c8a4-7d21-4f96-b0e5-2a8c9f1d4e77
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 5
+  ts: '2026-08-20T17:35:37.233442Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: a7f4d2e9-6c85-4b13-9e07-3d5a8b2c1f44
+      kind: update_content
+      fingerprint: 2a178d579aff8b28bca10fcf1bcb3a24
