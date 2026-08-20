@@ -46,14 +46,15 @@ from agentjobs.dispatch.runner import (
     DispatchRunner,
     DispatchRunError,
     SessionPhase,
-    allow_list_settings,
     allow_rules,
     classify_session,
     compose_argv,
     drop_repainted_lines,
+    mcpjson_server_names,
     posture_flags,
     readable_tail,
     resolve_executable,
+    settings_json,
     strip_ansi,
     uncommitted_paths,
     working_tree_clean,
@@ -175,13 +176,13 @@ class TestPosture:
             assert f"({prefix}:*)" in rules
 
     def test_read_only_gets_no_tools_and_no_worktree(self) -> None:
-        flags = posture_flags(Posture.READ_ONLY)
+        flags = posture_flags(Posture.READ_ONLY, [])
 
         assert flags == ["--tools", "Read,Glob,Grep,WebFetch"]
         assert "-w" not in flags
 
     def test_supervised_gets_accept_edits_and_the_allow_list(self) -> None:
-        flags = posture_flags(Posture.SUPERVISED)
+        flags = posture_flags(Posture.SUPERVISED, [])
 
         assert flags[:2] == ["--permission-mode", "acceptEdits"]
         settings = json.loads(flags[flags.index("--settings") + 1])
@@ -189,7 +190,7 @@ class TestPosture:
 
     def test_autonomous_gets_bypass_and_never_the_allow_list(self) -> None:
         """An allow-list under bypassPermissions would imply a limit that is not there."""
-        flags = posture_flags(Posture.AUTONOMOUS)
+        flags = posture_flags(Posture.AUTONOMOUS, [])
 
         assert flags[:2] == ["--permission-mode", "bypassPermissions"]
         assert "--settings" not in flags
@@ -202,7 +203,7 @@ class TestPosture:
         here instead would park the run on its first unlisted command, which is the
         defect this posture exists to fix, and nothing in a passing suite would say so.
         """
-        flags = posture_flags(Posture.AUTO)
+        flags = posture_flags(Posture.AUTO, [])
 
         assert flags[:2] == ["--permission-mode", "auto"]
         settings = json.loads(flags[flags.index("--settings") + 1])
@@ -223,8 +224,8 @@ class TestPosture:
         and the property that it still has none must not depend on the writing postures
         happening to be tested nearby.
         """
-        assert "-w" not in posture_flags(posture)
-        assert "--worktree" not in posture_flags(posture)
+        assert "-w" not in posture_flags(posture, [])
+        assert "--worktree" not in posture_flags(posture, [])
 
     def test_the_composed_argv_of_every_posture_is_exactly_this(
         self, workspace: Path, manager: TaskManager
@@ -238,12 +239,17 @@ class TestPosture:
         """
         expected = {
             Posture.READ_ONLY: ["--tools", "Read,Glob,Grep,WebFetch"],
-            Posture.AUTO: ["--permission-mode", "auto", "--settings", allow_list_settings()],
+            Posture.AUTO: [
+                "--permission-mode",
+                "auto",
+                "--settings",
+                settings_json(allow_list=True, mcp_servers=[]),
+            ],
             Posture.SUPERVISED: [
                 "--permission-mode",
                 "acceptEdits",
                 "--settings",
-                allow_list_settings(),
+                settings_json(allow_list=True, mcp_servers=[]),
             ],
             Posture.AUTONOMOUS: ["--permission-mode", "bypassPermissions"],
         }
@@ -280,7 +286,7 @@ class TestPosture:
     def test_each_posture_composes_a_distinct_permission_mode(self) -> None:
         """A posture that silently collapsed onto another's mode would look fine."""
         modes = {
-            posture: posture_flags(posture)[1]
+            posture: posture_flags(posture, [])[1]
             for posture in (Posture.AUTO, Posture.SUPERVISED, Posture.AUTONOMOUS)
         }
 
@@ -289,6 +295,180 @@ class TestPosture:
             Posture.SUPERVISED: "acceptEdits",
             Posture.AUTONOMOUS: "bypassPermissions",
         }
+
+
+class TestMcpApproval:
+    """task-019: the project's own MCP servers, pre-approved through ``--settings``.
+
+    A ``--bg`` session has no terminal, so Claude Code's *"New MCP server found in this
+    project"* prompt is unanswerable and the run parks until something kills it. Probed
+    on 2.1.235 against a project declaring one otherwise-unknown server: ``auto`` and
+    ``read_only`` both reached ``state: "blocked"``, ``bypassPermissions`` never saw the
+    gate, and the same run with ``enabledMcpjsonServers`` in ``--settings`` reached
+    ``state: "done"`` with no prompt in its transcript.
+    """
+
+    def write_mcp_json(self, project_root: Path, *names: str) -> None:
+        payload = {"mcpServers": {name: {"command": "noop"} for name in names}}
+        (project_root / ".mcp.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    def test_names_are_read_from_the_project_in_file_order(self, tmp_path: Path) -> None:
+        self.write_mcp_json(tmp_path, "agentjobs", "playwright")
+
+        assert mcpjson_server_names(tmp_path) == ["agentjobs", "playwright"]
+
+    def test_a_project_without_the_file_declares_no_servers(self, tmp_path: Path) -> None:
+        assert mcpjson_server_names(tmp_path) == []
+
+    @pytest.mark.parametrize(
+        "content",
+        ["", "not json at all", "[]", '"a string"', "{}", '{"mcpServers": []}'],
+        ids=["empty", "garbage", "array", "string", "no-key", "wrong-type"],
+    )
+    def test_a_file_no_name_can_be_read_from_yields_no_names(
+        self, tmp_path: Path, content: str
+    ) -> None:
+        """Dispatch does not own this file and must not fail a run over it.
+
+        Every one of these is a file Claude Code cannot raise a server prompt from
+        either, so returning nothing keeps argv unchanged rather than inventing an
+        approval or refusing to spawn.
+        """
+        (tmp_path / ".mcp.json").write_text(content, encoding="utf-8")
+
+        assert mcpjson_server_names(tmp_path) == []
+
+    def test_a_directory_named_mcp_json_is_not_a_config(self, tmp_path: Path) -> None:
+        (tmp_path / ".mcp.json").mkdir()
+
+        assert mcpjson_server_names(tmp_path) == []
+
+    def test_without_servers_the_settings_blob_is_what_it_always_was(self) -> None:
+        """ac-2 at the JSON level: byte-identical, not merely equivalent."""
+        assert settings_json(allow_list=True, mcp_servers=[]) == json.dumps(
+            {"permissions": {"allow": allow_rules()}}
+        )
+
+    def test_the_composed_settings_json_is_exactly_this(
+        self, workspace: Path, manager: TaskManager
+    ) -> None:
+        """ac-1 and ac-3: the whole decoded blob, not the presence of a key.
+
+        A key can be present and carry the wrong names, the wrong shape, or a stale
+        allow-list, and every one of those looks like the feature working until a run
+        parks. ``allow_rules()`` has already cost an hour that way.
+        """
+        self.write_mcp_json(workspace / "project", "agentjobs", "playwright")
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTO),
+        )
+
+        argv = runner.build_argv("task-019-example", "run_abcd1234")
+
+        settings = json.loads(argv[argv.index("--settings") + 1])
+        assert settings == {
+            "permissions": {"allow": allow_rules()},
+            "enabledMcpjsonServers": ["agentjobs", "playwright"],
+        }
+
+    def test_the_names_are_the_projects_own_not_agentjobs(
+        self, workspace: Path, manager: TaskManager
+    ) -> None:
+        """Dispatch runs against whatever project it was configured for."""
+        self.write_mcp_json(workspace / "project", "some-other-projects-server")
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTO),
+        )
+
+        argv = runner.build_argv("task-019-example", "run_abcd1234")
+
+        settings = json.loads(argv[argv.index("--settings") + 1])
+        assert settings["enabledMcpjsonServers"] == ["some-other-projects-server"]
+
+    def test_read_only_is_approved_without_being_given_an_allow_list(
+        self, workspace: Path, manager: TaskManager
+    ) -> None:
+        """``read_only`` blocks on the same dialog and had no ``--settings`` to extend.
+
+        It gets one now, holding the approval and nothing else. An allow-list here would
+        be a posture change, which task-019 puts out of scope.
+        """
+        self.write_mcp_json(workspace / "project", "agentjobs")
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.READ_ONLY),
+        )
+
+        argv = runner.build_argv("task-019-example", "run_abcd1234")
+
+        assert argv[1:-1] == [
+            "--bg",
+            "--tools",
+            "Read,Glob,Grep,WebFetch",
+            "--settings",
+            json.dumps({"enabledMcpjsonServers": ["agentjobs"]}),
+        ]
+        assert "permissions" not in json.loads(argv[argv.index("--settings") + 1])
+
+    def test_autonomous_is_left_alone_because_bypass_never_sees_the_gate(
+        self, workspace: Path, manager: TaskManager
+    ) -> None:
+        """Probed, not assumed: ``bypassPermissions`` reached ``done`` with no prompt.
+
+        Handing it a ``--settings`` blob it does not need would imply a limit that is
+        not there, which is the same reason it carries no allow-list.
+        """
+        self.write_mcp_json(workspace / "project", "agentjobs")
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTONOMOUS),
+        )
+
+        argv = runner.build_argv("task-019-example", "run_abcd1234")
+
+        assert argv[1:-1] == ["--bg", "--permission-mode", "bypassPermissions"]
+
+    @pytest.mark.parametrize("posture", list(Posture))
+    def test_a_project_with_no_mcp_json_gets_todays_argv_unchanged(
+        self, workspace: Path, manager: TaskManager, posture: Posture
+    ) -> None:
+        """ac-2, stated per posture and against literal argv rather than a snapshot.
+
+        The flags are spelled out here on purpose: comparing against
+        ``posture_flags(posture, [])`` would pass even if both sides regressed together.
+        """
+        today = {
+            Posture.READ_ONLY: ["--tools", "Read,Glob,Grep,WebFetch"],
+            Posture.AUTO: [
+                "--permission-mode",
+                "auto",
+                "--settings",
+                json.dumps({"permissions": {"allow": allow_rules()}}),
+            ],
+            Posture.SUPERVISED: [
+                "--permission-mode",
+                "acceptEdits",
+                "--settings",
+                json.dumps({"permissions": {"allow": allow_rules()}}),
+            ],
+            Posture.AUTONOMOUS: ["--permission-mode", "bypassPermissions"],
+        }
+        assert not (workspace / "project" / ".mcp.json").exists()
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(["claude", "--bg", "{prompt}"], posture=posture),
+        )
+
+        argv = runner.build_argv("task-019-example", "run_abcd1234")
+
+        assert argv[2:-1] == today[posture], posture
 
 
 class TestArgvComposition:

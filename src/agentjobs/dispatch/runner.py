@@ -172,12 +172,66 @@ def allow_rules() -> List[str]:
     return [f"{tool}({prefix}:*)" for prefix in ALLOW_PREFIXES for tool in ALLOW_TOOLS]
 
 
-def allow_list_settings() -> str:
-    """The allow-list as the JSON blob ``--settings`` takes."""
-    return json.dumps({"permissions": {"allow": allow_rules()}})
+MCP_CONFIG_FILENAME = ".mcp.json"
+"""Claude Code's project-scoped MCP server file. Its keys are what dispatch approves."""
 
 
-def posture_flags(posture: Posture) -> List[str]:
+def mcpjson_server_names(project_root: Path) -> List[str]:
+    """The server names a project declares in its own ``.mcp.json``, in file order.
+
+    Claude Code prompts the first time it finds a project-scoped MCP server, and a
+    ``--bg`` session has no terminal to answer with. It renders *"New MCP server found
+    in this project"* with three numbered choices and sits there: ``claude agents
+    --json`` reports ``state: "blocked"``. run_08ddfa02, the first real dispatch ever
+    attempted, burned 913 seconds that way and did no work. There is no CLI verb to
+    approve one non-interactively -- ``claude mcp`` has add/remove/list/get/
+    reset-project-choices and nothing else.
+
+    So the names are read here and travel with the run in ``--settings``, which is one
+    of the three approval sources that apply regardless of folder trust. **Read from the
+    project, never hardcoded**: dispatch runs against whatever project it was configured
+    for, and naming AgentJobs' own server here would fix exactly one of them.
+
+    Returns ``[]`` for a missing, unreadable, non-JSON or serverless file. Dispatch does
+    not own this file and refusing to spawn over it would turn a cosmetic problem into
+    an outage; a file no name can be read out of also yields no name Claude Code could
+    prompt about, so argv is left exactly as it was.
+    """
+    try:
+        raw = (project_root / MCP_CONFIG_FILENAME).read_text(encoding="utf-8")
+    except OSError:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
+        return []
+    servers = parsed.get("mcpServers") if isinstance(parsed, dict) else None
+    if not isinstance(servers, dict):
+        return []
+    return [name for name in servers if isinstance(name, str) and name]
+
+
+def settings_json(*, allow_list: bool, mcp_servers: Sequence[str]) -> str:
+    """The blob ``--settings`` takes, carrying only the keys a run actually needs.
+
+    Two independent things end up here and they are wanted by different postures. The
+    allow-list pre-approves commands; ``enabledMcpjsonServers`` pre-approves the
+    project's MCP servers. ``read_only`` needs the second and must not be given the
+    first, so neither key is unconditional.
+
+    An empty ``mcp_servers`` produces exactly the JSON this emitted before the MCP key
+    existed, byte for byte, which is what keeps a project without a ``.mcp.json`` on
+    unchanged argv.
+    """
+    settings: Dict[str, object] = {}
+    if allow_list:
+        settings["permissions"] = {"allow": allow_rules()}
+    if mcp_servers:
+        settings["enabledMcpjsonServers"] = list(mcp_servers)
+    return json.dumps(settings)
+
+
+def posture_flags(posture: Posture, mcp_servers: Sequence[str]) -> List[str]:
     """The flags that decide what a run may do, per task-076.
 
     **AgentJobs owns these, not the operator.** Mechanically they are just more argv,
@@ -200,6 +254,17 @@ def posture_flags(posture: Posture) -> List[str]:
     ``read_only`` still gets no worktree flag, for the reason it never had one: it cannot
     write anything to one.
 
+    **Every posture that can hit the ``.mcp.json`` approval dialog carries the project's
+    server names (task-019).** Probed on 2.1.235 against a project declaring one
+    otherwise-unknown server: ``auto`` and ``read_only`` both reach ``state: "blocked"``
+    on *"New MCP server found in this project"*, and ``bypassPermissions`` does not see
+    the gate at all. So ``read_only`` gains a ``--settings`` blob it never had -- holding
+    ``enabledMcpjsonServers`` and nothing else, because giving it an allow-list would be
+    a posture change -- ``auto`` and ``supervised`` gain the key in the blob they already
+    had, and ``autonomous`` is untouched, since adding an approval it demonstrably does
+    not need would only imply a limit that is not there. A project with no ``.mcp.json``
+    yields no names and every posture's argv is unchanged.
+
     ``auto`` is the default (task-020). Its mode has a classifier review each action
     instead of a human, which is the only one of these that both keeps a gate and never
     needs a terminal. ``supervised`` was the default until 2026-08-19 and could not
@@ -214,14 +279,17 @@ def posture_flags(posture: Posture) -> List[str]:
     run waiting on a classifier round-trip for no benefit.
     """
     if posture is Posture.READ_ONLY:
-        return ["--tools", "Read,Glob,Grep,WebFetch"]
+        flags = ["--tools", "Read,Glob,Grep,WebFetch"]
+        if mcp_servers:
+            flags += ["--settings", settings_json(allow_list=False, mcp_servers=mcp_servers)]
+        return flags
     if posture is Posture.AUTONOMOUS:
         return ["--permission-mode", "bypassPermissions"]
     return [
         "--permission-mode",
         "auto" if posture is Posture.AUTO else "acceptEdits",
         "--settings",
-        allow_list_settings(),
+        settings_json(allow_list=True, mcp_servers=mcp_servers),
     ]
 
 
@@ -702,7 +770,9 @@ class DispatchRunner:
             "agent": self.runner.actor_id,
             "api_base": self.api_base,
         }
-        flags = posture_flags(self.resolution.settings.posture)
+        flags = posture_flags(
+            self.resolution.settings.posture, mcpjson_server_names(self.project_root)
+        )
         argv = compose_argv(self.runner.argv, values, flags)
         # Resolved before it is recorded, because the dispatch entry claims to say what
         # actually ran.
