@@ -3,10 +3,11 @@ id: task-192
 title: Taking its own worktree parks every dispatched run on a permission prompt nobody
   can answer
 created: '2026-08-20T07:33:26.996097Z'
-updated: '2026-08-20T07:33:26.996912Z'
-lifecycle: ready
+updated: '2026-08-20T08:05:23.208722Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 category: reliability
@@ -17,6 +18,7 @@ tags:
 - defect
 effort: small
 assignment:
+  owner: claude
   eligible: []
 parent: task-181-dispatch-phase-one-hardening
 spec:
@@ -113,7 +115,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-192-worktree-prompt-parks-dispatch
+  status: active
 log:
 - id: 1
   ts: '2026-08-20T07:33:26.996144Z'
@@ -126,3 +130,114 @@ log:
       id: d572c8b0-3e91-4a47-b625-90fa1c8e7d32
       kind: create
       fingerprint: 50684864047b2efa2d11fcd8abfb7f38
+- id: 2
+  ts: '2026-08-20T07:45:55.616414Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 3f1c7a52-1b8e-4a5d-9c31-0e7b2a4d6f11
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-20T07:46:01.698832Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 7c2e4b90-5d3a-42f1-8b6e-1a9c0d5e2233
+      kind: update_content
+      fingerprint: 067495b0cac52946111dcc91e1ff9c4e
+- id: 4
+  ts: '2026-08-20T08:05:00.176197Z'
+  actor: claude
+  type: progress
+  body: "Fix written and verified with three real `--bg` dispatches. Branch\n`fix/task-192-worktree-prompt-parks-dispatch`,\
+    \ worktree C:/projects/aj-192, commit 3addccf.\n\n## What changed\n\n- `PROMPT_STUB`\
+    \ in `src/agentjobs/dispatch/runner.py` no longer says \"take your own git\n \
+    \ worktree\". It gives the command: \"Before writing anything, run `git worktree\
+    \ add\n  ../<repo>-<nnn> -b <type>/task-NNN-<slug>` and work from that path. Use\
+    \ that shell\n  command, not a built-in worktree tool: those relocate the session's\
+    \ permission root,\n  which parks a background run on a prompt nobody can answer.\"\
+    \n- `docs/agent-workflow.md` gains the same paragraph under its existing worktree\
+    \ heading,\n  naming `EnterWorktree` explicitly, plus a line on what to do when\
+    \ a worktree for the\n  task already exists (use it or take a new name -- still\
+    \ not the tool).\n- `docs/agent-dispatch-design.md` section on \"Isolation comes\
+    \ from the agent\" records why\n  the clause is a command rather than prose.\n\
+    - Docstrings: `PROMPT_STUB` and `posture_flags` now carry the task-192 reasoning,\n\
+    \  including the two rejected alternatives (a `--settings` pre-approval for the\n\
+    \  relocation gate, and `bypassPermissions`).\n- Tests: a new one asserts the\
+    \ rendered prompt contains `git worktree add`, this task's\n  id in the branch\
+    \ it names, `not a built-in worktree tool`, and `permission root`; the\n  guide\
+    \ test now also asserts `EnterWorktree` and `permission root` appear there. The\n\
+    \  prompt-length ceiling moved 500 -> 800, which is the cost of spelling the command\
+    \ out.\n\n## Verification -- three real dispatches, no terminal attached\n\nAll\
+    \ three run from C:/projects/aj-192 via `poetry run agentjobs dispatch run`, so\
+    \ the\nprompt was composed by this branch's code, not the 8876 server's (which\
+    \ runs main).\nTarget task was **task-015**, chosen as low-stakes.\n\n1. **run_ab042e6a\
+    \ / session b0609221 -- fresh worktree (ac-1).** `claude agents --json`:\n   `status:\
+    \ busy, state: working`. It ran `git worktree add` and\n   `C:/projects/agentjobs-015`\
+    \ appeared in `git worktree list` on branch\n   `fix/task-015-truncate-ball-prompt-in-lists`.\
+    \ No permission prompt, never `blocked`.\n2. **run_052b10e5 / session 15139703\
+    \ -- one worktree already present (ac-2).**\n   `busy`/`working`. Transcript,\
+    \ verbatim:\n   `$ git worktree add ../aj-015 -b fix/task-015-truncate-ball-prompt-in-list`.\n\
+    3. **run_d74e729e / session ed2ba5d2 -- two worktrees already present, the observed\
+    \ case\n   (ac-2).** `busy`/`working`. Transcript: \"Two prior interrupted runs\
+    \ left empty\n   worktrees behind. Let me check whether either has work in it.\"\
+    \ followed by\n   `$ for d in ../agentjobs-015 ../aj-015; do echo \"=== $d\";\
+    \ git -C $d status --short; ...`\n   -- it inspected the existing worktrees with\
+    \ shell `git -C`. This is exactly where\n   run_6f1f0741 reached for `EnterWorktree`\
+    \ and parked; under the new prompt no run\n   touched that tool at all.\n\nEach\
+    \ was `claude stop`ped once observed. None wrote code or made a commit; all three\n\
+    worktrees were empty at `main`.\n\n## Cleanup and state left behind\n\n- Worktrees\
+    \ `C:/projects/agentjobs-015` and `C:/projects/aj-015` removed; branches\n  `fix/task-015-truncate-ball-prompt-in-list`\
+    \ and `...-lists` deleted.\n- **task-015 released back to `ready`/`agent`/`available`,\
+    \ owner cleared.** Its log\n  entries 4-10 are this experiment, and the release\
+    \ note says so.\n- The task-190 run-lock leak was hit twice between dispatches.\
+    \ Deleting\n  `~/.agentjobs/runs/.locks/task-015.lock` cleared it both times with\
+    \ no server restart\n  needed -- the lock was held by the exited CLI process,\
+    \ not by the server. Noted for\n  task-190; not fixed here.\n\n## Not regressed\
+    \ (ac-3)\n\n`posture_flags` is unchanged in behaviour -- only its docstring moved.\
+    \ The existing\nassertions that no posture emits `-w` (`tests/test_dispatch_runner.py:182,227`)\
+    \ still\npass, and run_d74e729e demonstrably executed `git -C` against sibling\
+    \ checkouts, the\nclass of operation a `-w` guard refuses.\n\n## Next\n\nFull\
+    \ gate `poetry run python scripts/check.py` is running; result to follow.\n"
+  data: {}
+- id: 5
+  ts: '2026-08-20T08:05:23.208578Z'
+  actor: claude
+  type: decision
+  body: "**ac-4 was already satisfied before this task started, so no code was written\
+    \ for it.**\n\nThe constraint reads \"a run that does park anyway must surface\
+    \ through the task record,\nnot only in a terminal scrape\". The mechanism exists\
+    \ end to end and has already fired in\nproduction on the very run this task was\
+    \ filed about:\n\n- `classify_session` (runner.py) maps `status: waiting` / `state:\
+    \ blocked` to\n  `SessionPhase.PARKED` -- the exact pair `claude agents --json`\
+    \ reported for\n  run_6f1f0741.\n- `poll_session` routes `PARKED` to `_park_session`,\
+    \ which calls `manager.handoff(...,\n  ball=Ball.HUMAN, ball_reason=BallReason.INPUT)`\
+    \ with a `ball_prompt` naming the session,\n  the remote-control URL when the\
+    \ transcript has one, the local `attach` command, and the\n  last 40 lines of\
+    \ terminal. It is idempotent, keyed on the run's own meta rather than on\n  the\
+    \ ball.\n- `poll_sessions_forever` is started in the API's lifespan (`api/main.py:110-112`),\
+    \ so\n  the poller runs whenever the dashboard does -- every 10s.\n\n**Evidence\
+    \ it worked, not just that it exists:** task-188 log entry #13, 2026-08-20\n07:27:47Z,\
+    \ actor `dispatcher`, type `handoff` -- \"Dispatched session `0fe53295` is parked\n\
+    on a permission prompt and will wait indefinitely. Answer it at\nhttps://claude.ai/code/session_018MSSiYNFr4Qxeq7Vy2ty94\
+    \ -- that link works from a phone.\nOr attach locally with `claude attach 0fe53295`.\"\
+    \ followed by the quoted terminal showing\n\"Creating wor...\". That is the parked\
+    \ run in the record with the ball moved off the agent,\n55 seconds after the dispatch.\n\
+    \n**Rejected:** adding a second, louder park path (a webhook fire, a distinct\
+    \ log type, or\na `blocked`-specific poller branch). It would duplicate judgement\
+    \ that already lives in\none place -- the property `poller.py`'s own docstring\
+    \ exists to protect -- to no\nobservable gain, on a task marked `effort: small`\
+    \ whose constraints say to keep the fix\nminimal.\n\nThe gap task-192's `intent`\
+    \ describes (\"he could see the run was parked and could not see\nthe prompt\"\
+    ) was that the prompt itself is unanswerable, not that it went unreported.\n"
+  data: {}
