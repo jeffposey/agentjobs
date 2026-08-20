@@ -2,10 +2,45 @@ schema: 2
 id: task-155-scrub-personal-references
 title: Take the maintainer's private machine out of the public repo's test fixtures
 created: '2026-08-18T21:43:49.173237Z'
-updated: '2026-08-18T21:43:49.174077Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-20T20:26:58.752325Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: "Review and approve the merge of `chore/task-155-neutral-fixture-names`\
+  \ (worktree `C:/projects/aj-155`, two commits off `ed3c2a7`). Not merged \u2014\
+  \ waiting on your explicit approval.\n\n**What changed.** `fe2e571` swaps the Vitest\
+  \ fixture project names `job-hunting`/`mastercalls` for `alpha`/`beta` in `ProjectSwitcher.test.tsx`,\
+  \ `IssueReporter.test.tsx` and `issueReport.test.ts` (ids, display names, roots,\
+  \ `tasks_directory`, and the route slug `task-004-resume` \u2192 `task-004-import`).\
+  \ `33e148f` rewrites `ENGINEERING.md`'s merge-gate restart step so it no longer\
+  \ tells a contributor to run `C:/ai/shared/launchers/open-agentjobs.ps1` \u2014\
+  \ it states the general rule (`agentjobs restart` only restarts a CLI-started server;\
+  \ against anything else it binds the default port and looks like it worked) and\
+  \ points at the environment's own setup notes.\n\n**The one thing worth your judgement**,\
+  \ because it is a call rather than a mechanical change: the launcher command is\
+  \ now gone from `ENGINEERING.md`. It is not lost \u2014 `C:/ai/shared/GLOBAL-AGENTS.md`\
+  \ already carries \"Do not start your own AgentJobs server\u2026 run the launcher\"\
+  , which is where machine-local setup belongs and which every agent on this machine\
+  \ loads. If you would rather keep the concrete command in the repo, say so and I\
+  \ will put it back as an example rather than as the instruction.\n\n**The decision\
+  \ the spec required** (log entry 6): task records under `tasks/` are left untouched\
+  \ \u2014 26 files still name `job-hunting`, `mastercalls` or the launcher. The line\
+  \ drawn is record vs. instruction, not past vs. present. Scrubbing them would buy\
+  \ no privacy (the strings are in the published git history either way, and rewriting\
+  \ history is out of scope) while costing the integrity of the record, which is the\
+  \ load-bearing property of a task tracker; it would also break `task-146`, still\
+  \ `ready`, whose whole subject is a page hosted under `C:/projects/job-hunting`.\
+  \ Rejected alternative \u2014 redact the launcher and rename the ids across all\
+  \ 26 \u2014 is named in the entry. If you disagree, this is the moment; the entry\
+  \ says not to reopen it later.\n\n**Verification.** Full gate in the worktree, exit\
+  \ 0: Black/Ruff/MyPy clean, 2046 pytest, 153 Vitest across 22 files, production\
+  \ build, 16 Playwright. The re-run audit search finds zero hits outside `tasks/`.\n\
+  \n**No UI review server stood up**, deliberately: nothing user-visible changed \u2014\
+  \ the diff is test fixtures and one paragraph of a markdown doc. Say the word if\
+  \ you want one anyway.\n\nOn approval I will rebase onto `main`, merge `--no-ff`,\
+  \ mark the branch merged, close the task, and remove the worktree. No frontend rebuild\
+  \ or server restart is needed since the bundle is unaffected, but I will confirm\
+  \ rather than assume."
 archived: false
 priority: medium
 category: general
@@ -16,6 +51,7 @@ tags:
 - tests
 effort: small
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: This repository is published at github.com/jeffposey/agentjobs. Its frontend
@@ -135,33 +171,45 @@ acceptance:
   text: No frontend test fixture names a real private project of the maintainer's;
     replacements are plainly fictional and the tests still assert what they asserted
     before
-  status: pending
+  status: met
 - id: sc-2
   text: npm run check passes in frontend/, including the Vitest suites whose fixtures
     changed
-  status: pending
+  status: met
 - id: sc-3
   text: The question of whether historical task records should be scrubbed is decided
     explicitly and recorded as a decision entry naming the rejected alternative
-  status: pending
+  status: met
 - id: sc-4
   text: A re-run of the search that found this reports only what the decision in sc-3
     chose to leave, and nothing unexplained
-  status: pending
+  status: met
 - id: sc-5
   text: The record states plainly that the repo's own CLAUDE.md imports nothing outside
     the repo, so a later audit does not re-derive it
-  status: pending
+  status: met
 deliverables:
 - path: frontend/src/components/ProjectSwitcher.test.tsx
-  note: Neutral fixture project names
-  status: pending
+  note: job-hunting/mastercalls -> alpha/beta, ids and roots
+  status: done
+- path: frontend/src/components/IssueReporter.test.tsx
+  note: job-hunting -> alpha; fixture route task-004-resume -> task-004-import
+  status: done
+- path: frontend/src/report/issueReport.test.ts
+  note: job-hunting -> alpha throughout
+  status: done
+- path: ENGINEERING.md
+  note: Merge-gate restart step no longer names C:/ai/shared/launchers/open-agentjobs.ps1
+    or port 8876; states the general rule instead
+  status: done
 dependencies: []
 links:
 - url: https://github.com/jeffposey/agentjobs
   rel: other
   title: The public repository this concerns
-branches: []
+branches:
+- name: chore/task-155-neutral-fixture-names
+  status: active
 log:
 - id: 1
   ts: '2026-08-18T21:43:49.173283Z'
@@ -174,3 +222,256 @@ log:
       id: 1550aa11-2b33-4c55-8d77-e9f0a1b2c155
       kind: create
       fingerprint: 9f75e8cabe85ab7765a98333f0d91e1c
+- id: 2
+  ts: '2026-08-20T20:10:30.179958Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Dispatched by Claude on 2026-08-20 as task-191''s ac-1 verification: the
+    machine ceiling was raised from 1 to 3 and the criterion is two dispatched runs
+    working two different tasks at the same time, both gates passing, neither interfering.
+    This task was chosen as a low-stakes target -- small, self-contained, no dependencies.
+    Work it normally per ALLAGENTS.md. If this run is stopped before it concludes,
+    that is task-191''s verification finishing rather than anything wrong with this
+    task; task-191''s log records what state it was left in.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 3
+  ts: '2026-08-20T20:10:30.498721Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 4
+  ts: '2026-08-20T20:10:31.287345Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_82e3fc79
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 2
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-155-scrub-personal-references`
+      in project `agentjobs` (root: C:\projects\agentjobs). You are running in that
+      project''s shared working tree and are NOT isolated. Before writing anything,
+      run `git worktree add ../<repo>-<nnn> -b <type>/task-155-scrub-personal-references-<slug>`
+      and work from that path. Use that shell command, not a built-in worktree tool:
+      those relocate the session''s permission root, which parks a background run
+      on a prompt nobody can answer. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_82e3fc79.'
+    cwd: C:\projects\agentjobs
+    git_head: ed3c2a7
+    session_id: 8aee81d1
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 5
+  ts: '2026-08-20T20:25:28.653773Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 6a1f2c30-1d55-4e21-9b74-155a0c1e0001
+      kind: update_content
+      fingerprint: f0bc52dd405939d2fa9bc7c52ca79cc2
+- id: 6
+  ts: '2026-08-20T20:25:49.688361Z'
+  actor: claude
+  type: decision
+  body: "**Task records under `tasks/` are left alone. Only living instructions were\
+    \ changed.**\n\nThe line drawn is not \"history vs. present\" but **record vs.\
+    \ instruction**. A task\nrecord is an account of what an agent or a human observed\
+    \ and did; a doc or a test\nfixture is an instruction to whoever reads the repo\
+    \ next. The first must stay\nfaithful even when what it recorded is inconvenient.\
+    \ The second has no such claim.\n\nSo: `frontend/src/**` fixtures and `ENGINEERING.md`\
+    \ changed; all 26 task files that\nmention `job-hunting`, `mastercalls`, `fantasy-football`\
+    \ or\n`C:/ai/shared/launchers/open-agentjobs.ps1` are untouched.\n\nWhy the default\
+    \ held for a published repository:\n\n1. The exposure argument does not survive\
+    \ contact with the facts. The names are in\n   this repository's *published git\
+    \ history* either way, and rewriting that history\n   is explicitly out of scope.\
+    \ Scrubbing HEAD would therefore buy no privacy at all\n   \u2014 it would only\
+    \ make the current tree read tidier while the same strings remain\n   one `git\
+    \ log -S` away.\n2. What it *would* cost is the property this product exists to\
+    \ provide. AgentJobs'\n   whole claim is that the task record is the durable,\
+    \ trustworthy account of what\n   happened. A tracker that edits closed records\
+    \ to look better in public is a\n   tracker whose records cannot be relied on,\
+    \ and that is a far worse thing for it\n   to be than one that contains a directory\
+    \ name.\n3. Nothing there is sensitive. A project directory name and a local launcher\
+    \ path\n   are not credentials, and the spec's own audit already confirmed there\
+    \ are no\n   credentials, tokens, or private-repo content anywhere in the tree.\n\
+    4. Two of the 26 (`task-146`, `task-169`) are still `ready` and name those projects\n\
+    \   *in their specs* \u2014 task-146's whole subject is integrating with a page\
+    \ hosted at\n   `C:/projects/job-hunting/tools/triage/web`. Scrubbing those would\
+    \ not be tidying\n   a record; it would make an open task unexecutable by removing\
+    \ the thing it is\n   about. Any rule that scrubs the closed records has to answer\
+    \ for these, and the\n   only coherent answers are \"scrub and break them\" or\
+    \ \"carve an exception that\n   swallows the rule\".\n\n**Rejected alternative:\
+    \ scrub the task corpus too** \u2014 redact the launcher to\n`<launcher script>`\
+    \ and rename the project ids in all 26 files, so the repository\nreads uniformly\
+    \ neutral to a contributor browsing it on GitHub. Rejected for (1)\nand (2): it\
+    \ is cosmetic given the history, and it pays for that cosmetic with the\nintegrity\
+    \ of the record, which is the load-bearing property of a task tracker. A\nreader\
+    \ who wonders why closed tasks mention a project they cannot see now has this\n\
+    entry to find, which is a better outcome than a silently-edited corpus.\n\n**This\
+    \ is settled \u2014 do not reopen it on a later audit.** If the repository is\
+    \ ever\nre-published under a rewritten history, that is the moment to revisit,\
+    \ and only\nthen."
+  data:
+    operation:
+      id: 6a1f2c30-1d55-4e21-9b74-155a0c1e0002
+      kind: log_append
+      fingerprint: ea450f8daf0144fec20acf53afadadb5
+- id: 7
+  ts: '2026-08-20T20:26:10.698336Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, deliverables.
+  data:
+    fields:
+    - acceptance
+    - deliverables
+    operation:
+      id: 6a1f2c30-1d55-4e21-9b74-155a0c1e0003
+      kind: update_content
+      fingerprint: 5496a18f3ec22c4682b4739a1f972dfd
+- id: 8
+  ts: '2026-08-20T20:26:38.923125Z'
+  actor: claude
+  type: progress
+  body: "Work complete on `chore/task-155-neutral-fixture-names`, worktree `C:/projects/aj-155`,\n\
+    branched from `ed3c2a7`. Two commits.\n\n**`fe2e571` \u2014 test(frontend): fictional\
+    \ project fixtures.** Across\n`ProjectSwitcher.test.tsx`, `IssueReporter.test.tsx`\
+    \ and `issueReport.test.ts`:\n`job-hunting` \u2192 `alpha` / \"Job Hunting\" \u2192\
+    \ \"Alpha\", `mastercalls` \u2192 `beta` /\n\"Mastercalls\" \u2192 \"Beta\", roots\
+    \ and `tasks_directory` follow, and the fixture route\n`/p/job-hunting/tasks/task-004-resume`\
+    \ \u2192 `/p/alpha/tasks/task-004-import` (the old\nslug still read as a real\
+    \ job-hunting task). `alpha`/`beta` was chosen over inventing\na new pair because\
+    \ it is already the fixture convention in `LiveUpdates.test.tsx`.\nThe ids stay\
+    \ URL-shaped and distinct, so ProjectSwitcher's `/p/<id>` navigation\nassertion\
+    \ is unchanged in kind, and the option-order assertion still reads\nalphabetically\
+    \ (`AgentJobs, Alpha, Beta` where it read `AgentJobs, Job Hunting,\nMastercalls`).\
+    \ No assertion was weakened or removed.\n\n**`33e148f` \u2014 docs(engineering):\
+    \ restart rule without the launcher path.** The\nsummary said \"several files\
+    \ reference a launcher script that exists only on his\nmachine\"; outside `tasks/`,\
+    \ exactly one did. `ENGINEERING.md`'s merge-gate step 6\nnamed `C:/ai/shared/launchers/open-agentjobs.ps1`\
+    \ and port 8876 and told the reader\nto run a script they do not have. It now\
+    \ states the transferable rule \u2014 `agentjobs\nrestart` only restarts a server\
+    \ the CLI started, and against anything else it binds\nthe default port and appears\
+    \ to succeed while the real dashboard stays stale \u2014 and\npoints at the environment's\
+    \ own setup notes for the actual command. Nothing is lost\non this machine: `C:/ai/shared/GLOBAL-AGENTS.md`\
+    \ already carries the launcher\ninstruction, which is where machine-local setup\
+    \ belongs. `ALLAGENTS.md`'s\ncross-reference (\"which server is yours to restart\
+    \ and which is not\") still resolves.\n\n**Verification.**\n- Full gate `poetry\
+    \ run python scripts/check.py` in the worktree: **exit 0**. Black,\n  Ruff, MyPy\
+    \ clean; **2046 pytest passed** in 4m58s; **153 Vitest tests across 22\n  files\
+    \ passed**; production build green; **16 Playwright tests passed**. Log at\n \
+    \ `C:/Users/jpose/.claude/jobs/8aee81d1/tmp/check-155.log` (job-local \u2014 quote\
+    \ from it\n  rather than relying on it surviving).\n- Re-run of the finding search\
+    \ (sc-4), excluding `node_modules`, `.git`, `tasks/`,\n  `frontend_dist/` and\
+    \ `.svg`, for `job-hunting|mastercalls|fantasyfootball|\n  fantasy-football|killtony|rent-debt|product-strategy|C:/ai/|open-agentjobs`:\n\
+    \  **zero hits.** Inside `tasks/`, 26 files still match \u2014 exactly the set\
+    \ the decision\n  entry chose to leave, and nothing else.\n\n**Two things checked\
+    \ and deliberately not changed, so a later reader does not\nre-derive them:**\n\
+    \n1. *The spec's \"related but separate\" red test is already green.* It said\n\
+    \   `tests/test_validate.py::TestRealCorpus::test_the_tolerated_drift_is_only_taxonomy_and_serialization`\n\
+    \   was failing on `main` over task-146's `C:`-rooted path. `poetry run pytest\n\
+    \   tests/test_validate.py` now reports **47 passed**. Task-166 fixed it by dropping\n\
+    \   the pointer (its own log records `task-146 | C:/projects/job-hunting/tools/triage/web\n\
+    \   | pointer dropped`). There was nothing here to absorb.\n2. *`\"Jeff Posey\"\
+    ` remains as the `default_user` in `IssueReporter.test.tsx` and\n   `issueReport.test.ts`\
+    \ fixtures.* It is a person's name, not a private project, and\n   the same name\
+    \ is already deliberately published in `pyproject.toml` (which the\n   constraints\
+    \ protect), `.claude-plugin/marketplace.json` and `.agentjobs/config.yaml`.\n\
+    \   Removing it from fixtures alone would be inconsistent rather than private.\
+    \ Port\n   8876 also survives in comments in `scripts/bench.py` and\n   `src/agentjobs/dispatch/address.py`,\
+    \ where it is documented as a hazard rather than\n   as the maintainer's setup;\
+    \ a port number carries nothing.\n\n**sc-5, restated in the log where an auditor\
+    \ will find it:** the repository's own\n`CLAUDE.md` imports exactly `@AGENTS.md`,\
+    \ `@ENGINEERING.md` and `@ALLAGENTS.md` \u2014\nthree in-repo files, the complete\
+    \ set of `@` imports across every tracked markdown\nfile. The out-of-project references\
+    \ Claude Code prints at session start come from the\n*user's global* `~/.claude/CLAUDE.md`,\
+    \ which is machine-local and unpublished and\nfollows the user into any directory.\
+    \ **The repository is not doing it, and there is\nnothing here to fix.**"
+  data:
+    operation:
+      id: 6a1f2c30-1d55-4e21-9b74-155a0c1e0004
+      kind: log_append
+      fingerprint: ff4dd557fdda691e434f844a64cf0551
+- id: 9
+  ts: '2026-08-20T20:26:58.752105Z'
+  actor: claude
+  type: handoff
+  body: "Review and approve the merge of `chore/task-155-neutral-fixture-names` (worktree\
+    \ `C:/projects/aj-155`, two commits off `ed3c2a7`). Not merged \u2014 waiting\
+    \ on your explicit approval.\n\n**What changed.** `fe2e571` swaps the Vitest fixture\
+    \ project names `job-hunting`/`mastercalls` for `alpha`/`beta` in `ProjectSwitcher.test.tsx`,\
+    \ `IssueReporter.test.tsx` and `issueReport.test.ts` (ids, display names, roots,\
+    \ `tasks_directory`, and the route slug `task-004-resume` \u2192 `task-004-import`).\
+    \ `33e148f` rewrites `ENGINEERING.md`'s merge-gate restart step so it no longer\
+    \ tells a contributor to run `C:/ai/shared/launchers/open-agentjobs.ps1` \u2014\
+    \ it states the general rule (`agentjobs restart` only restarts a CLI-started\
+    \ server; against anything else it binds the default port and looks like it worked)\
+    \ and points at the environment's own setup notes.\n\n**The one thing worth your\
+    \ judgement**, because it is a call rather than a mechanical change: the launcher\
+    \ command is now gone from `ENGINEERING.md`. It is not lost \u2014 `C:/ai/shared/GLOBAL-AGENTS.md`\
+    \ already carries \"Do not start your own AgentJobs server\u2026 run the launcher\"\
+    , which is where machine-local setup belongs and which every agent on this machine\
+    \ loads. If you would rather keep the concrete command in the repo, say so and\
+    \ I will put it back as an example rather than as the instruction.\n\n**The decision\
+    \ the spec required** (log entry 6): task records under `tasks/` are left untouched\
+    \ \u2014 26 files still name `job-hunting`, `mastercalls` or the launcher. The\
+    \ line drawn is record vs. instruction, not past vs. present. Scrubbing them would\
+    \ buy no privacy (the strings are in the published git history either way, and\
+    \ rewriting history is out of scope) while costing the integrity of the record,\
+    \ which is the load-bearing property of a task tracker; it would also break `task-146`,\
+    \ still `ready`, whose whole subject is a page hosted under `C:/projects/job-hunting`.\
+    \ Rejected alternative \u2014 redact the launcher and rename the ids across all\
+    \ 26 \u2014 is named in the entry. If you disagree, this is the moment; the entry\
+    \ says not to reopen it later.\n\n**Verification.** Full gate in the worktree,\
+    \ exit 0: Black/Ruff/MyPy clean, 2046 pytest, 153 Vitest across 22 files, production\
+    \ build, 16 Playwright. The re-run audit search finds zero hits outside `tasks/`.\n\
+    \n**No UI review server stood up**, deliberately: nothing user-visible changed\
+    \ \u2014 the diff is test fixtures and one paragraph of a markdown doc. Say the\
+    \ word if you want one anyway.\n\nOn approval I will rebase onto `main`, merge\
+    \ `--no-ff`, mark the branch merged, close the task, and remove the worktree.\
+    \ No frontend rebuild or server restart is needed since the bundle is unaffected,\
+    \ but I will confirm rather than assume."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 6a1f2c30-1d55-4e21-9b74-155a0c1e0005
+      kind: handoff
+      fingerprint: 3e520256b0383516157f1462e1e8cf7b
