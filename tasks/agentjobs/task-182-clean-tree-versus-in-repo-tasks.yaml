@@ -3,7 +3,7 @@ id: task-182-clean-tree-versus-in-repo-tasks
 title: require_clean_tree refuses every dispatch in a project whose task files live
   in its own repo
 created: '2026-08-19T20:50:13.107702Z'
-updated: '2026-08-19T21:22:58.897690Z'
+updated: '2026-08-20T00:21:18.800821Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -149,3 +149,31 @@ log:
       id: a3b4c5d6-e7f8-4039-b48a-b5c6d7e8a7b1
       kind: update_content
       fingerprint: 6bc867db7efae818c23f58513b8140c5
+- id: 4
+  ts: '2026-08-20T00:21:18.800741Z'
+  actor: claude
+  type: progress
+  body: "Second instance of the same defect, from the other end: the terminal dispatch_result\
+    \ entry always lands after the run's last commit\n\nObserved 2026-08-19 while\
+    \ verifying task-186 with a real dispatched run against a throwaway project. Recorded\
+    \ here rather than filed separately because it is the same root cause and the\
+    \ same fix surface -- `working_tree_clean` running a bare `git status --porcelain`\
+    \ with no exclusion for the project's tasks directory.\n\nThe described sequence\
+    \ is dispatch dirtying the tree at *claim* time, before the spawn. There is a\
+    \ second one at the other end, and it does not depend on the agent misbehaving\
+    \ at all: **the `dispatch_result` entry is written by the dispatcher after the\
+    \ run has finished**, which is necessarily after the agent's own last commit.\
+    \ The run in question did everything right -- took its own worktree, committed\
+    \ its task record to `main`, merged `--no-ff`, closed itself, removed its worktree\
+    \ -- and the shared clone was still left with exactly one uncommitted change:\n\
+    \n```\n M tasks/task-001.yaml\n\n+- id: 7\n+  ts: '2026-08-20T00:16:07.145352Z'\n\
+    +  actor: dispatcher\n+  type: dispatch_result\n```\n\nSo the state task-182 describes\
+    \ is not merely reachable, it is the **guaranteed** resting state after any dispatched\
+    \ run. Whatever fix is chosen has to cover it: excluding the tasks directory from\
+    \ the check does, but \"commit the claim before the re-check\" only fixes the\
+    \ front half and would leave every completed run blocking the next dispatch.\n\
+    \nThis also matters to task-186, which named `require_clean_tree` as the backstop\
+    \ that turns a containment violation into a refused spawn now that dispatch no\
+    \ longer passes `-w`. That backstop cannot do its job while it fires on AgentJobs'\
+    \ own writes; the design doc now says so explicitly and points here."
+  data: {}
