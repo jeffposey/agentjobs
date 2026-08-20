@@ -1453,13 +1453,19 @@ finish is not containment; it is a stall with good intentions. Task-186 chose th
 The dispatched agent takes its own worktree, exactly as every other agent in this
 repository is already required to
 ([ALLAGENTS.md, "Why you get your own worktree"](../ALLAGENTS.md)):
-`git worktree add ../aj-<nnn> -b <type>/task-<nnn>-<slug>`, before anything is written.
+`git worktree add ../worktrees/aj-<nnn> -b <type>/task-<nnn>-<slug>`, before anything is
+written.
 
 Verified by running it rather than by reading about it, 2026-08-19: with `-w` omitted,
 cwd at the repository root and `--permission-mode auto`, a session created a sibling
 worktree, wrote a file into it, committed into it with `git -C`, and read the shared
 clone's status — no refusal, no permission prompt, and **no `--add-dir`**. Writing outside
 cwd was the one thing that could have made this cost a new flag; it does not.
+
+The path in that probe was a direct sibling, `../aj-<nnn>`; the convention has since moved
+one level deeper, to `../worktrees/<repo>-<nnn>`, so worktrees stop crowding the workspace
+root. The probe still holds — both paths are outside cwd, which is the only property the
+permission model distinguishes, and depth is not a second gate.
 
 **The mechanism that keeps two dispatched runs out of one working tree** — the question
 task-075 exists to answer, and the one this section must not leave vague — is now three

@@ -90,6 +90,6 @@ def test_the_bootstrap_is_documented_where_worktrees_are_required() -> None:
     assert "python scripts/bootstrap.py" in all_agents
     assert "python scripts/bootstrap.py" in engineering
     # Beside the worktree commands, not only in the Setup section a worktree skips.
-    assert "git worktree add ../aj-045" in engineering
-    worktree_block = engineering.split("git worktree add ../aj-045", 1)[1]
+    assert "git worktree add ../worktrees/aj-045" in engineering
+    worktree_block = engineering.split("git worktree add ../worktrees/aj-045", 1)[1]
     assert "scripts/bootstrap.py" in worktree_block.split("```", 1)[0]

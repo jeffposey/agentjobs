@@ -104,7 +104,8 @@ this design found the bug in the prompt that dispatched it.
 PROMPT_STUB = (
     "You are the agent `{agent}` working task `{task_id}` in project `{project_id}` "
     "(root: {project_root}). You are running in that project's shared working tree and "
-    "are NOT isolated. Before writing anything, run `git worktree add ../<repo>-<nnn> "
+    "are NOT isolated. Before writing anything, run `git worktree add "
+    "../worktrees/<repo>-<nnn> "
     "-b <type>/{task_id}-<slug>` and work from that path. Use that shell command, not "
     "a built-in worktree tool: those relocate the session's permission root, which "
     "parks a background run on a prompt nobody can answer. AgentJobs is serving at "

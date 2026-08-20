@@ -38,7 +38,7 @@ user authorizes it.
     is what "done" means. Read the `log[]` newest-first: the last `handoff`, and every
     `decision` and open `question` since. **Decisions are binding — do not relitigate
     them.** Check `dependencies[]` and confirm they are satisfied before starting.
-2.  **Worktree, branch, then claim**: `git worktree add ../aj-<nnn> -b <type>/task-<nnn>-<slug>`
+2.  **Worktree, branch, then claim**: `git worktree add ../worktrees/aj-<nnn> -b <type>/task-<nnn>-<slug>`
     and work there — **this is your first act, before anything is written.** Then `claim`
     the task and record the branch in `branches[]`. In that order, so no work is ever
     committed outside a branch. See [Why you get your own worktree](#why-you-get-your-own-worktree).
@@ -111,7 +111,9 @@ neither will they.
 A human working alone does not need this; they have no peer to collide with. You do.
 
 -   Create the worktree **before** the branch, the claim, or anything written to disk.
--   Name it for the task, beside the clone rather than inside it: `../aj-045`.
+-   Name it for the task, and put it in the `worktrees/` directory beside the clone --
+    not inside the clone, and not loose in the workspace beside the projects:
+    `../worktrees/aj-045`. `git worktree add` creates that directory the first time.
 -   `git worktree remove` it once the branch is merged. `git worktree list` is the
     inventory, and a worktree for a closed task is litter.
 -   **Never `git checkout` in the shared clone** to start work.
