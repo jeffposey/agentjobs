@@ -3,10 +3,11 @@ id: task-019
 title: 'Dispatch cannot start in a project with a .mcp.json: the session blocks on
   an approval dialog nobody can answer'
 created: '2026-08-19T21:46:46.999513Z'
-updated: '2026-08-19T21:46:47.000263Z'
-lifecycle: ready
+updated: '2026-08-20T00:40:49.820969Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 category: infrastructure
@@ -16,6 +17,7 @@ tags:
 - defect
 effort: an hour
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: A dispatched session starts in a fresh worktree and hits Claude Code's
@@ -90,7 +92,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-019-mcp-approval-in-settings
+  status: active
 log:
 - id: 1
   ts: '2026-08-19T21:46:46.999563Z'
@@ -103,3 +107,83 @@ log:
       id: 2d4f6a18-9c3b-4e05-8a71-6f9d0c3b5e42
       kind: create
       fingerprint: a92eeb126dadd712543179d18a995481
+- id: 2
+  ts: '2026-08-20T00:39:39.939902Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 3
+  ts: '2026-08-20T00:40:31.305799Z'
+  actor: claude
+  type: progress
+  body: 'Probed the defect and the proposed fix directly on Claude Code 2.1.235 before
+    writing any code, in worktree C:/projects/aj-019 with a throwaway `.mcp.json`
+    declaring a single server named `aj019probe`. That name is deliberately NOT the
+    one in the machine-local workaround (`enabledMcpjsonServers: ["agentjobs"]` in
+    ~/.claude/settings.json), so none of these results are masked by it. Four `claude
+    --bg --remote-control` runs, each checked with `claude agents --json`:
+
+
+    1. `--permission-mode auto` (dispatch''s default posture) -> `state: blocked`.
+    Transcript shows verbatim: "New MCP server found in this project: aj019probe ...
+    1. Use this MCP server / 2. Use this and all future MCP servers in this project
+    / 3. Continue without using this MCP server". This is the reported defect, reproduced.
+
+    2. `--tools Read,Glob,Grep,WebFetch` (the `read_only` posture, which passes no
+    `--settings` today) -> `state: blocked`, same dialog. So read_only is affected
+    too, and cannot be fixed by editing the existing settings blob because it has
+    none.
+
+    3. `--permission-mode bypassPermissions` (the `autonomous` posture) -> `state:
+    done`, no dialog in the transcript at all. bypassPermissions skips the .mcp.json
+    approval gate. Note this run did NOT persist an approval: run 1 above still prompted
+    afterwards.
+
+    4. `--permission-mode auto --settings ''{"permissions":{"allow":[...]},"enabledMcpjsonServers":["aj019probe"]}''`
+    -> `state: done`, zero occurrences of "New MCP server found" in the transcript.
+    The proposed fix works, and works for a server name the user-level settings file
+    has never heard of.
+
+
+    Blocked probes were stopped with `claude stop`.'
+  data: {}
+- id: 4
+  ts: '2026-08-20T00:40:49.820885Z'
+  actor: claude
+  type: decision
+  body: '`autonomous` keeps its argv unchanged; `read_only` gains a `--settings` blob
+    it did not have.
+
+
+    The task frames the fix as "add the names to the --settings JSON dispatch already
+    builds", which covers `auto` and `supervised` only. The probe above (previous
+    entry) shows the gate is not posture-specific: `read_only` blocks on the same
+    dialog, and it passes no `--settings` at all, so there is nothing to add the key
+    to. Leaving it broken would be narrowing the task -- the intent says a project
+    shipping a .mcp.json "cannot currently be dispatched to at all", and that is true
+    of read_only.
+
+
+    So `read_only` now emits `--settings {"enabledMcpjsonServers": [...]}` -- and
+    nothing else. No `permissions` key: read_only has no allow-list today and giving
+    it one would be a posture change, which is explicitly out of scope.
+
+
+    `autonomous` is left alone because bypassPermissions demonstrably does not hit
+    the gate (probe 3). Rejected the tidier-looking alternative of emitting the key
+    for all four postures uniformly: it would contradict the recorded rationale of
+    `test_autonomous_gets_bypass_and_never_the_allow_list` ("an allow-list under bypassPermissions
+    would imply a limit that is not there") for no observed benefit, and it would
+    put a `--settings` element on a posture that has never carried one on the strength
+    of a guess rather than a measurement.
+
+
+    Consequence worth stating: if a future Claude Code release makes bypassPermissions
+    honour the .mcp.json gate, `autonomous` breaks and nothing here will say so. The
+    probe procedure is written out in the previous entry so it can be re-run in four
+    commands.'
+  data: {}
