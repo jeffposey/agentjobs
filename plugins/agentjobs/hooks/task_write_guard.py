@@ -339,16 +339,33 @@ def _candidate_paths(command: str) -> List[str]:
     Windows, so it does not either. Both walked straight past a token-based scan.
     """
     candidates = [match.group(0) for match in _YAML_PATH.finditer(command)]
-    candidates.extend(match.group(1) for match in _REDIRECT.finditer(command))
+    candidates.extend(_redirect_targets(command))
     return [candidate.strip("\"'") for candidate in candidates]
 
 
-def _is_write_command(command: str) -> Tuple[bool, str]:
-    """Whether a shell command would write, and why we think so."""
+def _redirect_targets(command: str) -> List[str]:
+    """Every path a command redirects output *into*.
+
+    A redirection writes to its target and to nothing else. Reading that as "this
+    command writes" regardless of target is what denied `head tasks/x.yaml
+    2>/dev/null` -- the discard sink made it a write, and the task file it merely
+    *read* supplied the managed path. The two facts are unrelated and were being
+    multiplied together.
+    """
+    return [match.group(1).strip("\"'") for match in _REDIRECT.finditer(command)]
+
+
+def _is_write_command(command: str, redirects_into_managed: bool = True) -> Tuple[bool, str]:
+    """Whether a shell command would write, and why we think so.
+
+    `redirects_into_managed` says whether any redirect target is itself a managed task
+    file. It defaults to True so that a caller who cannot resolve paths keeps the old
+    conservative reading.
+    """
     lowered = command.lower()
     leads = _words(command)
 
-    if _REDIRECT.search(command):
+    if redirects_into_managed and _REDIRECT.search(command):
         return True, "shell redirection"
     for lead in leads:
         if lead in AGENTJOBS_COMMANDS:
@@ -366,12 +383,16 @@ def _is_write_command(command: str) -> Tuple[bool, str]:
     return False, ""
 
 
-def _is_read_only_command(command: str) -> bool:
-    """Whether every segment of a command is a known read-only operation."""
+def _is_read_only_command(command: str, redirects_into_managed: bool = True) -> bool:
+    """Whether every segment of a command is a known read-only operation.
+
+    A redirect disqualifies only when it targets a managed file; sending stderr to a
+    discard sink leaves a `cat` or a `head` exactly as read-only as it was.
+    """
     leads = _words(command)
     if not leads:
         return False
-    if _REDIRECT.search(command):
+    if redirects_into_managed and _REDIRECT.search(command):
         return False
     return all(lead in READ_ONLY or lead in AGENTJOBS_COMMANDS for lead in leads)
 
@@ -442,10 +463,15 @@ def evaluate(event: Dict[str, Any], directories: Sequence[Path], cwd: Path) -> D
         managed = [(path, owner) for path, owner in mentioned if owner is not None]
         if not managed:
             return {"decision": Decision.ALLOW}
-        if _is_read_only_command(command):
+        redirects_into_managed = any(
+            is_managed_task_file(target, directories, cwd) is not None
+            for target in _redirect_targets(command)
+        )
+
+        if _is_read_only_command(command, redirects_into_managed):
             return {"decision": Decision.ALLOW}
 
-        writes, reason = _is_write_command(command)
+        writes, reason = _is_write_command(command, redirects_into_managed)
         if writes:
             return _deny([path for path, _ in managed], managed[0][1], reason)
 

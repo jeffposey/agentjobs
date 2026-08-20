@@ -250,6 +250,31 @@ class WriteGuardMatrix:
     def test_redirection_elsewhere_is_allowed(self, project):
         assert not self.denied(project, "bash", {"command": "echo x > notes.txt"})
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "head tasks/myproject/task-001-work.yaml 2>/dev/null",
+            "grep -H '^title:' tasks/myproject/task-001-work.yaml 2>/dev/null",
+            "cat tasks/myproject/task-001-work.yaml > /dev/null",
+            "cat tasks/myproject/task-001-work.yaml 2>$null",
+        ],
+    )
+    def test_reading_a_task_file_with_a_discarded_stream_is_allowed(self, project, command):
+        """A redirect writes to its target, not to every path the command mentions.
+
+        These were denied: the redirection made the command "a write", and the task
+        file it only *read* supplied the managed path. Two unrelated facts multiplied
+        into a refusal, and the advice it printed -- use the MCP tools -- could not
+        help, because nothing was being written.
+        """
+        assert not self.denied(project, "bash", {"command": command})
+
+    def test_a_discarded_stream_does_not_excuse_a_real_redirect(self, project):
+        """The narrowing must not become a way through: the sink is not the target."""
+        command = "cat notes.txt 2>/dev/null > tasks/myproject/task-001-work.yaml"
+
+        assert self.denied(project, "bash", {"command": command})
+
     # -----------------------------------------------------------------------
     # PowerShell and POSIX writers
     # -----------------------------------------------------------------------
