@@ -172,7 +172,7 @@ def maybe_auto_dispatch(
     project_config: Dict[str, object],
     task: Task,
     home: Optional[Path] = None,
-    api_base: str = "http://localhost:8765",
+    api_base: Optional[str] = None,
     now: Optional[datetime] = None,
 ) -> AutoDispatchOutcome:
     """Start an agent, if this project asked for that and every limit allows it.
@@ -184,6 +184,10 @@ def maybe_auto_dispatch(
     Off by default and configured only in machine-local ``~/.agentjobs/dispatch.yaml``,
     which no browser can write. Merging this file changes nothing anywhere until a
     person edits that file by hand.
+
+    ``api_base`` is forwarded to ``dispatch_task`` unchanged, so an auto-dispatch and the
+    manual dispatch it sits beside resolve the same address by construction rather than
+    by two copies of a default staying in step.
     """
     if task.ball is not Ball.AGENT or not task.is_open:
         # Requesting changes hands to agent/revise and is eligible; rejecting closes the

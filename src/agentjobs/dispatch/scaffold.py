@@ -44,6 +44,18 @@ version: 1
 # `agentjobs dispatch status`, and turn this on when you mean it.
 enabled: false
 
+# Where AgentJobs serves on THIS machine. A dispatched agent is told this address, and
+# reads its task record and writes its progress back through it -- so if it is wrong the
+# run goes quiet, because an agent that cannot reach AgentJobs cannot report that it
+# cannot reach AgentJobs.
+#
+# Only `agentjobs dispatch run` needs it. A dispatch from the web UI uses the address of
+# the socket that request arrived on, which is always right and needs no configuration.
+# Leave it out if you serve on the CLI's default port, 8765. Set it if you serve on
+# anything else, and remember it is the port YOU serve on, not one anyone else assumes.
+#
+# api_base: http://localhost:8876
+
 # ----- runners: one named recipe per way of starting an agent -----------------
 #
 # argv is a list because there is no shell anywhere in dispatch. Placeholders are

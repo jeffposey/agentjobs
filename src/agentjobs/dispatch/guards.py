@@ -291,7 +291,7 @@ def dispatch_task(
     project_config: Dict[str, object],
     request: DispatchRequest,
     home: Optional[Path] = None,
-    api_base: str = "http://localhost:8765",
+    api_base: Optional[str] = None,
 ) -> RunHandle:
     """Check every precondition, claim the task, and start a run.
 
@@ -304,6 +304,11 @@ def dispatch_task(
     Raises a `DispatchRefused` subclass naming the gate that refused. Never queues: a
     concurrency limit that queues turns a click into a promise to spend money later, at
     a moment nobody is watching. "Busy, try again" is worse UX and better behaviour.
+
+    ``api_base`` is passed through untouched, including ``None``: a caller that knows the
+    address the server answered on says so, and everyone else leaves it to
+    ``dispatch/address.py``. Repeating a default here is what let the HTTP and CLI paths
+    disagree about what a dispatched agent was told (task-154).
     """
     task = manager.get_task(request.task_id)
     if task is None:

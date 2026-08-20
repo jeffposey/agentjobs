@@ -356,6 +356,15 @@ class DispatchConfig:
     default_group: Optional[str] = None
     projects: Dict[str, ProjectDispatchSettings] = field(default_factory=dict)
     limits: DispatchLimits = field(default_factory=DispatchLimits)
+    api_base: Optional[str] = None
+    """Where this machine serves AgentJobs, for a dispatch with no request to ask.
+
+    Machine-local because the answer is a property of this machine and not of any
+    project -- the same repository dispatched from a laptop and from a server is told a
+    different address, and only the machine knows which. A dispatch over HTTP does not
+    need this: the endpoint knows the socket it answered on and passes that instead.
+    See ``dispatch/address.py`` for the full precedence.
+    """
     path: Optional[Path] = None
 
     def project(self, project_id: str) -> ProjectDispatchSettings:
@@ -480,8 +489,21 @@ def _parse(raw: dict, path: Path) -> DispatchConfig:
         default_group=default_group or None,
         projects=projects,
         limits=_parse_limits(_mapping(raw.get("limits"), "limits", path), path),
+        api_base=_parse_api_base(raw.get("api_base"), path),
         path=path,
     )
+
+
+def _parse_api_base(raw: object, path: Path) -> Optional[str]:
+    """Validate the machine's declared AgentJobs address, if it declared one."""
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not raw.strip():
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: api_base must be a non-empty string "
+            "naming where AgentJobs serves on this machine, e.g. http://localhost:8876."
+        )
+    return raw.strip().rstrip("/")
 
 
 def _parse_runner(name: str, raw: object, path: Path) -> DispatchRunner:

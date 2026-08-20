@@ -906,6 +906,12 @@ def dispatch_run(
         raise typer.Exit(code=1) from exc
 
     typer.echo(f"✅ Dispatched {task_id} as run {handle.run_id} ({handle.mode.value}).")
+    # Printed because a wrong address is otherwise silent: the agent cannot read its
+    # task, so it cannot report that it could not read its task. There is no HTTP
+    # request here to derive one from, so this is AGENTJOBS_API_BASE, or `api_base:` in
+    # ~/.agentjobs/dispatch.yaml, or the fallback -- and which one it landed on is worth
+    # seeing at the moment you spend money on the run.
+    typer.echo(f"   Agent told AgentJobs is at {handle.api_base}.")
     if handle.group:
         typer.echo(f"   Runner '{handle.runner}', chosen from group '{handle.group}'.")
     if handle.session_id:
