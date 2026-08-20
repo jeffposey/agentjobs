@@ -2,7 +2,7 @@ schema: 2
 id: task-154-dispatch-api-base-port
 title: Tell a dispatched agent the address AgentJobs is actually serving on
 created: '2026-08-18T21:21:58.341616Z'
-updated: '2026-08-20T00:39:14.137661Z'
+updated: '2026-08-20T01:13:07.082219Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -226,3 +226,169 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 5
+  ts: '2026-08-20T01:13:07.052635Z'
+  actor: claude
+  type: decision
+  body: '**Decision: one resolver, four sources, and the socket wins.**
+
+
+    `api_base` now resolves in exactly one place, `src/agentjobs/dispatch/address.py`,
+    from
+
+    the first source that knows the answer:
+
+
+    1. an address the caller *observed* -- the listening socket a request arrived
+    on;
+
+    2. `AGENTJOBS_API_BASE`;
+
+    3. `api_base:` in machine-local `~/.agentjobs/dispatch.yaml`;
+
+    4. `http://localhost:8765`, unchanged, as the last resort.
+
+
+    The task named three candidate sources and left the choice open. All three are
+    in the
+
+    answer, because they answer different questions and the constraint that decides
+    it --
+
+    "the CLI path has no request to derive from" -- rules out picking only the first.
+
+
+    **Why the socket rather than the `Host` header.** A dispatch over HTTP passes
+    ASGI
+
+    `scope["server"]`, which uvicorn fills in from the listening socket''s own
+
+    `getsockname()`. The header was rejected: this dashboard is published on a tailnet
+
+    through a loopback proxy, so the header says `agentjobs.tailfed1df.ts.net` while
+    the
+
+    agent that has to use the address is a local process. The proxy''s `X-Forwarded-Proto`
+
+    would also flip `scope["scheme"]` to https and produce `https://127.0.0.1:8876`,
+    an
+
+    address nothing serves -- so the derived scheme is always `http`, since AgentJobs''
+    own
+
+    server has no TLS options at all.
+
+
+    **Why observed outranks declared.** A configured address that disagrees with the
+    socket
+
+    answering the call is stale by definition -- the realistic case being a dispatch.yaml
+
+    still naming last month''s port. A test pins this ordering.
+
+
+    **Rejected: resolve once at server startup into app state** (candidate 3 in the
+    task).
+
+    The app is loaded by import string -- `uvicorn.run("agentjobs.api.main:app", ...)`
+    -- and
+
+    the review sandbox calls `uvicorn.run` directly rather than going through `agentjobs
+
+    serve`, so a port captured in the `serve` command would be captured on exactly
+    the path
+
+    the bug was found on and missed on the path that found it. Deriving per request
+    needs no
+
+    startup hook and cannot go stale.
+
+
+    **Rejected: a machine-local setting alone** (candidate 2). It is the right answer
+    for the
+
+    CLI and the wrong answer for the browser: it would have left the review sandbox
+    on 8901
+
+    still needing a hand-written `api_base`, which is the "caller patches it" pattern
+    the
+
+    task''s constraints rule out. Kept as the CLI''s source, where there is genuinely
+    nothing
+
+    to observe.
+
+
+    **Rejected: leaving the defaults in place and only passing from the endpoint.**
+    The bug
+
+    was not the constant''s value, it was that the constant appeared as a parameter
+    default at
+
+    three levels of one call chain -- a default no caller can override reliably, because
+
+    omitting the argument silently reinstates it. All three are gone; `dispatch/address.py`
+
+    holds the only copy, and a test greps the package to keep it that way.
+
+
+    **Scope kept as specified.** `{api_base}` as an argv placeholder and the address
+    inside
+
+    `{prompt}` are substituted from the same resolved value, and every end-to-end
+    test
+
+    asserts both. No default port was changed anywhere.'
+  data: {}
+- id: 6
+  ts: '2026-08-20T01:13:07.082115Z'
+  actor: claude
+  type: progress
+  body: "Implemented and verified. Gate green: `poetry run python scripts/check.py`\n\
+    exit 0 -- Black/Ruff/MyPy, 1944 pytest, the frontend client check, 124 Vitest,\
+    \ the build\nand 15 Playwright tests. Log at check-4.log.\n\n**What changed**\n\
+    \n- `src/agentjobs/dispatch/address.py` (new): `resolve_api_base`, `api_base_from_server`,\n\
+    \  `configured_api_base`, `DEFAULT_API_BASE`. The only copy of the default.\n\
+    - `dispatch/config.py`: `api_base:` is now a validated top-level key of dispatch.yaml.\n\
+    - `dispatch/runner.py`: resolves once in `__init__`; `RunHandle.api_base` surfaces\
+    \ it.\n- `dispatch/guards.py`, `dispatch/auto.py`: `Optional[str] = None`, forwarded\
+    \ untouched.\n  Their hardcoded defaults are gone.\n- `api/routes/status.py`:\
+    \ `serving_api_base(request)` reads `scope[\"server\"]`; the\n  dispatch endpoint\
+    \ passes it.\n- `api/routes/tasks.py`: Approve and Request-changes pass the same\
+    \ value into\n  auto-dispatch, so the two paths are one code path rather than\
+    \ two constants.\n- `cli.py`: `dispatch run` prints the address it resolved.\n\
+    - `dispatch/scaffold.py`, `docs/agent-dispatch-design.md`: documented.\n\n**Verification\
+    \ against a server on a non-default port (sc-4, sc-1, sc-5)**\n\nRebuilt the review\
+    \ sandbox on **port 8901** against this branch's source (checked:\n`agentjobs.__file__`\
+    \ resolved to `C:/projects/aj-154/src/agentjobs`) and dispatched\ntask-001 through\
+    \ the HTTP endpoint. The recorded argv in the task's dispatch entry:\n\n```\n\
+    'You are the agent `claude` working task `task-001` ... AgentJobs is serving at\n\
+    http://127.0.0.1:8901. Read the task record and follow the resumption contract\
+    \ in\ndocs/agent-workflow.md. Dispatch run id: run_eafc5d4b. ...'\n```\n\nThe\
+    \ dispatched session then acted on it -- its transcript shows it running\n`curl\
+    \ -s -m 10 http://127.0.0.1:8901/openapi.json`. Before this change it would have\n\
+    been given :8765 and reached nothing. Session killed and sandbox stopped afterwards;\
+    \ the\nthrowaway home is at `%TEMP%/agentjobs-dispatch-review`.\n\n**sc-5**: the\
+    \ prompt-correction workaround in\n`C:/ai/scratch/agentjobs-dispatch-review-sandbox.py`\
+    \ is deleted -- the `port_fix`\ntemplate and the \"two upstream defects\" note\
+    \ with it. Its runner now passes `{prompt}`\nplus a throwaway-repo sentence and\
+    \ nothing about addresses, and the dispatch above is\nfrom that edited sandbox.\
+    \ That file is outside this repository, so it is not in the\nbranch.\n\n**sc-2**:\
+    \ `agentjobs dispatch run` is covered by four tests -- config source, env\noverride,\
+    \ the printed address, and the unchanged fallback -- in\n`tests/test_dispatch_api_base_end_to_end.py::TestDispatchFromTheCli`.\n\
+    \n**sc-3**: `TestAutoDispatchAgrees` dispatches through Approve on a non-default\
+    \ port and\nasserts the same address as the manual path.\n\n**Automated coverage**:\
+    \ 25 resolver tests plus 9 end-to-end, one of which starts a real\nuvicorn on\
+    \ an ephemeral port -- because `TestClient` synthesises `scope[\"server\"]` from\n\
+    its base_url, so every other test would pass against a `Host`-header implementation.\n\
+    \n**One loose end, not a defect in this change**: killing the sandbox server before\
+    \ it\npolled left run `run_eafc5d4b` marked `running`, so `agentjobs dispatch\
+    \ reap` reports\nnothing to reap and Claude Code's own ledger still lists the\
+    \ dead session `5047ad25`.\nThat is stale sandbox state in a temp directory, and\
+    \ `claude agents` has no remove verb\nto clear the row by hand.\n\n**Note for\
+    \ this machine**: the real dashboard on 8876 needs nothing configured -- the\n\
+    browser path derives its address. `agentjobs dispatch run` from a terminal will\
+    \ report\n`http://localhost:8765` until `api_base: http://localhost:8876` is added\
+    \ to\n`~/.agentjobs/dispatch.yaml`. That file is machine-local and hand-written\
+    \ by design, so\nthis change does not touch it."
+  data: {}
