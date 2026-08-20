@@ -2,7 +2,7 @@ schema: 2
 id: task-191
 title: Run more than one agent at a time, and fix what that breaks
 created: '2026-08-20T07:19:15.553705Z'
-updated: '2026-08-20T19:52:48.725242Z'
+updated: '2026-08-20T20:04:30.727856Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -225,4 +225,158 @@ log:
     \ a reason unrelated to any branch under test. Corrected and committed to `main`\
     \ as 441838f (`chore(task-196)`), which is what all six load worktrees were measured\
     \ at.\n"
+  data: {}
+- id: 5
+  ts: '2026-08-20T20:04:30.254143Z'
+  actor: claude
+  type: decision
+  body: "Decision: max_concurrent_runs = 3 on this machine, from a measurement rather\
+    \ than a guess\n\n**`limits.max_concurrent_runs: 3` on this machine.** Set in\
+    \ `~/.agentjobs/dispatch.yaml`, which is machine-local and **not in the repository**\
+    \ \u2014 this value is not carried by any commit, and the repo's shipped default\
+    \ is deliberately unchanged (see the fourth decision below).\n\n**The measurement\
+    \ it comes from** is the previous progress entry, extended: 1 / 2 / 4 / 6 simultaneous\
+    \ full gates in separate bootstrapped worktrees of `main` at 441838f, worst case\
+    \ per run **355s / 388s / 411s / 444s**, every run at every level green. Peak\
+    \ CPU 20% / 25% / 46% / brief 100%; free RAM never below 21 GB of 64. Sublinear\
+    \ degradation, no cliff anywhere in the range.\n\n**Why 3 and not the number the\
+    \ hardware would carry.**\n\nThe measurement says the gate is not what binds.\
+    \ Four simultaneous gates cost 16% at 46% CPU \u2014 that is not a machine near\
+    \ its limit, and the ceiling could be considerably higher before anything on this\
+    \ box complained.\n\nWhat binds is the human, and that is \xA72 of the design\
+    \ working rather than failing. Every run that finishes is a review request, and\
+    \ the loop is human-clocked on purpose. A ceiling above what one person can hold\
+    \ does not produce more merged work; it produces a queue of unreviewed branches\
+    \ \u2014 which is precisely the queue \xA77 refuses, relocated from the machine\
+    \ into a person. So the number is **review bandwidth bounded by a measurement**,\
+    \ not the measurement alone.\n\n**Why six gates is the right worst case to have\
+    \ measured.** Jeff said mid-session: *\"don't forget I'm manually starting 2-3\
+    \ claude sessions for other work at the same time, so don't assume you have an\
+    \ idle machine to measure.\"* That is the decisive input. `max_concurrent_runs`\
+    \ counts **dispatched runs only** \u2014 a session started by hand is completely\
+    \ invisible to it. So the honest worst case at a ceiling of 3 is 3 dispatched\
+    \ gates + 3 hand-started ones, which is the six-gate row: 444s, +25%, all green.\
+    \ The ceiling was chosen against that, not against an idle machine. (The whole\
+    \ measurement was in fact taken with 22 Claude Code CLI processes and 7.3 GB already\
+    \ resident, so even the solo baseline is a loaded-machine number.)\n\n**Rejected\
+    \ alternatives.**\n\n- **6, or higher.** The hardware takes it; the reviewer does\
+    \ not. It also spends exactly the headroom the invisible hand-started sessions\
+    \ need, so the first time Jeff had three of his own sessions going, the machine\
+    \ would be at nine simultaneous gates \u2014 a load nobody has measured.\n- **2.**\
+    \ A real improvement over 1 and still too timid: the worst case at 2 (five gates)\
+    \ sits inside what was measured green, so leaving that headroom unused needs a\
+    \ reason and there is not one.\n- **Deriving it from CPU count at runtime** (e.g.\
+    \ `cores / 4`). Attractive and wrong: it measures the wrong resource. The evidence\
+    \ above is that CPU is not what binds \u2014 review bandwidth is \u2014 and a\
+    \ formula over core count would have confidently produced 8 here.\n"
+  data: {}
+- id: 6
+  ts: '2026-08-20T20:04:30.410832Z'
+  actor: claude
+  type: decision
+  body: "Decision: the ceiling stays machine-wide; no per-project cap\n\n**The ceiling\
+    \ stays machine-wide. No per-project cap is added.**\n\nThe spec asked whether\
+    \ it belongs per-machine, per-project, or both. It stays where it is, and no new\
+    \ configuration surface is introduced.\n\n**Why.** The ceiling exists to bound\
+    \ a resource, and the resource is the machine: one CPU, one disk, one pool of\
+    \ RAM, one person watching. Splitting it per project would divide a shared thing\
+    \ into private allowances that cannot add up correctly \u2014 two projects each\
+    \ allowed 3 is 6 on a machine measured for 6 *including* the sessions Jeff starts\
+    \ by hand, and neither project's config would say so. The failure mode is silent\
+    \ over-subscription, which is exactly what a cap is for preventing.\n\nThe argument\
+    \ in the spec for a per-project cap was \"a project that shares a machine with\
+    \ a heavier one may want its own\". That is a real scenario and it is not this\
+    \ machine: `agentjobs` is the only project with `enabled: true` in `~/.agentjobs/dispatch.yaml`,\
+    \ so a per-project cap today would be a second knob that can only ever restate\
+    \ the first.\n\n**Rejected alternative: add an optional per-project `limits.max_concurrent_runs`\
+    \ that defaults to the machine value.** Cheap to write, and it buys nothing until\
+    \ a second heavy project is actually dispatch-enabled here. Meanwhile it costs\
+    \ a real thing: every refusal has to explain *which* of two ceilings refused,\
+    \ and a reader with two numbers in front of them has to work out which one bit.\
+    \ The right time to pay that is when there is a second project to point at.\n\n\
+    **What would reopen this**, stated so nobody has to re-derive it: a second project\
+    \ with `enabled: true` in the dispatch config, whose runs are materially heavier\
+    \ or lighter than this one's. At that point the machine-wide number stops being\
+    \ able to express the intent, and the per-project cap earns its complexity.\n"
+  data: {}
+- id: 7
+  ts: '2026-08-20T20:04:30.562763Z'
+  actor: claude
+  type: decision
+  body: "Decision: the refusal names its slot holders as a sentence, on every surface\n\
+    \n**The refusal names the runs holding the slots, as a sentence, on every surface.\
+    \ It does not become a structured field or a new panel.**\n\nBefore: `1 run(s)\
+    \ already active and this machine allows 1.` After:\n\n```\nThis machine allows\
+    \ 3 concurrent run(s) and 3 are active: run_aa11 on\nagentjobs/task-150 (running),\
+    \ run_bb22 on agentjobs/task-151 (starting),\nrun_cc33 on agentjobs/task-152 (running).\
+    \ Refused rather than queued: a queue\nturns this click into a promise to spend\
+    \ money later, when nobody is watching.\nCancel one of those runs, or dispatch\
+    \ this again once one finishes.\n```\n\nCapped at six named holders with the remainder\
+    \ summarised as \"and N more\", so a machine whose ceiling was raised to twenty\
+    \ does not answer with a wall of run ids.\n\n**Why the task, not just the run\
+    \ id.** The task is the destination. A run id alone still leaves a reader with\
+    \ nowhere to click; `agentjobs/task-150` is a page they can open and a run they\
+    \ can cancel. This is the actual complaint \u2014 Jeff hit the refusal on 2026-08-20\
+    \ and could not tell what was holding the machine, because the run list on a task\
+    \ page shows only *that* task's runs, and the run occupying the machine is by\
+    \ definition on a different task.\n\n**Rejected alternative: a `slot_holders`\
+    \ list on the API response, rendered by DispatchPanel as links.** Better on exactly\
+    \ one surface and worse everywhere else. The same refusal is read by the browser,\
+    \ by `agentjobs dispatch`, and through MCP; only `message` reaches all three,\
+    \ so structured data would have meant writing the fact twice and letting the two\
+    \ drift. It also lands badly in the code: the field would go on `ErrorBody`, which\
+    \ is the shared body of every refusal this API can return, so a concurrency-specific\
+    \ key would ride along on `dirty_tree` and `task_closed` forever. The cost of\
+    \ the sentence is that the task ids are not clickable, which is worth naming as\
+    \ the thing given up.\n\n**Rejected alternative: show machine-wide live runs permanently\
+    \ in the dispatch panel.** That is a useful thing to have and it is a different\
+    \ feature \u2014 a machine status surface, wanted whether or not anything was\
+    \ refused. Building it inside a throughput task would be exactly the absorption\
+    \ the spec's `out_of_scope` warns about.\n\n**Also fixed:** the browser's own\
+    \ copy for this refusal read *\"Another run is already using this machine's only\
+    \ slot.\"* That sentence stops being true the moment the ceiling is a number,\
+    \ and it was the surface most likely to be read. It now points at the runs the\
+    \ message names, and a Vitest test asserts the rendered alert both names them\
+    \ and no longer contains \"only slot\".\n"
+  data: {}
+- id: 8
+  ts: '2026-08-20T20:04:30.727745Z'
+  actor: claude
+  type: decision
+  body: "Decision: no queue -- the design's refuse-rather-than-queue reasoning gets\
+    \ stronger at a higher ceiling\n\n**No queue. The design's \xA77 reasoning survives\
+    \ the raised ceiling, and gets stronger.** Written into the design doc as its\
+    \ own subsection so it stops being re-litigated (ac-5).\n\nThe recorded reason\
+    \ for refusing is *\"a queue turns this click into a promise to spend money later,\
+    \ when nobody is watching.\"* Two arguments say a higher ceiling does not weaken\
+    \ it:\n\n1. **A queue's wait gets worse, not better, as the ceiling rises.** At\
+    \ a ceiling of 1 a queued dispatch starts within minutes \u2014 the thing ahead\
+    \ of it is one run. At 3, the machine is only ever full when three agents are\
+    \ already working, which is exactly the moment a queued fourth would wait longest\
+    \ and start furthest from the click that authorised it. The gap between \"I meant\
+    \ this\" and \"this ran\" is widest precisely where the queue would be doing its\
+    \ work.\n2. **A queue breaks the timing that \xA72's attribution rule depends\
+    \ on.** A run is attributed to a human log entry that caused it, and several gates\
+    \ are judged at *spawn* time for that reason \u2014 `require_clean_tree`, `claim_lost`,\
+    \ `owner_mismatch`. Deferring the spawn means those are evaluated against a repository\
+    \ state that no longer resembles the one the human was looking at, and they fail\
+    \ with nobody present to read the failure. A refusal at click time is read by\
+    \ the person who clicked. A refusal twenty minutes later is read by nobody.\n\n\
+    **And the half of the complaint that was fair is fixed rather than argued with.**\
+    \ \"Busy, try again\" was genuinely unactionable when it reported a count; it\
+    \ now names the runs and the task each is working, so the refusal comes with somewhere\
+    \ to go. That was the real grievance behind wanting a queue, and it did not need\
+    \ a queue.\n\n**Rejected alternative: a queue bounded by a short TTL** (hold a\
+    \ dispatch for, say, five minutes, then drop it). It answers the money objection\
+    \ \u2014 an expiring promise cannot spend much \u2014 and still fails the second\
+    \ argument, because a run that starts four minutes late is still judged against\
+    \ preconditions nobody re-checked. It also adds a third dispatch outcome, \"queued\"\
+    , which every surface, the CLI, MCP and the run ledger would have to learn to\
+    \ display, in exchange for saving a click.\n\n**What would reopen this**, recorded\
+    \ in the design doc as well: auto-dispatch becoming the normal way runs start.\
+    \ Refusing is right for a *click*, because there is a person there to read it;\
+    \ a condition that fires on its own and is refused has nobody to tell. That is\
+    \ a genuinely different problem and it probably wants a retry policy rather than\
+    \ a queue \u2014 but it is not this task's to answer, and today `auto_dispatch:\
+    \ false` for this project.\n"
   data: {}
