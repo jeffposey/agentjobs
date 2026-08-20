@@ -2,7 +2,7 @@ schema: 2
 id: task-191
 title: Run more than one agent at a time, and fix what that breaks
 created: '2026-08-20T07:19:15.553705Z'
-updated: '2026-08-20T20:17:36.533947Z'
+updated: '2026-08-20T20:46:10.314204Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -433,4 +433,76 @@ log:
     \ for \"both gates pass, neither interferes\".\n\n**These runs will be stopped\
     \ once that evidence exists rather than left to work open-endedly on someone else's\
     \ task, and the state each is left in will be recorded here.**\n"
+  data: {}
+- id: 10
+  ts: '2026-08-20T20:46:10.314100Z'
+  actor: claude
+  type: progress
+  body: "ac-1 met: two dispatched runs, two tasks, overlapping gates, both green,\
+    \ neither stopped\n\n**ac-1 met, and by a better route than planned: neither run\
+    \ was stopped. Both finished their own work and stopped at the merge gate on their\
+    \ own.**\n\n### The two runs\n\n| | `run_98fdd579` | `run_82e3fc79` |\n|---|---|---|\n\
+    | Task | `task-180-open-children-count-in-filtered-views` | `task-155-scrub-personal-references`\
+    \ |\n| Branch | `fix/task-180-open-children-count-corpus-wide` | `chore/task-155-neutral-fixture-names`\
+    \ |\n| Worktree | `C:/projects/aj-180` | `C:/projects/aj-155` |\n| Started | 15:10:26\
+    \ | 15:10:29 |\n| Ended | 15:38 `completed` | 15:27 `completed` |\n| **Its gate**\
+    \ | **`GATE_EXIT=0`** \u2014 2053 pytest in 4m30s, 153 Vitest, 16 Playwright |\
+    \ **`exit 0`** \u2014 2046 pytest in 4m58s, 153 Vitest, 16 Playwright |\n| Ended\
+    \ at | `ball: human` / `review`, 3 commits, not merged | `ball: human` / `review`,\
+    \ 2 commits, not merged |\n\n**Both were admitted. At the old ceiling of 1 the\
+    \ second dispatch would have been refused** \u2014 that is the first half of ac-1\
+    \ proved by the dispatch itself, three seconds apart.\n\n### The gates genuinely\
+    \ overlapped, and that was sampled rather than assumed\n\nA watcher recorded every\
+    \ 15 seconds which checkout had a gate process alive, identifying each by its\
+    \ own Poetry virtualenv (`wf3L3_OT` = aj-155, `h8f9vMcP` = aj-180, `cKLdqriw`\
+    \ = aj-191) so the three could not be confused:\n\n```\n15:22:26 gating=[aj-155]\n\
+    15:22:42 gating=[aj-155,aj-180]     <- both\n15:22:57 gating=[aj-155,aj-180]\n\
+    15:23:13 gating=[aj-155,aj-180]\n15:23:28 gating=[aj-155,aj-180]\n15:23:44 gating=[aj-155,aj-180]\n\
+    15:23:59 gating=[aj-180]\n```\n\n18 samples of aj-155 alone, 5 of both, 38 of\
+    \ aj-180 alone. And a third gate overlapped both of those: **this branch's own\
+    \ gate ran 15:09:39\u201315:14:46 while both runs were working**, and passed \u2014\
+    \ `2049 passed` pytest, `154 passed` Vitest, `16 passed` Playwright, `EXIT=0`\
+    \ in 307s.\n\n### Neither interfered with the other\n\n- Each agent took its **own**\
+    \ `git worktree` and its own branch without being told to.\n- Each derived its\
+    \ **own** Playwright port from its checkout path (task-187), so the two Chromium\
+    \ runs never contended for a socket. This is precisely the collision that made\
+    \ this task's first constraint what it was.\n- Both committed task records to\
+    \ `main` in the shared clone while this session was also committing there. No\
+    \ conflict, no lost write.\n- Every gate involved passed on the first attempt.\
+    \ No flake, no port error, nothing red that had nothing to do with the branch.\n\
+    \n### What state the two tasks were left in\n\nBoth sit at exactly where the merge\
+    \ gate says an agent stops: **`lifecycle: active`, `ball: human`, `ball_reason:\
+    \ review`**, with a `ball_prompt` describing the change and an active branch in\
+    \ `branches[]`. Neither was merged, and neither is task-191's to merge. The worktrees\
+    \ `C:/projects/aj-180` and `C:/projects/aj-155` are intentionally still on disk\
+    \ \u2014 they hold the unmerged branches under review. Both agents' work looks\
+    \ substantive on its face (task-180's changed the spec's diagnosis and says so;\
+    \ task-155's recorded a decision about what it deliberately did not touch), but\
+    \ **judging it is Jeff's, not this task's**.\n\n### A third run showed up on its\
+    \ own, from a different project\n\nAt 15:33:01, while `run_98fdd579` was still\
+    \ working, `run_69eb740a` was dispatched at **`job-hunting`** `task-015-fix-tracker-id-fingerprint-regex`\
+    \ \u2014 not by this session. Two live runs, two different **projects**, one machine,\
+    \ both admitted.\n\nThat is unplanned evidence for the second decision, and it\
+    \ is the right kind: the machine-wide ceiling counted a run from another project\
+    \ against the same machine, which is exactly what a resource cap should do and\
+    \ what a per-project cap could not have expressed.\n\n**A correction to that decision,\
+    \ though.** It said \"`agentjobs` is the only project with `enabled: true`\",\
+    \ which was true when written at 15:0x and is not true now \u2014 Jeff enabled\
+    \ `job-hunting` from the browser during this session. The decision itself stands\
+    \ unchanged: its stated reopen trigger was a second enabled project **whose runs\
+    \ are materially heavier or lighter**, and half of that has now fired while the\
+    \ other half has not. Worth knowing that it is now half-armed rather than dormant.\n\
+    \n### Filed while here: task-199\n\nEnabling `job-hunting` from the browser **destroyed\
+    \ all 38 comment lines in `~/.agentjobs/dispatch.yaml`**, including the record\
+    \ of why `max_concurrent_runs` is 3, written minutes earlier. `config.py:1102`\
+    \ `safe_dump`s the whole file after a `safe_load`; comments do not survive that.\
+    \ The file is machine-local, so there is no diff to recover from.\n\nThe config\
+    \ was restored by hand from a copy this session happened to take before editing\
+    \ \u2014 52 comment lines now, every semantic change preserved (`job-hunting`\
+    \ enabled, ceiling 3), and `projects.agentjobs.require_clean_tree` left at the\
+    \ default `true` it had silently reverted to, because task-182 is closed completed\
+    \ and `true` is now the correct value. A comment records that, in place of the\
+    \ stale one that said to change it.\n\nFiled as **task-199**, not absorbed here:\
+    \ it is a config-serialisation defect, its fix is in `config.py`'s writer, and\
+    \ it shares no line of code with anything on this branch.\n"
   data: {}
