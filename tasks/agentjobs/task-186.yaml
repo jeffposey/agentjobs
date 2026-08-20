@@ -3,11 +3,9 @@ id: task-186
 title: A dispatched run can never commit its task record or merge its own work, because
   -w isolates it from the shared clone
 created: '2026-08-19T23:27:49.910749Z'
-updated: '2026-08-20T00:22:26.974057Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-20T00:28:56.020984Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: infrastructure
@@ -18,7 +16,6 @@ tags:
 - defect
 effort: a few hours
 assignment:
-  owner: claude
   eligible: []
 parent: task-181-dispatch-phase-one-hardening
 spec:
@@ -165,7 +162,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-186-dispatch-worktree-isolation
-  status: active
+  status: merged
+  merged_at: '2026-08-20T00:45:00Z'
 log:
 - id: 1
   ts: '2026-08-19T23:27:49.910809Z'
@@ -483,3 +481,45 @@ log:
     because what was under test is which git operations are possible, not whether
     the gate passes. The sandbox and its server were torn down afterwards.'
   data: {}
+- id: 7
+  ts: '2026-08-20T00:28:56.020889Z'
+  actor: claude
+  type: transition
+  body: 'Merged as a6dffac on main; branch fix/task-186-dispatch-worktree-isolation
+    marked merged. Gate green immediately before the merge: 1910 pytest, 145 Vitest,
+    production build, 15 Playwright, exit 0.
+
+
+    All six acceptance criteria met, each with its evidence recorded in `verify`.
+    The two that could only be proved by running it -- a dispatched run committing
+    its own task record to `main`, and completing the merge gate -- were verified
+    by a real dispatched session (run_02f14e3f) against an isolated sandbox project
+    and AgentJobs home; it took its own sibling worktree, committed its record to
+    main, merged `--no-ff`, closed itself and removed its worktree, with no git command
+    refused. Sandbox and its server torn down; nothing touched `~/.agentjobs/`, the
+    8876 server, or the agentjobs corpus.
+
+
+    **Merged under Jeff''s explicit autonomy grant for 2026-08-19**, which covered
+    approving and merging this run''s own work. Not pushed -- the grant did not cover
+    pushing, and nothing here has been pushed.
+
+
+    **Two things a reader should carry forward:**
+
+
+    1. The `require_clean_tree` backstop named in the decision does not work yet,
+    and the design doc says so rather than claiming it does. Verifying this task found
+    the reason from a new angle: the terminal `dispatch_result` entry is written by
+    the dispatcher *after* the agent''s last commit, so every dispatched run leaves
+    exactly one uncommitted line in the shared clone however well it behaved. That
+    is task-182''s defect and is logged there in full. Until task-182 is fixed, containment
+    rests on the prompt stub and the guide.
+
+    2. `api_base` in the prompt stub is still hardcoded to `http://localhost:8765`
+    (task-154). The verification run had to probe ports to find the API that was actually
+    serving it, and did -- but that is a dispatched agent solving a problem AgentJobs
+    handed it.'
+  data:
+    lifecycle: closed
+    outcome: completed
