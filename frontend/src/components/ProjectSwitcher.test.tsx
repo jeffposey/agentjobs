@@ -17,18 +17,18 @@ const projects = [
     tasks_directory: "C:/projects/agentjobs/tasks/agentjobs",
   },
   {
-    id: "job-hunting",
-    name: "Job Hunting",
-    root: "C:/projects/job-hunting",
+    id: "alpha",
+    name: "Alpha",
+    root: "C:/projects/alpha",
     task_count: 4,
-    tasks_directory: "C:/projects/job-hunting/tasks/job-hunting",
+    tasks_directory: "C:/projects/alpha/tasks/alpha",
   },
   {
-    id: "mastercalls",
-    name: "Mastercalls",
-    root: "C:/projects/mastercalls",
+    id: "beta",
+    name: "Beta",
+    root: "C:/projects/beta",
     task_count: 12,
-    tasks_directory: "C:/projects/mastercalls/tasks/mastercalls",
+    tasks_directory: "C:/projects/beta/tasks/beta",
   },
 ];
 
@@ -43,8 +43,8 @@ function renderSwitcher() {
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/p/job-hunting/tasks/task-001"]}>
-        <ProjectSwitcher projectId="job-hunting" />
+      <MemoryRouter initialEntries={["/p/alpha/tasks/task-001"]}>
+        <ProjectSwitcher projectId="alpha" />
         <CurrentLocation />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -60,17 +60,17 @@ describe("ProjectSwitcher", () => {
     renderSwitcher();
 
     const selector = await screen.findByRole("combobox", { name: "Project" });
-    expect(selector).toHaveValue("job-hunting");
+    expect(selector).toHaveValue("alpha");
     expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
       "AgentJobs",
-      "Job Hunting",
-      "Mastercalls",
+      "Alpha",
+      "Beta",
     ]);
 
-    fireEvent.change(selector, { target: { value: "mastercalls" } });
+    fireEvent.change(selector, { target: { value: "beta" } });
 
     await waitFor(() => {
-      expect(screen.getByRole("status", { name: "Current location" })).toHaveTextContent("/p/mastercalls");
+      expect(screen.getByRole("status", { name: "Current location" })).toHaveTextContent("/p/beta");
     });
   });
 });

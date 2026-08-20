@@ -123,7 +123,7 @@ describe("IssueReporter", () => {
       http.get("*/api/projects", () =>
         HttpResponse.json([
           project("agentjobs", "AgentJobs", "Jeff Posey"),
-          project("job-hunting", "Job Hunting", "Jeff Posey"),
+          project("alpha", "Alpha", "Jeff Posey"),
         ]),
       ),
       http.post("*/api/projects/agentjobs/tasks", async ({ request }) => {
@@ -132,9 +132,9 @@ describe("IssueReporter", () => {
       }),
     );
 
-    await openReporter("/p/job-hunting/tasks/task-004-resume");
+    await openReporter("/p/alpha/tasks/task-004-import");
     const destination = await screen.findByRole("combobox", { name: "File into project" });
-    expect(destination).toHaveValue("job-hunting");
+    expect(destination).toHaveValue("alpha");
     fireEvent.change(destination, { target: { value: "agentjobs" } });
     fill("The task list scrolls sideways", "Horizontal scroll on a phone.");
     fireEvent.click(screen.getByRole("button", { name: "File issue" }));
