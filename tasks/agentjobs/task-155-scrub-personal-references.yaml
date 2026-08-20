@@ -2,7 +2,7 @@ schema: 2
 id: task-155-scrub-personal-references
 title: Take the maintainer's private machine out of the public repo's test fixtures
 created: '2026-08-18T21:43:49.173237Z'
-updated: '2026-08-20T23:05:19.595920Z'
+updated: '2026-08-20T23:06:06.893502Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -596,3 +596,13 @@ log:
       id: 7b2d51c0-9e4a-4f31-8a06-155c0e1f0004
       kind: close
       fingerprint: 430aeb856a06bb023c8dc5dc216e3305
+- id: 18
+  ts: '2026-08-20T23:06:06.893336Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 13
+  data:
+    run_id: run_fb8fa153
+    outcome: completed
+    duration_seconds: 985.976955
+    log_path: C:\Users\jpose\.agentjobs\runs\run_fb8fa153

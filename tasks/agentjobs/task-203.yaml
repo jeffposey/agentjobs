@@ -1,0 +1,108 @@
+schema: 2
+id: task-203
+title: The dispatcher's own write lands after the session's last commit and is left
+  dangling
+created: '2026-08-20T22:28:44.615594Z'
+updated: '2026-08-20T22:28:44.616364Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: infrastructure
+tags:
+- dispatch
+- git
+- task-records
+- from-live-session-2026-08-20
+assignment:
+  eligible:
+  - claude
+  - codex
+spec:
+  summary: Every dispatched run appends a `dispatch_result` entry to the task file
+    after the session has closed the task and made its final commit. Nobody commits
+    it, so each run leaves an uncommitted task record behind for a human to notice
+    and clean up.
+  description: "Reported by Jeff on 2026-08-20, after it happened twice in one evening\
+    \ on job-hunting task-016.\n\nThe sequence, from that task's own log:\n\n    22:24:03\
+    \  session closes the task (log entry 18, lifecycle closed)\n    22:24:1x  session\
+    \ makes its final commit and exits\n    22:25:40  dispatcher appends log entry\
+    \ 19, actor \"dispatcher\",\n              type dispatch_result, run_34f6285a,\
+    \ duration 498.5s\n\nEntry 19 sat uncommitted in the working tree of the shared\
+    \ clone. Jeff found it and had to have it committed by hand. The earlier run the\
+    \ same evening, run_ac1c8db7, did exactly the same thing at 22:16:53 and was only\
+    \ swept up because an unrelated commit happened to follow.\n\nSo every dispatched\
+    \ run leaves the repository dirty. In a project whose standing rule is that the\
+    \ tree is clean when an agent stops, that is a small mess arriving on a schedule,\
+    \ and the person who finds it is always the human.\n\nJeff's first instinct was\
+    \ that the write should be folded into the session's final task edit, before its\
+    \ final commit. That cannot work as stated, and the task is worth solving properly\
+    \ rather than that way: `dispatch_result` carries `outcome` and `duration_seconds`,\
+    \ which are only known when the run process exits. By definition that is after\
+    \ the session's last commit. The write is correctly timed; what is missing is\
+    \ that whoever performs it takes responsibility for committing it.\n\nDirection,\
+    \ for the implementer to decide and log. The dispatcher already knows the project\
+    \ root and already has a git-aware model of the workspace: `runner.py` allow-lists\
+    \ `git add` and `git commit` for dispatched sessions, reserves a grace period\
+    \ for a cancelled run to finish a commit (`runner.py:150`), and its own docstrings\
+    \ state that this project commits every task record to the shared clone. Committing\
+    \ its own append is consistent with all of that. Points to settle:\n\n- Commit\
+    \ only the one task file it touched, never `-A`. A dispatched run may leave unrelated\
+    \ work in progress in the shared clone, and sweeping that into a dispatcher commit\
+    \ would be worse than the dirty file.\n- What happens when the task file has other\
+    \ uncommitted changes at that moment, from a human or another agent working in\
+    \ the same clone. Committing someone else's half-finished edit is the failure\
+    \ mode to avoid; staging the single path rather than the file's full working state\
+    \ is probably the answer.\n- Whether it pushes. In job-hunting Jeff's standing\
+    \ rule is push-after-commit, and a commit that only ever sits local is a different\
+    \ kind of loose end. If push is out of scope for the dispatcher, say so explicitly\
+    \ in the decision.\n- Whether the same gap exists for any other write the dispatcher\
+    \ or poller makes outside a session's lifetime. `dispatch_result` is written from\
+    \ `src/agentjobs/dispatch/`; check `auto.py`, `poller.py` and `ledger.py` for\
+    \ siblings before calling this fixed.\n\nAn alternative worth pricing before building:\
+    \ have the run's own session commit a placeholder and the dispatcher amend it.\
+    \ Almost certainly worse -- amending after the session has exited invites a race\
+    \ with anything else in the clone -- but the reasoning belongs in the log either\
+    \ way."
+  constraints: Never commit files the dispatcher did not write. The shared clone is
+    worked by humans and other agents concurrently, and a dispatcher that stages broadly
+    would turn a small annoyance into lost or mixed-up work.
+  out_of_scope: Supervision posture (task-201). Project MCP wiring (task-202). What
+    approval writes to the ball, which is part of task-201.
+  context: []
+acceptance:
+- id: ac-1
+  text: After a dispatched run completes, the project's working tree is clean with
+    respect to the task record the dispatcher wrote.
+  status: pending
+- id: ac-2
+  text: The dispatcher stages only the task file it appended to, never the whole tree.
+  status: pending
+- id: ac-3
+  text: Concurrent uncommitted work by a human or another agent in the same clone
+    is not swept into the dispatcher's commit.
+  status: pending
+- id: ac-4
+  text: A decision is logged on whether the dispatcher pushes, with the reasoning.
+  status: pending
+- id: ac-5
+  text: Any sibling writes outside a session's lifetime in dispatch/auto.py, poller.py
+    and ledger.py are checked and either fixed or ruled out in the log.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T22:28:44.615636Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 9e2c74b1-40fd-4a55-8b6c-1d0f9a3e6207
+      kind: create
+      fingerprint: 734d3d54a1eee8a3bc5c122f3d165115

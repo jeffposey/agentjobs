@@ -1,0 +1,125 @@
+schema: 2
+id: task-201
+title: Make supervision posture an explicit choice, not the supervisor's guess
+created: '2026-08-20T22:20:13.137743Z'
+updated: '2026-08-20T22:20:13.138440Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: product
+tags:
+- supervision
+- dispatch
+- workflow
+- from-live-session-2026-08-20
+assignment:
+  eligible:
+  - claude
+  - codex
+spec:
+  summary: When Jeff asks a session to supervise a dispatched run, there is no way
+    to say which kind of supervision he wants. Watching for completion and actively
+    steering the working agent are different jobs with different costs, and the supervisor
+    currently picks one by guessing.
+  description: 'Raised by Jeff on 2026-08-20, from a live run of task-016 in the job-hunting
+    project.
+
+
+    Jeff dispatched task-016 from the task page and told a separate session "supervise
+    the session". That session chose to steer: it read the working tree mid-flight,
+    measured the working agent''s matcher against live data, and logged a question
+    on the task naming two defects. Jeff''s reaction afterwards was that he had not
+    asked for a micro-manager, and that the choice should be his to make: "Supervisor
+    that micro manages and steers (hopefully in a GOOD way), vs. just watching for
+    it to finish."
+
+
+    Both postures are legitimate and they trade off differently. The run produced
+    unusually clean evidence for each side.
+
+
+    Steering earned its keep. The supervisor found that the acceptance criterion which
+    motivated the task was passing through the wrong code path, and that the new title-matching
+    rule would have suppressed two real reqs at employers already in the tracker.
+    The working agent verified both, agreed, and fixed them before the merge. Left
+    alone, a defect of exactly the kind the task existed to fix would have shipped.
+
+
+    Steering also cost something real. The supervisor''s suggested remedy was wrong,
+    and refuting it took the working agent a round of analysis. Worse for the workflow:
+    Jeff approved commit 02b45ad in the UI, the working agent then acted on the supervision
+    note and pushed 010b4d2, and the branch tip moved past the commit he had approved.
+    He had to dispatch a second time, and the merge now targets a commit he has not
+    reviewed.
+
+
+    What to build, for the implementer to design and log:
+
+
+    1. A posture on the supervision request itself, chosen by Jeff at dispatch or
+    when he asks for supervision. At least "observe" (report progress, do not contact
+    the working agent, raise findings only at handoff) and "steer" (may log questions
+    and findings on the task mid-flight). Whether posture belongs on the dispatch
+    record, on the supervising session''s brief, or both is a design question.
+
+
+    2. The posture has to reach the supervising agent as an instruction, not as a
+    preference it can talk itself out of. It is a plain-language behavioural contract,
+    so it should read as one.
+
+
+    3. Consider what an observing supervisor does with a finding it is confident about
+    mid-flight. Holding a real defect until handoff is a cost; the answer may be that
+    it records the finding without addressing the working agent, so Jeff sees it at
+    review time and the working agent is not interrupted.
+
+
+    Related friction, same root, worth deciding together. Approving through the web
+    UI writes `ball: agent`, `ball_reason: work` back to the task, which is why the
+    working agent kept going after Jeff thought the work was finished. Approval reads
+    as "done" to Jeff and as "your turn" to the agent. Whatever posture model is chosen
+    should say what approval means: cleared to merge and nothing else, or the ball
+    genuinely returned for more work.
+
+
+    Evidence lives in the job-hunting repo: the task-016 record, log entries 5 through
+    16, and `working/triage/closed-section-suppression-audit.md`.'
+  constraints: Do not make steering impossible. The supervision that annoyed Jeff
+    also caught two genuine defects before they merged, and he said the steering was
+    welcome when it is good. This is about giving him the choice, not removing a capability.
+  context: []
+acceptance:
+- id: ac-1
+  text: Jeff can choose a supervision posture when asking for supervision or dispatching,
+    without writing the instruction out by hand each time.
+  status: pending
+- id: ac-2
+  text: The chosen posture reaches the supervising agent as a behavioural instruction
+    it is expected to follow.
+  status: pending
+- id: ac-3
+  text: An observing supervisor has a defined route for a mid-flight finding that
+    does not interrupt the working agent.
+  status: pending
+- id: ac-4
+  text: 'What approval means for the ball is decided and documented: cleared to merge,
+    or the ball genuinely returned for more work.'
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T22:20:13.137785Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3d9f2a58-1c07-4e6b-b3d2-9a5471ec0f18
+      kind: create
+      fingerprint: 5f9f17072e1fdcedb854506176b4fb0e

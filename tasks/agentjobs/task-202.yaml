@@ -1,0 +1,113 @@
+schema: 2
+id: task-202
+title: Give every registered project its MCP server, so a dispatched session has the
+  tools
+created: '2026-08-20T22:27:11.789778Z'
+updated: '2026-08-20T22:27:11.790485Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- mcp
+- dispatch
+- init
+- from-live-session-2026-08-20
+assignment:
+  eligible:
+  - claude
+  - codex
+spec:
+  summary: A project registered with `agentjobs init` gets no `.mcp.json`, so a dispatched
+    background session starts without the AgentJobs MCP tools and falls back to the
+    CLI. Registration should write the server entry, and existing projects should
+    be backfilled.
+  description: "Observed live on 2026-08-20. A session dispatched to work task-016\
+    \ in the job-hunting project reported: \"AgentJobs MCP tools aren't present in\
+    \ this session; falling back to the CLI, which reaches the same managed code path.\"\
+    \ It was right about the fallback and the work was unharmed, but it should not\
+    \ have had to.\n\nWhy it happens. The MCP tools reach an interactive session through\
+    \ the plugin `agentjobs@agentjobs`, enabled in the user's own settings. A dispatch\
+    \ runs `claude --bg --remote-control` with an inline `--settings` carrying the\
+    \ permission allow-list, and the plugin's tools did not arrive in that session.\
+    \ `mcpjson_server_names()` in `src/agentjobs/dispatch/runner.py` reads the project's\
+    \ own `.mcp.json` and pre-approves those names through `enabledMcpjsonServers`\
+    \ -- the machinery task-019 built -- but job-hunting had no `.mcp.json`, so there\
+    \ was nothing to pre-approve and the dispatched session ran toolless.\n\nSo the\
+    \ dispatcher already does the right thing with a project-scoped server. Nothing\
+    \ ever creates one.\n\n`agentjobs init` registers a project and does not write\
+    \ `.mcp.json`. Of the five registered projects, only agentjobs itself has one,\
+    \ and its entry points at a poetry venv python because that repo develops the\
+    \ tool rather than consuming it.\n\nJeff's instruction: \"all projects that set\
+    \ up agentjobs should automatically have mcp set up.\"\n\nScope:\n\n1. `agentjobs\
+    \ init` writes a project-scoped `.mcp.json` declaring the `agentjobs` server,\
+    \ or merges the entry into an existing file rather than overwriting a project's\
+    \ other servers. The consumer form is the one the bundled plugin already ships:\n\
+    \n       {\"mcpServers\": {\"agentjobs\": {\"command\": \"agentjobs\", \"args\"\
+    : [\"mcp\"],\n                                     \"env\": {\"AGENTJOBS_URL\"\
+    : \"http://127.0.0.1:8876\"}}}}\n\n   The console script on PATH, not a venv path,\
+    \ so the file survives a rebuilt virtualenv and is portable to another machine.\
+    \ Note the port: the plugin ships 8876 and the docs in `docs/mcp.md` still show\
+    \ 8765 in the generic-client example, which is the port the CLI defaults to and\
+    \ not the one Jeff's launcher serves. Reconcile those.\n\n2. Decide what happens\
+    \ when the user has not enabled the server name. `enabledMcpjsonServers: [\"agentjobs\"\
+    ]` already sits in Jeff's user settings, so on his machine the file is enough\
+    \ and no approval dialog appears. A fresh install would hit the dialog, which\
+    \ is exactly the failure task-019 fixed for dispatch. Whether `init` should also\
+    \ write the enablement, or whether the dispatcher's existing pre-approval covers\
+    \ every path that matters, is the design question.\n\n3. Backfill the registered\
+    \ projects that lack the file: fantasy-football, mastercalls, product-strategy.\
+    \ job-hunting was done by hand on 2026-08-20 (commit 77ead44 in that repo) and\
+    \ is the working reference. Adding the file to a project is safe and reversible;\
+    \ do it as a normal change, not silently during some other command.\n\n4. Consider\
+    \ whether an interactive session that has both the plugin server and a project-scoped\
+    \ server ends up with two copies of the same fourteen tools, and whether that\
+    \ is confusing enough to matter. This was not verified before filing.\n\nVerification\
+    \ for the retroactive file, worth reusing: launching the declared command directly\
+    \ logs \"Connected to AgentJobs 0.1.0 (task schema v2) at http://127.0.0.1:8876;\
+    \ 5 project(s) available\" and \"Serving 14 tool(s)\" to stderr while staying\
+    \ silent on stdout. A dispatched session in that project should now report the\
+    \ MCP tools rather than the CLI fallback, which is the real acceptance test."
+  constraints: Do not overwrite a project's existing `.mcp.json`; merge the entry.
+    Do not hardcode a virtualenv path into a consumer project's file. The CLI fallback
+    must keep working, since it is the correct behaviour for any client that has no
+    MCP wiring at all.
+  out_of_scope: The supervision-posture work in task-201. Packaging the plugin for
+    install without a clone (task-125 and its children), though the port and command
+    questions overlap and should be answered consistently.
+  context: []
+acceptance:
+- id: ac-1
+  text: '`agentjobs init` leaves the project with a working `.mcp.json` entry for
+    the agentjobs server, merging rather than overwriting an existing file.'
+  status: pending
+- id: ac-2
+  text: A session dispatched into a freshly registered project reports the AgentJobs
+    MCP tools rather than falling back to the CLI.
+  status: pending
+- id: ac-3
+  text: fantasy-football, mastercalls and product-strategy are backfilled and verified
+    the same way.
+  status: pending
+- id: ac-4
+  text: The port and command shown in docs/mcp.md agree with what init writes and
+    with what the bundled plugin ships.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T22:27:11.789814Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: f47b1c92-58ad-4e63-9d20-6c1a03b8e775
+      kind: create
+      fingerprint: c639a1185f60665c1c96aea309e32e4f

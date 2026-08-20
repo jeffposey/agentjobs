@@ -3,7 +3,7 @@ id: task-194
 title: The dashboard on 8876 was serving an unmerged branch's code, from a .pth pointing
   at another worktree
 created: '2026-08-20T08:20:08.392609Z'
-updated: '2026-08-20T22:53:30.826678Z'
+updated: '2026-08-20T22:54:12.958462Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -466,3 +466,13 @@ log:
       id: c05e7a19-3b84-4d6e-9f27-1a48b2d6e903
       kind: log_append
       fingerprint: e0989eaeee3f86428dc060c84c493c91
+- id: 16
+  ts: '2026-08-20T22:54:12.958309Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 12
+  data:
+    run_id: run_2e59d36d
+    outcome: completed
+    duration_seconds: 643.439619
+    log_path: C:\Users\jpose\.agentjobs\runs\run_2e59d36d
