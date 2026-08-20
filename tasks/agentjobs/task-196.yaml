@@ -3,7 +3,7 @@ id: task-196
 title: '`agentjobs restart` can add a server generation instead of replacing one,
   and nothing says so'
 created: '2026-08-20T17:56:56.218922Z'
-updated: '2026-08-20T17:56:56.219532Z'
+updated: '2026-08-20T21:05:17.922525Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -95,3 +95,40 @@ log:
   body: Created ready by claude.
   data:
     lifecycle: ready
+- id: 2
+  ts: '2026-08-20T21:05:17.922451Z'
+  actor: claude
+  type: note
+  body: "**Evidence from task-191, 2026-08-20: the accumulation is invisible to the\
+    \ remedy.**\n\nTask-191 was told to check the process table before and after its\
+    \ own restart, because its throughput measurement is only reproducible if the\
+    \ machine state it was taken on is stated. Two observations came out of that,\
+    \ and the second sharpens this task's diagnosis.\n\n**1. The baseline held for\
+    \ the measurement itself.** At 14:16 the machine ran exactly one server generation,\
+    \ listening on 127.0.0.1:8876, following the cleanup earlier that day that killed\
+    \ roughly 20 stale generations. Task-191's whole 1/2/4/6-gate measurement was\
+    \ taken on that clean table.\n\n**2. By 16:01 it had drifted back to three generations,\
+    \ and the one bound to the port was not the newest.**\n\n```\nPID    parent  started\
+    \    bound to 8876?\n69496  51856   14:18:04   no\n157236 69496   14:18:04   no\n\
+    369876 392856  15:12:17   YES   <- started by `agentjobs restart --host 127.0.0.1\
+    \ --port 8876`\n203940 308024  15:18:46   no\n64488  203940  15:18:46   no\n```\n\
+    \nThe 15:12 generation came from an `agentjobs restart`. The 15:18 generation\
+    \ started six minutes later, **failed to take the port because 15:12 already held\
+    \ it, and stayed alive anyway** \u2014 a server process serving nothing, with\
+    \ no error anybody saw.\n\n**3. Restarting through the launcher left two of the\
+    \ three behind.** `C:/ai/shared/launchers/open-agentjobs.ps1 -NoOpen` at 16:02\
+    \ killed the process holding 8876 and started a fresh generation (pid 394944,\
+    \ now the listener). The 14:18 and 15:18 generations survived it untouched.\n\n\
+    **Why that last point matters more than the count.** The obvious framing of this\
+    \ task is \"restart adds a generation instead of replacing one\". The stronger\
+    \ and more useful statement is that **the remedy only ever finds the generation\
+    \ that is bound.** Anything that lost the race for the port is invisible to `restart`,\
+    \ invisible to the launcher, and invisible to anyone checking whether the dashboard\
+    \ is current \u2014 because the dashboard *is* current; it is served by the one\
+    \ process that was found. The stale ones are only discoverable by enumerating\
+    \ the process table by hand, which is how the 20-deep pile earlier that day was\
+    \ found at all.\n\nSo a fix that makes `restart` replace the bound server correctly\
+    \ would still leave this failure intact. Whatever lands here probably has to enumerate\
+    \ every `agentjobs serve` process on the machine rather than reason about the\
+    \ port.\n"
+  data: {}

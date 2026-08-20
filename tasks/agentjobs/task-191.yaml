@@ -2,11 +2,9 @@ schema: 2
 id: task-191
 title: Run more than one agent at a time, and fix what that breaks
 created: '2026-08-20T07:19:15.553705Z'
-updated: '2026-08-20T20:46:10.314204Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-20T21:05:56.772112Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: developer_experience
@@ -16,7 +14,6 @@ tags:
 - developer-experience
 effort: a day, mostly in the things it uncovers
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "limits.max_concurrent_runs is 1 on this machine. It is machine-local config\
@@ -108,23 +105,37 @@ acceptance:
 - id: ac-1
   text: Two dispatched runs work two different tasks concurrently, both gates pass,
     and neither interferes with the other
-  status: pending
+  verify: Two dispatched runs, run_98fdd579 (task-180) and run_82e3fc79 (task-155),
+    ran concurrently on 2026-08-20; each took its own worktree and branch, both full
+    gates passed, and a 15-second sampler recorded the overlap by virtualenv. See
+    the ac-1 progress entry.
+  status: met
 - id: ac-2
   text: The chosen ceiling is justified by a measurement taken on this machine and
     recorded with the number
-  status: pending
+  verify: '1/2/4/6 simultaneous scripts/check.py runs on this machine: 355s/388s/411s/444s
+    worst case, all green. Recorded with the machine state and the reasoning in the
+    measurement progress entry and in docs/agent-dispatch-design.md section 7.'
+  status: met
 - id: ac-3
   text: A ceiling refusal in the browser names which runs hold the slots, not just
     how many
-  status: pending
+  verify: guards.describe_slot_holders names every holding run and the task it is
+    working; asserted in tests/test_dispatch_guards.py and, as rendered text, in frontend/src/components/DispatchPanel.test.tsx.
+  status: met
 - id: ac-4
   text: The per-task run lock still refuses a second run on the same task, pinned
     by a test that survives the higher ceiling
-  status: pending
+  verify: 'tests/test_dispatch_guards.py::TestConcurrency::test_the_per_task_lock_still_refuses_at_a_raised_ceiling
+    -- LiveRunExistsError with max_concurrent_runs: 4 and three slots free.'
+  status: met
 - id: ac-5
   text: Whether a ceiling implies a queue is answered against the design's recorded
     reasoning, either way
-  status: pending
+  verify: docs/agent-dispatch-design.md section 7, 'Does a raised ceiling imply a
+    queue?', answered against the recorded refuse-rather-than-queue reasoning, with
+    the rejected TTL-queue alternative and a stated reopen trigger.
+  status: met
 deliverables: []
 dependencies:
 - task: task-187
@@ -136,7 +147,8 @@ dependencies:
 links: []
 branches:
 - name: feat/task-191-raise-dispatch-concurrency
-  status: active
+  status: merged
+  merged_at: '2026-08-20T21:05:00Z'
 log:
 - id: 1
   ts: '2026-08-20T07:19:15.553749Z'
@@ -506,3 +518,82 @@ log:
     \ it is a config-serialisation defect, its fix is in `config.py`'s writer, and\
     \ it shares no line of code with anything on this branch.\n"
   data: {}
+- id: 11
+  ts: '2026-08-20T21:04:51.535565Z'
+  actor: claude
+  type: progress
+  body: "Merged, rebuilt, restarted, and the refusal proved live against the running\
+    \ server\n\n**Merged as `8cd99ae`, frontend rebuilt, server restarted, and the\
+    \ change proved live by provoking a real refusal out of the running server rather\
+    \ than out of a test.**\n\n### The gate, and a race my own test had\n\n`GATE EXIT=0`\
+    \ \u2014 2051 pytest in 4m25s, 154 Vitest across 22 files, the production build,\
+    \ 16 Playwright. Clean run, no reruns.\n\nIt took three attempts, and the second\
+    \ failure is worth recording because it was mine. `test_a_raised_ceiling_admits_a_second_task_and_then_refuses`\
+    \ set `status=\"running\"` on the first run and then started a second one. The\
+    \ fake runner exits immediately, so its supervisor was still on its way to writing\
+    \ a terminal status: by the time the second dispatch returned, the first run read\
+    \ as finished and only one slot looked occupied. **The freeze was a race the existing\
+    \ tests win only because they refuse immediately** \u2014 mine had a whole dispatch\
+    \ in between. `hold_live()` now joins the supervisor before freezing, so the writer\
+    \ is removed rather than outrun. Eight concurrency tests, five consecutive runs,\
+    \ no flake. The per-task-lock test names its authorising entry explicitly, because\
+    \ settling appends an agent-authored `dispatch_result` and the default newest-entry\
+    \ rule would then refuse it as not-human-clocked \u2014 a real refusal, and not\
+    \ the one under test.\n\n(The first failure was `test_agentjobs_context_paths_exist`,\
+    \ red on `main` because of task-196's bad pointer; fixed as `441838f` and reported\
+    \ in the first progress entry.)\n\n### ac-3 proved against the running server,\
+    \ not against a fixture\n\nA passing Vitest test says the browser *would* render\
+    \ it. It does not say the server on 8876 is serving it. So, after the rebuild\
+    \ and restart, the ceiling was temporarily set to 1, a run was dispatched to occupy\
+    \ it, and a second dispatch was attempted. The server answered `409`:\n\n```json\n\
+    {\n  \"code\": \"concurrency_limit\",\n  \"message\": \"This machine allows 1\
+    \ concurrent run(s) and 1 are active: run_b7c33a5a\n              on agentjobs/task-010\
+    \ (running). Refused rather than queued: a queue\n              turns this click\
+    \ into a promise to spend money later, when nobody is\n              watching.\
+    \ Cancel one of those runs, or dispatch this again once one\n              finishes.\"\
+    ,\n  \"suggested_action\": \"Cancel one of the runs named above, wait for one\
+    \ to finish, or\n                       raise limits.max_concurrent_runs in ~/.agentjobs/dispatch.yaml.\"\
+    \n}\n```\n\nThe run and the task it is working, from the live server. The ceiling\
+    \ was put straight back to 3.\n\n**What that cost and how it was left.** `run_b7c33a5a`\
+    \ on `task-010` was cancelled after 18 seconds \u2014 it was never asked to work\
+    \ the task, took no branch and left no worktree. `task-010` was released back\
+    \ to `ready` / `agent` / `available` with its owner cleared, which is exactly\
+    \ the state it was in beforehand, and the release reason on its log says why an\
+    \ agent appeared on it for eighteen seconds. Nothing else was touched.\n\n###\
+    \ Machine state at the end, checked rather than assumed\n\n- `~/.agentjobs/dispatch.yaml`:\
+    \ `max_concurrent_runs: 3`, 52 comment lines, `agentjobs` and `job-hunting` both\
+    \ enabled, `require_clean_tree` at its default `true` for both.\n- Worktrees:\
+    \ `C:/projects/aj-155` and `C:/projects/aj-180` remain on purpose \u2014 they\
+    \ hold the two unmerged branches now waiting on Jeff. All six `aj-191-load-*`\
+    \ measurement worktrees were removed. `C:/projects/aj-191` is removed as part\
+    \ of closing this.\n- No live runs.\n\n### Task-196 got worse while this task\
+    \ ran, and here is the evidence\n\nThe brief asked for the process table to be\
+    \ checked before and after. It was, and the machine drifted exactly as predicted.\n\
+    \n**Before the restart, three server generations were resident** \u2014 14:18,\
+    \ 15:12 and 15:18 \u2014 and the one holding 8876 was the *middle* one, started\
+    \ by `agentjobs restart --port 8876` at 15:12:17. So the 15:18 generation never\
+    \ bound: it is a process serving nothing, started by a restart that did not replace\
+    \ anything.\n\n**After the launcher restart, two of them are still there.** The\
+    \ launcher kills the process holding the port and starts a fresh one (16:02, pid\
+    \ 394944, now the listener). The 14:18 and 15:18 generations survived it, because\
+    \ nothing looks for a generation that is not bound.\n\nThat is a sharper statement\
+    \ of task-196 than \"restart adds a generation\": **the accumulation is invisible\
+    \ to the remedy.** A restart cleans up the one server you can find and leaves\
+    \ every one you cannot. Recorded on task-196 too.\n\n### Also filed: task-199\n\
+    \nEnabling `job-hunting` from the browser destroyed all 38 comment lines in `~/.agentjobs/dispatch.yaml`,\
+    \ including the record of why the ceiling is 3, written minutes earlier. Restored\
+    \ by hand; filed separately rather than absorbed.\n\n**Confirmed with Jeff:**\
+    \ the semantic change came from a job-hunting session that disabled `require_clean_tree`,\
+    \ realised task-182 had already landed, and turned it back on. A full semantic\
+    \ diff of the file before and after shows **only** that key and the `job-hunting`\
+    \ entry changed \u2014 nothing else was disturbed, and `true` is the correct value\
+    \ now that task-182 is closed. The comments were the only real casualty.\n"
+  data: {}
+- id: 12
+  ts: '2026-08-20T21:05:56.771987Z'
+  actor: claude
+  type: transition
+  body: 'Closed: completed.'
+  data:
+    lifecycle: closed
+    outcome: completed
