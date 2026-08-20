@@ -2,47 +2,14 @@ schema: 2
 id: task-200
 title: Worktrees land as siblings of the clone, littering the workspace root
 created: '2026-08-20T21:30:21.613074Z'
-updated: '2026-08-20T21:41:59.412693Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Review and approve the merge of `chore/task-200-worktree-location` \u2014\
-  \ one commit `51f2a18`, worktree `C:/projects/worktrees/aj-200`. Not merged; waiting\
-  \ on your explicit approval.\n\n**What it does.** Every instruction to take a worktree\
-  \ now says `git worktree add ../worktrees/<repo>-<nnn>` instead of `../aj-<nnn>`.\
-  \ From `C:/projects/agentjobs` that is `C:/projects/worktrees/aj-<nnn>`, so the\
-  \ workspace root stops filling with transient checkouts. The path is stated in four\
-  \ documents plus the dispatch `PROMPT_STUB`, and all five moved together; a new\
-  \ parametrized test asserts every copyable `git worktree add ../\u2026` line continues\
-  \ `worktrees/`, which is the assertion that catches a fifth copy drifting back rather\
-  \ than merely noticing a deletion.\n\n**The one call worth your judgement:** I wrote\
-  \ it relative, not as the absolute `C:/projects/worktrees/aj-###` you asked for.\
-  \ Same directory on this machine, but this repository is public and an absolute\
-  \ path is wrong for every other checkout \u2014 the same class of leak task-155\
-  \ is in review to remove. Log entry 4 has the reasoning. If you want the literal\
-  \ absolute path anyway, say so and I will put it in; it is your repository and your\
-  \ convention.\n\n**Verified by using it:** this task's own worktree was created\
-  \ with the new command, and `git worktree add` made the `worktrees/` directory itself,\
-  \ so there is no setup step for anyone to forget. Full gate green in that worktree\
-  \ \u2014 `GATE_EXIT=0`, 2057 pytest, 154 Vitest, production build, 16 Playwright.\n\
-  \n**No review server, deliberately.** Nothing is browser-visible: the diff is markdown,\
-  \ one prompt string, and tests. Your standing rule about seeding a sandbox applies\
-  \ to UI changes and this is not one \u2014 say the word if you disagree.\n\n**Left\
-  \ alone on purpose** (log entry 4): the existing `aj-155`, `aj-180`, `aj-194` worktrees\
-  \ stay put until their branches merge, and `prompts/`, an archive of prompts already\
-  \ issued for closed tasks, keeps the old path. The stale `aj-188`/`aj-191`/`aj-192`\
-  \ directories in the workspace root are litter from failed removals and are out\
-  \ of scope here; tell me if you want them cleaned up separately.\n\nOn approval:\
-  \ rebase onto `main`, merge `--no-ff`, mark the branch merged, close the task, remove\
-  \ the worktree. No frontend rebuild or server restart is needed \u2014 nothing in\
-  \ the bundle or the running server's behaviour changes \u2014 but I will confirm\
-  \ rather than assume."
+updated: '2026-08-20T21:44:52.662353Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: developer_experience
 tags: []
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "Every worktree instruction in this repository says `git worktree add ../aj-<nnn>`,\
@@ -99,7 +66,7 @@ dependencies: []
 links: []
 branches:
 - name: chore/task-200-worktree-location
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-20T21:30:21.613117Z'
@@ -254,3 +221,41 @@ log:
       id: 3f2c9a41-8b6e-4d52-9a17-2c0e5b7d1a38
       kind: handoff
       fingerprint: 4809d82a254340591b32886be43d605d
+- id: 8
+  ts: '2026-08-20T21:44:31.288256Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 3f2c9a41-8b6e-4d52-9a17-2c0e5b7d1a39
+      kind: update_content
+      fingerprint: a992a57e6af1e7e99be3618a42c78324
+- id: 9
+  ts: '2026-08-20T21:44:52.662217Z'
+  actor: claude
+  type: transition
+  body: 'Approved and merged. `4432d82` is the merge commit on `main`, `chore/task-200-worktree-location`
+    rebased onto `main` first and is marked merged; the local branch and the `C:/projects/worktrees/aj-200`
+    worktree are both removed cleanly, leaving the `worktrees/` directory in place
+    for the next one.
+
+
+    No frontend rebuild or server restart performed, and deliberately: the diff is
+    four markdown documents, one prompt string, a docstring, and tests. Nothing enters
+    `frontend_dist/` and nothing changes what a running server serves or does. The
+    change reaches its audience the next time an agent reads the guide, not through
+    the dashboard.
+
+
+    Follow-on authorised in the same breath and tracked separately: clearing the `aj-188`,
+    `aj-191`, `aj-192` directories left in the workspace root by removals that failed.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 3f2c9a41-8b6e-4d52-9a17-2c0e5b7d1a3a
+      kind: close
+      fingerprint: 0f584d1022f315dc3e2fc8ab554f69b4
