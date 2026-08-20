@@ -1,0 +1,228 @@
+schema: 2
+id: task-188
+title: 'Dispatch is one click: the button writes the authorising entry, and asks for
+  text only when the record cannot brief an agent'
+created: '2026-08-20T05:46:50.740562Z'
+updated: '2026-08-20T05:47:10.373704Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+category: ux
+tags:
+- dispatch
+- ux
+- react-frontend
+- guards
+effort: half a day
+assignment:
+  eligible: []
+parent: task-160-dispatch-phase-two
+spec:
+  summary: assert_human_clocked refuses a dispatch unless the task's newest log entry
+    was written by a human, which is true of 2 of the 74 open tasks in this project.
+    task-185 gave the page a note control so a human can satisfy it by hand, but that
+    is ceremony before every dispatch, and AgentJobs is designed so you dispatch a
+    task and the record is the brief. The button should write the authorising entry
+    itself, attributed to the person who clicked, and only stop to ask for text when
+    the record genuinely cannot brief an agent.
+  intent: 'Jeff, 2026-08-20, after clicking through task-185''s fix: "I don''t like
+    having to know to go add a note before clicking dispatch... will that be common?
+    it shouldn''t, right? ... agentjobs is designed so you just dispatch tasks or
+    epics, you don''t prompt, so by design it should be a special occasion thing,
+    and then we''ll ask user for text/voice."'
+  description: "## Measured, not assumed\n\nAgainst the live corpus on 2026-08-20\
+    \ (74 open tasks, via the API on 8876):\n\n| | |\n|---|---|\n| would dispatch\
+    \ straight away | **2** |\n| refused \u2014 newest entry is an agent's | 68 |\n\
+    | refused \u2014 no log entries at all | 4 |\n| **refused overall** | **72 / 74\
+    \ = 97%** |\n\nThe ceremony is not a special occasion. It is the default state\
+    \ of the backlog, because\n`transition` entries written by the manager on create\
+    \ and claim are attributed to the\nagent that caused them, so *every task an agent\
+    \ files* fails the check from birth.\n\n## The conflation\n\nOne check is answering\
+    \ two unrelated questions.\n\n1. **Who authorised this run?** A safety question.\n\
+    2. **Does the agent have enough to work from?** A sufficiency question.\n\n`assert_human_clocked`\
+    \ answers (1) by proxying through an artifact of (2) \u2014 the presence\nof a\
+    \ recent human-written log entry \u2014 and gets both wrong. A task with a complete\
+    \ spec\nand a stale agent note is refused; a task with an empty spec and a human\
+    \ note saying\n\"testing\" is allowed. Those are exactly backwards.\n\n## Sufficiency\
+    \ is not scarce, which is what makes one-click right\n\nSame corpus, asking whether\
+    \ the record could actually brief an agent:\n\n| | |\n|---|---|\n| open tasks\
+    \ with **no** `spec.description` | **0 of 74** |\n| open tasks with no `acceptance[]`\
+    \ | 2 of 74 |\n| `ready` tasks with no `ball_prompt` | **69 of 69** |\n\n`ball_prompt`\
+    \ is empty across the entire ready backlog *and that is correct* \u2014 a\n`ready`/`agent`/`available`\
+    \ task has not been handed to anyone, it is in the pool. So\n`ball_prompt` is\
+    \ the wrong sufficiency signal for the one state you dispatch from, and\nany check\
+    \ keyed on it fires 100% of the time. Keyed on the spec instead, the prompt-for-text\n\
+    path fires on **zero** tasks today. That is what \"special occasion\" should mean.\n\
+    \n## What is already decided, and must not be relitigated\n\nRead `docs/agent-dispatch-design.md`\
+    \ before touching this. Three things are settled:\n\n- **\xA72a, decision D5 (2026-08-11)\
+    \ already superseded the human-clocked rule.** Its words:\n  *\"The property is\
+    \ **boundedness**, not human causation.\"* \xA72 carries an explicit\n  admonition\
+    \ \u2014 *\"Superseded 2026-08-11 by D5 \u2014 read \xA72a before implementing\
+    \ this ...\n  Where the two conflict, \xA72a wins.\"* **`assert_human_clocked`\
+    \ is enforcing the\n  superseded rule.** This task is not proposing a change to\
+    \ the safety story; it is\n  making the code match a decision that is nine days\
+    \ old.\n- **An agent may never cause a dispatch.** D5 does not weaken this and\
+    \ neither does this\n  task. It survives by construction: agents do not have browsers.\n\
+    - **The forgeability requirement (\xA72, \"The rule is only as good as the evidence\
+    \ it\n  reads\") is untouched and is the constraint that shapes the fix.** *\"\
+    The `caused_by`\n  entry must be resolved **from the stored task** at spawn time,\
+    \ never taken from the\n  request body. A request that supplies its own justification\
+    \ is not evidence.\"*\n\n## The shape that satisfies all three\n\n**The Dispatch\
+    \ button writes the authorising entry itself, server-side, attributed to the\n\
+    signed-in user \u2014 and only then dispatches, resolving `caused_by` from the\
+    \ stored task as\nit does today.**\n\nForgeability is preserved because nothing\
+    \ about the resolution changes: the entry is\npersisted to the task record first,\
+    \ and the guard still reads it from storage rather than\nfrom the request. What\
+    \ goes away is the human having to know to write it by hand.\n\nThis is task-185's\
+    \ option 2, which that task listed and did not build (its `sc-3` is the\none criterion\
+    \ it left unmet). It is *not* the same as trusting a request field, and the\n\
+    distinction is the whole design \u2014 say so in the implementation, because a\
+    \ reader\nskimming will assume otherwise.\n\n### When the box appears\n\nOnly\
+    \ when the record cannot brief an agent. Pick the trigger from the spec, not from\n\
+    `ball_prompt`, and state the choice \u2014 `spec.description` empty is the obvious\
+    \ floor, and\nwhether an empty `acceptance[]` should also trigger it is a genuine\
+    \ call worth a sentence.\nWhen it appears, the text the human types becomes the\
+    \ body of the authorising entry, so\none action serves both purposes.\n\nWhen\
+    \ it does not appear, the entry still gets written \u2014 with a body the manager\
+    \ composes,\nnaming the person and the surface (\"Dispatched by Jeff Posey from\
+    \ the task page\"), the\nsame way `promote` already composes its own sentence\
+    \ when a human promotes without a note.\n\n### Identity\n\nThe entry must name\
+    \ a real person, which means the click needs a signed-in user. The\nReact app\
+    \ already carries one \u2014 Approve and Request-changes pass `user` \u2014 so\
+    \ this is\nwiring, not new machinery. Decide and record what happens when no user\
+    \ is selected:\nrefusing is defensible, and writing an entry attributed to nobody\
+    \ is not.\n\n## What this is not\n\nNot the prompt-authoring feature. **task-162**\
+    \ lets a human *add* something to a\ndispatch they are already making; it is an\
+    \ optional affordance and must not become a\ngate. Voice arrives through **task-172**,\
+    \ which already names the dispatch prompt among\nthe fields it wires dictation\
+    \ into \u2014 so do not build a bespoke input here that 172 has to\nreplace. If\
+    \ the sufficiency box and task-162's box turn out to be the same component,\n\
+    that is a good outcome, but this task ships without waiting for either.\n\ntask-185's\
+    \ note control stays. It is the right manual path for deliberately writing an\n\
+    instruction onto a task, and it is what makes the refusal copy honest for the\
+    \ CLI and MCP\ncallers who have no button to press."
+  constraints: "- An agent must still never be able to cause a dispatch, pinned by\
+    \ a test that survives this change.\n- The causing entry is still resolved from\
+    \ the stored task at spawn time, never from the request body. Do not \"simplify\"\
+    \ this by trusting a caused_by or an actor supplied by the client \u2014 that\
+    \ is the exact failure \xA72's forgeability section exists to prevent, and it\
+    \ would be invisible in review because the happy path looks identical.\n- Do not\
+    \ key the sufficiency check on ball_prompt. It is empty for every ready task by\
+    \ design, so a check on it fires always and teaches the user to click through\
+    \ it.\n- The written entry must name a real signed-in human. An entry attributed\
+    \ to nobody, or to the project's default_user regardless of who clicked, is worse\
+    \ than the ceremony it replaces.\n- Amend docs/agent-dispatch-design.md in the\
+    \ same branch. \xA72's refusal reasoning and \xA75 both describe the behaviour\
+    \ this changes, and \xA72a is the decision being honoured \u2014 say plainly that\
+    \ the code had been enforcing the superseded rule.\n- The CLI and MCP dispatch\
+    \ paths have no browser and no signed-in user. Whatever ships must leave them\
+    \ coherent, and refusing them with the existing message is an acceptable answer\
+    \ if it is a stated one."
+  out_of_scope: "Building the prompt-authoring box (task-162) or the dictation control\
+    \ (task-171/172). Chain authorization and the loop driver (task-150/151) \u2014\
+    \ D5's bounded-autonomy mechanism is separate work and this task neither needs\
+    \ nor advances it. Backfilling log entries onto existing tasks. Multiple human\
+    \ users (task-066) beyond reading whoever is currently signed in."
+  context:
+  - path: src/agentjobs/dispatch/guards.py
+    why: "resolve_causing_entry and assert_human_clocked \u2014 the check that refuses,\
+      \ and the resolution that must keep reading from storage."
+  - path: docs/agent-dispatch-design.md
+    why: "\xA72 (superseded rule + forgeability), \xA72a (D5, what actually governs),\
+      \ \xA75 (what starts a dispatch). All three describe behaviour this changes."
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: The button, and the refusal copy task-185 made honest; where the sufficiency
+      box would live.
+  - path: src/agentjobs/manager.py
+    why: add_log_entry's refusal of forgeable types, and promote's composed-sentence
+      precedent for an entry written without a human-supplied body.
+  - path: src/agentjobs/api/routes/tasks.py
+    why: Approve and Request-changes already carry a signed-in user through to a dispatch;
+      the same identity is what the written entry must name.
+acceptance:
+- id: ac-1
+  text: Pressing Dispatch on a ready, agent-filed task with a complete spec starts
+    a run with no note written by hand first
+  status: pending
+- id: ac-2
+  text: "The run's causing entry is a real log entry on the stored task, attributed\
+    \ to the signed-in human, and is resolved from storage rather than from the request\
+    \ \u2014 pinned by a test that fails if the request body is trusted"
+  status: pending
+- id: ac-3
+  text: An agent still cannot cause a dispatch, pinned by a test
+  status: pending
+- id: ac-4
+  text: A task whose record cannot brief an agent prompts for text, that text becomes
+    the authorising entry's body, and the trigger is keyed on the spec rather than
+    on ball_prompt
+  status: pending
+- id: ac-5
+  text: 'Measured against the live corpus after the change: the prompt-for-text path
+    fires on the tasks that genuinely lack a spec and on no others'
+  status: pending
+- id: ac-6
+  text: A dispatch with no signed-in user does something stated and tested, rather
+    than writing an entry attributed to nobody
+  status: pending
+- id: ac-7
+  text: "docs/agent-dispatch-design.md \xA72, \xA72a and \xA75 agree with the shipped\
+    \ behaviour, and say that the code had been enforcing the rule \xA72a superseded"
+  status: pending
+- id: ac-8
+  text: The CLI and MCP dispatch paths still behave coherently, with their behaviour
+    stated
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T05:46:50.740636Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 4c7a91e6-3b52-4d08-9a14-7e6b25f0c8d3
+      kind: create
+      fingerprint: 7a9a33717109ff07f774611529739803
+- id: 2
+  ts: '2026-08-20T05:47:10.373585Z'
+  actor: Jeff Posey
+  type: decision
+  body: "Binding, from Jeff on 2026-08-20. This is the product principle the task\
+    \ exists to serve, not an implementation preference \u2014 do not trade it away\
+    \ for convenience later.\n\n**Dispatching a task or an epic is one click. You\
+    \ do not prompt.** The task record is the brief; that is the whole point of keeping\
+    \ a record good enough to resume from. Being asked for text before a run may start\
+    \ is a *special occasion*, reserved for when the record genuinely cannot brief\
+    \ an agent \u2014 and when it happens, ask for it properly, with the voice option\
+    \ the dictation work is already building.\n\nHis words: *\"agentjobs is designed\
+    \ so you just dispatch tasks or epics, you don't prompt, so by design it should\
+    \ be a special occasion thing, and then we'll ask user for text/voice.\"* And\
+    \ on the current behaviour: *\"I don't like having to know to go add a note before\
+    \ clicking dispatch.\"*\n\n**Rejected: always show a prompt box, optional to fill\
+    \ in.** Considered and put to Jeff explicitly, with the argument that at a 97%\
+    \ refusal rate the box is effectively always on screen anyway, so making it mandatory\
+    \ costs little and buys a dispatch record that says *why* a run started. He rejected\
+    \ the premise rather than the trade: the 97% is the defect, not the baseline,\
+    \ and designing around it would have entrenched exactly the ceremony this task\
+    \ removes. Fixing the trigger makes the box rare, and a rare box does not need\
+    \ to be mandatory.\n\n**Rejected: keep the human-note requirement and make the\
+    \ control easier to find.** That is what task-185 shipped, and it is a good manual\
+    \ path, but as the default it asks the human to satisfy a rule on the machine's\
+    \ behalf. The rule it satisfies has been superseded since 2026-08-11 (\xA72a,\
+    \ D5).\n\n**What this decision does not touch:** an agent still may never cause\
+    \ a dispatch, and the causing entry is still resolved from the stored task rather\
+    \ than from the request. Both are constraints on the task and neither is in tension\
+    \ with one-click dispatch."
+  data:
+    operation:
+      id: b6e04f27-91a3-4c58-8d20-3f7a1c964e05
+      kind: log_append
+      fingerprint: dd5befa6a46f2769894ea6bc0f2c342d

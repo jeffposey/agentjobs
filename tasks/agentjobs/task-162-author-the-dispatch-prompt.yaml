@@ -2,7 +2,7 @@ schema: 2
 id: task-162-author-the-dispatch-prompt
 title: Say something to the agent you are dispatching
 created: '2026-08-19T16:43:00.485932Z'
-updated: '2026-08-19T16:43:00.486826Z'
+updated: '2026-08-20T05:47:58.942097Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -49,7 +49,20 @@ spec:
     \ of a dispatch a human writes freehand, and it goes straight\ninto an argv that\
     \ starts a process. `compose_argv` placeholder substitution and quoting\nare the\
     \ surface to check. This is a place where a test that only asserts the note appears\n\
-    in the prompt would miss the interesting failures."
+    in the prompt would miss the interesting failures.\n\n## This box is an affordance,\
+    \ never a gate (added 2026-08-20, see task-188)\n\nDispatching a task is **one\
+    \ click** and the task record is the brief -- Jeff recorded that\nas a binding\
+    \ decision on task-188. This feature lets a human *add* something to a dispatch\n\
+    they were already going to make. It must never become a step that has to be completed\n\
+    before a run may start, and the dispatch must remain startable with the box untouched.\n\
+    \nTwo neighbours to coordinate with rather than duplicate:\n\n- **task-188** introduces\
+    \ a *sufficiency* prompt -- a text box shown only when the record\n  cannot brief\
+    \ an agent, whose text becomes the authorising log entry. That one is\n  conditional\
+    \ and rare by design. If it turns out to be the same component as this one\n \
+    \ wearing a different label, sharing it is a good outcome; making this one mandatory\
+    \ to\n  achieve that is not.\n- **task-172** wires dictation into every free-text\
+    \ field and already names the dispatch\n  prompt among them. Do not build a bespoke\
+    \ voice control here.\n"
   constraints: '- The generated stub''s pointer to the task record must survive whatever
     the human types. An agent that does not know where its own record is cannot log,
     claim, or hand off.
@@ -60,7 +73,9 @@ spec:
     - Works identically for per-task and project-level dispatch, or the feature is
     half-built.'
   out_of_scope: Prompt templating per runner (that is the profile layer in the design's
-    section 4, accepted-but-unbuilt). Storing reusable prompt snippets.
+    section 4, accepted-but-unbuilt). Storing reusable prompt snippets. Making the
+    prompt box a required step before a dispatch may start -- that is the ceremony
+    task-188 removes, and task-188 owns the authorisation path.
   context:
   - path: src/agentjobs/dispatch/runner.py
     why: build_prompt, build_argv and compose_argv -- where the prompt is assembled
@@ -108,3 +123,15 @@ log:
       id: c3f2e5b9-7086-4d34-9ba5-2e9f4a138162
       kind: create
       fingerprint: bc8c5aaa886bc2f42dcd26335c55e6d2
+- id: 2
+  ts: '2026-08-20T05:47:58.941905Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: d3f81a95-2c47-4e60-b8d1-9a05c73e2f18
+      kind: update_content
+      fingerprint: 09522b43e2e85a115f497c0087843213

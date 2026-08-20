@@ -3,7 +3,7 @@ id: task-185-dispatch-needs-an-entry-the-ui-cannot-write
 title: Dispatch refuses a task with no human log entry, and the page gives you no
   way to write one
 created: '2026-08-19T21:16:19.646150Z'
-updated: '2026-08-20T00:15:47.500854Z'
+updated: '2026-08-20T05:48:13.650482Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -281,3 +281,36 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 8
+  ts: '2026-08-20T05:48:13.650277Z'
+  actor: claude
+  type: note
+  body: "`sc-3` \u2014 the one criterion this task closed without meeting \u2014 is\
+    \ now owned by **task-188**, filed 2026-08-20. This task stays closed; nothing\
+    \ here is being reopened or undone.\n\nWhat happened after the merge. Jeff clicked\
+    \ through the shipped fix on task-187 (refusal \u2192 note \u2192 dispatch, all\
+    \ working as built) and then said the thing the fix does not address: *\"I don't\
+    \ like having to know to go add a note before clicking dispatch... will that be\
+    \ common? it shouldn't, right?\"*\n\nMeasured against the live corpus rather than\
+    \ guessed: **72 of 74 open tasks would be refused**, because the manager attributes\
+    \ the `transition` entries it writes on create and claim to the agent that caused\
+    \ them, so every agent-filed task fails from birth. The note control is therefore\
+    \ not a remedy for an occasional dead end \u2014 it is a step before essentially\
+    \ every dispatch.\n\nThe option-2 branch this task described (\"reconsider what\
+    \ counts as the causing act for a browser dispatch\") turned out not to need a\
+    \ new design decision at all. `docs/agent-dispatch-design.md` \xA72 already carries\
+    \ an admonition that the human-clocked rule was **superseded on 2026-08-11 by\
+    \ \xA72a, decision D5** \u2014 *\"The property is boundedness, not human causation\"\
+    * \u2014 and `assert_human_clocked` has been enforcing the superseded rule ever\
+    \ since. So sc-3's \"if the causing act is redefined, the design document says\
+    \ so\" is satisfied by a decision that predates this task; what is missing is\
+    \ the code catching up.\n\n**What this task shipped is not wasted and should not\
+    \ be removed.** The note control is the right manual path for deliberately writing\
+    \ an instruction onto a task, and it is what keeps the refusal copy honest for\
+    \ the CLI and MCP callers who have no button to press. task-188 changes what happens\
+    \ by *default*, not what is possible."
+  data:
+    operation:
+      id: e0b5c839-4a16-42d7-95f8-6c1d38a074b2
+      kind: log_append
+      fingerprint: 50e1f74aa618e3f74ea795a310f59383
