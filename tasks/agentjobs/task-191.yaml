@@ -2,7 +2,7 @@ schema: 2
 id: task-191
 title: Run more than one agent at a time, and fix what that breaks
 created: '2026-08-20T07:19:15.553705Z'
-updated: '2026-08-20T19:17:27.662891Z'
+updated: '2026-08-20T19:52:48.725242Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -174,3 +174,55 @@ log:
       id: f2b8e4c7-1a93-4d05-b6e8-7c41d9a2e355
       kind: update_content
       fingerprint: b44c76372c4b14c4356e28054560e360
+- id: 4
+  ts: '2026-08-20T19:52:48.725112Z'
+  actor: claude
+  type: progress
+  body: "Measured concurrent gate throughput on this machine; task-187's 25-minute\
+    \ figure does not reproduce\n\n**The measurement for ac-2, and a correction: concurrent\
+    \ gates are not the constraint anyone thought they were.**\n\nEvery run below\
+    \ wrote its own log file under this session's scratch directory and none was re-run\
+    \ to be read.\n\n### The machine, and what else was on it\n\nAMD Ryzen 9 5900XT,\
+    \ 16 cores / 32 threads, 64 GB RAM, ~26 GB free. Measured 2026-08-20 between 14:31\
+    \ and 15:0x local.\n\nThe process table was checked before starting, because a\
+    \ throughput number means nothing without the machine state it was taken on:\n\
+    \n- **Exactly one AgentJobs server generation resident**, listening on 127.0.0.1:8876\
+    \ (pid 46852, started 14:16:45 by `open-agentjobs.ps1`). This follows the cleanup\
+    \ earlier on 2026-08-20 that killed roughly 20 stale generations, the oldest two\
+    \ days old. **task-196 is unfixed**, so the machine drifts off this baseline on\
+    \ every `agentjobs restart`; a number taken later is not comparable unless the\
+    \ process table is checked again.\n- **22 Claude Code CLI processes resident,\
+    \ 7.3 GB working set** \u2014 Jeff's own hand-started sessions. So this is *not*\
+    \ an idle-machine measurement, which is the point: it is the load the ceiling\
+    \ actually has to survive. Jeff confirmed mid-session that he keeps 2-3 sessions\
+    \ going for other work, and `max_concurrent_runs` cannot see any of them.\n\n\
+    ### The numbers\n\n`poetry run python scripts/check.py`, in N detached worktrees\
+    \ of `main` at 441838f, all started together. CPU and free RAM sampled every 10s\
+    \ throughout.\n\n| Concurrent gates | Wall clock per run | Worst vs solo | Peak\
+    \ CPU | Free RAM | Result |\n|---|---|---|---|---|---|\n| 1 | 355s | \u2014 |\
+    \ ~20% | 25 GB | green |\n| 2 | 339s, 388s | **+9%** | ~25% | 25 GB | all green\
+    \ |\n| 4 | 354s, 363s, 411s, 411s | **+16%** | ~46% | 25 GB | all green |\n\n\
+    Solo breakdown, for whoever updates ENGINEERING.md next: 2046 pytest tests in\
+    \ 272.9s, 153 Vitest tests across 22 files, the production build, 16 Playwright\
+    \ tests in 16.3s. 355s total.\n\n### The part that needs saying plainly\n\n**Task-187's\
+    \ logged figure \u2014 \"two full gates took roughly 25 minutes wall clock\" \u2014\
+    \ does not reproduce.** Two gates here cost 9%, not 400%. Four gates cost 16%.\
+    \ I cannot prove what that run hit, but the two candidates are both on the record:\
+    \ it was taken *before* the ~20 stale AgentJobs server generations were killed,\
+    \ and it was taken before this session found `test_agentjobs_context_paths_exist`\
+    \ red on `main`.\n\nThe consequence for this task is the opposite of what the\
+    \ spec predicted. The spec says \"the binding constraint is likely concurrent\
+    \ `scripts/check.py` runs, not agents.\" On this machine, at these numbers, **concurrent\
+    \ gates are not the binding constraint at all** \u2014 46% CPU and 25 GB free\
+    \ at four simultaneous gates is not a machine near its limit. Whatever eventually\
+    \ binds here, it is further out than the gate.\n\nA sixth data point (6 simultaneous\
+    \ gates \u2014 a ceiling of 3 plus Jeff's 3 hand-started sessions, which is the\
+    \ true worst case) is running now and will be logged with the chosen number.\n\
+    \n### Also fixed on the way past, because it made every gate red\n\n`tasks/agentjobs/task-196.yaml`\
+    \ carried a context pointer to `tasks/agentjobs/task-190-run-lock-leak.yaml`;\
+    \ the file is `tasks/agentjobs/task-190.yaml`. `test_agentjobs_context_paths_exist`\
+    \ had been failing on `main` since task-196 was filed, in every checkout, for\
+    \ a reason unrelated to any branch under test. Corrected and committed to `main`\
+    \ as 441838f (`chore(task-196)`), which is what all six load worktrees were measured\
+    \ at.\n"
+  data: {}
