@@ -243,6 +243,15 @@ review request the reviewer can actually see.
 -   **Always** use the `TaskStorage` abstraction; avoid direct file I/O on task files where possible.
 -   **Verify** local server startup and the React `/app/` route (`poetry run agentjobs
     open`) after modifying API routes or frontend serving.
+-   **A server that refuses to start because it "imported its own source from the wrong
+    checkout" is telling the truth — do not work around it.** The virtualenv on that
+    interpreter has an editable install pointing at a different checkout, so the process
+    would read the right task files and run a different branch's code. Nothing else shows
+    it: `git log` in the served clone is correct and so are the files on disk. The repair
+    is printed in the error, and it is `poetry install` from the clone that should be
+    running, then a restart. `AGENTJOBS_SKIP_SOURCE_CHECK` exists for an unusual install
+    layout, not for getting past this. Task-194 is the incident; `/api/version` reports
+    `source_root` if you want to ask a running server the same question.
 -   **Rebuild the frontend after merging front-end work, then restart.**
     `src/agentjobs/frontend_dist/` is gitignored, so merging a React change to `main`
     does **not** update the bundle a running server serves. `git pull` and a restart
