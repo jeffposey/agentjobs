@@ -3,7 +3,7 @@ id: task-190
 title: 'Run locks leak: release depends on in-memory state, so a server restart blocks
   those tasks forever'
 created: '2026-08-20T07:08:47.960269Z'
-updated: '2026-08-20T17:54:35.116922Z'
+updated: '2026-08-20T18:22:29.666282Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -333,4 +333,150 @@ log:
     \ both make dispatch unreliable. That is a shared *symptom*, not\na shared mechanism,\
     \ and it is exactly how a task grows past what one branch should\ncarry.\n\nFiled\
     \ as its own task with entry #2's evidence carried over verbatim.\n"
+  data: {}
+- id: 8
+  ts: '2026-08-20T18:22:29.632341Z'
+  actor: claude
+  type: decision
+  body: "**Decision: judge the lock against the ledger *and* fix the release on the\
+    \ completion\npath. Neither alone is sufficient, and the spec's two directions\
+    \ are not alternatives.**\n\nThe spec offered two and prescribed neither. Both\
+    \ are in, plus a third the spec did not\nname, and the reasoning for each is separable:\n\
+    \n1. **Judge staleness from the recorded pid** \u2014 taken, but demoted. On its\
+    \ own it is\n   worse than insufficient, it is *dangerous*: a CLI dispatch starts\
+    \ a session that\n   deliberately outlives the shell that started it, so a dead\
+    \ holder pid is the normal\n   state of a lock whose run is very much going. Clearing\
+    \ on it would put two agents on\n   one task, which is the failure the lock was\
+    \ built to prevent and, per the\n   constraints, worse than the leak. So the pid\
+    \ decides only when there is no run record\n   to consult \u2014 the window before\
+    \ the run is named, and a lock naming a run whose\n   directory is gone.\n2. **Reconcile\
+    \ locks against the ledger** \u2014 taken, as the primary rule and in two\n  \
+    \ places. At acquisition, so a leaked lock does not have to be found by a human\
+    \ before\n   it stops blocking; and as a sweep inside `reconcile()`, so a restart\
+    \ *heals* rather\n   than causes. The sweep runs after reconciliation concludes\
+    \ orphaned runs, because\n   until it does, an orphaned batch run reads `running`\
+    \ and every lock looks live.\n3. **Close the descriptor** \u2014 not in the spec,\
+    \ and required. Entry #2 found the handle\n   is never closed on the stranding\
+    \ path; on Windows that blocks `unlink`, so the\n   documented remedy failed while\
+    \ the leaking process lived, and a long-lived server\n   accumulated a handle\
+    \ per run. Nothing ever read that descriptor \u2014 exclusivity is the\n   file's\
+    \ existence under `O_CREAT|O_EXCL` \u2014 so closing it immediately costs nothing\
+    \ and\n   is what makes a lock releasable by anything holding its path. Which\
+    \ is what fix 4\n   needs.\n4. **Attach a lock to the handle the poller rebuilds**\
+    \ \u2014 the diagnosis's root cause, and\n   the half the spec's two directions\
+    \ do not address at all. `poller._handle_from` built\n   a `RunHandle` with `lock=None`,\
+    \ so `_finish_session`'s release was a no-op for every\n   session run. Startup\
+    \ reconciliation would have papered over this \u2014 the lock would\n   clear\
+    \ at the *next* restart \u2014 which is exactly the shape of fix that satisfies\
+    \ a test\n   and leaves the mechanism broken.\n\n**Rejected: a lease or a heartbeat**,\
+    \ per the constraint, and nothing here is one.\nNothing expires on a clock; a\
+    \ lock is cleared only against a positive statement on disk\n(a terminal run record,\
+    \ or an absent process). A slow run cannot lose a lock it is still\nusing, because\
+    \ elapsed time is not consulted anywhere.\n\n**Rejected: swapping the primitive**\
+    \ for one with automatic release. `acquire_run_lock`'s\nrecorded argument for\
+    \ `O_CREAT|O_EXCL` \u2014 atomic everywhere, no dependency, identical on\nWindows\
+    \ and Unix, one convention rather than two \u2014 is untouched by any of this.\
+    \ What did\nnot survive was the *corollary* the docstring drew from it: \"a named\
+    \ file tells you what\nto delete\". That was addressed directly rather than by\
+    \ changing the primitive.\n\n**Rejected: making the refusal's remedy a new browser\
+    \ control** (a \"clear the lock\"\nbutton, or a reconcile endpoint). The remedy\
+    \ a human needs is that the refusal should not\nhappen, and after this it does\
+    \ not: a lock whose run is over is reclaimed at the moment\nsomeone tries to dispatch.\
+    \ The refusal that remains describes a genuinely live run, whose\nremedy \u2014\
+    \ Cancel run \u2014 is already on the task page. Adding a button to delete a lock\
+    \ file\nwould put the old broken advice into the UI instead of removing it.\n"
+  data: {}
+- id: 9
+  ts: '2026-08-20T18:22:29.666173Z'
+  actor: claude
+  type: progress
+  body: "Implemented on `fix/task-190-run-lock-leak`, two commits, and verified against\
+    \ a real\nserver rather than by unit test alone.\n\n## What changed\n\n`src/agentjobs/dispatch/ledger.py`\n\
+    - `RunLock` is now a task id, a path and a run id. `acquire_run_lock` writes the\
+    \ holder\n  and **closes the descriptor before returning**. `release()` unlinks,\
+    \ and refuses to\n  unlink a file that has come to name a different run \u2014\
+    \ the window between a run's\n  terminal write and its release is real, and a\
+    \ second dispatch can legitimately\n  reclaim the lock inside it.\n- `RunLock.adopt(run_id)`\
+    \ names the run, called by `dispatch_task` once\n  `runner.start()` has produced\
+    \ a run id. Before this every lock file on disk read\n  `run=` empty.\n- `LockHolder.parse`\
+    \ reads `pid=\u2026 run=\u2026` tolerantly; `process_alive` answers liveness\n\
+    \  (via `OpenProcess`/`GetExitCodeProcess` on Windows \u2014 `os.kill(pid, 0)`\
+    \ is not a probe\n  there, CPython implements it with `TerminateProcess`).\n-\
+    \ `stale_lock_reason` is the whole judgement, in one function so there is no second\n\
+    \  rule to drift. Named run \u2192 its record decides, pid gets no vote. No run\
+    \ record \u2192 the\n  pid decides. Unreadable \u2192 refuses.\n- `release_stale_locks`\
+    \ sweeps the directory by the same rule; `reconcile()` calls it\n  **after** it\
+    \ concludes orphaned runs.\n- The refusal text no longer mentions `.locks` or\
+    \ tells anyone to delete a file.\n\n`src/agentjobs/dispatch/poller.py` \u2014\
+    \ `_handle_from` attaches a `RunLock`. This is the\nroot-cause fix; see the decision\
+    \ entry.\n\n`src/agentjobs/dispatch/guards.py` \u2014 one `lock.adopt(handle.run_id)`\
+    \ after the start.\n\n`src/agentjobs/dispatch/runner.py` \u2014 `RunHandle.lock`'s\
+    \ docstring now says a rebuilt\nhandle must set it, since that omission is what\
+    \ the bug was.\n\n`docs/agent-dispatch-design.md` \u2014 \xA78's lock bullet and\
+    \ \xA79's restart section amended.\n\n## Tests\n\n23 in `TestRunLock` / `TestStaleLockSweep`\
+    \ (`tests/test_dispatch_lifecycle.py`), 3 in\n`TestTheLockIsReleasedByWhateverConcludesTheRun`\
+    \ (`tests/test_dispatch_poller.py`).\nConfirmed the poller tests fail without\
+    \ the fix: reverting the one-line `lock=RunLock(\u2026)`\nturns two of the three\
+    \ red, and the third \u2014 \"a session still running keeps its lock\" \u2014\n\
+    stays green, which is what a control is for.\n\nac-1 and ac-2 are pinned by a\
+    \ pair differing in exactly one field, the run's status.\n\n## Verified by doing\
+    \ it, on a sandbox home and a sandbox server on port 8917\n\nOwn `AGENTJOBS_HOME`,\
+    \ own project, own port. None of Jeff's data touched.\n\n1. **A pre-fix leaked\
+    \ lock is cleared at startup.** `task-005.lock` was left behind by\n   the *unfixed*\
+    \ code during the reproduction \u2014 `pid=227460 run=`, its session run\n   `finished`\
+    \ hours earlier. Starting the fixed server:\n\n       Dispatch reconcile task-005\
+    \ lock: released the run lock on task-005:\n       the process that took it (pid\
+    \ 227460) is gone, and it named no run\n\n   That is the shape of all four rows\
+    \ in the description's table.\n\n2. **ac-3, batch, restarted mid-run.** Dispatched\
+    \ `task-001`, lock read\n   `pid=118244 run=run_34eda108` (it names its run now),\
+    \ killed the server mid-run,\n   restarted:\n\n       Dispatch reconcile run_34eda108:\
+    \ batch run marked interrupted\n       Dispatch reconcile run_34eda108: released\
+    \ the run lock on task-001:\n       its run run_34eda108 is interrupted\n\n  \
+    \ Both lines, in that order, are the ordering argument made visible. The next\
+    \ dispatch\n   of `task-001` was **permitted** (`run_a9ee8486`).\n\n3. **ac-3,\
+    \ a real session, restarted mid-run \u2014 the spec's literal instruction.**\n\
+    \   Dispatched a real `claude --bg` session on `task-002` (`run_0fe8da1a`), killed\
+    \ the\n   server while it was live, restarted. Reconciliation re-attached it\n\
+    \   (`session still running; re-attached`) and did **not** touch its lock, correctly.\
+    \ The\n   session then finished, and the **new** server's poller settled it and\
+    \ released the\n   lock \u2014 a process that had never held it. Re-dispatch of\
+    \ `task-002` was permitted\n   (`run_084a5cb4`). That is ac-3 and ac-4 in one\
+    \ sequence: the release no longer\n   depends on any in-memory handle surviving\
+    \ anything.\n\n4. **ac-2, live run still refused.** While `run_a9ee8486` was genuinely\
+    \ running,\n   `acquire_run_lock` refused:\n\n       task-001 is held by run run_a9ee8486,\
+    \ which has not reported that it finished.\n       Cancel that run and this task\
+    \ is dispatchable again; it appears under this\n       task's runs.\n\n5. **The\
+    \ descriptor.** Before: `rm .locks/task-002.lock` \u2192 `Device or resource busy`\n\
+    \   while the server lived, deletable the instant it was killed. After: the file\
+    \ opens\n   read-write with the server up, so nothing holds it.\n\n6. **ac-1 and\
+    \ ac-5 in the browser**, React app on the sandbox server. Put a leaked lock\n\
+    \   of the old shape (`pid=999999999 run=`) on `task-003`, whose runs were all\
+    \ terminal,\n   and pressed **Dispatch** on the task page: it started `run_bf01202a`.\
+    \ No refusal, no\n   directory to know about \u2014 pre-fix that click was a permanent\
+    \ `live_run_exists`.\n   Pressing it again, with that run live, produced the refusal\
+    \ a human can still meet:\n\n       task-003 already has run run_bf01202a in state\
+    \ 'running'. One live run per task,\n       always -- a second would have two\
+    \ agents editing the same repository with the\n       same task record.\n    \
+    \   Wait for the run to finish, or cancel it.\n\n   rendered directly above the\
+    \ **Cancel run** button for that run. The remedy named is a\n   control on the\
+    \ page.\n\n## ac-6: all four locks of 2026-08-20, explained rather than cleared\n\
+    \nOne root cause, one aggravator, and the table splits along which path concluded\
+    \ the run.\n\n| lock | how its run ended | why the lock survived | cleared now\
+    \ by |\n|---|---|---|---|\n| `task-020` (pid 351652, dead) | run `finished`, server\
+    \ later killed | nothing releases when the process dies | the startup sweep \u2014\
+    \ `run=` empty and pid gone |\n| `task-107-\u2026` (pid 272672, dead) | run `cancelled`,\
+    \ same | same | same |\n| `task-187` (pid 368228, alive) | run `finished`; the\
+    \ **poller** settled it with a rebuilt handle whose `lock` was `None` | the release\
+    \ was a silent no-op, and the live server still held the descriptor | the poller\
+    \ now releases it as it settles; for a lock already leaked, the next restart sweeps\
+    \ it |\n| `task-188` (pid 368228, alive) | same | same | same |\n\nRows 1\u2013\
+    2 are the restart path; rows 3\u20134 are the poller path, which the original\n\
+    description suspected (\"a second gap on the ordinary completion path worth finding\"\
+    ) and\nwhich is `poller.py::_handle_from`. Both reproduced from scratch on the\
+    \ sandbox before\nanything was written \u2014 `task-003` for the restart path,\
+    \ `task-005` for the poller path,\neach leaving a lock of the same shape as its\
+    \ row.\n\nBatch runs through the API were **not** leaking on completion: their\
+    \ supervisor thread\nholds the real handle. Verified rather than assumed (`task-004`,\
+    \ lock gone when the run\nfinished), and worth stating because it is what narrowed\
+    \ the completion-path gap to\nsessions.\n"
   data: {}
