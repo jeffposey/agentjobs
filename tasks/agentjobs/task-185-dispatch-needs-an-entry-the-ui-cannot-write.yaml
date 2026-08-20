@@ -3,7 +3,7 @@ id: task-185-dispatch-needs-an-entry-the-ui-cannot-write
 title: Dispatch refuses a task with no human log entry, and the page gives you no
   way to write one
 created: '2026-08-19T21:16:19.646150Z'
-updated: '2026-08-19T23:44:47.188650Z'
+updated: '2026-08-19T23:59:52.685585Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -137,3 +137,111 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 4
+  ts: '2026-08-19T23:59:52.659136Z'
+  actor: claude
+  type: decision
+  body: 'Shipped option 1 only. Option 2 -- redefining the browser click itself as
+    the causing act -- was considered and rejected for this task.
+
+
+    Why option 1 is enough. The dead end was never the rule; it was that the only
+    surface where a person meets the rule offered no way to satisfy it. A note control
+    closes that completely: a `ready` task an agent filed is refused, the refusal
+    names the control, the person writes a note as themselves, and the dispatch is
+    permitted. That is acceptance sc-1 and sc-4, end to end, and it is useful well
+    beyond dispatch -- a task page that could not be annotated at all was its own
+    gap.
+
+
+    Why option 2 was rejected rather than deferred-with-a-shrug. It is a real change
+    to the safety story and it buys one click. The property design section 2 protects
+    is that a dispatch is caused by evidence that already exists in the record; a
+    click recorded as its own cause is a request that supplies its own justification,
+    which section 2a explicitly names as not-evidence ("The `caused_by` entry must
+    be resolved from the stored task, never taken from the request"). Making the click
+    the cause is defensible -- the server would write the entry as the configured
+    human, then resolve it from storage -- but the argument turns entirely on the
+    server, not the record, being the thing that vouches for the human. That is a
+    design amendment with a stated admitted failure, not an implementation choice,
+    and it should be taken deliberately with Jeff rather than folded into a UX fix
+    that was already sufficient.
+
+
+    What this leaves on the table: one extra interaction per dispatch of an agent-filed
+    task. That is the price, it is small, and it is reversible -- option 2 remains
+    available and this work does not foreclose it.
+
+
+    Not relitigating: the human-clocked rule itself, which is out of scope by the
+    task''s own constraints and untouched here.
+
+
+    sc-3 is therefore not applicable: the causing act was not redefined, docs/agent-dispatch-design.md
+    is unchanged, and no amendment was needed.'
+  data: {}
+- id: 5
+  ts: '2026-08-19T23:59:52.685465Z'
+  actor: claude
+  type: progress
+  body: 'Implemented and verified. Branch feat/task-185-authorising-note, worktree
+    C:/projects/aj-185, three commits on top of main at 36f8465.
+
+
+    What changed
+
+    - `frontend/src/components/NoteComposer.tsx` (new). A "Notes" section on every
+    task page with an "Add a note" button that reveals a textarea and writes a `note`
+    log entry as the project''s configured human, through the existing POST /tasks/{id}/log
+    endpoint. Collapsed until asked for; states whose entry it will be before writing
+    it; keeps the typed text and shows the reason when a save is refused; explains
+    the problem instead of silently vanishing when the project configures no human
+    to write as.
+
+    - `TaskDetail.tsx` renders it directly below the dispatch panel, so the control
+    a refusal names is the next thing the reader sees. `App.tsx` wires the mutation,
+    with its own busy/error state and no expected_revision (appending is not a decision
+    taken against content that could have moved).
+
+    - `DispatchPanel.tsx`: the copy for `no_causing_entry` and `not_human_clocked`
+    now names the control. Those two reasons are the only ones where the browser''s
+    own sentence overrides the server''s `suggested_action` -- the server''s sentence
+    is read by the CLI and by MCP and cannot say "press the button below", and the
+    server''s text still wins everywhere else because it can name the actual file
+    on this machine.
+
+
+    Verification
+
+    - `poetry run python scripts/check.py` green on the branch: Black/Ruff/MyPy clean
+    (145 source files), 1884 pytest in 3m53s, 145 Vitest across 22 files, production
+    build, 15 Playwright tests.
+
+    - The real path, against a live server: `frontend/e2e/dispatch-authorising-note.spec.ts`
+    creates a task over the API as the agent actor `claude` -- so its only log entry
+    is its own creation transition, the shape of every task an agent files -- then
+    in the browser presses Dispatch, reads the refusal, checks the refusal names "Add
+    a note", writes the note, sees it appear in the log attributed to the human, presses
+    Dispatch again, and watches a real process start and be cancelled. Every assertion
+    is on rendered text, none on the presence of markup.
+
+    - sc-2 pinned at the API layer in `tests/test_dispatch_api.py::TestTheNoteThatAuthorisesARun`:
+    a note written through the same endpoint by an agent leaves the task refused with
+    `not_human_clocked`; only the human''s note authorises, and the run is attributed
+    to that entry''s id. The empty-log case is covered too -- 409 `no_causing_entry`,
+    then permitted after a human note.
+
+
+    Acceptance
+
+    - sc-1 met -- proven end to end by the Playwright spec.
+
+    - sc-2 met -- the three API tests above, plus the existing `TestHumanClockedRule`
+    suite, unchanged.
+
+    - sc-3 not applicable -- the causing act was not redefined; see the decision entry.
+
+    - sc-4 met -- both refusals now name "Add a note", the control that is on the
+    page, and a Vitest case asserts the browser''s copy beats the server''s generic
+    sentence for exactly those two reasons.'
+  data: {}
