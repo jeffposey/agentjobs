@@ -2,7 +2,7 @@ schema: 2
 id: task-191
 title: Run more than one agent at a time, and fix what that breaks
 created: '2026-08-20T07:19:15.553705Z'
-updated: '2026-08-20T20:04:30.727856Z'
+updated: '2026-08-20T20:17:36.533947Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -379,4 +379,58 @@ log:
     \ a genuinely different problem and it probably wants a retry policy rather than\
     \ a queue \u2014 but it is not this task's to answer, and today `auto_dispatch:\
     \ false` for this project.\n"
+  data: {}
+- id: 9
+  ts: '2026-08-20T20:17:36.533804Z'
+  actor: claude
+  type: progress
+  body: "Ceiling set to 3; branch green; two real dispatched runs in flight for ac-1\n\
+    \n**The ceiling is raised, the code and docs are on the branch, the branch's gate\
+    \ is green, and two real dispatched runs are in flight for ac-1.**\n\n### What\
+    \ is set, and where\n\n`~/.agentjobs/dispatch.yaml` now reads `limits.max_concurrent_runs:\
+    \ 3`, with a comment recording the date, the measurement and the reasoning. **That\
+    \ file is machine-local and in no repository** \u2014 nothing on this branch carries\
+    \ the value, and the shipped default in `src/agentjobs/dispatch/config.py:342`\
+    \ is deliberately still `1`. A fresh install of AgentJobs on another machine still\
+    \ gets a ceiling of 1 until its owner measures it.\n\n### On the branch `feat/task-191-raise-dispatch-concurrency`\n\
+    \n- `feat(dispatch): a ceiling refusal names the runs holding the slots` \u2014\
+    \ `describe_slot_holders` in `guards.py`, the rewritten `ConcurrencyLimitError`\
+    \ message, the API's `suggested_action`, the browser's stale \"this machine's\
+    \ only slot\" copy, and five tests across pytest and Vitest.\n- `docs(dispatch):\
+    \ how to choose the machine ceiling, and why it still refuses` \u2014 \xA77 of\
+    \ the design doc gains *Choosing the machine-wide ceiling* and *Does a raised\
+    \ ceiling imply a queue?*; `ENGINEERING.md`'s gate-timing paragraph is corrected.\n\
+    - `style(tests): black`.\n\nRebased onto `main` at `441838f`. **Gate green: `2049\
+    \ passed` pytest, `154 passed` Vitest across 22 files, `16 passed` Playwright,\
+    \ `EXIT=0`** \u2014 and worth noting, it took 307s *while both dispatched runs\
+    \ below were working*, so the branch's own gate is itself a concurrency data point.\n\
+    \n### ac-3, rendered against the real machine rather than a fixture\n\nWith two\
+    \ live runs actually on this machine, the branch's `describe_slot_holders` produces:\n\
+    \n```\nThis machine allows 3 concurrent run(s) and 2 are active: run_82e3fc79\
+    \ on\nagentjobs/task-155-scrub-personal-references (running), run_98fdd579 on\n\
+    agentjobs/task-180-open-children-count-in-filtered-views (running). Refused\n\
+    rather than queued: a queue turns this click into a promise to spend money\nlater,\
+    \ when nobody is watching. Cancel one of those runs, or dispatch this\nagain once\
+    \ one finishes.\n```\n\nAgainst the old sentence, which was the entire complaint:\
+    \ `2 run(s) already active and this machine allows 1.`\n\n### ac-1 in flight \u2014\
+    \ the two targets, and what will be done with them\n\nDispatched through the API\
+    \ on 8876 at 15:10:26 and 15:10:29, both admitted, both `running`. **At the old\
+    \ ceiling of 1 the second would have been refused**, which is the first half of\
+    \ ac-1 demonstrated by the dispatch itself.\n\n| Run | Task | Branch the agent\
+    \ took |\n|---|---|---|\n| `run_98fdd579` | `task-180-open-children-count-in-filtered-views`\
+    \ | `fix/task-180-open-children-count-corpus-wide` in `C:/projects/aj-180` |\n\
+    | `run_82e3fc79` | `task-155-scrub-personal-references` | `chore/task-155-neutral-fixture-names`\
+    \ in `C:/projects/aj-155` |\n\nBoth chosen as low-stakes targets: `effort: small`,\
+    \ no dependencies, no prior dispatch history, and disjoint from each other and\
+    \ from this branch \u2014 neither touches `dispatch/guards.py`, `DispatchPanel.tsx`\
+    \ or the design doc. Each dispatch wrote an authorising note under Jeff's name\
+    \ that says plainly it is task-191's ac-1 verification and that the run may be\
+    \ stopped before it concludes.\n\nEach agent took its own `git worktree` and its\
+    \ own branch without being told to, which is the isolation these criteria depend\
+    \ on. A watcher is recording, every 15 seconds, which of the three checkouts has\
+    \ a gate process alive \u2014 identified by its own Poetry virtualenv, so `aj-155`,\
+    \ `aj-180` and `aj-191` cannot be confused \u2014 and that log is the evidence\
+    \ for \"both gates pass, neither interferes\".\n\n**These runs will be stopped\
+    \ once that evidence exists rather than left to work open-endedly on someone else's\
+    \ task, and the state each is left in will be recorded here.**\n"
   data: {}
