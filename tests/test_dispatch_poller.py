@@ -22,6 +22,7 @@ from typing import List
 import pytest
 import yaml
 
+from agentjobs.dispatch.ledger import acquire_run_lock
 from agentjobs.dispatch.poller import (
     SESSION_POLL_SECONDS,
     poll_live_sessions,
@@ -204,6 +205,64 @@ class TestPollingFindsAndSettlesRuns:
         )
 
         assert [result.run_id for result in poll_live_sessions(home)] == []
+
+
+class TestTheLockIsReleasedByWhateverConcludesTheRun:
+    """ac-4: the completion path must not depend on an in-memory handle surviving.
+
+    A session's terminal write happens here, in the poller, not in the call that started
+    it -- that call returned minutes or hours earlier and took the ``RunLock`` object
+    with it. Until task-190 the handle rebuilt here left ``lock`` unset, so the release
+    in ``_finish_session`` was a silent no-op and every session run this settled stranded
+    its lock on disk. Two of the four locks found on 2026-08-20 were exactly that, held
+    by the live server that had started them.
+    """
+
+    def _lock_for(self, home: Path, run_id: str):
+        task_id = _run_meta(home, run_id)["task_id"]
+        lock = acquire_run_lock(home, task_id)
+        lock.adopt(run_id)
+        return lock
+
+    def test_settling_a_finished_session_releases_its_run_lock(self, machine) -> None:
+        home, _, manager, fake_cli = machine
+        run_id = _start_session(machine)
+        task_id = _run_meta(home, run_id)["task_id"]
+        lock = self._lock_for(home, run_id)
+        manager.handoff(
+            task_id,
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Please look at this.",
+        )
+        _set_ledger(fake_cli, [{"id": "b55b35ad", "status": "idle", "state": "done"}])
+
+        assert _results(home, run_id).phase is SessionPhase.FINISHED
+
+        assert not lock.path.exists(), "a settled session must not leave its lock behind"
+
+    def test_a_session_still_running_keeps_its_lock(self, machine) -> None:
+        home, _, _, fake_cli = machine
+        run_id = _start_session(machine)
+        lock = self._lock_for(home, run_id)
+        _set_ledger(fake_cli, [{"id": "b55b35ad", "status": "busy", "state": "working"}])
+
+        assert _results(home, run_id).phase is SessionPhase.RUNNING
+
+        assert lock.path.exists()
+        lock.release()
+
+    def test_a_session_the_ledger_has_lost_releases_its_lock_too(self, machine) -> None:
+        """GONE is a terminal path as much as FINISHED, and it went through the same no-op."""
+        home, _, _, fake_cli = machine
+        run_id = _start_session(machine)
+        lock = self._lock_for(home, run_id)
+        _set_ledger(fake_cli, [])
+
+        assert _results(home, run_id).phase is SessionPhase.GONE
+
+        assert not lock.path.exists()
 
 
 class TestRunsThatCannotBeFollowed:

@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 from agentjobs.dispatch.config import DispatchError, assert_dispatch_permitted
-from agentjobs.dispatch.ledger import RunRecord, live_runs
+from agentjobs.dispatch.ledger import RunLock, RunRecord, live_runs, locks_root
 from agentjobs.dispatch.runner import (
     DispatchRunError,
     DispatchRunner,
@@ -66,13 +66,24 @@ class PollResult:
         }
 
 
-def _handle_from(record: RunRecord) -> Optional[RunHandle]:
+def _handle_from(home: Path, record: RunRecord) -> Optional[RunHandle]:
     """Rebuild the handle ``poll_session`` needs from what the run wrote to disk.
 
     ``dispatch_entry_id`` is the one field worth being careful about. ``_ball_moved``
     returns False without it, which would make every finished session look like it
     stopped without handing off -- a wrong and alarming outcome written to a task that
     did nothing wrong. A run missing it is skipped rather than guessed at.
+
+    ``lock`` is the other one, and it was missing entirely until task-190. This handle
+    is a *rebuild*: the object the dispatch created lives on the stack of the call that
+    started the run, and by the time anything polls, that call has returned. So
+    ``_finish_session``'s ``handle.release_lock()`` -- the release on the ordinary
+    completion path for every session run there is -- was a silent no-op, because
+    ``lock`` was ``None`` and the method is ``if self.lock is not None``. Every session
+    the poller settled stranded its lock while the server that took it stayed up
+    holding the descriptor, which is what two of the four locks found on 2026-08-20
+    were. Attaching one here costs nothing (a lock is a task id and a path, not an open
+    file) and restores the release to the path that actually concludes sessions.
     """
     directory = RunDirectory(path=record.path)
     meta = directory.read_meta()
@@ -88,6 +99,11 @@ def _handle_from(record: RunRecord) -> Optional[RunHandle]:
         directory=directory,
         session_id=record.session_id,
         dispatch_entry_id=entry_id,
+        lock=RunLock(
+            task_id=record.task_id,
+            path=locks_root(home) / f"{record.task_id}.lock",
+            run_id=record.run_id,
+        ),
     )
 
 
@@ -120,7 +136,7 @@ def poll_live_sessions(
         if not record.is_session:
             continue
 
-        handle = _handle_from(record)
+        handle = _handle_from(home, record)
         if handle is None:
             results.append(
                 PollResult(record.run_id, None, "no session id or dispatch entry recorded")

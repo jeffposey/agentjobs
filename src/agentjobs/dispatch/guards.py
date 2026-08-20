@@ -619,6 +619,13 @@ def dispatch_task(
         lock.release()
         raise
 
+    # Only now does a run id exist to write into the lock. Until this line the lock says
+    # `run=` empty, and a lock that names no run can only be judged by the pid that took
+    # it -- which is the weaker of the two rules in `stale_lock_reason` and the one that
+    # cannot answer "has this run ended?". Naming it is what makes the lock reclaimable
+    # against the ledger, and therefore what stops a leaked one being permanent
+    # (task-190).
+    lock.adopt(handle.run_id)
     handle.lock = lock
     return handle
 
