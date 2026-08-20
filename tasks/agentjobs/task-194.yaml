@@ -3,7 +3,7 @@ id: task-194
 title: The dashboard on 8876 was serving an unmerged branch's code, from a .pth pointing
   at another worktree
 created: '2026-08-20T08:20:08.392609Z'
-updated: '2026-08-20T22:51:49.198918Z'
+updated: '2026-08-20T22:53:30.826678Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -436,3 +436,33 @@ log:
       id: 8d1c4b30-6e29-4f7a-b512-0a93e7c6d284
       kind: close
       fingerprint: 0f4bc5c560bb1c4061c5f29232d2433e
+- id: 15
+  ts: '2026-08-20T22:53:30.826346Z'
+  actor: claude
+  type: progress
+  body: "Delivered. The dashboard on 8876 is running the merged code and I checked\
+    \ rather\nthan assumed.\n\n- `C:/projects/aj-194` removed, `fix/task-194-import-path-guard`\
+    \ deleted locally\n  (was cd66b12). `git worktree list` is down to the main clone\
+    \ plus aj-155 and\n  aj-180, which belong to other agents.\n- Main clone's `agentjobs.pth`\
+    \ verified as `C:/projects/agentjobs/src` BEFORE\n  restarting. This mattered\
+    \ more than usual: the guard that just merged would have\n  refused to start the\
+    \ dashboard had it been wrong, and a restart is the moment that\n  would have\
+    \ surfaced.\n- `frontend/npm run build` rerun -- the only frontend delta was generated\
+    \ types, so\n  no visible change was expected and none appeared, but `frontend_dist/`\
+    \ is\n  gitignored and rebuilding is the cheaper habit.\n- Restarted through `C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -NoOpen`, not the CLI.\n- `/api/version` now returns `source_root: C:\\projects\\\
+    agentjobs`. That field is the\n  new one, so its presence is itself proof the\
+    \ process is post-merge, and its value\n  is proof the process is importing the\
+    \ clone it serves. `/app/` returns 200 and the\n  API reports this task as closed/completed\
+    \ with the branch merged.\n\nNot done, deliberately: nothing was pushed. `main`\
+    \ is 9 commits ahead of origin.\nApproval to merge is not approval to push, and\
+    \ this repository is public.\n\nTwo follow-ups this work surfaced, neither filed\
+    \ -- flagging rather than absorbing:\nthe Poetry cache holds ~84 `agentjobs-*`\
+    \ virtualenvs, one per worktree ever\nbootstrapped (log 5); and `merged_at` comes\
+    \ back null on the branch record even\nthough the status is `merged`, which may\
+    \ be nothing or may be a schema gap."
+  data:
+    operation:
+      id: c05e7a19-3b84-4d6e-9f27-1a48b2d6e903
+      kind: log_append
+      fingerprint: e0989eaeee3f86428dc060c84c493c91
