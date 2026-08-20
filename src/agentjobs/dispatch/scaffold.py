@@ -190,6 +190,23 @@ default_group: standard
 projects: {}
 
 # ----- limits: caps that apply however a run was started ----------------------
+#
+#     max_concurrent_runs: 1
+#
+#       How many agents this machine may run at once. It ships at 1 because this file
+#       is written on a machine nobody has measured, and the number that is right here
+#       depends on that machine rather than on AgentJobs: what binds is not the agents,
+#       which spend most of their wall clock reading and thinking, but the moments two
+#       of them run the project's test gate at the same time.
+#
+#       Raise it from a measurement, not from a guess. Run the project's full gate
+#       alone, then run N of them at once in separate checkouts, and compare. The
+#       number to keep is the largest N where each run still finishes in roughly the
+#       time it took alone -- past that, every agent on the machine is slower and the
+#       one watching starts to think the gate has hung.
+#
+#       It is deliberately NOT the guarantee that two agents stay off one task. That is
+#       the per-task run lock, it is not configurable, and it holds at any ceiling.
 limits:
   max_concurrent_runs: 1
   run_timeout_seconds: 1800      # batch runners only

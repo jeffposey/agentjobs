@@ -49,7 +49,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
 import yaml
 
@@ -409,6 +409,38 @@ def live_runs(home: Path) -> List[LiveRun]:
     return found
 
 
+#: How many slot holders a refusal names before it summarises the rest.
+#:
+#: A ceiling of three names three. A machine whose ceiling was raised to twenty and hit
+#: it would otherwise put twenty run ids into one sentence, which is a wall rather than
+#: an answer -- and the first few are enough to find the dashboard's run list from.
+SLOT_HOLDERS_NAMED = 6
+
+
+def describe_slot_holders(runs: Sequence[LiveRun]) -> str:
+    """The runs holding the machine's slots, named so a human can go and act on one.
+
+    A count is unactionable: "1 run(s) already active" tells you the machine is busy and
+    gives you nowhere to go, because a task page's run list shows only that task's runs
+    and the busy one is by definition a different task. Naming the task each run is
+    working turns the refusal into a destination.
+
+    A sentence rather than a structured field on purpose. The same refusal is read by
+    the browser, by ``agentjobs dispatch``, and through MCP, and only the message
+    reaches all three; a ``slot_holders`` list on the API's shared error body would
+    serve one surface and would put a concurrency-specific field on every refusal the
+    API can return.
+    """
+    named = [
+        f"{run.run_id} on {run.project_id or '?'}/{run.task_id or '?'} ({run.status})"
+        for run in runs[:SLOT_HOLDERS_NAMED]
+    ]
+    remaining = len(runs) - len(named)
+    if remaining > 0:
+        named.append(f"and {remaining} more")
+    return ", ".join(named)
+
+
 # ----- the whole precondition chain -------------------------------------------
 
 
@@ -546,10 +578,11 @@ def dispatch_task(
             )
     if len(running) >= resolution.limits.max_concurrent_runs:
         raise ConcurrencyLimitError(
-            f"{len(running)} run(s) already active and this machine allows "
-            f"{resolution.limits.max_concurrent_runs}. Refused rather than queued: a "
-            "queue turns this click into a promise to spend money later, when nobody "
-            "is watching. Cancel a run or try again."
+            f"This machine allows {resolution.limits.max_concurrent_runs} concurrent "
+            f"run(s) and {len(running)} are active: {describe_slot_holders(running)}. "
+            "Refused rather than queued: a queue turns this click into a promise to "
+            "spend money later, when nobody is watching. Cancel one of those runs, or "
+            "dispatch this again once one finishes."
         )
 
     # AgentJobs' own tasks directory is excluded from this. A project that keeps its task

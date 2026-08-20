@@ -461,7 +461,10 @@ _DISPATCH_ACTION: dict = {
     "no_causing_entry": "Write the note or handoff that authorises this run first.",
     "task_closed": "Reopen the task before dispatching at it.",
     "live_run_exists": "Wait for the run to finish, or cancel it.",
-    "concurrency_limit": "Wait for a run to finish, or raise max_concurrent_runs.",
+    "concurrency_limit": (
+        "Cancel one of the runs named above, wait for one to finish, or raise "
+        "limits.max_concurrent_runs in ~/.agentjobs/dispatch.yaml."
+    ),
     "dirty_tree": "Commit or stash the working tree, then dispatch.",
     "claim_lost": "Someone else took it. Re-read the task before deciding again.",
     "owner_mismatch": "Release the task, or dispatch the runner that owns it.",

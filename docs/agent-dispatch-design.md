@@ -1214,7 +1214,7 @@ the tool second-guessing its owner about his own money.
 | Limit | Default | On trip |
 |---|---|---|
 | Live runs per task | 1, always | Refuse the second immediately |
-| Concurrent runs machine-wide | 1 | Refuse (do not queue — see below) |
+| Concurrent runs machine-wide | 1 as shipped; set per machine from a measurement | Refuse (do not queue — see below) |
 | Wall-clock per run (**batch only**) | 1800s | Terminate the run; `dispatch_result: timeout`; ball → human |
 | Staleness (**session only**) | 3600s idle with an unmoved ball | `finished_without_handoff`; ball → human. **The session is not killed** (§9) |
 
@@ -1232,6 +1232,97 @@ worse UX and better behaviour.
 Defaults were chosen conservative (D3) on the explicit understanding that they are cheap
 to raise once auto-dispatch has been boring for a while, and expensive to discover you
 needed after a bad night.
+
+### Choosing the machine-wide ceiling (task-191, 2026-08-20)
+
+**The ceiling is a machine-local number and it ships at 1 for a machine nobody has
+measured.** `limits.max_concurrent_runs` lives in `~/.agentjobs/dispatch.yaml`, which is
+never in a repository, so nothing here prescribes a value — it prescribes how to arrive
+at one, and records what happened when this project's own machine was measured.
+
+**Measure the gate, not the agents.** An agent spends most of its wall clock reading,
+thinking and editing, none of which contends with anything. The moments that contend are
+the ones where two of them run the project's full test gate at once. So the measurement
+is: run the gate alone, then run N of them at once in separate checkouts, and compare
+worst-case wall clock against the solo run. This is only meaningful once concurrent gates
+are *possible* — see task-187, which is why every checkout now derives its own Playwright
+and benchmark ports from its own filesystem path.
+
+**What that produced here** (Ryzen 9 5900XT, 16 cores / 32 threads, 64 GB; 2026-08-20,
+with one AgentJobs server generation resident and 22 hand-started Claude Code processes
+already using 7.3 GB):
+
+| Simultaneous gates | Worst-case wall clock | vs solo | Peak CPU |
+|---|---|---|---|
+| 1 | 355s | — | ~20% |
+| 2 | 388s | +9% | ~25% |
+| 4 | 411s | +16% | ~46% |
+| 6 | 444s | +25% | brief 100% |
+
+Every run at every level passed. The degradation is sublinear and there is no cliff
+inside the range that was tried.
+
+**Two things follow, and the second is the one that decides the number.**
+
+*The gate is not the binding constraint on this machine.* The spec for task-191 predicted
+it would be, and the earlier figure on task-187 — two gates taking roughly 25 minutes —
+implied a cliff at two. That figure does not reproduce; it was taken before roughly 20
+stale server generations were killed off this machine (task-196) and before a task-record
+error that failed `test_agentjobs_context_paths_exist` on `main` was found. Whatever
+eventually binds here is further out than four simultaneous gates.
+
+*What binds instead is the human, and that is §2 doing its job rather than a shortfall.*
+Every run that finishes is a review request, and the loop is human-clocked by design. A
+ceiling above what one person can hold in their head does not produce more merged work;
+it produces a queue of unreviewed branches, which is the queue this section refuses,
+relocated into a person. The machine-wide ceiling is therefore set from **review
+bandwidth bounded by a measurement**, not from the measurement alone.
+
+**The ceiling counts dispatched runs and nothing else.** A session a human starts by hand
+is invisible to it. On the machine above that is not a corner case — two or three are
+normally open — so the value must leave the machine headroom for work the cap cannot see.
+That is why the worst case worth measuring at a ceiling of N is N + the hand-started
+sessions, which is what the six-gate row is.
+
+**Set to 3 on this project's machine.** Six simultaneous gates is the honest worst case at
+that ceiling, it costs 25%, and it passes. Rejected: *6 or higher*, which the hardware
+would take and the reviewer would not, and which would spend the headroom the invisible
+hand-started sessions need; *2*, which leaves measured headroom unused for no stated
+reason; and *raising the shipped default in `config.py`*, because one 16-core machine's
+numbers are not a laptop's and the setting is machine-local precisely so its owner
+decides.
+
+### Does a raised ceiling imply a queue? No — and the reason gets stronger, not weaker
+
+Answered here so it stops being re-opened by whoever next finds the refusal annoying
+(task-191, ac-5).
+
+The recorded reason for refusing is that **a queue turns this click into a promise to
+spend money later, when nobody is watching.** Raising the ceiling does not weaken that
+argument. It sharpens it, in two ways:
+
+- At a ceiling of 1, a queued dispatch would start within minutes, because the thing
+  ahead of it is one run. At a ceiling of 3 the machine is only ever full when three
+  agents are already working, which is exactly the moment a queued fourth would sit
+  longest and start furthest from the click that authorised it. The gap between "I meant
+  this" and "this ran" is widest precisely where a queue would be doing its work.
+- §2's rule is that a run is attributed to a human log entry that caused it. A queue
+  breaks the timing that rule depends on: the entry is written now, the run happens at an
+  unpredictable later moment, and the authorisation the guard checks has meanwhile become
+  a statement about a repository state that no longer exists. `require_clean_tree`,
+  `claim_lost` and `owner_mismatch` are all judged at spawn time for this reason, and a
+  queued run would fail them at a moment nobody is present to read the failure.
+
+**And the refusal is now cheap to act on**, which was the other half of the complaint. It
+names the runs holding the slots and the task each is working, rather than reporting a
+count — so "busy, try again" comes with somewhere to go. A count was a dead end on the
+task page specifically, because that page's run list shows only *this* task's runs and the
+run occupying the machine is by definition on a different task.
+
+What would reopen this: auto-dispatch becoming the normal way runs start. The refusal is
+right for a click, because a person is there to read it. A condition that fires on its own
+and is refused has nobody to tell, and that is a genuinely different problem — it wants a
+retry policy rather than a queue, and it is not this section's answer to give.
 
 ---
 

@@ -47,10 +47,21 @@ source rather than a neighbouring one's.
     `poetry run mypy .` had been aborting on a module-name collision before it checked
     a single file, and a Black drift sitting on `main`, both surviving for exactly that
     reason.
--   Budget **about five minutes**, measured 2026-08-19: ~7s for Black, Ruff and MyPy,
-    1779 Python tests in 3m25s, then about 70s for the frontend half — 124 Vitest
-    component tests, the production build, and 11 Playwright tests against a live
-    server.
+-   Budget **about six minutes when you have the machine to yourself**, measured
+    2026-08-20: ~7s for Black, Ruff and MyPy, 2046 Python tests in 4m33s, then about
+    70s for the frontend half — 153 Vitest component tests across 22 files, the
+    production build, and 16 Playwright tests against a live server. 355s in total.
+-   **Budget longer when you do not, and do not read slow as hung.** Several agents work
+    this repository at once and this machine now allows three dispatched runs, so gates
+    overlapping is the normal case rather than an unusual one. Measured the same day, on
+    the same machine, all green: **two simultaneous gates 388s (+9%), four 411s (+16%),
+    six 444s (+25%)** — worst case per run, against the 355s above. The degradation is
+    gradual and there is no cliff, so **a gate that has been quiet for eight minutes is
+    working, not stuck.** This paragraph exists because the previous figure said five
+    minutes flat, and an agent that believes five minutes is the whole story kills a run
+    that was about to pass. Concurrent gates are only safe at all because each checkout
+    derives its own Playwright and benchmark ports from its own path (task-187); if you
+    see a port collision, that is a bug and not a reason to serialise.
 -   Ensure high test coverage for core logic (`manager.py`, `storage.py`).
 
 ### Measuring performance

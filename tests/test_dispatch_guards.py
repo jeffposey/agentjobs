@@ -15,7 +15,7 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import pytest
 import yaml
@@ -35,12 +35,14 @@ from agentjobs.dispatch.guards import (
     DirtyTreeError,
     DispatchRequest,
     DispatchRefused,
+    LiveRun,
     LiveRunExistsError,
     NoCausingEntryError,
     OwnerMismatchError,
     RecordCannotBriefError,
     TaskClosedError,
     assert_human_clocked,
+    describe_slot_holders,
     dispatch_task,
     live_runs,
     record_can_brief,
@@ -117,6 +119,7 @@ def write_dispatch_config(
     *,
     enabled: bool = True,
     project_enabled: bool = True,
+    limits: Optional[Dict[str, object]] = None,
     **project_overrides: object,
 ) -> Path:
     """A machine-local dispatch config that permits 'sandbox' unless told otherwise.
@@ -124,10 +127,14 @@ def write_dispatch_config(
     ``enabled`` is the master switch and ``project_enabled`` is the per-project gate.
     They are separate parameters because they are separate gates, and a test that
     conflated them would prove nothing about either.
+
+    ``limits`` writes the machine-wide caps. It exists so a test can raise
+    ``max_concurrent_runs`` above 1 and check what still refuses at the higher ceiling
+    -- the per-task lock, which is a different guarantee and must not move with it.
     """
     entry = {"enabled": project_enabled, "runner": "fake", "require_clean_tree": True}
     entry.update(project_overrides)
-    config = {
+    config: Dict[str, object] = {
         "version": 1,
         "enabled": enabled,
         "runners": {
@@ -140,6 +147,8 @@ def write_dispatch_config(
         },
         "projects": {"sandbox": entry},
     }
+    if limits is not None:
+        config["limits"] = limits
     path = home / "dispatch.yaml"
     path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
     return path
@@ -187,6 +196,21 @@ def settle(handle) -> None:
     """Let a batch supervisor finish so it does not race the next assertion."""
     if handle.supervisor is not None:
         handle.supervisor.join(timeout=30)
+
+
+def hold_live(handle) -> None:
+    """Make a finished run read as live, and keep reading that way.
+
+    Writing ``status="running"`` on its own is a race, not a fact: the fake runner exits
+    at once and its supervisor is still on its way to writing a terminal status, so the
+    freeze survives only if the next assertion arrives first. That is fine for a test
+    that refuses immediately and wrong for one that starts a second run in between --
+    which is how the raised-ceiling test failed the first time it ran.
+
+    Joining the supervisor before freezing removes the writer instead of outrunning it.
+    """
+    settle(handle)
+    handle.directory.update_meta(status="running")
 
 
 # ----- the rule ---------------------------------------------------------------
@@ -535,6 +559,13 @@ class TestConcurrency:
 
         assert caught.value.reason == "concurrency_limit"
         assert len(live_runs(home)) == 1, "a refused dispatch must not leave a run behind"
+
+        # A count is unactionable: the task page's run list shows only that task's runs,
+        # so the run holding the slot is by definition one this page cannot show. The
+        # refusal has to name it, and name the task it is working.
+        message = str(caught.value)
+        assert first.run_id in message, message
+        assert ready_task.id in message, message
         settle(first)
 
     def test_a_concurrent_double_dispatch_starts_exactly_one_process(
@@ -565,6 +596,95 @@ class TestConcurrency:
         assert isinstance(refusals[0], (ClaimLostError, LiveRunExistsError, ConcurrencyLimitError))
         for handle in handles:
             settle(handle)
+
+    def test_the_per_task_lock_still_refuses_at_a_raised_ceiling(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """The machine ceiling and the per-task lock are different guarantees.
+
+        Raising ``max_concurrent_runs`` is a throughput decision about how much this
+        machine may spend at once. "One live run per task" is a correctness decision
+        about not putting two agents on one branch with one task record. This test
+        exists because the two are easy to conflate, and conflating them is how the
+        second becomes collateral damage of the first: with the ceiling at four, three
+        slots are free, and nothing but the per-task rule stands between a second
+        dispatch and a second agent on the same task.
+        """
+        write_dispatch_config(
+            home, fake_runner, require_clean_tree=False, limits={"max_concurrent_runs": 4}
+        )
+        # Named explicitly because holding the first run live settles its supervisor,
+        # which appends an agent-authored dispatch_result. Defaulting to the newest entry
+        # would then be refused as not-human-clocked -- a true refusal, and not the one
+        # under test.
+        authorising = ready_task.log[-1].id
+
+        first = run(manager, project, home, ready_task.id, caused_by=authorising)
+        hold_live(first)
+
+        assert len(live_runs(home)) == 1, "three of the four slots are free"
+
+        with pytest.raises(LiveRunExistsError) as caught:
+            run(manager, project, home, ready_task.id, caused_by=authorising)
+
+        assert caught.value.reason == "live_run_exists"
+        assert first.run_id in str(caught.value)
+        assert len(live_runs(home)) == 1, "the refusal must not have started anything"
+
+    def test_a_raised_ceiling_admits_a_second_task_and_then_refuses(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """Two runs fit under a ceiling of two; the third is refused, naming both."""
+        write_dispatch_config(
+            home, fake_runner, require_clean_tree=False, limits={"max_concurrent_runs": 2}
+        )
+        others = []
+        for title in ("Second", "Third"):
+            task = manager.create_task(
+                title=title,
+                category="general",
+                summary="s",
+                description="d",
+                lifecycle=Lifecycle.READY,
+                actor="Jeff Posey",
+            )
+            manager.add_log_entry(task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go.")
+            others.append(task.id)
+
+        first = run(manager, project, home, ready_task.id)
+        hold_live(first)
+        second = run(manager, project, home, others[0])
+        hold_live(second)
+
+        assert len(live_runs(home)) == 2, "both slots are legitimately in use"
+
+        with pytest.raises(ConcurrencyLimitError) as caught:
+            run(manager, project, home, others[1])
+
+        message = str(caught.value)
+        assert "allows 2 concurrent" in message, message
+        for run_id, task_id in ((first.run_id, ready_task.id), (second.run_id, others[0])):
+            assert run_id in message, message
+            assert task_id in message, message
+
+    def test_a_refusal_summarises_rather_than_listing_every_holder(self) -> None:
+        """A ceiling raised high enough to hold twenty runs must not print twenty."""
+        holders = [
+            LiveRun(
+                run_id=f"run_{index:04d}",
+                task_id=f"task-{index:03d}",
+                project_id="sandbox",
+                status="running",
+                path=Path("."),
+            )
+            for index in range(9)
+        ]
+        described = describe_slot_holders(holders)
+
+        assert "run_0000 on sandbox/task-000 (running)" in described
+        assert "run_0005" in described, "the sixth is the last one named"
+        assert "run_0006" not in described, "the seventh is summarised, not named"
+        assert "and 3 more" in described
 
     def test_a_terminal_run_does_not_count_as_live(
         self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
