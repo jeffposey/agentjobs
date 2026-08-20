@@ -4554,7 +4554,7 @@
     },
     "/api/projects/{project_id}/search": {
       "get": {
-        "description": "Search tasks using a case-insensitive substring query.",
+        "description": "Search tasks using a case-insensitive substring query.\n\nRows carry the same computed dependency facts as ``GET /tasks`` -- ``actionable``,\n``unmet_needs``, ``open_children_count`` -- so a result can be acted on without a\nsecond request per row.",
         "operationId": "search_tasks_api_projects__project_id__search_get",
         "parameters": [
           {
@@ -4582,7 +4582,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/Task"
+                    "$ref": "#/components/schemas/TaskRead-Output"
                   },
                   "title": "Response Search Tasks Api Projects  Project Id  Search Get",
                   "type": "array"
@@ -6352,7 +6352,7 @@
     },
     "/api/search": {
       "get": {
-        "description": "Search tasks using a case-insensitive substring query.",
+        "description": "Search tasks using a case-insensitive substring query.\n\nRows carry the same computed dependency facts as ``GET /tasks`` -- ``actionable``,\n``unmet_needs``, ``open_children_count`` -- so a result can be acted on without a\nsecond request per row.",
         "operationId": "search_tasks_api_search_get",
         "parameters": [
           {
@@ -6371,7 +6371,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/Task"
+                    "$ref": "#/components/schemas/TaskRead-Output"
                   },
                   "title": "Response Search Tasks Api Search Get",
                   "type": "array"

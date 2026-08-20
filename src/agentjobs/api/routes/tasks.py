@@ -51,11 +51,6 @@ from ..models import (
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
-def _read_tasks(manager: TaskManager, tasks: List[Task]) -> List[TaskRead]:
-    facts = manager.dependency_facts()
-    return [TaskRead.from_task(task, facts[task.id]) for task in tasks]
-
-
 def _relation(
     task_id: str,
     *,
@@ -158,7 +153,7 @@ async def list_tasks(
     tasks = manager.list_tasks(
         lifecycle=lifecycle, ball=ball, priority=priority_filter, parent=parent
     )
-    return _read_tasks(manager, tasks)
+    return TaskRead.from_tasks(manager, tasks)
 
 
 @router.get("/broken", response_model=List[BrokenTaskFile])

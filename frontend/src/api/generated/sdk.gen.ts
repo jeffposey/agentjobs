@@ -271,6 +271,10 @@ export const getProjectRevisionApiProjectsProjectIdRevisionGet = <ThrowOnError e
  * Search Tasks
  *
  * Search tasks using a case-insensitive substring query.
+ *
+ * Rows carry the same computed dependency facts as ``GET /tasks`` -- ``actionable``,
+ * ``unmet_needs``, ``open_children_count`` -- so a result can be acted on without a
+ * second request per row.
  */
 export const searchTasksApiProjectsProjectIdSearchGet = <ThrowOnError extends boolean = false>(options: Options<SearchTasksApiProjectsProjectIdSearchGetData, ThrowOnError>) => (options.client ?? client).get<SearchTasksApiProjectsProjectIdSearchGetResponses, SearchTasksApiProjectsProjectIdSearchGetErrors, ThrowOnError>({ url: '/api/projects/{project_id}/search', ...options });
 
@@ -618,6 +622,10 @@ export const getProjectRevisionApiRevisionGet = <ThrowOnError extends boolean = 
  * Search Tasks
  *
  * Search tasks using a case-insensitive substring query.
+ *
+ * Rows carry the same computed dependency facts as ``GET /tasks`` -- ``actionable``,
+ * ``unmet_needs``, ``open_children_count`` -- so a result can be acted on without a
+ * second request per row.
  */
 export const searchTasksApiSearchGet = <ThrowOnError extends boolean = false>(options: Options<SearchTasksApiSearchGetData, ThrowOnError>) => (options.client ?? client).get<SearchTasksApiSearchGetResponses, SearchTasksApiSearchGetErrors, ThrowOnError>({ url: '/api/search', ...options });
 

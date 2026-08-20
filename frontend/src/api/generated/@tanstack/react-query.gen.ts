@@ -549,6 +549,10 @@ export const searchTasksApiProjectsProjectIdSearchGetQueryKey = (options: Option
  * Search Tasks
  *
  * Search tasks using a case-insensitive substring query.
+ *
+ * Rows carry the same computed dependency facts as ``GET /tasks`` -- ``actionable``,
+ * ``unmet_needs``, ``open_children_count`` -- so a result can be acted on without a
+ * second request per row.
  */
 export const searchTasksApiProjectsProjectIdSearchGetOptions = (options: Options<SearchTasksApiProjectsProjectIdSearchGetData>) => queryOptions<SearchTasksApiProjectsProjectIdSearchGetResponse, SearchTasksApiProjectsProjectIdSearchGetError, SearchTasksApiProjectsProjectIdSearchGetResponse, ReturnType<typeof searchTasksApiProjectsProjectIdSearchGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -1144,6 +1148,10 @@ export const searchTasksApiSearchGetQueryKey = (options: Options<SearchTasksApiS
  * Search Tasks
  *
  * Search tasks using a case-insensitive substring query.
+ *
+ * Rows carry the same computed dependency facts as ``GET /tasks`` -- ``actionable``,
+ * ``unmet_needs``, ``open_children_count`` -- so a result can be acted on without a
+ * second request per row.
  */
 export const searchTasksApiSearchGetOptions = (options: Options<SearchTasksApiSearchGetData>) => queryOptions<SearchTasksApiSearchGetResponse, SearchTasksApiSearchGetError, SearchTasksApiSearchGetResponse, ReturnType<typeof searchTasksApiSearchGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

@@ -455,6 +455,78 @@ def test_search_finds_a_task_by_its_id(api_client) -> None:
         assert [task["id"] for task in response.json()] == [created.id]
 
 
+def _umbrella_with_children(manager, *, children: int = 3):
+    """An umbrella whose children share neither a searchable word nor its priority.
+
+    Both separations matter: a search for the umbrella cannot match the children, and
+    a filter on the umbrella's priority cannot return them either. That is the point
+    of the fixture -- the view holding the parent must still know how many open
+    children it has when not one of them is in the view.
+    """
+    parent = manager.create_task(
+        title="Zebra umbrella",
+        description="Zebra umbrella.",
+        priority=Priority.HIGH,
+        category="test",
+        lifecycle=Lifecycle.READY,
+    )
+    for index in range(children):
+        manager.create_task(
+            title=f"Quokka child {index}",
+            description="Quokka child.",
+            priority=Priority.LOW,
+            category="test",
+            lifecycle=Lifecycle.READY,
+            parent=parent.id,
+        )
+    return parent
+
+
+def test_search_reports_open_children_outside_the_result_set(api_client) -> None:
+    """A search that matches only the parent still reports its real child count.
+
+    Regression for task-180: `/search` answered with bare stored tasks, so the field
+    was absent and every consumer that defaulted it saw 0 -- indistinguishable from a
+    parent with no open children at all.
+    """
+    client, manager = api_client
+    parent = _umbrella_with_children(manager, children=3)
+
+    response = client.get("/api/search", params={"q": "Zebra"})
+    assert response.status_code == 200
+    rows = response.json()
+    assert [row["id"] for row in rows] == [parent.id]
+    assert rows[0]["open_children_count"] == 3
+    assert rows[0]["actionable"] is False
+
+
+def test_filtered_list_reports_open_children_outside_the_filter(api_client) -> None:
+    """Same guarantee for a list whose filter excludes the children."""
+    client, manager = api_client
+    parent = _umbrella_with_children(manager, children=3)
+
+    response = client.get("/api/tasks", params={"priority": "high"})
+    assert response.status_code == 200
+    rows = response.json()
+    assert [row["id"] for row in rows] == [parent.id]
+    assert rows[0]["open_children_count"] == 3
+
+
+def test_zero_open_children_means_zero(api_client) -> None:
+    """The counterpart: a task with no children reports 0, and it is trustworthy."""
+    client, manager = api_client
+    created = manager.create_task(
+        title="Zebra solo",
+        description="No children.",
+        priority=Priority.HIGH,
+        category="test",
+        lifecycle=Lifecycle.READY,
+    )
+    rows = client.get("/api/search", params={"q": "Zebra"}).json()
+    assert [row["id"] for row in rows] == [created.id]
+    assert rows[0]["open_children_count"] == 0
+
+
 def test_a_needs_relation_names_the_outcome_it_was_closed_with(api_client) -> None:
     """A closed blocker said `it is done` whether it was finished or abandoned."""
     client, manager = api_client
