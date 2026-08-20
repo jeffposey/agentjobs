@@ -3,10 +3,11 @@ id: task-182-clean-tree-versus-in-repo-tasks
 title: require_clean_tree refuses every dispatch in a project whose task files live
   in its own repo
 created: '2026-08-19T20:50:13.107702Z'
-updated: '2026-08-20T00:21:18.800821Z'
-lifecycle: ready
+updated: '2026-08-20T00:38:13.646197Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 category: reliability
@@ -16,6 +17,7 @@ tags:
 - git
 effort: small
 assignment:
+  owner: claude
   eligible: []
 parent: task-181-dispatch-phase-one-hardening
 spec:
@@ -76,7 +78,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-182-clean-tree-check
+  status: active
 log:
 - id: 1
   ts: '2026-08-19T20:50:13.107742Z'
@@ -177,3 +181,12 @@ log:
     \ longer passes `-w`. That backstop cannot do its job while it fires on AgentJobs'\
     \ own writes; the design doc now says so explicitly and points here."
   data: {}
+- id: 5
+  ts: '2026-08-20T00:38:04.431974Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
