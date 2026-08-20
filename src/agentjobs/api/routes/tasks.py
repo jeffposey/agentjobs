@@ -6,7 +6,7 @@ import base64
 import binascii
 from typing import Any, Dict, List, Optional, Sequence
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -27,7 +27,7 @@ from agentjobs.models_v2 import (
     Task,
 )
 
-from .status import acting_actor, get_acting_project
+from .status import acting_actor, get_acting_project, serving_api_base
 from ..dependencies import (
     current_identity,
     get_project,
@@ -493,7 +493,9 @@ class RejectActionRequest(HumanActionRequest):
     )
 
 
-def after_human_handoff(manager: TaskManager, project: Project, task: Task) -> Task:
+def after_human_handoff(
+    manager: TaskManager, project: Project, task: Task, request: Request
+) -> Task:
     """Start an agent if this project opted into auto-dispatch, and never fail.
 
     Called after a human action that has already been written, so the task's newest log
@@ -504,12 +506,18 @@ def after_human_handoff(manager: TaskManager, project: Project, task: Task) -> T
     Auto-dispatch reports its own refusals onto the task record and returns rather than
     raising; the task is re-read afterwards so the caller answers with what is now on
     disk, including a run that just started or a cap that just parked it.
+
+    ``request`` is taken purely for the serving address, so an agent started by Approve
+    is told the same thing as one started by Dispatch. The two paths reaching different
+    answers is exactly the failure task-154 fixed, and passing the request is what makes
+    them the same code rather than the same constant written twice.
     """
     outcome = maybe_auto_dispatch(
         manager=manager,
         project=project,
         project_config=project_config(project),
         task=task,
+        api_base=serving_api_base(request),
     )
     if not outcome.considered:
         return task
@@ -519,6 +527,7 @@ def after_human_handoff(manager: TaskManager, project: Project, task: Task) -> T
 @router.post("/{task_id}/approve", response_model=HumanActionResponse)
 async def approve_task(
     task_id: str,
+    request: Request,
     payload: HumanActionRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
@@ -545,7 +554,7 @@ async def approve_task(
             ),
             body=f"Approved by {user} through the web UI.",
         )
-        return HumanActionResponse(task=after_human_handoff(manager, project, task))
+        return HumanActionResponse(task=after_human_handoff(manager, project, task, request))
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -556,6 +565,7 @@ async def approve_task(
 @router.post("/{task_id}/request-changes", response_model=HumanActionResponse)
 async def request_changes(
     task_id: str,
+    request: Request,
     payload: FeedbackActionRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
@@ -580,7 +590,7 @@ async def request_changes(
         # Requesting changes is a human act that moves the ball to an agent, exactly as
         # approving is. Covering only Approve would mean the one handoff that always
         # comes with instructions attached is the one that needs a second click.
-        return HumanActionResponse(task=after_human_handoff(manager, project, task))
+        return HumanActionResponse(task=after_human_handoff(manager, project, task, request))
     except AttachmentError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except ValueError as exc:

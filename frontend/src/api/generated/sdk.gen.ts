@@ -434,6 +434,11 @@ export const getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGet = <ThrowOnErr
  *
  * 202 rather than 200: the run has started, and how it ends arrives later as
  * ``dispatch_result`` entries on the task, not in this response.
+ *
+ * The address handed to the agent is this server's own, taken from the socket the
+ * request arrived on. Until 2026-08-19 nothing was passed and the runner's default
+ * won, so a dashboard on any other port dispatched agents at ``:8765`` -- an address
+ * that, on the machine this was built for, is deliberately dead (task-154).
  */
 export const dispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPost = <ThrowOnError extends boolean = false>(options: Options<DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostData, ThrowOnError>) => (options.client ?? client).post<DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostResponses, DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostErrors, ThrowOnError>({
     url: '/api/projects/{project_id}/tasks/{task_id}/dispatch',
@@ -761,6 +766,11 @@ export const getTaskDetailApiTasksTaskIdDetailGet = <ThrowOnError extends boolea
  *
  * 202 rather than 200: the run has started, and how it ends arrives later as
  * ``dispatch_result`` entries on the task, not in this response.
+ *
+ * The address handed to the agent is this server's own, taken from the socket the
+ * request arrived on. Until 2026-08-19 nothing was passed and the runner's default
+ * won, so a dashboard on any other port dispatched agents at ``:8765`` -- an address
+ * that, on the machine this was built for, is deliberately dead (task-154).
  */
 export const dispatchTaskEndpointApiTasksTaskIdDispatchPost = <ThrowOnError extends boolean = false>(options: Options<DispatchTaskEndpointApiTasksTaskIdDispatchPostData, ThrowOnError>) => (options.client ?? client).post<DispatchTaskEndpointApiTasksTaskIdDispatchPostResponses, DispatchTaskEndpointApiTasksTaskIdDispatchPostErrors, ThrowOnError>({
     url: '/api/tasks/{task_id}/dispatch',

@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import JSONResponse
 
 from agentjobs.actors import UnknownActorError, validate_actor
+from agentjobs.dispatch.address import api_base_from_server
 from agentjobs.dispatch.config import DispatchError
 from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
 from agentjobs.dispatch.runner import DispatchRunError
@@ -457,6 +458,22 @@ _DISPATCH_ACTION: dict = {
 }
 
 
+def serving_api_base(request: Request) -> Optional[str]:
+    """The address this server is actually listening on, for a dispatch to hand over.
+
+    ``scope["server"]`` is the listening socket's own name, which is why it is used in
+    preference to the ``Host`` header: the dashboard is commonly published through a
+    proxy, and the header then names an address that means nothing to the agent process
+    starting on this machine. ``None`` when the ASGI server did not supply one, which
+    hands the question back to ``dispatch/address.py`` rather than guessing.
+    """
+    server = request.scope.get("server")
+    if not server:
+        return None
+    host, port = server
+    return api_base_from_server(host, port)
+
+
 @router.post(
     "/{task_id}/dispatch",
     response_model=DispatchStarted,
@@ -464,6 +481,7 @@ _DISPATCH_ACTION: dict = {
 )
 async def dispatch_task_endpoint(
     task_id: str,
+    request: Request,
     payload: DispatchRequestBody = DispatchRequestBody(),
     manager: TaskManager = Depends(get_task_manager),
     project: Project = Depends(get_acting_project),
@@ -476,6 +494,11 @@ async def dispatch_task_endpoint(
 
     202 rather than 200: the run has started, and how it ends arrives later as
     ``dispatch_result`` entries on the task, not in this response.
+
+    The address handed to the agent is this server's own, taken from the socket the
+    request arrived on. Until 2026-08-19 nothing was passed and the runner's default
+    won, so a dashboard on any other port dispatched agents at ``:8765`` -- an address
+    that, on the machine this was built for, is deliberately dead (task-154).
     """
     try:
         handle = dispatch_task(
@@ -485,6 +508,7 @@ async def dispatch_task_endpoint(
             request=DispatchRequest(
                 task_id=task_id, caused_by=payload.caused_by, group=payload.group
             ),
+            api_base=serving_api_base(request),
         )
     except DispatchRunError as exc:
         raise _error(
