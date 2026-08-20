@@ -3,7 +3,7 @@ id: task-188
 title: 'Dispatch is one click: the button writes the authorising entry, and asks for
   text only when the record cannot brief an agent'
 created: '2026-08-20T05:46:50.740562Z'
-updated: '2026-08-20T07:35:09.011238Z'
+updated: '2026-08-20T08:38:32.970578Z'
 lifecycle: active
 ball: agent
 ball_reason: revise
@@ -164,36 +164,43 @@ acceptance:
 - id: ac-1
   text: Pressing Dispatch on a ready, agent-filed task with a complete spec starts
     a run with no note written by hand first
-  status: pending
+  verify: poetry run pytest tests/test_dispatch_guards.py -k a_complete_agent_filed_task_dispatches_with_no_note_written_by_hand
+  status: met
 - id: ac-2
   text: "The run's causing entry is a real log entry on the stored task, attributed\
     \ to the signed-in human, and is resolved from storage rather than from the request\
     \ \u2014 pinned by a test that fails if the request body is trusted"
-  status: pending
+  verify: poetry run pytest tests/test_dispatch_guards.py -k "causing_entry_is_a_real_stored_entry_by_the_named_human
+    or reads_its_evidence_from_storage_not_from_the_request"
+  status: met
 - id: ac-3
   text: An agent still cannot cause a dispatch, pinned by a test
-  status: pending
+  verify: poetry run pytest tests/test_dispatch_guards.py -k "an_agent_cannot_authorize_a_dispatch
+    or TestHumanClockedRule"
+  status: met
 - id: ac-4
   text: A task whose record cannot brief an agent prompts for text, that text becomes
     the authorising entry's body, and the trigger is keyed on the spec rather than
     on ball_prompt
-  status: pending
+  verify: poetry run pytest tests/test_dispatch_guards.py -k TestSufficiency
+  status: met
 - id: ac-5
   text: 'Measured against the live corpus after the change: the prompt-for-text path
     fires on the tasks that genuinely lack a spec and on no others'
-  status: pending
+  status: met
 - id: ac-6
   text: A dispatch with no signed-in user does something stated and tested, rather
     than writing an entry attributed to nobody
-  status: pending
+  verify: poetry run pytest tests/test_dispatch_guards.py -k no_authorizing_user_falls_back_to_the_stored_rule
+  status: met
 - id: ac-7
   text: "docs/agent-dispatch-design.md \xA72, \xA72a and \xA75 agree with the shipped\
     \ behaviour, and say that the code had been enforcing the rule \xA72a superseded"
-  status: pending
+  status: met
 - id: ac-8
   text: The CLI and MCP dispatch paths still behave coherently, with their behaviour
     stated
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -740,3 +747,89 @@ log:
       id: 3a91f6d4-27c8-4b05-91e3-6d84b2c05f19
       kind: handoff
       fingerprint: f07b9aa40b8ac1702b9fc15299fabd7b
+- id: 16
+  ts: '2026-08-20T08:36:19.878712Z'
+  actor: claude
+  type: answer
+  body: "Answer: **option 1 \u2014 the sentence describes the authorisation, not the\
+    \ outcome.** `compose_authorization_body` now writes *\"Jeff Posey authorised\
+    \ a dispatch of this task from the task page. No extra instruction was given:\
+    \ the task record is the brief.\"* That is true whether or not `runner.start`\
+    \ went on to succeed, so the branch's one way of writing something untrue into\
+    \ a record is closed by wording rather than by control flow.\n\nWhy this over\
+    \ option 2 (append a second entry naming the refusal): the error path is where\
+    \ a write is least welcome, and it would be a write made while unwinding \u2014\
+    \ after the lock release in the `except BaseException`, or before it, both awkward\
+    \ \u2014 for information the caller already has as an exception and the browser\
+    \ already renders as a refusal. The `dispatch` entry's *absence* beside the authorisation\
+    \ is itself readable: a human authorised a run and no run entry followed. Option\
+    \ 2 remains available on top of this if a case ever shows up where that absence\
+    \ is not enough; option 1 does not have to be undone first.\n\nAnd, as the question\
+    \ said, not moving the write later. It sits inside the run lock and before the\
+    \ claim on purpose; that ordering is what makes the entry evidence resolved from\
+    \ storage rather than a justification riding on the request, so shrinking the\
+    \ window would cost the property the window exists to buy.\n\nPinned by `test_a_spawn_that_fails_leaves_an_authorisation_not_a_claimed_dispatch`\
+    \ in `tests/test_dispatch_guards.py`: monkeypatches `DispatchRunner.start` to\
+    \ raise, then asserts the stored record holds exactly one `note`, that it starts\
+    \ \"Jeff Posey authorised a dispatch of this task\", that it does *not* say \"\
+    Dispatched by\", that no `dispatch` entry exists, and that `live_runs` is empty.\
+    \ The design doc's \"What is checked, and what is merely claimed\" section now\
+    \ states the authorisation-not-outcome rule and why the window is deliberate."
+  re: 9
+  data: {}
+- id: 17
+  ts: '2026-08-20T08:36:50.132228Z'
+  actor: claude
+  type: decision
+  body: "**The refused-dispatch fix: `onDispatch` resolves `true` only when a run\
+    \ started, and the panel clears the textarea only on `true`.**\n\nEntry #10 sketched\
+    \ three shapes and prescribed none. Taken and rejected, with what rejecting each\
+    \ costs:\n\n**Chosen \u2014 a boolean return.** `onDispatch: (note?: string) =>\
+    \ Promise<boolean> | boolean` in `DispatchPanelProps`; `App.tsx`'s handler sets\
+    \ `started = true` immediately after the awaited mutation and returns it after\
+    \ the query invalidation; the form does `.then((started) => { if (started) setBrief(\"\
+    \"); })`. `boolean` rather than `boolean | void` is deliberate: a future caller\
+    \ that forgets to say whether it worked is a type error, not a silently emptied\
+    \ textarea. The no-brief caller is unaffected \u2014 it is `void onDispatch()`\
+    \ and ignores the value, which is correct because it has nothing to preserve.\n\
+    \n**Rejected \u2014 re-raise after recording the refusal**, which entry #10 called\
+    \ the cleanest. It is cleanest in the panel and worst at the call site: the one-click\
+    \ path invokes the handler as `void onDispatch()`, so an exception there becomes\
+    \ an unhandled promise rejection \u2014 a console error in the browser and a warning\
+    \ in jsdom \u2014 which every caller then has to `.catch(() => {})` purely to\
+    \ stay quiet. That is the same swallow this handler already performs, written\
+    \ a second time in every place that calls it, and the second copy is the one that\
+    \ will be forgotten.\n\n**Rejected \u2014 move the clear into the mutation's `onSuccess`.**\
+    \ The `brief` state lives in `DispatchPanel` and the mutation lives in `App`.\
+    \ Wiring one to the other means lifting the textarea's state out of the component\
+    \ that renders it, or handing a clear-callback down, both of which are more coupling\
+    \ than the defect is worth.\n\n**Test.** `keeps the typed brief when the dispatch\
+    \ is refused` in `DispatchPanel.test.tsx`: refuses (`onDispatch` resolves `false`),\
+    \ asserts the textarea still holds what was typed. Verified it catches the real\
+    \ defect by reverting the panel to the shipped `.then(() => setBrief(\"\"))` \u2014\
+    \ the test fails on that exact assertion, and passes again restored. Its pair,\
+    \ `clears the brief once a run has actually started`, pins the other half so a\
+    \ fix that simply never clears does not pass. The shared `renderPanel` helper's\
+    \ default `onDispatch` now resolves `true`.\n\n**Rejected \u2014 an App-level\
+    \ integration test** driving the task-detail route through msw with the dispatch\
+    \ endpoint returning a refusal. It would cover the actual seam the bug lived at\
+    \ (App's handler, not the panel's contract), and that is a real argument for it.\
+    \ Not built: it needs the whole task-detail route mocked \u2014 task, revision,\
+    \ dispatch state, runs, identity \u2014 which is a materially larger piece of\
+    \ test scaffolding than this finishing pass should add, and the return type now\
+    \ makes the App side's contribution a compile-time obligation rather than a convention.\
+    \ Worth revisiting if a second defect ever appears at that seam.\n\n**Not fixed\
+    \ here, filed as task-195 (low, ready): the stale refusal.** Entry #10 flagged,\
+    \ as lower severity and not blocking, that a `dispatchRefusal` from an earlier\
+    \ click still renders when the gate has since closed and neither control is on\
+    \ screen. It is *not* a couple of lines. The obvious fix \u2014 render it only\
+    \ when `offerButton` is true, or downgrade it to `answered={offerButton}` \u2014\
+    \ hides a refusal whose own cause is what changed the page state: `task_closed`\
+    \ refuses the click, the page refetches, `taskIsDispatchable` goes false, and\
+    \ the sentence explaining the refusal disappears with the button. Trading a stale\
+    \ alert for a missing explanation is worse. Deciding between stamping the refusal\
+    \ with the state it was raised under, clearing it on a state change, and merely\
+    \ downgrading its role is a design call with a test to write, so it is a task\
+    \ rather than an edit in this one."
+  re: 10
+  data: {}

@@ -1,0 +1,108 @@
+schema: 2
+id: task-195
+title: A dispatch refusal outlives the state that produced it, and reads as an answer
+  to a click nobody made
+created: '2026-08-20T08:33:21.783342Z'
+updated: '2026-08-20T08:33:21.784053Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: low
+category: ux
+tags:
+- dispatch
+- ux
+- react-frontend
+effort: an hour or two
+assignment:
+  eligible: []
+spec:
+  summary: "The dispatch panel keeps the last refusal from pressing Dispatch in React\
+    \ state and renders it unconditionally. When the page state moves on \u2014 the\
+    \ machine gate closes, the project is disabled, the task closes \u2014 neither\
+    \ control renders any more, but the old refusal is still on screen, announced\
+    \ as an alert, reading as a response to a click that did not happen."
+  intent: 'Found on 2026-08-20 while finishing task-188, in log entry #10 of that
+    task, and explicitly held back from it as lower severity and not blocking. Filed
+    rather than fixed inline because the obvious one-line fix has a regression in
+    it, so it needs a decision rather than an edit.'
+  description: "## What happens\n\n`DispatchPanel` renders `{dispatchRefusal && <RefusalNote\
+    \ refusal={dispatchRefusal} />}` at the bottom of the panel, outside every `offerButton`\
+    \ guard. `dispatchRefusal` is `useTaskDispatch`'s `refusal` state in `App.tsx`,\
+    \ cleared only at the start of the next dispatch attempt.\n\nSo a refusal from\
+    \ a click at 10:00 is still rendered at 10:05 after the world has changed underneath\
+    \ it. With the machine gate closed, `offerButton` is false and neither the button\
+    \ nor the brief box renders \u2014 and the stale refusal sits alone under a gate\
+    \ note, as `role=\"alert\"`.\n\n## Why the one-line fix is not obviously right\n\
+    \nThe tempting change is to render it only when `offerButton` is true, or to pass\
+    \ `answered={offerButton}` so it downgrades from alert to status. Both are a couple\
+    \ of lines. But some refusals *cause* the state change that would then hide them:\n\
+    \n- `task_closed` \u2014 the click is refused because the task is closed, the\
+    \ page refetches, `taskIsDispatchable` goes false, and the sentence explaining\
+    \ the refusal disappears with it. The human sees a button vanish and no reason.\n\
+    - `project_not_enabled` / `sentinel` \u2014 same shape if someone disables dispatch\
+    \ between reading and clicking.\n\nSo \"hide it when no control is offered\" trades\
+    \ a stale alert for a missing explanation, which is worse. What the panel actually\
+    \ needs is a way to tell *this refusal answered the click you just made* from\
+    \ *this refusal answered a click, and the world has since moved on* \u2014 and\
+    \ to keep showing the second while presenting it as history rather than as an\
+    \ alert.\n\n## Shapes worth considering, none prescribed\n\n1. **Stamp the refusal\
+    \ with the state it was produced under** (the gate snapshot, the task's dispatchability)\
+    \ and compare on render; present a mismatch as status with a line saying the page\
+    \ has changed since. Most honest, most machinery.\n2. **Clear the refusal when\
+    \ the state it was raised against changes** \u2014 an effect keyed on `state.can_dispatch`\
+    \ / `taskIsDispatchable`. Cheap, but it silently deletes the explanation in exactly\
+    \ the `task_closed` case above.\n3. **Keep it, but never as an alert once the\
+    \ controls are gone** \u2014 `answered={offerButton}` alone. One line, fixes the\
+    \ screen-reader interruption, does nothing about the visual reading.\n\n`RefusalNote`\
+    \ already takes an `answered` prop distinguishing status from alert, so half the\
+    \ vocabulary exists.\n\n## Severity\n\nLow. Nothing is lost and nothing is wrong\
+    \ in the record; a human reads a sentence that is stale rather than false. Worth\
+    \ doing because the dispatch panel is the surface where AgentJobs asks a person\
+    \ to spend money, and a control surface that says stale things about its own state\
+    \ is the wrong one to have that reputation."
+  constraints: "- Do not hide a refusal whose own cause is what changed the page state\
+    \ \u2014 `task_closed` is the case that catches this, and it must still explain\
+    \ itself.\n- A gate that was already closed before anyone touched anything stays\
+    \ `role=\"status\"`; only a refusal answering a click a human just made is an\
+    \ alert. That distinction is already load-bearing (it is why `answered` exists)\
+    \ and a fix must not collapse it.\n- Whatever ships wants a component test that\
+    \ renders a stale refusal under a closed gate and asserts how it is presented."
+  out_of_scope: Any change to the guard layer or to which refusals exist. This is
+    entirely about how the browser presents a refusal it already has.
+  context:
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: RefusalNote, its `answered` prop, and the unconditional render of `dispatchRefusal`
+      at the bottom of the panel.
+  - path: frontend/src/App.tsx
+    why: useTaskDispatch holds the `refusal` state and clears it only at the start
+      of the next attempt.
+acceptance:
+- id: ac-1
+  text: A refusal raised by a click is presented as an alert while the state that
+    produced it still holds
+  status: pending
+- id: ac-2
+  text: A refusal that predates a change in the page's dispatch state is still readable
+    but is not announced as an answer to the current state
+  status: pending
+- id: ac-3
+  text: A task_closed refusal still explains itself after the page learns the task
+    is closed
+  status: pending
+- id: ac-4
+  text: A component test covers a stale refusal under a closed gate
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T08:33:21.783407Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
