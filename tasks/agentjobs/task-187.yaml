@@ -3,7 +3,7 @@ id: task-187
 title: Two worktrees cannot run the gate at the same time, because Playwright's port
   is a constant
 created: '2026-08-19T23:41:13.123280Z'
-updated: '2026-08-20T17:30:27.440841Z'
+updated: '2026-08-20T17:32:26.965720Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -430,3 +430,33 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 15
+  ts: '2026-08-20T17:32:26.965575Z'
+  actor: claude
+  type: note
+  body: 'Housekeeping note for whoever next runs `git worktree list`.
+
+
+    `C:/projects/aj-187` is **unregistered from git** -- `git worktree remove` succeeded
+    in pruning it and `git worktree list` shows only the main clone -- but the *directory*
+    could not be deleted, because this session''s own shell process has it as its
+    working directory and Windows will not remove a directory in use. The branch `fix/task-187-playwright-port-collision`
+    is deleted and the scratch worktree `C:/projects/aj-187-concurrent` is fully gone,
+    directory and branch.
+
+
+    So the leftover is an ordinary directory with no git registration, not a worktree.
+    Once this session exits it deletes cleanly:
+
+
+    ```
+
+    rm -rf C:/projects/aj-187
+
+    ```
+
+
+    Nothing depends on it. This is the same failure mode recorded before: a session
+    working inside a worktree can unregister it but cannot delete the directory it
+    is standing in.'
+  data: {}
