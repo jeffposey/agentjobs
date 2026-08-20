@@ -3,7 +3,7 @@ id: task-019
 title: 'Dispatch cannot start in a project with a .mcp.json: the session blocks on
   an approval dialog nobody can answer'
 created: '2026-08-19T21:46:46.999513Z'
-updated: '2026-08-20T00:40:49.820969Z'
+updated: '2026-08-20T00:55:36.571803Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -77,18 +77,26 @@ acceptance:
 - id: ac-1
   text: dispatch's --settings JSON carries enabledMcpjsonServers listing the dispatched
     project's own .mcp.json server names
-  status: pending
+  verify: poetry run pytest tests/test_dispatch_runner.py::TestMcpApproval -q
+  status: met
 - id: ac-2
   text: a project with no .mcp.json produces argv identical to today's
-  status: pending
+  verify: poetry run pytest tests/test_dispatch_runner.py::TestMcpApproval::test_a_project_with_no_mcp_json_gets_todays_argv_unchanged
+    -q
+  status: met
 - id: ac-3
   text: a test asserts the composed --settings JSON content, not merely that a key
     is present
-  status: pending
+  verify: poetry run pytest tests/test_dispatch_runner.py::TestMcpApproval::test_the_composed_settings_json_is_exactly_this
+    -q
+  status: met
 - id: ac-4
   text: a real dispatch into a project with a .mcp.json reaches working state without
     any approval dialog, verified with claude agents --json
-  status: pending
+  verify: 'See the 2026-08-19 progress entry: two DispatchRunner.start() runs (read_only
+    and auto) against a project declaring server aj019probe, both state: "working",
+    zero "New MCP server found" in either transcript.'
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -186,4 +194,74 @@ log:
     honour the .mcp.json gate, `autonomous` breaks and nothing here will say so. The
     probe procedure is written out in the previous entry so it can be re-run in four
     commands.'
+  data: {}
+- id: 5
+  ts: '2026-08-20T00:55:08.834041Z'
+  actor: claude
+  type: progress
+  body: 'Implemented and verified on branch fix/task-019-mcp-approval-in-settings
+    (e7dfb74 code+tests, 666582b docs).
+
+
+    What changed in src/agentjobs/dispatch/runner.py:
+
+    - New `mcpjson_server_names(project_root)` reads `.mcp.json` from the dispatched
+    project''s own root and returns the `mcpServers` keys in file order. Missing,
+    unreadable, non-JSON, non-object, or serverless file -> `[]`, so dispatch never
+    fails a run over a file it does not own.
+
+    - `allow_list_settings()` is replaced by `settings_json(*, allow_list, mcp_servers)`,
+    which emits only the keys a posture needs. With `mcp_servers=[]` it is byte-identical
+    to the old output; a test asserts that against a literal `json.dumps`, not against
+    itself.
+
+    - `posture_flags(posture, mcp_servers)` now takes the names (required argument,
+    no default -- a default would let a caller silently reintroduce the defect). `build_argv`
+    supplies them from `self.project_root`.
+
+
+    ac-1 met: the composed `--settings` carries `enabledMcpjsonServers` with the project''s
+    own names.
+
+    ac-2 met: `test_a_project_with_no_mcp_json_gets_todays_argv_unchanged` is parametrised
+    over all four postures and compares against literal flag lists, not against `posture_flags(posture,
+    [])` -- comparing to the function would pass if both sides regressed together.
+
+    ac-3 met: `test_the_composed_settings_json_is_exactly_this` decodes the blob out
+    of the real argv and asserts the whole dict equals `{"permissions": {"allow":
+    allow_rules()}, "enabledMcpjsonServers": ["agentjobs", "playwright"]}`. Presence-of-key
+    would not have caught wrong names, wrong shape or a stale allow-list.
+
+    ac-4 met, and met without leaning on the machine-local workaround -- see below.
+
+
+    ac-4 evidence. Two real dispatches through `DispatchRunner.start()` (session mode,
+    `claude --bg --remote-control`), project_root C:/projects/aj-019, which carried
+    a throwaway `.mcp.json` declaring one server named `aj019probe`. That name is
+    not in ~/.claude/settings.json''s `enabledMcpjsonServers: ["agentjobs"]`, so the
+    workaround could not mask either result. The throwaway `.mcp.json` was deleted
+    afterwards; it is gitignored and never staged.
+
+
+    - posture `read_only` -> composed argv `... --tools Read,Glob,Grep,WebFetch --settings
+    {"enabledMcpjsonServers": ["aj019probe"]} <prompt>`. `claude agents --json`: `state:
+    "working"`. Occurrences of "New MCP server found" in the transcript: 0.
+
+    - posture `auto` (the default, and the one the defect was reported against) ->
+    composed argv carries the allow-list and `"enabledMcpjsonServers": ["aj019probe"]`
+    in one blob. `claude agents --json`: `state: "working"`. Occurrences of "New MCP
+    server found": 0.
+
+
+    Both sessions were stopped with `claude stop` once observed. Before the fix the
+    same project and the same postures reached `state: "blocked"` on that dialog --
+    first entry in this log.
+
+
+    Gate: `poetry run python scripts/check.py` -- Black, Ruff, MyPy clean; 1928 pytest
+    passed in 3m57s; 145 Vitest passed; frontend build succeeded. The Playwright step
+    aborted on `http://127.0.0.1:18940/health is already used` -- a port collision
+    with another agent''s gate running in parallel, not a failure of this branch.
+    Re-ran `npm run test:e2e` in frontend/ once the port was free: 15 passed. Full
+    log at C:/Users/jpose/.claude/jobs/432caaef/tmp/gate1.log.'
   data: {}
