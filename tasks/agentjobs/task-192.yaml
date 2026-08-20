@@ -1,0 +1,128 @@
+schema: 2
+id: task-192
+title: Taking its own worktree parks every dispatched run on a permission prompt nobody
+  can answer
+created: '2026-08-20T07:33:26.996097Z'
+updated: '2026-08-20T07:33:26.996912Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+category: reliability
+tags:
+- dispatch
+- posture
+- worktree
+- defect
+effort: small
+assignment:
+  eligible: []
+parent: task-181-dispatch-phase-one-hardening
+spec:
+  summary: task-186 stopped dispatch passing -w and told the agent to take its own
+    worktree instead. The agent does that with Claude Code's EnterWorktree tool, which
+    asks permission to relocate the session's permission-root outside .claude/worktrees/.
+    Under --permission-mode auto the classifier does not grant it, and a --bg session
+    has no terminal to answer, so the run parks indefinitely. This is task-020's failure
+    exactly, reintroduced through a different door by task-020's own successor.
+  intent: Observed 2026-08-20 on run_6f1f0741 (session 0fe53295), the first dispatch
+    after task-186 merged, on a task Jeff had just sent back for changes. He could
+    see the run was parked and could not see the prompt. The dispatch feature is currently
+    unable to complete any run at all.
+  description: "## What the session shows, verbatim\n\n    Entering worktree(C:/projects/aj-188)\n\
+    \      Creates an isolated worktree (via git or configured hooks) and switches\
+    \ the session into it\n      permission-root relocation to \"C:\\projects\\aj-188\"\
+    \ \u2014 a model-supplied worktree outside .claude/worktrees/\n    Do you want\
+    \ to proceed?\n     > 1. Yes\n       2. No\n\n`claude agents --json` reported\
+    \ `status: waiting`, `state: blocked`. The run had done its\nreading, found the\
+    \ existing `C:/projects/aj-188` worktree from the previous run, and\nparked trying\
+    \ to enter it.\n\n## Why this is task-020 again\n\ntask-020 exists because `supervised`\
+    \ posture parked a background session on a permission\nprompt no one could answer,\
+    \ and the fix was `--permission-mode auto` \u2014 a classifier\ninstead of a human.\
+    \ That still holds for shell commands. It does **not** hold for this\nprompt:\
+    \ relocating the session's permission root outside `.claude/worktrees/` is an\n\
+    escalation the classifier declines, and declining is defensible. So the posture\
+    \ cannot\nsolve it.\n\ntask-186 is the direct cause and its reasoning was still\
+    \ right \u2014 `-w` made it impossible\nfor a dispatched run to commit its task\
+    \ record or run the merge gate, which is worse. But\nit traded a guaranteed-containment-that-cannot-finish\
+    \ for an agent-taken containment that,\nas shipped, also cannot start. Both halves\
+    \ need to work.\n\n## Directions, none prescribed\n\n- **Tell the agent to use\
+    \ `git worktree add`, not the `EnterWorktree` tool.** The prompt\n  stub and `docs/agent-workflow.md`\
+    \ say \"take your own git worktree\", which the model\n  reasonably satisfied\
+    \ with the tool built for it. Plain `git worktree add ../aj-<nnn>`\n  plus working\
+    \ from that path needs no permission-root relocation at all \u2014 and it is what\n\
+    \  ALLAGENTS.md already tells every other agent in this repository to do. Cheapest,\
+    \ and it\n  makes the instruction match the documented workflow rather than diverging\
+    \ from it.\n- **Or pre-approve the relocation in the `--settings` dispatch already\
+    \ composes.** If a\n  permission rule exists that grants it, this is a one-line\
+    \ addition next to\n  `enabledMcpjsonServers`. Establish that the rule exists\
+    \ and *matches* before relying on\n  it \u2014 `allow_rules()` records an hour\
+    \ lost on 2026-08-18 to a rule that matched nothing.\n- Whatever ships, **the\
+    \ parked state must be detectable and loud**. The poller already\n  reads `state`,\
+    \ and `blocked` is exactly the signal; a run that parks should reach a\n  human\
+    \ through the task record rather than by someone noticing a screenshot.\n\n##\
+    \ Test it the way it failed\n\nA real dispatch, `--bg`, no terminal attached,\
+    \ on a task whose worktree already exists and\non one whose worktree does not\
+    \ \u2014 the existing-worktree case is what was actually hit, and\na fresh-worktree\
+    \ run may take a different path through the same prompt."
+  constraints: '- Do not solve this by restoring `-w`. That reintroduces task-186''s
+    defect, which is worse: a run that finishes work it can neither record nor merge.
+
+    - Do not solve it by moving the posture to `bypassPermissions`. That removes the
+    gate for everything, to fix one prompt.
+
+    - The fix must work with no terminal attached. A background session cannot answer
+    anything, ever, and any solution that depends on someone being present is not
+    one.
+
+    - A run that does park anyway must surface through the task record, not only in
+    a terminal scrape.'
+  out_of_scope: Changing what containment means or where the agent's worktree lives.
+    task-190's lock leak, though this run left another lock behind when it was stopped.
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: PROMPT_STUB carries the take-your-own-worktree clause task-186 added; posture_flags
+      composes the settings a pre-approval would go in.
+  - path: docs/agent-workflow.md
+    why: The guide the stub points at, which task-186 amended with the containment
+      reasoning.
+  - path: ALLAGENTS.md
+    why: "\"Why you get your own worktree\" already prescribes `git worktree add ../aj-<nnn>`\
+      \ \u2014 the phrasing the dispatched agent should be following."
+  - path: src/agentjobs/dispatch/poller.py
+    why: Reads session state; `blocked` is the signal a parked run should be reported
+      from.
+acceptance:
+- id: ac-1
+  text: A real --bg dispatch takes its own worktree and starts work without any permission
+    prompt, verified with claude agents --json showing working rather than blocked
+  status: pending
+- id: ac-2
+  text: The same is true when a worktree for that task already exists from a previous
+    run, which is the case actually observed
+  status: pending
+- id: ac-3
+  text: "The run can still commit its task record to main and run the merge gate \u2014\
+    \ task-186's property is not regressed"
+  status: pending
+- id: ac-4
+  text: A run that parks despite this is surfaced through the task record with the
+    ball moved off the agent
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T07:33:26.996144Z'
+  actor: Jeff Posey
+  type: transition
+  body: Created ready by Jeff Posey.
+  data:
+    lifecycle: ready
+    operation:
+      id: d572c8b0-3e91-4a47-b625-90fa1c8e7d32
+      kind: create
+      fingerprint: 50684864047b2efa2d11fcd8abfb7f38
