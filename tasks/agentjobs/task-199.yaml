@@ -1,0 +1,125 @@
+schema: 2
+id: task-199
+title: Enabling a project from the browser deletes every comment in dispatch.yaml
+created: '2026-08-20T20:45:14.268669Z'
+updated: '2026-08-20T20:45:14.269705Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: bug
+tags:
+- dispatch
+- configuration
+- data-loss
+effort: small in code, one decision about how
+assignment:
+  eligible: []
+spec:
+  summary: Toggling a project on or off loads ~/.agentjobs/dispatch.yaml, safe_dumps
+    it back, and destroys all 38 of its comment lines. That file is machine-local
+    and in no repository, so there is no diff to recover from -- the reasoning behind
+    every setting on the machine is simply gone, silently, on a click.
+  intent: The comments are the file. AgentJobs ships an annotated config on purpose
+    -- `agentjobs dispatch example` exists to print one, and scaffold.py is half prose
+    -- because this file is the complete list of what may execute on the machine and
+    every value in it needs a why. Deleting that on a toggle, in a file with no version
+    history, means the next person to read it cannot tell which settings were deliberate.
+  description: "## What happens\n\n`~/.agentjobs/dispatch.yaml` is loaded with `yaml.safe_load`,\
+    \ mutated as a plain dict,\nand written back with `yaml.safe_dump` (`src/agentjobs/dispatch/config.py:1102`).\
+    \ YAML\ncomments do not survive that round trip. **Every comment in the file is\
+    \ destroyed by any\nenable or disable**, from the browser or from `agentjobs dispatch\
+    \ enable`.\n\nObserved 2026-08-20, live, while task-191 was being worked. `job-hunting`\
+    \ was enabled\nfrom the browser. Before: 38 comment lines. After: 0. The file\
+    \ went from 99 lines to 68.\n\n## Why that is worse than it sounds\n\nThe comments\
+    \ are not decoration, they are the file's reason to exist:\n\n- The design calls\
+    \ this file **\"the complete list of what AgentJobs may execute on this\n  machine\"\
+    **, and `agentjobs dispatch example --write` exists specifically to produce an\n\
+    \  *annotated* starting version. `scaffold.py` is roughly half prose. The product\
+    \ ships a\n  documented file and then deletes the documentation the first time\
+    \ anyone clicks a\n  toggle.\n- What was lost on this machine, all of it written\
+    \ deliberately: why `posture: auto`\n  rather than `supervised` (task-020, naming\
+    \ the run that parked asking permission to\n  run `ls`); why `require_clean_tree`\
+    \ was overridden (task-182); the warning that\n  AgentJobs adds the posture flags\
+    \ itself and they must never be written into `argv`;\n  the explanation of how\
+    \ runner-group ordering resolves; and the freshly written record\n  of why `max_concurrent_runs`\
+    \ is 3 (task-191, minutes old at the time).\n- **A machine-local file is not in\
+    \ version control**, by design and correctly. So there\n  is no `git diff` to\
+    \ recover from and no history to read. The comments are simply gone.\n- The loss\
+    \ is silent. Nothing warns, and the toggle reports success.\n\nIt also quietly\
+    \ dropped an explicit key: `projects.agentjobs.require_clean_tree: false`\nwas\
+    \ gone afterwards, so the setting reverted to its default of `true` with no record\
+    \ that\nit had ever been overridden. That one happened to land on the right value\
+    \ -- task-182 is\nclosed, so `true` is now correct -- but nothing about the mechanism\
+    \ made that so.\n\n## What was already done\n\nTask-191 restored the file by hand\
+    \ from a copy taken earlier that session, keeping every\nsemantic change (`job-hunting`\
+    \ enabled, `max_concurrent_runs: 3`) and putting the 38\ncomments back plus new\
+    \ ones. **That was luck**: the backup existed only because task-191\nhappened\
+    \ to copy the file before editing it. Nobody else will have one.\n\n## Ways out,\
+    \ none prescribed\n\n- **Preserve comments on write.** `ruamel.yaml` in round-trip\
+    \ mode does exactly this and\n  is the standard answer. It is a new runtime dependency\
+    \ for a project that has kept\n  those few, which is the trade to weigh.\n- **Never\
+    \ rewrite the whole file.** Edit only the line(s) that change, in place, leaving\n\
+    \  everything else byte-identical. No dependency, more code, and it has to cope\
+    \ with a key\n  that is not there yet.\n- **Refuse to write, and print what to\
+    \ change.** The most conservative reading of the\n  design's own rule that this\
+    \ file is authored by hand on the machine -- the browser may\n  *select* among\
+    \ what is there and never author. Enabling a project is arguably\n  authoring.\
+    \ Costs the one-click toggle.\n- **Write the whole file but re-emit the standard\
+    \ annotations** from the scaffold text.\n  Restores the shipped comments and still\
+    \ destroys anything the owner wrote themselves,\n  which is the part that actually\
+    \ mattered here.\n\n## Worth checking while in there\n\nWhether any other writer\
+    \ has the same shape. `ledger.py:564` and `runner.py:610`\n`safe_dump` run metadata,\
+    \ which nobody comments, so those look fine -- but the check is\ncheap and the\
+    \ answer belongs in the record."
+  constraints: '- Whatever the fix, a comment a human wrote must survive a toggle.
+    Re-emitting the shipped annotations while losing hand-written ones is not sufficient.
+
+    - Do not widen what the browser may author. The design''s rule stands: it may
+    point a project at a runner this machine already defines and may never describe
+    a new command.
+
+    - Verify against a real config with real comments, not a fixture written for the
+    test. The failure is about a file a person wrote.'
+  out_of_scope: Moving dispatch config into a repository. Runner authoring in the
+    GUI (task-178). The concurrency ceiling itself (task-191).
+  context:
+  - path: src/agentjobs/dispatch/config.py
+    why: The safe_dump at :1102 that rewrites the whole file, and the enable path
+      around it.
+  - path: src/agentjobs/dispatch/scaffold.py
+    why: The annotated file this is supposed to produce -- roughly half prose, all
+      of it destroyed on the first toggle.
+  - path: docs/agent-dispatch-design.md
+    why: Machine-local configuration, and the rule that the browser selects among
+      what a human wrote rather than authoring it.
+acceptance:
+- id: ac-1
+  text: Enabling and then disabling a project leaves every comment in ~/.agentjobs/dispatch.yaml
+    byte-identical
+  status: pending
+- id: ac-2
+  text: A key explicitly set to a non-default value is still present, and still explicitly
+    set, after a toggle
+  status: pending
+- id: ac-3
+  text: A test that would have caught this, running against a config carrying hand-written
+    comments rather than a generated fixture
+  status: pending
+- id: ac-4
+  text: Every other writer of a human-authored file on this machine is checked for
+    the same shape, and the finding recorded either way
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T20:45:14.268793Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
