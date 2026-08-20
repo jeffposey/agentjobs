@@ -68,7 +68,7 @@ spec:
   context:
   - path: src/agentjobs/cli.py
     why: serve / stop / status / restart, the four commands this is about.
-  - path: tasks/agentjobs/task-190-run-lock-leak.yaml
+  - path: tasks/agentjobs/task-190.yaml
     why: 'Log entry #2 holds the original observation and the process table it came
       from; the decision entry records why it was split out.'
 acceptance:
