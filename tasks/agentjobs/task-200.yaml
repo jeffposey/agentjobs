@@ -1,0 +1,137 @@
+schema: 2
+id: task-200
+title: Worktrees land as siblings of the clone, littering the workspace root
+created: '2026-08-20T21:30:21.613074Z'
+updated: '2026-08-20T21:34:12.027499Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
+archived: false
+priority: medium
+category: developer_experience
+tags: []
+assignment:
+  owner: claude
+  eligible: []
+spec:
+  summary: "Every worktree instruction in this repository says `git worktree add ../aj-<nnn>`,\
+    \ which puts each one directly beside the clone in the workspace root. After a\
+    \ few dozen tasks that directory is mostly worktrees, including ones left behind\
+    \ when removal failed. Move the convention to a dedicated sibling directory, `../worktrees/<repo>-<nnn>`,\
+    \ and update every place that states it \u2014 docs, the dispatch prompt stub,\
+    \ and the tests that pin those strings."
+  intent: Keep the workspace root readable, so a directory listing shows projects
+    rather than transient worktrees.
+  description: "The path appears in more than one place because the instruction has\
+    \ to precede reading the guide (see task-192): `ENGINEERING.md` (\"Sharing a clone\"\
+    ), `ALLAGENTS.md` (lifecycle step 2 and \"Why you get your own worktree\"), `docs/agent-workflow.md`,\
+    \ `docs/agent-dispatch-design.md`, `src/agentjobs/dispatch/runner.py` (`PROMPT_STUB`),\
+    \ and a comment in `src/agentjobs/dispatch/ledger.py`. Three tests assert the\
+    \ literal string: `tests/test_documentation_contract.py`, `tests/test_worktree_bootstrap.py`,\
+    \ and the dispatch prompt-stub tests.\n\nUse the relative form `../worktrees/<repo>-<nnn>`,\
+    \ not an absolute path. On this machine the clone is `C:/projects/agentjobs`,\
+    \ so it resolves to `C:/projects/worktrees/aj-<nnn>` \u2014 which is what was\
+    \ asked for \u2014 while staying correct for anyone who clones this public repository\
+    \ somewhere else. `git worktree add` creates the intermediate directory itself,\
+    \ so no setup step is needed.\n\nExisting worktrees are not migrated; a worktree\
+    \ is transient and moving one would rewrite its `.git` file for no benefit. They\
+    \ age out as their branches merge."
+  constraints: "Relative paths only \u2014 no machine-specific absolute path enters\
+    \ the public repository. The dispatch prompt stub must stay short and must keep\
+    \ naming the shell command rather than a built-in worktree tool (task-192)."
+  out_of_scope: "Moving worktrees that already exist. Removing the stale `aj-188`,\
+    \ `aj-191`, `aj-192` directories left in the workspace root by failed removals.\
+    \ Any change to how the gate derives its ports from the checkout path (task-187)\
+    \ \u2014 it hashes the path and is indifferent to depth."
+  context:
+  - path: ENGINEERING.md
+    why: The 'Sharing a clone' section holds the canonical command block.
+  - path: ALLAGENTS.md
+    why: Lifecycle step 2 and 'Why you get your own worktree' both state the path.
+  - path: src/agentjobs/dispatch/runner.py
+    why: PROMPT_STUB is the copy a dispatched agent reads before anything else.
+acceptance:
+- id: ac-1
+  text: No instruction anywhere in the repository tells an agent to create a worktree
+    as a direct sibling of the clone; every one names `../worktrees/<repo>-<nnn>`
+    or the `aj-` form of it.
+  status: pending
+- id: ac-2
+  text: The rendered dispatch PROMPT_STUB carries the new path, and the tests pinning
+    it assert the new string.
+  status: pending
+- id: ac-3
+  text: '`poetry run python scripts/check.py` exits 0.'
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches:
+- name: chore/task-200-worktree-location
+  status: active
+log:
+- id: 1
+  ts: '2026-08-20T21:30:21.613117Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3f2c9a41-8b6e-4d52-9a17-2c0e5b7d1a32
+      kind: create
+      fingerprint: 729e22a145b7cd9bad95ec9aa4bb71a4
+- id: 2
+  ts: '2026-08-20T21:30:33.888301Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 3f2c9a41-8b6e-4d52-9a17-2c0e5b7d1a33
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-20T21:33:59.150893Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 3f2c9a41-8b6e-4d52-9a17-2c0e5b7d1a34
+      kind: update_content
+      fingerprint: 99b66db85ace859db44bd62a1b6b0cb9
+- id: 4
+  ts: '2026-08-20T21:34:12.027355Z'
+  actor: claude
+  type: decision
+  body: "The path is written relative (`../worktrees/<repo>-<nnn>`), not as the absolute\
+    \ `C:/projects/worktrees/aj-<nnn>` the request named.\n\nBoth produce the same\
+    \ directory on this machine, because the clone is `C:/projects/agentjobs`. The\
+    \ relative form also stays true for anyone who clones this public repository elsewhere,\
+    \ and it is what the surrounding instructions already use. Rejected the absolute\
+    \ form: it would be the second time a maintainer's own machine leaked into the\
+    \ repository as an instruction \u2014 task-155 is currently in review for removing\
+    \ the first \u2014 and it would read as wrong to every contributor whose checkout\
+    \ is not at that path.\n\nAlso decided, and both are narrow:\n\n- **`prompts/`\
+    \ is not updated.** `prompts/task-095-phase-1-loop.md` still says `git worktree\
+    \ add ../aj-083`. That directory is an archive of loop prompts already issued\
+    \ for tasks now closed; it is a record of what was said, not an instruction anyone\
+    \ will follow again. The new test therefore scopes itself to the four live instruction\
+    \ documents rather than the whole repository. Rejected scanning repo-wide: it\
+    \ would have forced an edit to a historical record to keep a test green.\n- **Existing\
+    \ worktrees are not moved.** `aj-155`, `aj-180` and `aj-194` stay where they are\
+    \ until their branches merge. Moving a worktree means rewriting its `.git` pointer\
+    \ under a peer agent that is mid-task in it, for a directory that is about to\
+    \ be deleted anyway."
+  data:
+    operation:
+      id: 3f2c9a41-8b6e-4d52-9a17-2c0e5b7d1a35
+      kind: log_append
+      fingerprint: 39814e10e8f4a2a583cae8f24a7bce88
