@@ -316,15 +316,11 @@ def drop_repainted_lines(text: str) -> str:
     return "\n".join(reversed(kept))
 
 
-def working_tree_clean(project_root: Path) -> bool:
-    """True when a project's working tree has nothing uncommitted.
-
-    A failed or missing git is reported as *not* clean. Dispatch's default is to refuse
-    on a dirty tree, and "we could not tell" must fall on the refusing side of that.
-    """
+def _git(project_root: Path, *args: str) -> Optional[str]:
+    """Run a read-only git command in a project, or ``None`` if git could not answer."""
     try:
         result = subprocess.run(
-            ["git", "-C", str(project_root), "status", "--porcelain"],
+            ["git", "-C", str(project_root), *args],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -332,8 +328,90 @@ def working_tree_clean(project_root: Path) -> bool:
             timeout=30,
         )
     except (OSError, subprocess.SubprocessError):
-        return False
-    return result.returncode == 0 and not (result.stdout or "").strip()
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout or ""
+
+
+def _is_within(path: Path, parents: Sequence[Path]) -> bool:
+    """True when *path* is one of *parents* or sits underneath one of them.
+
+    Compared as normalised case, because this runs on Windows as often as not and
+    ``Tasks`` and ``tasks`` are the same directory there.
+    """
+    candidate = os.path.normcase(str(path))
+    for parent in parents:
+        base = os.path.normcase(str(parent))
+        if candidate == base or candidate.startswith(base + os.sep):
+            return True
+    return False
+
+
+def uncommitted_paths(project_root: Path, *, ignore: Sequence[Path] = ()) -> Optional[List[str]]:
+    """Repo-relative paths git reports as uncommitted, minus anything under *ignore*.
+
+    ``None`` means git could not be read at all -- no repository, no git on PATH, a
+    timeout. That is a different answer from "nothing is uncommitted", and callers must
+    treat it as unclean: dispatch's default is to refuse on a dirty tree, and "we could
+    not tell" belongs on the refusing side of that.
+
+    *ignore* exists because AgentJobs writes into the very tree it is inspecting. A
+    project that keeps its task records in the repository being dispatched -- this one
+    does -- has its tasks directory dirtied by dispatch itself: the claim writes the task
+    YAML before the spawn, and the terminal ``dispatch_result`` entry is written after the
+    run's last commit. Counting those made the check refuse every dispatch on the strength
+    of its own writes (task-182). Excluding them is the price of the check meaning anything
+    at all; see the design doc for what that costs.
+    """
+    status = _git(project_root, "status", "--porcelain", "-z")
+    if status is None:
+        return None
+    entries = _parse_porcelain_z(status)
+    if not entries:
+        return []
+    if not ignore:
+        return entries
+
+    toplevel = _git(project_root, "rev-parse", "--show-toplevel")
+    if toplevel is None:
+        return None
+    # Porcelain paths are relative to the repository root whatever directory git was run
+    # from, so they are resolved against that rather than against ``project_root``.
+    root = Path(toplevel.strip()).resolve()
+    excluded = [Path(path).resolve() for path in ignore]
+    return [entry for entry in entries if not _is_within((root / entry).resolve(), excluded)]
+
+
+def _parse_porcelain_z(stdout: str) -> List[str]:
+    """The paths out of ``git status --porcelain -z``.
+
+    ``-z`` rather than the newline form because it is the only one that does not quote
+    and escape unusual filenames, and a path this misparsed would be silently dropped
+    from a safety check. Renames and copies emit the original path as a second
+    NUL-terminated field, which is consumed and discarded: the new path already names the
+    change.
+    """
+    fields = stdout.split("\0")
+    paths: List[str] = []
+    index = 0
+    while index < len(fields):
+        entry = fields[index]
+        index += 1
+        if not entry.strip():
+            continue
+        status, path = entry[:2], entry[3:]
+        if status[:1] in {"R", "C"}:
+            index += 1
+        if path:
+            paths.append(path)
+    return paths
+
+
+def working_tree_clean(project_root: Path, *, ignore: Sequence[Path] = ()) -> bool:
+    """True when a project's working tree has nothing uncommitted outside *ignore*."""
+    paths = uncommitted_paths(project_root, ignore=ignore)
+    return paths is not None and not paths
 
 
 def git_head(project_root: Path) -> str:
@@ -654,13 +732,19 @@ class DispatchRunner:
         if self.resolution.settings.require_clean_tree and not self._tree_is_clean():
             raise DispatchRunError(
                 f"Refusing to spawn for {task.id}: {self.project_root} has uncommitted "
-                "changes. An autonomous agent committing on top of them entangles the "
-                "two, and unpicking that is hardest exactly when you least expect it."
+                "changes outside its tasks directory. An autonomous agent committing on "
+                "top of them entangles the two, and unpicking that is hardest exactly "
+                "when you least expect it."
             )
 
     def _tree_is_clean(self) -> bool:
-        """True when the project's working tree has nothing uncommitted."""
-        return working_tree_clean(self.project_root)
+        """True when the project's working tree has nothing uncommitted.
+
+        AgentJobs' own tasks directory is excluded. This check runs *after* the claim,
+        and the claim's whole effect is a write to a task record; without the exclusion
+        the re-check refuses on the file dispatch just wrote (task-182).
+        """
+        return working_tree_clean(self.project_root, ignore=[self.manager.storage.tasks_dir])
 
     def _git_head(self) -> str:
         """The commit the working tree is on, so a run's diff stays attributable."""

@@ -91,11 +91,11 @@ def project(tmp_path: Path) -> Project:
     subprocess.run(["git", "config", "user.email", "t@t.t"], cwd=root, capture_output=True)
     subprocess.run(["git", "config", "user.name", "t"], cwd=root, capture_output=True)
     (root / "README.md").write_text("hello\n", encoding="utf-8")
-    # AgentJobs writes into the project root -- task files and its own write receipts --
-    # so without this every test that creates a task dirties the very tree the
-    # clean-tree gate inspects. A real project ignores the same paths; this mirrors the
-    # repository's own .gitignore rather than inventing a convenience.
-    (root / ".gitignore").write_text("tasks/\n.agentjobs/\n", encoding="utf-8")
+    # Only .agentjobs/ is ignored, exactly as `agentjobs init` leaves a project: task
+    # YAML is meant to be committed, and this repository commits its own. That makes the
+    # tasks directory part of the tree the clean-tree gate inspects, which is the shape
+    # task-182 was about -- dispatch dirties that directory itself, at both ends of a run.
+    (root / ".gitignore").write_text(".agentjobs/\n", encoding="utf-8")
     subprocess.run(["git", "add", "-A"], cwd=root, capture_output=True, check=True)
     subprocess.run(["git", "commit", "-m", "init"], cwd=root, capture_output=True, check=True)
     return Project(id="sandbox", name="Sandbox", root=root)
@@ -165,6 +165,17 @@ def run(manager, project, home, task_id, caused_by: Optional[int] = None):
         request=DispatchRequest(task_id=task_id, caused_by=caused_by),
         home=home,
     )
+
+
+def _porcelain(project: Project) -> list[str]:
+    """What `git status --porcelain` says about a project, as bare paths."""
+    result = subprocess.run(
+        ["git", "-C", str(project.root), "status", "--porcelain"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return [line[3:] for line in result.stdout.splitlines() if line.strip()]
 
 
 def settle(handle) -> None:
@@ -359,6 +370,126 @@ class TestWorkingTree:
         dispatched = [e for e in task.log if e.type is LogEntryType.DISPATCH][0]
         assert dispatched.data["git_head"] == expected
         assert dispatched.actor == "Jeff Posey"
+
+
+class TestTaskRecordsInsideTheDispatchedRepo:
+    """task-182: dispatch dirties the tree it inspects, at both ends of a run.
+
+    This project keeps its task YAML in the repository being dispatched, which is the
+    default `agentjobs init` leaves behind. Two of AgentJobs' own writes land there:
+    the claim, before the spawn, and the terminal `dispatch_result` entry, after the
+    run's last commit. Counting either as dirt refused every dispatch on the strength of
+    a file AgentJobs wrote itself.
+
+    What must survive: a human's genuinely uncommitted work still refuses. The tests
+    below pin the two apart.
+    """
+
+    @staticmethod
+    def commit_tasks(project: Project) -> None:
+        """Commit the tasks directory, so its files are tracked as in a real project."""
+        subprocess.run(
+            ["git", "-C", str(project.root), "add", "tasks"], capture_output=True, check=True
+        )
+        subprocess.run(
+            ["git", "-C", str(project.root), "commit", "-m", "tasks"],
+            capture_output=True,
+            check=True,
+        )
+
+    def test_a_task_file_dispatch_already_modified_does_not_refuse(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """The resting state after any previous run: one modified, tracked task file.
+
+        The dispatcher appends `dispatch_result` once the run is over, which is after
+        the agent's last commit however well-behaved it was. Nobody commits that but a
+        human, so the next dispatch meets it.
+        """
+        write_dispatch_config(home, fake_runner)
+        self.commit_tasks(project)
+        manager.add_log_entry(
+            ready_task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Left uncommitted."
+        )
+        assert _porcelain(project) == [f"tasks/{ready_task.id}.yaml"]
+
+        handle = run(manager, project, home, ready_task.id)
+        settle(handle)
+
+        assert handle.run_id
+
+    def test_a_task_file_the_claim_creates_does_not_refuse(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """The front half: an untracked task record, written before this very dispatch."""
+        write_dispatch_config(home, fake_runner)
+        assert _porcelain(project) == ["tasks/"]
+
+        handle = run(manager, project, home, ready_task.id)
+        settle(handle)
+
+        assert handle.run_id
+
+    def test_a_completed_run_does_not_block_the_next_dispatch(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """End to end, which is how this was found: dispatch, let it finish, dispatch again."""
+        write_dispatch_config(home, fake_runner)
+        self.commit_tasks(project)
+        settle(run(manager, project, home, ready_task.id))
+
+        second = manager.create_task(
+            title="Next in line",
+            category="general",
+            summary="Another task to dispatch.",
+            description="Do the next thing.",
+            lifecycle=Lifecycle.READY,
+            actor="Jeff Posey",
+        )
+        manager.add_log_entry(second.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go.")
+        assert _porcelain(project), "the finished run should have left the tasks directory dirty"
+
+        handle = run(manager, project, home, second.id)
+        settle(handle)
+
+        assert handle.run_id
+
+    def test_uncommitted_work_outside_the_tasks_directory_still_refuses(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """The protection the exclusion must not give away, alongside dirt that is ignored."""
+        write_dispatch_config(home, fake_runner)
+        self.commit_tasks(project)
+        manager.add_log_entry(
+            ready_task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Left uncommitted."
+        )
+        (project.root / "README.md").write_text("someone is mid-edit\n", encoding="utf-8")
+
+        with pytest.raises(DirtyTreeError) as caught:
+            run(manager, project, home, ready_task.id)
+        assert caught.value.reason == "dirty_tree"
+        assert live_runs(home) == []
+
+    def test_the_refusal_names_the_files_that_caused_it(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """Otherwise `git status` disagrees with the refusal and neither explains the other.
+
+        The tasks directory is dirty here too, and must not appear: a reader told to look
+        for uncommitted work needs the paths that are actually blocking them.
+        """
+        write_dispatch_config(home, fake_runner)
+        self.commit_tasks(project)
+        manager.add_log_entry(
+            ready_task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Left uncommitted."
+        )
+        (project.root / "README.md").write_text("someone is mid-edit\n", encoding="utf-8")
+
+        with pytest.raises(DirtyTreeError) as caught:
+            run(manager, project, home, ready_task.id)
+        message = str(caught.value)
+        assert "README.md" in message
+        assert ready_task.id not in message
 
 
 class TestConcurrency:
