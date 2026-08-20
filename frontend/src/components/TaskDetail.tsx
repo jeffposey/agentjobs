@@ -7,6 +7,7 @@ import { AttachmentPicker } from "./AttachmentPicker";
 import { DependencyGraph } from "./DependencyGraph";
 import { DependencyState } from "./DependencyState";
 import { DispatchPanel, type DispatchPanelProps } from "./DispatchPanel";
+import { NoteComposer } from "./NoteComposer";
 
 const PRIORITY_CLASSES: Record<string, string> = {
   critical: "bg-red-900 text-red-200",
@@ -300,6 +301,12 @@ export type TaskDetailProps = {
   ) => Promise<void> | void;
   onReject: (reason: string) => Promise<void> | void;
   onPromote: (note: string | null) => Promise<void> | void;
+  // Writing a note is its own act with its own failure, so it keeps its own busy and
+  // error rather than sharing the review panel's: a note that could not be saved must
+  // still say so on a task whose review actions are not even rendered.
+  noteBusy?: boolean;
+  noteError?: string | null;
+  onAddNote: (body: string) => Promise<void> | void;
   // Dispatch arrives as its own bundle rather than as loose props, so nothing about
   // starting an agent can be mistaken for part of the review panel's contract.
   // Absent, the page renders exactly as it did before dispatch existed.
@@ -334,6 +341,15 @@ export function TaskDetail(props: TaskDetailProps) {
           taskIsDispatchable={task.ball === "agent" && task.lifecycle !== "closed"}
         />
       )}
+      {/* Directly under the dispatch panel on purpose. The refusal a human meets there
+          tells them to write the authorising note, and the control that writes one has
+          to be the next thing they see rather than something they go looking for. */}
+      <NoteComposer
+        identity={detail.identity}
+        busy={props.noteBusy}
+        error={props.noteError}
+        onAddNote={props.onAddNote}
+      />
       {task.ball !== "human" && task.ball_prompt &&<section className="rounded-xl border border-dark-border bg-dark-surface p-4"><h2 className="mb-2 text-xs font-semibold uppercase text-dark-muted">Current ask ({task.ball}/{task.ball_reason})</h2><SpecText>{task.ball_prompt}</SpecText></section>}
       <section className="rounded-lg border border-dark-border bg-dark-surface p-4" aria-label="Dependency state"><h2 className="mb-2 text-sm font-semibold">Work state</h2><DependencyState task={task} /></section>
       <Relationships detail={detail} projectId={projectId} />

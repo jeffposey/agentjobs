@@ -27,7 +27,8 @@ const RUN_POLL_MS = 2_000;
  * Keyed by the guard layer's stable `reason` codes rather than by message text. The
  * server sends a `suggested_action` for the dispatch endpoint's refusals and this map
  * covers the state endpoint's, which carries no such field; where both exist the
- * server's wins, because it can name the actual file on this machine.
+ * server's wins, because it can name the actual file on this machine -- except for the
+ * reasons in `PAGE_REMEDY_REASONS`, where only the browser can name the control.
  */
 export const REFUSAL_ACTIONS: Record<string, string> = {
   not_configured:
@@ -40,8 +41,9 @@ export const REFUSAL_ACTIONS: Record<string, string> = {
     "This project names a runner this machine does not define. Pick one that exists, or add it by hand to the config file.",
   invalid_config: "The dispatch config could not be read. Fix the YAML, then reload.",
   not_human_clocked:
-    "The newest log entry was written by an agent. A dispatch may only follow a human's entry, and that rule is not configurable — act on the task yourself first.",
-  no_causing_entry: "Write the note or handoff that authorises this run first.",
+    "The newest log entry was written by an agent. A dispatch may only follow a human's entry, and that rule is not configurable — use “Add a note” below to write one as yourself, then dispatch.",
+  no_causing_entry:
+    "Nothing on this task was written by a human yet. Use “Add a note” below to write the entry that authorises this run, then dispatch.",
   task_closed: "Reopen the task before dispatching at it.",
   live_run_exists: "A run for this task is already going. Wait for it, or cancel it below.",
   concurrency_limit:
@@ -50,6 +52,18 @@ export const REFUSAL_ACTIONS: Record<string, string> = {
   claim_lost: "Someone else took this task. Re-read it before deciding again.",
   owner_mismatch: "This task is owned by a different agent. Release it, or dispatch its owner.",
 };
+
+/**
+ * Refusals whose remedy is a control on this page.
+ *
+ * The server's `suggested_action` normally wins, because it can name the actual file on
+ * this machine. For these two it must not: the same sentence is read by the CLI and by
+ * MCP, so it cannot say "press the button below" — and "the button below" is precisely
+ * what the reader of *this* surface needs to be told. Task-185 was filed because the
+ * refusal named a remedy the page did not offer; naming one it does offer is the fix,
+ * and that sentence can only be written here.
+ */
+export const PAGE_REMEDY_REASONS = new Set(["no_causing_entry", "not_human_clocked"]);
 
 export type DispatchRefusal = {
   reason: string;
@@ -107,7 +121,9 @@ export function runStateLabel(run: DispatchRunView): string {
  * ambiguous -- which is how this was found.
  */
 function RefusalNote({ refusal, answered = true }: { refusal: DispatchRefusal; answered?: boolean }) {
-  const action = refusal.suggestedAction || REFUSAL_ACTIONS[refusal.reason];
+  const action = PAGE_REMEDY_REASONS.has(refusal.reason)
+    ? REFUSAL_ACTIONS[refusal.reason]
+    : refusal.suggestedAction || REFUSAL_ACTIONS[refusal.reason];
   return (
     <div
       role={answered ? "alert" : "status"}
