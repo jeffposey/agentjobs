@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import shutil
 import subprocess
 import sys
@@ -10,6 +11,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# The one setup problem an activated virtualenv can explain, and so the only one its
+# remedy should be offered for.
+FOREIGN_IMPORT = "outside this checkout"
 
 
 def run(command: list[str], *, cwd: Path) -> None:
@@ -42,12 +47,35 @@ def setup_problems(root: Path, origin: Path | None) -> list[str]:
     if origin is None:
         problems.append("the agentjobs package is not installed")
     elif root.resolve() not in origin.parents:
-        problems.append(f"agentjobs imports from {origin.parent}, outside this checkout")
+        problems.append(f"agentjobs imports from {origin.parent}, {FOREIGN_IMPORT}")
 
     if not (root / "frontend" / "node_modules").is_dir():
         problems.append("frontend/node_modules is missing")
 
     return problems
+
+
+def remedy(problems: list[str]) -> str:
+    """What to actually do about a checkout that cannot verify itself.
+
+    The generic advice -- bootstrap, then `poetry run python scripts/check.py` -- is a
+    loop when the import came from another checkout and a virtualenv is activated:
+    `poetry run` resolves to *that* environment every time, so the gate refuses again on
+    source it was never pointed at, and a dispatched agent on this machine inherits
+    exactly that shell. Name the interpreter instead, which no activation can redirect
+    (task-194).
+
+    Scoped to the import problem deliberately. A missing `node_modules` has nothing to do
+    with `VIRTUAL_ENV`, and advice that blames the wrong thing is worse than none.
+    """
+    active = os.environ.get("VIRTUAL_ENV")
+    if active and any(FOREIGN_IMPORT in problem for problem in problems):
+        return (
+            f"The virtualenv {active} is activated in this shell, and `poetry run`\n"
+            "will keep choosing it whatever you install. Run `python scripts/bootstrap.py`\n"
+            "and use the interpreter path it prints, rather than `poetry run`."
+        )
+    return "Run `python scripts/bootstrap.py`, then `poetry run python scripts/check.py`."
 
 
 def main() -> int:
@@ -72,8 +100,7 @@ def main() -> int:
     problems = setup_problems(ROOT, package_origin())
     if problems:
         print(
-            f"This checkout cannot verify itself: {'; '.join(problems)}.\n"
-            "Run `python scripts/bootstrap.py`, then `poetry run python scripts/check.py`.",
+            f"This checkout cannot verify itself: {'; '.join(problems)}.\n" f"{remedy(problems)}",
             file=sys.stderr,
         )
         return 1

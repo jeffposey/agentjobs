@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from agentjobs.__version__ import __version__
+from agentjobs.environment import describe_source
 from agentjobs.models_v2 import SCHEMA_VERSION
 from agentjobs.storage import yaml_loader_name
 
@@ -30,6 +31,14 @@ class VersionResponse(BaseModel):
             "sluggish install, so it is reported rather than left to be guessed at."
         )
     )
+    source_root: str = Field(
+        description=(
+            "Directory this process imported its own code from. Startup refuses when "
+            "that is the wrong checkout, but the answer is reported here too: on a "
+            "machine with several worktrees it is the difference between a stale "
+            "server and a wrongly-installed one, and guessing costs a forensic session."
+        )
+    )
 
 
 @router.get("/health")
@@ -50,4 +59,5 @@ async def api_version() -> VersionResponse:
         version=__version__,
         schema_version=SCHEMA_VERSION,
         yaml_loader=yaml_loader_name(),
+        source_root=describe_source(),
     )

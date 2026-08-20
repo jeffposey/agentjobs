@@ -164,6 +164,26 @@ imports the code on `main`, not the code on your branch, and reports a green sui
 source it never executed. Nothing in the test output reveals this. `check.py` refuses to
 run when the import resolves outside its own checkout, for exactly that reason.
 
+**Run the gate with the interpreter the bootstrap prints, not `poetry run`.** Its last
+line is an absolute path to this worktree's Python:
+
+```
+Verify with: C:\...\virtualenvs\agentjobs-PLnZwjZ_-py3.13\Scripts\python.exe scripts/check.py
+```
+
+This matters because **your shell almost certainly has `VIRTUAL_ENV` set to the main
+clone's environment** — a dispatched session inherits it — and Poetry prefers an
+activated virtualenv over the one it keys on the project path. So `poetry run` from your
+worktree resolves to the main clone's environment however many times you bootstrap, and
+`check.py` correctly refuses each time. The printed path cannot be redirected.
+
+The same preference is why the bootstrap now tells you it is **ignoring** an activated
+virtualenv that belongs to another checkout. Until task-194 it did not: a worktree's
+`poetry install` rewrote the main clone's editable install, and the dashboard on 8876
+began serving that worktree's unmerged branch — from the correct task files, with correct
+`git log` output, saying nothing. It took a forensic session to find. You are not being
+careless if you hit this; following these instructions verbatim is what used to cause it.
+
 ### Logging Work to the Task
 The task record — not the surrounding conversation — is the source of truth for where
 work stands. A different agent, or the same one with no memory of this session, must be
