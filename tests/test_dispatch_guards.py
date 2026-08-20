@@ -46,6 +46,7 @@ from agentjobs.dispatch.guards import (
     record_can_brief,
     resolve_causing_entry,
 )
+from agentjobs.dispatch.runner import DispatchRunner
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome
 from agentjobs.projects import Project
@@ -856,6 +857,46 @@ class TestAuthorizingEntryIsWritten:
         after = manager.get_task(agent_filed_task.id)
         assert after is not None
         assert len(after.log) == len(before.log)
+
+    def test_a_spawn_that_fails_leaves_an_authorisation_not_a_claimed_dispatch(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        agent_filed_task,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The composed sentence has to be true when the spawn does not happen.
+
+        The entry is written inside the run lock and before the claim, on purpose --
+        that ordering is what makes it evidence resolved from storage rather than a
+        justification carried on the request. The consequence is that `runner.start`
+        can still fail after it lands, and an append-only log cannot take it back. So
+        the sentence describes the human's act and not the machine's outcome: it says
+        they *authorised* a dispatch, which stays true, rather than that one *happened*,
+        which would be the only untrue thing this feature could write into a record.
+        """
+        write_dispatch_config(home, fake_runner)
+
+        def refuse_to_spawn(self, *args, **kwargs):
+            raise RuntimeError("the runner could not be spawned")
+
+        monkeypatch.setattr(DispatchRunner, "start", refuse_to_spawn)
+
+        with pytest.raises(RuntimeError):
+            run_as(manager, project, home, agent_filed_task.id, user="Jeff Posey")
+
+        stored = manager.get_task(agent_filed_task.id)
+        assert stored is not None
+        notes = [e for e in stored.log if e.type is LogEntryType.NOTE]
+        assert len(notes) == 1
+        body = notes[0].body or ""
+        assert body.startswith("Jeff Posey authorised a dispatch of this task")
+        # And it does not claim a run happened, because none did.
+        assert "Dispatched by" not in body
+        assert [e for e in stored.log if e.type is LogEntryType.DISPATCH] == []
+        assert live_runs(home) == []
 
 
 class TestSufficiency:

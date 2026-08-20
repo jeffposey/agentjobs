@@ -279,11 +279,20 @@ def compose_authorization_body(actor: Actor, surface: Optional[str] = None) -> s
     should read as a record, and a body the caller supplies is a body the caller can get
     wrong. Naming the surface matters because "who clicked" and "what they clicked" are
     both part of what a later reader is trying to reconstruct.
+
+    It describes an **authorisation, not an outcome**, and the distinction is the whole
+    reason for the wording. The entry is written inside the run lock and before the
+    claim -- deliberately, because that ordering is what makes it evidence rather than
+    decoration -- so the spawn can still be refused after it lands, and the log is
+    append-only, so nothing can take it back. A body reading "Dispatched by ..." beside
+    no `dispatch` entry would be the one sentence this feature can write into a record
+    that is not true. "... authorised a dispatch" is true either way: the human did
+    authorise it, and whether a run followed is what the entries after it say.
     """
     where = f" from {surface}" if surface else ""
     return (
-        f"Dispatched by {actor.display_name}{where}. No extra instruction was given: "
-        "the task record is the brief."
+        f"{actor.display_name} authorised a dispatch of this task{where}. No extra "
+        "instruction was given: the task record is the brief."
     )
 
 

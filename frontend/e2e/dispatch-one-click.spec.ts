@@ -60,7 +60,9 @@ test("dispatches an agent-filed task on the first click, and puts the authorisat
   // The authorising entry is a real row in the log, under the human's name, written
   // without anyone typing it. Asserted where the record is read, not in the response.
   const log = page.getByRole("region", { name: "Task log" });
-  await expect(log).toContainText("Dispatched by E2E Human from the task page");
+  // An authorisation, not an outcome: the entry is written before the spawn can fail,
+  // and an append-only log cannot take it back, so it says what the human did.
+  await expect(log).toContainText("E2E Human authorised a dispatch of this task from the task page");
   await expect(log).toContainText("the task record is the brief");
 
   await run.getByRole("button", { name: /cancel run/i }).click();

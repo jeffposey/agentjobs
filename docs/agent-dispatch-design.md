@@ -205,6 +205,17 @@ Three things happen in this order, and the order is the design:
    handed along from the write, so "resolved from the stored task at spawn time, never
    taken from the request body" is true in the literal sense the sentence means.
 
+**The entry records an authorisation, not an outcome, and that wording is load-bearing.**
+Step 2 happens inside the run lock and *before* the claim, because that ordering is what
+makes the entry evidence rather than decoration — so step 3, the claim, and the spawn can
+all still refuse after it has landed, and an append-only log cannot take it back. The
+composed sentence is therefore "*Jeff Posey* authorised a dispatch of this task from the
+task page", which stays true whether or not a run followed; whether one did is what the
+`dispatch` entry beside it says. Writing "Dispatched by …" would have made a failed spawn
+the one thing this feature could put into a record that was not so. Shrinking the window
+by moving the write later was the rejected alternative: the window *is* the ordering that
+makes the evidence real.
+
 What a request still cannot do is supply its own *justification*. There is no field that
 says "this run is authorised because ..."; there is a field that says who is asking, and
 the consequence of setting it is a visible, permanent row in an append-only log under
