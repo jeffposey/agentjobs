@@ -2,45 +2,9 @@ schema: 2
 id: task-155-scrub-personal-references
 title: Take the maintainer's private machine out of the public repo's test fixtures
 created: '2026-08-18T21:43:49.173237Z'
-updated: '2026-08-20T20:27:39.109730Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Review and approve the merge of `chore/task-155-neutral-fixture-names`\
-  \ (worktree `C:/projects/aj-155`, two commits off `ed3c2a7`). Not merged \u2014\
-  \ waiting on your explicit approval.\n\n**What changed.** `fe2e571` swaps the Vitest\
-  \ fixture project names `job-hunting`/`mastercalls` for `alpha`/`beta` in `ProjectSwitcher.test.tsx`,\
-  \ `IssueReporter.test.tsx` and `issueReport.test.ts` (ids, display names, roots,\
-  \ `tasks_directory`, and the route slug `task-004-resume` \u2192 `task-004-import`).\
-  \ `33e148f` rewrites `ENGINEERING.md`'s merge-gate restart step so it no longer\
-  \ tells a contributor to run `C:/ai/shared/launchers/open-agentjobs.ps1` \u2014\
-  \ it states the general rule (`agentjobs restart` only restarts a CLI-started server;\
-  \ against anything else it binds the default port and looks like it worked) and\
-  \ points at the environment's own setup notes.\n\n**The one thing worth your judgement**,\
-  \ because it is a call rather than a mechanical change: the launcher command is\
-  \ now gone from `ENGINEERING.md`. It is not lost \u2014 `C:/ai/shared/GLOBAL-AGENTS.md`\
-  \ already carries \"Do not start your own AgentJobs server\u2026 run the launcher\"\
-  , which is where machine-local setup belongs and which every agent on this machine\
-  \ loads. If you would rather keep the concrete command in the repo, say so and I\
-  \ will put it back as an example rather than as the instruction.\n\n**The decision\
-  \ the spec required** (log entry 6): task records under `tasks/` are left untouched\
-  \ \u2014 26 files still name `job-hunting`, `mastercalls` or the launcher. The line\
-  \ drawn is record vs. instruction, not past vs. present. Scrubbing them would buy\
-  \ no privacy (the strings are in the published git history either way, and rewriting\
-  \ history is out of scope) while costing the integrity of the record, which is the\
-  \ load-bearing property of a task tracker; it would also break `task-146`, still\
-  \ `ready`, whose whole subject is a page hosted under `C:/projects/job-hunting`.\
-  \ Rejected alternative \u2014 redact the launcher and rename the ids across all\
-  \ 26 \u2014 is named in the entry. If you disagree, this is the moment; the entry\
-  \ says not to reopen it later.\n\n**Verification.** Full gate in the worktree, exit\
-  \ 0: Black/Ruff/MyPy clean, 2046 pytest, 153 Vitest across 22 files, production\
-  \ build, 16 Playwright. The re-run audit search finds zero hits outside `tasks/`.\n\
-  \n**No UI review server stood up**, deliberately: nothing user-visible changed \u2014\
-  \ the diff is test fixtures and one paragraph of a markdown doc. Say the word if\
-  \ you want one anyway.\n\nOn approval I will rebase onto `main`, merge `--no-ff`,\
-  \ mark the branch merged, close the task, and remove the worktree. No frontend rebuild\
-  \ or server restart is needed since the bundle is unaffected, but I will confirm\
-  \ rather than assume."
+updated: '2026-08-20T23:05:19.595920Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: general
@@ -51,7 +15,6 @@ tags:
 - tests
 effort: small
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: This repository is published at github.com/jeffposey/agentjobs. Its frontend
@@ -209,7 +172,7 @@ links:
   title: The public repository this concerns
 branches:
 - name: chore/task-155-neutral-fixture-names
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-18T21:43:49.173283Z'
@@ -485,3 +448,151 @@ log:
     outcome: completed
     duration_seconds: 1028.591475
     log_path: C:\Users\jpose\.agentjobs\runs\run_82e3fc79
+- id: 11
+  ts: '2026-08-20T22:49:38.000492Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 12
+  ts: '2026-08-20T22:49:40.833028Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 13
+  ts: '2026-08-20T22:49:41.650278Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_fb8fa153
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 12
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-155-scrub-personal-references`
+      in project `agentjobs` (root: C:\projects\agentjobs). You are running in that
+      project''s shared working tree and are NOT isolated. Before writing anything,
+      run `git worktree add ../<repo>-<nnn> -b <type>/task-155-scrub-personal-references-<slug>`
+      and work from that path. Use that shell command, not a built-in worktree tool:
+      those relocate the session''s permission root, which parks a background run
+      on a prompt nobody can answer. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_fb8fa153.'
+    cwd: C:\projects\agentjobs
+    git_head: b35540a
+    session_id: cfa7fa4f
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 14
+  ts: '2026-08-20T23:04:31.936648Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 7b2d51c0-9e4a-4f31-8a06-155c0e1f0001
+      kind: update_content
+      fingerprint: 09d27df9743fea9114aaa00cdaa708fd
+- id: 15
+  ts: '2026-08-20T23:04:54.466094Z'
+  actor: claude
+  type: progress
+  body: "**Merged on approval (log entry 11). Second dispatch, `run_fb8fa153`, session\
+    \ `cfa7fa4f`.**\n\n`main` had moved a long way since the branch was cut at `ed3c2a7`\
+    \ \u2014 task-194 and\ntask-200 had merged, and task-180 merged *during* this\
+    \ run \u2014 so the branch was\nrebased twice and the gate run twice rather than\
+    \ trusting the earlier green.\n\n- **First rebase** onto `b35540a`: clean, no\
+    \ conflicts, despite task-200 having\n  edited the same `ENGINEERING.md` merge-gate\
+    \ section this branch rewrites. Gate\n  exit 0.\n- `main` advanced again mid-gate\
+    \ (task-194's merge, then task-180's). **Second\n  rebase** onto that: clean again.\
+    \ Commits `eafcafe` (fixtures) and `cde1bba`\n  (ENGINEERING.md), same content\
+    \ as `fe2e571`/`33e148f` before the rebases.\n- **Gate on the final base: exit\
+    \ 0.** Black/Ruff/MyPy clean, **2090 pytest passed**\n  in 5m01s, **154 Vitest\
+    \ across 22 files**, production build green, **16 Playwright\n  passed**. The\
+    \ counts moved up from 2046/153 because main gained tests from\n  task-194 and\
+    \ task-180, not because anything here added any. Log at\n  `C:/Users/jpose/.claude/jobs/cfa7fa4f/tmp/check-155-rebase2.log`\
+    \ (job-local).\n- Gate run with `VIRTUAL_ENV` unset, per the guard task-194 added:\
+    \ `poetry run`\n  from a worktree otherwise resolves to the main clone's environment.\n\
+    - **sc-4 re-verified on the final tree**, not just the pre-rebase one: the audit\n\
+    \  grep for `job-hunting|mastercalls|fantasyfootball|fantasy-football|killtony|\n\
+    \  rent-debt|product-strategy|C:/ai/|open-agentjobs`, excluding `node_modules`,\n\
+    \  `.git`, `tasks/`, `frontend_dist/` and `.svg`, returns **zero hits**. Worth\n\
+    \  re-running because main had meanwhile added documentation about worktrees and\n\
+    \  about the wrong-checkout guard, either of which could have reintroduced the\n\
+    \  launcher path. Neither did.\n\n**Merge commit `1e4d1b0`** on `main`, `--no-ff`\
+    \ as required: 4 files, +34/\u221238.\nBranch marked `merged` in `branches[]`.\n\
+    \n**Delivery: nothing to rebuild or restart, and that is checked rather than\n\
+    assumed.** The diff is three Vitest files and one paragraph of `ENGINEERING.md`.\n\
+    No file under `frontend/src` that ships in the bundle changed, no Python changed,\n\
+    so the dashboard on 8876 is already serving the merged state \u2014 a rebuild\
+    \ would\nproduce a byte-identical bundle. The launcher command removed from\n\
+    `ENGINEERING.md` still lives in `C:/ai/shared/GLOBAL-AGENTS.md`, so no agent on\n\
+    this machine loses the instruction."
+  data:
+    operation:
+      id: 7b2d51c0-9e4a-4f31-8a06-155c0e1f0002
+      kind: log_append
+      fingerprint: ced68d925097d3fb12abcd38791fdcff
+- id: 16
+  ts: '2026-08-20T23:05:13.585305Z'
+  actor: claude
+  type: note
+  body: "Correction to entry 15: **the merge commit is `de7d188`**, not `1e4d1b0`.\
+    \ The\nearlier hash was written from memory rather than read from `git log` and\
+    \ is wrong;\n`de7d188 Merge task-155: neutral fixture names, and a restart rule\
+    \ without the\nmaintainer's launcher` is the commit on `main`. Everything else\
+    \ in entry 15 stands\n\u2014 the rebased commits `eafcafe` and `cde1bba`, the\
+    \ file counts, and the gate\nresults were all quoted from command output."
+  re: 15
+  data:
+    operation:
+      id: 7b2d51c0-9e4a-4f31-8a06-155c0e1f0003
+      kind: log_append
+      fingerprint: c05ae08f1823abfda32bff6321808929
+- id: 17
+  ts: '2026-08-20T23:05:19.595554Z'
+  actor: claude
+  type: transition
+  body: Merged as `de7d188` after Jeff's approval, branch marked merged, worktree
+    removed. All five acceptance criteria met; the record-vs-instruction decision
+    in entry 6 stands and is marked settled.
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 7b2d51c0-9e4a-4f31-8a06-155c0e1f0004
+      kind: close
+      fingerprint: 430aeb856a06bb023c8dc5dc216e3305
