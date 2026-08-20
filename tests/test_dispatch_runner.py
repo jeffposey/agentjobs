@@ -46,6 +46,7 @@ from agentjobs.dispatch.runner import (
     DispatchRunner,
     DispatchRunError,
     SessionPhase,
+    allow_list_settings,
     allow_rules,
     classify_session,
     compose_argv,
@@ -172,27 +173,26 @@ class TestPosture:
             assert f"({prefix}:*)" in rules
 
     def test_read_only_gets_no_tools_and_no_worktree(self) -> None:
-        flags = posture_flags(Posture.READ_ONLY, "task-070")
+        flags = posture_flags(Posture.READ_ONLY)
 
         assert flags == ["--tools", "Read,Glob,Grep,WebFetch"]
         assert "-w" not in flags
 
-    def test_supervised_gets_accept_edits_a_worktree_and_the_allow_list(self) -> None:
-        flags = posture_flags(Posture.SUPERVISED, "task-070")
+    def test_supervised_gets_accept_edits_and_the_allow_list(self) -> None:
+        flags = posture_flags(Posture.SUPERVISED)
 
         assert flags[:2] == ["--permission-mode", "acceptEdits"]
-        assert "-w" in flags and "task-070" in flags
         settings = json.loads(flags[flags.index("--settings") + 1])
         assert settings["permissions"]["allow"] == allow_rules()
 
     def test_autonomous_gets_bypass_and_never_the_allow_list(self) -> None:
         """An allow-list under bypassPermissions would imply a limit that is not there."""
-        flags = posture_flags(Posture.AUTONOMOUS, "task-070")
+        flags = posture_flags(Posture.AUTONOMOUS)
 
         assert flags[:2] == ["--permission-mode", "bypassPermissions"]
         assert "--settings" not in flags
 
-    def test_auto_gets_the_auto_mode_a_worktree_and_the_allow_list(self) -> None:
+    def test_auto_gets_the_auto_mode_and_the_allow_list(self) -> None:
         """The default posture, per task-020.
 
         The mode string matters more than it looks: ``auto`` is the one mode that gates
@@ -200,19 +200,67 @@ class TestPosture:
         here instead would park the run on its first unlisted command, which is the
         defect this posture exists to fix, and nothing in a passing suite would say so.
         """
-        flags = posture_flags(Posture.AUTO, "task-070")
+        flags = posture_flags(Posture.AUTO)
 
         assert flags[:2] == ["--permission-mode", "auto"]
-        assert "-w" in flags and "task-070" in flags
         settings = json.loads(flags[flags.index("--settings") + 1])
         assert settings["permissions"]["allow"] == allow_rules()
 
-    def test_every_posture_that_can_write_gets_its_own_worktree(self) -> None:
-        """read_only is the only posture without ``-w``; the rest must be contained."""
-        for posture in (Posture.AUTO, Posture.SUPERVISED, Posture.AUTONOMOUS):
-            flags = posture_flags(posture, "task-070")
+    @pytest.mark.parametrize("posture", list(Posture))
+    def test_no_posture_asks_the_cli_for_a_worktree(self, posture: Posture) -> None:
+        """task-186. This assertion is the whole fix, so it is stated per posture.
 
-            assert flags[flags.index("-w") + 1] == "task-070", posture
+        Every writing posture passed ``-w <task_id>`` until 2026-08-19. A session
+        isolated that way refuses every git operation aimed at the shared checkout --
+        by ``-C`` and by ``cd`` alike -- and the shared checkout is where task records
+        are committed and where the merge gate runs. So a dispatched run could do the
+        work and then neither record nor merge it, which is a defect no unit test on the
+        flags would have caught, because the flags were exactly what was asked for.
+
+        ``read_only`` is in the parametrisation deliberately: it never had a worktree,
+        and the property that it still has none must not depend on the writing postures
+        happening to be tested nearby.
+        """
+        assert "-w" not in posture_flags(posture)
+        assert "--worktree" not in posture_flags(posture)
+
+    def test_the_composed_argv_of_every_posture_is_exactly_this(
+        self, workspace: Path, manager: TaskManager
+    ) -> None:
+        """The whole command, per posture, not just the flags in isolation.
+
+        A flags-only assertion cannot see where the flags land, whether the prompt
+        survived, or whether something else in the pipeline reintroduced ``-w``. This
+        one names the full argv, so any of those shows up as a diff rather than as a
+        run that behaves oddly in production.
+        """
+        expected = {
+            Posture.READ_ONLY: ["--tools", "Read,Glob,Grep,WebFetch"],
+            Posture.AUTO: ["--permission-mode", "auto", "--settings", allow_list_settings()],
+            Posture.SUPERVISED: [
+                "--permission-mode",
+                "acceptEdits",
+                "--settings",
+                allow_list_settings(),
+            ],
+            Posture.AUTONOMOUS: ["--permission-mode", "bypassPermissions"],
+        }
+        assert set(expected) == set(Posture), "a new posture needs its argv named here"
+
+        for posture, flags in expected.items():
+            runner = build(
+                workspace,
+                manager,
+                make_resolution(
+                    ["claude", "--bg", "--remote-control", "{prompt}"], posture=posture
+                ),
+            )
+
+            argv = runner.build_argv("task-070-example", "run_abcd1234")
+
+            assert argv[:3] == [resolve_executable("claude"), "--bg", "--remote-control"]
+            assert argv[3:-1] == flags, posture
+            assert argv[-1] == runner.build_prompt("task-070-example", "run_abcd1234")
 
     def test_the_config_and_schema_posture_enums_stay_in_step(self) -> None:
         """Two enums spell the same concept, and a run needs both.
@@ -230,7 +278,7 @@ class TestPosture:
     def test_each_posture_composes_a_distinct_permission_mode(self) -> None:
         """A posture that silently collapsed onto another's mode would look fine."""
         modes = {
-            posture: posture_flags(posture, "task-070")[1]
+            posture: posture_flags(posture)[1]
             for posture in (Posture.AUTO, Posture.SUPERVISED, Posture.AUTONOMOUS)
         }
 
@@ -287,6 +335,39 @@ class TestPromptStub:
         # It must not restate the record, which is the whole argument for a stub.
         assert task.spec.description not in prompt
         assert len(prompt) < 500
+
+    def test_the_stub_tells_the_run_to_take_its_own_worktree(
+        self, workspace: Path, manager: TaskManager, task
+    ) -> None:
+        """task-186. The one instruction that cannot be deferred to the guide.
+
+        Dispatch stopped passing ``-w``, so nothing isolates a dispatched run from the
+        project's shared working tree but its own first act. Every other thing the run
+        needs to know it can go and read; this it has to know *before* it reads
+        anything. Asserted on the rendered prompt rather than on ``PROMPT_STUB``,
+        because what reaches the agent is what matters.
+        """
+        runner = build(workspace, manager, make_resolution(["fake"]))
+
+        prompt = runner.build_prompt(task.id, "run_abcd1234")
+
+        assert "worktree" in prompt
+        assert "not isolated" in prompt.lower()
+
+    def test_the_guide_states_the_worktree_requirement_too(self) -> None:
+        """The stub is one clause; the guide is where the reasoning lives.
+
+        Both, deliberately -- and this test exists so that deleting either half is a
+        failure rather than a quiet drift back to a prompt that assumes containment
+        somebody else arranged.
+        """
+        text = (REPO_ROOT / GUIDE_PATH).read_text(encoding="utf-8")
+
+        assert "git worktree add" in text
+        heading = "## Before you write anything: take your own worktree"
+        assert heading in text
+        # Unmissable means near the top, not beside the claim halfway down.
+        assert text.index(heading) < len(text) // 3
 
 
 # ----- batch mode -------------------------------------------------------------

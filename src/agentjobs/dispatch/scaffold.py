@@ -54,10 +54,15 @@ enabled: false
 # builds a command from a label -- so whichever model or effort a runner uses is
 # whatever its argv says.
 #
-# Two flags are NOT yours, and writing them here is a bug: AgentJobs splices the
-# project's posture in front of the prompt itself, and that is where `--permission-mode`
-# / `--tools` and the worktree flag `-w` come from. A second `-w` here would give one run
-# two worktrees.
+# The permission flags are NOT yours, and writing them here is a bug: AgentJobs splices
+# the project's posture in front of the prompt itself, and that is where
+# `--permission-mode` and `--tools` come from.
+#
+# `-w` is nobody's -- do not write it here either. A worktree-isolated session refuses
+# every git operation aimed at the shared checkout, which is where task records are
+# committed and where a merge happens, so `-w` produces a run that can do its work and
+# then neither record nor merge it. A dispatched agent takes its own worktree instead.
+# See the working-tree isolation section of docs/agent-dispatch-design.md.
 #
 # `mode:` must match the invocation. A session is `--bg --remote-control` and returns a
 # short id AgentJobs then polls; a batch run is `-p` and blocks until it exits. `-p` on a
@@ -155,7 +160,7 @@ default_group: standard
 #
 #       auto        the default, and what you want. A classifier reviews each action,
 #                   so the run keeps a gate and still never needs a terminal.
-#       read_only   no shell at all, and no worktree. Review, triage, defect reports.
+#       read_only   no shell at all. Review, triage, defect reports.
 #       supervised  acceptEdits plus an allow-list of nine command prefixes. Anything
 #                   outside them PARKS waiting for a human, so this only suits a run
 #                   you are watching and willing to answer from your phone.

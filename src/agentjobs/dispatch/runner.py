@@ -102,15 +102,26 @@ this design found the bug in the prompt that dispatched it.
 
 PROMPT_STUB = (
     "You are the agent `{agent}` working task `{task_id}` in project `{project_id}` "
-    "(root: {project_root}). AgentJobs is serving at {api_base}. Read the task record "
-    "and follow the resumption contract in " + GUIDE_PATH + ". Dispatch run id: {run_id}."
+    "(root: {project_root}). You are running in that project's shared working tree and "
+    "are NOT isolated: take your own git worktree before you write anything. AgentJobs "
+    "is serving at {api_base}. Read the task record and follow the resumption contract "
+    "in " + GUIDE_PATH + ". Dispatch run id: {run_id}."
 )
-"""Fixed text plus five substitutions, and deliberately nothing more.
+"""Fixed text plus five substitutions, and deliberately almost nothing more.
 
 The resumption contract already guarantees the record is sufficient to resume from, so
 the payload is a pointer to where the context is, not a copy of it. Composing a richer
 prompt would put the contract in a second place and guarantee the two disagree.
-"""
+
+The worktree sentence is the one exception, and it is a considered one (task-186). Until
+2026-08-19 ``posture_flags`` passed ``-w`` and containment was mechanical, so the stub
+had nothing to say about it. It cannot pass ``-w`` any more -- the isolation that flag
+buys carries a guard refusing every git operation aimed at the shared clone, which is
+where this project requires task records to be committed and where the merge gate runs.
+Containment is therefore the agent's own act, and it is the **only** instruction that
+must be obeyed before the agent reads anything, the guide included. A pointer cannot
+carry an instruction that has to precede following the pointer, so this one line is
+stated here as well as in the guide."""
 
 GRACE_SECONDS = 30.0
 """How long a cancelled batch run gets to finish a ``git commit`` before it is killed."""
@@ -166,7 +177,7 @@ def allow_list_settings() -> str:
     return json.dumps({"permissions": {"allow": allow_rules()}})
 
 
-def posture_flags(posture: Posture, task_id: str) -> List[str]:
+def posture_flags(posture: Posture) -> List[str]:
     """The flags that decide what a run may do, per task-076.
 
     **AgentJobs owns these, not the operator.** Mechanically they are just more argv,
@@ -174,7 +185,20 @@ def posture_flags(posture: Posture, task_id: str) -> List[str]:
     of the whole feature, and burying them in a config example means they get chosen by
     whoever copies the example first.
 
-    ``read_only`` gets no worktree because it cannot write anything to one.
+    **No posture passes ``-w``, and that is the whole of task-186.** Until 2026-08-19
+    every writing posture did, on the reasoning that a dispatched run should not be able
+    to *forget* to take a worktree. What that reasoning did not know is that the
+    isolation ``-w`` grants is enforced by a guard which refuses any git operation aimed
+    at the shared checkout -- by ``-C`` and by ``cd`` alike, both probed on 2.1.235, with
+    no flag or setting that lifts either. This project commits every task record to
+    ``main`` in that shared checkout and runs its merge gate there, so a ``-w`` run could
+    do the work and then not record or merge it. Containment that guarantees the run
+    cannot finish is not containment. It is now the agent's own act -- ``PROMPT_STUB``
+    says so in the one sentence guaranteed to be read first, and the guide it points at
+    says it in full.
+
+    ``read_only`` still gets no worktree flag, for the reason it never had one: it cannot
+    write anything to one.
 
     ``auto`` is the default (task-020). Its mode has a classifier review each action
     instead of a human, which is the only one of these that both keeps a gate and never
@@ -192,12 +216,10 @@ def posture_flags(posture: Posture, task_id: str) -> List[str]:
     if posture is Posture.READ_ONLY:
         return ["--tools", "Read,Glob,Grep,WebFetch"]
     if posture is Posture.AUTONOMOUS:
-        return ["--permission-mode", "bypassPermissions", "-w", task_id]
+        return ["--permission-mode", "bypassPermissions"]
     return [
         "--permission-mode",
         "auto" if posture is Posture.AUTO else "acceptEdits",
-        "-w",
-        task_id,
         "--settings",
         allow_list_settings(),
     ]
@@ -602,7 +624,7 @@ class DispatchRunner:
             "agent": self.runner.actor_id,
             "api_base": self.api_base,
         }
-        flags = posture_flags(self.resolution.settings.posture, task_id)
+        flags = posture_flags(self.resolution.settings.posture)
         argv = compose_argv(self.runner.argv, values, flags)
         # Resolved before it is recorded, because the dispatch entry claims to say what
         # actually ran.
