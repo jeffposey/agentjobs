@@ -3,7 +3,7 @@ id: task-190
 title: 'Run locks leak: release depends on in-memory state, so a server restart blocks
   those tasks forever'
 created: '2026-08-20T07:08:47.960269Z'
-updated: '2026-08-20T17:35:37.233647Z'
+updated: '2026-08-20T17:54:35.116922Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -249,3 +249,88 @@ log:
       id: a7f4d2e9-6c85-4b13-9e07-3d5a8b2c1f44
       kind: update_content
       fingerprint: 2a178d579aff8b28bca10fcf1bcb3a24
+- id: 6
+  ts: '2026-08-20T17:54:15.366137Z'
+  actor: claude
+  type: progress
+  body: "Diagnosis complete, and every one of the four leaked locks from 2026-08-20\
+    \ is now\nexplained by a single root cause plus one aggravator. Reproduced end\
+    \ to end on a\nsandbox AgentJobs home (`AGENTJOBS_HOME`, own project, own server\
+    \ on port 8917) so\nnothing here is inferred from the log.\n\n## Root cause: only\
+    \ one of the three ways a run ends holds the object that can release\n\n`RunLock`\
+    \ is deletable only through `RunHandle.release_lock()`, and `handle.lock` is\n\
+    set in exactly one place -- the stack of the `dispatch_task` call that created\
+    \ it.\nThere are three ways a run reaches a terminal state, and only one of them\
+    \ still has\nthat object:\n\n1. **Batch supervisor thread, same process.** Holds\
+    \ the real handle. Releases\n   correctly. *Verified:* sandbox `task-004`, API\
+    \ dispatch, batch runner; run reached\n   `finished` and `.locks/` was empty afterwards.\
+    \ So the completion path is not\n   uniformly broken, which is worth knowing.\n\
+    2. **The session poller.** `poller.py::_handle_from` rebuilds a `RunHandle` from\
+    \ what\n   the run wrote to disk and never sets `lock`, so `release_lock()` is\
+    \ a silent no-op\n   -- it is `if self.lock is not None`. Every session run concluded\
+    \ by the poller\n   therefore strands its lock while the server that created it\
+    \ is still alive.\n   **This is rows 3 and 4 of the evidence table** (pid 368228,\
+    \ the live server, runs\n   `finished` hours earlier). *Verified:* sandbox `task-005`,\
+    \ a real `claude --bg`\n   session; poller settled it to `finished` / `finished_without_handoff`,\
+    \ and\n   `task-005.lock` was still present and still undeletable.\n3. **The process\
+    \ dies.** Nothing releases. **This is rows 1 and 2** (pids 351652 and\n   272672,\
+    \ servers killed by a launcher restart). *Verified:* sandbox `task-003`,\n   API\
+    \ dispatch, server killed mid-run, server restarted. `reconcile()` correctly\n\
+    \   marked the run `interrupted` -- terminal -- and the very next dispatch of\
+    \ that\n   task was still refused:\n\n       {\"code\":\"live_run_exists\",\n\
+    \        \"message\":\"task-003 already has a run holding ...\\task-003.lock\n\
+    \                   (pid=86176 run=). Either it is still going, or a run died\
+    \ and left\n                   the lock behind -- delete the file to clear it.\"\
+    ,\n        \"suggested_action\":\"Wait for the run to finish, or cancel it.\"\
+    }\n\n   Permanently. There is no run to wait for and nothing to cancel.\n\n##\
+    \ Aggravator: the descriptor is held for the process's lifetime\n\n`acquire_run_lock`\
+    \ returns with the `os.open` handle still open and nothing ever\nreads it. Exclusivity\
+    \ comes entirely from the *existence* of the file under\n`O_CREAT|O_EXCL`; no\
+    \ advisory lock is taken on the descriptor. Keeping it open buys\nnothing and\
+    \ costs two things: on Windows it blocks `unlink`, and a long-lived server\naccumulates\
+    \ one handle per run it has ever started.\n\nThat is what makes entry #2's and\
+    \ entry #3's two cases differ, and both reproduced:\n\n- **CLI dispatch** -- the\
+    \ process exits, the OS closes the descriptor, the file is\n  stranded but deletable.\
+    \ *Verified:* sandbox `task-001`, `rm` succeeded.\n- **API dispatch** -- the server\
+    \ lives on holding the descriptor.\n  *Verified:* sandbox `task-002` and `task-005`,\n\
+    \  `rm: cannot remove '...task-002.lock': Device or resource busy`, and the same\
+    \ file\n  deleted without complaint the moment the server process was killed.\n\
+    \n## A third fact, not previously recorded: the lock never names its run\n\nEvery\
+    \ lock file on disk reads `pid=<n> run=` with **run empty**. `acquire_run_lock`\
+    \ is\ncalled from `guards.py` before `runner.start()` exists to produce a run\
+    \ id, and the\n`run_id=` parameter is never passed there. So a lock currently\
+    \ cannot be attributed to\na run at all, which is why \"is the run this lock belongs\
+    \ to over?\" has never been a\nquestion the code could ask. Any fix that judges\
+    \ staleness from the ledger has to fix\nthis first.\n\n## Out of scope, found\
+    \ on the way, filed rather than fixed here\n\n`poller.py` builds its `DispatchRunner`\
+    \ from `assert_dispatch_permitted(project_id,\nhome)` with no group, so it resolves\
+    \ the project's *default* runner rather than the one\nthe run actually used. A\
+    \ session dispatched via `group:` is then polled with the wrong\nexecutable prefix\
+    \ -- in the sandbox, `python agents --json`, which fails every tick.\nNot a locking\
+    \ defect; recorded here so it is not lost.\n"
+  data: {}
+- id: 7
+  ts: '2026-08-20T17:54:35.116828Z'
+  actor: claude
+  type: decision
+  body: "**Decision: `agentjobs restart` leaving the previous server alive is filed\
+    \ as its own\ntask, not absorbed into this one.**\n\nEntry #2 found two server\
+    \ generations alive at once, the older still bound to 8876 and\nserving stale\
+    \ code, and left the call to whoever picked this up. Splitting it:\n\n- It is\
+    \ a *process-lifecycle* defect. Its evidence is a process table and a port bind;\n\
+    \  its fix is in the serve/stop/restart commands and touches no part of the locking\n\
+    \  primitive. Nothing in it shares a line of code with `acquire_run_lock`,\n \
+    \ `RunHandle.release_lock`, or the poller.\n- It is a *cause* of leaked locks\
+    \ only in the sense that any unexpected process death\n  is. Once the lock is\
+    \ judged against the ledger rather than against an in-memory\n  handle, an extra\
+    \ server generation strands nothing -- the reclamation covers it the\n  same way\
+    \ it covers a deliberate restart. So fixing it is not required to close this\n\
+    \  task, and this task is not required to fix it.\n- Merging them would make one\
+    \ branch that changes both the dispatch locking primitive\n  and the server lifecycle,\
+    \ verified by two unrelated procedures, reviewed as one unit.\n  That is the shape\
+    \ this repository has been trying to get away from.\n\nRejected alternative: absorbing\
+    \ it here, on the argument that both were found by the\nsame investigation and\
+    \ both make dispatch unreliable. That is a shared *symptom*, not\na shared mechanism,\
+    \ and it is exactly how a task grows past what one branch should\ncarry.\n\nFiled\
+    \ as its own task with entry #2's evidence carried over verbatim.\n"
+  data: {}

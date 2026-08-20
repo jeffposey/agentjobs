@@ -1,0 +1,97 @@
+schema: 2
+id: task-196
+title: '`agentjobs restart` can add a server generation instead of replacing one,
+  and nothing says so'
+created: '2026-08-20T17:56:56.218922Z'
+updated: '2026-08-20T17:56:56.219532Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: infrastructure
+tags:
+- dispatch
+- reliability
+- cli
+- process-lifecycle
+assignment:
+  eligible: []
+spec:
+  summary: '`agentjobs restart` produced a second server process that could not bind
+    the port, left the previous generation serving, and reported nothing. Two generations
+    were found alive hours apart on 2026-08-20, the older one still holding 8876 and
+    serving stale code.'
+  intent: 'Found on 2026-08-20 while diagnosing task-190''s run-lock leak, which forced
+    a look at the process table. Recorded on task-190 as log entry #2 and split out
+    there by decision: it is a process-lifecycle defect, not a locking one, and deserves
+    its own spec rather than being smuggled into a locking fix.'
+  description: "## The evidence, from the live machine on 2026-08-20\n\nTwo AgentJobs\
+    \ server generations were alive at the same time:\n\n| pid | started | argv |\
+    \ bound to 8876? |\n|---|---|---|---|\n| 368228 | 2026-08-19 20:27:43 | `agentjobs\
+    \ restart` | **yes** |\n| 144376 / 364428 | 2026-08-20 01:50:39 | `agentjobs serve`\
+    \ (the launcher) | no |\n\nKilling 368228 took port 8876 down with it, which is\
+    \ what identifies it as the process\nthat was really serving. The newer pair was\
+    \ alive but not bound -- so a *later* start\nhad produced a process that could\
+    \ not take the port, and the older one kept serving.\nNothing reported the collision\
+    \ to anyone.\n\n## Why this matters more here than it would elsewhere\n\nENGINEERING.md\
+    \ prescribes restarting the server after every merge, after a model or\nstorage\
+    \ change, and after task files change, precisely so nobody is left looking at\n\
+    stale code. If `restart` can leave the old generation serving, **that rule can\
+    \ produce\nthe exact failure it was written to prevent**, and which generation\
+    \ is serving is not\nknowable from the outside.\n\nIt also accumulates: every\
+    \ restart may add a process rather than replace one.\n\nRelated but distinct:\
+    \ task-194 is about a checkout serving the wrong *source*; this is\nabout serving\
+    \ from the wrong *process*.\n\n## Corroborating observation, 2026-08-20\n\nReproduced\
+    \ incidentally while working task-190: a sandbox `agentjobs serve` whose port\n\
+    was already taken printed `Started server process`, ran startup reconciliation\
+    \ (which\n**wrote to disk** -- it concluded an orphaned run), *then* failed to\
+    \ bind and exited.\nThe bind error was the fifth line of output and the process\
+    \ exited 0-ish silence from a\ncaller's point of view. A `serve` that cannot bind\
+    \ should not have done any of that.\n\n## What a fix probably has to cover\n\n\
+    - `stop` must actually stop the process that holds the port, and confirm the port\
+    \ is\n  free before `serve` tries to bind it.\n- A `serve` that cannot bind must\
+    \ fail loudly rather than start, run startup work, and\n  then exit quietly.\n\
+    - `status` should be able to say which pid is serving, so \"did my restart take?\"\
+    \ is a\n  question with an answer.\n\n## Not in scope\n\nThe launcher script at\
+    \ `C:/ai/shared/launchers/open-agentjobs.ps1` is machine-local and\noutside this\
+    \ repository. Fixing the CLI is what this task is for; the launcher can stay\n\
+    as it is."
+  constraints: 'Do not make `stop` kill by port alone without confirming it is an
+    AgentJobs process -- something else may hold the port, and killing an unrelated
+    process is worse than refusing.
+
+    A `serve` that fails to bind must not have already written to disk as though it
+    were the live server.'
+  out_of_scope: The machine-local launcher script. Run locking (task-190). Which source
+    tree a server imports (task-194).
+  context:
+  - path: src/agentjobs/cli.py
+    why: serve / stop / status / restart, the four commands this is about.
+  - path: tasks/agentjobs/task-190-run-lock-leak.yaml
+    why: 'Log entry #2 holds the original observation and the process table it came
+      from; the decision entry records why it was split out.'
+acceptance:
+- id: ac-1
+  text: A restart leaves exactly one AgentJobs server process, verified by looking
+    at the process table rather than by a passing test
+  status: pending
+- id: ac-2
+  text: A serve that cannot bind its port reports that and exits non-zero, having
+    written nothing
+  status: pending
+- id: ac-3
+  text: status names the pid that is actually serving
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T17:56:56.218982Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready

@@ -1,0 +1,84 @@
+schema: 2
+id: task-197
+title: The session poller resolves the project's default runner, so a run dispatched
+  from a group is polled with the wrong executable
+created: '2026-08-20T17:56:56.232826Z'
+updated: '2026-08-20T17:56:56.233439Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: infrastructure
+tags:
+- dispatch
+- reliability
+- groups
+assignment:
+  eligible: []
+spec:
+  summary: poll_live_sessions rebuilds a DispatchRunner from assert_dispatch_permitted(project_id,
+    home) with no group, so it resolves whatever runner the project defaults to rather
+    than the one the run was actually started with. When those differ, every poll
+    of that run fails and the run is never concluded.
+  intent: Found on 2026-08-20 while reproducing task-190's run-lock leak on a sandbox
+    home. A session dispatched with a group was polled with the batch runner's executable
+    and every tick failed; the run stayed live and unreported until the config was
+    changed to make the session runner the project default.
+  description: "## What happens\n\n`poller.py::poll_live_sessions` reconstructs the\
+    \ runner for a live run like this:\n\n    resolution = assert_dispatch_permitted(record.project_id,\
+    \ home)\n\nwith no `group=`. Task-177 made a dispatch able to name a group, and\
+    \ `runner_groups`\nchoose a member at dispatch time -- so the runner a run was\
+    \ started with is not\nnecessarily the one that call resolves. The run's own `meta.yaml`\
+    \ records the argv it\nwas started with, but nothing reads it back for this.\n\
+    \n## Observed\n\nSandbox project, default runner a batch `python`, plus a group\
+    \ naming a session runner\n(`claude`). A session dispatched with a `group` started\
+    \ fine, and then every poll tick\nproduced:\n\n    Dispatch poll run_bf209227:\
+    \ poll failed: Session ledger command failed (2):\n    ...python.EXE: can't open\
+    \ file '...proj/agents': [Errno 2] No such file or directory\n\n-- that is `python\
+    \ agents --json --all`, because `executable_prefix` came from the\ndefault runner.\
+    \ The run stayed `running` with no `dispatch_result` on its task, which is\nthe\
+    \ exact silence the poller exists to prevent. Making the session runner the project\n\
+    default made it poll correctly, which confirms the cause.\n\n## On this machine\
+    \ specifically\n\nEvery runner in `~/.agentjobs/dispatch.yaml` is currently `claude`-prefixed,\
+    \ so the\nresolved prefix happens to be right whichever member was chosen and\
+    \ the defect is\nlatent. It stops being latent the moment a second CLI (the commented-out\
+    \ `chatgpt-sol`\nmember, or any batch runner) is added -- which the config file\
+    \ is already written in\nanticipation of.\n\n## Direction, not prescribed\n\n\
+    The run knows what it was started with: `meta.yaml` holds `argv`, and the dispatch\
+    \ entry\nholds the runner and group names. Resolving the runner from the *run*\
+    \ rather than from\nthe project's current config also fixes a second-order case\
+    \ -- a config edited while a\nrun is live would otherwise change how that run\
+    \ is polled."
+  constraints: A run whose recorded runner no longer exists in the config must still
+    be followable, or an edit to dispatch.yaml would orphan live runs.
+  out_of_scope: Run locking (task-190). Runner group selection itself (task-177, closed).
+  context:
+  - path: src/agentjobs/dispatch/poller.py
+    why: poll_live_sessions builds the DispatchRunner; that is the line which drops
+      the group.
+  - path: src/agentjobs/dispatch/runner.py
+    why: executable_prefix, which is what ends up wrong.
+  - path: src/agentjobs/dispatch/config.py
+    why: assert_dispatch_permitted and its group parameter.
+acceptance:
+- id: ac-1
+  text: A session dispatched from a group whose runner differs from the project default
+    is polled with that runner and reaches a terminal state
+  status: pending
+- id: ac-2
+  text: A run whose recorded runner is no longer in the config is still polled rather
+    than orphaned
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T17:56:56.232880Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
