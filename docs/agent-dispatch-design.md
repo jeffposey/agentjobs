@@ -1257,10 +1257,34 @@ protects a state transition lasting microseconds; a run lasts half an hour. So:
   mean two processes start and one discovers, after paying for a model call, that it
   lost.
 - **One live run per task**, enforced by a run lockfile at
-  `~/.agentjobs/runs/.locks/<task_id>.lock` held for the process's lifetime — the same
-  primitive 055 chose, for the same reason (atomic on Windows, no dependency, and a
-  stale lock from a killed process produces a timeout with an error naming it rather
-  than a hang).
+  `~/.agentjobs/runs/.locks/<task_id>.lock` held for the run's lifetime — the same
+  primitive 055 chose, for the same reason (atomic on Windows, no dependency, and no
+  lease to renew).
+
+  *Amended 2026-08-20 (task-190), after this design's original answer to a stale lock —
+  "a timeout with an error naming the file" — turned out to make a leaked lock
+  **permanent and silent**. Three corrections, and the primitive itself is unchanged:*
+
+  - The lock is **the file's existence, not an open descriptor**. `acquire_run_lock`
+    closes the handle before returning. Nothing ever read it, and keeping it open both
+    blocked `unlink` on Windows — so the "delete the file" remedy failed for as long as
+    the leaking process lived — and leaked a handle per run in a long-lived server.
+  - The lock **names its run**, written by `RunLock.adopt` as soon as `runner.start`
+    produces a run id. Before this every lock file on disk read `run=` empty, so nothing
+    could ask whether the run holding it was over.
+  - A lock is **reclaimed when it can be shown not to be held**: its named run has a
+    terminal record, or (with no run record to consult) the process that took it is
+    gone. Never on elapsed time — there is still no lease and no heartbeat, which is
+    what the original choice of primitive was protecting. Being unable to tell refuses.
+    `release_stale_locks` applies the same rule as a sweep inside §9's startup
+    reconciliation, after it concludes orphaned runs, so a restart heals a leak instead
+    of causing one.
+
+  Releasing is correspondingly no longer the private business of the in-memory
+  `RunHandle` the dispatch created. That object returns with the dispatch call, and the
+  session poller — which is what actually concludes every session run — rebuilds its
+  handle from disk. A rebuilt handle attaches a `RunLock` by path; the release refuses
+  to delete a lock that has come to name a different run.
 - **A run directory per run, no shared index.** `~/.agentjobs/runs/<run_id>/` is written
   only by its own supervisor, so listing runs is a directory scan and there is no
   contended index file to lock. Same reasoning as the task-per-file layout.
@@ -1555,6 +1579,19 @@ So startup reconciliation inverts. Rather than declaring survivors `interrupted`
 AgentJobs **re-attaches**: it reads `claude agents --json`, matches sessions against its
 own ledger, and resumes tracking. A recorded session that is absent from the ledger is
 genuinely gone and gets a terminal entry; one that is present is simply still running.
+
+**And then it sweeps the run locks** (added 2026-08-20, task-190). Reconciliation
+settles *runs*; until this, nothing settled the lock files those runs had taken, so the
+restart this section is about stranded every one of them — permanently, because the only
+release path needed an in-memory handle that had just died with the process. `reconcile`
+now finishes by deleting every lock whose named run has a terminal record, or whose
+holding process is gone when there is no run record to consult. The order is
+load-bearing and not interchangeable: an orphaned batch run reads `running` on disk until
+this section's rule declares it `interrupted`, so a sweep that ran first would find every
+lock apparently live and leave the entire set behind.
+
+This is the one place a restart is *supposed* to change locking state, and it is why the
+lock can keep a primitive with no automatic release without a leak being permanent.
 
 ### Staleness replaces the wall-clock kill, for sessions
 

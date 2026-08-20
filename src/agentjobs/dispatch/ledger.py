@@ -73,6 +73,133 @@ def locks_root(home: Path) -> Path:
     return runs_root(home) / LOCKS_DIRNAME
 
 
+@dataclass(frozen=True)
+class LockHolder:
+    """Who a lock file says is holding it, as far as the file can be read.
+
+    Both fields are optional because both can be missing from a file written by an
+    older version, and a lock nobody can attribute must still be *describable* -- the
+    refusal a human reads is built from this.
+    """
+
+    pid: Optional[int] = None
+    run_id: str = ""
+    text: str = ""
+
+    @classmethod
+    def parse(cls, text: str) -> "LockHolder":
+        """Read ``pid=<n> run=<id>``, tolerating anything else."""
+        fields: Dict[str, str] = {}
+        for token in text.split():
+            key, _, value = token.partition("=")
+            if _:
+                fields[key] = value
+        pid: Optional[int] = None
+        try:
+            pid = int(fields["pid"])
+        except (KeyError, ValueError):
+            pid = None
+        return cls(pid=pid, run_id=fields.get("run", ""), text=text.strip())
+
+    def describe(self) -> str:
+        """The holder as a sentence fragment, for a message a human reads."""
+        parts = []
+        if self.run_id:
+            parts.append(f"run {self.run_id}")
+        if self.pid is not None:
+            parts.append(f"pid {self.pid}")
+        return ", ".join(parts) or (self.text or "nothing recorded")
+
+
+def process_alive(pid: int) -> bool:
+    """Whether a process with this id exists right now.
+
+    ``os.kill(pid, 0)`` is the Unix idiom and is **not** available here: on Windows
+    CPython implements ``os.kill`` with ``TerminateProcess`` for every signal that is
+    not a console event, so the usual liveness probe would kill the process it is
+    asking about. Windows therefore goes through ``OpenProcess`` and
+    ``GetExitCodeProcess``.
+
+    Pid reuse means a ``True`` here can be wrong -- some unrelated process may have
+    inherited the number. That is the safe direction: a wrongly-alive answer refuses a
+    lock rather than clearing one. It is consulted only when the ledger has nothing to
+    say, and a wrongly-*dead* answer is not reachable: a pid that no longer exists is a
+    fact, not an inference.
+    """
+    if pid <= 0:
+        return False
+    if os.name != "nt":
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:  # exists, owned by somebody else
+            return True
+        return True
+
+    import ctypes
+
+    still_active = 259
+    query_limited_information = 0x1000
+    # getattr rather than ctypes.windll.kernel32: the attribute only exists on
+    # Windows, so the direct spelling is a type error wherever mypy is not run here.
+    kernel32 = getattr(ctypes, "windll").kernel32
+    handle = kernel32.OpenProcess(query_limited_information, False, pid)
+    if not handle:
+        return False
+    try:
+        code = ctypes.c_ulong()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return True  # cannot tell; treat as alive, which refuses rather than clears
+        return code.value == still_active
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def stale_lock_reason(home: Path, holder: LockHolder) -> Optional[str]:
+    """Why this holder is not holding anything any more, or ``None`` if it may be.
+
+    Two rules, in this order, and the order is the whole design:
+
+    1. **If the lock names a run, that run's record decides, and nothing else does.**
+       A terminal run releases the lock; a live one keeps it however dead the recorded
+       pid looks. The pid must not get a vote here, because a CLI dispatch starts a
+       session that deliberately outlives the process that started it -- the recorded
+       pid is *expected* to be gone while the session runs, and reclaiming on that
+       would hand a second agent to a task that already has one. That is the failure
+       this lock exists to prevent, and it would be worse than the leak.
+    2. **With no run record to consult, the pid decides.** Two ways to get here: the
+       narrow window between taking the lock and the run existing to be named, and a
+       lock naming a run whose directory is no longer on disk. Falling back rather than
+       refusing is deliberate -- a run with no directory cannot be followed, concluded
+       or cancelled by anything, so refusing on it would be the permanent silent block
+       this whole change exists to remove, merely rarer.
+
+    A live pid, or a file too mangled to read a pid out of, is left alone. "I cannot
+    tell" refuses, which is the direction that cannot lose work.
+
+    Note what is deliberately absent: no clock. Nothing here expires, so there is no
+    lease to renew and no window in which a slow run loses a lock it is still using.
+    A lock is cleared only against a positive statement on disk -- a terminal run, or
+    an absent process -- never against elapsed time.
+    """
+    if holder.run_id:
+        directory = runs_root(home) / holder.run_id
+        if directory.is_dir():
+            record = read_run(directory)
+            if record.is_live:
+                return None
+            return f"its run {holder.run_id} is {record.outcome or record.status}"
+    if holder.pid is not None and not process_alive(holder.pid):
+        missing = (
+            f"and there is no record of run {holder.run_id}"
+            if holder.run_id
+            else "and it named no run"
+        )
+        return f"the process that took it (pid {holder.pid}) is gone, {missing}"
+    return None
+
+
 @dataclass
 class RunLock:
     """An exclusive claim on one task, held for the lifetime of its run.
@@ -80,31 +207,77 @@ class RunLock:
     The storage lock protects a read-modify-write lasting microseconds; a run lasts half
     an hour. Same primitive, different lifetime, which is why it cannot simply be a
     ``with`` block around ``mutate_task``.
+
+    **The claim is the file's existence, not an open descriptor.** ``acquire_run_lock``
+    closes the descriptor before returning, so a lock can be released by anything
+    holding its path -- which is what lets the session poller release one it did not
+    take. Keeping the descriptor open bought nothing (no advisory lock is taken on it)
+    and cost two real things: on Windows an open handle blocks ``unlink``, so a leaked
+    lock could not be deleted while the leaking process lived, and a long-lived server
+    accumulated one handle for every run it had ever started. Both observed 2026-08-20;
+    see task-190.
     """
 
     task_id: str
     path: Path
-    handle: int
+    run_id: str = ""
+
+    def adopt(self, run_id: str) -> None:
+        """Name the run this lock is held for, once there is a run to name.
+
+        The lock is taken before the run exists -- that is the point of taking it, so
+        two dispatches cannot both get as far as spawning. So the run id is written a
+        moment later, and until it is, the lock is attributable only by pid. Every lock
+        file on this machine before task-190 read ``run=`` empty for exactly that
+        reason, which is why "is this lock's run over?" was not a question the code
+        could ask.
+        """
+        self.run_id = run_id
+        try:
+            self.path.write_text(_holder_text(run_id), encoding="ascii")
+        except OSError:  # pragma: no cover - the lock was cleared underneath us
+            pass
 
     def release(self) -> None:
-        """Release the lock. Safe to call twice."""
-        if self.handle < 0:
+        """Delete the lock. Safe to call twice, and safe to call late.
+
+        A lock file that has come to name a *different* run is left alone. That is not
+        defensive padding: a run's terminal write and its lock release are two steps,
+        and between them a second dispatch can legitimately reclaim the lock and take
+        it for a new run. Releasing blind would delete the new run's lock and let a
+        third dispatch in beside it.
+        """
+        holder = read_lock_holder(self.path)
+        if holder is not None and self.run_id and holder.run_id and holder.run_id != self.run_id:
             return
-        try:
-            os.close(self.handle)
-        except OSError:  # pragma: no cover - already closed
-            pass
-        self.handle = -1
         try:
             self.path.unlink()
         except FileNotFoundError:  # pragma: no cover - already cleaned up
             pass
+        except OSError:  # pragma: no cover - a peer is mid-unlink
+            pass
+
+
+def _holder_text(run_id: str) -> str:
+    """What a lock file says about who holds it."""
+    return f"pid={os.getpid()} run={run_id}"
+
+
+def read_lock_holder(path: Path) -> Optional[LockHolder]:
+    """The holder recorded in a lock file, or ``None`` when there is no such file."""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except FileNotFoundError:
+        return None
+    except OSError:  # pragma: no cover - unreadable but present
+        return LockHolder()
+    return LockHolder.parse(text)
 
 
 def acquire_run_lock(
     home: Path, task_id: str, *, run_id: str = "", timeout: float = LOCK_TIMEOUT_SECONDS
 ) -> RunLock:
-    """Take the run lock for one task, or raise naming the file that is holding it.
+    """Take the run lock for one task, or raise saying who is holding it and why.
 
     ``O_CREAT|O_EXCL``, the same primitive task-055 chose and for the same reasons:
     exclusive create is atomic on every filesystem this runs on, it needs no dependency,
@@ -116,33 +289,116 @@ def acquire_run_lock(
     retried; treating the second as fatal made a losing claimant crash with "Permission
     denied" instead of being told something else held it.
 
-    A stale lock times out with a message naming the file, rather than hanging. That is
-    the whole point of choosing a primitive with no automatic release: a hang tells you
-    nothing and a named file tells you what to delete.
+    **A lock whose holder can be shown not to be holding anything is reclaimed, once,
+    before the timeout is consulted** (task-190). This does not weaken the argument for
+    a primitive with no automatic release -- nothing releases on a timer, and there is
+    still no lease to renew. It replaces the part of that argument that did not survive
+    contact: "a named file tells you what to delete" was true only for someone who knew
+    the directory existed, and false on Windows for as long as the leaking process
+    lived, because the descriptor it never closed blocked the delete. See
+    ``stale_lock_reason`` for what counts as evidence, and note the asymmetry -- being
+    unable to tell refuses.
     """
     directory = locks_root(home)
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{task_id}.lock"
     deadline = time.monotonic() + timeout
+    reclaimed = False
     while True:
         try:
             handle = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            break
         except (FileExistsError, PermissionError):
             pass
         except OSError as exc:  # pragma: no cover - unexpected filesystem failure
             if exc.errno != errno.EEXIST:
                 raise
+        else:
+            # Written and closed immediately. The claim is the file, not the handle.
+            try:
+                os.write(handle, _holder_text(run_id).encode("ascii"))
+            finally:
+                os.close(handle)
+            return RunLock(task_id=task_id, path=path, run_id=run_id)
+
+        holder = read_lock_holder(path)
+        if holder is not None and not reclaimed:
+            reason = stale_lock_reason(home, holder)
+            if reason is not None:
+                # Once. A lock that is retaken and judged stale a second time within one
+                # acquisition means something is creating them faster than they can be
+                # judged, and looping on that would be a busy-wait dressed as recovery.
+                reclaimed = True
+                RunLock(task_id=task_id, path=path, run_id=holder.run_id).release()
+                continue
+
         if time.monotonic() >= deadline:
-            holder = _read_text(path)
-            raise RunLockTimeout(
-                f"{task_id} already has a run holding {path} "
-                f"({holder or 'no holder recorded'}). Either it is still going, or a "
-                "run died and left the lock behind -- delete the file to clear it."
-            )
+            raise RunLockTimeout(_lock_refusal(home, task_id, path, holder))
         time.sleep(LOCK_POLL_SECONDS)
-    os.write(handle, f"pid={os.getpid()} run={run_id}".encode("ascii"))
-    return RunLock(task_id=task_id, path=path, handle=handle)
+
+
+def _lock_refusal(home: Path, task_id: str, path: Path, holder: Optional[LockHolder]) -> str:
+    """What to tell whoever was refused, in terms they can act on.
+
+    This message reaches a browser -- ``dispatch_task`` turns the exception into
+    ``LiveRunExistsError`` and the task page renders it verbatim -- so it must not name
+    a remedy only a shell can reach. It used to end "delete the file to clear it",
+    which told a person the one thing they could neither find nor do (task-190):
+    ``~/.agentjobs/runs/.locks/`` is undiscoverable from the app, and on Windows the
+    delete failed anyway while the holding process lived.
+    """
+    if holder is None:  # pragma: no cover - the lock vanished between the two reads
+        return (
+            f"{task_id} could not take its run lock, and the lock was gone by the time "
+            "the refusal was written. Try again."
+        )
+    if holder.run_id:
+        return (
+            f"{task_id} is held by run {holder.run_id}, which has not reported that it "
+            "finished. Cancel that run and this task is dispatchable again; it appears "
+            "under this task's runs."
+        )
+    return (
+        f"{task_id} is held by a dispatch that started ({holder.describe()}) and has not "
+        "yet said which run it became, so it cannot be shown to be over. If it is "
+        "genuinely stuck, restarting AgentJobs clears locks whose runs have ended."
+    )
+
+
+@dataclass(frozen=True)
+class StaleLock:
+    """One lock reclaimed by the startup sweep, for reporting."""
+
+    task_id: str
+    run_id: str
+    reason: str
+
+
+def release_stale_locks(home: Path) -> List[StaleLock]:
+    """Delete every lock whose holder can be shown not to be holding anything.
+
+    The counterpart to reclaiming at acquisition, and it exists because acquisition is
+    the wrong and only place to find out. A leaked lock is silent until somebody tries
+    to dispatch that task, which may be days later and is certainly not when they can
+    do anything about it. Sweeping at startup means a restart -- the event this project
+    prescribes after every merge, and the event that used to *cause* the leak -- is
+    what heals it.
+
+    Same evidence as ``stale_lock_reason``, so there is no second rule to drift.
+    """
+    directory = locks_root(home)
+    if not directory.is_dir():
+        return []
+    released: List[StaleLock] = []
+    for path in sorted(directory.glob("*.lock")):
+        holder = read_lock_holder(path)
+        if holder is None:
+            continue
+        reason = stale_lock_reason(home, holder)
+        if reason is None:
+            continue
+        RunLock(task_id=path.stem, path=path, run_id=holder.run_id).release()
+        released.append(StaleLock(task_id=path.stem, run_id=holder.run_id, reason=reason))
+    return released
 
 
 def _read_text(path: Path) -> str:
@@ -539,6 +795,19 @@ class DispatchLedger:
                 ),
             )
             results.append(StopResult(record.run_id, True, "batch run marked interrupted"))
+
+        # After the runs, never before: concluding an orphaned run is what turns its
+        # status terminal, and a lock is judged against that status. Sweeping first
+        # would find every one of those locks still held by a run reading `running` and
+        # leave the whole set behind -- which is the leak, one restart later.
+        for stale in release_stale_locks(self.home):
+            results.append(
+                StopResult(
+                    stale.run_id or f"{stale.task_id} lock",
+                    True,
+                    f"released the run lock on {stale.task_id}: {stale.reason}",
+                )
+            )
         return results
 
     # ----- reaping -----------------------------------------------------------

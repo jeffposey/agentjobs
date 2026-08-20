@@ -741,10 +741,22 @@ class RunHandle:
     """
     supervisor: Optional[threading.Thread] = field(default=None, repr=False)
     lock: Optional[object] = field(default=None, repr=False)
-    """The per-task run lock, held for this run's lifetime and released when it ends."""
+    """The per-task run lock, held for this run's lifetime and released when it ends.
+
+    Typed ``object`` rather than ``RunLock`` only because ``ledger`` imports this
+    module and the annotation would close the cycle.
+
+    **A handle rebuilt from disk must set this too.** It is the one field on this class
+    that is not recoverable from the run directory by reading, and a rebuilt handle that
+    leaves it ``None`` silently declines to release -- see ``poller._handle_from``, which
+    is where the leak that task-190 fixed actually lived. A ``RunLock`` is a task id and
+    a path, so constructing one for a run you did not start is cheap and correct; the
+    release itself refuses to delete a lock that has come to name a different run.
+    """
 
     def release_lock(self) -> None:
-        """Release the run lock, if this run took one. Safe to call twice."""
+        """Release the run lock this run holds. Safe to call twice, and safe to call
+        from a handle that was rebuilt rather than the one that took the lock."""
         if self.lock is not None:
             self.lock.release()  # type: ignore[attr-defined]
             self.lock = None

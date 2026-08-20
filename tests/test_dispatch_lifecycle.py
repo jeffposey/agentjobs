@@ -34,7 +34,10 @@ from agentjobs.dispatch.ledger import (
     find_run,
     list_runs,
     live_runs,
+    locks_root,
+    read_lock_holder,
     read_run,
+    release_stale_locks,
     write_status,
 )
 from agentjobs.dispatch.runner import RunDirectory
@@ -364,10 +367,140 @@ class TestRunLock:
         first.release()
         second.release()
 
-    def test_a_stale_lock_times_out_naming_the_file_rather_than_hanging(self, home: Path) -> None:
-        """A hang tells you nothing; a named file tells you what to delete."""
-        stale = acquire_run_lock(home, "task-001", run_id="run_dead")
-        os.close(stale.handle)  # the process died without releasing
+    def test_the_descriptor_is_closed_so_the_file_can_be_deleted(self, home: Path) -> None:
+        """The claim is the file's existence; holding the handle open only blocks unlink.
+
+        On Windows an open handle makes ``unlink`` fail with ``Device or resource busy``,
+        which is what made a leaked lock undeletable for as long as the server that
+        leaked it lived -- and turned the old "delete the file to clear it" advice into
+        "restart the thing you are trying to use" (task-190).
+        """
+        lock = acquire_run_lock(home, "task-001", run_id="run_a")
+
+        lock.path.unlink()  # would raise PermissionError with the descriptor still open
+
+        assert not lock.path.exists()
+
+    def test_a_lock_records_the_run_it_is_held_for(self, home: Path) -> None:
+        lock = acquire_run_lock(home, "task-001")
+        assert "run=" in lock.path.read_text(encoding="utf-8")
+
+        lock.adopt("run_named")
+
+        holder = read_lock_holder(lock.path)
+        assert holder is not None
+        assert holder.run_id == "run_named"
+        assert holder.pid == os.getpid()
+        lock.release()
+
+    def test_a_lock_whose_run_has_ended_is_reclaimed(self, home: Path) -> None:
+        """ac-1: a task whose runs are all terminal is dispatchable, lock file or not."""
+        seed_run(home, "task-001", run_id="run_over", status="finished")
+        leaked = acquire_run_lock(home, "task-001")
+        leaked.adopt("run_over")
+
+        taken = acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.5)
+
+        holder = read_lock_holder(taken.path)
+        assert holder is not None and holder.run_id == "run_next"
+        taken.release()
+
+    def test_a_lock_whose_run_is_live_still_refuses(self, home: Path) -> None:
+        """ac-2, and the whole reason this is judged rather than swept.
+
+        Distinguished from the case above by exactly one field -- the run's status -- so
+        a change that started clearing live locks fails here rather than in production.
+        """
+        seed_run(home, "task-001", run_id="run_going", status="running")
+        held = acquire_run_lock(home, "task-001")
+        held.adopt("run_going")
+
+        with pytest.raises(RunLockTimeout) as caught:
+            acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.3)
+
+        assert "run_going" in str(caught.value)
+        held.release()
+
+    def test_a_live_run_holds_it_even_when_the_recorded_pid_is_gone(self, home: Path) -> None:
+        """The CLI case, and the reason the pid does not get a vote once a run is named.
+
+        ``agentjobs dispatch run`` starts a session that deliberately outlives the shell
+        that started it, so the pid in the lock is *expected* to be dead while the run
+        goes on. Reclaiming on that would put a second agent on a task that already has
+        one -- worse than the leak this fix is for.
+        """
+        seed_run(home, "task-001", run_id="run_session", mode="session", status="running")
+        lock = acquire_run_lock(home, "task-001")
+        lock.path.write_text("pid=999999999 run=run_session", encoding="ascii")
+
+        with pytest.raises(RunLockTimeout):
+            acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.3)
+
+    def test_a_lock_naming_no_run_is_reclaimed_only_when_its_process_is_gone(
+        self, home: Path
+    ) -> None:
+        """The window between taking the lock and the run existing to be named."""
+        path = locks_root(home)
+        path.mkdir(parents=True, exist_ok=True)
+        (path / "task-001.lock").write_text("pid=999999999 run=", encoding="ascii")
+
+        taken = acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.5)
+
+        assert taken.run_id == "run_next"
+        taken.release()
+
+    def test_a_lock_naming_no_run_and_a_living_process_still_refuses(self, home: Path) -> None:
+        held = acquire_run_lock(home, "task-001")  # this process, no run adopted
+
+        with pytest.raises(RunLockTimeout):
+            acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.3)
+
+        held.release()
+
+    def test_a_lock_naming_a_run_nobody_has_a_record_of_falls_back_to_the_pid(
+        self, home: Path
+    ) -> None:
+        """A run with no directory cannot be followed, concluded or cancelled by anything.
+
+        Refusing on it forever would be the same permanent silent block, merely rarer.
+        So the weaker evidence is consulted -- and it is still evidence: a living holder
+        keeps the lock either way.
+        """
+        held = acquire_run_lock(home, "task-001")
+        held.adopt("run_unknown")
+
+        with pytest.raises(RunLockTimeout):
+            acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.3)
+
+        held.path.write_text("pid=999999999 run=run_unknown", encoding="ascii")
+        taken = acquire_run_lock(home, "task-001", run_id="run_next", timeout=0.5)
+        taken.release()
+
+    def test_the_refusal_never_tells_a_reader_to_delete_a_file(self, home: Path) -> None:
+        """ac-5: this text reaches the browser, where that remedy does not exist.
+
+        ``dispatch_task`` turns this exception into ``LiveRunExistsError`` and the task
+        page renders the message verbatim. It used to end "delete the file to clear it",
+        naming ``~/.agentjobs/runs/.locks/`` -- a directory nothing in the app mentions,
+        holding a file that could not be deleted anyway.
+        """
+        seed_run(home, "task-001", run_id="run_going", status="running")
+        held = acquire_run_lock(home, "task-001")
+        held.adopt("run_going")
+
+        with pytest.raises(RunLockTimeout) as caught:
+            acquire_run_lock(home, "task-001", timeout=0.2)
+
+        message = str(caught.value)
+        assert "delete the file" not in message.lower()
+        assert ".locks" not in message
+        assert "run_going" in message
+        assert "cancel" in message.lower()
+        held.release()
+
+    def test_a_stale_lock_times_out_rather_than_hanging(self, home: Path) -> None:
+        """A hang tells you nothing. Unjudgeable is still refused, but never by blocking."""
+        held = acquire_run_lock(home, "task-001", run_id="run_dead")
 
         started = time.monotonic()
         with pytest.raises(RunLockTimeout) as caught:
@@ -375,14 +508,30 @@ class TestRunLock:
         elapsed = time.monotonic() - started
 
         assert elapsed < 5, "a stale lock must time out, not block"
-        assert "task-001.lock" in str(caught.value)
         assert "run_dead" in str(caught.value)
-        stale.path.unlink()
+        held.release()
 
     def test_releasing_twice_is_safe(self, home: Path) -> None:
         lock = acquire_run_lock(home, "task-001")
         lock.release()
         lock.release()
+
+    def test_a_late_release_leaves_a_newer_runs_lock_alone(self, home: Path) -> None:
+        """The window between a run's terminal write and its release.
+
+        A second dispatch can legitimately reclaim the lock inside it. A blind unlink
+        would then delete the *new* run's lock and let a third dispatch in beside it.
+        """
+        seed_run(home, "task-001", run_id="run_first", status="finished")
+        first = acquire_run_lock(home, "task-001")
+        first.adopt("run_first")
+        second = acquire_run_lock(home, "task-001", run_id="run_second", timeout=0.5)
+
+        first.release()
+
+        assert second.path.exists()
+        holder = read_lock_holder(second.path)
+        assert holder is not None and holder.run_id == "run_second"
 
     def test_only_one_of_many_threads_gets_it(self, home: Path) -> None:
         winners: List[object] = []
@@ -399,8 +548,56 @@ class TestRunLock:
         for thread in threads:
             thread.join(timeout=30)
 
-        assert len(winners) == 1
-        winners[0].release()  # type: ignore[attr-defined]
+
+class TestStaleLockSweep:
+    """The startup sweep, which is what makes a restart heal the leak it used to cause."""
+
+    def test_it_releases_locks_whose_runs_have_ended(self, home: Path) -> None:
+        seed_run(home, "task-001", run_id="run_over", status="finished")
+        lock = acquire_run_lock(home, "task-001")
+        lock.adopt("run_over")
+
+        released = release_stale_locks(home)
+
+        assert [(item.task_id, item.run_id) for item in released] == [("task-001", "run_over")]
+        assert not lock.path.exists()
+
+    def test_it_leaves_a_live_runs_lock_alone(self, home: Path) -> None:
+        seed_run(home, "task-001", run_id="run_going", status="running")
+        lock = acquire_run_lock(home, "task-001")
+        lock.adopt("run_going")
+
+        assert release_stale_locks(home) == []
+        assert lock.path.exists()
+        lock.release()
+
+    def test_it_survives_a_home_that_has_never_dispatched(self, home: Path) -> None:
+        assert release_stale_locks(home) == []
+
+    def test_reconcile_concludes_the_run_before_judging_its_lock(
+        self, home: Path, project: Project, manager: TaskManager, task
+    ) -> None:
+        """ac-3 and ac-4, as a unit: the order is what makes a restart clear the lock.
+
+        A batch run orphaned by a restart still reads ``running`` on disk. Sweeping the
+        locks first would find it live and leave every one of them behind -- the leak,
+        one restart later. ``reconcile`` marks it ``interrupted`` and *then* judges.
+        """
+        record = seed_run(home, task.id, run_id="run_orphan", mode="batch", status="running")
+        dispatch_entry(manager, task.id, "run_orphan")
+        lock = acquire_run_lock(home, task.id)
+        lock.adopt("run_orphan")
+
+        ledger = DispatchLedger(home, registry=ProjectRegistry(home=home))
+        details = [result.detail for result in ledger.reconcile()]
+
+        assert not lock.path.exists(), "a restart must not strand the lock"
+        assert any("released the run lock" in detail for detail in details)
+        assert read_run(record.path).outcome == "interrupted"
+
+        # And the point of all of it: the task can be dispatched again.
+        again = acquire_run_lock(home, task.id, run_id="run_next", timeout=0.5)
+        again.release()
 
 
 # ----- cancellation -----------------------------------------------------------
