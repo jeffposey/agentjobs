@@ -308,6 +308,37 @@ Unknown fields are rejected outright (`extra="forbid"`), so a stale key fails by
 rather than being silently ignored — whether it came from a hand edit, a migrator bug or
 a React form posting a retired field name.
 
+## Widening an enum
+
+Adding a member to an enum is backward-compatible for the data: every file already
+written stays valid. It used to be a breaking change anyway, because every process that
+talks to AgentJobs over HTTP carries its own copy of these models and **re-validated the
+service's already-validated JSON against it**. On 2026-08-19, adding `auto` to
+`DispatchPosture` made task-107 unreadable to every process started before the change —
+the MCP client's `task_handoff` came back `log.12.posture: Input should be 'read_only',
+'supervised' or 'autonomous'` with `retryable: false`, against a service that was
+serving the same task over `curl` without complaint (task-024).
+
+The service is the authority on task validity, so a reader older than the service can
+only produce false negatives. `TaskClient` therefore parses **tolerantly**: an enum value
+it does not recognise is kept verbatim as an opaque member and logged as a warning naming
+the enum, the value and the task, rather than failing the call. An old client shows
+`posture: auto` as text it cannot interpret and everything else about the task still
+works.
+
+Tolerance is opt-in, scoped to that parse (`agentjobs.schema_tolerance`), and covers
+unknown *members of known enums* only. Everything else is unchanged:
+
+- **Writing an unknown enum value is still refused.** This is about what a reader
+  accepts, never about what may be stored.
+- **`TaskStorage` stays strict.** A file carrying a value this build does not know is
+  still a load error, reported by file and field.
+- A malformed payload — missing field, wrong type, unknown key — still fails loudly.
+
+So widening an enum no longer requires restarting every session that holds an older
+build. Those sessions cannot *interpret* the new member, which is why the warning names
+it; they can still read and write the record.
+
 ## Editing tasks
 
 Prefer `TaskManager` over hand-editing YAML. The state axes move only through the verbs,

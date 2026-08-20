@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from datetime import datetime
 from enum import Enum
 from types import TracebackType
@@ -13,6 +15,9 @@ import httpx
 from pydantic import BaseModel, Field
 
 from .models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome, Priority, Task
+from .schema_tolerance import tolerant_enum_values
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectActor(BaseModel):
@@ -603,7 +608,7 @@ class TaskClient:
         )
 
     def _parse_task(self, data: Dict[str, Any]) -> Task:
-        """Parse the stored task out of a read response.
+        """Parse the stored task out of a read response, tolerating a newer service.
 
         Read routes answer with the server's enriched read model -- the task plus
         computed fields like ``display_status``, ``actionable`` and ``unmet_needs`` --
@@ -617,9 +622,36 @@ class TaskClient:
         remove, so a computed field added to the read model later cannot reintroduce
         this. Callers that want the computed values read them from the read surface
         the domain tools expose, not from ``Task``.
+
+        Every typed method funnels here, mutations included -- ``_mutation`` parses the
+        task out of its own envelope -- so this is the one place where this process
+        re-checks a document the service has already validated twice. It does so
+        *tolerantly*: the service is the authority on task validity, and a reader older
+        than the service can only produce false negatives. Adding one member to
+        ``DispatchPosture`` is what proved it, by making ``task_handoff`` fail with
+        ``retryable: false`` against a service that was serving the same task over
+        ``curl`` without complaint (task-024).
+
+        Tolerance is scoped to this call and covers unknown *members of known enums*
+        only; a payload that is genuinely malformed still raises here exactly as it did
+        before. Skew is reported rather than swallowed -- one warning per unknown value,
+        naming the enum, the value and the task -- because a client that quietly
+        interprets nothing is its own kind of failure.
         """
         declared = {key: value for key, value in data.items() if key in Task.model_fields}
-        return Task.model_validate(declared)
+        with tolerant_enum_values() as unknown:
+            task = Task.model_validate(declared)
+        for enum_name, value in unknown:
+            logger.warning(
+                "Task %s carries %s value %r, which this copy of the AgentJobs schema "
+                "does not know; keeping it verbatim. The service at %s is newer than "
+                "this process -- restart it to interpret the value.",
+                task.id,
+                enum_name,
+                value,
+                self._base_url,
+            )
+        return task
 
     def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         try:
