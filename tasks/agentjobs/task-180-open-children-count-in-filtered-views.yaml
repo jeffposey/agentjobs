@@ -3,63 +3,9 @@ id: task-180-open-children-count-in-filtered-views
 title: open_children_count is computed over the filtered subset, so a list or search
   under-reports it
 created: '2026-08-19T19:22:58.406965Z'
-updated: '2026-08-20T20:38:51.297145Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review branch `fix/task-180-open-children-count-corpus-wide` (worktree
-  C:/projects/aj-180, 3 commits, `git log --oneline main..fix/task-180-open-children-count-corpus-wide`).
-  Gate green: GATE_EXIT=0, 2053 pytest in 4m30s, 153 Vitest, 16 Playwright, generated
-  API client current. All three acceptance criteria met. Nothing to merge until you
-  say so.
-
-
-  **The one thing to actually check: I changed the diagnosis.** The spec said the
-  cause was the subset iteration in `dependency_facts`. That defect was real but no
-  shipped view hit it -- every caller passed the full corpus. The reported symptom
-  came from a second, independent bug the spec did not mention: `GET /search` answered
-  with `List[Task]` (bare stored records), so `open_children_count` was *absent* from
-  every search row, and `mcp/summaries.task_summary` turned the absence into `0`.
-  I fixed both. If you disagree that the search route was in scope, that is the decision
-  to push back on -- log entry 5 has the full reasoning.
-
-
-  A correction to the spec worth noting: it says `actionable` ''stays correct'' in
-  every view. It does not -- on the search path it was defaulted to `False` by the
-  same summary-layer coercion. I did not change how `actionable` is computed (you
-  put that out of scope); returning `TaskRead` from `/search` fixes it incidentally.
-
-
-  **The cost question you asked for: it was not a trade.** `dependency_facts` already
-  called `_open_children()` unconditionally for `actionable`, and that already walked
-  the whole corpus. Measured with two servers on the same corpus -- `X-Task-Parses`
-  identical before and after on `/search`, `/tasks` and a filtered `/tasks`. So I
-  did not make the field nullable-and-omitted as the spec''s fallback suggested; there
-  is no view that cannot compute it honestly. I did keep the constraint''s other half:
-  `task_summary` and `summaries.dependency_facts` no longer invent a `0` for a record
-  lacking the key -- they pass `None`, schemas widened to accept null. That coercion
-  is what turned a missing field into a confident wrong answer.
-
-
-  **No review server, deliberately.** The React app filters client-side over `/tasks`,
-  which was already correct, so nothing here is browser-visible -- the affected surfaces
-  are the REST and MCP APIs. Your standing rule about standing up a sandbox for UI
-  changes does not apply; say so if you disagree and I will seed one. I used port
-  8899 for the measurement and have stopped it; 8876 was never touched and still answers
-  200.
-
-
-  **Left undone on purpose:** `unblocks_count` and `needs_cycles` in the same function
-  are still page-relative -- the identical trap one line away. Neither is wrong today
-  because no caller passes a subset, and fixing `needs_cycles` corpus-wide would change
-  what `validation.py` reports. Flagged in the docstring. I have not filed a follow-up
-  task; tell me if you want one.
-
-
-  On approval: rebase, merge --no-ff, mark branch merged, close, remove the worktree.
-  No frontend rebuild is needed -- the only frontend change is the generated API client''s
-  type for `/search`, with no component change -- but I will rebuild and re-run the
-  launcher anyway so the running dashboard is on merged code.'
+updated: '2026-08-20T23:02:28.020639Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
 category: reliability
@@ -69,7 +15,6 @@ tags:
 - correctness
 effort: small
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: A parent task with six open children reports open_children_count 0 from
@@ -128,7 +73,7 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-180-open-children-count-corpus-wide
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-19T19:22:58.407004Z'
@@ -416,3 +361,129 @@ log:
     outcome: completed
     duration_seconds: 1704.464754
     log_path: C:\Users\jpose\.agentjobs\runs\run_98fdd579
+- id: 11
+  ts: '2026-08-20T22:46:06.175827Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 12
+  ts: '2026-08-20T22:46:08.174852Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 13
+  ts: '2026-08-20T22:46:08.919331Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_8230ea09
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 12
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-180-open-children-count-in-filtered-views`
+      in project `agentjobs` (root: C:\projects\agentjobs). You are running in that
+      project''s shared working tree and are NOT isolated. Before writing anything,
+      run `git worktree add ../<repo>-<nnn> -b <type>/task-180-open-children-count-in-filtered-views-<slug>`
+      and work from that path. Use that shell command, not a built-in worktree tool:
+      those relocate the session''s permission root, which parks a background run
+      on a prompt nobody can answer. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_8230ea09.'
+    cwd: C:\projects\agentjobs
+    git_head: b35540a
+    session_id: 1ba41aeb
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 14
+  ts: '2026-08-20T22:54:44.553091Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 7c1a4e60-3d92-4f18-a0b5-91e2c7d80180
+      kind: update_content
+      fingerprint: 523a7cca3470917440c94ad73cfb7af9
+- id: 15
+  ts: '2026-08-20T23:02:28.020293Z'
+  actor: claude
+  type: transition
+  body: "Approved by Jeff through the web UI (entry 11), merged, verified live, closed.\n\
+    \n## Merge\n\n`fix/task-180-open-children-count-corpus-wide` rebased twice --\
+    \ main had moved\nsubstantially since the review (task-191, task-198, task-200\
+    \ and, mid-session,\ntask-194's merge), so the branch was rebased onto b35540a,\
+    \ gated, then rebased again\nonto 448ddf6 when task-194 landed. Merged `--no-ff`\
+    \ as a6d71d9. Three commits, clean\nrebase both times, no conflicts. Branch marked\
+    \ merged; worktree C:/projects/aj-180\nremoved.\n\n## Gate, run twice\n\n- In\
+    \ the worktree on the first rebase: GATE_EXIT=0, 2066 pytest in 4m49s, 22 Vitest\n\
+    \  files / 154 tests, 16 Playwright, generated API client current.\n- Again on\
+    \ merged `main` after the second rebase, because the first run predated\n  task-194's\
+    \ merge and a green gate on a stale base is not evidence about the tree\n  that\
+    \ shipped: GATE_EXIT=0, 2096 pytest in 5m06s, and `openapi.json matches the\n\
+    \  FastAPI OpenAPI document`. The 30-test difference is task-194's own tests arriving,\n\
+    \  not anything of mine.\n\n## Verified through the real path, not the suite (this\
+    \ is the part that matters)\n\nFrontend rebuilt by the gate's own `npm run build`\
+    \ into `src/agentjobs/frontend_dist`\n(18:00 local), server restarted with `open-agentjobs.ps1\
+    \ -NoOpen`. `/api/version`\nanswers 200 with `source_root: C:\\projects\\agentjobs`\
+    \ -- so the running process is the\nmain clone's merged code, not a worktree's.\n\
+    \nAgainst that live server, `task-160-dispatch-phase-two`:\n\n| surface | before\
+    \ | now |\n| --- | --- | --- |\n| `GET /api/projects/agentjobs/search?q=dispatch`\
+    \ | key absent from every row | **`open_children_count: 9`, `actionable: false`**\
+    \ |\n| MCP `tasks_search` -- the surface the bug was filed from | `0` (invented\
+    \ by the summary layer) | **`open_children_count: 9`** |\n\nThe MCP check is the\
+    \ one worth having: that tool is what the reporter used, and it now\nreturns 9\
+    \ through a freshly-restarted service rather than through a test fixture.\n\n\
+    ## Unchanged from the review, restated so this record stands alone\n\nTwo independent\
+    \ defects produced the symptom; entry 5 has the reasoning and the\nrejected alternative.\
+    \ Parse counts are identical before and after on `/search`,\n`/tasks` and a filtered\
+    \ `/tasks` -- the corpus was already being walked for\n`actionable`, so the subset\
+    \ loop was never buying anything. Spot-checked again on the\nlive server just\
+    \ now: `X-Task-Parses: 200` on `/search`, which is the corpus size, one\nparse\
+    \ per file.\n\n## Still open, deliberately, and still unfiled\n\n`unblocks_count`\
+    \ and `needs_cycles` in `dependency_facts` remain page-relative -- the\nsame trap\
+    \ one line away. Neither is wrong today because no caller passes a subset, and\n\
+    making cycle detection corpus-wide would change what `validation.py` reports about\
+    \ a\nsubset. Flagged in the function docstring pointing at this task. I did not\
+    \ file a\nfollow-up; that is still a live offer rather than an oversight."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 4b8f2d17-6ea3-4c05-9182-7d40e6b91801
+      kind: close
+      fingerprint: 0f00d1c049318078c1e1f050c2239554
