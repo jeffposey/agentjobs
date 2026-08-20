@@ -3,28 +3,9 @@ id: task-188
 title: 'Dispatch is one click: the button writes the authorising entry, and asks for
   text only when the record cannot brief an agent'
 created: '2026-08-20T05:46:50.740562Z'
-updated: '2026-08-20T08:38:32.970578Z'
-lifecycle: active
-ball: agent
-ball_reason: revise
-ball_prompt: "Two changes, then hand back for review. The branch feat/task-188-one-click-dispatch\
-  \ and its worktree C:/projects/aj-188 are intact; the gate was green when it was\
-  \ handed over.\n\n1. **A refused dispatch deletes the brief the human typed.** Full\
-  \ analysis in log entry #10. `onDispatch` in App.tsx catches the refusal and resolves,\
-  \ so DispatchPanel's `.then(() => setBrief(\"\"))` success branch runs on failure\
-  \ and wipes the textarea. Fix it and add a component test that refuses a dispatch\
-  \ and asserts the typed text survives \u2014 nothing currently covers that form's\
-  \ refusal path.\n2. **Set the eight acceptance statuses.** They all still read `pending`\
-  \ while the handoff argues each one met.\n\nOptional, your call with a sentence\
-  \ either way: log entry #9 \u2014 the authorising note survives a spawn that fails,\
-  \ so a refusal after the write leaves \"Dispatched by Jeff Posey\" with no dispatch\
-  \ beside it. Wording it as an authorisation rather than an outcome would make it\
-  \ true either way.\n\n**Do not dispatch this task to work it \u2014 dispatch is\
-  \ broken right now.** task-192 (critical, filed 2026-08-20): with -w gone, a dispatched\
-  \ run takes its own worktree via the EnterWorktree tool, which asks permission to\
-  \ relocate the permission-root outside .claude/worktrees/. The classifier declines\
-  \ and a --bg session has no terminal, so the run parks. run_6f1f0741 parked on exactly\
-  \ this and was stopped. Work this from an attached session until task-192 lands."
+updated: '2026-08-20T08:56:02.291411Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: ux
@@ -35,7 +16,6 @@ tags:
 - guards
 effort: half a day
 assignment:
-  owner: claude
   eligible: []
 parent: task-160-dispatch-phase-two
 spec:
@@ -206,7 +186,8 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-188-one-click-dispatch
-  status: active
+  status: merged
+  merged_at: '2026-08-20T09:00:00Z'
 log:
 - id: 1
   ts: '2026-08-20T05:46:50.740636Z'
@@ -833,3 +814,76 @@ log:
     \ rather than an edit in this one."
   re: 10
   data: {}
+- id: 18
+  ts: '2026-08-20T08:55:24.864865Z'
+  actor: claude
+  type: progress
+  body: "Finishing pass on the two review changes, then merged under the approval\
+    \ Jeff granted in advance on 2026-08-20. Branch `feat/task-188-one-click-dispatch`,\
+    \ worktree `C:/projects/aj-188`, two new commits on top of the four already there,\
+    \ rebased onto `main` (which had moved: task-192 landed) and merged `--no-ff`\
+    \ as `473b65e`.\n\n## 1. The refused dispatch no longer eats the brief\n\n`onDispatch`\
+    \ resolves `true` only when a run started; the form clears the textarea only on\
+    \ `true`. Shape and rejected alternatives are in the decision entry above. Two\
+    \ component tests, because either half alone can be passed by a wrong fix \u2014\
+    \ the text survives a refusal, and it is still cleared once a run starts.\n\n\
+    **Checked the test catches the real defect** rather than assuming it: reverted\
+    \ the panel to the shipped `.then(() => setBrief(\"\"))` and re-ran, and it fails\
+    \ on exactly the surviving-text assertion; restored, and it passes. Nothing covered\
+    \ this form's refusal path before.\n\n## 2. Entry #9, answered and shipped\n\n\
+    The composed body now reads *\"Jeff Posey authorised a dispatch of this task from\
+    \ the task page\u2026\"* \u2014 an authorisation, not an outcome, so it stays\
+    \ true when a spawn fails after it is written. Pinned by a test that forces `DispatchRunner.start`\
+    \ to raise. The design doc's \"What is checked, and what is merely claimed\" section\
+    \ now states the rule and why the write's position in the sequence is deliberate.\
+    \ The e2e spec that asserted the old sentence was updated with it.\n\n## 3. The\
+    \ eight acceptance statuses\n\nAll eight set to `met`, each against the branch\
+    \ as it stands rather than against the handoff's argument, and five carry a pytest\
+    \ selector a reader can run (selectors checked to actually select). ac-5 was **re-measured**\
+    \ rather than carried over: 81 open tasks in this project today, 0 of which have\
+    \ an empty `spec.description`, so the prompt-for-text path fires on none \u2014\
+    \ while 75 of 75 `ready` tasks have an empty `ball_prompt` and 2 have no `acceptance[]`,\
+    \ which is what the two rejected triggers would have fired on. ac-7 and ac-8 have\
+    \ no command: they are read from `docs/agent-dispatch-design.md` \xA72/\xA72a/\xA7\
+    5 and from `dispatch_run`'s docstring, and MCP has no dispatch tool at all, which\
+    \ \xA75 states.\n\n## Verification\n\n**Gate green three times.** The last is\
+    \ the one that counts: after the rebase onto `main`, 2010 Python tests in 3m56s,\
+    \ 153 Vitest component tests across 22 files, 16 Playwright specs, Black/Ruff/MyPy\
+    \ clean, exit 0. The run before it caught the stale e2e assertion on the old sentence,\
+    \ which is why the wording change was made before merging rather than after.\n\
+    \n**Driven in a browser, the way Jeff found it.** Sandbox on its own port (8899),\
+    \ its own AgentJobs home, its own throwaway project, a runner that just sleeps\
+    \ and `max_concurrent_runs: 1`. Dispatched task-101 (complete spec, agent-filed)\
+    \ on one click \u2014 the run went live and took the only slot. Then on task-102\
+    \ (no spec) typed a brief and pressed Dispatch: refused with the concurrency limit,\
+    \ and **the typed text was still in the box afterwards**, asserted by reading\
+    \ the input's value rather than by looking at the screen. task-101's record then\
+    \ read `#2 Jeff Posey note \u2014 Jeff Posey authorised a dispatch of this task\
+    \ from the task page.` between the creation transition and the claim.\n\n**Delivered.**\
+    \ Frontend rebuilt in the main clone (`frontend_dist/` is gitignored, so the merge\
+    \ alone would have left the running server on the pre-merge bundle) and the server\
+    \ restarted through `C:/ai/shared/launchers/open-agentjobs.ps1 -NoOpen`. Confirmed\
+    \ live: the served `/app/` names the freshly built `index-g8uih87J.js`, and the\
+    \ serving process started after the merge commit.\n\n## Deliberately not done\
+    \ here\n\nEntry #10's lower-severity finding \u2014 a stale `dispatchRefusal`\
+    \ rendering under a closed gate \u2014 is **task-195** (low, ready), not an inline\
+    \ fix. The reasoning is in the decision entry: the obvious one-liner also hides\
+    \ a `task_closed` refusal, whose own cause is what changed the page state."
+  data: {}
+- id: 19
+  ts: '2026-08-20T08:56:02.291246Z'
+  actor: claude
+  type: transition
+  body: "Merged as 473b65e under the approval Jeff granted in advance on 2026-08-20.\
+    \ All eight acceptance criteria met and set against the branch as it stands. Gate\
+    \ green after the rebase onto main: 2010 Python tests, 153 Vitest, 16 Playwright,\
+    \ Black/Ruff/MyPy clean. Driven in a browser on a throwaway sandbox \u2014 one-click\
+    \ dispatch on a complete record, and a refused dispatch that leaves the typed\
+    \ brief where the human left it. Frontend rebuilt and the server restarted, so\
+    \ the change is live on 8876.\n\nTwo things left deliberately outside: task-195\
+    \ (the stale refusal note, entry #10's lower-severity finding) and task-179, whose\
+    \ accidental protection this change removes \u2014 stated in log entry #5 and\
+    \ unchanged by this work."
+  data:
+    lifecycle: closed
+    outcome: completed
