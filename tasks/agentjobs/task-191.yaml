@@ -2,7 +2,7 @@ schema: 2
 id: task-191
 title: Run more than one agent at a time, and fix what that breaks
 created: '2026-08-20T07:19:15.553705Z'
-updated: '2026-08-20T21:05:56.772112Z'
+updated: '2026-08-20T21:07:31.871011Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -597,3 +597,34 @@ log:
   data:
     lifecycle: closed
     outcome: completed
+- id: 13
+  ts: '2026-08-20T21:07:31.870899Z'
+  actor: claude
+  type: note
+  body: '**One loose end, and the one command that clears it.**
+
+
+    `C:/projects/aj-191` is unregistered as a worktree (`git worktree list` is clean)
+    and the branch `feat/task-191-raise-dispatch-concurrency` is deleted, but the
+    directory itself could not be deleted: this session''s working directory is inside
+    it, and Windows will not remove a directory that a live process has as its cwd.
+    `git worktree remove` reported `Permission denied` and unregistered it anyway,
+    so nothing in git is confused - what is left is an ordinary stale folder.
+
+
+    From any other shell:
+
+
+    ```
+
+    rm -rf C:/projects/aj-191
+
+    ```
+
+
+    **Delivery verified, not assumed.** The frontend was rebuilt in the main clone
+    and the server restarted with the launcher. The bundle the browser is actually
+    served (`/app/assets/index-DM-0kYRT.js`) contains the new refusal copy and no
+    longer contains the old sentence about "this machine''s only slot" - checked by
+    fetching it over HTTP rather than by trusting the build.'
+  data: {}
