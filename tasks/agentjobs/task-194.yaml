@@ -1,0 +1,82 @@
+schema: 2
+id: task-194
+title: The dashboard on 8876 was serving an unmerged branch's code, from a .pth pointing
+  at another worktree
+created: '2026-08-20T08:20:08.392609Z'
+updated: '2026-08-20T08:20:08.393294Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+category: reliability
+tags:
+- worktree
+- environment
+- defect
+effort: small
+assignment:
+  eligible: []
+spec:
+  summary: '`agentjobs.pth` in the main clone''s Poetry virtualenv read `C:/projects/aj-188/src`,
+    so the server on 8876 -- and every `poetry run` from C:/projects/agentjobs --
+    imported the aj-188 branch''s code instead of `main`. Corrected on 2026-08-20
+    by reinstalling from the main clone, but nothing prevents the next worktree from
+    doing it again.'
+  intent: Found on 2026-08-20 at the last step of task-192's merge gate. The merged
+    PROMPT_STUB was on disk in the main clone and the server had been restarted after
+    the merge, yet a real dispatch through the web API still emitted the pre-merge
+    prompt. The server process was fine; its import path was not.
+  description: "The venv `agentjobs-KSKY4Ymk-py3.13` is the main clone's. Its `Lib/site-packages/agentjobs.pth`\
+    \ contained a single line:\n\n    C:/projects/aj-188/src\n\n`poetry install` run\
+    \ from a worktree while that venv is the active one rewrites the pointer. ENGINEERING.md\
+    \ and ALLAGENTS.md both forbid borrowing the main clone's virtualenv, and `scripts/check.py`\
+    \ refuses to run when its import resolves outside its own checkout -- but that\
+    \ guard protects the *worktree's* test run, not the main clone. Nothing checks\
+    \ the reverse direction, which is the one that took the shared dashboard down.\n\
+    \nThe observable symptom is severe and quiet: the dashboard everyone reads, and\
+    \ every dispatch the web UI starts, runs code from an unmerged branch. `git log`\
+    \ in the main clone looks correct. The server's own `git_head` in a dispatch entry\
+    \ reported the merged commit while the argv it composed came from the branch.\n\
+    \nFixed for now with `poetry install` from C:/projects/agentjobs (which rewrote\
+    \ the .pth to `C:/projects/agentjobs/src`) plus a forced restart -- the launcher's\
+    \ `Test-RestartNeeded` compares src mtimes to process start time and correctly\
+    \ saw no reason to restart, because no source file had changed.\n\nDirections,\
+    \ none prescribed: have the server assert at startup that `agentjobs.__file__`\
+    \ is under the project root it is serving and refuse loudly otherwise; make `scripts/bootstrap.py`\
+    \ fail when it would write a main-clone venv from inside a worktree; or surface\
+    \ the resolved import path in `agentjobs config` / the dashboard footer so a mismatch\
+    \ is visible without a forensic session."
+  constraints: Whatever ships must catch the case where the *main clone's* environment
+    points elsewhere. check.py's existing guard already covers the worktree direction
+    and did not catch this.
+  context:
+  - path: scripts/bootstrap.py
+    why: What a worktree runs; where a main-clone venv can be rewritten from inside
+      one.
+  - path: scripts/check.py
+    why: Has the import-resolution guard for the worktree direction -- the model to
+      extend.
+  - path: src/agentjobs/api/main.py
+    why: The lifespan hook, where a startup assertion about the imported path would
+      go.
+acceptance:
+- id: ac-1
+  text: A server whose imported agentjobs package is not the project it serves refuses
+    to start, or says so unmissably
+  status: pending
+- id: ac-2
+  text: Bootstrapping a worktree cannot repoint the main clone's virtualenv
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T08:20:08.392674Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready

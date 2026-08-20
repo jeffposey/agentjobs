@@ -2,7 +2,7 @@ schema: 2
 id: task-015
 title: Stop one long ball_prompt from swallowing a task list row
 created: '2026-08-18T05:11:36.255369Z'
-updated: '2026-08-20T08:03:37.462604Z'
+updated: '2026-08-20T08:19:29.413576Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -445,6 +445,150 @@ log:
     log_path: C:\Users\jpose\.agentjobs\runs\run_d74e729e
 - id: 11
   ts: '2026-08-20T08:03:37.462438Z'
+  actor: claude
+  type: transition
+  body: Released by claude; back in the pool.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+- id: 12
+  ts: '2026-08-20T08:15:30.490146Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Post-merge liveness check for task-192: confirming the running 8876 server
+    composes the new worktree prompt. Stopped immediately; no work done on this task.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 13
+  ts: '2026-08-20T08:15:30.735164Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 14
+  ts: '2026-08-20T08:15:31.432490Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_7c7ccd7d
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 12
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-015` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated: take your own git worktree before you write anything.
+      AgentJobs is serving at http://127.0.0.1:8876. Read the task record and follow
+      the resumption contract in docs/agent-workflow.md. Dispatch run id: run_7c7ccd7d.'
+    cwd: C:\projects\agentjobs
+    git_head: 219cf8a
+    session_id: 4ca8eac7
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 15
+  ts: '2026-08-20T08:16:05.288137Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: The session is no longer in the ledger, so it cannot be followed or resumed.
+    Whatever it did is in its own transcript, not here.
+  re: 14
+  data:
+    run_id: run_7c7ccd7d
+    outcome: interrupted
+    duration_seconds: 34.527107
+    log_path: C:\Users\jpose\.agentjobs\runs\run_7c7ccd7d
+- id: 16
+  ts: '2026-08-20T08:18:50.700028Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_a80f3e90
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 12
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-015` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../<repo>-<nnn>
+      -b <type>/task-015-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_a80f3e90.'
+    cwd: C:\projects\agentjobs
+    git_head: 219cf8a
+    session_id: 13e237f6
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 17
+  ts: '2026-08-20T08:19:08.061521Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: The session is no longer in the ledger, so it cannot be followed or resumed.
+    Whatever it did is in its own transcript, not here.
+  re: 16
+  data:
+    run_id: run_a80f3e90
+    outcome: interrupted
+    duration_seconds: 18.011554
+    log_path: C:\Users\jpose\.agentjobs\runs\run_a80f3e90
+- id: 18
+  ts: '2026-08-20T08:19:29.413356Z'
   actor: claude
   type: transition
   body: Released by claude; back in the pool.

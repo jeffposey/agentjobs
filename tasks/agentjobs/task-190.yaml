@@ -3,7 +3,7 @@ id: task-190
 title: 'Run locks leak: release depends on in-memory state, so a server restart blocks
   those tasks forever'
 created: '2026-08-20T07:08:47.960269Z'
-updated: '2026-08-20T07:17:04.741394Z'
+updated: '2026-08-20T08:20:08.408112Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -200,3 +200,23 @@ log:
       id: e37a5c91-08b6-4f24-a350-7c92e1d4b806
       kind: log_append
       fingerprint: c22a1eb8df3ef0e33bd4a7cc13617f65
+- id: 3
+  ts: '2026-08-20T08:20:08.408005Z'
+  actor: claude
+  type: note
+  body: 'More evidence, 2026-08-20, from task-192''s verification. The leak reproduced
+    five times in one session, once per dispatch of task-015.
+
+
+    **Two distinct cases, and the hazard note only describes one.** A lock left by
+    a CLI dispatch (`poetry run agentjobs dispatch run`) is deletable immediately
+    -- the CLI process that held it has exited, and `rm` cleared it with no restart,
+    four times. A lock left by a dispatch through the API is *not*: the server holds
+    the descriptor, `rm` fails with `Device or resource busy`, and only a restart
+    frees it. `~/.agentjobs/runs/.locks/task-015.lock` is in that state right now,
+    so the next dispatch of task-015 will be refused until the 8876 server restarts.
+
+
+    In every case the run was terminal -- `claude stop`ped, and the poller had already
+    written its `dispatch_result` -- before the lock was found still held.'
+  data: {}
