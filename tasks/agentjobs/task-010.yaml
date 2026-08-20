@@ -2,7 +2,7 @@ schema: 2
 id: task-010
 title: A corpus test can only pass on one machine, and fails in every worktree
 created: '2026-08-17T22:48:19.433930Z'
-updated: '2026-08-17T22:48:40.244529Z'
+updated: '2026-08-20T21:03:46.133827Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -120,3 +120,101 @@ log:
       id: a41c9078-3e6b-42d5-9f80-6c1e5b207a93
       kind: update_content
       fingerprint: eba09431ae6f59fee96d9f4e72c01d09
+- id: 3
+  ts: '2026-08-20T21:03:13.700289Z'
+  actor: Jeff Posey
+  type: note
+  body: Dispatched by Claude on 2026-08-20 to provoke a real machine-ceiling refusal
+    from the running server, as the last check on task-191 -- the merged code has
+    to be proven live, not merely tested. This run is cancelled within about a minute
+    and the task released straight back to ready; nothing was asked of it and nothing
+    it did is kept. task-191's log records this.
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 4
+  ts: '2026-08-20T21:03:13.940844Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 5
+  ts: '2026-08-20T21:03:14.761359Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_b7c33a5a
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 3
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-010` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../<repo>-<nnn>
+      -b <type>/task-010-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_b7c33a5a.'
+    cwd: C:\projects\agentjobs
+    git_head: 8cd99ae
+    session_id: db54a6ca
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 6
+  ts: '2026-08-20T21:03:32.002562Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: stopped session db54a6ca
+  re: 5
+  data:
+    run_id: run_b7c33a5a
+    outcome: cancelled
+    duration_seconds: 17.989306
+    log_path: C:\Users\jpose\.agentjobs\runs\run_b7c33a5a
+- id: 7
+  ts: '2026-08-20T21:03:32.024726Z'
+  actor: dispatcher
+  type: handoff
+  body: Run run_b7c33a5a ended `cancelled` and nobody was told what this task needs.
+    Read the dispatch_result entry, then either dispatch again or take it on yourself.
+  data:
+    ball: human
+    ball_reason: decision
+- id: 8
+  ts: '2026-08-20T21:03:46.133649Z'
+  actor: claude
+  type: transition
+  body: Released by claude; back in the pool.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
