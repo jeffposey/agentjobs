@@ -198,6 +198,21 @@ def settle(handle) -> None:
         handle.supervisor.join(timeout=30)
 
 
+def hold_live(handle) -> None:
+    """Make a finished run read as live, and keep reading that way.
+
+    Writing ``status="running"`` on its own is a race, not a fact: the fake runner exits
+    at once and its supervisor is still on its way to writing a terminal status, so the
+    freeze survives only if the next assertion arrives first. That is fine for a test
+    that refuses immediately and wrong for one that starts a second run in between --
+    which is how the raised-ceiling test failed the first time it ran.
+
+    Joining the supervisor before freezing removes the writer instead of outrunning it.
+    """
+    settle(handle)
+    handle.directory.update_meta(status="running")
+
+
 # ----- the rule ---------------------------------------------------------------
 
 
@@ -598,18 +613,23 @@ class TestConcurrency:
         write_dispatch_config(
             home, fake_runner, require_clean_tree=False, limits={"max_concurrent_runs": 4}
         )
-        first = run(manager, project, home, ready_task.id)
-        first.directory.update_meta(status="running")
+        # Named explicitly because holding the first run live settles its supervisor,
+        # which appends an agent-authored dispatch_result. Defaulting to the newest entry
+        # would then be refused as not-human-clocked -- a true refusal, and not the one
+        # under test.
+        authorising = ready_task.log[-1].id
+
+        first = run(manager, project, home, ready_task.id, caused_by=authorising)
+        hold_live(first)
 
         assert len(live_runs(home)) == 1, "three of the four slots are free"
 
         with pytest.raises(LiveRunExistsError) as caught:
-            run(manager, project, home, ready_task.id)
+            run(manager, project, home, ready_task.id, caused_by=authorising)
 
         assert caught.value.reason == "live_run_exists"
         assert first.run_id in str(caught.value)
         assert len(live_runs(home)) == 1, "the refusal must not have started anything"
-        settle(first)
 
     def test_a_raised_ceiling_admits_a_second_task_and_then_refuses(
         self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
@@ -632,9 +652,9 @@ class TestConcurrency:
             others.append(task.id)
 
         first = run(manager, project, home, ready_task.id)
-        first.directory.update_meta(status="running")
+        hold_live(first)
         second = run(manager, project, home, others[0])
-        second.directory.update_meta(status="running")
+        hold_live(second)
 
         assert len(live_runs(home)) == 2, "both slots are legitimately in use"
 
@@ -646,8 +666,6 @@ class TestConcurrency:
         for run_id, task_id in ((first.run_id, ready_task.id), (second.run_id, others[0])):
             assert run_id in message, message
             assert task_id in message, message
-        settle(first)
-        settle(second)
 
     def test_a_refusal_summarises_rather_than_listing_every_holder(self) -> None:
         """A ceiling raised high enough to hold twenty runs must not print twenty."""
