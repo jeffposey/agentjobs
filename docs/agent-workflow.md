@@ -24,6 +24,20 @@ git worktree add ../<repo>-<nnn> -b <type>/task-<nnn>-<slug>
 Work there. Remove it once your branch is merged; `git worktree list` is the inventory,
 and one left behind for a closed task is litter.
 
+**Run that command. Do not use a built-in worktree tool to get one.** Claude Code has an
+`EnterWorktree` tool that looks like the right way to satisfy the paragraph above, and it
+is not: it asks to relocate the session's permission root outside `.claude/worktrees/`,
+which is an escalation the `auto` classifier declines and a background session has no
+terminal to answer. The run then waits for an answer that cannot arrive — observed
+2026-08-20 on the first dispatch after the `-w` change, which parked on that prompt
+before it wrote a line. The same applies to anything else that moves where the session is
+allowed to act. `git worktree add` is an ordinary shell command, needs no relocation, and
+leaves you able to `git -C` the shared clone, which is where your task records go.
+
+If a worktree for this task already exists from an earlier run, `git worktree add` will
+refuse it. That is not a reason to reach for the tool — use the existing path, or take a
+new one under a different name.
+
 This used to be arranged for the agent. Dispatch passed Claude Code's `-w` flag, which
 put the session in a worktree the CLI managed, and containment was mechanical. It cannot
 any more: the isolation that flag grants is enforced by a guard that refuses **every**

@@ -516,7 +516,10 @@ class TestPromptStub:
         assert "run_abcd1234" in prompt
         # It must not restate the record, which is the whole argument for a stub.
         assert task.spec.description not in prompt
-        assert len(prompt) < 500
+        # A ceiling, not a target. Raised from 500 by task-192, which had to spell the
+        # worktree command out rather than gesture at it; the assertion above is the one
+        # that enforces "pointer, not composition".
+        assert len(prompt) < 800
 
     def test_the_stub_tells_the_run_to_take_its_own_worktree(
         self, workspace: Path, manager: TaskManager, task
@@ -536,6 +539,27 @@ class TestPromptStub:
         assert "worktree" in prompt
         assert "not isolated" in prompt.lower()
 
+    def test_the_stub_names_the_shell_command_and_forbids_the_builtin_tool(
+        self, workspace: Path, manager: TaskManager, task
+    ) -> None:
+        """task-192. Prose here is not a weaker version of the command; it is a hang.
+
+        "Take your own git worktree" is satisfied by Claude Code's ``EnterWorktree``
+        tool, which asks to relocate the session's permission root -- an escalation the
+        ``auto`` classifier declines and a ``--bg`` run cannot answer. run_6f1f0741
+        parked on it on 2026-08-20 before writing a line. So the stub must carry the
+        literal command, and must say not to use the tool.
+        """
+        runner = build(workspace, manager, make_resolution(["fake"]))
+
+        prompt = runner.build_prompt(task.id, "run_abcd1234")
+
+        assert "git worktree add" in prompt
+        # The branch it names is this task's, so the command is runnable as written.
+        assert task.id in prompt.split("git worktree add", 1)[1]
+        assert "not a built-in worktree tool" in prompt
+        assert "permission root" in prompt
+
     def test_the_guide_states_the_worktree_requirement_too(self) -> None:
         """The stub is one clause; the guide is where the reasoning lives.
 
@@ -550,6 +574,10 @@ class TestPromptStub:
         assert heading in text
         # Unmissable means near the top, not beside the claim halfway down.
         assert text.index(heading) < len(text) // 3
+        # task-192: the guide must forbid the built-in tool too, or an agent that reads
+        # the pointer instead of the stub still parks.
+        assert "EnterWorktree" in text
+        assert "permission root" in text
 
 
 # ----- batch mode -------------------------------------------------------------
