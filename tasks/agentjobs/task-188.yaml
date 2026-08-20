@@ -3,106 +3,28 @@ id: task-188
 title: 'Dispatch is one click: the button writes the authorising entry, and asks for
   text only when the record cannot brief an agent'
 created: '2026-08-20T05:46:50.740562Z'
-updated: '2026-08-20T07:32:53.412367Z'
+updated: '2026-08-20T07:35:09.011238Z'
 lifecycle: active
-ball: human
-ball_reason: input
-ball_prompt: "Dispatched session `0fe53295` is parked on a permission prompt and will\
-  \ wait indefinitely. Answer it at https://claude.ai/code/session_018MSSiYNFr4Qxeq7Vy2ty94\
-  \ \u2014 that link works from a phone. Or attach locally with `claude attach 0fe53295`.\n\
-  \nThe end of its terminal, verbatim:\n\n```\n\u25CF Creating worktree\n\xB7 Baking\u2026\
-  \ (44s \xB7 \u2193 890 tokens \xB7 thinking)\n  \u23BF \_Tip: Use /btw to ask a\
-  \ quick side question without interrupting Claude's current work\n\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 task-188\
-  \ agentjobs worktree \u2500\u2500\u276F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500  Opus 5 \xB7\
-  \ agentjobs:main \xB7 \u2588\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\
-  \ 7% ctx (69k/1.00M) \xB7 $1.04/rc\n  \u23F5\u23F5 auto mode on (shift+tab to cycle)\
-  \ \xB7 \u2190 for agents\n \u2590\u259B\u2588\u2588\u2588\u259C\u258C   Claude Code\
-  \ v2.1.235\n\u259D\u259C\u2588\u2588\u2588\u2588\u2588\u259B\u2598  Opus 5 \xB7\
-  \ Claude Pro\n  \u2598\u2598 \u259D\u259D    C:\\projects\\agentjobs\n\u276F You\
-  \ are the agent claude working task task-188 in project agentjobs (root: C:\\projects\\\
-  agentjobs). You are running in that project's shared working tree and are NOT isolated:\
-  \ take your own git        worktree before you write anything. AgentJobs is serving\
-  \ at http://127.0.0.1:8876. Read the task record and follow the resumption contract\
-  \ in docs/agent-workflow.md. Dispatch run id: run_6f1f0741.\n  /remote-control is\
-  \ active \xB7 Continue here, on your phone, or at https://claude.ai/code/session_018MSSiYNFr4Qxeq7Vy2ty94\n\
-  \u25CF I'll start by reading the task record.\n  Listed 1 directory, ran 3 shell\
-  \ commands\n\u25CF The worktree from the previous run still exists. Entering it.\n\
-  \u25CF Entering worktree(C:/projects/aj-188)\n\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Tool use\n\
-  \   Entering worktree(C:\\projects\\aj-188)\n   \u2502 Creates an isolated worktree\
-  \ (via git or configured hooks) and switches the session into it\n \u2502 permission-root\
-  \ relocation to \"C:\\projects\\aj-188\" \u2014 a model-supplied worktree outside\
-  \ .claude/worktrees/\n Do you want to proceed?\n \u276F 1. Yes\n   2. No\n Esc to\
-  \ cancel \xB7 Tab to amend\n \u2590\u259B\u2588\u2588\u2588\u259C\u258C   Claude\
-  \ Code v2.1.235\n\u259D\u259C\u2588\u2588\u2588\u2588\u2588\u259B\u2598  Opus 5\
-  \ \xB7 Claude Pro\n  \u2598\u2598 \u259D\u259D    C:\\projects\\agentjobs\n\u276F\
-  \ You are the agent claude working task task-188 in project agentjobs (root: C:\\\
-  projects\\agentjobs). You are running in that project's shared working tree and\
-  \ are NOT isolated: take your own git        worktree before you write anything.\
-  \ AgentJobs is serving at http://127.0.0.1:8876. Read the task record and follow\
-  \ the resumption contract in docs/agent-workflow.md. Dispatch run id: run_6f1f0741.\n\
-  \  /remote-control is active \xB7 Continue here, on your phone, or at https://claude.ai/code/session_018MSSiYNFr4Qxeq7Vy2ty94\n\
-  \u25CF I'll start by reading the task record.\n  Listed 1 directory, ran 3 shell\
-  \ commands\n\u25CF The worktree from the previous run still exists. Entering it.\n\
-  \u25CF Entering worktree(C:/projects/aj-188)\n\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Tool use\n\
-  \   Entering worktree(C:\\projects\\aj-188)\n   \u2502 Creates an isolated worktree\
-  \ (via git or configured hooks) and switches the session into it\n \u2502 permission-root\
-  \ relocation to \"C:\\projects\\aj-188\" \u2014 a model-supplied worktree outside\
-  \ .claude/worktrees/\n Do you want to proceed?\n \u276F 1. Yes\n   2. No\n Esc to\
-  \ cancel \xB7 Tab to amend\n```"
+ball: agent
+ball_reason: revise
+ball_prompt: "Two changes, then hand back for review. The branch feat/task-188-one-click-dispatch\
+  \ and its worktree C:/projects/aj-188 are intact; the gate was green when it was\
+  \ handed over.\n\n1. **A refused dispatch deletes the brief the human typed.** Full\
+  \ analysis in log entry #10. `onDispatch` in App.tsx catches the refusal and resolves,\
+  \ so DispatchPanel's `.then(() => setBrief(\"\"))` success branch runs on failure\
+  \ and wipes the textarea. Fix it and add a component test that refuses a dispatch\
+  \ and asserts the typed text survives \u2014 nothing currently covers that form's\
+  \ refusal path.\n2. **Set the eight acceptance statuses.** They all still read `pending`\
+  \ while the handoff argues each one met.\n\nOptional, your call with a sentence\
+  \ either way: log entry #9 \u2014 the authorising note survives a spawn that fails,\
+  \ so a refusal after the write leaves \"Dispatched by Jeff Posey\" with no dispatch\
+  \ beside it. Wording it as an authorisation rather than an outcome would make it\
+  \ true either way.\n\n**Do not dispatch this task to work it \u2014 dispatch is\
+  \ broken right now.** task-192 (critical, filed 2026-08-20): with -w gone, a dispatched\
+  \ run takes its own worktree via the EnterWorktree tool, which asks permission to\
+  \ relocate the permission-root outside .claude/worktrees/. The classifier declines\
+  \ and a --bg session has no terminal, so the run parks. run_6f1f0741 parked on exactly\
+  \ this and was stopped. Work this from an attached session until task-192 lands."
 archived: false
 priority: critical
 category: ux
@@ -788,3 +710,33 @@ log:
     outcome: interrupted
     duration_seconds: 363.897459
     log_path: C:\Users\jpose\.agentjobs\runs\run_6f1f0741
+- id: 15
+  ts: '2026-08-20T07:35:09.011022Z'
+  actor: Jeff Posey
+  type: handoff
+  body: "Two changes, then hand back for review. The branch feat/task-188-one-click-dispatch\
+    \ and its worktree C:/projects/aj-188 are intact; the gate was green when it was\
+    \ handed over.\n\n1. **A refused dispatch deletes the brief the human typed.**\
+    \ Full analysis in log entry #10. `onDispatch` in App.tsx catches the refusal\
+    \ and resolves, so DispatchPanel's `.then(() => setBrief(\"\"))` success branch\
+    \ runs on failure and wipes the textarea. Fix it and add a component test that\
+    \ refuses a dispatch and asserts the typed text survives \u2014 nothing currently\
+    \ covers that form's refusal path.\n2. **Set the eight acceptance statuses.**\
+    \ They all still read `pending` while the handoff argues each one met.\n\nOptional,\
+    \ your call with a sentence either way: log entry #9 \u2014 the authorising note\
+    \ survives a spawn that fails, so a refusal after the write leaves \"Dispatched\
+    \ by Jeff Posey\" with no dispatch beside it. Wording it as an authorisation rather\
+    \ than an outcome would make it true either way.\n\n**Do not dispatch this task\
+    \ to work it \u2014 dispatch is broken right now.** task-192 (critical, filed\
+    \ 2026-08-20): with -w gone, a dispatched run takes its own worktree via the EnterWorktree\
+    \ tool, which asks permission to relocate the permission-root outside .claude/worktrees/.\
+    \ The classifier declines and a --bg session has no terminal, so the run parks.\
+    \ run_6f1f0741 parked on exactly this and was stopped. Work this from an attached\
+    \ session until task-192 lands."
+  data:
+    ball: agent
+    ball_reason: revise
+    operation:
+      id: 3a91f6d4-27c8-4b05-91e3-6d84b2c05f19
+      kind: handoff
+      fingerprint: f07b9aa40b8ac1702b9fc15299fabd7b
