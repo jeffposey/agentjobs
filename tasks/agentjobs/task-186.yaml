@@ -3,7 +3,7 @@ id: task-186
 title: A dispatched run can never commit its task record or merge its own work, because
   -w isolates it from the shared clone
 created: '2026-08-19T23:27:49.910749Z'
-updated: '2026-08-19T23:49:13.048813Z'
+updated: '2026-08-20T00:12:34.290087Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -341,3 +341,51 @@ log:
   data:
     task: task-186
     supersedes: task-075 working-tree isolation section
+- id: 5
+  ts: '2026-08-20T00:12:34.289988Z'
+  actor: claude
+  type: progress
+  body: "Implemented on fix/task-186-dispatch-worktree-isolation: -w dropped, containment\
+    \ restated, reap narrowed, docs amended. Gate green.\n\nThree commits on the branch,\
+    \ gate green after each (`poetry run python scripts/check.py`: 1889 pytest, 136\
+    \ Vitest, build, 14 Playwright, exit 0).\n\n**d21ab8e \u2014 the fix.** `posture_flags()`\
+    \ no longer takes a `task_id` and no longer emits `-w` for any posture; the parameter\
+    \ is gone rather than left unused so a stale caller fails loudly. `PROMPT_STUB`\
+    \ gains one imperative clause -- the run is in the project's shared working tree,\
+    \ is NOT isolated, take a worktree before writing anything -- and its docstring\
+    \ records why that duplication of the guide is earned. `docs/agent-workflow.md`\
+    \ gains a section, `## Before you write anything: take your own worktree`, at\
+    \ the top rather than beside the claim. `scaffold.py`'s example-config comments\
+    \ told operators `-w` was AgentJobs' to write; they now say it is nobody's, with\
+    \ the reason.\n\n**ddf7e23 \u2014 reap.** The docstrings in `ledger.reap`, `api/main._reap_finished_sessions`\
+    \ and `cli.dispatch_reap` all promised worktree removal and read a refusal as\
+    \ \"a run produced work nobody has looked at\". None of that survives `-w` going\
+    \ away, so all three now state the narrowed meaning: remove the session row, free\
+    \ the pid. The CLI's summary line said `N worktree(s) kept`; it says `N session(s)\
+    \ not removed`. A refusal is still surfaced and never forced.\n\n**20faef5 \u2014\
+    \ docs.** `docs/agent-dispatch-design.md`'s working-tree isolation section is\
+    \ amended in place, not deleted: the original argument is quoted back because\
+    \ it is the one a future reader will find. Added the reproduction, that the guard\
+    \ catches `cd` as well as `-C`, that `--add-dir` does not lift it, the three-part\
+    \ mechanism that now keeps two runs out of one tree, what is genuinely lost, and\
+    \ a `#### Reaping, and what it means now` subsection. \xA74's flag table, mode\
+    \ table, the two-worktree-flags correction and the composed-argv example, \xA7\
+    5's posture table and its `Containment, and what it is not` section, and \xA7\
+    9's cancellation note are all corrected. `ALLAGENTS.md` and the plugin skill both\
+    \ told agents Claude Code's `--worktree` would do this for them; both now say\
+    \ why it is the wrong way to get one here.\n\n**Tests.** `-w` absence is asserted\
+    \ per posture including `read_only`, parametrised over the whole enum so the read_only\
+    \ property does not depend on the writing postures happening to be tested nearby.\
+    \ A new test names the **full composed argv** for every posture, since a flags-only\
+    \ assertion cannot see where flags land or whether something reintroduced `-w`\
+    \ downstream; it fails if a posture is added without naming its argv. Two tests\
+    \ pin the containment sentence in the rendered prompt and the section in the guide,\
+    \ and assert the section is in the top third of the file. The example-config test\
+    \ moved from `-w appears at most once` to `-w must not appear at all`. A new lifecycle\
+    \ test records the fake session CLI's invocations and asserts reap issues exactly\
+    \ `[[\"rm\", \"s1\"]]` -- the only way to distinguish a deliberate narrowing from\
+    \ a silent no-op, and it also pins that no directory-deleting step was added.\
+    \ Two documentation-contract tests assert the design doc's reasons rather than\
+    \ its headings.\n\nStill open: ac-1 and ac-2 need a real dispatched run, which\
+    \ is running now against an isolated sandbox (see the next entry)."
+  data: {}
