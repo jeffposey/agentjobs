@@ -219,17 +219,28 @@ class TaskManager:
         return {task_id: tuple(task_cycles) for task_id, task_cycles in indexed.items()}
 
     def dependency_facts(self, tasks: Optional[List[Task]] = None) -> Dict[str, DependencyFacts]:
-        """Compute the claim gate, reverse impact, and cycle errors once."""
+        """Compute the claim gate, reverse impact, and cycle errors once.
+
+        ``tasks`` selects which ids get an entry in the returned mapping.
+        ``open_children_count`` is computed over the whole corpus regardless, exactly
+        like the ``actionable`` gate beside it.
+
+        It used to count only within ``tasks``, so a caller passing a filtered subset
+        got a number silently relative to that page -- a parent with six open children
+        reporting 0, indistinguishable from a parent that has none. Corpus-wide is free
+        rather than a trade: ``_open_children`` is already called unconditionally for
+        ``actionable``, and inside a request's ``corpus_snapshot`` scope the corpus is
+        parsed at most once however many times it is asked for.
+
+        ``unblocks_count`` and ``needs_cycles`` are still derived from ``tasks`` and so
+        are still page-relative. Every caller in this repository passes the full corpus
+        or nothing, so neither is wrong today; both are the same trap and neither is in
+        this task's scope. See task-180.
+        """
 
         project_tasks = tasks if tasks is not None else self.storage.list_tasks()
         states = self._dependency_states()
         open_children = self._open_children()
-        open_children_counts: Dict[str, int] = {}
-        for candidate in project_tasks:
-            if candidate.parent and candidate.is_open:
-                open_children_counts[candidate.parent] = (
-                    open_children_counts.get(candidate.parent, 0) + 1
-                )
         cycles = self._needs_cycles(project_tasks)
         reverse_open_needs: Dict[str, int] = {}
         for task in project_tasks:
@@ -253,7 +264,7 @@ class TaskManager:
                 ),
                 needs_cycles=cycles.get(task.id, ()),
                 unblocks_count=reverse_open_needs.get(task.id, 0),
-                open_children_count=open_children_counts.get(task.id, 0),
+                open_children_count=len(open_children.get(task.id, ())),
             )
         return facts
 
