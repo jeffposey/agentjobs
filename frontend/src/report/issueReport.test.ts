@@ -14,14 +14,14 @@ describe("readReportContext", () => {
   });
 
   it("reads the project alone from any other project route", () => {
-    expect(readReportContext("/p/job-hunting/tasks")).toEqual({
-      route: "/p/job-hunting/tasks",
-      projectId: "job-hunting",
+    expect(readReportContext("/p/alpha/tasks")).toEqual({
+      route: "/p/alpha/tasks",
+      projectId: "alpha",
       taskId: null,
     });
-    expect(readReportContext("/p/job-hunting")).toEqual({
-      route: "/p/job-hunting",
-      projectId: "job-hunting",
+    expect(readReportContext("/p/alpha")).toEqual({
+      route: "/p/alpha",
+      projectId: "alpha",
       taskId: null,
     });
   });
@@ -94,7 +94,7 @@ describe("buildIssueTaskRequest", () => {
     const request = buildIssueTaskRequest({
       draft,
       context,
-      destinationProjectId: "job-hunting",
+      destinationProjectId: "alpha",
       reporter: "Jeff Posey",
       operationId: "op-3",
     });
@@ -109,7 +109,7 @@ describe("buildIssueTaskRequest", () => {
     const request = buildIssueTaskRequest({
       draft,
       context: { route: "/p/agentjobs/tasks", projectId: "agentjobs", taskId: null },
-      destinationProjectId: "job-hunting",
+      destinationProjectId: "alpha",
       reporter: "Jeff Posey",
       operationId: "op-4",
     });
