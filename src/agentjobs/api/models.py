@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from agentjobs.manager import DependencyFacts
 from agentjobs.models_v2 import (
@@ -446,10 +446,21 @@ class ProgressUpdateRequest(SafeMutationRequest):
 class DispatchRequestBody(BaseModel):
     """Ask AgentJobs to start an agent on this task.
 
-    There is no ``actor`` field, and that absence is the design. The actor recorded on a
-    dispatch is the author of the log entry that *caused* it, not whoever posted the
-    request -- otherwise the human-clocked rule would be satisfied by a caller naming a
-    human, which is not evidence of anything.
+    There is still no ``actor`` field, and that absence is still the design. The actor
+    recorded on a dispatch is the author of the log entry that *caused* it, never
+    whoever posted the request.
+
+    ``user`` is not that field, and the distinction is the whole of task-188. It does
+    not name the cause of the dispatch; it names the person whose authorising entry the
+    server should **write** before dispatching. The entry is persisted, then re-read
+    from storage, then put through the human-clocked check like any other -- so the
+    evidence remains a row in the append-only log, and a request that tried to supply
+    its own justification still gets nowhere. The identity claim itself is validated
+    against the project's configured actors and refused unless it is ``kind: human``,
+    exactly as ``POST /log`` and ``POST /approve`` have always validated theirs.
+
+    Omit ``user`` and nothing changes: the causing entry is whatever the log already
+    holds, which is what the CLI, MCP and auto-dispatch do.
     """
 
     caused_by: Optional[int] = Field(
@@ -468,6 +479,37 @@ class DispatchRequestBody(BaseModel):
             "that is closed."
         ),
     )
+    user: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "The signed-in human clicking Dispatch. Their authorising entry is written "
+            "to the task before the run starts, and the dispatch is attributed to it. "
+            "Must be an actor this project configures with 'kind: human'. Mutually "
+            "exclusive with caused_by."
+        ),
+    )
+    note: Optional[str] = Field(
+        default=None,
+        description=(
+            "What the human typed, when the record could not brief an agent on its own. "
+            "Becomes the body of the authorising entry. Only meaningful alongside 'user'."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _one_authorization(self) -> "DispatchRequestBody":
+        """``caused_by`` cites an entry; ``user`` creates one. Never both.
+
+        Refused here as well as in the guard layer, so the browser gets a 422 naming the
+        field rather than a 409 naming a rule it did not mean to touch.
+        """
+        if self.user is not None and self.caused_by is not None:
+            raise ValueError(
+                "Send either 'caused_by' (cite an existing entry) or 'user' (write a new "
+                "one), not both."
+            )
+        return self
 
 
 class DispatchStarted(BaseModel):

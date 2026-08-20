@@ -831,3 +831,132 @@ class TestDispatchAgainstAGroup:
         assert state["available_groups"] == []
         assert state["group"] is None
         assert state["default_group"] is None
+
+
+class TestOneClickDispatch:
+    """task-188: the button names the human, the server writes their entry.
+
+    The guard layer's own coverage is in test_dispatch_guards.py. What these add is that
+    the field survives the trip through FastAPI, that the refusals it can produce arrive
+    under their own codes, and that omitting it changes nothing.
+    """
+
+    def test_a_task_whose_newest_entry_is_an_agents_dispatches_when_a_human_signs_it(
+        self, served, tmp_path: Path
+    ) -> None:
+        """ac-1, over HTTP. The 97% case, with nothing written by hand first."""
+        client, root, home = served
+        enable_dispatch(home, tmp_path)
+        task_id = seed_task(root, last_actor="claude")
+
+        response = client.post(
+            f"/api/projects/sandbox/tasks/{task_id}/dispatch", json={"user": "Jeff Posey"}
+        )
+
+        assert response.status_code == 202, response.text
+        caused_by = response.json()["caused_by"]
+
+        stored = TaskManager(TaskStorage(root / "tasks")).get_task(task_id)
+        assert stored is not None
+        entry = next(item for item in stored.log if item.id == caused_by)
+        assert entry.actor == "Jeff Posey"
+        assert entry.type is LogEntryType.NOTE
+        assert entry.body is not None
+        assert "the task page" in entry.body
+
+    def test_an_agent_named_as_the_authorizer_is_forbidden(self, served, tmp_path: Path) -> None:
+        """ac-3, over HTTP. 403: no retry and no configuration makes this succeed."""
+        client, root, home = served
+        enable_dispatch(home, tmp_path)
+        task_id = seed_task(root, last_actor="claude")
+
+        response = client.post(
+            f"/api/projects/sandbox/tasks/{task_id}/dispatch", json={"user": "claude"}
+        )
+
+        assert response.status_code == 403
+        assert response.json()["code"] == "authorizer_not_human"
+
+    def test_a_task_with_no_working_spec_asks_for_text(self, served, tmp_path: Path) -> None:
+        """ac-4. The one case that stops, and it names itself so the page can react."""
+        client, root, home = served
+        enable_dispatch(home, tmp_path)
+        manager = TaskManager(TaskStorage(root / "tasks"))
+        task = manager.create_task(
+            title="Nothing to go on",
+            category="general",
+            summary="No working spec.",
+            description="",
+            lifecycle=Lifecycle.READY,
+            actor="claude",
+        )
+
+        response = client.post(
+            f"/api/projects/sandbox/tasks/{task.id}/dispatch", json={"user": "Jeff Posey"}
+        )
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "insufficient_record"
+
+    def test_the_typed_text_is_what_authorizes_the_run(self, served, tmp_path: Path) -> None:
+        """ac-4. One action serves both purposes: the brief and the authorisation."""
+        client, root, home = served
+        enable_dispatch(home, tmp_path)
+        manager = TaskManager(TaskStorage(root / "tasks"))
+        task = manager.create_task(
+            title="Nothing to go on",
+            category="general",
+            summary="No working spec.",
+            description="",
+            lifecycle=Lifecycle.READY,
+            actor="claude",
+        )
+
+        response = client.post(
+            f"/api/projects/sandbox/tasks/{task.id}/dispatch",
+            json={"user": "Jeff Posey", "note": "Rip out the old poller."},
+        )
+
+        assert response.status_code == 202, response.text
+        stored = manager.get_task(task.id)
+        assert stored is not None
+        entry = next(item for item in stored.log if item.id == response.json()["caused_by"])
+        assert entry.body == "Rip out the old poller."
+
+    def test_citing_an_entry_and_writing_one_is_a_validation_error(
+        self, served, tmp_path: Path
+    ) -> None:
+        """400 naming the body, rather than a 409 naming a rule nobody meant to touch."""
+        client, root, home = served
+        enable_dispatch(home, tmp_path)
+        task_id = seed_task(root)
+
+        response = client.post(
+            f"/api/projects/sandbox/tasks/{task_id}/dispatch",
+            json={"user": "Jeff Posey", "caused_by": 1},
+        )
+
+        assert response.status_code == 400
+        assert "not both" in response.json()["detail"]
+
+    def test_omitting_the_user_leaves_the_old_behaviour_exactly_as_it_was(
+        self, served, tmp_path: Path
+    ) -> None:
+        """ac-6 and ac-8. No signed-in user means no signature -- not the server's.
+
+        This is the CLI's and MCP's answer too: the stored rule still applies, and the
+        endpoint does not substitute the project's `default_user` to get past it.
+        """
+        client, root, home = served
+        enable_dispatch(home, tmp_path)
+        task_id = seed_task(root, last_actor="claude")
+        before = TaskManager(TaskStorage(root / "tasks")).get_task(task_id)
+        assert before is not None
+
+        response = client.post(f"/api/projects/sandbox/tasks/{task_id}/dispatch", json={})
+
+        assert response.status_code == 403
+        assert response.json()["code"] == "not_human_clocked"
+        after = TaskManager(TaskStorage(root / "tasks")).get_task(task_id)
+        assert after is not None
+        assert len(after.log) == len(before.log)
