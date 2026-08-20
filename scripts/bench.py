@@ -41,6 +41,7 @@ file count and total bytes it measured.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -62,7 +63,33 @@ sys.path.insert(0, str(ROOT / "src"))
 from agentjobs.project_setup import build_project_config  # noqa: E402
 from agentjobs.storage import yaml_loader_name  # noqa: E402
 
-DEFAULT_PORT = 18950
+BENCH_PORT_ENV = "AGENTJOBS_BENCH_PORT"
+BENCH_PORT_BASE = 30000
+BENCH_PORT_SPAN = 10000
+
+
+def checkout_port(root: Path) -> int:
+    """Pick the port this checkout's benchmark server owns.
+
+    Same reasoning as ``frontend/playwright.config.ts``: several worktrees of this
+    repository are worked at once, and a module-level constant means the second run
+    fails to bind. Deriving the port from the checkout's path keeps it stable for a
+    given worktree, so a bind failure can be attributed from the path alone.
+
+    A different base and a different span from the gate's, so a benchmark and a gate
+    running in the same checkout cannot land on one socket either.
+    """
+    override = os.environ.get(BENCH_PORT_ENV, "").strip()
+    if override:
+        port = int(override)
+        if not 1 <= port <= 65535:
+            raise SystemExit(f"{BENCH_PORT_ENV} must be between 1 and 65535, got {port}.")
+        return port
+    digest = hashlib.sha256(f"{root}\nbench".encode()).digest()
+    return BENCH_PORT_BASE + (int.from_bytes(digest[:4], "big") % BENCH_PORT_SPAN)
+
+
+DEFAULT_PORT = checkout_port(ROOT)
 DEFAULT_ITERATIONS = 10
 DEFAULT_SYNTHETIC_TASKS = 112
 PROJECT_ID = "_local"
@@ -265,6 +292,8 @@ class BenchServer:
         self._process: Optional["subprocess.Popen[bytes]"] = None
 
     def __enter__(self) -> "BenchServer":
+        # Named so a bind failure says which checkout wanted the socket.
+        print(f"[bench] checkout {ROOT} serving {self.base_url}", flush=True)
         env = dict(os.environ)
         env["AGENTJOBS_PROJECT_ROOT"] = str(self.root)
         env["AGENTJOBS_HOME"] = str(self.root / ".agentjobs-home")
@@ -592,7 +621,15 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         help=f"Synthetic corpus size (default {DEFAULT_SYNTHETIC_TASKS}).",
     )
     parser.add_argument("--iterations", type=int, default=DEFAULT_ITERATIONS)
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=DEFAULT_PORT,
+        help=(
+            f"Port for the benchmark server (default {DEFAULT_PORT}, derived from this "
+            f"checkout's path; {BENCH_PORT_ENV} overrides)."
+        ),
+    )
     parser.add_argument("--json", type=Path, help="Write the machine-readable report here.")
     parser.add_argument(
         "--compare", type=Path, help="Print a before/after table against this JSON."
