@@ -64,21 +64,23 @@ def _reconcile_dispatch_runs() -> None:
 
 
 def _reap_finished_sessions(ledger: "DispatchLedger") -> None:
-    """Remove the worktrees of sessions that have already ended.
+    """Remove the job state of sessions that have already ended.
 
-    A worktree belonging to a run that finished is litter, and it holds a pid in the
-    session manager's ledger besides. Startup is where this happens, and it stays here
-    now that a scheduler does exist: the poller below reaps each session as it settles
-    it, so this pass only ever finds what was left behind by a process that died. Putting
-    a second sweep on the interval would spawn processes to look for litter that has
-    already been collected. `agentjobs dispatch reap` remains the on-demand form.
+    A finished run still holds a pid in the session manager's ledger, and that is what
+    this clears. Startup is where it happens, and it stays here now that a scheduler does
+    exist: the poller below reaps each session as it settles it, so this pass only ever
+    finds what was left behind by a process that died. Putting a second sweep on the
+    interval would spawn processes to look for litter that has already been collected.
+    `agentjobs dispatch reap` remains the on-demand form.
 
     (This docstring used to argue that no scheduler should exist at all. That was right
-    about deleting directories and wrong about session state -- see the poller.)
+    about deleting directories and wrong about session state -- see the poller. It also
+    used to say this removed worktrees, which stopped being true with task-186: dispatch
+    no longer passes `-w`, so a dispatched session owns no worktree. See
+    `DispatchLedger.reap`.)
 
-    A **refused** reap is the interesting one and is printed rather than swallowed: the
-    session manager will not delete a worktree holding uncommitted changes, which means
-    that run produced work nobody has looked at.
+    A **refused** reap is still printed rather than swallowed, because the reason for one
+    is never obvious from here.
     """
     from agentjobs.dispatch.ledger import LedgerError
 
