@@ -104,9 +104,13 @@ this design found the bug in the prompt that dispatched it.
 PROMPT_STUB = (
     "You are the agent `{agent}` working task `{task_id}` in project `{project_id}` "
     "(root: {project_root}). You are running in that project's shared working tree and "
-    "are NOT isolated: take your own git worktree before you write anything. AgentJobs "
-    "is serving at {api_base}. Read the task record and follow the resumption contract "
-    "in " + GUIDE_PATH + ". Dispatch run id: {run_id}."
+    "are NOT isolated. Before writing anything, run `git worktree add ../<repo>-<nnn> "
+    "-b <type>/{task_id}-<slug>` and work from that path. Use that shell command, not "
+    "a built-in worktree tool: those relocate the session's permission root, which "
+    "parks a background run on a prompt nobody can answer. AgentJobs is serving at "
+    "{api_base}. Read the task record and follow the resumption contract in "
+    + GUIDE_PATH
+    + ". Dispatch run id: {run_id}."
 )
 """Fixed text plus five substitutions, and deliberately almost nothing more.
 
@@ -114,7 +118,7 @@ The resumption contract already guarantees the record is sufficient to resume fr
 the payload is a pointer to where the context is, not a copy of it. Composing a richer
 prompt would put the contract in a second place and guarantee the two disagree.
 
-The worktree sentence is the one exception, and it is a considered one (task-186). Until
+The worktree paragraph is the one exception, and it is a considered one (task-186). Until
 2026-08-19 ``posture_flags`` passed ``-w`` and containment was mechanical, so the stub
 had nothing to say about it. It cannot pass ``-w`` any more -- the isolation that flag
 buys carries a guard refusing every git operation aimed at the shared clone, which is
@@ -122,7 +126,24 @@ where this project requires task records to be committed and where the merge gat
 Containment is therefore the agent's own act, and it is the **only** instruction that
 must be obeyed before the agent reads anything, the guide included. A pointer cannot
 carry an instruction that has to precede following the pointer, so this one line is
-stated here as well as in the guide."""
+stated here as well as in the guide.
+
+**It names the shell command and forbids the built-in tool, and that phrasing is the
+whole of task-192.** The clause first shipped as prose -- "take your own git worktree" --
+which a model satisfies with Claude Code's ``EnterWorktree`` tool, the tool built for
+exactly that sentence. That tool asks to relocate the session's permission root outside
+``.claude/worktrees/``; under ``--permission-mode auto`` the classifier declines the
+escalation, defensibly, and a ``--bg`` session has no terminal to answer with, so the run
+parks indefinitely. Observed 2026-08-20 on run_6f1f0741, the first dispatch after
+task-186 merged, which parked before it wrote a line. The posture cannot fix it -- see
+``posture_flags`` for why neither ``-w`` nor ``bypassPermissions`` is the answer -- so
+the prompt has to be specific about *how*: ``git worktree add`` needs no relocation at
+all, and it is what ALLAGENTS.md already tells every other agent in this repository to
+do. This is why the stub is longer than a pointer ought to be; brevity that reintroduces
+a hang is not economy.
+
+The rendered prompt is still asserted to be short and to not restate the record, which
+is the property that matters. It is not asserted to be minimal."""
 
 GRACE_SECONDS = 30.0
 """How long a cancelled batch run gets to finish a ``git commit`` before it is killed."""
@@ -249,8 +270,19 @@ def posture_flags(posture: Posture, mcp_servers: Sequence[str]) -> List[str]:
     ``main`` in that shared checkout and runs its merge gate there, so a ``-w`` run could
     do the work and then not record or merge it. Containment that guarantees the run
     cannot finish is not containment. It is now the agent's own act -- ``PROMPT_STUB``
-    says so in the one sentence guaranteed to be read first, and the guide it points at
-    says it in full.
+    gives the ``git worktree add`` command in the first lines guaranteed to be read, and
+    the guide it points at says it in full.
+
+    **Nor does any posture pre-approve a permission-root relocation, and that is
+    task-192.** Claude Code's ``EnterWorktree`` tool -- which a prose instruction to
+    "take a worktree" invites -- asks to move the session's permission root outside
+    ``.claude/worktrees/``. ``auto``'s classifier declines that escalation and a ``--bg``
+    run cannot answer, so it parks. Rejected pre-approving it in the ``--settings`` blob
+    beside ``enabledMcpjsonServers``: it would need a rule for a gate that is an
+    escalation rather than an ordinary tool call, and ``allow_rules()`` records what a
+    rule that silently matches nothing costs. ``bypassPermissions`` is likewise rejected
+    -- it removes the gate for everything to fix one prompt. The prompt names the shell
+    command instead, which needs no approval at all.
 
     ``read_only`` still gets no worktree flag, for the reason it never had one: it cannot
     write anything to one.

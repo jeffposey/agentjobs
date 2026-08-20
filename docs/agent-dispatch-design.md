@@ -1245,13 +1245,25 @@ cwd was the one thing that could have made this cost a new flag; it does not.
 task-075 exists to answer, and the one this section must not leave vague — is now three
 things, in order of when they act:
 
-1. **The prompt stub says it, in the sentence guaranteed to be read first.**
+1. **The prompt stub says it, in the lines guaranteed to be read first.**
    `PROMPT_STUB` carries one imperative clause: the run is in the project's shared
    working tree, is not isolated, and must take a worktree before writing anything. This
    deliberately duplicates a line of the guide, against the stub's own
    pointer-not-a-composition rule, and the exception is earned: containment is the only
    instruction that must be obeyed *before* the agent reads anything, the guide included.
    A pointer cannot carry an instruction that has to precede following the pointer.
+
+   **The clause gives the shell command and forbids the built-in tool (task-192).** As
+   first shipped it said only "take your own git worktree", and a model satisfies that
+   with Claude Code's `EnterWorktree` tool — the tool named for that sentence. That tool
+   asks to relocate the session's permission root outside `.claude/worktrees/`, which
+   `auto`'s classifier declines and a `--bg` session cannot answer, so the run parks
+   indefinitely: task-020's failure through a different door, observed on run_6f1f0741
+   on 2026-08-20, the first dispatch after this section was written. Neither posture nor
+   a `--settings` pre-approval is the fix — an escalation gate is not an allow-rule, and
+   `bypassPermissions` would drop every gate to clear one prompt. `git worktree add`
+   needs no relocation at all, so the stub names it literally, and a test asserts both
+   the command and the prohibition are in the rendered prompt.
 2. **The guide states it in full**, at the top of
    [`docs/agent-workflow.md`](agent-workflow.md) rather than buried beside the claim, and
    as a general property of dispatch rather than a fact about this repository.
