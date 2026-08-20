@@ -493,6 +493,11 @@ Machine-local in `~/.agentjobs/dispatch.yaml`, like every other dispatch setting
 | `supervised` | `--permission-mode acceptEdits` plus the project allow-list via `--settings` | A run a human is actually watching and willing to answer. |
 | `autonomous` | `--permission-mode bypassPermissions` | Per-project opt-in. Never the default. |
 
+Every posture except `autonomous` also carries the dispatched project's own `.mcp.json`
+server names in `--settings`, which is the only way a `--bg` run gets past the MCP
+approval dialog. See [the project's own MCP servers travel with the
+run](#the-projects-own-mcp-servers-travel-with-the-run).
+
 !!! warning "`supervised` was the default until 2026-08-19, and could not finish work"
     The table below says `acceptEdits` + allow-list runs an arbitrary command with no
     prompt. That is true only of the nine allow-listed prefixes. **Everything else still
@@ -547,6 +552,64 @@ prefixes, `auto` has a classifier evaluate each action, so it covers commands no
 anticipated **and** needs no human present — the combination none of the other rows
 offer. Allow-list rules still take the form `Tool(prefix:*)` — the colon is not
 optional, and omitting it silently matches nothing.
+
+#### The project's own MCP servers travel with the run
+
+A project that ships a `.mcp.json` could not be dispatched to at all until 2026-08-19,
+and AgentJobs ships one so agents can reach the managed task tools. Claude Code prompts
+the first time it finds a project-scoped MCP server:
+
+```
+New MCP server found in this project: agentjobs
+1. Use this MCP server
+2. Use this and all future MCP servers in this project
+3. Continue without using this MCP server
+```
+
+A `--bg` session has no terminal, so nothing can answer. `claude agents --json` reports
+`state: "blocked"` and the run burns its whole timeout doing nothing — run_08ddfa02, the
+first real dispatch ever attempted, sat there ~913 seconds. There is no CLI verb that
+approves a server non-interactively: `claude mcp` has add/remove/list/get/
+reset-project-choices and nothing else ([#10447][mcp-approve] is the open request, and
+[#72430][mcp-routines] is the same wall for cloud routines).
+
+This is **not** the workspace-trust dialog. Trust for worktrees was fixed upstream on
+2026-08-17 ([#23109][trust-fix]) and is keyed on the repository's main checkout; trust
+only governs whether repo-committed approvals are honoured, and does not grant this one.
+
+The fix uses `--settings`, which dispatch already composes and which is one of the three
+approval sources that apply regardless of folder trust — the others being the user's
+`~/.claude/settings.json` and managed settings, neither of which dispatch may write.
+`posture_flags()` adds `enabledMcpjsonServers`, listing the names read out of the
+**dispatched project's own** `.mcp.json`. Hardcoding `agentjobs` would fix one project;
+`enableAllProjectMcpServers: true` was rejected as a much broader grant than dispatch
+needs, since it approves any server in any project rather than the ones this project
+declares.
+
+Which postures carry it was measured, not reasoned about — probed on 2.1.235, in a
+worktree declaring one server no settings file had ever heard of, so the machine-local
+`enabledMcpjsonServers: ["agentjobs"]` workaround could not mask a result:
+
+| Posture flags | `claude agents --json` | Dialog in transcript |
+|---|---|---|
+| `--permission-mode auto` | `blocked` | yes |
+| `--tools Read,Glob,Grep,WebFetch` | `blocked` | yes |
+| `--permission-mode bypassPermissions` | `done` | none |
+| `--permission-mode auto` + `enabledMcpjsonServers` | `done` | none |
+
+So `read_only` gains a `--settings` blob it never had, holding the approval and no
+`permissions` key — an allow-list there would be a posture change. `autonomous` is left
+exactly as it was: it never reaches the gate, and handing it settings it does not need
+would imply a limit that is not there. If a future release makes `bypassPermissions`
+honour the gate, that posture breaks and nothing in the suite will say so; the four
+commands that re-measure it are in task-019's log.
+
+A project with no `.mcp.json` yields no names, `enabledMcpjsonServers` is omitted rather
+than emitted empty, and every posture's argv is byte-identical to what it was before.
+
+[mcp-approve]: https://github.com/anthropics/claude-code/issues/10447
+[mcp-routines]: https://github.com/anthropics/claude-code/issues/72430
+[trust-fix]: https://github.com/anthropics/claude-code/issues/23109
 
 #### Containment, and what it is not
 
