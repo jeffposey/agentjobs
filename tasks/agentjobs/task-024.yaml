@@ -3,7 +3,7 @@ id: task-024
 title: A widened enum breaks every running client, because each one re-validates the
   server's JSON against its own copy of the schema
 created: '2026-08-19T22:46:26.152753Z'
-updated: '2026-08-19T23:45:26.496296Z'
+updated: '2026-08-20T00:02:25.654787Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -105,20 +105,20 @@ acceptance:
 - id: ac-1
   text: a client process older than the server can read a task containing an enum
     value it does not know
-  status: pending
+  status: met
 - id: ac-2
   text: that client can still perform unrelated mutations on that task
-  status: pending
+  status: met
 - id: ac-3
   text: writing an unknown enum value is still refused
-  status: pending
+  status: met
 - id: ac-4
   text: an unreadable file is still reported loudly, per task-049
-  status: pending
+  status: met
 - id: ac-5
   text: 'a test reproduces the original failure: a value absent from the reader''s
     enum, exercised through the MCP client'
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -216,4 +216,103 @@ log:
     -> `DispatchData`, which is where `log.12.posture` came from -- and because the
     mutation response travels the same transport, an unrelated mutation on that task
     exercises ac-2.'
+  data: {}
+- id: 4
+  ts: '2026-08-20T00:01:53.066455Z'
+  actor: claude
+  type: progress
+  body: 'Implemented, gated and exercised against a genuinely newer service in a second
+    process. Branch `fix/task-024-client-tolerant-reads`, commits `42ff90c` (fix +
+    tests) and `0d6449a` (docs).
+
+
+    ## What changed
+
+
+    - **`src/agentjobs/schema_tolerance.py`** (new, 22 statements): a `ContextVar`-scoped
+    opt-in switch, `tolerant_enum_values()`, which yields the list of unknown values
+    a parse met. Off by default; nesting supported; not visible to another thread.
+
+    - **`src/agentjobs/models_v2.py`**: `ValueEnum._missing_` returns an unregistered
+    pseudo-member carrying the raw string *only* while that context is active. `_member_map_`
+    is untouched, so `list(DispatchPosture)` keeps telling the truth, and Pydantic
+    serialises the value straight back out. Consistency rule 2 now uses `BALL_REASONS.get(...)`
+    and skips the vocabulary check for a holder this reader does not know -- without
+    that, a tolerated unknown `ball` raised a bare `KeyError` out of a model validator
+    (verified by reverting the line: the test fails with `KeyError: <Ball.council:
+    ''council''>`).
+
+    - **`src/agentjobs/client.py`**: `_parse_task` -- the single choke point every
+    typed read *and every mutation* funnels through -- parses inside that context
+    and logs one warning per unknown value naming the enum, the value and the task.
+
+    - **`docs/task-schema.md`**: new "Widening an enum" section, stating what a client
+    now tolerates and what deliberately did not change.
+
+
+    ## Evidence
+
+
+    **Gate green.** `poetry run python scripts/check.py` exit 0: 1895 pytest in 3m44s,
+    136 Vitest, production build, 14 Playwright. Black/Ruff/MyPy clean.
+
+
+    **`tests/test_schema_skew.py`, 15 tests.** Skew is staged at the transport, since
+    one process holds one copy of the schema: the real FastAPI app answers and a wrapping
+    `httpx.BaseTransport` rewrites a dispatch entry''s posture to `warp_drive`. Reverting
+    only the tolerance in `_parse_task` fails five of them with the original error,
+    `log.1.posture: Input should be ''read_only'', ''auto'', ''supervised'' or ''autonomous''
+    [type=enum]`. A test asserts the transport actually rewrote something, so a harness
+    that silently stopped skewing cannot make the rest pass for the wrong reason.
+
+
+    **Two real processes, real HTTP -- the thing the tests can only simulate.** A
+    copy of this branch''s `src/` with `HYPERDRIVE = "hyperdrive"` added to `DispatchPosture`
+    was run as a service on port 8899 over a seeded project whose task carries `posture:
+    hyperdrive`. Two clients then talked to it:
+
+
+    - **Pre-fix client, the main clone at `C:/projects/agentjobs`** -- literally the
+    `.mcp.json` configuration: raw pass-through read returned `hyperdrive` fine; `get_task`
+    **FAILED** `ValidationError ... log.1.posture`; `operations.handoff` **FAILED**
+    the same way. The original defect, reproduced outside a test.
+
+    - **This branch:** `get_task` ok (`Needs review`, posture kept as `''hyperdrive''`),
+    handoff ok, one warning per parse. Through the MCP tool surface itself -- `build_registry`
+    over the same client -- `task_get`, `task_handoff` and `task_log_append` all succeeded
+    against the newer service.
+
+
+    The demo service was stopped afterwards; nothing was left running.
+
+
+    ## One finding worth recording
+
+
+    The pre-fix client''s failed `handoff` had **already been applied server-side**.
+    The mutation reached the file and only the response parse blew up, so the agent
+    was told its write failed, `retryable: false`, when it had actually landed. The
+    old behaviour was therefore worse than a read outage: it made agents disbelieve
+    writes that succeeded. Nothing in the fix depends on this; it is recorded because
+    it is not recoverable from the diff.
+
+
+    ## Acceptance
+
+
+    - ac-1 met -- typed read, listing and MCP read all survive an unknown value; demonstrated
+    across two processes.
+
+    - ac-2 met -- `task_handoff` and `task_log_append` succeed on a task carrying
+    one.
+
+    - ac-3 met -- `update_task(priority=''paramount'')` is refused by the service;
+    `DispatchPosture(''warp_drive'')` still raises outside the client; `TaskStorage.load_task`
+    still refuses a file carrying one.
+
+    - ac-4 met -- storage strictness untouched, and a malformed client payload still
+    raises rather than arriving as a half-built task.
+
+    - ac-5 met -- `tests/test_schema_skew.py` reproduces the original failure through
+    the MCP client, and fails without the fix.'
   data: {}
