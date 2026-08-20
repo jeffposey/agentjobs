@@ -3,11 +3,63 @@ id: task-180-open-children-count-in-filtered-views
 title: open_children_count is computed over the filtered subset, so a list or search
   under-reports it
 created: '2026-08-19T19:22:58.406965Z'
-updated: '2026-08-20T20:30:23.769093Z'
+updated: '2026-08-20T20:37:23.655987Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: 'Review branch `fix/task-180-open-children-count-corpus-wide` (worktree
+  C:/projects/aj-180, 3 commits, `git log --oneline main..fix/task-180-open-children-count-corpus-wide`).
+  Gate green: GATE_EXIT=0, 2053 pytest in 4m30s, 153 Vitest, 16 Playwright, generated
+  API client current. All three acceptance criteria met. Nothing to merge until you
+  say so.
+
+
+  **The one thing to actually check: I changed the diagnosis.** The spec said the
+  cause was the subset iteration in `dependency_facts`. That defect was real but no
+  shipped view hit it -- every caller passed the full corpus. The reported symptom
+  came from a second, independent bug the spec did not mention: `GET /search` answered
+  with `List[Task]` (bare stored records), so `open_children_count` was *absent* from
+  every search row, and `mcp/summaries.task_summary` turned the absence into `0`.
+  I fixed both. If you disagree that the search route was in scope, that is the decision
+  to push back on -- log entry 5 has the full reasoning.
+
+
+  A correction to the spec worth noting: it says `actionable` ''stays correct'' in
+  every view. It does not -- on the search path it was defaulted to `False` by the
+  same summary-layer coercion. I did not change how `actionable` is computed (you
+  put that out of scope); returning `TaskRead` from `/search` fixes it incidentally.
+
+
+  **The cost question you asked for: it was not a trade.** `dependency_facts` already
+  called `_open_children()` unconditionally for `actionable`, and that already walked
+  the whole corpus. Measured with two servers on the same corpus -- `X-Task-Parses`
+  identical before and after on `/search`, `/tasks` and a filtered `/tasks`. So I
+  did not make the field nullable-and-omitted as the spec''s fallback suggested; there
+  is no view that cannot compute it honestly. I did keep the constraint''s other half:
+  `task_summary` and `summaries.dependency_facts` no longer invent a `0` for a record
+  lacking the key -- they pass `None`, schemas widened to accept null. That coercion
+  is what turned a missing field into a confident wrong answer.
+
+
+  **No review server, deliberately.** The React app filters client-side over `/tasks`,
+  which was already correct, so nothing here is browser-visible -- the affected surfaces
+  are the REST and MCP APIs. Your standing rule about standing up a sandbox for UI
+  changes does not apply; say so if you disagree and I will seed one. I used port
+  8899 for the measurement and have stopped it; 8876 was never touched and still answers
+  200.
+
+
+  **Left undone on purpose:** `unblocks_count` and `needs_cycles` in the same function
+  are still page-relative -- the identical trap one line away. Neither is wrong today
+  because no caller passes a subset, and fixing `needs_cycles` corpus-wide would change
+  what `validation.py` reports. Flagged in the docstring. I have not filed a follow-up
+  task; tell me if you want one.
+
+
+  On approval: rebase, merge --no-ff, mark branch merged, close, remove the worktree.
+  No frontend rebuild is needed -- the only frontend change is the generated API client''s
+  type for `/search`, with no component change -- but I will rebuild and re-run the
+  launcher anyway so the running dashboard is on merged code.'
 archived: false
 priority: medium
 category: reliability
@@ -70,7 +122,7 @@ acceptance:
   status: met
 - id: sc-3
   text: poetry run python scripts/check.py passes
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -278,3 +330,79 @@ log:
       id: c0b4e6a9-2d17-4f83-b5c1-7e94a0d36f28
       kind: update_content
       fingerprint: b623b3a03e963c4422969a5c472adcf3
+- id: 8
+  ts: '2026-08-20T20:37:00.997797Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 5a71d9c3-8e42-4b06-9d15-c3f807e2a1b6
+      kind: update_content
+      fingerprint: 6c79787a67cb0f8399fd702776e3fb0b
+- id: 9
+  ts: '2026-08-20T20:37:23.655809Z'
+  actor: claude
+  type: handoff
+  body: 'Review branch `fix/task-180-open-children-count-corpus-wide` (worktree C:/projects/aj-180,
+    3 commits, `git log --oneline main..fix/task-180-open-children-count-corpus-wide`).
+    Gate green: GATE_EXIT=0, 2053 pytest in 4m30s, 153 Vitest, 16 Playwright, generated
+    API client current. All three acceptance criteria met. Nothing to merge until
+    you say so.
+
+
+    **The one thing to actually check: I changed the diagnosis.** The spec said the
+    cause was the subset iteration in `dependency_facts`. That defect was real but
+    no shipped view hit it -- every caller passed the full corpus. The reported symptom
+    came from a second, independent bug the spec did not mention: `GET /search` answered
+    with `List[Task]` (bare stored records), so `open_children_count` was *absent*
+    from every search row, and `mcp/summaries.task_summary` turned the absence into
+    `0`. I fixed both. If you disagree that the search route was in scope, that is
+    the decision to push back on -- log entry 5 has the full reasoning.
+
+
+    A correction to the spec worth noting: it says `actionable` ''stays correct''
+    in every view. It does not -- on the search path it was defaulted to `False` by
+    the same summary-layer coercion. I did not change how `actionable` is computed
+    (you put that out of scope); returning `TaskRead` from `/search` fixes it incidentally.
+
+
+    **The cost question you asked for: it was not a trade.** `dependency_facts` already
+    called `_open_children()` unconditionally for `actionable`, and that already walked
+    the whole corpus. Measured with two servers on the same corpus -- `X-Task-Parses`
+    identical before and after on `/search`, `/tasks` and a filtered `/tasks`. So
+    I did not make the field nullable-and-omitted as the spec''s fallback suggested;
+    there is no view that cannot compute it honestly. I did keep the constraint''s
+    other half: `task_summary` and `summaries.dependency_facts` no longer invent a
+    `0` for a record lacking the key -- they pass `None`, schemas widened to accept
+    null. That coercion is what turned a missing field into a confident wrong answer.
+
+
+    **No review server, deliberately.** The React app filters client-side over `/tasks`,
+    which was already correct, so nothing here is browser-visible -- the affected
+    surfaces are the REST and MCP APIs. Your standing rule about standing up a sandbox
+    for UI changes does not apply; say so if you disagree and I will seed one. I used
+    port 8899 for the measurement and have stopped it; 8876 was never touched and
+    still answers 200.
+
+
+    **Left undone on purpose:** `unblocks_count` and `needs_cycles` in the same function
+    are still page-relative -- the identical trap one line away. Neither is wrong
+    today because no caller passes a subset, and fixing `needs_cycles` corpus-wide
+    would change what `validation.py` reports. Flagged in the docstring. I have not
+    filed a follow-up task; tell me if you want one.
+
+
+    On approval: rebase, merge --no-ff, mark branch merged, close, remove the worktree.
+    No frontend rebuild is needed -- the only frontend change is the generated API
+    client''s type for `/search`, with no component change -- but I will rebuild and
+    re-run the launcher anyway so the running dashboard is on merged code.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 9e35f8b2-4a61-4d0c-8273-b1f6c5e04a97
+      kind: handoff
+      fingerprint: 703af4459660e6daf71957487f6675f2
