@@ -3,7 +3,7 @@ id: task-187
 title: Two worktrees cannot run the gate at the same time, because Playwright's port
   is a constant
 created: '2026-08-19T23:41:13.123280Z'
-updated: '2026-08-20T17:00:51.743169Z'
+updated: '2026-08-20T17:20:41.056306Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -249,3 +249,85 @@ log:
       id: c8a2f5d1-9b47-4e60-83c2-5f1d7a0e6b33
       kind: update_content
       fingerprint: 725b0ac548c18a2eb38868bc9e35b12a
+- id: 11
+  ts: '2026-08-20T17:20:41.056134Z'
+  actor: claude
+  type: decision
+  body: 'Chose **a port derived from the checkout''s own filesystem path**, implemented
+    separately in the two places that need one.
+
+
+    **What was chosen.** `frontend/playwright.config.ts` walks up from the working
+    directory to the checkout root (the directory holding both `pyproject.toml` and
+    `frontend/playwright.config.ts`), hashes `"<root>
+
+    e2e"` with SHA-256, and takes `20000 + (first 4 bytes % 10000)`. That number is
+    used for `baseURL` and passed to the server as `AGENTJOBS_E2E_PORT`. `scripts/bench.py`
+    does the same with the purpose string `bench` over the range `30000-39999`. The
+    two ranges are disjoint, so a benchmark and a gate in one checkout cannot want
+    the same socket either; a test asserts that.
+
+
+    **Why this and not the alternatives the spec listed.**
+
+
+    - *Ask the OS for a free port.* Collision-proof, and rejected anyway. Playwright
+    must know `webServer.url` before the server starts, so the config would bind a
+    probe socket, close it, and hand the number to uvicorn -- a time-of-check/time-of-use
+    window, and the port stops being predictable from outside the run. Predictability
+    is what constraint 3 asks for: with a hash of the path, a developer can work out
+    which checkout owns which port without waiting for a run.
+
+    - *An env var defaulting to the current constant.* Smallest change and the spec''s
+    own critique is right -- it only helps whoever remembers to set it, which is nobody.
+    It survives here as an override (`AGENTJOBS_E2E_PORT`, `AGENTJOBS_BENCH_PORT`),
+    not as the mechanism.
+
+    - *Deterministic hash, accepted with its known limit.* Two checkouts whose paths
+    hash into the same slot out of 10000 still collide. That is roughly a 1-in-10000
+    event for a second worktree, and when it happens the result is exactly today''s
+    failure -- loud, not silent. Trading a certainty for a 0.01% chance was worth
+    more than the complexity of probing.
+
+
+    **Deliberately not done.**
+
+
+    - No probe-then-fall-back-to-a-free-port hybrid. It would close the last 0.01%,
+    and it needs an async socket check inside a synchronous Playwright config, which
+    on Windows means either a subprocess or a gamble on the config''s module format.
+    Not worth it for the residual.
+
+    - `reuseExistingServer: false` is untouched, per constraint 1. The fix is that
+    runs no longer *want* the same port, not that they are allowed to share one.
+
+    - `run_server.py` was given no default port. It reads `AGENTJOBS_E2E_PORT` or
+    exits with a message naming the checkout. A default would be a second opinion
+    about which port is in play: the config could watch one address while the server
+    bound another. With no default there is no path by which the config''s `baseURL`
+    and the server''s bind can disagree, which is what ac-4 asks for.
+
+    - The TypeScript and Python derivations are not shared code. They must produce
+    *different* ports, they run in different languages at different times, and a shared
+    source would mean either shelling out to Python from a Playwright config on every
+    gate run or generating one from the other. Six lines each, each independently
+    correct.
+
+
+    **Checkout root detection uses the working directory, not the module''s own path.**
+    `frontend/package.json` sets `"type": "module"`, so whether `__dirname` or `import.meta.url`
+    is available inside a Playwright TS config depends on how Playwright transpiles
+    it -- a detail worth not betting the gate on. `scripts/check.py` always runs Playwright
+    with cwd `<checkout>/frontend`, and any hand invocation is from inside the checkout
+    too, so walking up from cwd is reliable and format-independent.
+
+
+    **Survey for other fixed ports, as the spec asked.** The pytest suite is already
+    clean: `tests/test_mcp_protocol.py`, `tests/test_mcp_server.py` and `tests/test_dispatch_api_base_end_to_end.py`
+    all bind `("127.0.0.1", 0)` and use whatever the OS returns. The only two fixed
+    ports in the gate/benchmark path were `18940` (Playwright, twice) and `18950`
+    (`scripts/bench.py`), both now derived. `frontend/vite.config.ts` pins `server.port:
+    5173`, and that one is left alone deliberately: it is `npm run dev`, not the gate,
+    and Vite without `strictPort` moves to the next free port by itself rather than
+    failing.'
+  data: {}
