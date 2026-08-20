@@ -1,0 +1,72 @@
+schema: 2
+id: task-193
+title: Every CLI dispatch on this machine hands the agent a dead API address
+created: '2026-08-20T08:07:00.622137Z'
+updated: '2026-08-20T08:07:00.623164Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: reliability
+tags:
+- dispatch
+- config
+effort: small
+assignment:
+  eligible: []
+spec:
+  summary: A dispatch started from the CLI tells the agent AgentJobs is at http://localhost:8765.
+    Nothing serves that port on this machine -- the dashboard is on 8876 -- so the
+    run cannot read its own task record over HTTP and cannot write the result back.
+  intent: 'Observed 2026-08-20 while verifying task-192, on three real dispatches:
+    every one printed ''Agent told AgentJobs is at http://localhost:8765''. The runs
+    survived only because they read the task YAML off disk instead. task-154 built
+    the resolver to fix exactly this and it is working as designed; what is missing
+    is the machine''s declaration.'
+  description: "`resolve_api_base` (src/agentjobs/dispatch/address.py) takes three\
+    \ sources in order: an address the caller observed (the HTTP endpoint derives\
+    \ it from the socket the request arrived on), `AGENTJOBS_API_BASE`, and `api_base:`\
+    \ in `~/.agentjobs/dispatch.yaml`. Falling through all three yields `DEFAULT_API_BASE\
+    \ = http://localhost:8765`.\n\nA dispatch triggered from the web UI gets source\
+    \ 1 and is correct. A dispatch from the CLI has no socket to observe, and this\
+    \ machine sets neither source 2 nor source 3 -- `~/.agentjobs/dispatch.yaml` has\
+    \ no `api_base` key -- so it falls all the way through to the one address this\
+    \ repo documents as guaranteed dead.\n\nThe narrow fix is one line of machine-local\
+    \ config:\n\n    api_base: http://127.0.0.1:8876\n\nThat is Jeff's file, not the\
+    \ repo's, so it needs his hand or his say-so.\n\nThe question worth deciding is\
+    \ whether the repo should do more than wait for a declaration. Candidates, none\
+    \ prescribed: have `dispatch config` flag an unreachable resolved address rather\
+    \ than printing it flatly; have `dispatch run` probe the address before spawning\
+    \ and refuse loudly, since a run given a dead address fails silently by construction;\
+    \ or have the scaffold write `api_base` when it can observe a running server."
+  constraints: 'Do not change DEFAULT_API_BASE. task-154 chose it deliberately: a
+    machine that has declared nothing and serves on the CLI default is the one case
+    the literal is right about.'
+  context:
+  - path: src/agentjobs/dispatch/address.py
+    why: The resolver, its three sources and the default -- and the docstring explaining
+      why 8765 is the worst possible wrong answer on this machine.
+  - path: src/agentjobs/dispatch/scaffold.py
+    why: The starting dispatch.yaml `dispatch example` emits; where an api_base line
+      would be prompted for.
+acceptance:
+- id: ac-1
+  text: A CLI dispatch on this machine tells the agent an address that answers
+  status: pending
+- id: ac-2
+  text: A machine that has not declared an address cannot silently spawn a run against
+    a dead one
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T08:07:00.622243Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
