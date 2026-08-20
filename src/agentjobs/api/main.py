@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 import time
 from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING, Any, AsyncIterator
@@ -14,8 +15,9 @@ from fastapi.responses import JSONResponse
 from starlette import status
 
 from agentjobs.__version__ import __version__
+from agentjobs.environment import SourceMismatchError, verify_source_or_die
 from agentjobs.instrumentation import reset_task_parses, task_parse_count
-from agentjobs.projects import ProjectError, default_home
+from agentjobs.projects import ProjectError, ProjectRegistry, default_home
 from agentjobs.storage import TaskLoadError, corpus_snapshot
 
 from .routes import (
@@ -94,6 +96,31 @@ def _reap_finished_sessions(ledger: "DispatchLedger") -> None:
         print(f"Dispatch {verb} {result.run_id}: {result.detail}", flush=True)
 
 
+def _verify_served_source() -> None:
+    """Stop before serving anything if this process imported the wrong checkout.
+
+    The editable install on this interpreter can point at a checkout that is not the one
+    being served -- a worktree's `poetry install` rewrites it whenever `VIRTUAL_ENV` is
+    set (task-194). Nothing downstream notices: the task files are read from the right
+    place, `git log` in the served clone is correct, and every behaviour comes from an
+    unmerged branch.
+
+    This refuses rather than warns, because the whole character of the failure is that it
+    is quiet. A dashboard that will not start is a five-second fix with the command in the
+    error; a dashboard serving someone's branch cost a forensic session to even notice.
+    The banner is printed as well as raised, since uvicorn's startup traceback is not
+    where anyone looks first.
+    """
+    roots = [project.root for project in ProjectRegistry(default_home()).list_projects()]
+    try:
+        verify_source_or_die(roots)
+    except SourceMismatchError as exc:
+        print("\n" + "=" * 78, file=sys.stderr)
+        print(exc, file=sys.stderr)
+        print("=" * 78 + "\n", file=sys.stderr, flush=True)
+        raise
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Reconcile once at startup, then follow live sessions for as long as we serve.
@@ -109,6 +136,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """
     from agentjobs.dispatch.poller import poll_sessions_forever
 
+    _verify_served_source()
     poller = asyncio.create_task(poll_sessions_forever(default_home()))
     _reconcile_dispatch_runs()
     try:

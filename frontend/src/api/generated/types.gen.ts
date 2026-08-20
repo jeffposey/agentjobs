@@ -2243,6 +2243,12 @@ export type VersionResponse = {
      */
     schema_version: number;
     /**
+     * Source Root
+     *
+     * Directory this process imported its own code from. Startup refuses when that is the wrong checkout, but the answer is reported here too: on a machine with several worktrees it is the difference between a stale server and a wrongly-installed one, and guessing costs a forensic session.
+     */
+    source_root: string;
+    /**
      * Version
      *
      * Installed AgentJobs package version.
