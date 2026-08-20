@@ -2,10 +2,11 @@ schema: 2
 id: task-154-dispatch-api-base-port
 title: Tell a dispatched agent the address AgentJobs is actually serving on
 created: '2026-08-18T21:21:58.341616Z'
-updated: '2026-08-19T21:23:01.946974Z'
-lifecycle: ready
+updated: '2026-08-20T00:39:14.137661Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 category: reliability
@@ -15,6 +16,7 @@ tags:
 - configuration
 effort: small
 assignment:
+  owner: claude
   eligible: []
 parent: task-181-dispatch-phase-one-hardening
 spec:
@@ -176,7 +178,9 @@ dependencies:
   type: related
   note: Closed. Carries its own copy of the same default on the auto path.
 links: []
-branches: []
+branches:
+- name: fix/task-154-dispatch-api-base
+  status: active
 log:
 - id: 1
   ts: '2026-08-18T21:21:58.341670Z'
@@ -213,3 +217,12 @@ log:
       id: b4c5d6e7-f8a9-414a-c59b-c6d7e8f9b8c2
       kind: update_content
       fingerprint: 6bc867db7efae818c23f58513b8140c5
+- id: 4
+  ts: '2026-08-20T00:39:03.518850Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
