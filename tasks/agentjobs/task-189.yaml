@@ -1,0 +1,163 @@
+schema: 2
+id: task-189
+title: The gate makes you pay four minutes to learn something it knew in one second,
+  and there is no way to resume it
+created: '2026-08-20T06:40:10.935944Z'
+updated: '2026-08-20T06:40:10.936648Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- tooling
+- developer-experience
+- check-gate
+effort: half a day
+assignment:
+  eligible: []
+spec:
+  summary: "scripts/check.py runs its 4-minute pytest stage before a block of checks\
+    \ that together take about fifteen seconds, so a failure in the cheap block costs\
+    \ the expensive one first \u2014 every time, with no way to resume. One session\
+    \ burned roughly sixteen minutes across four full runs to extract three failures,\
+    \ two of which were the same failure twice because the check's own remedy message\
+    \ named only half of what it wanted."
+  intent: 'Jeff, 2026-08-20, watching an agent work task-188: "please evaluate why
+    we are doing a full gate, then a full gate, and then a full gate, and then ''oh
+    it wants it committed'' and then a full gate, and file a task to improve it."'
+  description: "## What actually happened, measured\n\nOne agent session working task-188\
+    \ ran `poetry run python scripts/check.py` four times.\nTimings from the run logs:\n\
+    \n| # | Ran for | Failed at | Could the failure have been known sooner? |\n|---|---|---|---|\n\
+    | 1 | ~10s | MyPy: one unused `type: ignore` | No \u2014 the cheap block is already\
+    \ first. This one worked as designed. |\n| 2 | ~4m 40s | `check:api-client` \u2014\
+    \ generated client stale | **Yes, in ~1s.** `git diff --quiet -- frontend/src/api/generated`\
+    \ |\n| 3 | ~4m 35s | `check:api-client` \u2014 *the same failure again* | **Yes.**\
+    \ See \"the dead-end message\" below. |\n| 4 | ~5m 40s | 2 of 15 Playwright e2e\
+    \ specs | Partly \u2014 the Python suite had already passed unchanged in run 3.\
+    \ |\n\n**\u224816 minutes of wall clock to surface three distinct problems**,\
+    \ of which about nine\nminutes was the Python suite re-running, green, over source\
+    \ it had already validated.\n\n## Three separate defects, in increasing order\
+    \ of how much they cost\n\n### 1. The cheap/expensive split is applied halfway\
+    \ and then abandoned\n\nENGINEERING.md already makes this argument, in these words:\n\
+    \n> Format, lint and types come first because they take about seven seconds together\
+    \ and\n> catch what pytest never will; there is no reason to spend four minutes\
+    \ finding a\n> misformatted file.\n\nThat reasoning is correct and it stops one\
+    \ stage too early. The frontend half opens with\n`check:api-schema`, `check:api-client`\
+    \ and `check:icons` \u2014 all of them fast, deterministic\nhygiene checks that\
+    \ compare generated output to committed output and know their answer in\nabout\
+    \ a second each \u2014 and they run *after* the 3m25s pytest stage. `lint` (oxlint)\
+    \ is in\nthe same category.\n\nRoughly: everything under ~20s should be in the\
+    \ first block. That is black, ruff, mypy,\nthe openapi match, the generated-client\
+    \ check, the icon check, and oxlint. Then pytest,\nthen Vitest, then the build,\
+    \ then Playwright.\n\nThe measurement is the argument, and it is worth re-measuring\
+    \ per stage rather than\ntrusting the numbers above, which came from one machine\
+    \ on one afternoon.\n\n### 2. `assert-generated-clean.mjs` asserts one thing and\
+    \ says another\n\nThe check is `git diff --quiet -- src/api/generated` \u2014\
+    \ a comparison against **HEAD**, not\nagainst freshly generated output. So it\
+    \ fails identically for two different situations:\n\n- you did not regenerate\
+    \ the client after changing the API, and\n- you regenerated it and have not committed\
+    \ it yet.\n\nIts message names only the first: *\"Generated API client files are\
+    \ stale. Run\n`npm run generate:api` and commit the result.\"* An agent that had\
+    \ just run\n`npm run generate:api` read that, believed it, ran it again, and paid\
+    \ another four and a\nhalf minutes for the identical failure. The word \"commit\"\
+    \ is in the sentence, but it\nreads as advice about what to do afterwards rather\
+    \ than as the thing being asserted.\n\nFix both halves: run the generator and\
+    \ diff its output against the working tree to answer\n*is it stale*, then check\
+    \ `git status` separately to answer *is it committed*, and say\nwhich of the two\
+    \ failed. A check whose remedy you can follow exactly and get the same\nfailure\
+    \ is worse than no message.\n\nNote the ordering interaction: any check that requires\
+    \ a **commit** is unusual in a\npre-commit gate, and worth a sentence of its own.\
+    \ It means the documented workflow is\n\"commit the generated files, then run\
+    \ the gate\", which contradicts \"run the gate before\nevery commit\". Decide\
+    \ which, and write it down \u2014 this is the part most likely to be\nrediscovered\
+    \ as a bug.\n\n### 3. There is no way to resume after a late failure\n\nA Playwright\
+    \ failure at minute five costs the whole Python suite again on the retry, even\n\
+    when nothing under `src/agentjobs/` changed. There is no `--from`, no `--only`,\
+    \ no stage\nlist. Every iteration on a frontend-only problem pays for the backend.\n\
+    \n`--only <stage>` and `--from <stage>` are the obvious shape. Neither weakens\
+    \ the gate as\nlong as the unqualified `poetry run python scripts/check.py` still\
+    \ runs everything, and\nthe commit rule keeps referring to the unqualified form.\n\
+    \nThis compounds with **task-187**: two worktrees cannot run the gate concurrently,\
+    \ so a\nre-run is not merely slow, it can block a second agent entirely.\n\n##\
+    \ What this is not\n\nNot making the gate weaker, not splitting it into several\
+    \ commands agents have to\nremember, and not making any stage optional in the\
+    \ run that gates a commit. The gate is\none command on purpose \u2014 a list nothing\
+    \ enforces is a statement of intent, and that\nreasoning is in ENGINEERING.md\
+    \ and stands. This is about the order it runs in, the\nhonesty of one failure\
+    \ message, and being able to resume.\n\nAlso not the flakiness or the port collision\
+    \ in the e2e stage \u2014 that is task-187."
+  constraints: '- The unqualified `poetry run python scripts/check.py` must still
+    run every stage. Any selection flag is an addition for iterating, never something
+    the commit rule points at.
+
+    - Reordering must not change what is checked, only when. If a stage depends on
+    an earlier one''s output (the build before Playwright, for instance), that dependency
+    is real and stays.
+
+    - State the new order and the new per-stage budget in ENGINEERING.md, and re-measure
+    rather than copying the numbers in this description.
+
+    - Resolve the contradiction the generated-client check creates between "run the
+    gate before every commit" and a check that requires files to already be committed.
+    Say which one wins, in ENGINEERING.md.
+
+    - A failure message must name the thing that actually failed. Following it exactly
+    must not reproduce the same failure.'
+  out_of_scope: "Playwright's fixed port and gate concurrency (task-187). Making any\
+    \ stage faster \u2014 this is about ordering and resumability, not about the 3m25s\
+    \ pytest run itself. Splitting the gate into multiple commands agents must remember\
+    \ to run."
+  context:
+  - path: scripts/check.py
+    why: 'The gate itself: stage order, and where a --from/--only would live.'
+  - path: frontend/scripts/assert-generated-clean.mjs
+    why: The check that asserts against HEAD and reports it as staleness. Both halves
+      of defect 2 are here.
+  - path: ENGINEERING.md
+    why: "Documents the order, the ~5 minute budget, and the argument for putting\
+      \ cheap checks first \u2014 which this task extends. Also the 'run the gate\
+      \ before every commit' rule the generated-client check contradicts."
+  - path: frontend/package.json
+    why: The `check` script's own ordering of api/icons/lint/test/build/e2e.
+acceptance:
+- id: ac-1
+  text: Every check that takes under about twenty seconds runs before the pytest stage,
+    with the per-stage timings measured on this machine and recorded
+  status: pending
+- id: ac-2
+  text: A stale generated client and an uncommitted generated client produce different
+    messages, each naming what it actually wants
+  status: pending
+- id: ac-3
+  text: Following a gate failure message exactly does not reproduce the same failure
+  status: pending
+- id: ac-4
+  text: The gate can be resumed from or restricted to a stage while iterating, and
+    the unqualified command still runs everything
+  status: pending
+- id: ac-5
+  text: ENGINEERING.md states the new order, the re-measured budget, and whether the
+    gate runs before or after committing generated files
+  status: pending
+deliverables: []
+dependencies:
+- task: task-187
+  type: related
+  note: 'Gate concurrency: a re-run can block a second worktree entirely, which compounds
+    the cost of every wasted run here.'
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-20T06:40:10.935991Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3f2a8c11-6d45-4b9e-9a03-5c7e1d842b60
+      kind: create
+      fingerprint: 7aceb480e547f3cb17852fc27f01cd64
