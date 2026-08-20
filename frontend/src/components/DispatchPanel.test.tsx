@@ -354,6 +354,35 @@ describe("refusals", () => {
     expect(alert).not.toHaveTextContent("Act on the task yourself, then dispatch.");
   });
 
+  it("names the runs holding the machine's slots, not just how many", () => {
+    // The whole of the complaint that produced this: the panel's own run list shows
+    // only *this* task's runs, so a run occupying the machine is by definition one this
+    // page cannot show. "2 run(s) already active" is therefore a dead end -- a reader is
+    // told to cancel something and given nowhere to go. The server's sentence names the
+    // run and the task each is working, and this asserts that it survives to the screen.
+    renderPanel({
+      dispatchRefusal: {
+        reason: "concurrency_limit",
+        message:
+          "This machine allows 2 concurrent run(s) and 2 are active: " +
+          "run_aa11 on agentjobs/task-150 (running), run_bb22 on agentjobs/task-151 (starting). " +
+          "Refused rather than queued: a queue turns this click into a promise to spend " +
+          "money later, when nobody is watching. Cancel one of those runs, or dispatch " +
+          "this again once one finishes.",
+        suggestedAction:
+          "Cancel one of the runs named above, wait for one to finish, or raise " +
+          "limits.max_concurrent_runs in ~/.agentjobs/dispatch.yaml.",
+      },
+    });
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("run_aa11 on agentjobs/task-150 (running)");
+    expect(alert).toHaveTextContent("run_bb22 on agentjobs/task-151 (starting)");
+    expect(alert).toHaveTextContent("Cancel one of the runs named above");
+    // The ceiling is a number now, so nothing on this surface may call it "the only slot".
+    expect(alert).not.toHaveTextContent(/only slot/i);
+  });
+
   it("says something useful even when the server could not be reached at all", () => {
     renderPanel({
       dispatchRefusal: {

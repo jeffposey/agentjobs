@@ -60,7 +60,7 @@ export const REFUSAL_ACTIONS: Record<string, string> = {
   task_closed: "Reopen the task before dispatching at it.",
   live_run_exists: "A run for this task is already going. Wait for it, or cancel it below.",
   concurrency_limit:
-    "Another run is already using this machine's only slot. Wait for it, or raise max_concurrent_runs.",
+    "Every slot this machine allows is in use. The refusal above names the runs holding them and the task each is working; cancel one of those, or raise limits.max_concurrent_runs in ~/.agentjobs/dispatch.yaml.",
   dirty_tree: "The project's working tree has uncommitted changes. Commit or stash them first.",
   claim_lost: "Someone else took this task. Re-read it before deciding again.",
   owner_mismatch: "This task is owned by a different agent. Release it, or dispatch its owner.",
