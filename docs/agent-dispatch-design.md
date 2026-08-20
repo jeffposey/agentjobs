@@ -237,6 +237,32 @@ Placeholders (`{prompt}`, `{task_id}`, `{project_id}`, `{project_root}`, `{run_i
 `{agent}`, `{api_base}`) are substituted **per argv element, literally, with no shell**.
 There is no `shell=True` anywhere in this design; see §10.
 
+### Which address the agent is told
+
+`{api_base}` and the address inside `{prompt}` are the same value, resolved once per run
+in `dispatch/address.py`. They have to be: a fix applied to only one of them leaves a
+second, wrong copy in every runner template that interpolates the other.
+
+The value comes from the first of these that knows the answer.
+
+1. **The socket the request arrived on.** A dispatch over HTTP passes
+   `scope["server"]` — the listening socket's own name — down to the runner. It is
+   preferred over the `Host` header because this dashboard is commonly published through
+   a proxy, and the header then names an address that means nothing to a process
+   starting on this machine. It also means the web path needs no configuration at all
+   and cannot go stale.
+2. **`AGENTJOBS_API_BASE`**, for a terminal that knows where the server is.
+3. **`api_base:` in `~/.agentjobs/dispatch.yaml`**, the machine's standing answer. This
+   is what `agentjobs dispatch run` uses, since a CLI invocation has no request to
+   derive anything from.
+4. **`http://localhost:8765`**, the CLI's serving default, as a last resort.
+
+Before task-154 the parameter simply defaulted to (4) at every level and the HTTP
+endpoint never passed anything, so every dispatched agent was told `:8765` whatever port
+was serving. That is a worse failure than it sounds: an agent that cannot reach AgentJobs
+cannot log the fact that it cannot reach AgentJobs, so the run's only symptom is silence.
+`agentjobs dispatch run` now prints the address it resolved, for the same reason.
+
 ### The task-side record
 
 Two new `LogEntryType` values — `dispatch` and `dispatch_result`. Adding them is a
