@@ -5451,7 +5451,7 @@
     },
     "/api/projects/{project_id}/tasks/{task_id}/dispatch": {
       "post": {
-        "description": "Start an agent on this task.\n\nDeliberately **not** merged into any approval endpoint. Approving means \"I agree\";\ndispatching means \"spend money now\", and collapsing the two would turn every\napproval into an implicit purchase (design decision D1).\n\n202 rather than 200: the run has started, and how it ends arrives later as\n``dispatch_result`` entries on the task, not in this response.",
+        "description": "Start an agent on this task.\n\nDeliberately **not** merged into any approval endpoint. Approving means \"I agree\";\ndispatching means \"spend money now\", and collapsing the two would turn every\napproval into an implicit purchase (design decision D1).\n\n202 rather than 200: the run has started, and how it ends arrives later as\n``dispatch_result`` entries on the task, not in this response.\n\nThe address handed to the agent is this server's own, taken from the socket the\nrequest arrived on. Until 2026-08-19 nothing was passed and the runner's default\nwon, so a dashboard on any other port dispatched agents at ``:8765`` -- an address\nthat, on the machine this was built for, is deliberately dead (task-154).",
         "operationId": "dispatch_task_endpoint_api_projects__project_id__tasks__task_id__dispatch_post",
         "parameters": [
           {
@@ -7109,7 +7109,7 @@
     },
     "/api/tasks/{task_id}/dispatch": {
       "post": {
-        "description": "Start an agent on this task.\n\nDeliberately **not** merged into any approval endpoint. Approving means \"I agree\";\ndispatching means \"spend money now\", and collapsing the two would turn every\napproval into an implicit purchase (design decision D1).\n\n202 rather than 200: the run has started, and how it ends arrives later as\n``dispatch_result`` entries on the task, not in this response.",
+        "description": "Start an agent on this task.\n\nDeliberately **not** merged into any approval endpoint. Approving means \"I agree\";\ndispatching means \"spend money now\", and collapsing the two would turn every\napproval into an implicit purchase (design decision D1).\n\n202 rather than 200: the run has started, and how it ends arrives later as\n``dispatch_result`` entries on the task, not in this response.\n\nThe address handed to the agent is this server's own, taken from the socket the\nrequest arrived on. Until 2026-08-19 nothing was passed and the runner's default\nwon, so a dashboard on any other port dispatched agents at ``:8765`` -- an address\nthat, on the machine this was built for, is deliberately dead (task-154).",
         "operationId": "dispatch_task_endpoint_api_tasks__task_id__dispatch_post",
         "parameters": [
           {

@@ -48,6 +48,7 @@ from typing import IO, Callable, Dict, List, Optional, Sequence
 
 import yaml
 
+from agentjobs.dispatch.address import resolve_api_base
 from agentjobs.dispatch.config import (
     DispatchResolution,
     DispatchRunner as RunnerConfig,
@@ -699,6 +700,13 @@ class RunHandle:
     """
     group: Optional[str] = None
     """The group it was chosen from, when one participated."""
+    api_base: Optional[str] = None
+    """The AgentJobs address this run's agent was given.
+
+    Surfaced because it is otherwise invisible until the agent fails to reach it: it is
+    buried inside a prompt string, and the only symptom of a wrong one is a run that
+    goes quiet. The CLI prints it for exactly that reason.
+    """
     supervisor: Optional[threading.Thread] = field(default=None, repr=False)
     lock: Optional[object] = field(default=None, repr=False)
     """The per-task run lock, held for this run's lifetime and released when it ends."""
@@ -724,7 +732,7 @@ class DispatchRunner:
         resolution: DispatchResolution,
         project_root: Path,
         home: Path,
-        api_base: str = "http://localhost:8765",
+        api_base: Optional[str] = None,
         grace_seconds: float = GRACE_SECONDS,
         clock: Callable[[], datetime] = utcnow,
     ) -> None:
@@ -732,7 +740,15 @@ class DispatchRunner:
         self.resolution = resolution
         self.project_root = Path(project_root)
         self.home = Path(home)
-        self.api_base = api_base
+        self.api_base = resolve_api_base(api_base, home=self.home)
+        """The address a dispatched agent is told to use, resolved exactly once.
+
+        Resolved here rather than defaulted by every caller: this is the only object
+        that puts the value into a prompt or an ``{api_base}`` argv element, so making
+        it the single resolution point is what stops the manual, auto and CLI paths from
+        drifting apart. ``None`` means "nobody upstream knows" -- the caller with a
+        request to derive from passes a string, and everyone else passes nothing.
+        """
         self.grace_seconds = grace_seconds
         self.clock = clock
 
@@ -951,6 +967,7 @@ class DispatchRunner:
             dispatch_entry_id=entry_id,
             runner=self.runner.name,
             group=self._group_name(),
+            api_base=self.api_base,
         )
 
     @classmethod
@@ -1380,6 +1397,7 @@ class DispatchRunner:
             dispatch_entry_id=entry_id,
             runner=self.runner.name,
             group=self._group_name(),
+            api_base=self.api_base,
         )
         handle.supervisor = threading.Thread(
             target=self._supervise_batch,
