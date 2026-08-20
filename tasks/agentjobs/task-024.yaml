@@ -3,11 +3,9 @@ id: task-024
 title: A widened enum breaks every running client, because each one re-validates the
   server's JSON against its own copy of the schema
 created: '2026-08-19T22:46:26.152753Z'
-updated: '2026-08-20T00:02:25.654787Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-20T00:08:19.392611Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: architecture
@@ -18,7 +16,6 @@ tags:
 - defect
 effort: half a day
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'Adding one member to DispatchPosture made task-107 unreadable to every
@@ -124,7 +121,8 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-024-client-tolerant-reads
-  status: active
+  status: merged
+  merged_at: '2026-08-20T00:08:01.198295Z'
 log:
 - id: 1
   ts: '2026-08-19T22:46:26.152794Z'
@@ -316,3 +314,38 @@ log:
     - ac-5 met -- `tests/test_schema_skew.py` reproduces the original failure through
     the MCP client, and fails without the fix.'
   data: {}
+- id: 5
+  ts: '2026-08-20T00:08:19.392511Z'
+  actor: claude
+  type: transition
+  body: 'Merged to `main` as `6413e29` (`--no-ff`) under the autonomy grant Jeff recorded
+    for 2026-08-19; branch marked merged, all five acceptance criteria met. The gate
+    was re-run green after rebasing onto `main` (1897 pytest, 136 Vitest, production
+    build, 14 Playwright, exit 0).
+
+
+    **What a reader should know afterwards.** Clients now degrade rather than explode
+    on an enum member they do not know: `TaskClient._parse_task` -- which every typed
+    read and every mutation funnels through -- parses inside a scoped, opt-in tolerance
+    context and logs one warning naming the enum, the value and the task. Strictness
+    moved nowhere else: writing an unknown value is still refused, `TaskStorage` still
+    refuses a file carrying one, and a malformed payload still raises. `docs/task-schema.md`
+    has the section.
+
+
+    **Two things deliberately not done**, both named out of scope on the record and
+    neither needed to close it: no enum''s membership was changed, and no version-skew
+    handshake was built. If detecting skew ever needs to be more than a log line,
+    the client already has `service_version()` to compare against -- that is a separate
+    task, not a gap in this one.
+
+
+    **Delivery note.** The change is client-side only and does not touch the frontend,
+    so no bundle rebuild was required and the dashboard on 8876 is unaffected by it.
+    Any MCP server process that was already running still holds pre-fix code and will
+    keep rejecting unknown values until it is restarted -- which is the last time
+    that will be true, and is exactly the restart this task exists to make unnecessary
+    in future.'
+  data:
+    lifecycle: closed
+    outcome: completed
