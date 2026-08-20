@@ -3,7 +3,7 @@ id: task-186
 title: A dispatched run can never commit its task record or merge its own work, because
   -w isolates it from the shared clone
 created: '2026-08-19T23:27:49.910749Z'
-updated: '2026-08-20T00:12:34.290087Z'
+updated: '2026-08-20T00:22:26.974057Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -128,27 +128,38 @@ acceptance:
 - id: ac-1
   text: A dispatched run can commit its own task record to main in the shared clone,
     verified by a real run whose closeout commit exists in main's history
-  status: pending
+  verify: 'run_02f14e3f, sandbox project `verify`: closeout commits ba01f64 and 7ea62a2
+    on main'
+  status: met
 - id: ac-2
   text: A dispatched run can complete the merge gate (rebase onto main, merge --no-ff)
     without a human running git for it
-  status: pending
+  verify: 'same run: rebase then merge --no-ff, commit 2452331 on main, no human ran
+    git'
+  status: met
 - id: ac-3
   text: Tests assert the composed argv for every posture after the change, including
     that read_only still gets no worktree
-  status: pending
+  verify: tests/test_dispatch_runner.py::TestPosture -- full composed argv per posture,
+    and -w absent for every posture including read_only
+  status: met
 - id: ac-4
   text: Two dispatched runs still cannot write the same working tree, and the mechanism
     that ensures it is named in the design doc
-  status: pending
+  verify: 'design doc: prompt stub, docs/agent-workflow.md, and require_clean_tree
+    (with its task-182 caveat stated)'
+  status: met
 - id: ac-5
   text: docs/agent-dispatch-design.md's working-tree isolation section is amended
     with the guard evidence and the new decision, and a decision log entry records
     the rejected alternatives
-  status: pending
+  verify: docs/agent-dispatch-design.md amended in place; decision log entry above
+  status: met
 - id: ac-6
   text: ledger.reap still behaves coherently, with its new meaning stated and tested
-  status: pending
+  verify: tests/test_dispatch_lifecycle.py::TestReap asserts reap issues exactly [['rm','s1']];
+    meaning stated in ledger.reap, cli, api and the design doc
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -388,4 +399,87 @@ log:
     \ Two documentation-contract tests assert the design doc's reasons rather than\
     \ its headings.\n\nStill open: ac-1 and ac-2 need a real dispatched run, which\
     \ is running now against an isolated sandbox (see the next entry)."
+  data: {}
+- id: 6
+  ts: '2026-08-20T00:21:51.431575Z'
+  actor: claude
+  type: progress
+  body: 'ac-1 and ac-2 verified by a real dispatched run that took its own worktree,
+    committed its task record to main, and merged --no-ff. No git command was refused.
+
+
+    A unit test on composed argv is necessary and not sufficient -- the failure was
+    a runtime refusal, not a wrong flag -- so this was verified the way it failed.
+
+
+    **Setup, deliberately isolated from Jeff''s live machine.** `AGENTJOBS_HOME=C:/ai/scratch/aj186-verify/home`
+    (the env var `config._home` already honours), a throwaway git repo at `C:/ai/scratch/aj186-verify/repo`
+    registered as project `verify` with its tasks inside it, its own `dispatch.yaml`
+    (`claude-standard`, `mode: session`, `posture: auto`), and its own API server
+    on port 8899. Nothing touched `~/.agentjobs/`, the 8876 server, or the agentjobs
+    task corpus. The repo carried a real `AGENTS.md` stating the three rules under
+    test and a copy of `docs/agent-workflow.md`, so the agent read the same contract
+    a dispatched run reads here.
+
+
+    **The dispatch.** `agentjobs dispatch run task-001 --project verify` from this
+    branch''s code, mode `session`, run_02f14e3f, session 3710d1ff. Composed argv
+    as recorded in the task''s own `dispatch` entry:
+
+
+    ```
+
+    claude.CMD --bg --remote-control --permission-mode auto --settings <allow-list>
+    <prompt>
+
+    ```
+
+
+    No `-w`, and the prompt carried the containment clause.
+
+
+    **What the run did, unattended, in 302 seconds.** Read from the sandbox repo''s
+    git history and the task record, not from the agent''s own account of itself:
+
+
+    - `git worktree add ../verify-001 -b chore/task-001-notes-line-two` -- a sibling
+    worktree beside the clone, taken before writing anything. `git worktree list`
+    showed both while it worked.
+
+    - committed the code change on that branch (03fc817 -> 06f68b1 after its rebase)
+
+    - **committed its own task record to `main` in the shared clone: ba01f64** `chore(task-001):
+    record progress on notes line-two` -- ac-1
+
+    - **rebased onto main and merged `--no-ff`: 2452331** `Merge branch ''chore/task-001-notes-line-two''
+    into main` -- ac-2
+
+    - committed the close: 7ea62a2 `chore(task-001): close as completed, branch merged`
+
+    - removed its worktree; `git worktree list` ended with the clone alone
+
+    - task ended `closed` / `outcome: completed`, branch marked `merged`
+
+
+    The agent''s own summary of the thing being tested: *"no git command aimed at
+    the shared clone was refused."* Under `-w` the first of those four operations
+    would have been refused, and the third and fourth are the ones this task exists
+    about.
+
+
+    **One caveat, found by this run and worth more than the pass.** The shared clone
+    was *still* left with one uncommitted change afterwards -- the `dispatch_result`
+    entry, written by the dispatcher after the agent''s last commit, which the agent
+    structurally cannot commit because it does not exist yet when the agent finishes.
+    That is task-182''s defect reached from the other end, and it means the `require_clean_tree`
+    backstop named in the decision cannot do its job until task-182 is fixed. Logged
+    there in full, and the design doc now states the caveat instead of claiming a
+    working backstop.
+
+
+    **What this does not prove.** The sandbox is a stand-in for a project clone, so
+    it demonstrates the mechanism rather than the agentjobs corpus specifically; and
+    its gate was `python -c "print(''gate ok'')"` rather than `scripts/check.py`,
+    because what was under test is which git operations are possible, not whether
+    the gate passes. The sandbox and its server were torn down afterwards.'
   data: {}
