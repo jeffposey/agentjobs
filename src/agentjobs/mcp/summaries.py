@@ -47,8 +47,15 @@ def task_summary(record: Mapping[str, Any], *, project_id: str) -> Dict[str, Any
         value = record.get(field)
         if field == "unmet_needs":
             summary[field] = list(value or [])
-        elif field in {"actionable", "open_children_count"}:
-            summary[field] = value if value is not None else (False if field == "actionable" else 0)
+        elif field == "actionable":
+            summary[field] = value if value is not None else False
+        elif field == "open_children_count":
+            # Absent means the surface did not compute it, which is not the same
+            # answer as zero. Filling the gap with 0 is how a search reported "no
+            # open children" for a parent with six of them -- the route returned
+            # bare stored tasks and this line invented a plausible number for the
+            # missing field. Null is the honest answer; the reader can tell.
+            summary[field] = value
         else:
             summary[field] = value
     assignment = record.get("assignment") or {}
@@ -72,7 +79,10 @@ def dependency_facts(record: Mapping[str, Any]) -> Dict[str, Any]:
         "unmet_needs": list(record.get("unmet_needs") or []),
         "needs_cycles": [list(cycle) for cycle in record.get("needs_cycles") or []],
         "unblocks_count": int(record.get("unblocks_count") or 0),
-        "open_children_count": int(record.get("open_children_count") or 0),
+        # Null, not 0, when the surface did not compute it -- see task_summary.
+        "open_children_count": (
+            int(count) if (count := record.get("open_children_count")) is not None else None
+        ),
     }
 
 
@@ -122,7 +132,7 @@ TASK_SUMMARY_SCHEMA: Dict[str, Any] = {
         "display_status": {"type": ["string", "null"]},
         "actionable": {"type": "boolean"},
         "unmet_needs": {"type": "array", "items": {"type": "string"}},
-        "open_children_count": {"type": "integer", "minimum": 0},
+        "open_children_count": {"type": ["integer", "null"], "minimum": 0},
     },
 }
 
@@ -151,7 +161,7 @@ DEPENDENCY_FACTS_SCHEMA: Dict[str, Any] = {
             "items": {"type": "array", "items": {"type": "string"}},
         },
         "unblocks_count": {"type": "integer", "minimum": 0},
-        "open_children_count": {"type": "integer", "minimum": 0},
+        "open_children_count": {"type": ["integer", "null"], "minimum": 0},
     },
 }
 
