@@ -3,11 +3,9 @@ id: task-019
 title: 'Dispatch cannot start in a project with a .mcp.json: the session blocks on
   an approval dialog nobody can answer'
 created: '2026-08-19T21:46:46.999513Z'
-updated: '2026-08-20T00:55:36.571803Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-20T01:12:06.337718Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
 category: infrastructure
@@ -17,7 +15,6 @@ tags:
 - defect
 effort: an hour
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: A dispatched session starts in a fresh worktree and hits Claude Code's
@@ -102,7 +99,7 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-019-mcp-approval-in-settings
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-19T21:46:46.999563Z'
@@ -265,3 +262,37 @@ log:
     Re-ran `npm run test:e2e` in frontend/ once the port was free: 15 passed. Full
     log at C:/Users/jpose/.claude/jobs/432caaef/tmp/gate1.log.'
   data: {}
+- id: 6
+  ts: '2026-08-20T01:12:06.337622Z'
+  actor: claude
+  type: transition
+  body: 'Merged to main as e894c6c (--no-ff) under the autonomy grant Jeff gave for
+    2026-08-19; no human review gate was waited on, by his explicit instruction for
+    this run.
+
+
+    All four acceptance criteria met, evidence in the preceding progress entry. The
+    gate (`poetry run python scripts/check.py`) was run green after each of three
+    rebases onto a moving main -- the last at 1939 pytest, 145 Vitest, 15 Playwright,
+    exit 0, on top of task-182''s merge which touches the same module.
+
+
+    Not pushed: the grant covered merging only.
+
+
+    One thing a later reader should know. The machine-local workaround in ~/.claude/settings.json
+    (`enabledMcpjsonServers: ["agentjobs"]`, added 2026-08-19) is still there and
+    was deliberately left alone -- it is Jeff''s file. It is now redundant for dispatch,
+    but it also no longer masks anything: every result recorded on this task was measured
+    against a server named `aj019probe`, which that list has never contained. Removing
+    it is a separate call and not a prerequisite for anything here.
+
+
+    The one hole left open, stated so it is not rediscovered as a surprise: `autonomous`
+    carries no approval because `bypassPermissions` demonstrably does not reach the
+    gate on 2.1.235. If a future release changes that, the posture breaks and the
+    suite will stay green. The four-command probe that re-measures it is written out
+    in the first log entry.'
+  data:
+    lifecycle: closed
+    outcome: completed
