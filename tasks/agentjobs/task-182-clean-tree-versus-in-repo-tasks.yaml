@@ -3,7 +3,7 @@ id: task-182-clean-tree-versus-in-repo-tasks
 title: require_clean_tree refuses every dispatch in a project whose task files live
   in its own repo
 created: '2026-08-19T20:50:13.107702Z'
-updated: '2026-08-20T00:38:13.646197Z'
+updated: '2026-08-20T00:59:27.011874Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -190,3 +190,188 @@ log:
     lifecycle: active
     ball: agent
     ball_reason: work
+- id: 6
+  ts: '2026-08-20T00:40:40.391688Z'
+  actor: claude
+  type: note
+  body: "A second way the tree is dirty for reasons nobody edited anything, observed\
+    \ on `main` at 994037e on 2026-08-19. Not a request to widen this task \u2014\
+    \ evidence for whoever is choosing between deleting the spawn-time re-check and\
+    \ excluding paths from `working_tree_clean`.\n\nRunning `poetry run python scripts/check.py`\
+    \ leaves three files reported as modified by `git status --porcelain`:\n\n   \
+    \ frontend/src/api/generated/@tanstack/react-query.gen.ts\n    frontend/src/api/generated/index.ts\n\
+    \    frontend/src/api/generated/sdk.gen.ts\n\nThey are **byte-identical to HEAD**:\
+    \ `git diff --numstat` on them is empty, and so is `git diff --ignore-all-space\
+    \ --numstat`. The client-verification step regenerates them in place, which changes\
+    \ their stat information; git's cached stat no longer matches, so `status` reports\
+    \ them modified until something forces a content comparison. `git update-index\
+    \ --refresh` did not clear it here; `git checkout --` on the three paths did,\
+    \ and was safe precisely because the content was provably unchanged.\n\nWhy it\
+    \ matters to this task: `working_tree_clean` shells out to `git status --porcelain`\
+    \ and treats any output as dirty. So **running the gate \u2014 the thing ENGINEERING.md\
+    \ requires before every commit \u2014 is by itself enough to make the next dispatch\
+    \ refuse `dirty_tree`**, with no uncommitted work anywhere. That is a third self-inflicted\
+    \ case, alongside the claim-writes-the-task-file case this task is named for and\
+    \ the `dispatch_result` case logged from task-186.\n\nThe reading it supports:\
+    \ an exclusion list keyed on paths would not have caught this one, because these\
+    \ are ordinary source files that a human editing them really should block a dispatch.\
+    \ What all three cases share is that the \"change\" is not a human's in-flight\
+    \ work. Whether that is better served by dropping the second check, or by asking\
+    \ git a question that ignores stat-only differences (`git status --porcelain`\
+    \ after a `git diff` refresh, or `git diff --quiet HEAD`), is the call this task\
+    \ has to make \u2014 and it is worth checking whether `git diff --quiet HEAD`\
+    \ would have reported all three cases correctly, since it compares content rather\
+    \ than trusting the stat cache."
+  data:
+    operation:
+      id: 2e6f9a35-71b8-4c40-93d1-5a0c8e7b2f16
+      kind: log_append
+      fingerprint: 17a8a29d1ecb85c667d8e2c73b0ac49b
+- id: 7
+  ts: '2026-08-20T00:58:55.689627Z'
+  actor: claude
+  type: decision
+  body: 'Decision: exclude the project''s tasks directory from the clean-tree check,
+    at both call sites. Keep both checks.
+
+
+    `uncommitted_paths(project_root, ignore=[manager.storage.tasks_dir])` replaces
+    the bare `working_tree_clean(project_root)` at `guards.py` (pre-claim) and in
+    `runner._tree_is_clean` (spawn-time). The ignore list comes from the storage the
+    manager actually writes through rather than from `Project.tasks_dir()`, so it
+    cannot disagree with where the files really land.
+
+
+    ## Why not log entry 2''s recommendation, which was to delete the spawn-time tree
+    check
+
+
+    That recommendation was written at 20:54 and is sound about the front half. Log
+    entry 4, at 00:21, falsifies it as a complete fix: the terminal `dispatch_result`
+    entry is written by the dispatcher *after* the run''s last commit, so a finished
+    run always leaves exactly one uncommitted task file behind. That dirt is met by
+    the **pre-claim** gate of the *next* dispatch -- the one entry 2 correctly identifies
+    as the meaningful check and deliberately leaves alone. Deleting only the spawn-time
+    check would have fixed one dispatch and refused every one after it.
+
+
+    Verified live rather than reasoned about: a real run through `dispatch_task` left
+    `M tasks/task-001.yaml` and nothing else. Without the exclusion, the CLI dispatch
+    of the next task was refused `dirty_tree` naming that file.
+
+
+    So the exclusion is not the alternative to entry 2''s fix; it is the only option
+    that covers both ends, which is what entry 4 said. Given it is in place, the spawn-time
+    check no longer misfires, and deleting it then buys nothing while giving up a
+    cheap re-check. Both stay.
+
+
+    ## What this costs
+
+
+    **A human''s genuinely uncommitted hand edit to a task file no longer blocks a
+    dispatch.** That is entry 2''s objection to the exclusion and it is correct. Taken
+    deliberately, because there is no version of this that keeps the tasks directory
+    meaningful at the pre-claim gate: the leftover `dispatch_result` sits in that
+    directory unconditionally after every completed run, so a check that counts it
+    fires every time, and a check that fires every time is switched off rather than
+    heeded -- which is exactly what the task-177 session did to proceed.
+
+
+    What survives: everything outside the tasks directory is inspected exactly as
+    before, and that is where an agent''s code commits land. Pinned by `test_uncommitted_work_outside_the_tasks_directory_still_refuses`
+    and, separately, by the assertion that the refusal names README.md and not the
+    task file.
+
+
+    ## Rejected: commit the claim before the re-check
+
+
+    As entry 2 said -- dispatch would author commits in the user''s repository on
+    its own initiative. It also only fixes the front half, for the same reason as
+    above.
+
+
+    ## Rejected: exclude only the task being dispatched
+
+
+    Narrower, and it would preserve the check for other task files. It does not work:
+    the dirt blocking the next dispatch is the *previous* task''s file, not this one''s.
+
+
+    ## Also changed, because it is the reason nobody caught this
+
+
+    The three dispatch test fixtures wrote `.gitignore` containing `tasks/`, with
+    a comment claiming it mirrors this repository''s own .gitignore. It does not.
+    `agentjobs init` never ignores task YAML (`_ensure_gitignore` adds only `.agentjobs/agentjobs.db`),
+    and this repository tracks 192 files under `tasks/`. That fiction is what hid
+    the defect from 1921 tests. The fixtures now ignore only `.agentjobs/`, which
+    turns the pre-existing gate tests into real coverage -- `test_git_head_is_recorded_on_the_dispatch_entry`
+    fails without the fix once the fixture is honest.
+
+
+    ## Refusal message now names the paths
+
+
+    With an exclusion in play, "has uncommitted changes" plus a `git status` showing
+    only ignored task files explains nothing. The `DirtyTreeError` now lists up to
+    five offending paths.
+
+
+    ## Parser note
+
+
+    `git status --porcelain -z`, not the newline form. The newline form quotes and
+    escapes unusual filenames, and a path misparsed there would be dropped silently
+    from a safety check. Pinned by tests for a filename with a space and for a rename
+    (`-z` emits the original path as a second field, which must not be read as a second
+    change). Git being unreadable returns `None`, distinct from "nothing uncommitted",
+    and stays on the refusing side.'
+  data: {}
+- id: 8
+  ts: '2026-08-20T00:59:27.011769Z'
+  actor: claude
+  type: progress
+  body: "Implemented and verified on `fix/task-182-clean-tree-check`. Two commits:\
+    \ `22fbc6d` (fix + tests), `8ece044` (docs).\n\n## What changed\n\n- `src/agentjobs/dispatch/runner.py`\
+    \ -- `working_tree_clean` is now a thin predicate over a new `uncommitted_paths(project_root,\
+    \ *, ignore=())`, which parses `git status --porcelain -z` and drops anything\
+    \ under an ignored directory. Porcelain paths are repo-relative wherever git ran,\
+    \ so they are resolved against `rev-parse --show-toplevel` before the containment\
+    \ test; comparison is `os.path.normcase`d because this runs on Windows.\n- `src/agentjobs/dispatch/guards.py`\
+    \ -- the pre-claim gate calls `uncommitted_paths(project.root, ignore=[manager.storage.tasks_dir])`\
+    \ and names up to five offending paths in the `DirtyTreeError`.\n- `src/agentjobs/dispatch/runner.py`\
+    \ `_tree_is_clean` -- same exclusion at the spawn-time re-check.\n- `docs/agent-dispatch-design.md`\
+    \ -- \xA76 carries the exclusion and its cost; the task-186 containment section\
+    \ no longer says the backstop is inert, and states what it still cannot see.\n\
+    - `src/agentjobs/dispatch/scaffold.py` -- the same note beside `require_clean_tree`\
+    \ in the scaffolded config.\n\n## Verification\n\n**Gate green.** `poetry run\
+    \ python scripts/check.py`, exit 0: 1921 pytest in 4m03s, 145 Vitest, 15 Playwright.\n\
+    \n**The new tests fail without the fix.** Stashed the two source files and re-ran:\
+    \ 5 failures, including the pre-existing `TestWorkingTree::test_git_head_is_recorded_on_the_dispatch_entry`\
+    \ -- which fails once the fixture stops pretending this repository gitignores\
+    \ `tasks/`. The end-to-end one fails at the *spawn-time* check and the rest at\
+    \ the pre-claim gate, so both call sites are demonstrably load-bearing.\n\nNew\
+    \ coverage:\n- `tests/test_dispatch_guards.py::TestTaskRecordsInsideTheDispatchedRepo`\
+    \ -- five tests: a task file dispatch already modified, a task file the claim\
+    \ creates, a completed run not blocking the next dispatch, uncommitted work outside\
+    \ `tasks/` still refusing, and the refusal naming README.md rather than the task\
+    \ file.\n- `tests/test_dispatch_runner.py::TestUncommittedPaths` -- seven unit\
+    \ tests on the primitive, including a filename with a space, a rename, git that\
+    \ cannot answer, and paths resolving against the repo root rather than the directory\
+    \ asked.\n\n**Exercised as a user, not just as a suite.** Throwaway `AGENTJOBS_HOME`\
+    \ and a throwaway project with 3 task files committed inside the repository being\
+    \ dispatched, `require_clean_tree` left unset so the default applies:\n\n1. Run\
+    \ 1 through `dispatch_task` in-process, the way `agentjobs serve` does, allowed\
+    \ to finish. Dispatched fine. The dispatcher's terminal `dispatch_result` left\
+    \ the tree holding exactly `M tasks/task-001.yaml` -- the guaranteed resting state\
+    \ from log entry 4, reproduced rather than assumed.\n2. Run 2 through the real\
+    \ `agentjobs dispatch run` CLI against that dirty tree: `\u2705 Dispatched task-002\
+    \ as run run_442e96d8 (batch).` This is sc-1, and it is the case that was previously\
+    \ impossible.\n3. Run 3 with an uncommitted edit to README.md: `Refused (dirty_tree):\
+    \ ...sandbox has uncommitted changes (README.md). ... Current HEAD is 05c2d67.`\
+    \ Named the file that was actually blocking it and did not blame the task record\
+    \ beside it. This is sc-2.\n\n## Acceptance\n\nsc-1, sc-2 and sc-3 all met; sc-3\
+    \ is the decision entry above this one.\n\nNothing left over. No follow-up filed."
+  data: {}
