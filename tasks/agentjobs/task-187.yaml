@@ -3,7 +3,7 @@ id: task-187
 title: Two worktrees cannot run the gate at the same time, because Playwright's port
   is a constant
 created: '2026-08-19T23:41:13.123280Z'
-updated: '2026-08-20T17:20:41.056306Z'
+updated: '2026-08-20T17:28:52.407416Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -79,17 +79,32 @@ acceptance:
 - id: ac-1
   text: Two checkouts of this repository can run scripts/check.py concurrently and
     both pass
-  status: pending
+  verify: Ran concurrently in C:/projects/aj-187 and C:/projects/aj-187-concurrent
+    on 2026-08-20. Both EXIT=0, 2025 pytest and 16 Playwright tests each, on ports
+    22042 and 21100.
+  status: met
 - id: ac-2
   text: The bench configuration gets the same treatment, verified the same way
-  status: pending
+  verify: scripts/bench.py --corpus synthetic --tasks 20 --iterations 3 run concurrently
+    in both checkouts on 2026-08-20, overlapping 17:25:54-17:26:06. Both EXIT=0 with
+    a complete Browser section, on ports 32508 and 39874.
+  status: met
 - id: ac-3
   text: A failing run names the checkout or the port source clearly enough to diagnose
     without reading the config
-  status: pending
+  verify: The gate prints '[e2e] checkout <path> owns <url> (derived from the checkout
+    path; AGENTJOBS_E2E_PORT overrides)', the server '[e2e] serving <path> on <url>',
+    the benchmark '[bench] checkout <path> serving <url>'. Every failure quoted in
+    the log entries of 2026-08-20 names a checkout path.
+  status: met
 - id: ac-4
   text: No path exists by which a gate run tests a server started by a different checkout
-  status: pending
+  verify: 'Demonstrated 2026-08-20: a foreign server answering /health with 200 was
+    placed on this checkout''s port, and Playwright ran zero tests, erroring ''already
+    used'' rather than attaching. run_server.py has no default port and refuses to
+    start without AGENTJOBS_E2E_PORT, so baseURL and the bind cannot disagree. reuseExistingServer:false
+    is unchanged.'
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -330,4 +345,82 @@ log:
     5173`, and that one is left alone deliberately: it is `npm run dev`, not the gate,
     and Vite without `strictPort` moves to the next free port by itself rather than
     failing.'
+  data: {}
+- id: 12
+  ts: '2026-08-20T17:26:11.346813Z'
+  actor: claude
+  type: progress
+  body: "**ac-1 met, with the test the criterion actually names.**\n\nTwo checkouts\
+    \ of this repository ran `poetry run python scripts/check.py` at the same time\
+    \ and both passed.\n\n- `C:/projects/aj-187` (branch `fix/task-187-playwright-port-collision`)\
+    \ -- `2025 passed`, `16 passed` Playwright, `EXIT=0`.\n- `C:/projects/aj-187-concurrent`\
+    \ (a scratch worktree of the same branch, bootstrapped with `python scripts/bootstrap.py`)\
+    \ -- same suites, `EXIT=0`.\n\nThey were genuinely concurrent, not sequential:\
+    \ the two Vitest stages report `Start at 12:24:40` and `Start at 12:24:51`, and\
+    \ both Playwright stages ran inside the same window. Each log was written to its\
+    \ own file so neither run had to be repeated to be read.\n\nThe line each run\
+    \ printed before starting its server, which is the whole of ac-3 in practice:\n\
+    \n```\n[e2e] checkout C:\\projects\aj-187 owns http://127.0.0.1:22042 (derived\
+    \ from the checkout path; AGENTJOBS_E2E_PORT overrides)\n[e2e] checkout C:\\projects\a\
+    j-187-concurrent owns http://127.0.0.1:21100 (derived from the checkout path;\
+    \ AGENTJOBS_E2E_PORT overrides)\n```\n\nDifferent ports, each naming its own checkout,\
+    \ from the same branch and the same config file -- which is the point: the number\
+    \ follows the checkout, not the code.\n\nOne thing worth recording for whoever\
+    \ runs this next. Two full gates on this machine do not take five minutes each;\
+    \ they took roughly 25 minutes wall-clock, because the two 2025-test suites and\
+    \ two Chromium runs contend for CPU. Nothing failed and nothing timed out, but\
+    \ a reader expecting the documented five minutes will think it has hung. That\
+    \ is a property of running two gates at once, not of this change.\n\nStill to\
+    \ verify: ac-2 (the benchmark pair, running now) and ac-4 (demonstrating that\
+    \ no path exists by which a run attaches to another checkout's server)."
+  data: {}
+- id: 13
+  ts: '2026-08-20T17:28:22.155758Z'
+  actor: claude
+  type: progress
+  body: "**ac-2, ac-3 and ac-4 met. Evidence below; every run went to its own log\
+    \ file.**\n\n**ac-2 -- the benchmark pair, verified the same way.** `poetry run\
+    \ python scripts/bench.py --corpus synthetic --tasks 20 --iterations 3` in both\
+    \ checkouts at once:\n\n```\nC:/projects/aj-187              START 17:25:52  END\
+    \ 17:26:06  EXIT=0\n  [bench] checkout C:\\projects\aj-187 serving http://127.0.0.1:32508\n\
+    C:/projects/aj-187-concurrent   START 17:25:54  END 17:26:08  EXIT=0\n  [bench]\
+    \ checkout C:\\projects\aj-187-concurrent serving http://127.0.0.1:39874\n```\n\
+    \nOverlapping by twelve of their fourteen seconds, on different ports, both reporting\
+    \ a complete Browser section -- which is the part that goes through `playwright.bench.config.ts`,\
+    \ so the bench Playwright path is covered and not merely the API and CLI ones.\n\
+    \n**ac-4 -- there is no path to another checkout's server.** Three properties,\
+    \ each demonstrated rather than asserted.\n\n*A server this run did not start\
+    \ is refused, even when it looks healthy.* A stand-in for another checkout's server\
+    \ was put on `C:/projects/aj-187`'s own port, answering `/health` with `200 {\"\
+    status\": \"ok\", \"from\": \"a different checkout\"}` -- the most favourable\
+    \ case for an accidental attachment, because it satisfies the readiness probe.\
+    \ Playwright ran zero tests:\n\n```\n[e2e] checkout C:\\projects\aj-187 owns http://127.0.0.1:22042\
+    \ (derived from the checkout path; AGENTJOBS_E2E_PORT overrides)\nError: http://127.0.0.1:22042/health\
+    \ is already used, make sure that nothing is running\non the port/url or set reuseExistingServer:true\
+    \ in config.webServer.\nEXIT=1\n```\n\n`reuseExistingServer: false` is untouched\
+    \ by this change, and this is what it buys.\n\n*The server cannot bind a port\
+    \ the config is not watching.* `run_server.py` has no default. Run without the\
+    \ variable:\n\n```\nAGENTJOBS_E2E_PORT is not set, so this server does not know\
+    \ which port to bind.\nIt is normally started by Playwright, which derives the\
+    \ port for C:\\projects\aj-187 and passes it in.\nTo run it by hand, set the variable\
+    \ first:\n    AGENTJOBS_E2E_PORT=20000 poetry run python e2e/run_server.py\nEXIT=1\n\
+    ```\n\nBecause there is no second opinion about the port, `baseURL` and the bind\
+    \ cannot drift apart -- the failure mode where a run watches one address while\
+    \ a server listens on another does not exist.\n\n*The ports themselves differ\
+    \ per checkout.* 22042 and 21100 for the gate, 32508 and 39874 for the benchmark,\
+    \ from identical code in two checkouts of the same branch.\n\n**ac-3 -- diagnosable\
+    \ without reading the config.** Every one of the failure and startup lines quoted\
+    \ above names a checkout path or a full URL. The gate prints `[e2e] checkout <path>\
+    \ owns <url>` before Playwright starts, the server prints `[e2e] serving <path>\
+    \ on <url>` as it binds, and the benchmark prints `[bench] checkout <path> serving\
+    \ <url>`. A developer reading a bind failure sees which checkout claimed the socket\
+    \ and is told the number comes from the path, without opening a file.\n\n**Regression\
+    \ cover.** `tests/test_gate_port_isolation.py`, 15 tests: the derivation is stable\
+    \ per checkout and distinct across checkouts, the gate and benchmark ranges are\
+    \ disjoint so one checkout cannot collide with itself, `run_server.py` refuses\
+    \ a missing or nonsense port, and neither `18940` nor `18950` survives anywhere\
+    \ in the four files. It would catch someone reintroducing a constant, which is\
+    \ the mistake being fixed.\n\n**Scratch worktree `C:/projects/aj-187-concurrent`\
+    \ (branch `scratch/task-187-concurrency-proof`) still exists at the time of writing;\
+    \ it is removed as part of closing this task.**"
   data: {}
