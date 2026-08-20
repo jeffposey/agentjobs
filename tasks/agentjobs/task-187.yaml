@@ -3,7 +3,7 @@ id: task-187
 title: Two worktrees cannot run the gate at the same time, because Playwright's port
   is a constant
 created: '2026-08-19T23:41:13.123280Z'
-updated: '2026-08-19T23:41:13.124052Z'
+updated: '2026-08-20T05:34:34.244760Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -104,3 +104,97 @@ log:
       id: 5d9e2b71-84c3-4a06-9f52-1b7d0e6a3c84
       kind: create
       fingerprint: a88733497dde07f7a32e67c1840773b8
+- id: 2
+  ts: '2026-08-20T05:33:20.404299Z'
+  actor: Jeff Posey
+  type: note
+  body: testing if note lets me dispatch, don't do any real work
+  data: {}
+- id: 3
+  ts: '2026-08-20T05:33:47.575197Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 4
+  ts: '2026-08-20T05:33:49.334196Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_d7c09293
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 2
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-187` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated: take your own git worktree before you write anything.
+      AgentJobs is serving at http://127.0.0.1:8876. Read the task record and follow
+      the resumption contract in docs/agent-workflow.md. Dispatch run id: run_d7c09293.'
+    cwd: C:\projects\agentjobs
+    git_head: 8f5ebe2
+    session_id: d537283e
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 5
+  ts: '2026-08-20T05:34:28.282778Z'
+  actor: claude
+  type: progress
+  body: "Dispatch run_d7c09293 arrived and the session started. No engineering work\
+    \ was done: log entry 2 says \"testing if note lets me dispatch, don't do any\
+    \ real work\", and this dispatch's own record carries caused_by: 2, so the dispatch\
+    \ is that test rather than a request to execute the spec. Honoured the instruction\
+    \ \u2014 no worktree taken, no branch created, no files touched, nothing committed.\n\
+    \nAnswering the thing being tested: yes, a note does let you dispatch. The note\
+    \ was written, the dispatch fired from it, the task was claimed, and the agent\
+    \ session came up with the task record readable and the MCP tools reachable.\n\
+    \nReleasing back to ready/agent/available so the spec is claimable, unchanged,\
+    \ by whoever picks it up for real. The spec, acceptance criteria and context list\
+    \ are untouched and remain the working specification."
+  data:
+    operation:
+      id: 3f8a1c46-2d5b-4e77-9a10-6c8b21e4f501
+      kind: log_append
+      fingerprint: 97e128291de81e1c3f83957b9b3e4dfb
+- id: 6
+  ts: '2026-08-20T05:34:34.244611Z'
+  actor: claude
+  type: transition
+  body: Released without doing the work, per Jeff's note (entry 2) that this dispatch
+    was a test. Task returns to the pool unchanged and fully claimable.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: 7b21e0d9-84fa-4c33-b6a5-9d2f14c7e880
+      kind: release
+      fingerprint: 0795e8a73e3a85852dbf66bf32a57374
