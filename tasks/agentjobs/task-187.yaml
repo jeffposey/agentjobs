@@ -3,10 +3,11 @@ id: task-187
 title: Two worktrees cannot run the gate at the same time, because Playwright's port
   is a constant
 created: '2026-08-19T23:41:13.123280Z'
-updated: '2026-08-20T07:05:35.041493Z'
-lifecycle: ready
+updated: '2026-08-20T17:00:51.743169Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 category: infrastructure
@@ -16,6 +17,7 @@ tags:
 - developer-experience
 effort: small
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: frontend/playwright.config.ts hardcodes port 18940 with reuseExistingServer:false,
@@ -91,7 +93,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-187-playwright-port-collision
+  status: active
 log:
 - id: 1
   ts: '2026-08-19T23:41:13.123326Z'
@@ -220,3 +224,28 @@ log:
       id: 2f8c05a7-4b31-4d69-90e8-7c53a1e6b204
       kind: update_content
       fingerprint: 6bc867db7efae818c23f58513b8140c5
+- id: 9
+  ts: '2026-08-20T17:00:45.703776Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: b41d9e07-2c65-4f38-a1d2-6e7b3c5a9012
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 10
+  ts: '2026-08-20T17:00:51.742940Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: c8a2f5d1-9b47-4e60-83c2-5f1d7a0e6b33
+      kind: update_content
+      fingerprint: 725b0ac548c18a2eb38868bc9e35b12a
