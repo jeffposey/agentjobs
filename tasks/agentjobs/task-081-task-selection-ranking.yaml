@@ -2,11 +2,55 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-20T23:36:23.029618Z'
+updated: '2026-08-20T23:43:10.002125Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: 'Review the queue-position design and decide whether to accept it. Read
+  `docs/task-selection-design.md` on branch `design/task-081-queue-position` (worktree
+  C:/projects/worktrees/agentjobs-081, commit 4de5fb7); it is not on main yet. Section
+  13 is the decision list if you want the short version, section 12 the rejected alternatives,
+  and the appendix maps every acceptance criterion here to a section.
+
+
+  Approving it means two things: merge the doc branch (--no-ff), and promote task-204
+  through task-209 from draft to ready. They are the implementation program, specified
+  and dependency-ordered, held as drafts precisely because they implement a design
+  you had not seen.
+
+
+  The four calls worth arguing with, because each rejected a real alternative:
+
+
+  1. The position lives on the task, not in a project-level queue file. A queue file
+  would make uniqueness structural and a reorder a single-file diff -- genuinely attractive
+  -- but a task could then no longer tell you where it sits, and it becomes a merge
+  hotspot for concurrent agents.
+
+  2. Sparse integers (100, 200, 300, midpoint insertion) rather than dense 1..N or
+  a LexoRank-style key. This is what makes a move write exactly one task file. Dense
+  numbering would rewrite the band on every move; lexicographic keys never need a
+  rebalance but put `0|hzzzzz:` in your YAML.
+
+  3. A corrupt queue refuses to answer instead of falling back to a timestamp. If
+  you would rather it answered and warned, say so -- it is a one-line change in the
+  design but it changes the character of the thing.
+
+  4. Bands are flat, so an epic and its children are ordinary members of their bands,
+  kept together by a --with-children group move rather than by hierarchical keys.
+  Given how many epics your backlog has, this is the one I am least certain about.
+
+
+  What this task does NOT do, deliberately: sc-7 -- the live backlog is still ordered
+  by nothing. The corpus cannot carry a queue position until the field exists, so
+  the ordering pass is task-209 and this task stays open until that closes. When it
+  comes, you will be handed the whole open backlog band by band and asked to agree
+  with it; roughly eighty tasks, 47 of them in the high band.
+
+
+  Also waiting on you, separately and much smaller: log entry 8, a real gap in ALLAGENTS.md''s
+  VIRTUAL_ENV guidance that costs any dispatched agent a full six-minute gate before
+  it shows itself. Say the word and I will file it as a task.'
 archived: false
 priority: high
 category: architecture
@@ -135,8 +179,10 @@ acceptance:
   status: pending
 deliverables:
 - path: docs/task-selection-design.md
-  note: Ranking signals, tie-breaking, and what /next explains
-  status: pending
+  note: 'The queue_position design: the field and its invariant, sparse numbering,
+    the reorder verbs, crash-safe renumbering, the queue lock, loud corruption, selection
+    with an explanation, every surface, the migration, and six derived children.'
+  status: done
 dependencies:
 - task: task-074-auto-dispatch
   type: related
@@ -148,7 +194,9 @@ dependencies:
   type: related
   note: '`parent` now records which tasks are one effort -- a ranking signal.'
 links: []
-branches: []
+branches:
+- name: design/task-081-queue-position
+  status: active
 log:
 - id: 1
   ts: '2026-08-11T06:05:20.474281Z'
@@ -397,3 +445,61 @@ log:
       id: 8e3f2c60-3d4f-4b53-9c32-000000000002
       kind: log_append
       fingerprint: 2253a0551374a17eeffba8f8021c1ed7
+- id: 9
+  ts: '2026-08-20T23:41:49.468973Z'
+  actor: claude
+  type: progress
+  body: 'Verification, and the branch.
+
+
+    Committed as 4de5fb7 on `design/task-081-queue-position` (worktree `C:/projects/worktrees/agentjobs-081`).
+    Not pushed -- pushing is a separate act from merging in this repo and nothing
+    here authorises it.
+
+
+    `scripts/check.py` green end to end: Black, Ruff and MyPy clean over 153 source
+    files, **2106 pytest passed** in 4m33s, the API schema and generated frontend
+    client verified current, **154 Vitest** across 22 files, the production build,
+    and **16 Playwright** tests against a live server in 15.3s.
+
+
+    That was the second run. The first died at the Playwright stage on the source-provenance
+    guard -- see the question entry above; the cause was my shell''s inherited `VIRTUAL_ENV`,
+    not this change, and the rerun with it unset passes. Everything before that stage
+    was green in both runs, so nothing about the result depends on which run you read.
+
+
+    The change is documentation only: one new page plus its two index entries. There
+    is no behaviour to exercise yet -- the code that reads a queue position is task-205,
+    and the screen that shows one is task-207.'
+  data:
+    operation:
+      id: 8e3f2c60-3d4f-4b53-9c32-000000000003
+      kind: log_append
+      fingerprint: 6187ddb940154d502dac609c8be35b8c
+- id: 10
+  ts: '2026-08-20T23:42:39.777493Z'
+  actor: claude
+  type: note
+  body: Updated branches, deliverables.
+  data:
+    fields:
+    - branches
+    - deliverables
+    operation:
+      id: 9f4a3d71-4e50-4c64-ad43-000000000002
+      kind: update_content
+      fingerprint: 55b7e571884f46157da7b5af274e12e1
+- id: 11
+  ts: '2026-08-20T23:43:10.001936Z'
+  actor: claude
+  type: handoff
+  body: Design complete and verified; handing to Jeff for the accept/reject decision
+    on the design itself, plus promotion of the six children it derives.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 9f4a3d71-4e50-4c64-ad43-000000000003
+      kind: handoff
+      fingerprint: d6f90e057328aee733894f724d6ec9a8
