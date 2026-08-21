@@ -407,6 +407,37 @@ class TaskStorage:
         with self.locked(self.CREATION_LOCK, timeout=timeout):
             yield
 
+    #: Lock name covering the whole project's queue order. Like CREATION_LOCK it is not
+    #: a task id and cannot collide with one, because ids never start with a dot.
+    QUEUE_LOCK = ".queue"
+
+    @contextmanager
+    def queue_lock(self, *, timeout: Optional[float] = None) -> Iterator[None]:
+        """Serialise every write that assigns or changes a queue position.
+
+        Per-task locking cannot help here for the same reason it cannot help creation:
+        the decision is "what number is free in this band", which is computed from
+        every *other* task's file. Two writers computing it at once agree, and one of
+        them writes a duplicate onto a queue whose whole job is to be unambiguous.
+
+        **Held by:** create, reopen, move, reprioritize, rebalance, compaction, repair
+        and migration -- every path that assigns a position.
+        **Not held by:** close, archive, and every read (design section 7). Clearing a
+        value cannot create a duplicate, so close stays cheap; the renumbering
+        operations absorb the resulting race by re-checking openness per task.
+
+        **Lock order is fixed and global** so two writers cannot deadlock::
+
+            .creation  ->  .queue  ->  individual task locks, ascending by id
+
+        A band read taken under this lock must come from
+        :meth:`list_tasks_uncached`, never from the snapshot cache -- for the same
+        reason ``mutate_task`` re-reads inside its lock. A decision made on a stale
+        copy is the bug the lock exists to prevent.
+        """
+        with self.locked(self.QUEUE_LOCK, timeout=timeout):
+            yield
+
     def mutate_task(self, task_id: str, mutator: Callable[[Task], Optional[Task]]) -> Task:
         """Read, change and write one task while holding its lock.
 
@@ -527,20 +558,25 @@ class TaskStorage:
         snapshot.result = self._load_all_uncached()
         return snapshot.result
 
-    def _load_all_uncached(self) -> "LoadResult":
+    def _load_all_uncached(self, *, fresh: bool = False) -> "LoadResult":
         """Read and parse every task file.
 
         One unreadable file must not take down the listing of the other thirty-seven,
         so errors are collected rather than raised. They are *returned* rather than
         logged, so that callers have to decide what to do with them -- which is what
         makes a broken file visible in the UI instead of only in a log nobody reads.
+
+        ``fresh`` bypasses the per-task snapshot as well as the corpus one. That is what
+        a caller holding the queue lock needs: "read the corpus again, properly", not
+        "read it again unless somebody already read it".
         """
         result = LoadResult()
+        read = self._load_task_uncached if fresh else self.load_task
         for path in sorted(self.tasks_dir.glob("*.yaml")):
             # Through load_task, so a file this scope has already read is reused rather
             # than parsed a second time.
             try:
-                task = self.load_task(path.stem)
+                task = read(path.stem)
             except TaskLoadError as exc:
                 logger.error("%s", exc)
                 result.errors.append(exc)
@@ -552,6 +588,25 @@ class TaskStorage:
     def list_tasks(self) -> List[Task]:
         """Every task that loads. Use load_all() when the broken ones matter too."""
         return self.load_all().tasks
+
+    def load_task_uncached(self, task_id: str) -> Optional[Task]:
+        """One task, read straight from disk, ignoring every snapshot.
+
+        What a caller holding the queue lock uses to check a precondition: the whole
+        point of the lock is that the answer must be current, and a snapshot taken
+        before it was acquired is by definition not.
+        """
+        return self._load_task_uncached(task_id)
+
+    def list_tasks_uncached(self) -> List[Task]:
+        """Every task that loads, read straight from disk, ignoring every snapshot.
+
+        The queue's read-under-the-lock (design section 7). A band computed from a
+        snapshot taken before the lock was acquired is exactly the stale decision the
+        lock exists to prevent, and it would be invisible: the numbers would look
+        plausible and two tasks would share one.
+        """
+        return self._load_all_uncached(fresh=True).tasks
 
     def generate_task_id(self) -> str:
         """Generate the next task identifier in sequence."""

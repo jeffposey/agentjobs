@@ -86,9 +86,11 @@ def _task(task_id: str, title: str, **kwargs: Any) -> Task:
     }
     fields.update(kwargs)
     # Rule 6: open work has a place in line, closed work has none. Set after the
-    # kwargs so a caller asking for a closed task still gets a valid one.
+    # kwargs so a caller asking for a closed task still gets a valid one. Derived
+    # from the id rather than fixed, because since task-205 two open tasks sharing
+    # one number in one band is corruption that selection refuses to answer over.
     if fields.get("lifecycle") is not Lifecycle.CLOSED:
-        fields.setdefault("queue_position", 100)
+        fields.setdefault("queue_position", int(task_id.split("-")[1]) * 100)
     return Task(**fields)
 
 
