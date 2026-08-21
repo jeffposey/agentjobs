@@ -3,7 +3,7 @@ id: task-233
 title: 'Cycle time: 21 hours of dispatched runs over 23 tasks, and nothing measures
   where it goes'
 created: '2026-08-21T20:42:00.402460Z'
-updated: '2026-08-21T23:10:04.214211Z'
+updated: '2026-08-21T23:10:41.515931Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -642,3 +642,16 @@ log:
       id: 9d2c4f61-7b38-4e50-a1c9-5e6f8a0b3d42
       kind: handoff
       fingerprint: 9d2237f0a5413764156581fcab3e3f0c
+- id: 11
+  ts: '2026-08-21T23:10:41.515794Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: 'The session finished its turn and the ball never moved, so it stopped without
+    saying what it needs. It was **not** killed and is still attachable: `claude attach
+    35ace083`.'
+  re: 5
+  data:
+    run_id: run_9f5385a4
+    outcome: finished_without_handoff
+    duration_seconds: 3772.497869
+    log_path: C:\Users\jpose\.agentjobs\runs\run_9f5385a4
