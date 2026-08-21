@@ -3,13 +3,13 @@ id: task-211
 title: 'Playbooks: named, reusable briefs for AI-judgment work like groom, reorder
   and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T19:50:03.720952Z'
+updated: '2026-08-21T20:12:32.837553Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 11400
+queue_position: 31
 category: architecture
 tags:
 - design
@@ -1323,3 +1323,31 @@ log:
       id: 3f1a9c22-000a-4b7e-9c31-7a5e2d8f010a
       kind: update_content
       fingerprint: c70c54eaee115cefb5f930dd77a081a6
+- id: 43
+  ts: '2026-08-21T20:12:32.837139Z'
+  actor: claude
+  type: queue_move
+  body: 'Jeff, 2026-08-21: move the playbooks epic to the head of the high band --
+    "I want to start it very soon, most of the current top queued tasks are not as
+    important if you ask me ... we need to start getting a handle on the backlog and
+    grooming and reordering regularly, using playbooks, will help." This places task-211
+    above the epic-autonomy trio (task-021/022/018) that previously held the head.
+    The reasoning is that backlog grooming is currently a manual act that only happens
+    when Jeff does it by hand, and playbooks are the mechanism that makes it routine
+    -- so the epic that unblocks grooming outranks work that improves runs of a backlog
+    nobody has time to order.'
+  data:
+    band: high
+    from: 11400
+    to: 31
+    placement:
+      kind: top
+    moved_with:
+    - task-214
+    - task-215
+    - task-216
+    - task-217
+    operation:
+      id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c1101
+      kind: queue_move
+      fingerprint: c416fd628ae3574da061e4857a6c60b8

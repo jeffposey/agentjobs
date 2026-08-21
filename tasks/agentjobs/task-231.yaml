@@ -1,0 +1,140 @@
+schema: 2
+id: task-231
+title: 'Epic: the review panel offers verbs that are true, and records which one the
+  human meant'
+created: '2026-08-21T20:18:51.832048Z'
+updated: '2026-08-21T20:19:15.702587Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 433
+category: ux
+tags:
+- gui
+- workflow
+- handoff
+- epic
+effort: three children; the first is a vocabulary decision and the other two are small
+  once it is made
+assignment:
+  eligible: []
+spec:
+  summary: "Umbrella over the three tasks that fix the one control pair a human uses\
+    \ to send a task back: task-226 (request-changes is four different acts wearing\
+    \ one label, all recorded as `revise`), task-016 (the panel offers \"Approve \u2014\
+    \ agent may merge\" on a task that has no branch), task-228 (approve fires with\
+    \ no way to attach a note, so approve-with-a-comment has to be filed as a rejection).\
+    \ One component, one round of schema and copy decisions, three children that should\
+    \ be worked in that order."
+  intent: 'These three were filed separately over one evening because each was noticed
+    separately, but they are one defect seen from three sides: the review panel does
+    not know what state the task is in, cannot say what the human meant, and offers
+    verbs that are sometimes false. Working them as one epic means the vocabulary
+    is decided once and the other two are built against it, instead of three sessions
+    each guessing what the labels will end up being.'
+  description: "## Why these three are one piece of work\n\nEvery human intervention\
+    \ in AgentJobs goes through one panel and two buttons. All three children are\
+    \ about that panel:\n\n| Child | The half it fixes |\n|---|---|\n| **task-226**\
+    \ | What the panel **writes**. `ball_reason: revise` is the only value a human-to-agent\
+    \ handoff can take, and it has carried four distinct intents \u2014 reject work,\
+    \ grant a permission, re-brief a run, impose a hold. A later session had to reinterpret\
+    \ one of them in prose. |\n| **task-016** | What the panel **offers**. It branches\
+    \ on `lifecycle === \"draft\"` alone and never reads `ball_reason`, so a task\
+    \ waiting on a decision renders \"\u2713 Approve \u2014 agent may merge\" \u2014\
+    \ a sentence that is false when there is no branch. |\n| **task-228** | What the\
+    \ panel **cannot carry**. Approve is a bare button with no composer, so an approval\
+    \ with a sentence attached has to go through Request Changes, taking a round trip\
+    \ the human did not want and recording approved work as revised. |\n\n## Order,\
+    \ and why it is that order\n\n**226 \u2192 016 \u2192 228.** 226 settles whether\
+    \ the agent-side reason vocabulary grows and what each control is called; 016\
+    \ branches the offered verbs on `ball_reason` and needs those names; 228 adds\
+    \ what the approve verb can carry and is the smallest of the three. Each is separable\
+    \ and none blocks the others in the `needs` sense \u2014 the order is a sequencing\
+    \ judgement recorded here rather than a dependency, so a child that stalls does\
+    \ not deadlock the epic.\n\n**One warning for whoever works 228:** its own spec\
+    \ defers the approve payload shape to task-001, which is still `draft`. That is\
+    \ a real sequencing question, not a formality \u2014 read 001 before designing\
+    \ the parameter, and raise it rather than guessing past it.\n\n## Supervision\n\
+    \nThis is a parent with open children, so whoever holds it supervises and does\
+    \ not work them: one child at a time, each in its own session and its own worktree,\
+    \ each hitting its own human review gate. Approval of one child releases that\
+    \ child, not the epic. See ALLAGENTS.md, \"You do not work the children\".\n\n\
+    ## Closing the epic\n\nClose it when all three children are closed and the panel,\
+    \ exercised by hand against a running server, offers only verbs that are true\
+    \ of the task in front of it and records which one the human meant. Verify that\
+    \ as a parent-level pass \u2014 the children each prove their own piece, and nobody\
+    \ has yet looked at the three together."
+  constraints: Children are worked in separate sessions, one at a time, each with
+    its own worktree and its own merge gate. The epic does not merge anything on its
+    own. Any schema change decided in task-226 must reach the validator, docs/task-schema.md,
+    REST, the generated client, MCP and the CLI before the children that depend on
+    its labels are built against it.
+  out_of_scope: "Structured multiple-choice question answering in the GUI (task-017).\
+    \ The design-approval gate variant and which gates exist (task-001). Editing a\
+    \ task's authoring fields from the browser (task-230). Anything that makes the\
+    \ GUI run git \u2014 the panel records, it does not merge."
+  context:
+  - path: frontend/src/components/TaskDetail.tsx
+    why: ReviewPanel is the single component all three children change.
+  - path: src/agentjobs/api/routes/tasks.py
+    why: "approve_task and request_changes \u2014 what the two controls write today."
+  - path: docs/task-schema.md
+    why: The ball_reason union task-226 may grow and task-016 must branch over.
+  - path: ALLAGENTS.md
+    why: 'The parent-task loop: supervise the children, do not work them.'
+acceptance:
+- id: e1
+  text: task-226, task-016 and task-228 are all closed completed, each having passed
+    its own human review gate.
+  status: pending
+- id: e2
+  text: 'Exercised by hand against a running server: a task at human/decision offers
+    no merge verb, a task at human/review does, and each control''s label matches
+    what it writes.'
+  status: pending
+- id: e3
+  text: "A reader of a task a human sent back can tell from the record alone which\
+    \ of the four intents it was \u2014 or, if the vocabulary was deliberately not\
+    \ grown, the decision saying so is on task-226 with its reasoning."
+  status: pending
+- id: e4
+  text: An approval carrying a note records the note verbatim and still clears the
+    merge gate; an approval without one is byte-identical to today.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T20:18:52.254191Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c110a
+      kind: create
+      fingerprint: 25968f9084b0e63a904b2dcac84ed0d1
+- id: 2
+  ts: '2026-08-21T20:19:15.702465Z'
+  actor: claude
+  type: queue_move
+  body: The epic stands at the head of its own run, immediately ahead of task-226,
+    task-016 and task-228 which are now its children. Placed here rather than at the
+    band head because the epic-autonomy trio (task-021/022/018) keeps unattended runs
+    alive, and this epic is the thing those runs would be dispatched to work.
+  data:
+    band: high
+    from: 11400
+    to: 433
+    placement:
+      kind: before
+      target: task-226
+    operation:
+      id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c110e
+      kind: queue_move
+      fingerprint: d8cb9fb4cd785acd6f0e9e055aaed052

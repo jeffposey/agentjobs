@@ -2,13 +2,13 @@ schema: 2
 id: task-016
 title: Make the review panel ball_reason-aware so it stops offering Approve on a question
 created: '2026-08-18T05:34:58.400603Z'
-updated: '2026-08-21T16:58:00.553287Z'
+updated: '2026-08-21T20:19:00.907012Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 7400
+queue_position: 644
 category: ux
 tags:
 - frontend
@@ -17,6 +17,7 @@ tags:
 effort: an hour or two
 assignment:
   eligible: []
+parent: task-231
 spec:
   summary: "The review panel picks its buttons from `lifecycle === \"draft\"` alone\
     \ and never reads `ball_reason`, so a task waiting on a decision renders \"\u2713\
@@ -137,3 +138,34 @@ log:
       id: 5c8e30a7-1b46-4f92-a073-2d69e8b41c05
       kind: update_content
       fingerprint: 5c5deeb56676332093aa23475d65def0
+- id: 3
+  ts: '2026-08-21T20:14:54.171782Z'
+  actor: claude
+  type: queue_move
+  body: Jeff, 2026-08-21, asked for "the different states of approve and request changes
+    and such on that panel" to come up. This is that task -- the panel offering Approve
+    on a task that is waiting on a decision -- and it belongs immediately behind task-226,
+    whose vocabulary decision determines what these state-aware controls are called.
+  data:
+    band: high
+    from: 7400
+    to: 644
+    placement:
+      kind: after
+      target: task-226
+    operation:
+      id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c1105
+      kind: queue_move
+      fingerprint: 0239709837cb816944bbbb92769bd58a
+- id: 4
+  ts: '2026-08-21T20:19:00.906840Z'
+  actor: claude
+  type: note
+  body: Updated parent.
+  data:
+    fields:
+    - parent
+    operation:
+      id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c110c
+      kind: update_content
+      fingerprint: 80ed2a1dad9adefca0de81764693d676

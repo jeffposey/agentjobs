@@ -2,13 +2,13 @@ schema: 2
 id: task-217
 title: 'Playbooks 4: reorder, authored, with anchor mechanics'
 created: '2026-08-21T04:56:41.043549Z'
-updated: '2026-08-21T19:39:10.652553Z'
+updated: '2026-08-21T20:12:32.821625Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 10900
+queue_position: 155
 category: meta
 tags:
 - playbooks

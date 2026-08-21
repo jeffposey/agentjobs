@@ -1,0 +1,242 @@
+schema: 2
+id: task-229
+title: Drag-to-reorder does not scroll the page, so you can only move a task as far
+  as the viewport
+created: '2026-08-21T20:09:48.827525Z'
+updated: '2026-08-21T20:18:22.714950Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
+archived: false
+priority: high
+queue_position: 736
+category: ux
+tags:
+- queue-order
+- frontend
+- regression
+- gui
+effort: "small-to-medium \u2014 an edge-autoscroll loop is contained; replacing the\
+  \ transport with pointer events is a rewrite of the gesture and larger"
+assignment:
+  owner: claude
+  eligible: []
+spec:
+  summary: "Dragging a task's grip in the React task list never scrolls the window,\
+    \ so a row can only be dropped on a target that is already visible. On a backlog\
+    \ longer than one screen \u2014 which is every real backlog \u2014 that makes\
+    \ the drag path unusable and leaves the keyboard path as the only way to move\
+    \ a task any real distance. The drag also escapes the browser window entirely\
+    \ (a native HTML5 drag out to other applications), which is cosmetic but the same\
+    \ root cause."
+  intent: "Reordering the backlog by looking at it is the point of the queue column,\
+    \ and task-207 shipped drag as the accelerator for exactly that. A drag that cannot\
+    \ reach off-screen targets does not accelerate anything: the common move \u2014\
+    \ pull something from the bottom of the list to the top of its band \u2014 is\
+    \ precisely the one it cannot perform. Reported by Jeff, 2026-08-21: \"the lack\
+    \ of scrolling makes the feature mostly unusable.\""
+  description: "## What is broken\n\nReported by Jeff, 2026-08-21, using the merged\
+    \ drag path in a browser.\n\n1. **No auto-scroll.** While dragging a row's grip,\
+    \ holding the pointer at the top or bottom edge of the window does not scroll\
+    \ the page, the way it does in every list-reordering UI a person has used. The\
+    \ list is taller than the viewport, so the only reachable drop targets are the\
+    \ rows already on screen. Scrolling with the wheel mid-drag is not a substitute\
+    \ \u2014 a person cannot hold a drag and operate a scroll gesture on a touchpad\
+    \ or a phone.\n2. **The drag leaves the browser.** The grip is a native HTML5\
+    \ `draggable` element carrying `text/plain`, so the row can be dragged out of\
+    \ the window and dropped on other applications. Cosmetic, and Jeff called it minor\
+    \ \u2014 but it is a consequence of the same transport choice, so whoever fixes\
+    \ 1 should decide about 2 rather than leave it unstated.\n\nNot in question: the\
+    \ keyboard path (`Alt+Up`/`Down`/`Home`/`End`) works and moves a task any distance,\
+    \ and the drag itself does *start* and *drop* correctly since task-225. This is\
+    \ only about what the gesture can reach.\n\n## Where the code is\n\n`frontend/src/components/TaskList.tsx`.\
+    \ The grip is a `<button draggable>` with `onDragStart`/`onDragEnd` around line\
+    \ 429; rows accept via `onDragOver`/`onDrop` around line 419; the drop resolves\
+    \ to a `before`/`after` move in `onRowDrop` (line 304), including the cross-band\
+    \ confirmation.\n\nNothing there listens for the pointer approaching a viewport\
+    \ edge, and nothing scrolls. Browsers do not do this for you at the document level\
+    \ during an HTML5 drag \u2014 Chrome's own autoscroll during DnD is limited and\
+    \ unreliable for page scroll \u2014 so the absence is an omission, not a browser\
+    \ bug to be worked around.\n\n## Two ways to fix it, and the choice belongs in\
+    \ this task\n\n**A \u2014 keep HTML5 drag, add an edge-autoscroll loop.** A `dragover`\
+    \ handler on the document records the pointer's Y; a `requestAnimationFrame` loop\
+    \ scrolls the window while it sits within some threshold (~60\u201380px) of the\
+    \ top or bottom edge, at a rate that ramps with proximity; the loop starts on\
+    \ `dragstart` and is torn down on `dragend`/`drop`, including the cancel paths.\
+    \ Smallest diff. Does not address 2, and does nothing for touch \u2014 HTML5 drag\
+    \ does not fire on touch devices at all, so the phone case Jeff asked for in task-207\
+    \ is still keyboard-only.\n\n**B \u2014 replace the transport with pointer events.**\
+    \ `pointerdown`/`pointermove`/`pointerup` with `setPointerCapture`, the drag confined\
+    \ to the document by construction (which resolves 2 for free), autoscroll trivial\
+    \ because you already own the move loop, and touch works. Larger, and it means\
+    \ re-deriving the drop target from coordinates rather than getting it from `dragover`.\n\
+    \nRecommendation is A unless the touch case is being claimed now; whichever is\
+    \ chosen, **record it as a `decision` on this task with the rejected alternative**,\
+    \ because the next reader will otherwise assume the transport was never considered.\n\
+    \n## Verification \u2014 read this before writing a test\n\nThis area has burned\
+    \ two tasks on tests that could not see the defect. task-207 shipped drag with\
+    \ three green tests over a gesture the browser never started; ENGINEERING.md's\
+    \ Verification section carries both that incident and task-225's.\n\n- **A Playwright\
+    \ drag is not a person's drag.** Playwright drives Chromium's drag through `Input.setInterceptDrags`,\
+    \ below the real drag loop. It is fair evidence that a handler is wired and a\
+    \ route is called; it is not evidence that a human can drag a row to a target\
+    \ eight rows off-screen.\n- So: an automated test may cover the scroll *mechanism*\
+    \ (the loop starts, scrolls, and is torn down), but the acceptance evidence for\
+    \ \"you can now reach an off-screen row\" is **a hand on a real mouse**, in a\
+    \ review sandbox with enough seeded tasks that the list is several screens tall.\n\
+    - Stand that sandbox up as part of the handoff, on its own port with its own throwaway\
+    \ data, and say how to stop it. `scripts/review_queue_sandbox.py` already exists\
+    \ and keeps its traces.\n- Check that autoscroll does not fire on a drag that\
+    \ started outside the list, and that the loop cannot outlive a cancelled drag\
+    \ (Escape, or a drop on a non-target)."
+  constraints: "Do not touch the keyboard reorder path \u2014 it works and is the\
+    \ primary accessible route. Do not change the cross-band confirmation behaviour\
+    \ in `onRowDrop`. The full `scripts/check.py` gate before every commit; task records\
+    \ to `main`, code to a worktree branch."
+  out_of_scope: "Touch/phone drag support, unless option B is chosen and it falls\
+    \ out for free \u2014 the phone reordering story is keyboard/controls today and\
+    \ changing that is its own task. Any redesign of the queue column or the reorder\
+    \ affordance itself."
+  context:
+  - path: frontend/src/components/TaskList.tsx
+    why: The grip, the drag handlers and onRowDrop all live here; the fix is in this
+      file.
+  - path: tasks/agentjobs/task-225.yaml
+    why: "The previous drag defect \u2014 why the gesture starts at all now, and why\
+      \ an automated drag is not acceptance evidence."
+  - path: tasks/agentjobs/task-207.yaml
+    why: Shipped the reorder feature; its spec is what drag was supposed to deliver.
+  - path: ENGINEERING.md
+    why: The Verification section carries both prior incidents in this exact code
+      path.
+  - path: scripts/review_queue_sandbox.py
+    why: The seeded sandbox to hand Jeff for the by-hand check; it records what the
+      page actually received.
+acceptance:
+- id: a1
+  text: Dragging a grip and holding near the top or bottom edge of the window scrolls
+    the page, at a rate that ramps with proximity to the edge, in both directions.
+  status: pending
+- id: a2
+  text: A task at the bottom of a list several screens tall can be dragged to a target
+    at the top of its band in one uninterrupted gesture, verified by a person with
+    a real mouse in a seeded sandbox.
+  status: pending
+- id: a3
+  text: The scroll loop is torn down on drop, on dragend, and on a cancelled drag;
+    no rAF loop survives the gesture.
+  status: pending
+- id: a4
+  text: The transport choice (edge-autoscroll on HTML5 drag vs. pointer-event rewrite)
+    is recorded as a decision entry with its rejected alternative, and the drag-outside-the-browser
+    behaviour is either fixed or explicitly accepted with a reason.
+  status: pending
+- id: a5
+  text: Keyboard reorder and the cross-band confirmation are unchanged; scripts/check.py
+    green.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T20:09:49.309018Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3f2a9c14-6d51-4a2e-9b0e-7c1d84e5a222
+      kind: create
+      fingerprint: f01da5d25a33bc2fc59913f5f792f032
+- id: 2
+  ts: '2026-08-21T20:16:34.818009Z'
+  actor: claude
+  type: queue_move
+  body: Moved into the grooming run rather than left at the bottom of the band where
+    it was filed. Jeff's aim this week is to groom and reorder the backlog regularly;
+    drag is the reorder gesture and he reports it as "mostly unusable" because it
+    cannot reach off-screen rows. A grooming loop that cannot move a task more than
+    one screen is the thing being fixed here, so this belongs beside task-230 rather
+    than seventy tasks behind it.
+  data:
+    band: high
+    from: 11500
+    to: 736
+    placement:
+      kind: after
+      target: task-230
+    operation:
+      id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c1109
+      kind: queue_move
+      fingerprint: 393fd7d36a2a65aa7e80fc6b0f4ac78b
+- id: 3
+  ts: '2026-08-21T20:18:20.465915Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 4
+  ts: '2026-08-21T20:18:21.050278Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 5
+  ts: '2026-08-21T20:18:22.714753Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_85e26f5b
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 3
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-229` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-229-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_85e26f5b.'
+    cwd: C:\projects\agentjobs
+    git_head: 6b60cba
+    session_id: b8b1b87a
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true

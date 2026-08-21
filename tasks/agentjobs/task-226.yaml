@@ -3,13 +3,13 @@ id: task-226
 title: '"Request changes" is four different acts wearing one button, and the record
   says "revise" for all of them'
 created: '2026-08-21T16:19:49.631386Z'
-updated: '2026-08-21T19:07:25.527193Z'
+updated: '2026-08-21T20:18:56.833975Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: medium
-queue_position: 7000
+priority: high
+queue_position: 539
 category: ux
 tags:
 - gui
@@ -20,6 +20,7 @@ effort: a vocabulary decision first; the UI and schema changes are small once it
   made
 assignment:
   eligible: []
+parent: task-231
 spec:
   summary: 'The one control a human has for sending a task back to an agent is labelled
     "request changes" and always writes ball_reason: revise. In one night it was used
@@ -177,3 +178,62 @@ log:
       id: f4b7a05e-91c8-4d63-b0ea-3e5297d1c604
       kind: update_content
       fingerprint: 8af429b11a3d4d75c7ddbae1a81036f7
+- id: 4
+  ts: '2026-08-21T20:12:34.188825Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the medium band into the bottom of the high band.
+  data:
+    band: high
+    from: 7000
+    to: 11600
+    placement:
+      kind: bottom
+    from_band: medium
+- id: 5
+  ts: '2026-08-21T20:12:34.188850Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c1102
+      kind: update_content
+      fingerprint: f817057ee5472e7cdb5f7031b314a68c
+- id: 6
+  ts: '2026-08-21T20:14:44.493879Z'
+  actor: claude
+  type: queue_move
+  body: 'Jeff, 2026-08-21: bump the review-panel work up. Promoted to high and placed
+    behind the epic-autonomy trio (task-021/022/018), ahead of everything else in
+    the band. This is the head of a run of three that should be read together -- task-226
+    (what the send-back control writes), task-016 (which actions the panel offers
+    for a given ball_reason), task-228 (approve takes an optional note). 226 goes
+    first because the vocabulary decision is what the other two label and branch on.
+    Left the autonomy trio ahead of it deliberately: those keep unattended runs alive,
+    and a review panel nobody can reach because the run died is worth less.'
+  data:
+    band: high
+    from: 11600
+    to: 539
+    placement:
+      kind: after
+      target: task-018
+    operation:
+      id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c1104
+      kind: queue_move
+      fingerprint: e865c12e2804cb36d2e6dc2380686c70
+- id: 7
+  ts: '2026-08-21T20:18:56.833777Z'
+  actor: claude
+  type: note
+  body: Updated parent.
+  data:
+    fields:
+    - parent
+    operation:
+      id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c110b
+      kind: update_content
+      fingerprint: 80ed2a1dad9adefca0de81764693d676

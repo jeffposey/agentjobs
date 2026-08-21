@@ -3,13 +3,13 @@ id: task-228
 title: Approve should take an optional note, so "proceed, and also do this" stops
   being a request-changes
 created: '2026-08-21T19:02:19.523990Z'
-updated: '2026-08-21T19:07:15.273615Z'
+updated: '2026-08-21T20:19:05.411773Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: medium
-queue_position: 7050
+priority: high
+queue_position: 697
 category: ux
 tags:
 - gui
@@ -20,6 +20,7 @@ effort: "small \u2014 one optional field through the stack, plus the composer th
   \ promote path already models"
 assignment:
   eligible: []
+parent: task-231
 spec:
   summary: "Approve fires immediately with no way to attach a note, so any approval\
     \ carrying a comment has to go through Request Changes instead \u2014 which hands\
@@ -219,3 +220,61 @@ log:
       id: e81f2b60-3ca4-4d77-9b52-06f4e1c7a923
       kind: update_content
       fingerprint: 173f12a1c635c5feeaab6aa196ea58ab
+- id: 5
+  ts: '2026-08-21T20:12:35.232733Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the medium band into the bottom of the high band.
+  data:
+    band: high
+    from: 7050
+    to: 11700
+    placement:
+      kind: bottom
+    from_band: medium
+- id: 6
+  ts: '2026-08-21T20:12:35.232753Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c1103
+      kind: update_content
+      fingerprint: f817057ee5472e7cdb5f7031b314a68c
+- id: 7
+  ts: '2026-08-21T20:15:06.212476Z'
+  actor: claude
+  type: queue_move
+  body: 'Jeff, 2026-08-21: "bump up the tasks for allowing approve to have a note".
+    Promoted to high and placed third in the review-panel run, behind task-226 (the
+    send-back vocabulary) and task-016 (which controls the panel offers). Third rather
+    than first because both of those decide what the approve control is and when it
+    appears, and this adds what it can carry. Its own spec also defers the payload
+    shape to task-001, which is still draft -- whoever picks this up should check
+    001 before designing the parameter.'
+  data:
+    band: high
+    from: 11700
+    to: 697
+    placement:
+      kind: after
+      target: task-016
+    operation:
+      id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c1106
+      kind: queue_move
+      fingerprint: 2827c372f8052f67acacc923e5a451f9
+- id: 8
+  ts: '2026-08-21T20:19:05.411582Z'
+  actor: claude
+  type: note
+  body: Updated parent.
+  data:
+    fields:
+    - parent
+    operation:
+      id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c110d
+      kind: update_content
+      fingerprint: 80ed2a1dad9adefca0de81764693d676

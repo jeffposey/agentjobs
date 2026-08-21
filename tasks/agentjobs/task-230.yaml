@@ -1,0 +1,180 @@
+schema: 2
+id: task-230
+title: "A human can edit a task's authoring fields from the browser \u2014 priority,\
+  \ tags, effort, category, title"
+created: '2026-08-21T20:16:12.766653Z'
+updated: '2026-08-21T20:16:21.430640Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 723
+category: feature
+tags:
+- gui
+- frontend
+- grooming
+- api
+effort: "medium \u2014 the backend exists, so this is a form, an optimistic-update\
+  \ path, and a decision about which fields get which control"
+assignment:
+  eligible: []
+spec:
+  summary: 'The API has accepted edits to a task''s authoring fields since schema
+    v2, but the React app offers no way to make one: a task can be created in the
+    browser and acted on in the browser, and between those two points every field
+    is read-only. Grooming a backlog from a phone means changing a priority, adding
+    a tag, or correcting a title, and today all three require an agent or a hand-edited
+    YAML file. Add an edit surface for the fields `task_update_content` already accepts.'
+  intent: "Jeff's stated goal, 2026-08-21: \"we need to start getting a handle on\
+    \ the backlog and grooming and reordering regularly.\" Reordering became a browser\
+    \ act in task-207. Every other grooming act is still an agent request \u2014 which\
+    \ means grooming only happens when a session is running, and the fifteen minutes\
+    \ on a phone that would actually keep the backlog honest produce nothing. The\
+    \ gap here is not capability, it is reach: the manager verbs and the REST patch\
+    \ already do this, and only the UI is missing."
+  description: "## What is missing\n\n`frontend/src/components/` has `TaskCreate.tsx`\
+    \ and `TaskDetail.tsx`, and nothing between them. A task's fields can be set once,\
+    \ at creation, and never again from the browser. There is no edit component and\
+    \ no update mutation in the client \u2014 grep for one and the result is empty.\n\
+    \nThe backend is not the constraint. The content patch already accepts **title,\
+    \ priority, category, effort, tags, parent, spec, acceptance, deliverables, dependencies,\
+    \ links, branches**, replacing whole nested collections and refusing a stale `expected_revision`.\
+    \ So this task is a UI surface over an existing contract, not new plumbing.\n\n\
+    ## The fields, and what each needs\n\nSplit by how much control each one needs,\
+    \ because they are not the same problem:\n\n**Tier 1 \u2014 scalar, obvious, do\
+    \ these.** `priority` (a four-value select), `effort` (free text), `category`\
+    \ (free text or a datalist of what the corpus already uses), `title` (single line).\
+    \ Each is one control and one patch.\n\n**Tier 2 \u2014 tags.** Add and remove,\
+    \ with completion over the tags already in use in the project, because a tag nobody\
+    \ else spells the same way is not a tag. Whole-collection replace on the wire.\n\
+    \n**Tier 3 \u2014 the spec prose and the collections** (`spec.*`, `acceptance`,\
+    \ `dependencies`, `deliverables`). Genuinely useful and genuinely bigger: a description\
+    \ is markdown a person will want to see rendered, and acceptance is a list of\
+    \ objects. **Decide explicitly whether these are in this task or the next one,\
+    \ and record it.** A defensible answer is tiers 1 and 2 now, and a separate task\
+    \ for prose and lists \u2014 the grooming loop Jeff described is priority and\
+    \ tags, and shipping those two this week is worth more than one screen that does\
+    \ everything.\n\n## \"Status maybe?\" \u2014 no, and this is the interesting part\n\
+    \nJeff asked whether status should be editable too. It should not, and the reason\
+    \ is load-bearing rather than pedantic: **there is no generic status setter anywhere\
+    \ in this system, by design.** `lifecycle`, `ball`, `ball_reason` and `outcome`\
+    \ move only through `claim`, `handoff`, `release` and `close`, each of which appends\
+    \ its own log entry saying who moved it and why. A dropdown that writes `lifecycle:\
+    \ closed` would be the one mutation in AgentJobs with no recorded reason \u2014\
+    \ and the whole argument for a YAML task tracker over a chat message is that the\
+    \ record says why.\n\nSo the real form of the request is **\"the browser should\
+    \ offer the verbs a human is entitled to use, on any task, not only on one parked\
+    \ at review.\"** Today the panel's verbs appear only in the review flow (and task-016\
+    \ is making those reason-aware). The gap worth naming: a human looking at a task\
+    \ that is stuck with an agent has no way to `release` it, and a human looking\
+    \ at a `ready` task has no way to park it. Whether that belongs here or in its\
+    \ own task is a judgement call \u2014 **make it, and record it with the rejected\
+    \ alternative.** Do not resolve it by adding a status dropdown.\n\n## Constraints\
+    \ worth knowing before you start\n\n- **`expected_revision` is not optional.**\
+    \ The patch refuses a stale one, which is exactly what protects a phone edit from\
+    \ clobbering an agent's write thirty seconds earlier. Surface that refusal as\
+    \ a real message \u2014 \"this task changed while you were editing\" with the\
+    \ current value \u2014 not as a generic mutation error.\n- **Every edit is attributed.**\
+    \ The patch takes an `actor` from the project vocabulary and writes a log entry;\
+    \ a browser edit is Jeff, not `claude`. Check what the existing human actions\
+    \ send and match it.\n- **Editing is not a workflow move.** A patch must not touch\
+    \ the ball. Changing a priority on a task parked at human review leaves it parked\
+    \ at human review.\n\n## Verification\n\nPer ENGINEERING.md, assert on rendered\
+    \ values rather than markup, and exercise it against a running server \u2014 the\
+    \ interesting failures here are the concurrency one (two writers, one stale revision)\
+    \ and the attribution one (an edit logged under the wrong actor), and neither\
+    \ shows up in jsdom.\n\nStand up a review sandbox on its own port with throwaway\
+    \ tasks, seeded so both states exist: a task with tags and a full spec, and a\
+    \ bare one with neither. Say how to stop it."
+  constraints: "- No status/lifecycle/ball dropdown. Workflow state moves through\
+    \ the domain verbs or not at all \u2014 see the description.\n- An edit must not\
+    \ move the ball or touch the log's transition entries; it appends a content-change\
+    \ note like any other patch.\n- `expected_revision` is sent on every patch and\
+    \ its refusal is surfaced as a readable conflict, not a generic error toast.\n\
+    - Whatever the UI can edit, the REST route already accepts \u2014 do not add a\
+    \ field to the API to make a control easier.\n- The edit surface must work on\
+    \ a phone. That is the case that motivates the task, so a layout that only works\
+    \ at desktop width has not delivered it."
+  out_of_scope: "Queue position \u2014 already done by drag and keyboard (task-207),\
+    \ and it moves through `task_queue_move`, not the content patch. Archiving and\
+    \ deletion. Bulk edit across multiple tasks. Making the panel's workflow verbs\
+    \ ball_reason-aware (task-016) or changing what they write (task-226, task-228)."
+  context:
+  - path: frontend/src/components/TaskCreate.tsx
+    why: "The existing create form \u2014 the controls for priority, tags and category\
+      \ already exist here and should be shared rather than rewritten."
+  - path: frontend/src/components/TaskDetail.tsx
+    why: Where the edit surface goes, alongside the review panel it must not disturb.
+  - path: src/agentjobs/api/routes/tasks.py
+    why: 'The patch route: which fields it accepts, how expected_revision is enforced,
+      and what it logs.'
+  - path: docs/task-schema.md
+    why: "Why lifecycle/ball/outcome are absent from the patch schema rather than\
+      \ merely rejected \u2014 the reasoning the status question turns on."
+  - path: frontend/src/api/mutation-error.ts
+    why: The existing mutation-error path a revision conflict has to be surfaced through.
+acceptance:
+- id: a1
+  text: Priority, effort, category, title and tags can each be changed from the task
+    detail view and the change is visible in the YAML and in the log with the correct
+    human actor.
+  status: pending
+- id: a2
+  text: A stale edit is refused and the human sees a conflict message naming what
+    changed, not a generic failure.
+  status: pending
+- id: a3
+  text: Editing a task parked at human/review leaves its ball, ball_reason and ball_prompt
+    untouched.
+  status: pending
+- id: a4
+  text: "A decision entry records the scope call on spec prose and the acceptance/dependency\
+    \ collections \u2014 in this task or split out \u2014 with the rejected alternative."
+  status: pending
+- id: a5
+  text: A decision entry records how the workflow-verb gap is handled (release/park
+    from the browser), stating explicitly that a status dropdown was rejected and
+    why.
+  status: pending
+- id: a6
+  text: The whole surface is usable at phone width, verified in a browser at that
+    viewport rather than only in a desktop layout.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T20:16:13.191875Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c1107
+      kind: create
+      fingerprint: 3c8e5c965c3dad49b13507e78502bd32
+- id: 2
+  ts: '2026-08-21T20:16:21.430506Z'
+  actor: claude
+  type: queue_move
+  body: 'Filed and placed at the end of the review-panel run, on the same grooming
+    rationale as task-211''s move to the head of the band: Jeff''s aim is to groom
+    and reorder the backlog regularly, and reordering is the only grooming act the
+    browser currently supports. Changing a priority or a tag from a phone is the rest
+    of that loop.'
+  data:
+    band: high
+    from: 11600
+    to: 723
+    placement:
+      kind: after
+      target: task-228
+    operation:
+      id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c1108
+      kind: queue_move
+      fingerprint: 7cd339a041a6bf914da6359598335550
