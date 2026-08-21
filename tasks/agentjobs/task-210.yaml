@@ -1,0 +1,130 @@
+schema: 2
+id: task-210
+title: check.py scrubs VIRTUAL_ENV so the gate cannot resolve to another checkout's
+  environment
+created: '2026-08-21T00:53:04.242865Z'
+updated: '2026-08-21T00:53:04.243598Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- gate
+- worktree
+- agent-dx
+- tooling
+assignment:
+  eligible: []
+spec:
+  summary: A dispatched session inherits VIRTUAL_ENV pointing at the main clone's
+    virtualenv, and the gate's Playwright stage spawns `poetry run` subprocesses that
+    honour it -- so a worktree gate run fails at the last stage after six green minutes,
+    with a repair hint that would corrupt the main clone's install. Make scripts/check.py
+    remove VIRTUAL_ENV from the environment it passes to every child, so the interpreter
+    it was started with is authoritative.
+  intent: Every dispatched agent inherits the main clone's VIRTUAL_ENV, so today every
+    worktree gate run either burns six minutes before failing at the Playwright stage
+    or relies on the agent knowing an undocumented extra step. The gate should be
+    runnable exactly as documented from any bootstrapped checkout.
+  description: 'Found on 2026-08-20 while running the gate for task-081 in a bootstrapped
+    worktree (task-081 log entry 8 is the full observation; this task is its filing).
+
+
+    The failure chain: ALLAGENTS.md correctly says to run the gate with the absolute
+    interpreter path the bootstrap prints, because `poetry run` prefers an activated
+    VIRTUAL_ENV over the project-keyed environment. Following that gets Black, Ruff,
+    MyPy, all of pytest, Vitest and the production build green. Then the Playwright
+    stage fails, because `frontend/playwright.config.ts` starts its server with `webServer:
+    { command: "poetry run python e2e/run_server.py", ... }` -- a subprocess that
+    inherits the ambient VIRTUAL_ENV, resolves to the main clone''s environment, and
+    is refused by the source-provenance guard. The guard''s printed repair (`cd <worktree>
+    && poetry install`) is not the fix and, if followed, rewrites the main clone''s
+    editable install: the task-194 failure mode, reached by following the instructions
+    verbatim.
+
+
+    The fix, chosen over the alternative in the log entry: `scripts/check.py` deletes
+    `VIRTUAL_ENV` (and `PYTHONHOME` if present) from the environment it passes to
+    every child it spawns. It already knows which interpreter it is running under,
+    so it can be authoritative rather than deferential -- this fixes every caller,
+    including Playwright''s nested `poetry run`, rather than only the people who read
+    a doc line. The rejected alternative -- bootstrap printing `unset VIRTUAL_ENV
+    &&` in its verify line -- fixes one shell at a time and nothing nested.
+
+
+    Also update the two docs that teach the workaround so they describe the world
+    after the fix: the "Bootstrapping a worktree" section of ALLAGENTS.md (which currently
+    makes VIRTUAL_ENV the reader''s problem) and the memory-adjacent wording in ENGINEERING.md
+    if it mentions the interpreter-path workaround. Keep the explanation of *why*
+    the hazard existed; agents on older checkouts will still meet it.
+
+
+    Related: task-189 (gate feedback is slow) -- this is the same six minutes spent
+    to learn something knowable at second zero; task-194 (source-provenance incident)
+    -- the guard is working as designed here and must keep refusing, the point is
+    that check.py stops handing its children a poisoned environment.'
+  constraints: '- check.py must not disable or weaken the source-provenance guard;
+    the guard is correct. The fix is the environment check.py hands its children.
+
+    - Do not touch playwright.config.ts to special-case this; the scrub in check.py
+    must cover nested poetry invocations generically.
+
+    - The docs keep the why: the VIRTUAL_ENV preference of `poetry run` still exists
+    for anyone not going through check.py.'
+  out_of_scope: task-189's broader goal of faster gate feedback ordering; any change
+    to how bootstrap selects or creates environments.
+  context:
+  - path: scripts/check.py
+    why: The gate runner whose child environment gets the scrub.
+  - path: frontend/playwright.config.ts
+    why: The nested `poetry run` webServer command that makes the inherited VIRTUAL_ENV
+      bite at the last stage.
+  - path: ALLAGENTS.md
+    why: Bootstrapping-a-worktree section currently teaches the manual workaround.
+acceptance:
+- id: sc-1
+  text: With VIRTUAL_ENV deliberately set to the main clone's environment, `python
+    scripts/check.py` in a bootstrapped worktree passes end to end, including the
+    Playwright stage, using the worktree's own environment throughout.
+  status: pending
+- id: sc-2
+  text: A test (or check.py self-check) proves the child environment check.py spawns
+    does not contain VIRTUAL_ENV, so the behaviour cannot silently regress.
+  status: pending
+- id: sc-3
+  text: ALLAGENTS.md's bootstrap section no longer instructs readers to manage VIRTUAL_ENV
+    themselves for gate runs, while still explaining the hazard for direct `poetry
+    run` use.
+  status: pending
+deliverables:
+- path: scripts/check.py
+  note: scrub VIRTUAL_ENV/PYTHONHOME from child environments
+  status: pending
+- path: ALLAGENTS.md
+  note: bootstrap section updated to the post-fix world
+  status: pending
+dependencies:
+- task: task-189
+  type: related
+  note: 'Same six minutes: gate feedback arrives late; this removes one whole class
+    of last-stage failure.'
+- task: task-194
+  type: related
+  note: The incident that built the source-provenance guard this failure mode trips;
+    the guard stays as-is.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T00:53:04.242911Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: a1b2c3d4-0007-4a00-9e00-1a2b3c4d0001
+      kind: create
+      fingerprint: 7279bb386341262cba75f65294c72d66
