@@ -3,10 +3,11 @@ id: task-210
 title: check.py scrubs VIRTUAL_ENV so the gate cannot resolve to another checkout's
   environment
 created: '2026-08-21T00:53:04.242865Z'
-updated: '2026-08-21T00:53:04.243598Z'
-lifecycle: ready
+updated: '2026-08-21T01:22:59.344672Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: developer_experience
@@ -16,6 +17,7 @@ tags:
 - agent-dx
 - tooling
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: A dispatched session inherits VIRTUAL_ENV pointing at the main clone's
@@ -115,7 +117,9 @@ dependencies:
   note: The incident that built the source-provenance guard this failure mode trips;
     the guard stays as-is.
 links: []
-branches: []
+branches:
+- name: fix/task-210-check-scrubs-virtualenv
+  status: active
 log:
 - id: 1
   ts: '2026-08-21T00:53:04.242911Z'
@@ -128,3 +132,76 @@ log:
       id: a1b2c3d4-0007-4a00-9e00-1a2b3c4d0001
       kind: create
       fingerprint: 7279bb386341262cba75f65294c72d66
+- id: 2
+  ts: '2026-08-21T01:15:12.555674Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 3
+  ts: '2026-08-21T01:22:59.344528Z'
+  actor: claude
+  type: progress
+  body: "Implemented the child-environment scrub in scripts/check.py; reproduced the\
+    \ hijack and the fix directly; sc-1 full gate running.\n\nBranch fix/task-210-check-scrubs-virtualenv,\
+    \ worktree C:/projects/worktrees/aj-210, bootstrapped (imports resolve to the\
+    \ worktree's own src/).\n\nCHANGE - scripts/check.py\n- New ACTIVATION_VARS =\
+    \ (\"VIRTUAL_ENV\", \"POETRY_ACTIVE\"), named the same way as in scripts/bootstrap.py.\n\
+    - New child_environment(): copies os.environ, always drops PYTHONHOME, and drops\
+    \ VIRTUAL_ENV/POETRY_ACTIVE when the activated virtualenv is NOT the one this\
+    \ interpreter is running in.\n- run() now passes env=child_environment() and deliberately\
+    \ takes no env parameter, so no future gate stage can opt out of the scrub by\
+    \ forgetting to opt in.\n- New disowned_environment_note(), printed once from\
+    \ main(), so a green run states that it ignored the shell rather than correcting\
+    \ it silently.\n- The source-provenance guard (setup_problems/remedy) is untouched\
+    \ and still refuses. playwright.config.ts is untouched.\n\nDECISION - scrub conditionally,\
+    \ not unconditionally.\nThe spec said \"delete VIRTUAL_ENV\". An unconditional\
+    \ delete also strips a VIRTUAL_ENV that IS this interpreter's, which breaks a\
+    \ plain `python -m venv .venv` checkout: Poetry then has no path-keyed environment\
+    \ to fall back to and every nested `poetry run` in the frontend gate fails. Comparing\
+    \ os.path.realpath(VIRTUAL_ENV) against sys.prefix keeps that case working while\
+    \ still scrubbing the case this task is about. scripts/bootstrap.py already declines\
+    \ to overrule somebody's own .venv for the same reason, so this matches the existing\
+    \ idiom.\n\nDECISION - scrub two variables, not PATH.\nRejected: also removing\
+    \ the activated venv's Scripts directory from PATH (what `deactivate` does), so\
+    \ a child calling bare `python` cannot reach the foreign checkout either. Rejected\
+    \ because nothing in the gate calls bare `python` -- every nested call is `poetry\
+    \ run`, which ignores PATH for interpreter selection -- and because if poetry\
+    \ itself were ever installed inside the activated venv, removing that directory\
+    \ would make `poetry run` vanish and break the gate outright. Real cost, hypothetical\
+    \ benefit. Reopen if a gate stage is ever added that shells out to a bare interpreter.\n\
+    \nEVIDENCE - direct reproduction of the hijack and the fix, from the worktree,\
+    \ with VIRTUAL_ENV exported to the main clone's virtualenv (agentjobs-KSKY4Ymk-py3.13):\n\
+    \  A. `poetry run python -c \"import agentjobs; print(agentjobs.__file__)\"`\n\
+    \     -> C:\\projects\agentjobs\\src\agentjobs\\__init__.py        (the bug: the\
+    \ main clone)\n  B. the same nested call with env=check.child_environment()\n\
+    \     -> C:\\projects\\worktrees\aj-210\\src\agentjobs\\__init__.py  (the fix:\
+    \ this worktree)\nThis is the exact mechanism that fails Playwright's `webServer:\
+    \ poetry run python e2e/run_server.py`.\n\nTESTS (sc-2) - eight new tests appended\
+    \ to tests/test_source_provenance.py, under a task-210 heading beside the task-194\
+    \ guards they belong with:\n- a foreign VIRTUAL_ENV and POETRY_ACTIVE are absent\
+    \ from the child environment\n- PYTHONHOME is always absent\n- this interpreter's\
+    \ own VIRTUAL_ENV is preserved\n- PATH and unrelated variables survive (it is\
+    \ a scrub, not a sanitiser)\n- an unactivated shell is passed through unchanged\n\
+    - the regression guard proper: monkeypatches subprocess.run, calls check.main(),\
+    \ and asserts all five stages (Black, Ruff, MyPy, pytest, `npm run check`) were\
+    \ handed a scrubbed env\n- the note is emitted when the shell is disowned and\
+    \ stays quiet when it is not\ntests/test_source_provenance.py: 32 passed in 3.71s\
+    \ on the worktree's own interpreter.\n\nDOCS (sc-3) - ALLAGENTS.md \"Bootstrapping\
+    \ a worktree\": added a paragraph stating that naming the interpreter is the only\
+    \ thing the reader has to do, that VIRTUAL_ENV needs no managing around a gate\
+    \ run, and naming the six-minutes-then-Playwright failure it replaces. The existing\
+    \ explanation of WHY the hazard exists is kept verbatim, and the new paragraph\
+    \ closes by saying `poetry run` outside the gate still prefers whatever the shell\
+    \ activated. ENGINEERING.md needed no change -- it links to that section and never\
+    \ taught the workaround itself.\n\nNEXT - the sc-1 experiment is running now:\
+    \ VIRTUAL_ENV exported to the main clone's virtualenv, `<worktree interpreter>\
+    \ scripts/check.py`, full gate including Playwright. Result to follow."
+  data:
+    operation:
+      id: aadc9548-5763-42c0-b181-771b5de54253
+      kind: log_append
+      fingerprint: 172311cf46867d150442e28a69c75da8
