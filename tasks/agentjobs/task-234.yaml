@@ -3,7 +3,7 @@ id: task-234
 title: Merging after approval costs a whole second agent session, about eleven minutes,
   on every task
 created: '2026-08-21T20:43:16.534300Z'
-updated: '2026-08-21T20:52:34.707263Z'
+updated: '2026-08-21T20:55:24.696765Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -223,3 +223,75 @@ log:
       id: c4e81a37-9d52-4b60-8f13-2a7e05b9d304
       kind: log_append
       fingerprint: ddc58a359d7fda95e63ad6064bea5b7d
+- id: 3
+  ts: '2026-08-21T20:55:24.696594Z'
+  actor: claude
+  type: progress
+  body: "**Jeff's preferred shape, stated 2026-08-21: \"keep one session for the whole\
+    \ duration of the task, and when I click approve or request changes it manages\
+    \ to send that as a prompt to the still-live session.\"** Probed what the tooling\
+    \ actually supports. Two facts settled, one open question narrowed to something\
+    \ checkable.\n\n## 1. The session-manager verbs, from `claude <verb> --help`\n\
+    \n| Verb | What it says |\n|---|---|\n| `claude stop <id>` | \"Stop a background\
+    \ session. **Its conversation is kept; resume it later with `claude attach <id>`.**\"\
+    \ |\n| `claude rm <id>` | \"**Delete** a background session and its worktree.\
+    \ Unlike `stop`, works on already-exited sessions.\" |\n| `claude attach <id>`\
+    \ | \"Open the background session in this terminal... **The session keeps running\
+    \ either way.**\" |\n\nThere is no `send`, `message`, `tell` or `resume` verb\
+    \ \u2014 those fall through to the top-level `claude` usage.\n\n**This sharpens\
+    \ the reaper finding into a one-word difference.** `DispatchLedger.reap()` calls\
+    \ `self._session(\"rm\", ...)` \u2014 the *destructive* verb. `stop` exists, keeps\
+    \ the conversation, and leaves it attachable. So the choice between \"a finished\
+    \ run is resumable\" and \"a finished run is gone\" is currently made by which\
+    \ of two adjacent CLI verbs the reaper happens to call, and nothing in the record\
+    \ says that was a considered choice. Whoever works this should read task-186 and\
+    \ the `reap` docstring before changing it \u2014 `rm`'s worktree deletion was\
+    \ the point at the time \u2014 but the docstring itself notes dispatch no longer\
+    \ passes `-w`, so a dispatched session owns no worktree and that reason has lapsed.\n\
+    \n## 2. A live background session **is** addressable from another process \u2014\
+    \ verified\n\n`ListAgents` from a separate Claude Code session, while both dispatched\
+    \ runs were live, returned them by name alongside eleven other sessions on this\
+    \ machine:\n\n```\nDispatch: task-231 review panel buttons [9e4678]  \xB7  bg\
+    \  \xB7  busy  \xB7  started 23m ago\nDispatch: task-229 drag scrolling      [d4fa63]\
+    \  \xB7  bg  \xB7  busy  \xB7  started 36m ago\n```\n\nThe addressing scheme is\
+    \ the session name, and the peer channel carries messages to it. So **\"deliver\
+    \ the approval as a prompt into the live session\" is not hypothetical \u2014\
+    \ the transport exists and the sessions are visible on it.** Dispatch already\
+    \ launches every run with `--remote-control` ([runner.py:3](src/agentjobs/dispatch/runner.py:3),\
+    \ and visible in every run's recorded argv), which is the flag that puts a session\
+    \ on that channel in the first place.\n\n## 3. The open question, now specific\n\
+    \n**What is the API surface of that channel for a process that is not Claude Code?**\
+    \ The evidence above was gathered by a Claude Code session using a harness tool.\
+    \ AgentJobs is a Python FastAPI server, and it would need to reach the same transport\
+    \ from `approve_task`. That is the one thing to establish before choosing this\
+    \ design, and it has three possible answers, in descending order of preference:\n\
+    \n1. A documented local endpoint or socket the remote-control channel exposes,\
+    \ callable from Python.\n2. An undocumented one \u2014 usable, but it would join\
+    \ `~/.claude/daemon.log` in the category task-224 explicitly rejected: *\"an undocumented\
+    \ internal\"*. The same reasoning should apply here rather than being re-litigated.\n\
+    3. No non-Claude access at all, in which case the delivery mechanism has to be\
+    \ a small Claude Code invocation acting as a courier, or the design falls back\
+    \ to the other options.\n\n**Do not build on assumption 1 without checking it.**\
+    \ Nothing in this entry establishes that a Python process can send to that channel;\
+    \ it establishes only that *something* can.\n\n## Revised ranking\n\nJeff's shape\
+    \ is now the leading candidate, because it needs no held-slot compromise *and*\
+    \ no cold restart:\n\n- **One session for the whole task** \u2014 reachable by\
+    \ prompt today (finding in the previous entry: nothing kills the session, the\
+    \ agent ends its own turn).\n- **Approval delivered into it** \u2014 transport\
+    \ verified to exist, API surface for Python unverified.\n- **If the API is not\
+    \ reachable**, the fallback is not the status quo but option D from the previous\
+    \ entry: `stop` instead of `rm`, then `attach`-resume on approval, which keeps\
+    \ the conversation and holds no concurrency slot while the human deliberates.\n\
+    \n## Aside, worth its own look\n\nThe same `ListAgents` output showed several\
+    \ stale background sessions on this machine: `task-207: done but issues` idle\
+    \ 6h, `task-225: started without me knowing` idle 4h, `task record reading` idle\
+    \ 4h, and two \u2014 `queue verb selection`, `queue position schema` \u2014 sitting\
+    \ in `waiting` for 5h, which is the shape of a session parked on a prompt nobody\
+    \ answered. They are not this task's business but they are accumulating, and a\
+    \ parked session nobody knows about is exactly the failure mode that makes long\
+    \ runs unreliable."
+  data:
+    operation:
+      id: c4e81a37-9d52-4b60-8f13-2a7e05b9d305
+      kind: log_append
+      fingerprint: a866b18fd6acd6c8bfcad5fb54f61c01
