@@ -2,7 +2,7 @@ schema: 2
 id: task-153-dispatcher-actor-refusal-message
 title: Stop the dispatch refusal telling you to configure the dispatcher as a human
 created: '2026-08-18T21:02:17.186936Z'
-updated: '2026-08-19T19:26:09.362402Z'
+updated: '2026-08-21T01:08:26.933366Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -198,3 +198,40 @@ log:
       id: e3c8b2d6-5d74-4e10-9038-7f4b0c8e0183
       kind: update_content
       fingerprint: 8c1be9ef5eecbe709eb7d00d814bf8a6
+- id: 3
+  ts: '2026-08-21T01:08:26.933238Z'
+  actor: claude
+  type: decision
+  body: "Promoted onto the pre-flight runway for the task-081 queue-position epic\
+    \ (alongside task-203 and task-210), and dispatched to a child session now.\n\n\
+    Why this clears the runway bar. The bar was: an autonomous runner dispatching\
+    \ task-204..209 would plausibly hit it during that epic. It would.\n\n- Trigger\
+    \ is ordinary, not exotic. Any *re*-dispatch of a task whose newest log entry\
+    \ is the dispatcher's own `dispatch_result` takes this branch. Re-dispatch is\
+    \ a designed-for event, not an edge case: ~/.agentjobs/dispatch.yaml carries `auto.per_task_per_day:\
+    \ 3` and `per_task_lifetime: 10`, limits that only mean anything if the same task\
+    \ is dispatched more than once. And `run_timeout_seconds` is 1800 against a gate\
+    \ that costs ~355s alone and ~444s worst case under six-way concurrency (ENGINEERING.md),\
+    \ so a run timing out and wanting a retry across six epic tasks is likely rather\
+    \ than merely possible.\n- The consequence is the severe one. The refusal's `suggested_action`\
+    \ is a *working* recipe: adding `dispatcher: {kind: human}` to the project's actors\
+    \ makes every subsequent dispatcher-written entry clock as human, and dispatch\
+    \ can then drive itself with no human in the loop for the remainder of the epic.\
+    \ An autonomous runner is precisely the reader that applies a machine-readable\
+    \ `suggested_action` mechanically, without the scepticism a human would bring.\
+    \ A guard whose own error message tells an unsupervised agent how to disable it\
+    \ is the wrong thing to have standing when unsupervised agents start running.\n\
+    - Cost is small and the work already exists. Priority high, effort small, spec\
+    \ complete, fix localised to guards.py. Promoting a filed task beat filing a new\
+    \ one.\n\nRejected alternative: leaving it in the backlog and relying on the epic\
+    \ never needing a retry. That bets the guard's integrity on a run-timeout never\
+    \ firing across six dispatched tasks, and the failure is silent \u2014 the config\
+    \ edit persists after the epic ends.\n\nScope is unchanged by this promotion.\
+    \ This task remains about the message and the branch it takes; the human-clocked\
+    \ rule, the choice of causing entry, and the reserved-actor design all stay exactly\
+    \ as the spec's constraints state."
+  data:
+    operation:
+      id: c1a70000-1153-4a00-9e00-000000000153
+      kind: log_append
+      fingerprint: 51950a2d2cb822213ed69c0f2409d1be

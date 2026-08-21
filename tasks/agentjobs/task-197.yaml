@@ -3,7 +3,7 @@ id: task-197
 title: The session poller resolves the project's default runner, so a run dispatched
   from a group is polled with the wrong executable
 created: '2026-08-20T17:56:56.232826Z'
-updated: '2026-08-20T17:56:56.233439Z'
+updated: '2026-08-21T01:08:44.556524Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -82,3 +82,39 @@ log:
   body: Created ready by claude.
   data:
     lifecycle: ready
+- id: 2
+  ts: '2026-08-21T01:08:44.556396Z'
+  actor: claude
+  type: decision
+  body: "Considered for the pre-flight runway ahead of the task-081 queue-position\
+    \ epic, and deliberately left off it. Stays ready at medium; nothing about the\
+    \ defect or its priority changes.\n\nThe runway bar was: an autonomous runner\
+    \ dispatching task-204..209 would plausibly hit this during that epic. It cannot,\
+    \ and I checked rather than taking this task's own latency note on faith.\n\n\
+    Verified 2026-08-21 against ~/.agentjobs/dispatch.yaml as it stands:\n- All three\
+    \ runners are claude-prefixed \u2014 claude-opus-5, claude-sonnet-5, claude-fable-5\
+    \ \u2014 each `argv: [\"claude\", \"--bg\", \"--remote-control\", \"--model\"\
+    , ..., \"{prompt}\"]`. The only non-claude member, chatgpt-sol in the `default`\
+    \ group, is `enabled: false` with no runner written for it.\n- `DispatchRunner.executable_prefix()`\
+    \ (runner.py:1032) takes leading argv elements up to the first flag or substitution,\
+    \ so it evaluates to exactly `[\"claude\"]` for every runner in the file, in every\
+    \ group.\n- Therefore the poller resolving the project default instead of the\
+    \ run's group yields an identical executable prefix whichever group a run was\
+    \ dispatched from. The wrong-runner path exists in the code and produces the right\
+    \ command anyway.\n\nThe agentjobs project is additionally pinned to `group: default`\
+    \ in that config, so an epic dispatch would not even exercise cross-group resolution.\n\
+    \nRejected alternative: bundling it in anyway as cheap dispatch-adjacent hardening\
+    \ while task-203 has the dispatch code open. Declined \u2014 the runway is meant\
+    \ to be short, and a change to poller runner-resolution carries its own regression\
+    \ surface (ac-2 alone requires handling a run whose recorded runner has left the\
+    \ config) for a defect that cannot fire during the epic. task-153 was promoted\
+    \ instead, because that one can fire.\n\nReopen trigger, so this is not lost:\
+    \ the moment a runner whose argv[0] is not `claude` becomes runnable in ~/.agentjobs/dispatch.yaml\
+    \ \u2014 enabling chatgpt-sol, or adding any batch/python/npx runner \u2014 this\
+    \ stops being latent and should be fixed before the next dispatch from a group.\
+    \ The config is already written in anticipation of exactly that."
+  data:
+    operation:
+      id: c1a70000-1197-4a00-9e00-000000000197
+      kind: log_append
+      fingerprint: 2a3f0434e9fde7ed6f2e43b6db2e0d16
