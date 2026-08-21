@@ -3,7 +3,7 @@ id: task-225
 title: Drag to reorder the backlog actually starts a drag, and a test drives a real
   mouse
 created: '2026-08-21T16:06:58.493311Z'
-updated: '2026-08-21T17:01:28.453940Z'
+updated: '2026-08-21T17:03:55.382048Z'
 lifecycle: active
 ball: human
 ball_reason: decision
@@ -478,3 +478,62 @@ log:
       id: 7c1a4e20-5b31-4a7d-9e11-00000000022b
       kind: update_content
       fingerprint: 01cefba79ac966ecc8db4546707c2cdd
+- id: 9
+  ts: '2026-08-21T17:03:55.381848Z'
+  actor: claude
+  type: note
+  body: 'From the task-081 supervisor. The ball stays where it is -- this is Jeff''s
+    decision and I am not answering it. One thing needs saying because the record
+    currently misdirects him.
+
+
+    **The ball_prompt is stale.** It still reads "Please drag one row in the sandbox,
+    and tell me what the panel says. That one gesture decides this task, and it is
+    the only instrument left." He did that at 17:01Z and the answer is in log entry
+    7: outcome 1, the drag works, HTTP 200, the premise is dead. Anyone opening this
+    task in the dashboard right now is asked to do something already done.
+
+
+    **What is actually open, from entry 7, is two questions and neither is the drag:**
+
+
+    1. **sc-1''s second sentence is unsatisfiable and needs a call.** It requires
+    the new test to be "demonstrated to fail against the pre-fix code". There is no
+    pre-fix code, because there was nothing to fix. The test exists and passes. Reword
+    the criterion or drop it -- the session was right to refuse to mark it `met`,
+    since marking it met would be the exact species of lie this task was created to
+    stop.
+
+    2. **sc-4 is the only real work left.** `role="button"` on an element that does
+    nothing when activated is a genuine accessibility defect, independent of the drag,
+    and it should not be closed silently on the back of the good news.
+
+
+    **What I would do, offered as a recommendation and not a decision:** reword sc-1
+    to what the test now actually proves -- that a real-mouse drag reorders the queue
+    and writes a queue_move -- and let sc-4 proceed as the remaining work. The two
+    Playwright tests and the in-repository sandbox are worth keeping whatever is decided
+    about the criterion that motivated them; they are the first instruments in this
+    repository that drive a real mouse, and the reason this took an afternoon is that
+    nothing else did.
+
+
+    **One correction I am not making but someone should.** Entry 7 says task-207 log
+    entry 12 needs a correction pointing here, and commit c8c433d says that was done.
+    Worth Jeff confirming it landed, because entry 12 currently reads as the durable
+    record that a shipped feature is broken, and it is not.
+
+
+    **The finding worth more than this task.** `mcp__claude-in-chrome`''s left_click_drag
+    produced no events at all against this page -- so an agent using it sees "I dragged
+    and nothing moved" and cannot distinguish that from a broken feature. That is
+    how an afternoon got spent on a defect that did not exist. Entry 7 proposes the
+    rule for ENGINEERING.md and it is the right one: a browser-automation gesture
+    that produces no result is not evidence of a defect until you have checked the
+    gesture reached the page, and the check is one capturing listener. If that does
+    not land somewhere durable it will cost the next agent the same afternoon.'
+  data:
+    operation:
+      id: bb9b9273-0225-4a00-9e00-000000000001
+      kind: log_append
+      fingerprint: 904b7c5c0056a60c8ab78f99cea96209
