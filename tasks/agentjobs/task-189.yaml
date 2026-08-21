@@ -3,13 +3,9 @@ id: task-189
 title: The gate makes you pay four minutes to learn something it knew in one second,
   and there is no way to resume it
 created: '2026-08-20T06:40:10.935944Z'
-updated: '2026-08-21T04:57:24.500612Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-21T05:06:54.227176Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -19,7 +15,6 @@ tags:
 - check-gate
 effort: half a day
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "scripts/check.py runs its 4-minute pytest stage before a block of checks\
@@ -160,7 +155,7 @@ dependencies:
 links: []
 branches:
 - name: chore/task-189-gate-order-and-resume
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-20T06:40:10.935991Z'
@@ -542,3 +537,71 @@ log:
         eligible: true
       - runner: chatgpt-sol
         eligible: true
+- id: 15
+  ts: '2026-08-21T05:06:12.345552Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: b1c4e7a2-9f31-4d58-8a06-2c9e5f7d1904
+      kind: update_content
+      fingerprint: 00e5f09bf873200de45824d0694192da
+- id: 16
+  ts: '2026-08-21T05:06:31.331363Z'
+  actor: claude
+  type: progress
+  body: "Merged on Jeff's approval (log entry 12).\n\n`chore/task-189-gate-order-and-resume`\
+    \ rebased onto `main` \u2014 which had moved to `91533be` (task-164, task-211,\
+    \ and this task's own approval record) \u2014 cleanly, no conflicts. Three commits\
+    \ replayed as `050e2f0`, `1c898bf`, `2fe98c2`.\n\n**Re-verified after the rebase,\
+    \ before merging.** The gate was green on the pre-rebase branch, but `main` had\
+    \ moved, so that green was for a tree that no longer existed. Full unqualified\
+    \ `scripts/check.py` in the worktree, run with the interpreter `bootstrap.py`\
+    \ printed rather than `poetry run`: **exit 0, all ten stages, 373.0s** \u2014\
+    \ black 1.1, ruff 0.1, mypy 2.8, api 5.9, icons 2.6, oxlint 0.6, pytest 305.7,\
+    \ vitest 32.3, build 3.9, e2e 18.2 (16 Playwright tests). Closing line read `Ran\
+    \ every stage (10 of 10).`, not the partial-run banner. Log: `C:/Users/jpose/.claude/jobs/ba4cb674/tmp/gate-189-postrebase.log`.\n\
+    \nThat run is also the first independent exercise of the new stage table by a\
+    \ session that did not write it, and it behaved as documented.\n\nMerged into\
+    \ `main` with `--no-ff` as `3ef4831`. Branch marked `merged` in `branches[]`,\
+    \ local branch deleted, worktree `C:/projects/worktrees/aj-189` removed.\n\n**No\
+    \ frontend rebuild and no server restart.** The merge touches `scripts/check.py`,\
+    \ `tests/`, `frontend/scripts/`, `frontend/package.json` and four markdown files\
+    \ \u2014 nothing under `src/agentjobs/` and nothing under `frontend/src/`. The\
+    \ bundle the running server on 8876 hands out is unchanged by this merge, and\
+    \ so is the code it has imported. Checked rather than assumed: `git diff --stat\
+    \ main...HEAD` lists eleven files and none of them are served.\n\n**Not pushed.**\
+    \ ENGINEERING.md treats pushing as a separate act from merging, so `main` is one\
+    \ merge commit ahead of `origin/main` and waiting on Jeff.\n\nThe open question\
+    \ in log entry 8 \u2014 that the `oxlint` stage cannot fail \u2014 is unanswered\
+    \ and outlives this task. It was flagged as out of scope here on the \"reordering\
+    \ must not change what is checked\" constraint. Nothing has been filed for it."
+  data:
+    operation:
+      id: 6d2f80b5-3c17-4a92-b0e8-71fa4c9e2213
+      kind: log_append
+      fingerprint: 24cf020744af22c560371818517d47cb
+- id: 17
+  ts: '2026-08-21T05:06:54.226929Z'
+  actor: claude
+  type: transition
+  body: "Merged as `3ef4831` on `main`, all five acceptance criteria met, gate green\
+    \ post-rebase (373.0s, ten of ten stages). Evidence in log entry 16.\n\nThe gate\
+    \ now runs cheapest-first \u2014 the three frontend hygiene stages that used to\
+    \ sit behind a five-minute pytest run cost 9.1s between them and answer first\
+    \ \u2014 the generated-client check tells \"does not match the schema\" apart\
+    \ from \"not committed yet\" and only fails on the first, and `--from`/`--only`/`--list`\
+    \ make a late failure resumable without weakening the unqualified command.\n\n\
+    One thread outlives this task and was deliberately not closed with it: log entry\
+    \ 8's question about the `oxlint` stage being unable to fail. It predates this\
+    \ work and nothing has been filed for it."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: e9a71c30-52b4-4f6d-9d18-4b3a06e8f775
+      kind: close
+      fingerprint: 9c6e1024676d6138f1ee547bde21b91a
