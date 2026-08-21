@@ -22,7 +22,11 @@ import {
   queueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostMutation,
   rejectTaskApiProjectsProjectIdTasksTaskIdRejectPostMutation,
   reprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostMutation,
+  answerTaskApiProjectsProjectIdTasksTaskIdAnswerPostMutation,
+  holdTaskApiProjectsProjectIdTasksTaskIdHoldPostMutation,
+  redirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostMutation,
   requestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostMutation,
+  resumeTaskApiProjectsProjectIdTasksTaskIdResumePostMutation,
 } from "./api/generated/@tanstack/react-query.gen";
 import type { DispatchRunView, Priority } from "./api/types";
 import { readRefusal } from "./api/mutation-error";
@@ -366,6 +370,10 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
   });
   const approve = useMutation(approveTaskApiProjectsProjectIdTasksTaskIdApprovePostMutation());
   const changes = useMutation(requestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostMutation());
+  const answer = useMutation(answerTaskApiProjectsProjectIdTasksTaskIdAnswerPostMutation());
+  const redirect = useMutation(redirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostMutation());
+  const hold = useMutation(holdTaskApiProjectsProjectIdTasksTaskIdHoldPostMutation());
+  const resume = useMutation(resumeTaskApiProjectsProjectIdTasksTaskIdResumePostMutation());
   const reject = useMutation(rejectTaskApiProjectsProjectIdTasksTaskIdRejectPostMutation());
   const promote = useMutation(promoteTaskApiProjectsProjectIdTasksTaskIdPromotePostMutation());
   const addNote = useMutation(appendLogEntryApiProjectsProjectIdTasksTaskIdLogPostMutation());
@@ -382,18 +390,38 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
   const user = detailQuery.data.identity.user;
   const revision = detailQuery.data.task.updated;
   const refresh = async () => { await queryClient.invalidateQueries(); };
-  const actionError = approve.error || changes.error || reject.error;
+  // Every send-back reports through the one banner the panel already has: which
+  // route failed is not a distinction a human can act on differently.
+  const sendBacks = [changes, answer, redirect, hold, resume];
+  const actionError =
+    approve.error || reject.error || sendBacks.find((mutation) => mutation.error)?.error;
   return (
     <TaskDetail
       detail={detailQuery.data}
       projectId={projectId}
-      busy={approve.isPending || changes.isPending || reject.isPending}
+      busy={
+        approve.isPending ||
+        reject.isPending ||
+        sendBacks.some((mutation) => mutation.isPending)
+      }
       error={actionError ? "The action could not be recorded. Reload and try again." : null}
       promoteBusy={promote.isPending}
       promoteError={promoteError}
       dispatch={dispatch}
-      onApprove={async () => { if (!user) return; await approve.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user } }); await refresh(); }}
-      onRequestChanges={async (feedback, attachments) => { if (!user) return; await changes.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, feedback, attachments } }); await refresh(); }}
+      onApprove={async (note) => { if (!user) return; await approve.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, note } }); await refresh(); }}
+      onResume={async (note) => { if (!user) return; await resume.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, note } }); await refresh(); }}
+      onSendBack={async (reason, feedback, attachments) => {
+        if (!user) return;
+        // One route per act, chosen here rather than by a discriminator in the body,
+        // so what happened is legible in a network log and in the server's own logs.
+        const path = { project_id: projectId, task_id: taskId };
+        const body = { user, feedback, attachments };
+        if (reason === "answer") await answer.mutateAsync({ path, body });
+        else if (reason === "redirect") await redirect.mutateAsync({ path, body });
+        else if (reason === "hold") await hold.mutateAsync({ path, body });
+        else await changes.mutateAsync({ path, body });
+        await refresh();
+      }}
       onReject={async (reason) => { if (!user) return; await reject.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, reason } }); await navigate(`/p/${encodeURIComponent(projectId)}/tasks`, { replace: true }); }}
       noteBusy={addNote.isPending}
       noteError={noteError}

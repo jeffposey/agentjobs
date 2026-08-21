@@ -93,6 +93,18 @@ enums:
         description: "agent: claimed and executing."
       revise:
         description: "agent: review came back with changes requested."
+      answer:
+        description: >-
+          agent: the human supplied what the agent was waiting for -- an answer, a
+          decision, a permission, a cleared blocker. Prior work stands; resume.
+      redirect:
+        description: >-
+          agent: the instructions changed. Prior work stands but the direction does
+          not; re-read the prompt before continuing.
+      hold:
+        description: >-
+          agent: stopped by a human, with the release condition stated in ball_prompt.
+          The only agent-side reason that is not workable -- auto-dispatch skips it.
       # --- ball: human ---
       spec:
         description: "human: the spec needs human completion or refinement."
@@ -449,7 +461,8 @@ classes:
               value_presence: PRESENT
 
       - title: agent_ball_reason_vocabulary
-        description: "Rule 2, agent side: available | work | revise."
+        description: >-
+          Rule 2, agent side: available | work | revise | answer | redirect | hold.
         preconditions:
           slot_conditions:
             ball:
@@ -461,6 +474,9 @@ classes:
                 - equals_string: available
                 - equals_string: work
                 - equals_string: revise
+                - equals_string: answer
+                - equals_string: redirect
+                - equals_string: hold
 
       - title: human_ball_reason_vocabulary
         description: "Rule 2, human side: spec | review | decision | approval | input."

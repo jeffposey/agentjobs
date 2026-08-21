@@ -479,3 +479,69 @@ class TestManualDispatchIsNotCapped:
 
         assert response.status_code == 202, response.text
         assert len(runs_in(home)) == 1
+
+
+class TestAHoldIsNotDispatchable:
+    """task-231: `agent/hold` is the first agent-ball state that is not workable.
+
+    Before it existed, a human imposing a hold had one control -- Request Changes --
+    which writes `agent/revise`, and `maybe_auto_dispatch` gates on the ball alone. So
+    on a project with auto-dispatch on, the click that told a run to stop started the
+    next one. That is the defect the value exists to close, and this is the test that
+    would catch it coming back.
+    """
+
+    def test_auto_dispatch_skips_a_held_task(self, served, tmp_path: Path) -> None:
+        client, root, home = served
+        write_dispatch_config(home, tmp_path, auto=True)
+        manager = manager_for(root)
+        task_id = seed_task(root)
+
+        # A human -- so the human-clocked rule is satisfied and cannot be what refuses.
+        task = manager.handoff(
+            task_id,
+            actor="Jeff Posey",
+            ball=Ball.AGENT,
+            ball_reason=BallReason.HOLD,
+            ball_prompt="Wait for the dispatch fixes before trying this again.",
+        )
+        outcome = maybe_auto_dispatch(
+            manager=manager,
+            project=ProjectRegistry(home=home).get("sandbox"),
+            project_config=CONFIG,
+            task=task,
+        )
+
+        assert outcome.started is False
+        assert outcome.reason == "on_hold"
+        assert runs_in(home) == []
+
+    def test_the_same_handoff_without_the_hold_does_start_a_run(
+        self, served, tmp_path: Path
+    ) -> None:
+        """The control for the test above: prove the refusal is the hold, not the setup.
+
+        Identical actor, identical config, identical everything except the reason. If
+        this one also refused, the test above would be passing for the wrong cause.
+        """
+        client, root, home = served
+        write_dispatch_config(home, tmp_path, auto=True)
+        manager = manager_for(root)
+        task_id = seed_task(root)
+
+        task = manager.handoff(
+            task_id,
+            actor="Jeff Posey",
+            ball=Ball.AGENT,
+            ball_reason=BallReason.WORK,
+            ball_prompt="Carry on.",
+        )
+        outcome = maybe_auto_dispatch(
+            manager=manager,
+            project=ProjectRegistry(home=home).get("sandbox"),
+            project_config=CONFIG,
+            task=task,
+        )
+
+        assert outcome.started is True
+        assert outcome.reason == "dispatched"

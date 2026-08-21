@@ -58,6 +58,8 @@ export const REFUSAL_ACTIONS: Record<string, string> = {
   no_causing_entry:
     "Nothing on this task was written by a human yet. Use “Add a note” below to write the entry that authorises this run, then dispatch.",
   task_closed: "Reopen the task before dispatching at it.",
+  task_on_hold:
+    "A person put this task on hold, and the release condition is in the panel above. Resume it there before dispatching an agent at it.",
   live_run_exists: "A run for this task is already going. Wait for it, or cancel it below.",
   concurrency_limit:
     "Every slot this machine allows is in use. The refusal above names the runs holding them and the task each is working; cancel one of those, or raise limits.max_concurrent_runs in ~/.agentjobs/dispatch.yaml.",

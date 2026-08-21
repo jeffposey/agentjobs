@@ -43,6 +43,7 @@ from agentjobs.dispatch.guards import (
     OwnerMismatchError,
     RecordCannotBriefError,
     TaskClosedError,
+    TaskOnHoldError,
     UnreachableApiBaseError,
     assert_human_clocked,
     describe_slot_holders,
@@ -435,6 +436,34 @@ class TestTaskStateGates:
         with pytest.raises(TaskClosedError) as caught:
             run(manager, project, home, ready_task.id)
         assert caught.value.reason == "task_closed"
+
+    def test_a_held_task_is_refused_and_the_condition_is_in_the_message(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """task-231: a hold the manual path ignored would be a hold in name only.
+
+        Auto-dispatch skipping a held task is not enough on its own -- the Dispatch
+        button sits on the same page as the Hold control, so the cheapest way to defeat
+        a hold would be to click the thing next to it. The release condition is put in
+        the refusal because the person who hits it is the person deciding whether to
+        override it, and making them go and read the record first is friction with no
+        safety in it.
+        """
+        write_dispatch_config(home, fake_runner)
+        manager.claim_task(ready_task.id, agent="claude")
+        manager.handoff(
+            ready_task.id,
+            actor="Jeff Posey",
+            ball=Ball.AGENT,
+            ball_reason=BallReason.HOLD,
+            ball_prompt="Wait for the dispatch fixes to land.",
+        )
+
+        with pytest.raises(TaskOnHoldError) as caught:
+            run(manager, project, home, ready_task.id)
+        assert caught.value.reason == "task_on_hold"
+        assert "Wait for the dispatch fixes to land." in str(caught.value)
+        assert live_runs(home) == []
 
     def test_a_task_owned_by_another_agent_is_refused(
         self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task

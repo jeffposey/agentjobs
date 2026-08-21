@@ -160,6 +160,9 @@
                 "available",
                 "work",
                 "revise",
+                "answer",
+                "redirect",
+                "hold",
                 "spec",
                 "review",
                 "decision",
@@ -636,6 +639,15 @@
                                     },
                                     {
                                         "const": "revise"
+                                    },
+                                    {
+                                        "const": "answer"
+                                    },
+                                    {
+                                        "const": "redirect"
+                                    },
+                                    {
+                                        "const": "hold"
                                     }
                                 ]
                             }
@@ -1030,6 +1042,15 @@
                             },
                             {
                                 "const": "revise"
+                            },
+                            {
+                                "const": "answer"
+                            },
+                            {
+                                "const": "redirect"
+                            },
+                            {
+                                "const": "hold"
                             }
                         ]
                     }

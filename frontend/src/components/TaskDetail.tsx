@@ -2,6 +2,9 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import type { AttachmentUpload, LogEntry, TaskDetailResponse } from "../api/generated";
+// `TaskRead` is the app-facing alias for the output shape; `verbsFor` needs the record
+// itself, not just the detail envelope around it. See api/types.ts for why it is aliased.
+import type { TaskRead } from "../api/types";
 import { toUploads, type PendingAttachment } from "../report/attachments";
 import { AttachmentPicker } from "./AttachmentPicker";
 import { DependencyGraph } from "./DependencyGraph";
@@ -32,20 +35,196 @@ function SpecText({ children, muted = false }: { children: string; muted?: boole
 }
 
 /**
+ * What the panel offers a human, given why the ball arrived (task-231, part 2).
+ *
+ * Until this existed the panel branched on `lifecycle === "draft"` and nothing else, so
+ * every non-draft task -- including one waiting on a decision, with no branch and
+ * nothing to merge -- was offered "✓ Approve — agent may merge". Jeff, on a task with
+ * four numbered questions in its prompt: *"so you are saying, when I click Approve on
+ * 077, I am somehow answering all of this?!?!"* No. It would have recorded an approval
+ * with no defined meaning.
+ *
+ * The rule is that a control appears only where its verb is true of the task in front
+ * of it, and its label says what it writes:
+ *
+ *   ball_reason        primary                          send-back
+ *   -----------------  -------------------------------  --------------------------
+ *   (draft)            ▲ Promote — make it claimable    ✎ Send feedback   -> revise
+ *   review             ✓ Approve — agent may merge      ✎ Request Changes -> revise
+ *   approval           ✓ Approve — agent may merge      ✎ Request Changes -> revise
+ *   decision, input    none                             ✎ Answer Questions -> answer
+ *   spec (not draft)   none                             ✎ Send feedback   -> revise
+ *
+ * `approval` keeps Approve and keeps the merge wording, which is deliberate rather than
+ * an oversight: approve writes one fixed merge clearance for every gate there is, and
+ * splitting that -- so a design gate can be approved without implying merge -- is
+ * task-001's question, not this one's. The label matching what the route writes is the
+ * property being preserved here.
+ */
+type SendBackReason = "revise" | "answer" | "redirect" | "hold";
+
+type SendBackVerb = {
+  reason: SendBackReason;
+  text: string;
+  fieldLabel: string;
+  placeholder: string;
+  hint: string;
+};
+
+const REDIRECT_VERB: SendBackVerb = {
+  reason: "redirect",
+  text: "↪ New Instructions",
+  fieldLabel: "New instructions",
+  placeholder: "Say what to do instead. What has been done already stands.",
+  hint: "Recorded as a re-brief, not a rejection: the work so far stands and the direction changes.",
+};
+
+const HOLD_VERB: SendBackVerb = {
+  reason: "hold",
+  text: "⏸ Hold",
+  fieldLabel: "Release condition",
+  placeholder: "Say what has to be true before this resumes.",
+  hint: "Stops the task. No agent can be dispatched at it, automatically or by hand, until you release it here.",
+};
+
+type PanelVerbs = {
+  label: string;
+  heading: string;
+  guidance: string;
+  primary: { kind: "approve" | "promote"; text: string } | null;
+  secondary: SendBackVerb;
+  /** Re-brief and stop. Offered only where work is underway; see verbsFor. */
+  extras: Array<SendBackVerb>;
+};
+
+function verbsFor(task: TaskRead): PanelVerbs {
+  const planning = task.lifecycle === "draft";
+  const guidance =
+    "These actions update the task record. Nothing here runs git.";
+  if (planning) {
+    // A draft has nothing running, so there is nothing to re-brief and nothing to stop.
+    // Its own send-back is a revision of the spec, which is what `revise` means.
+    return {
+      label: "Draft actions",
+      heading: "Draft — the spec is with you",
+      guidance:
+        "These actions update the task record. Promoting puts this task in the pool for an agent to claim; nothing here runs git.",
+      primary: { kind: "promote", text: "▲ Promote — make it claimable" },
+      secondary: {
+        reason: "revise",
+        text: "✎ Send feedback",
+        fieldLabel: "Feedback on the spec",
+        placeholder: "Explain what the spec still needs...",
+        hint: "Recorded as a revision: the spec comes back to you when it has been changed.",
+      },
+      extras: [],
+    };
+  }
+  const heading = `${task.display_status} — the ball is with you`;
+  const answering: SendBackVerb = {
+    reason: "answer",
+    text: "✎ Answer Questions",
+    fieldLabel: "Your answer",
+    placeholder: "Answer what the prompt above asks...",
+    hint: "Recorded as an answer, not a revision: nothing done so far is being rejected.",
+  };
+  const requesting: SendBackVerb = {
+    reason: "revise",
+    text: "✎ Request Changes",
+    fieldLabel: "Feedback or questions",
+    placeholder: "Explain what needs to change...",
+    hint: "Recorded as a revision: the agent changes the work and comes back to you for another review.",
+  };
+  const extras = [REDIRECT_VERB, HOLD_VERB];
+  if (task.ball_reason === "decision" || task.ball_reason === "input") {
+    return { label: "Review actions", heading, guidance, primary: null, secondary: answering, extras };
+  }
+  if (task.ball_reason === "spec") {
+    return {
+      label: "Review actions",
+      heading,
+      guidance,
+      primary: null,
+      secondary: {
+        ...requesting,
+        text: "✎ Send feedback",
+        fieldLabel: "Feedback on the spec",
+        placeholder: "Explain what the spec still needs...",
+      },
+      extras,
+    };
+  }
+  return {
+    label: "Review actions",
+    heading,
+    guidance,
+    primary: { kind: "approve", text: "✓ Approve — agent may merge" },
+    secondary: requesting,
+    extras,
+  };
+}
+
+/** An optional-note form: promote, approve and resume are all complete acts without one. */
+function NoteForm({
+  id,
+  label,
+  placeholder,
+  submitText,
+  value,
+  working,
+  onChange,
+  onSubmit,
+  onCancel,
+}: {
+  id: string;
+  label: string;
+  placeholder: string;
+  submitText: string;
+  value: string;
+  working: boolean;
+  onChange: (next: string) => void;
+  onSubmit: (note: string | null) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        // null rather than "" for an empty note, so the server writes its own sentence
+        // instead of the UI inventing a blank one.
+        onSubmit(value.trim() ? value.trim() : null);
+      }}
+    >
+      <label htmlFor={id} className="block text-sm font-semibold">{label}</label>
+      <textarea id={id} value={value} onChange={(event) => onChange(event.target.value)} rows={4} className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none" placeholder={placeholder} />
+      <div className="mobile-action-row flex gap-3">
+        <button type="submit" disabled={working} className="touch-target rounded-lg bg-emerald-600 px-4 font-semibold text-white disabled:opacity-60">{submitText}</button>
+        <button type="button" onClick={onCancel} className="touch-target rounded-lg border border-dark-border px-4 font-semibold">Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+/**
  * The one box a human acts through, wearing the vocabulary of the phase the task
  * is in.
  *
  * A draft has not been specified yet, so the primary action is "this spec is
  * finished, make it claimable". A task past draft is being reviewed, so the primary
- * action is "approved, go merge". The other two actions do not change at all: asking
- * for changes and rejecting mean the same thing while a spec is being written as
- * they do after work is done, and only their wording needed to follow the phase.
+ * action is "approved, go merge" -- but only where that is true of the task, which is
+ * what `verbsFor` above decides.
  *
  * The primary button dispatches to a different verb per phase, and that difference
  * is not cosmetic. `approve` hands the ball back and leaves `lifecycle` alone;
  * `promote` moves `lifecycle` draft -> ready and clears the owner. Sending a draft
  * through approve would leave it draft/agent-work, which `get_next_task()` never
  * returns -- claimable by nobody, forever.
+ *
+ * A task a human has put on hold shows a different box again: the ball is with the
+ * agent, so none of the review verbs apply, and the only true verb is releasing it.
+ * Without that this panel would return null on a held task and the hold would have no
+ * way out of the browser.
  */
 function ReviewPanel({
   detail,
@@ -53,99 +232,152 @@ function ReviewPanel({
   error,
   promoteBusy,
   onApprove,
-  onRequestChanges,
+  onSendBack,
   onReject,
   onPromote,
+  onResume,
 }: TaskDetailProps) {
-  const [mode, setMode] = useState<"none" | "promote" | "changes" | "reject">("none");
+  const [mode, setMode] = useState<"none" | "promote" | "approve" | "resume" | "send" | "reject">("none");
+  const [sendVerb, setSendVerb] = useState<SendBackVerb | null>(null);
   const [feedback, setFeedback] = useState("");
   const [attachments, setAttachments] = useState<Array<PendingAttachment>>([]);
-  if (detail.task.ball !== "human") return null;
+  const held = detail.task.ball === "agent" && detail.task.ball_reason === "hold";
+  if (detail.task.ball !== "human" && !held) return null;
 
-  const planning = detail.task.lifecycle === "draft";
-  const working = busy || promoteBusy;
-  const copy = planning
-    ? {
-        label: "Draft actions",
-        heading: "Draft — the spec is with you",
-        guidance: "These actions update the task record. Promoting puts this task in the pool for an agent to claim; nothing here runs git.",
-        primary: "▲ Promote — make it claimable",
-        secondary: "✎ Send feedback",
-        feedbackLabel: "Feedback on the spec",
-        feedbackPlaceholder: "Explain what the spec still needs...",
-      }
-    : {
-        label: "Review actions",
-        heading: `${detail.task.display_status} — the ball is with you`,
-        guidance: "These actions update the task record and hand work back to the agent. They do not run git.",
-        primary: "✓ Approve — agent may merge",
-        secondary: "✎ Request Changes",
-        feedbackLabel: "Feedback or questions",
-        feedbackPlaceholder: "Explain what needs to change...",
-      };
-  const toggle = (next: "promote" | "changes" | "reject") => setMode(mode === next ? "none" : next);
+  const working = Boolean(busy) || Boolean(promoteBusy);
+  const verbs = verbsFor(detail.task);
+  const reset = () => { setMode("none"); setSendVerb(null); setFeedback(""); setAttachments([]); };
+  const toggle = (next: "promote" | "approve" | "resume" | "reject") => {
+    setSendVerb(null);
+    setFeedback("");
+    setAttachments([]);
+    setMode(mode === next ? "none" : next);
+  };
+  const toggleSend = (verb: SendBackVerb) => {
+    const same = mode === "send" && sendVerb?.reason === verb.reason;
+    setFeedback("");
+    setAttachments([]);
+    setSendVerb(same ? null : verb);
+    setMode(same ? "none" : "send");
+  };
+  const label = held ? "Hold actions" : verbs.label;
 
   return (
-    <section className="space-y-4 rounded-xl border-2 border-yellow-600/50 bg-yellow-950/30 p-4 min-[820px]:p-6" aria-label={copy.label}>
-      <h2 className="text-lg font-semibold text-yellow-300">{copy.heading}</h2>
+    <section className="space-y-4 rounded-xl border-2 border-yellow-600/50 bg-yellow-950/30 p-4 min-[820px]:p-6" aria-label={label}>
+      <h2 className="text-lg font-semibold text-yellow-300">{held ? "On hold — nothing will run until you release it" : verbs.heading}</h2>
       {detail.task.ball_prompt && <SpecText>{detail.task.ball_prompt}</SpecText>}
       {detail.identity.ok && detail.identity.user ? (
         <>
-          <p className="text-sm text-dark-muted">Acting as <strong className="text-dark-text">{detail.identity.user}</strong>. {copy.guidance}</p>
+          <p className="text-sm text-dark-muted">Acting as <strong className="text-dark-text">{detail.identity.user}</strong>. {held ? "Releasing puts the task back to work; nothing here runs git." : verbs.guidance}</p>
           <div className="mobile-action-row flex flex-wrap gap-3">
-            <button type="button" disabled={working} onClick={() => (planning ? toggle("promote") : void onApprove())} className="touch-target rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">{copy.primary}</button>
-            <button type="button" disabled={working} onClick={() => toggle("changes")} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white hover:bg-yellow-700 disabled:opacity-60">{copy.secondary}</button>
+            {held ? (
+              <button type="button" disabled={working} onClick={() => toggle("resume")} className="touch-target rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">▶ Resume — release the hold</button>
+            ) : (
+              <>
+                {verbs.primary && (
+                  <button type="button" disabled={working} onClick={() => toggle(verbs.primary?.kind === "promote" ? "promote" : "approve")} className="touch-target rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">{verbs.primary.text}</button>
+                )}
+                <button type="button" disabled={working} onClick={() => toggleSend(verbs.secondary)} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white hover:bg-yellow-700 disabled:opacity-60">{verbs.secondary.text}</button>
+                {verbs.extras.map((verb) => (
+                  <button key={verb.reason} type="button" disabled={working} onClick={() => toggleSend(verb)} className="touch-target rounded-lg border border-yellow-600/60 px-4 font-semibold text-yellow-200 hover:bg-yellow-900/40 disabled:opacity-60">{verb.text}</button>
+                ))}
+              </>
+            )}
             <button type="button" disabled={working} onClick={() => toggle("reject")} className="touch-target rounded-lg bg-red-600 px-4 font-semibold text-white hover:bg-red-700 disabled:opacity-60">✕ Reject &amp; Archive</button>
           </div>
           {mode === "promote" && (
-            <form
-              className="space-y-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                // null rather than "" for an empty note, so the manager writes its
-                // own sentence instead of the UI inventing a blank one.
-                void onPromote(feedback.trim() ? feedback.trim() : null);
-              }}
-            >
-              <label htmlFor="promote-note" className="block text-sm font-semibold">Promotion note (optional)</label>
-              <textarea id="promote-note" value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={4} className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none" placeholder="Say why the spec is finished. Left empty, AgentJobs writes its own sentence." />
-              <div className="mobile-action-row flex gap-3">
-                <button type="submit" disabled={working} className="touch-target rounded-lg bg-emerald-600 px-4 font-semibold text-white disabled:opacity-60">Promote</button>
-                <button type="button" onClick={() => { setMode("none"); setFeedback(""); setAttachments([]); }} className="touch-target rounded-lg border border-dark-border px-4 font-semibold">Cancel</button>
-              </div>
-            </form>
+            <NoteForm
+              id="promote-note"
+              label="Promotion note (optional)"
+              placeholder="Say why the spec is finished. Left empty, AgentJobs writes its own sentence."
+              submitText="Promote"
+              value={feedback}
+              working={working}
+              onChange={setFeedback}
+              onSubmit={(note) => void onPromote(note)}
+              onCancel={reset}
+            />
           )}
-          {(mode === "changes" || mode === "reject") && (
+          {mode === "approve" && (
+            <NoteForm
+              id="approve-note"
+              label="Approval note (optional) — does not block the merge"
+              placeholder="Anything to carry into the merge. Left empty, this is exactly a plain approval."
+              submitText="Approve"
+              value={feedback}
+              working={working}
+              onChange={setFeedback}
+              onSubmit={(note) => void onApprove(note)}
+              onCancel={reset}
+            />
+          )}
+          {mode === "resume" && (
+            <NoteForm
+              id="resume-note"
+              label="Note on releasing the hold (optional)"
+              placeholder="Anything the agent should know before it picks this back up."
+              submitText="Resume"
+              value={feedback}
+              working={working}
+              onChange={setFeedback}
+              onSubmit={(note) => void onResume(note)}
+              onCancel={reset}
+            />
+          )}
+          {mode === "send" && sendVerb && (
             <form
               className="space-y-3"
               onSubmit={(event) => {
                 event.preventDefault();
                 const value = feedback.trim();
                 if (!value) return;
-                void (mode === "changes" ? onRequestChanges(value, toUploads(attachments)) : onReject(value));
+                // Close the composer once the write lands, and only then. Every other
+                // send-back moves the ball off the human and takes this whole panel
+                // with it, so nothing had to clean up after itself -- but a hold
+                // leaves the panel rendered as the held one, and the composer that
+                // imposed the hold sat open underneath it, offering to submit again.
+                // Observed in a browser; no test asked the question.
+                //
+                // On failure the text stays put: the banner above says what went
+                // wrong, and throwing the human's prose away is not a way to report it.
+                void Promise.resolve(onSendBack(sendVerb.reason, value, toUploads(attachments))).then(
+                  reset,
+                  () => undefined,
+                );
               }}
             >
-              {mode === "changes" ? (
-                <AttachmentPicker
-                  label={copy.feedbackLabel}
-                  hint="Paste a screenshot of what you are describing; it is stored with this entry."
-                  placeholder={copy.feedbackPlaceholder}
-                  value={feedback}
-                  onChange={setFeedback}
-                  attachments={attachments}
-                  onAttachmentsChange={setAttachments}
-                  required
-                  textareaClassName="mt-1 min-h-28 w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none"
-                />
-              ) : (
-                <>
-                  <label htmlFor="review-feedback" className="block text-sm font-semibold">Reason for rejection</label>
-                  <textarea id="review-feedback" required value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={4} className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none" placeholder="Explain why this task should stop..." />
-                </>
-              )}
+              <AttachmentPicker
+                label={sendVerb.fieldLabel}
+                hint={sendVerb.hint}
+                placeholder={sendVerb.placeholder}
+                value={feedback}
+                onChange={setFeedback}
+                attachments={attachments}
+                onAttachmentsChange={setAttachments}
+                required
+                textareaClassName="mt-1 min-h-28 w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none"
+              />
               <div className="mobile-action-row flex gap-3">
                 <button type="submit" disabled={working || !feedback.trim()} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white disabled:opacity-60">Submit</button>
-                <button type="button" onClick={() => { setMode("none"); setFeedback(""); setAttachments([]); }} className="touch-target rounded-lg border border-dark-border px-4 font-semibold">Cancel</button>
+                <button type="button" onClick={reset} className="touch-target rounded-lg border border-dark-border px-4 font-semibold">Cancel</button>
+              </div>
+            </form>
+          )}
+          {mode === "reject" && (
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const value = feedback.trim();
+                if (!value) return;
+                void onReject(value);
+              }}
+            >
+              <label htmlFor="review-feedback" className="block text-sm font-semibold">Reason for rejection</label>
+              <textarea id="review-feedback" required value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={4} className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-yellow-500 focus:outline-none" placeholder="Explain why this task should stop..." />
+              <div className="mobile-action-row flex gap-3">
+                <button type="submit" disabled={working || !feedback.trim()} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white disabled:opacity-60">Submit</button>
+                <button type="button" onClick={reset} className="touch-target rounded-lg border border-dark-border px-4 font-semibold">Cancel</button>
               </div>
             </form>
           )}
@@ -294,13 +526,21 @@ export type TaskDetailProps = {
   // actually tells a human what happened and what to do about it.
   promoteBusy?: boolean;
   promoteError?: string | null;
-  onApprove: () => Promise<void> | void;
-  onRequestChanges: (
+  // A note, because approving and saying something about it are one act, not two
+  // (task-228). null means no note, and the record is then byte-identical to the
+  // one approve wrote before the parameter existed.
+  onApprove: (note: string | null) => Promise<void> | void;
+  // One prop rather than four near-identical ones. Every send-back is the same act --
+  // a note, and the ball moving to the agent -- and the reason is what differs, so the
+  // component's contract mirrors the vocabulary instead of paraphrasing it.
+  onSendBack: (
+    reason: SendBackReason,
     feedback: string,
     attachments: Array<AttachmentUpload>,
   ) => Promise<void> | void;
   onReject: (reason: string) => Promise<void> | void;
   onPromote: (note: string | null) => Promise<void> | void;
+  onResume: (note: string | null) => Promise<void> | void;
   // Writing a note is its own act with its own failure, so it keeps its own busy and
   // error rather than sharing the review panel's: a note that could not be saved must
   // still say so on a task whose review actions are not even rendered.
@@ -341,7 +581,13 @@ export function TaskDetail(props: TaskDetailProps) {
       {props.dispatch && (
         <DispatchPanel
           {...props.dispatch}
-          taskIsDispatchable={task.ball === "agent" && task.lifecycle !== "closed"}
+          taskIsDispatchable={
+            // `agent/hold` is the one agent-ball state an agent may not be started
+            // on, and the server refuses it (`task_on_hold`). Offering the button
+            // anyway would put the way around a hold next to the control that
+            // imposed it.
+            task.ball === "agent" && task.ball_reason !== "hold" && task.lifecycle !== "closed"
+          }
           identity={detail.identity}
           // The same field the server checks, so the page and the guard agree without a
           // second round trip. `spec.description` is the working specification; an empty

@@ -23,6 +23,9 @@ URI: [aj:enum/BallReason](https://github.com/jeffposey/agentjobs/schema/v2/enum/
 | available | None | agent: ready and unclaimed -- any eligible agent may take it |
 | work | None | agent: claimed and executing |
 | revise | None | agent: review came back with changes requested |
+| answer | None | agent: the human supplied what the agent was waiting for -- an answer, a deci... |
+| redirect | None | agent: the instructions changed |
+| hold | None | agent: stopped by a human, with the release condition stated in ball_prompt |
 | spec | None | human: the spec needs human completion or refinement |
 | review | None | human: work product needs review (v1's under_review) |
 | decision | None | human: a choice is blocking progress |
@@ -84,6 +87,19 @@ permissible_values:
   revise:
     text: revise
     description: 'agent: review came back with changes requested.'
+  answer:
+    text: answer
+    description: 'agent: the human supplied what the agent was waiting for -- an answer,
+      a decision, a permission, a cleared blocker. Prior work stands; resume.'
+  redirect:
+    text: redirect
+    description: 'agent: the instructions changed. Prior work stands but the direction
+      does not; re-read the prompt before continuing.'
+  hold:
+    text: hold
+    description: 'agent: stopped by a human, with the release condition stated in
+      ball_prompt. The only agent-side reason that is not workable -- auto-dispatch
+      skips it.'
   spec:
     text: spec
     description: 'human: the spec needs human completion or refinement.'

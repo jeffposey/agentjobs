@@ -286,7 +286,9 @@ class TestRuleTwoBallReasonScoping:
             )
 
     def test_the_error_lists_the_permitted_reasons(self) -> None:
-        with pytest.raises(ValidationError, match="available, revise, work"):
+        with pytest.raises(
+            ValidationError, match="answer, available, hold, redirect, revise, work"
+        ):
             Task.model_validate(
                 task_data(
                     lifecycle="active",
@@ -295,6 +297,50 @@ class TestRuleTwoBallReasonScoping:
                     assignment={"owner": "claude"},
                 )
             )
+
+    @pytest.mark.parametrize("reason", ["answer", "redirect", "hold"])
+    def test_the_reasons_task_231_added_are_agent_side(self, reason: str) -> None:
+        """Each is a real distinction a human made, not a flavour of `revise`.
+
+        The point of the values is that a cold reader can tell a rejection from an
+        answer from a re-brief from a stop, which is what task-081 entry 26 had to
+        repair in prose. Parametrised over the three so a value dropped from
+        `BALL_REASONS` fails here rather than silently narrowing the vocabulary.
+        """
+        task = Task.model_validate(
+            task_data(
+                lifecycle="active",
+                ball="agent",
+                ball_reason=reason,
+                assignment={"owner": "claude"},
+            )
+        )
+
+        assert task.ball_reason == reason
+
+    @pytest.mark.parametrize("reason", ["answer", "redirect", "hold"])
+    def test_the_new_reasons_are_not_human_side(self, reason: str) -> None:
+        with pytest.raises(ValidationError, match="does not belong to"):
+            Task.model_validate(task_data(lifecycle="active", ball="human", ball_reason=reason))
+
+    def test_a_held_task_reads_as_stopped_not_as_progress(self) -> None:
+        """`display_status` is what a human scanning the list acts on.
+
+        Every other agent-side reason means somebody is working; `hold` means nobody is,
+        deliberately. Reading "In progress (claude)" on a task a human stopped is the
+        list lying about the one state it was told to make visible.
+        """
+        held = Task.model_validate(
+            task_data(
+                lifecycle="active",
+                ball="agent",
+                ball_reason="hold",
+                ball_prompt="Wait for the dispatch fixes to land.",
+                assignment={"owner": "claude"},
+            )
+        )
+
+        assert held.display_status == "On hold (claude)"
 
     def test_ball_without_a_reason_is_rejected(self) -> None:
         with pytest.raises(ValidationError, match="ball_reason is required"):

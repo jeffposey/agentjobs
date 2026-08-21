@@ -350,3 +350,204 @@ def test_reject_without_reason(client: TestClient, sample_task_in_review: str) -
     )
     # Should fail validation due to min_length=1
     assert response.status_code == 400
+
+
+# ----- task-231: one route per human act, and each records what its label says ------
+
+
+def test_answering_is_recorded_as_an_answer_not_a_revision(
+    client: TestClient, sample_task_in_review: str
+) -> None:
+    """The distinction task-081 entry 26 had to repair in prose, made queryable.
+
+    Nothing the agent did is being rejected here; the human is supplying what it asked
+    for. Recorded as `revise` -- the only value available before this -- a cold reader
+    could not tell the two apart without reconstructing intent from the wording.
+    """
+    answer = "Option 2, and skip the third question entirely."
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/answer",
+        json={"user": "jeff", "feedback": answer},
+    )
+
+    assert response.status_code == 200
+    task = response.json()["task"]
+    assert task["ball"] == "agent"
+    assert task["ball_reason"] == "answer"
+    # Verbatim, exactly as requested changes carries its feedback.
+    assert task["ball_prompt"] == answer
+    latest = task["log"][-1]
+    assert latest["type"] == "handoff"
+    assert answer in (latest["body"] or "")
+    assert latest["actor"] == "jeff"
+
+
+def test_redirecting_is_recorded_as_a_re_brief(
+    client: TestClient, sample_task_in_review: str
+) -> None:
+    """task-222 entry 14 had to supersede entry 13 in prose to say this."""
+    instructions = "Do the CLI half first; what you have built so far stands."
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/redirect",
+        json={"user": "jeff", "feedback": instructions},
+    )
+
+    assert response.status_code == 200
+    task = response.json()["task"]
+    assert task["ball"] == "agent"
+    assert task["ball_reason"] == "redirect"
+    assert task["ball_prompt"] == instructions
+    assert "New instructions from jeff" in (task["log"][-1]["body"] or "")
+
+
+def test_holding_stops_the_task_and_keeps_the_release_condition(
+    client: TestClient, sample_task_in_review: str
+) -> None:
+    """A hold has to be unmissable in the prompt as well as in the reason.
+
+    The reason is what a query reads and what the dispatch paths refuse on; the prefix
+    is for the agent that opens the record and skims the prompt. Both, because either
+    one alone has a plausible way to be missed.
+    """
+    condition = "Wait for the autonomous dispatch fixes to land."
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/hold",
+        json={"user": "jeff", "feedback": condition},
+    )
+
+    assert response.status_code == 200
+    task = response.json()["task"]
+    assert task["ball"] == "agent"
+    assert task["ball_reason"] == "hold"
+    assert task["ball_prompt"].startswith("ON HOLD")
+    assert condition in task["ball_prompt"]
+    assert "Put on hold by jeff" in (task["log"][-1]["body"] or "")
+    # The list has to say stopped, not "in progress" -- see models_v2.display_status.
+    assert task["display_status"] == "On hold (test-agent)"
+
+
+def test_resume_releases_a_hold_and_puts_the_task_back_to_work(
+    client: TestClient, sample_task_in_review: str
+) -> None:
+    """Without this the panel could impose a hold it could not lift.
+
+    The review panel returns null once the ball leaves the human, so a held task had no
+    control at all until Resume existed. A stop with no way out of the browser is worse
+    than the illegible record it replaced.
+    """
+    client.post(
+        f"/api/tasks/{sample_task_in_review}/hold",
+        json={"user": "jeff", "feedback": "Wait for the fixes."},
+    )
+
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/resume",
+        json={"user": "jeff", "note": "They landed this morning."},
+    )
+
+    assert response.status_code == 200
+    task = response.json()["task"]
+    assert task["ball"] == "agent"
+    assert task["ball_reason"] == "work"
+    assert "Hold released by jeff" in task["ball_prompt"]
+    assert "They landed this morning." in task["ball_prompt"]
+
+
+def test_resume_needs_no_note(client: TestClient, sample_task_in_review: str) -> None:
+    """ "Carry on" is a complete instruction; requiring a sentence to say it is what
+    pushed four intents onto one reason in the first place."""
+    client.post(
+        f"/api/tasks/{sample_task_in_review}/hold",
+        json={"user": "jeff", "feedback": "Wait for the fixes."},
+    )
+
+    response = client.post(f"/api/tasks/{sample_task_in_review}/resume", json={"user": "jeff"})
+
+    assert response.status_code == 200
+    task = response.json()["task"]
+    assert task["ball_reason"] == "work"
+    assert task["ball_prompt"] == "Hold released by jeff -- resume this task."
+
+
+@pytest.mark.parametrize("route", ["answer", "redirect", "hold"])
+def test_a_send_back_without_a_note_is_refused(
+    client: TestClient, sample_task_in_review: str, route: str
+) -> None:
+    """An answer with no answer in it, or a hold with no release condition, is the
+    exact record that cost a session its afternoon. The schema refuses it."""
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/{route}",
+        json={"user": "jeff", "feedback": ""},
+    )
+
+    # 400 rather than 422: this app maps validation refusals itself, the same way
+    # /request-changes has always answered an empty feedback field.
+    assert response.status_code == 400
+
+
+# ----- task-231 part 3: approve carries an optional note ---------------------------
+
+
+def test_approving_with_a_note_keeps_the_merge_clearance(
+    client: TestClient, sample_task_in_review: str
+) -> None:
+    """The note is additive to "you may merge", never a replacement for it.
+
+    An agent that reads an approval note as a fresh review round has inverted the whole
+    point of being able to attach one, so the prompt says so in as many words.
+    """
+    note = "Fold the naming nit in before you merge."
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/approve",
+        json={"user": "jeff", "note": note},
+    )
+
+    assert response.status_code == 200
+    task = response.json()["task"]
+    assert task["ball"] == "agent"
+    assert task["ball_reason"] == "work"
+    assert "cleared to merge" in task["ball_prompt"]
+    assert "does not run git" in task["ball_prompt"]
+    # Verbatim, not summarised: a paraphrased note is not usable by the agent reading it.
+    assert note in task["ball_prompt"]
+    assert "not another review round" in task["ball_prompt"]
+    assert note in (task["log"][-1]["body"] or "")
+
+
+def test_approving_without_a_note_writes_exactly_what_it_always_did(
+    client: TestClient, sample_task_in_review: str
+) -> None:
+    """The regression guard for an optional field: absent must mean unchanged.
+
+    Asserted against the constant itself rather than against a copy of the sentence, so
+    a future edit to the clearance wording cannot make this test pass while the two
+    branches have drifted apart.
+    """
+    from agentjobs.api.routes.tasks import APPROVAL_CLEARANCE
+
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/approve",
+        json={"user": "jeff"},
+    )
+
+    assert response.status_code == 200
+    task = response.json()["task"]
+    assert task["ball_prompt"] == APPROVAL_CLEARANCE
+    assert task["log"][-1]["body"] == "Approved by jeff through the web UI."
+
+
+@pytest.mark.parametrize("note", [None, "", "   "])
+def test_an_empty_approval_note_is_the_same_as_none(
+    client: TestClient, sample_task_in_review: str, note: object
+) -> None:
+    """A textarea a human opened and closed again must not change the record."""
+    from agentjobs.api.routes.tasks import APPROVAL_CLEARANCE
+
+    payload: dict = {"user": "jeff"}
+    if note is not None:
+        payload["note"] = note
+
+    response = client.post(f"/api/tasks/{sample_task_in_review}/approve", json=payload)
+
+    assert response.status_code == 200
+    assert response.json()["task"]["ball_prompt"] == APPROVAL_CLEARANCE

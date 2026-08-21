@@ -196,6 +196,14 @@ def maybe_auto_dispatch(
         # was called, so a verb added later is covered without anyone remembering to.
         return _skipped("not_eligible", f"ball is {task.ball}, lifecycle {task.lifecycle}")
 
+    if task.ball_reason is BallReason.HOLD:
+        # The one agent-side reason that is not workable. Reading the ball alone was
+        # enough while every agent reason meant "get on with it"; `hold` is the human
+        # saying stop, so auto-dispatching on it would start a run in the same breath
+        # as the click that told the last one to halt. task-231 added the value for
+        # exactly this reason -- a hold recorded as `revise` was eligible here.
+        return _skipped("on_hold", f"{task.id} is on hold; a human must release it first")
+
     try:
         resolution = assert_dispatch_permitted(project.id, home)
     except DispatchError as exc:
