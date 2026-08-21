@@ -16,8 +16,11 @@ cd /path/to/your-project
 poetry -P /path/to/agentjobs run agentjobs init
 ```
 
-Initialization creates `.agentjobs/config.yaml`, the configured task directory, and a
-project registration for the local server.
+Initialization creates `.agentjobs/config.yaml`, the configured task directory, a
+project registration for the local server, and a `.mcp.json` declaring the AgentJobs
+MCP server so agents working here have the tools rather than falling back to the CLI.
+See [the MCP server](mcp.md#every-registered-project-declares-the-server) for what that
+file contains and how to add it to a project registered earlier.
 
 ## 2. Open the React application
 

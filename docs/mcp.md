@@ -50,6 +50,65 @@ variables:
 
 Both are also available as `--base-url` and `--timeout`.
 
+`8765` is what `agentjobs serve` binds with no arguments, and it is the port the
+bundled plugin and every example on this page assume. **If your service listens
+elsewhere, say so once rather than in each client's config**, in either
+`AGENTJOBS_API_BASE` or `api_base:` in machine-local `~/.agentjobs/dispatch.yaml`.
+Dispatch already reads that value to tell a background agent where to find the service;
+`agentjobs init` reads the same value when it writes a project's `.mcp.json`, so one
+declaration keeps both from naming a dead port.
+
+### Every registered project declares the server
+
+`agentjobs init` — and project creation from the web UI — leaves the new project with a
+`.mcp.json` naming this server:
+
+```json
+{
+  "mcpServers": {
+    "agentjobs": {
+      "command": "agentjobs",
+      "args": ["mcp"],
+      "env": { "AGENTJOBS_URL": "http://127.0.0.1:8765" }
+    }
+  }
+}
+```
+
+The console script rather than an interpreter path, so the file survives a rebuilt
+virtualenv and means the same thing on another machine. The address is the machine's
+declared one if it has one, otherwise loopback on the port the project was configured
+with. An existing `.mcp.json` is merged into and an existing `agentjobs` entry is never
+rewritten — a project that pinned an interpreter, a port or a wrapper made a decision,
+and AgentJobs does not quietly reverse it. AgentJobs' own clone is such a project: its
+file names a venv interpreter and is gitignored, because that repository develops the
+tool rather than consuming it.
+
+Projects registered before this existed, and checkouts that never had the file, get it
+from:
+
+```bash
+agentjobs project mcp-setup [path]      # --url to state the address yourself
+```
+
+Why it matters beyond convenience: a session with no MCP tools does the engineering and
+then cannot record any of it, because the direct-write guard correctly refuses the YAML
+edit it reaches for next. It presents as a tooling mystery rather than a missing file.
+
+Two notes on what the file does and does not do:
+
+- **It is not an approval.** Claude Code prompts the first time it sees a project-scoped
+  server, and a `--bg` session has no terminal to answer with. Dispatch handles that by
+  reading these names out of the file and passing them in `enabledMcpjsonServers`, which
+  applies regardless of folder trust. An *interactive* session still gets the prompt
+  once, which is the right default for a config file that says "run this program" —
+  `init` does not write to your client's settings on your behalf.
+- **It is separate from the plugin.** A project with both ends up with two server
+  entries, listed by `claude mcp list` as `agentjobs` and `plugin:agentjobs:agentjobs`.
+  They are independent processes serving the same fourteen tools, not a conflict, and
+  the project-scoped one is the one whose address a machine can correct without editing
+  an installed plugin's cache.
+
 ### Codex and Claude Code
 
 Install the bundled plugin from

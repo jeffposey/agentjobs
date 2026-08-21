@@ -72,6 +72,7 @@ from agentjobs.models_v2 import (
     Task,
     utcnow,
 )
+from agentjobs.project_setup import MCP_CONFIG_FILENAME
 
 RUNS_DIRNAME = "runs"
 META_FILENAME = "meta.yaml"
@@ -194,10 +195,6 @@ def allow_rules() -> List[str]:
     comment.
     """
     return [f"{tool}({prefix}:*)" for prefix in ALLOW_PREFIXES for tool in ALLOW_TOOLS]
-
-
-MCP_CONFIG_FILENAME = ".mcp.json"
-"""Claude Code's project-scoped MCP server file. Its keys are what dispatch approves."""
 
 
 def mcpjson_server_names(project_root: Path) -> List[str]:
