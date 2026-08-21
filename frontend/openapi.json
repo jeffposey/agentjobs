@@ -245,6 +245,7 @@
         "type": "object"
       },
       "ClaimRequest": {
+        "additionalProperties": false,
         "description": "An agent takes ownership of a ready task.",
         "properties": {
           "agent": {
@@ -272,6 +273,7 @@
         "type": "object"
       },
       "CloseRequest": {
+        "additionalProperties": false,
         "description": "End the task with an outcome.",
         "properties": {
           "actor": {
@@ -1206,6 +1208,7 @@
         "type": "object"
       },
       "HandoffRequest": {
+        "additionalProperties": false,
         "description": "The ball moves; the ask travels with it.",
         "properties": {
           "actor": {
@@ -1371,6 +1374,7 @@
         "type": "string"
       },
       "LogAppendRequest": {
+        "additionalProperties": false,
         "description": "Append one entry to the unified log.",
         "properties": {
           "actor": {
@@ -1623,6 +1627,60 @@
         "title": "MutationResult",
         "type": "object"
       },
+      "NextExplanationResponse": {
+        "description": "Why this task is next -- the answer plus the work it stands in front of.\n\n``task`` is null when nothing is claimable, in which case ``skipped`` lists every\nopen task with the rule that excluded it. That is the listing a reader wants\nprecisely when a tool has just told them there is nothing to do.",
+        "properties": {
+          "band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band"
+          },
+          "empty_bands_above": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Empty Bands Above",
+            "type": "array"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Position"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedTaskRead"
+            },
+            "title": "Skipped",
+            "type": "array"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task"
+          }
+        },
+        "title": "NextExplanationResponse",
+        "type": "object"
+      },
       "Outcome": {
         "description": "How a task ended. Set if and only if lifecycle is closed.",
         "enum": [
@@ -1646,6 +1704,7 @@
         "type": "string"
       },
       "ProgressUpdateRequest": {
+        "additionalProperties": false,
         "description": "Progress update payload appended to the task log.",
         "properties": {
           "author": {
@@ -1948,6 +2007,7 @@
         "type": "object"
       },
       "PromoteRequest": {
+        "additionalProperties": false,
         "description": "A draft's spec is finished; the task becomes claimable.",
         "properties": {
           "actor": {
@@ -1999,6 +2059,390 @@
         "title": "PromoteRequest",
         "type": "object"
       },
+      "QueueAssignmentRead": {
+        "description": "One position a repair or a compaction wrote.",
+        "properties": {
+          "band": {
+            "title": "Band",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "task": {
+            "title": "Task",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task",
+          "band",
+          "position"
+        ],
+        "title": "QueueAssignmentRead",
+        "type": "object"
+      },
+      "QueueBandRead": {
+        "description": "One priority band, in queue order. Listed even when empty.",
+        "properties": {
+          "band": {
+            "title": "Band",
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/QueueEntryRead"
+            },
+            "title": "Entries",
+            "type": "array"
+          }
+        },
+        "required": [
+          "band"
+        ],
+        "title": "QueueBandRead",
+        "type": "object"
+      },
+      "QueueCompactRequest": {
+        "additionalProperties": false,
+        "description": "Renumber one band back to 100, 200, 300...",
+        "properties": {
+          "actor": {
+            "description": "Actor id asking for the operation.",
+            "minLength": 1,
+            "title": "Actor",
+            "type": "string"
+          },
+          "band": {
+            "$ref": "#/components/schemas/Priority",
+            "description": "The band to compact. One band per request."
+          },
+          "operation_id": {
+            "description": "Caller-generated UUID identifying this attempt.",
+            "minLength": 1,
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor",
+          "operation_id",
+          "band"
+        ],
+        "title": "QueueCompactRequest",
+        "type": "object"
+      },
+      "QueueCompactResponse": {
+        "description": "The tasks a compaction renumbered, and what they were renumbered to.",
+        "properties": {
+          "band": {
+            "title": "Band",
+            "type": "string"
+          },
+          "moved": {
+            "items": {
+              "$ref": "#/components/schemas/QueueAssignmentRead"
+            },
+            "title": "Moved",
+            "type": "array"
+          }
+        },
+        "required": [
+          "band"
+        ],
+        "title": "QueueCompactResponse",
+        "type": "object"
+      },
+      "QueueEntryRead": {
+        "description": "One task's place in line, and whether it can be taken.",
+        "properties": {
+          "ball": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ball"
+          },
+          "claimable": {
+            "title": "Claimable",
+            "type": "boolean"
+          },
+          "lifecycle": {
+            "title": "Lifecycle",
+            "type": "string"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Position"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it is not claimable. Null when it is.",
+            "title": "Reason"
+          },
+          "task": {
+            "title": "Task",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task",
+          "title",
+          "lifecycle",
+          "claimable"
+        ],
+        "title": "QueueEntryRead",
+        "type": "object"
+      },
+      "QueueMaintenanceRequest": {
+        "additionalProperties": false,
+        "description": "Repair or compaction: attributed, and required to say who asked.\n\n``operation_id`` is required for the same reason it is on a move -- a caller that\ncannot name its attempt cannot be told apart from one retrying -- but it is not\nreplayed from a ledger, because the ledger is per-task and these two operations act\non a whole band or a whole corpus. They do not need one: both are idempotent by\nconstruction, since repairing a repaired queue finds nothing to repair and\ncompacting a compacted band renumbers it to the numbers it already has. Running\ntwice and running once leave the same corpus, which is a stronger property than\nreplay rather than a weaker substitute for it.",
+        "properties": {
+          "actor": {
+            "description": "Actor id asking for the operation.",
+            "minLength": 1,
+            "title": "Actor",
+            "type": "string"
+          },
+          "operation_id": {
+            "description": "Caller-generated UUID identifying this attempt.",
+            "minLength": 1,
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor",
+          "operation_id"
+        ],
+        "title": "QueueMaintenanceRequest",
+        "type": "object"
+      },
+      "QueueMoveRequest": {
+        "additionalProperties": false,
+        "description": "Where in its band a task is being put. Exactly one placement, never two.\n\n\"before task-063 and also at the top\" is two answers to one question, and choosing\none of them on the caller's behalf is how a reorder ends up somewhere nobody asked\nfor. The manager refuses it; this refuses it a layer earlier, where the caller can\nstill see which fields it sent.",
+        "properties": {
+          "actor": {
+            "description": "Actor id performing the move.",
+            "minLength": 1,
+            "title": "Actor",
+            "type": "string"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Place it behind this task.",
+            "title": "After"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Place it ahead of this task.",
+            "title": "Before"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Log body for the queue_move entry. Omit it and the manager writes its own.",
+            "title": "Body"
+          },
+          "bottom": {
+            "default": false,
+            "description": "Place it last in its band.",
+            "title": "Bottom",
+            "type": "boolean"
+          },
+          "expected_revision": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `updated` value from a prior read. When supplied, the request is refused if the task changed in the meantime, and the current task is returned so the caller can decide again.",
+            "title": "Expected Revision"
+          },
+          "operation_id": {
+            "description": "Caller-generated UUID. Resending the same request with the same id replays the original result instead of moving the task twice.",
+            "minLength": 1,
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "top": {
+            "default": false,
+            "description": "Place it first in its band.",
+            "title": "Top",
+            "type": "boolean"
+          },
+          "with_children": {
+            "default": false,
+            "description": "Carry the task's open same-band descendants with it, contiguously.",
+            "title": "With Children",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "operation_id",
+          "actor"
+        ],
+        "title": "QueueMoveRequest",
+        "type": "object"
+      },
+      "QueueProblemRead": {
+        "description": "One broken queue rule, named well enough to fix by hand.",
+        "properties": {
+          "band": {
+            "title": "Band",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "tasks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "band",
+          "message"
+        ],
+        "title": "QueueProblemRead",
+        "type": "object"
+      },
+      "QueueRepairResponse": {
+        "description": "What a repair did. Everything it guessed is named, which is the point.",
+        "properties": {
+          "assigned": {
+            "items": {
+              "$ref": "#/components/schemas/QueueAssignmentRead"
+            },
+            "title": "Assigned",
+            "type": "array"
+          },
+          "changed": {
+            "title": "Changed",
+            "type": "boolean"
+          },
+          "rebalanced": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rebalanced",
+            "type": "array"
+          },
+          "report": {
+            "description": "The same result rendered for a terminal.",
+            "title": "Report",
+            "type": "string"
+          },
+          "unrepairable": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unrepairable",
+            "type": "array"
+          }
+        },
+        "required": [
+          "changed",
+          "report"
+        ],
+        "title": "QueueRepairResponse",
+        "type": "object"
+      },
+      "QueueResponse": {
+        "description": "The whole ordered backlog. This is the list a human reviews.\n\nIt renders a broken queue rather than refusing to: ``problems`` says what is wrong\nand ``repair_command`` says what to type. That is design section 8's deliberate\nexception -- you have to be able to see a broken queue in order to fix it.",
+        "properties": {
+          "bands": {
+            "items": {
+              "$ref": "#/components/schemas/QueueBandRead"
+            },
+            "title": "Bands",
+            "type": "array"
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/QueueProblemRead"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "repair_command": {
+            "title": "Repair Command",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repair_command"
+        ],
+        "title": "QueueResponse",
+        "type": "object"
+      },
       "RejectActionRequest": {
         "description": "Reject task with reason.",
         "properties": {
@@ -2028,6 +2472,7 @@
         "type": "object"
       },
       "ReleaseRequest": {
+        "additionalProperties": false,
         "description": "An agent bows out; the task returns to the pool.",
         "properties": {
           "actor": {
@@ -2064,6 +2509,90 @@
           "actor"
         ],
         "title": "ReleaseRequest",
+        "type": "object"
+      },
+      "ReprioritizeRequest": {
+        "additionalProperties": false,
+        "description": "Change a task's band, and optionally where it lands inside the new one.\n\nThe default placement is the bottom of the target band. A band change already says\neverything about urgency; where inside the new band it goes is a separate question\nthe caller may answer, and \"bottom\" is the answer that assumes least.",
+        "properties": {
+          "actor": {
+            "description": "Actor id performing the move.",
+            "minLength": 1,
+            "title": "Actor",
+            "type": "string"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Place it behind this task.",
+            "title": "After"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Place it ahead of this task.",
+            "title": "Before"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Log body for the queue_move entry. Omit it and the manager writes its own.",
+            "title": "Body"
+          },
+          "expected_revision": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `updated` value from a prior read. When supplied, the request is refused if the task changed in the meantime, and the current task is returned so the caller can decide again.",
+            "title": "Expected Revision"
+          },
+          "operation_id": {
+            "description": "Caller-generated UUID. Resending the same request with the same id replays the original result instead of moving the task twice.",
+            "minLength": 1,
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/Priority",
+            "description": "The band to move the task into."
+          },
+          "top": {
+            "default": false,
+            "description": "Place it first in the target band.",
+            "title": "Top",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "operation_id",
+          "actor",
+          "priority"
+        ],
+        "title": "ReprioritizeRequest",
         "type": "object"
       },
       "ReviewIdentity": {
@@ -2158,6 +2687,36 @@
           "target_contained"
         ],
         "title": "ScopedDependencyEdge",
+        "type": "object"
+      },
+      "SkippedTaskRead": {
+        "description": "One open task the queue passed over, and the rule that did it.",
+        "properties": {
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "task": {
+            "title": "Task",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task",
+          "reason"
+        ],
+        "title": "SkippedTaskRead",
         "type": "object"
       },
       "Spec": {
@@ -2432,6 +2991,7 @@
         "type": "object"
       },
       "TaskCreateRequest": {
+        "additionalProperties": false,
         "description": "Payload for creating a new task.",
         "properties": {
           "acceptance": {
@@ -3184,6 +3744,7 @@
         "type": "object"
       },
       "TaskUpdateRequest": {
+        "additionalProperties": false,
         "description": "Payload for partially updating a task.\n\nThe state axes are deliberately absent: lifecycle, ball and outcome move only\nthrough the claim/handoff/release/close verbs, which log their transitions.",
         "properties": {
           "acceptance": {
@@ -4549,6 +5110,173 @@
         ]
       }
     },
+    "/api/projects/{project_id}/queue": {
+      "get": {
+        "description": "The whole ordered backlog, band by band. This is the list a human reviews.\n\nEvery band appears, including the empty ones: \"critical is empty\" is a fact a\nreader of an ordered backlog wants stated rather than inferred from a heading that\nis not there. Every open task carries its claimability and, when it is not\nclaimable, the rule that excluded it -- the same sentence ``/tasks/next/explain``\ngives, from the same place, so the two can never disagree.\n\n**This does not 409 on a broken queue**, unlike ``/tasks/next``. It is one of the\ntwo deliberate exceptions in design section 8: you have to be able to see a broken\nqueue in order to fix it, so the offending bands still render and ``problems``\nnames what is wrong beside ``repair_command``.",
+        "operationId": "get_queue_api_projects__project_id__queue_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Judge claimability for this agent, so a task restricted to somebody else is marked with that as its reason. Omit it to judge for any agent.",
+            "in": "query",
+            "name": "agent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Judge claimability for this agent, so a task restricted to somebody else is marked with that as its reason. Omit it to judge for any agent.",
+              "title": "Agent"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Queue",
+        "tags": [
+          "queue"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/queue/compact": {
+      "post": {
+        "description": "Renumber one band back to 100, 200, 300..., changing nobody's place.\n\nPurely cosmetic, and explicit only -- there is no automatic compaction, because a\nbackground process quietly rewriting forty task files is exactly the kind of thing\nthat should require somebody to ask for it. One band per request for the same\nreason: compacting the whole corpus is four decisions, not one.",
+        "operationId": "compact_queue_api_projects__project_id__queue_compact_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueCompactRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueCompactResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compact Queue",
+        "tags": [
+          "queue"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/queue/repair": {
+      "post": {
+        "description": "Make a broken queue into a queue again, and say exactly what was guessed.\n\nOperates on a corrupt corpus by definition, so it reads the raw files rather than\nloaded tasks -- the records it most needs are the ones the open-task-has-a-position\nrule refuses to load. Open tasks with no usable position, and the losing claimants\nof a shared one, go to the bottom of their band ordered by ``created`` then id.\n\nIt never invents an opinion it does not have. A duplicate position carries no\nrecord of who was meant to be first, so that tie-break is arbitrary by necessity --\nand every task it touched comes back in ``assigned``, which is what makes the guess\nreviewable rather than silent.",
+        "operationId": "repair_queue_api_projects__project_id__queue_repair_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueMaintenanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueRepairResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Repair Queue",
+        "tags": [
+          "queue"
+        ]
+      }
+    },
     "/api/projects/{project_id}/revision": {
       "get": {
         "description": "Answer whether any task file changed without loading the task collection.",
@@ -4861,7 +5589,7 @@
     },
     "/api/projects/{project_id}/tasks/next": {
       "get": {
-        "description": "The next claimable task: ready, eligible for the agent, no unmet needs.",
+        "description": "The next claimable task: ready, eligible for the agent, no unmet needs.\n\nAnswers 409 rather than guessing when the queue it would have to read is broken.",
         "operationId": "get_next_task_api_projects__project_id__tasks_next_get",
         "parameters": [
           {
@@ -4937,6 +5665,81 @@
           }
         },
         "summary": "Get Next Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/next/explain": {
+      "get": {
+        "description": "Why this task is next, and every open task it stands in front of.\n\nDeclared before ``/{task_id}`` so \"next\" is not captured as a task id, exactly as\n``/next`` and ``/broken`` are. The body is design section 9's structure, produced\nby the manager rather than assembled here: the route is a transcription.",
+        "operationId": "explain_next_task_api_projects__project_id__tasks_next_explain_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Priority"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NextExplanationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Explain Next Task",
         "tags": [
           "tasks"
         ]
@@ -5910,6 +6713,88 @@
         ]
       }
     },
+    "/api/projects/{project_id}/tasks/{task_id}/queue-move": {
+      "post": {
+        "description": "Change where a task stands in its band. The only way the order changes.\n\nA verb like every other one here, which is why it lives beside them rather than\nwith the read routes: attributed, retry-safe, refused against a stale read, and\nlogged. The route computes no position -- it names a placement and the manager\ndecides what number that is, because the arithmetic has to happen under the queue\nlock and a route holds no locks.",
+        "operationId": "queue_move_task_api_projects__project_id__tasks__task_id__queue_move_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+            "in": "query",
+            "name": "envelope",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+              "title": "Envelope",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueMoveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MutationResult-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Task"
+                    }
+                  ],
+                  "title": "Response Queue Move Task Api Projects  Project Id  Tasks  Task Id  Queue Move Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Queue Move Task",
+        "tags": [
+          "status"
+        ]
+      }
+    },
     "/api/projects/{project_id}/tasks/{task_id}/reject": {
       "post": {
         "description": "Reject a task: closed as cancelled, archived, reason on the record.",
@@ -6049,6 +6934,88 @@
           }
         },
         "summary": "Release Task",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}/reprioritize": {
+      "post": {
+        "description": "Change a task's band and its place in that band, in one decision.\n\nNot a `PATCH` of `priority`, deliberately. A band change moves a task between two\norderings, so it has to land somewhere in the new one -- and the generic patch has\nno way to say where, no queue lock, and no `queue_move` entry to record the\ndecision. Sending `priority` through `PATCH /tasks/{id}` still works and still\nrejoins the band at the bottom; this is the route that lets a caller say otherwise.",
+        "operationId": "reprioritize_task_api_projects__project_id__tasks__task_id__reprioritize_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+            "in": "query",
+            "name": "envelope",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+              "title": "Envelope",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReprioritizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MutationResult-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Task"
+                    }
+                  ],
+                  "title": "Response Reprioritize Task Api Projects  Project Id  Tasks  Task Id  Reprioritize Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reprioritize Task",
         "tags": [
           "status"
         ]
@@ -6368,6 +7335,142 @@
         ]
       }
     },
+    "/api/queue": {
+      "get": {
+        "description": "The whole ordered backlog, band by band. This is the list a human reviews.\n\nEvery band appears, including the empty ones: \"critical is empty\" is a fact a\nreader of an ordered backlog wants stated rather than inferred from a heading that\nis not there. Every open task carries its claimability and, when it is not\nclaimable, the rule that excluded it -- the same sentence ``/tasks/next/explain``\ngives, from the same place, so the two can never disagree.\n\n**This does not 409 on a broken queue**, unlike ``/tasks/next``. It is one of the\ntwo deliberate exceptions in design section 8: you have to be able to see a broken\nqueue in order to fix it, so the offending bands still render and ``problems``\nnames what is wrong beside ``repair_command``.",
+        "operationId": "get_queue_api_queue_get",
+        "parameters": [
+          {
+            "description": "Judge claimability for this agent, so a task restricted to somebody else is marked with that as its reason. Omit it to judge for any agent.",
+            "in": "query",
+            "name": "agent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Judge claimability for this agent, so a task restricted to somebody else is marked with that as its reason. Omit it to judge for any agent.",
+              "title": "Agent"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Queue",
+        "tags": [
+          "queue"
+        ]
+      }
+    },
+    "/api/queue/compact": {
+      "post": {
+        "description": "Renumber one band back to 100, 200, 300..., changing nobody's place.\n\nPurely cosmetic, and explicit only -- there is no automatic compaction, because a\nbackground process quietly rewriting forty task files is exactly the kind of thing\nthat should require somebody to ask for it. One band per request for the same\nreason: compacting the whole corpus is four decisions, not one.",
+        "operationId": "compact_queue_api_queue_compact_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueCompactRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueCompactResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compact Queue",
+        "tags": [
+          "queue"
+        ]
+      }
+    },
+    "/api/queue/repair": {
+      "post": {
+        "description": "Make a broken queue into a queue again, and say exactly what was guessed.\n\nOperates on a corrupt corpus by definition, so it reads the raw files rather than\nloaded tasks -- the records it most needs are the ones the open-task-has-a-position\nrule refuses to load. Open tasks with no usable position, and the losing claimants\nof a shared one, go to the bottom of their band ordered by ``created`` then id.\n\nIt never invents an opinion it does not have. A duplicate position carries no\nrecord of who was meant to be first, so that tie-break is arbitrary by necessity --\nand every task it touched comes back in ``assigned``, which is what makes the guess\nreviewable rather than silent.",
+        "operationId": "repair_queue_api_queue_repair_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueMaintenanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueRepairResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Repair Queue",
+        "tags": [
+          "queue"
+        ]
+      }
+    },
     "/api/revision": {
       "get": {
         "description": "Answer whether any task file changed without loading the task collection.",
@@ -6609,7 +7712,7 @@
     },
     "/api/tasks/next": {
       "get": {
-        "description": "The next claimable task: ready, eligible for the agent, no unmet needs.",
+        "description": "The next claimable task: ready, eligible for the agent, no unmet needs.\n\nAnswers 409 rather than guessing when the queue it would have to read is broken.",
         "operationId": "get_next_task_api_tasks_next_get",
         "parameters": [
           {
@@ -6676,6 +7779,72 @@
           }
         },
         "summary": "Get Next Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/tasks/next/explain": {
+      "get": {
+        "description": "Why this task is next, and every open task it stands in front of.\n\nDeclared before ``/{task_id}`` so \"next\" is not captured as a task id, exactly as\n``/next`` and ``/broken`` are. The body is design section 9's structure, produced\nby the manager rather than assembled here: the route is a transcription.",
+        "operationId": "explain_next_task_api_tasks_next_explain_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Priority"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NextExplanationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Explain Next Task",
         "tags": [
           "tasks"
         ]
@@ -7523,6 +8692,79 @@
         ]
       }
     },
+    "/api/tasks/{task_id}/queue-move": {
+      "post": {
+        "description": "Change where a task stands in its band. The only way the order changes.\n\nA verb like every other one here, which is why it lives beside them rather than\nwith the read routes: attributed, retry-safe, refused against a stale read, and\nlogged. The route computes no position -- it names a placement and the manager\ndecides what number that is, because the arithmetic has to happen under the queue\nlock and a route holds no locks.",
+        "operationId": "queue_move_task_api_tasks__task_id__queue_move_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+            "in": "query",
+            "name": "envelope",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+              "title": "Envelope",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueMoveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MutationResult-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Task"
+                    }
+                  ],
+                  "title": "Response Queue Move Task Api Tasks  Task Id  Queue Move Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Queue Move Task",
+        "tags": [
+          "status"
+        ]
+      }
+    },
     "/api/tasks/{task_id}/reject": {
       "post": {
         "description": "Reject a task: closed as cancelled, archived, reason on the record.",
@@ -7644,6 +8886,79 @@
           }
         },
         "summary": "Release Task",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/reprioritize": {
+      "post": {
+        "description": "Change a task's band and its place in that band, in one decision.\n\nNot a `PATCH` of `priority`, deliberately. A band change moves a task between two\norderings, so it has to land somewhere in the new one -- and the generic patch has\nno way to say where, no queue lock, and no `queue_move` entry to record the\ndecision. Sending `priority` through `PATCH /tasks/{id}` still works and still\nrejoins the band at the bottom; this is the route that lets a caller say otherwise.",
+        "operationId": "reprioritize_task_api_tasks__task_id__reprioritize_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+            "in": "query",
+            "name": "envelope",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+              "title": "Envelope",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReprioritizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MutationResult-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Task"
+                    }
+                  ],
+                  "title": "Response Reprioritize Task Api Tasks  Task Id  Reprioritize Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reprioritize Task",
         "tags": [
           "status"
         ]

@@ -27,6 +27,7 @@ the scoped form so switching projects never depends on the server's current dire
 | --- | --- | --- |
 | `GET` | `/api/tasks` | List tasks; filter with `lifecycle`, `ball`, `priority`, or `parent` |
 | `GET` | `/api/tasks/next` | Return the next claimable task; accepts `agent` and `priority` |
+| `GET` | `/api/tasks/next/explain` | Why that task is next, and every open task ahead of it |
 | `GET` | `/api/tasks/{task_id}` | Return one task record |
 | `GET` | `/api/tasks/{task_id}/detail` | Return the full review/resumption view with relationships |
 | `GET` | `/api/tasks/broken` | Report task files that exist but fail validation |
@@ -63,6 +64,55 @@ preconditions are enforced and transition history is appended.
 
 The React review actions use `/approve`, `/request-changes`, and `/reject`. Approval
 records the human handoff back to `agent/work`; it does not run git or merge a branch.
+
+## The queue
+
+Order is an explicit, stored field, not a sort over timestamps. `queue_position` is
+unique within a priority band, and selection answers `(band, position)` with no
+tie-break. Every route here reads or changes that one managed order; none of them
+re-sorts, and none accepts a position.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/projects/{id}/queue` | The whole ordered backlog, band by band, with claimability on every entry |
+| `POST` | `/api/tasks/{task_id}/queue-move` | Move a task within its band: `before`, `after`, `top` or `bottom` |
+| `POST` | `/api/tasks/{task_id}/reprioritize` | Change a task's band, and optionally where it lands in it |
+| `POST` | `/api/projects/{id}/queue/repair` | Give every open task a place again, naming everything it guessed |
+| `POST` | `/api/projects/{id}/queue/compact` | Renumber one band to 100, 200, 300..., changing nobody's place |
+
+All four mutations **require** `actor` and `operation_id`. That is stricter than the
+state verbs above, where both are optional so callers written before they existed keep
+working: nothing was ever written against these routes, and a reorder a timeout can
+silently apply twice puts a task somewhere nobody asked for.
+
+There is no way to set `queue_position` — not through `PATCH /api/tasks/{task_id}`,
+not through the Python client, not through MCP. A caller that could write a number
+would be choosing a place without knowing what else is in the band, which is exactly
+how two tasks come to share one. The caller names a neighbour or an end; the server
+does the arithmetic under the queue lock.
+
+**A broken queue is refused by whatever answers and rendered by whatever repairs.**
+`GET /api/tasks/next` and `/next/explain` return `409 Conflict` naming the offending
+ids and the repair command, rather than answering from a field that happens to be
+intact. `GET .../queue`, `queue/repair` and `agentjobs queue check` keep working
+against the same corpus, because you have to be able to see a broken queue in order to
+fix it.
+
+### On the command line
+
+```
+agentjobs next [--why]                    # what to work on, and why not the other one
+agentjobs queue list [--band high] [--claimable] [--agent codex]
+agentjobs queue move <id> --before <id> | --after <id> | --top | --bottom [--with-children]
+agentjobs queue reprioritize <id> --to high [--top | --before <id> | --after <id>]
+agentjobs queue check [--strict]          # reports; --strict exits non-zero
+agentjobs queue repair
+agentjobs queue compact <band>
+```
+
+`agentjobs queue list` is written to be read: band headings, position, id and title,
+with `!` and the excluding rule on anything not claimable. `agentjobs next` exits
+non-zero on a broken queue; `queue list` and `queue check` do not.
 
 ## Minimal client example
 
