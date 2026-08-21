@@ -1,0 +1,137 @@
+schema: 2
+id: task-223
+title: The rule that serializes every epic has no stated reason, and the doc's own
+  reasoning contradicts it
+created: '2026-08-21T15:02:48.895387Z'
+updated: '2026-08-21T15:02:49.156241Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+queue_position: 3400
+category: developer_experience
+tags:
+- orchestration
+- epics
+- throughput
+- documentation
+effort: a decision plus a doc edit; larger only if the supervisor needs to poll several
+  children
+assignment:
+  eligible: []
+spec:
+  summary: "The parent-task protocol tells a supervisor to run \"exactly one eligible\
+    \ child at a time\" and never says why. The only nearby justification is for a\
+    \ different rule \u2014 why each child gets its own session \u2014 and it argues\
+    \ for separate sessions, not sequential ones. Decide whether independent children\
+    \ may run concurrently, and write down the answer either way."
+  intent: An epic's wall-clock time is currently the sum of its children rather than
+    the depth of its dependency graph. If that cost buys something, the protocol should
+    say what. If it buys nothing, it is throwing away hours per epic for a sentence
+    nobody wrote a reason for.
+  description: "## The gap\n\n`ALLAGENTS.md` line 16 instructs a supervisor to \"\
+    Pick exactly one eligible child at a time.\" It gives no reason.\n\nThe only justification\
+    \ anywhere near it is `docs/agent-workflow.md` line 98, under the heading **\"\
+    Why a session, and where the line is\"**:\n\n> The reason is context, not parallelism\
+    \ \u2014 the loop is still one child at a time.\n\nThat section is justifying\
+    \ a *different* rule: why each child gets its own session rather than being worked\
+    \ inline by the supervisor. Its argument is that a session working four children\
+    \ carries four children's worth of exploration by the fourth. Parallelism appears\
+    \ in it only to be waved off in a subordinate clause.\n\n**The argument does not\
+    \ reach the conclusion attached to it.** Context cost is a property of how many\
+    \ transcripts one session accumulates, not of how many sessions run at once. Three\
+    \ concurrent child sessions leave the supervisor's context exactly as small as\
+    \ three sequential ones, because the supervisor reads task records and diffs \u2014\
+    \ never child transcripts, as the \"supervisor is thin\" section immediately below\
+    \ insists. So the stated reason justifies session isolation and is silent on ordering.\n\
+    \n## What this costs, measured\n\nObserved on task-081, 2026-08-21. After task-206\
+    \ closed, all three remaining children \u2014 207, 208, 209 \u2014 had no unmet\
+    \ needs. The supervisor ran 207 alone. Their deliverables do not overlap at all:\n\
+    \n- task-207: `frontend/src/components/TaskList.tsx`\n- task-208: `src/agentjobs/mcp/mutation_tools.py`,\
+    \ `ALLAGENTS.md`, `docs/task-schema.md`\n\nThey share only `docs/task-selection-design.md`,\
+    \ which both read as specification and neither modifies. task-208 is roughly 75\
+    \ minutes of work that had no reason not to be running.\n\n`ENGINEERING.md` already\
+    \ measured the contention this would cause and found it mild: two simultaneous\
+    \ gates +9%, four +16%, six +25%, with no cliff. So concurrency is close to a\
+    \ real speedup rather than a wash.\n\n## The one place a supervisor gave a real\
+    \ reason\n\ntask-081 log entry 32 declined to start task-208 and explained why:\
+    \ task-206 was parked on the merge wall, so starting 208 would \"do 75 minutes\
+    \ of work and hit the identical wall, producing a second parked child and a second\
+    \ worktree for Jeff to clean up.\"\n\nThat is sound judgement about a *broken*\
+    \ state \u2014 do not fan out into a known failure \u2014 and it is worth keeping\
+    \ as a rule. It is not an argument for serializing a healthy epic, and it should\
+    \ not be conflated with one.\n\n## What to decide\n\nWhether a supervisor may\
+    \ start every eligible child whose deliverables do not overlap, and under what\
+    \ bounds. Candidates worth weighing rather than assuming:\n\n- A concurrency cap,\
+    \ and whether it should be the same number as dispatch's `max_concurrent_runs`\
+    \ or independent of it (children are subprocesses, not dispatches, and are not\
+    \ counted against that cap \u2014 task-081's brief records this).\n- Whether overlap\
+    \ is judged from `deliverables[]` (checkable, already on the record) or left to\
+    \ the supervisor's reading of the specs (flexible, unauditable).\n- Merge serialization:\
+    \ N children finishing together each rebase onto a main the others are moving.\
+    \ Git handles it, but the protocol should say whether they queue or race.\n- Whether\
+    \ \"one at a time\" should be reinstated the moment any child parks, per entry\
+    \ 32's reasoning.\n- Whether the supervisor's poll loop can watch several records\
+    \ without its context growing in a way that defeats the original rule.\n\nEither\
+    \ outcome is acceptable. What is not acceptable is the current state: a load-bearing\
+    \ constraint with no recorded reason, which the next reader cannot evaluate and\
+    \ so cannot safely change."
+  constraints: "- Whatever is decided must be written where the supervisor reads it,\
+    \ with its reason \u2014 that is the whole point of the task.\n- Do not weaken\
+    \ session isolation. Each child still gets its own session and its own worktree;\
+    \ this is only about how many run at once.\n- Do not change dependency semantics.\
+    \ Eligibility is already correct; this is about what a supervisor does with several\
+    \ eligible children.\n- Keep entry 32's rule: stop fanning out when a child is\
+    \ parked."
+  out_of_scope: Whether agent-started children should appear in the run ledger (task-164
+    log entry 7). Supervision posture as an explicit setting (task-201). Raising dispatch's
+    own max_concurrent_runs.
+  context:
+  - path: ALLAGENTS.md
+    why: Line 16 carries the unexplained instruction; the Parent Task Loop is where
+      a decision would land.
+  - path: docs/agent-workflow.md
+    why: Line 98 is the justification that does not cover this rule, and the section
+      below it is the thin-supervisor argument that undercuts the context objection.
+  - path: tasks/agentjobs/task-081-task-selection-ranking.yaml
+    why: Log entry 32 is the one recorded reason a supervisor gave for not fanning
+      out, and it is situational. The 207/208 non-overlap is the worked example.
+  - path: ENGINEERING.md
+    why: 'The concurrent-gate measurements: +9/+16/+25% for two/four/six, no cliff.'
+acceptance:
+- id: ac-1
+  text: "The protocol states whether a supervisor may run independent eligible children\
+    \ concurrently, and gives the reason for whichever answer is chosen \u2014 no\
+    \ bare assertion."
+  status: pending
+- id: ac-2
+  text: 'If concurrency is allowed, the bounds are specified: how overlap is judged,
+    any cap, what happens to merges that land together, and the rule that fan-out
+    stops when a child parks.'
+  status: pending
+- id: ac-3
+  text: docs/agent-workflow.md line 98 no longer reads as though the session-isolation
+    argument settles the ordering question; the two rules are separated and each carries
+    its own reason.
+  status: pending
+- id: ac-4
+  text: A supervisor reading only the updated docs, with three eligible non-overlapping
+    children, reaches the intended behaviour without needing this task record.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T15:02:49.155530Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 2e6a9f13-8b47-4c50-9d82-1a3f7e04b955
+      kind: create
+      fingerprint: 876692052e001f714197ece3228a0d0a

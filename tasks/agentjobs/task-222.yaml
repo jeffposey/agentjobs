@@ -1,0 +1,150 @@
+schema: 2
+id: task-222
+title: Pre-approve `git merge` for dispatched runs, and fix the colon-less rule that
+  never matched
+created: '2026-08-21T14:49:52.979769Z'
+updated: '2026-08-21T14:52:36.616955Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
+archived: false
+priority: high
+queue_position: 5700
+category: infrastructure
+tags:
+- dispatch
+- permissions
+- autonomy
+effort: "small \u2014 one tuple entry plus tests"
+assignment:
+  owner: claude
+  eligible: []
+spec:
+  summary: "Jeff authorised widening dispatch's ALLOW_PREFIXES to include `git merge`\
+    \ on 2026-08-21, the call task-220's constraints reserved for him. Separately,\
+    \ the project's own settings carried `Bash(git merge *)` \u2014 space-star, not\
+    \ `:*` \u2014 so the grant children actually read had been matching nothing."
+  intent: 'Every autonomous run ends in a merge. Leaving that one command to a stochastic
+    classifier decision means a run can do all of its work and land none of it, which
+    is the worst shape a failure can take: expensive, complete, and discarded.'
+  description: "Add `git merge` to `ALLOW_PREFIXES` in `src/agentjobs/dispatch/runner.py`,\
+    \ so `allow_rules()` emits `Bash(git merge:*)` and `PowerShell(git merge:*)` into\
+    \ every dispatched run's `--settings`.\n\n**Authorisation.** task-220's constraints\
+    \ say \"Do not widen ALLOW_PREFIXES globally on this task's authority ... Any\
+    \ widening is Jeff's call -- task-076 records that these flags are the actual\
+    \ risk boundary of the feature.\" Jeff made that call in session on 2026-08-21,\
+    \ after task-206 completed a full green ten-stage gate and then could not merge\
+    \ itself.\n\n**Scope, stated precisely, because the obvious reading of this task\
+    \ is wrong.** `ALLOW_PREFIXES` reaches **dispatched runs only** \u2014 it is baked\
+    \ into the `--settings` blob `build_argv()` composes. The children of an epic\
+    \ supervisor are *not* dispatched: `docs/agent-workflow.md` prescribes `claude\
+    \ --bg --remote-control --permission-mode auto \"<prompt>\"` with no `--settings`,\
+    \ so a child inherits nothing from this list. This change therefore helps ordinary\
+    \ dispatched leaf runs, which merge themselves on approval and are the common\
+    \ non-epic case. It does **not**, on its own, stop an epic's children parking\
+    \ on merge.\n\n**What covers the children is a separate, already-applied fix.**\
+    \ `C:/projects/agentjobs/.claude/settings.local.json` (untracked, globally gitignored,\
+    \ machine-local) contained:\n\n    \"Bash(git merge *)\"\n\nSpace-star rather\
+    \ than `:*`. That is the exact failure `allow_rules()`' docstring documents \u2014\
+    \ \"matches nothing at all, and a run under it looks exactly like the feature\
+    \ working right up until the session parks\" \u2014 and `tests/test_dispatch_runner.py::TestPosture::test_every_allow_rule_uses_the_colon_form`\
+    \ asserts the colon form for that reason. Corrected in place on 2026-08-21 to\
+    \ `Bash(git merge:*)` plus `PowerShell(git merge:*)`. It takes effect for the\
+    \ next child spawned; it is not a repository change and carries no commit.\n\n\
+    **Risk to name, since this is the risk boundary.** `git merge` is not boring the\
+    \ way `git status` is: it writes to the working tree and creates commits. What\
+    \ makes it acceptable is that the merge is already the sanctioned end of the documented\
+    \ lifecycle and is gated on a human approval recorded on the task, not on the\
+    \ classifier \u2014 the classifier was never the thing authorising it, only an\
+    \ unreliable obstacle in front of it. `git push` remains absent from the list\
+    \ and must stay absent: pushing is a separate act from merging in this repository\
+    \ and nothing authorises it.\n\n**Tests.** The existing `test_every_allow_rule_uses_the_colon_form`\
+    \ covers the new entry automatically. Add an assertion to `test_the_seed_list_covers_the_boring_commands`\
+    \ (or a sibling) naming `git merge` explicitly, and one asserting `git push` is\
+    \ absent from the emitted rules \u2014 the anti-rot pairing, so a later widening\
+    \ has to be deliberate."
+  constraints: '- Do not add `git push`, `git reset --hard`, or `git checkout` while
+    in here. One logical change.
+
+    - Do not touch the supervisor MCP grant (task-220) or the posture selection.
+
+    - Ordinary read_only and autonomous postures must stay byte-identical; the existing
+    exact-argv tests pin this.
+
+    - Task records go to main from the main clone, never to this branch.'
+  out_of_scope: "Changing how supervisor-spawned children receive permissions (they\
+    \ read project settings, not dispatch's blob) \u2014 that is a design question\
+    \ for a successor to task-164/220 if the local settings fix proves insufficient.\
+    \ Pushing to a remote."
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: "ALLOW_PREFIXES at line 224 and allow_rules() at 246 \u2014 the list and\
+      \ the colon form it must keep."
+  - path: tests/test_dispatch_runner.py
+    why: TestPosture at line 171 holds the colon assertion and the seed-list coverage
+      test the new entry extends.
+  - path: docs/agent-workflow.md
+    why: Line 139 is the child spawn command, and the evidence that a child gets no
+      --settings from dispatch.
+acceptance:
+- id: ac-1
+  text: '`git merge` is in ALLOW_PREFIXES, and allow_rules() emits both Bash(git merge:*)
+    and PowerShell(git merge:*) in the colon form.'
+  status: pending
+- id: ac-2
+  text: A test names `git merge` explicitly and a paired test asserts `git push` is
+    absent from the emitted rules, so a future widening must be deliberate rather
+    than incidental.
+  status: pending
+- id: ac-3
+  text: read_only and autonomous posture argv are unchanged, proven by the existing
+    exact-argv tests still passing untouched.
+  status: pending
+- id: ac-4
+  text: "The full ten-stage scripts/check.py passes, unqualified \u2014 not a --from\
+    \ or --only run."
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches:
+- name: feat/task-222-git-merge-allow
+  status: active
+log:
+- id: 1
+  ts: '2026-08-21T14:49:53.285700Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7c1f4a92-3d58-4e61-9a20-5b8e6f0c1d44
+      kind: create
+      fingerprint: 64da2203072b5124da8581e9db6a98e3
+- id: 2
+  ts: '2026-08-21T14:52:32.765513Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 9a2b7c04-6e13-4f88-b5d1-2c7e9a03f611
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-21T14:52:36.616848Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 4d8e1b57-9c02-4a36-8e71-6f3b2d5a9c08
+      kind: update_content
+      fingerprint: 4bf575f8689d5d312bc9d2a47bc6552d

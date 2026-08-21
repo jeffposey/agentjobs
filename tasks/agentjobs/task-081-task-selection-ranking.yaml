@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T14:33:27.719460Z'
+updated: '2026-08-21T15:04:27.502147Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -19,11 +19,24 @@ ball_prompt: 'You are the SUPERVISOR of this epic. Do not work the children your
   rather than whatever was edited last, and names what it skipped.
 
 
-  REMAINING CHILDREN, all three now eligible -- 206 closed, so nothing has an unmet
-  need. Recorded order is 207/209 after 206, 208 after 205. Run them one at a time
-  in the order task-207 -> task-208 -> task-209. task-209 is deliberately last: it
-  orders the live backlog using the verbs the other two finish, and it is the child
-  that satisfies sc-7 and lets this task close.
+  YOUR REMAINING ORDER IS task-207 -> task-209. TASK-208 IS NOT YOURS. See log entry
+  40, which is binding: Jeff dispatched task-208 as a separate run at ~15:00Z on 2026-08-21,
+  outside your loop. Do not start a child session for it. Poll its record like any
+  task another agent owns; it will close on its own. If it parks on ball: human, that
+  is Jeff''s to answer -- you did not start it and its restart allowance is not yours
+  to spend. task-209''s recorded need is task-206, which is closed, so it is eligible
+  as soon as task-207 is done and does not wait on 208.
+
+
+  DO NOT CLOSE THIS PARENT WHILE TASK-208 IS STILL OPEN, however task-209 ends. "When
+  no child remains open" means all six, not the five you supervised. task-209 is still
+  the child that satisfies sc-7 and lets this task close.
+
+
+  This is not a licence to fan out on your own. ALLAGENTS.md still says one child
+  at a time and you should still obey it; what changed is that Jeff started one himself.
+  The protocol gap behind that is filed as task-223 and is not yours to settle --
+  do not relitigate the ordering rule, just take 208 off your list.
 
 
   MERGE POSTURE. Jeff authorised an autonomous run of this epic on 2026-08-20/21,
@@ -46,7 +59,10 @@ ball_prompt: 'You are the SUPERVISOR of this epic. Do not work the children your
   the branch name, the gate evidence, and the exact merge command, and stop. Jeff
   re-dispatched task-206 from the task page at 14:19Z and the fresh session merged
   it in six minutes -- that is the recovery path and it is cheap. A parked child is
-  one child; a supervisor that reworders a decline loses the epic.
+  one child; a supervisor that rewords a decline loses the epic. Note that the project''s
+  own settings had `Bash(git merge *)` -- space-star, which matches nothing -- corrected
+  to the colon form at ~14:50Z on 2026-08-21, so children spawned after that should
+  meet this less often.
 
 
   DO NOT PUSH. Pushing is a separate act from merging here and nothing authorises
@@ -63,10 +79,10 @@ ball_prompt: 'You are the SUPERVISOR of this epic. Do not work the children your
   limit); an acceptance criterion cannot be met as written; or the work would contradict
   a decision already recorded here or on a child. Binding decisions on this task:
   entry 13 (approved design plus four review fixes), entry 18 (an agent may reorder
-  the queue autonomously, with three bounds), entry 19. Do not relitigate them. Binding
-  on the children from task-205: there is deliberately no `reopen` verb -- update_task
-  intercepts a reopening patch under the queue lock. task-208 must not add one on
-  its own initiative.
+  the queue autonomously, with three bounds), entry 19, and entry 40 (task-208 is
+  not yours). Do not relitigate them. Binding on the children from task-205: there
+  is deliberately no `reopen` verb -- update_task intercepts a reopening patch under
+  the queue lock. task-208 must not add one on its own initiative.
 
 
   WATCHING IS A MECHANISM, NOT AN INTENTION. Poll the child''s task record, not its
@@ -77,8 +93,10 @@ ball_prompt: 'You are the SUPERVISOR of this epic. Do not work the children your
 
 
   KNOWN GAP, not a fault: children you start are your own subprocesses, not dispatches.
-  No run directory, no dispatch_result, not reaped by the poller. Only your own run
-  appears in the ledger.'
+  No run directory, no dispatch_result, not reaped by the poller. task-208 is the
+  exception and is not your child -- it is a real dispatch, so it does have all of
+  those. Two mechanisms are now running children of this epic at once; if that produces
+  anything surprising, log it, because task-223 needs the evidence.'
 archived: false
 priority: high
 queue_position: 200
@@ -1463,3 +1481,146 @@ log:
       id: bb9b9273-0081-4a00-9e00-000000000002
       kind: log_append
       fingerprint: 433314edb7cb1b1a5eb04899db8997b6
+- id: 40
+  ts: '2026-08-21T15:03:09.988284Z'
+  actor: claude
+  type: instruction
+  body: "**task-208 IS BEING WORKED BY A SEPARATE DISPATCHED RUN. DO NOT START A CHILD\
+    \ SESSION FOR IT.** Your remaining order is task-207 -> task-209.\n\nJeff's decision,\
+    \ 2026-08-21 ~15:00Z, made in session and recorded here because it changes your\
+    \ queue.\n\n**What to do.** When task-207 closes, skip task-208 entirely and go\
+    \ straight to task-209 \u2014 its recorded need is task-206, which is closed,\
+    \ so it is eligible now and does not wait on 208. Treat task-208 exactly as you\
+    \ would a child that another agent already owns: **poll its record, do not act\
+    \ on it.** It will move to `closed`/`completed` on its own. If it parks on `ball:\
+    \ human`, that is Jeff's to answer, not yours to restart \u2014 you did not start\
+    \ it and its one-restart allowance is not yours to spend.\n\n**Do not close this\
+    \ parent while task-208 is still open**, however task-209 ends. The \"when no\
+    \ child remains open\" step means all six, not the five you personally supervised.\n\
+    \n**Why, so you do not reason your way back to the old order.** task-208 had no\
+    \ unmet needs the moment task-206 closed, and its deliverables do not touch task-207's:\
+    \ 207 is `frontend/src/components/TaskList.tsx`, 208 is `src/agentjobs/mcp/mutation_tools.py`,\
+    \ `ALLAGENTS.md` and `docs/task-schema.md`. They share only `docs/task-selection-design.md`,\
+    \ which both read as spec and neither writes. So the serialization was buying\
+    \ nothing here, and it was costing about 75 minutes of wall clock.\n\n**This is\
+    \ not a licence to fan out on your own.** `ALLAGENTS.md` still says one child\
+    \ at a time and you should still obey it; what changed is that Jeff started 208\
+    \ himself, outside your loop. The protocol gap that made this worth doing by hand\
+    \ \u2014 that the one-at-a-time rule has no stated reason, and that the passage\
+    \ which appears to justify it is actually justifying session isolation instead\
+    \ \u2014 is filed as **task-223** and is not yours to settle. Do not relitigate\
+    \ the ordering rule; just take 208 off your list.\n\n**One thing to watch that\
+    \ the protocol did not anticipate.** task-208 is a real dispatch, so unlike your\
+    \ own children it *does* have a run directory, a `dispatch_result`, and a place\
+    \ in the ledger, and the poller will reap it. Your own children remain subprocesses\
+    \ with none of that. Two different mechanisms are now running children of this\
+    \ epic at once; if that produces anything surprising, log it \u2014 it is exactly\
+    \ the kind of thing task-223 needs evidence for."
+  data:
+    operation:
+      id: 6b3d0e28-4f91-4a75-8c63-9e2a1d5f7b03
+      kind: log_append
+      fingerprint: 2d4c9fd8e183ac5c84b4204ec6307a57
+- id: 41
+  ts: '2026-08-21T15:04:27.501857Z'
+  actor: claude
+  type: handoff
+  body: 'You are the SUPERVISOR of this epic. Do not work the children yourself --
+    start a separate session per child and supervise it. task-164 is the rule; docs/agent-workflow.md
+    carries the protocol.
+
+
+    WHERE THE EPIC STANDS. Four of six children are done, merged and live on the 8876
+    dashboard: task-204 (queue_position on the schema, rule 6, validator, corpus migration),
+    task-205 (queue lock, move/reprioritize, rebalance, compaction, integrity check
+    and repair, get_next_task by (band, position), explain_next), task-206 (REST,
+    Python client, `agentjobs queue` CLI). GET /tasks/next now answers task-100 at
+    high/300 rather than whatever was edited last, and names what it skipped.
+
+
+    YOUR REMAINING ORDER IS task-207 -> task-209. TASK-208 IS NOT YOURS. See log entry
+    40, which is binding: Jeff dispatched task-208 as a separate run at ~15:00Z on
+    2026-08-21, outside your loop. Do not start a child session for it. Poll its record
+    like any task another agent owns; it will close on its own. If it parks on ball:
+    human, that is Jeff''s to answer -- you did not start it and its restart allowance
+    is not yours to spend. task-209''s recorded need is task-206, which is closed,
+    so it is eligible as soon as task-207 is done and does not wait on 208.
+
+
+    DO NOT CLOSE THIS PARENT WHILE TASK-208 IS STILL OPEN, however task-209 ends.
+    "When no child remains open" means all six, not the five you supervised. task-209
+    is still the child that satisfies sc-7 and lets this task close.
+
+
+    This is not a licence to fan out on your own. ALLAGENTS.md still says one child
+    at a time and you should still obey it; what changed is that Jeff started one
+    himself. The protocol gap behind that is filed as task-223 and is not yours to
+    settle -- do not relitigate the ordering rule, just take 208 off your list.
+
+
+    MERGE POSTURE. Jeff authorised an autonomous run of this epic on 2026-08-20/21,
+    in session, having been told plainly that it waives the per-child human review
+    gate for this run. Each child: its own worktree, `python scripts/bootstrap.py`,
+    do the work, run the FULL ten-stage `scripts/check.py` with the interpreter the
+    bootstrap prints, and on a fully green gate rebase onto main, merge --no-ff, mark
+    the branch merged, close the task completed, rebuild the frontend if it touched
+    it, restart 8876 through C:/ai/shared/launchers/open-agentjobs.ps1 -Force, and
+    remove the worktree. The green gate is what stands in for Jeff''s approval here,
+    so it is not optional, not partial, and not a subset run -- a --from or --only
+    run does not qualify.
+
+
+    IF A CHILD''S `git merge` IS DECLINED BY THE AUTO-MODE CLASSIFIER, that is a stochastic
+    per-session decline, not a rule. task-204 and task-205 merged fine under the identical
+    settings blob; task-206''s session was declined, retried the same command reworded,
+    and the third refusal armed the breaker and parked it. THE RETRY IS THE HAZARD,
+    NOT THE COMMAND. So the standing instruction to every child: attempt the merge
+    ONCE. If it is declined, do not re-send it in any form. Hand off to human/review
+    with the branch name, the gate evidence, and the exact merge command, and stop.
+    Jeff re-dispatched task-206 from the task page at 14:19Z and the fresh session
+    merged it in six minutes -- that is the recovery path and it is cheap. A parked
+    child is one child; a supervisor that rewords a decline loses the epic. Note that
+    the project''s own settings had `Bash(git merge *)` -- space-star, which matches
+    nothing -- corrected to the colon form at ~14:50Z on 2026-08-21, so children spawned
+    after that should meet this less often.
+
+
+    DO NOT PUSH. Pushing is a separate act from merging here and nothing authorises
+    it.
+
+
+    TASK RECORDS GO TO MAIN, from the main clone at C:/projects/agentjobs, never to
+    a child''s branch. Yours and every child''s.
+
+
+    STOP AND PARK ON human/decision, leaving the epic resumable, if: a child''s gate
+    fails in a way needing a judgement call; a child raises a question for Jeff; a
+    child dies twice (one restart with a re-brief naming what is already committed
+    is the limit); an acceptance criterion cannot be met as written; or the work would
+    contradict a decision already recorded here or on a child. Binding decisions on
+    this task: entry 13 (approved design plus four review fixes), entry 18 (an agent
+    may reorder the queue autonomously, with three bounds), entry 19, and entry 40
+    (task-208 is not yours). Do not relitigate them. Binding on the children from
+    task-205: there is deliberately no `reopen` verb -- update_task intercepts a reopening
+    patch under the queue lock. task-208 must not add one on its own initiative.
+
+
+    WATCHING IS A MECHANISM, NOT AN INTENTION. Poll the child''s task record, not
+    its process: ball agent means keep waiting, ball human means act now, closed with
+    an outcome means verify from durable evidence (record, branch, main''s log) and
+    move on. A parent that ends its turn is asleep, not supervising. While waiting,
+    spend context on nothing but the poll and your own record.
+
+
+    KNOWN GAP, not a fault: children you start are your own subprocesses, not dispatches.
+    No run directory, no dispatch_result, not reaped by the poller. task-208 is the
+    exception and is not your child -- it is a real dispatch, so it does have all
+    of those. Two mechanisms are now running children of this epic at once; if that
+    produces anything surprising, log it, because task-223 needs the evidence.'
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 8f5c2a41-7d09-4b36-a1e4-3b6d8e0f2c17
+      kind: handoff
+      fingerprint: 3edb2da72d7276192c8f90e64b2ba83f
