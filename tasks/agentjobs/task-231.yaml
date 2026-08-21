@@ -3,10 +3,11 @@ id: task-231
 title: The review panel offers verbs that are true, and records which one the human
   meant
 created: '2026-08-21T20:18:51.832048Z'
-updated: '2026-08-21T20:26:43.832915Z'
-lifecycle: ready
+updated: '2026-08-21T20:42:39.164295Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 queue_position: 433
@@ -19,6 +20,7 @@ tags:
 effort: "one branch, three commits, one gate, one review \u2014 the first part is\
   \ a vocabulary decision and the other two are small once it is made"
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: "One task, three parts, one branch. The review panel is the single control\
@@ -181,7 +183,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-231-review-panel
+  status: active
 log:
 - id: 1
   ts: '2026-08-21T20:18:52.254191Z'
@@ -280,3 +284,159 @@ log:
       id: 9b2d4f61-0a73-4c88-b5e2-1d3f7a90c203
       kind: log_append
       fingerprint: f35abec9fbeb0c502c7a6e3569e45bd6
+- id: 5
+  ts: '2026-08-21T20:30:54.592174Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 6
+  ts: '2026-08-21T20:30:55.070631Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 7
+  ts: '2026-08-21T20:30:56.392618Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_a3c689a8
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 5
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-231` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-231-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_a3c689a8.'
+    cwd: C:\projects\agentjobs
+    git_head: a47e652
+    session_id: f10a7e8b
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 8
+  ts: '2026-08-21T20:42:28.843888Z'
+  actor: claude
+  type: decision
+  body: "**Part 1 \u2014 the vocabulary grows by three: `answer`, `redirect`, `hold`.\
+    \ The agent side becomes `available` \xB7 `work` \xB7 `revise` \xB7 `answer` \xB7\
+    \ `redirect` \xB7 `hold`.**\n\nEach of the four intents task-226 documented now\
+    \ has somewhere to land, and each control in the panel writes the one that matches\
+    \ its label:\n\n| Intent (task-226) | Lands on | Written by |\n|---|---|---|\n\
+    | Reject work / ask for changes | `revise` (unchanged) | Request Changes |\n|\
+    \ Grant a permission so a stuck run can proceed | `work` | **Approve, with a note**\
+    \ \u2014 part 3 |\n| The human supplied what the agent was waiting for | `answer`\
+    \ | Answer Questions |\n| Re-brief a parked run; prior work stands | `redirect`\
+    \ | New Instructions |\n| Stop, with a release condition | `hold` | Hold |\n\n\
+    **Why grow it at all, rather than rename the button (the defensible do-nothing).**\
+    \ A rename cannot fix the one case that has already cost a session's time \u2014\
+    \ task-081 entry 25, a hold recorded as `revise` that entry 26 had to reinterpret\
+    \ in prose. And it leaves a live defect in place, not merely an illegible record:\
+    \ `maybe_auto_dispatch` is gated on `task.ball is not Ball.AGENT or not task.is_open`\
+    \ ([src/agentjobs/dispatch/auto.py:194](src/agentjobs/dispatch/auto.py:194)),\
+    \ so **a hold written as `agent/revise` is auto-dispatch eligible** \u2014 on\
+    \ a project with auto-dispatch on, telling a run to stop can start a new one in\
+    \ the same breath. That is a behavioural bug a label cannot reach, and it is the\
+    \ strongest single argument for `hold` being a value rather than a wording.\n\n\
+    **Why exactly three, and not the four task-226 floated.** `unblock` is dropped\
+    \ and folded into `answer`. A question answered, a permission granted and a blocker\
+    \ cleared produce the *identical* next action \u2014 resume where you left off,\
+    \ prior work stands \u2014 and the distinction between them is already carried\
+    \ by the state the ball came *from*: `human/decision` and `human/input` versus\
+    \ `external/dependency`, both of which are on the record in the preceding handoff\
+    \ entry. Two values for one next action would put a derivable fact in a second\
+    \ place where it can disagree with the first, which is the reasoning `dispatch_count`\
+    \ is already decided on. Acceptance p1-3 is still satisfied: `answer` plus the\
+    \ prior ball state distinguishes a question answered from a blocker cleared, and\
+    \ neither is confusable with `revise`, `redirect` or `hold`.\n\n**Why `hold` is\
+    \ agent-side, which is the one genuinely arguable call.**\n\n- *Rejected: `ball:\
+    \ external` / `ball_reason: dependency`.* Cheapest \u2014 no schema change, already\
+    \ excluded from auto-dispatch because the ball is not the agent's. Rejected because\
+    \ `external` asserts a third party owes the next move, and on a hold the human\
+    \ owes it. It replaces one lie with another, and `display_status` would read \"\
+    Blocked\" for a stop a human chose. It also invites the false `needs` dependency\
+    \ ALLAGENTS.md warns about, since `external/dependency` with nothing named reads\
+    \ as an omission.\n- *Rejected: keep the ball with the human at `human/decision`.*\
+    \ Honest about who owes the release, and free. Rejected because a held task then\
+    \ sits in the human review queue indefinitely looking like a pending decision\
+    \ \u2014 the queue whose whole job is to show what is actually waiting on him.\
+    \ A hold is precisely the thing he has decided not to decide yet.\n- *Chosen:\
+    \ `agent/hold`.* `ball: agent` already tolerates \"the agent side owns the next\
+    \ move, but no agent is on it right now\" \u2014 that is exactly what `available`\
+    \ means. `hold` says the same with a stated release condition, and it answers\
+    \ the reader's question (\"did a human stop this, and on what condition?\") on\
+    \ the axis built to answer it, rather than as a side effect of a ball value chosen\
+    \ for other reasons. The cost is that the exclusion from work has to be written\
+    \ explicitly instead of inherited; that is one rule in `maybe_auto_dispatch`,\
+    \ and writing it explicitly is worth more than inheriting it.\n\n**Consequence\
+    \ to watch, stated so nobody rediscovers it as a bug.** `agent/hold` is the first\
+    \ agent-ball state that is not workable, so any *future* code that reads `ball\
+    \ == agent` as \"an agent may proceed\" is wrong by default. The two places that\
+    \ read it today \u2014 `maybe_auto_dispatch` and the review panel's `ball !==\
+    \ \"human\"` early return \u2014 are both handled on this branch. `get_next_task()`\
+    \ is unaffected: it returns only `ready` tasks, and a held task is `active`.\n\
+    \n**Not migrated, and additive only.** Every existing `revise` entry stays valid\
+    \ and untouched; nothing in the corpus is rewritten. The three new values reach\
+    \ `models_v2.BallReason` and `BALL_REASONS`, `schema/agentjobs-v2.yaml` and its\
+    \ generated JSON Schema and reference docs, `docs/task-schema.md` and `docs/schema-design.md`,\
+    \ the MCP handoff target enum, `openapi.json` and the generated TypeScript client,\
+    \ and `display_status`. The REST `POST /handoff`, the Python client's `handoff_task`,\
+    \ and MCP's `task_handoff` take `ball_reason` as data, so the new values reach\
+    \ them by construction. The CLI has no handoff, approve or request-changes command\
+    \ at all today \u2014 it is a serve/queue/dispatch surface, not a review surface\
+    \ \u2014 so there is nothing there to extend; that is a gap in the CLI's coverage\
+    \ of the review loop, not something this branch introduces."
+  data:
+    operation:
+      id: 3f1a7c22-8d4e-4b19-9c05-2e6b8a4d7f31
+      kind: log_append
+      fingerprint: 36dd8fb64c74a5b044be13dbf699dc09
+- id: 9
+  ts: '2026-08-21T20:42:39.164149Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 5a2b9e14-7c03-4d68-b1fa-9e3c6d20a845
+      kind: update_content
+      fingerprint: c2548773b40b3e99b77b4795dfb9f75a
