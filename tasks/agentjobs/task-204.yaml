@@ -2,10 +2,11 @@ schema: 2
 id: task-204
 title: 'Queue position: the schema field, its validation, and the migration baseline'
 created: '2026-08-20T23:30:08.075135Z'
-updated: '2026-08-21T00:35:20.927215Z'
-lifecycle: ready
+updated: '2026-08-21T09:21:09.884467Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: infrastructure
@@ -15,6 +16,7 @@ tags:
 - migration
 - validation
 assignment:
+  owner: claude
   eligible: []
 parent: task-081-task-selection-ranking
 spec:
@@ -122,7 +124,9 @@ deliverables:
   status: pending
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-204-queue-position-schema
+  status: active
 log:
 - id: 1
   ts: '2026-08-20T23:30:08.075186Z'
@@ -162,3 +166,149 @@ log:
       id: a1b2c3d4-0002-4a00-9e00-1a2b3c4d0204
       kind: promote
       fingerprint: 3adc6946efc3dc79125f49cd49be17a3
+- id: 4
+  ts: '2026-08-21T08:13:09.331930Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 3f1c8a20-0204-4b11-9c30-000000000001
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 5
+  ts: '2026-08-21T08:13:48.368254Z'
+  actor: claude
+  type: decision
+  body: "Rule 6 forces two manager changes that `out_of_scope` assigns to task-205.\
+    \ Taking them, minimally, rather than parking.\n\nTHE CONTRADICTION. sc-1 requires\
+    \ `Task` to reject an open task with no `queue_position`. Every task is born open\
+    \ (`create_task` builds draft or ready), and every close is a write of an open\
+    \ task's model. So the moment rule 6 exists, `_create_unlocked` produces an invalid\
+    \ model and `close_task` writes one. `out_of_scope` names \"assignment on create\"\
+    \ as child 2 or later, and `constraints` forbids manager changes here. The spec\
+    \ cannot be satisfied as written: rule 6 and \"no manager change\" are mutually\
+    \ exclusive, not merely awkward together.\n\nWHAT I DID. Landed rule 6 in full\
+    \ (sc-1 as written) plus the irreducible minimum that keeps the existing verbs\
+    \ legal: `_create_unlocked` assigns bottom-of-band via `queue.next_position()`,\
+    \ and `close_task` clears the position in the same write that clears `ball` (design\
+    \ section 5.4). No lock, no reorder verb, no rebalance, no `get_next_task` change,\
+    \ no API/CLI/UI change. `src/agentjobs/queue.py` holds the pure helpers so task-205\
+    \ extends it rather than replacing it.\n\nREJECTED \u2014 park on human/decision.\
+    \ The parent's park list does name \"an acceptance criterion cannot be met as\
+    \ written\", so this was live. Rejected because the deviation is ~30 lines, strictly\
+    \ additive, and reversible in one commit, and because parking child 1 of a six-child\
+    \ program on a spec-drafting defect costs Jeff a decision whose only sensible\
+    \ answer is this one.\n\nREJECTED \u2014 defer rule 6 to task-205, landing only\
+    \ the field, `_check_queue` and the migration here. This is what `intent` (\"\
+    zero behaviour change\") literally describes, and it needs no manager change at\
+    \ all. Rejected because it abandons sc-1 entirely rather than bending a constraint,\
+    \ and because a corpus with a validated-but-unenforced field drifts: every task\
+    \ created between this merge and task-205's would arrive unpositioned.\n\nCONSEQUENCE\
+    \ FOR TASK-205. Two things it can now assume rather than build: creation assigns,\
+    \ and close clears. Two things it must still do to those paths: put them under\
+    \ the project queue lock (design section 7), and add the reopen path (section\
+    \ 5.4). Also still open and deliberately left: `update_task(priority=...)` moves\
+    \ a task between bands without reassigning a position, so a priority patch can\
+    \ create a duplicate. `_check_queue` reports it; section 5.3's interception fixes\
+    \ it in task-205."
+  data:
+    operation:
+      id: 3f1c8a20-0204-4b11-9c30-000000000002
+      kind: log_append
+      fingerprint: 2dec04dcdcd9bb7ad9bb78b69e88c3f5
+- id: 6
+  ts: '2026-08-21T09:20:48.320297Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 3f1c8a20-0204-4b11-9c30-000000000003
+      kind: update_content
+      fingerprint: 8c404162369fceed3a0c5fa1bee82469
+- id: 7
+  ts: '2026-08-21T09:21:09.884333Z'
+  actor: claude
+  type: progress
+  body: 'Implemented and verified on `feat/task-204-queue-position-schema`. Two commits:
+    eeaf60f (code, tests, docs) and 3995fe1 (regenerated LinkML artefacts). Not yet
+    merged.
+
+
+    WHAT IS THERE.
+
+    - `queue_position: Optional[int]`, ge=1, on `Task`, plus consistency rule 6 in
+    `_check_consistency`, written to read like rule 1.
+
+    - `src/agentjobs/queue.py`: `QUEUE_STEP = 100`, `next_position()` (bottom of band,
+    used by create), `QueueRecord` / `read_queue_records()` / `plan_queue_migration()`
+    / `migrate_queue_positions()`.
+
+    - `_check_queue` in `validation.py`, wired into `validate_corpus`.
+
+    - `schema/agentjobs-v2.yaml` slot, regenerated by `scripts/regen-schema-docs.sh`.
+
+    - 42 new tests in `tests/test_queue_position.py`.
+
+
+    TWO NON-OBVIOUS THINGS, both forced rather than chosen.
+
+
+    1. **The migration reads raw YAML, not `Task` objects.** Rule 6 refuses to load
+    an open task that has no position, so a migration built on `storage.load_all()`
+    could not read a single file it was written to fix. `QueueRecord` carries the
+    four fields the baseline needs, straight out of the mapping -- the same shape
+    `migrate_schema.py` uses for v1 files v2 cannot load. `_check_queue` reads raw
+    for the same reason: three of its four conditions are model-rejected, so a check
+    written against loaded tasks would go silent exactly when the queue is broken.
+    A test asserts both `unreadable` and `queue-missing` fire on one bad file.
+
+
+    2. **Rule 6 reaches every path that builds an open task**, not just the manager.
+    The v1->v2 converter (`migrate_schema.migrate_corpus`) now numbers the batch it
+    converts before validating it, the markdown importer (`migration/__init__.py`)
+    claims bottom-of-band positions against the target directory, `scripts/bench.py`
+    numbers its synthetic corpus, and `test_data/sample_tasks.py` ships positioned
+    fixtures. That is design section 5.1''s "no path creates an open task without
+    one", arriving earlier than expected.
+
+
+    sc-4 needed one unrelated fix. `LogEntry.attachments` has been on the Pydantic
+    model since task-152 and was never added to the LinkML schema, so `linkml-validate`
+    rejected task-015 -- the one file carrying an attachment -- and `regen-schema-docs.sh`
+    aborted on it. It aborts on `main` too; this is pre-existing drift, not something
+    this branch caused. Added the missing `Attachment` class. Corpus now: 225 passed,
+    0 failed.
+
+
+    VERIFICATION. `scripts/check.py` with no arguments, from the worktree, using the
+    interpreter the bootstrap printed: **green, all ten stages, exit 0**, 386s. black
+    0.6 / ruff 0.1 / mypy 19.5 / api 4.2 / icons 2.6 / oxlint 0.6 / pytest 309.6 /
+    vitest 29.8 / build 3.5 / e2e 15.8. Not a `--from` or `--only` run.
+
+
+    MIGRATION, dry-run against the live corpus: 93 open tasks positioned across four
+    bands, 125 closed skipped, 0 unreadable. Applied to a scratch copy the diff was
+    exactly `93 files changed, +2/-1 each` -- the `updated` line and one new `queue_position`
+    line, nothing else. Re-running against the positioned result plans nothing.
+
+
+    NOT YET DONE, and the reason it is sequenced this way: `StrictModel` sets `extra="forbid"`,
+    so a process running pre-merge code cannot read a migrated task file at all. Committing
+    the corpus before the code would break the dashboard on 8876 and this session''s
+    own MCP writes. So the order is: merge the code to `main`, then migrate `tasks/agentjobs`
+    and `tasks/test-data` in the main clone as a separate `chore(tasks):` commit,
+    then restart the 8876 server through `C:/ai/shared/launchers/open-agentjobs.ps1
+    -Force` -- not `agentjobs restart`, which binds 8765 and is not the process serving
+    that port.'
+  data:
+    operation:
+      id: 3f1c8a20-0204-4b11-9c30-000000000004
+      kind: log_append
+      fingerprint: 0598b25707faaa0e9b2415f0533ce317
