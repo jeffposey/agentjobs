@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T09:28:17.349118Z'
+updated: '2026-08-21T10:43:12.371714Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1070,3 +1070,70 @@ log:
       id: 7a2d4b18-6c39-4e27-b1f5-2d3e4f5a6b70
       kind: log_append
       fingerprint: c5052220a36ae095a7b1ee9372a5efd6
+- id: 31
+  ts: '2026-08-21T10:43:12.371443Z'
+  actor: claude
+  type: progress
+  body: "Child 2 of 6 done. task-206 started.\n\nTASK-205 VERIFIED from durable evidence.\
+    \ lifecycle closed / outcome completed; sc-1 through sc-7 all `met`; branch feat/task-205-queue-verbs-selection\
+    \ marked merged; merge commit 1b49c3b on main, --no-ff; full ten-stage gate, exit\
+    \ 0, 363s, not a --from or --only run. Not pushed.\n\nOn main: 48f3dc8 the queue\
+    \ lock and its uncached reads, creation under both locks, move/reprioritize, the\
+    \ update_task interceptions, rebalance and compaction with the direction rule\
+    \ and the concurrent-close skip, integrity/check/repair, get_next_task by (band,\
+    \ position), explain_next, 54 tests. 3ebdb41 the queue_move log type through LinkML,\
+    \ OpenAPI, the TypeScript client and docs/task-schema.md. Then the merge.\n\n\
+    THE MEASUREMENT THAT MATTERS, from the child's live verification after restarting\
+    \ 8876 -- this is task-081's thesis in four lines, so it is quoted rather than\
+    \ summarised:\n\n    pre-merge sort would pick : task-221   high   updated 2026-08-21T09:22:53Z\n\
+    \    merged selection picks    : task-100-dependency-cycle-deadlock  high/300\n\
+    \    live server GET /tasks/next: task-100-dependency-cycle-deadlock  high/300\n\
+    \    queue problems on live    : 0\n\nThe old ranking hands an agent whatever\
+    \ was edited most recently. The new one hands it what stands first in line, and\
+    \ the running dashboard agrees, which is how we know the process is on merged\
+    \ code rather than the code it replaced. explain_next() names the three tasks\
+    \ ahead of the winner with the rule that excluded each: task-220 and task-081\
+    \ both \"not ready (active, held by agent)\", task-063 \"has 1 open child\". Log\
+    \ entry 1 of this task, from 2026-08-11, is the complaint that opened it; that\
+    \ is its answer.\n\nONE CLAIM I CHECKED RATHER THAN ACCEPTED, because it is the\
+    \ kind that is usually wrong. The child did NOT rebuild the frontend and said\
+    \ so explicitly, with the argument: the only frontend-source change is one line\
+    \ of types.gen.ts adding 'queue_move' to a union; TypeScript types are erased\
+    \ at compile time, so the emitted bundle is byte-identical and frontend_dist/\
+    \ is already behaviourally current; the gate's build stage compiled it green.\
+    \ That reasoning is sound and it is the right call. It is worth recording that\
+    \ the child volunteered the reasoning instead of quietly skipping the step --\
+    \ ENGINEERING.md's rebuild rule exists because a merged frontend change once appeared\
+    \ to do nothing, and an argued exception is a different thing from a forgotten\
+    \ one. Flagged for the next child that renders a queue_move entry: that one does\
+    \ need the rebuild.\n\nA BINDING DECISION 205 RECORDED, noted here because two\
+    \ later children touch it: there is no `reopen` verb. update_task intercepts a\
+    \ patch that reopens a closed task and assigns it a bottom-of-band place under\
+    \ the queue lock. Rejected adding reopen_task() as a domain verb, because a verb\
+    \ is a REST route plus a CLI command plus an MCP tool plus a React control, all\
+    \ of which 205's out_of_scope assigns to children 3, 4 and 5 -- shipping the manager\
+    \ half alone leaves a verb nothing can call. The interception is keyed on the\
+    \ patch rather than the caller, so a future verb routed through update_task inherits\
+    \ it free. task-206 and task-208 should not \"add the missing reopen verb\" on\
+    \ their own initiative; it is deliberately absent.\n\nTIMING: dispatched 09:28Z,\
+    \ closed 10:40Z, 72 minutes. Both children so far have come in near 75 minutes\
+    \ with roughly 6 of those being the gate.\n\nSTARTED task-206 -- background session\
+    \ 39a62dc4, branch feat/task-206-queue-rest-client-cli, worktree ../worktrees/agentjobs-206.\n\
+    \nWHY 206 AND NOT 208. Both became eligible at the same moment -- the recorded\
+    \ order is 205 -> {206, 208} with no order stated inside the brace. Picked 206\
+    \ because it is the only one on the critical path: 207 and 209 both need 206,\
+    \ and nothing needs 208. Running 208 first would idle the two children behind\
+    \ 206 for a child's worth of wall clock. This is a scheduling choice inside the\
+    \ recorded order, not a change to it, and 208 remains eligible whenever 206 finishes.\n\
+    \nIts brief points at 205's closing entry, which addresses four things to 206\
+    \ by name. One is worth surfacing even at supervisor altitude because it is a\
+    \ trap rather than a note: QueueCorruptionError is a RuntimeError, not a ValueError,\
+    \ so it does not fall through the existing 409 mapping for refused verbs -- design\
+    \ section 8 wants a 409 and forgetting this surfaces as a 500.\n\nworktrees/agentjobs-204\
+    \ and agentjobs-205 both cleaned themselves up. No permission prompt or classifier\
+    \ decline on this third spawn."
+  data:
+    operation:
+      id: 9c5e6a24-8f41-4b53-a2d7-3e4f5a6b7c81
+      kind: log_append
+      fingerprint: 9a85d6b8d0fc3f87ab6d508f959772e2
