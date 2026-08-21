@@ -3,10 +3,54 @@ id: task-225
 title: Drag to reorder the backlog actually starts a drag, and a test drives a real
   mouse
 created: '2026-08-21T16:06:58.493311Z'
-updated: '2026-08-21T16:06:58.826098Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-21T16:41:14.188321Z'
+lifecycle: active
+ball: human
+ball_reason: decision
+ball_prompt: "**Please drag one row in the sandbox, and tell me what the panel says.\
+  \ That one gesture decides this task, and it is the only instrument left.**\n\n\
+  Open http://127.0.0.1:8902/app/p/sandbox-healthy/tasks \u2014 running now, seeded,\
+  \ throwaway data, its own port and its own registry; the 8876 dashboard is not involved.\
+  \ Grab the \u283F handle on `task-013` (or any row in the high band) and drag it\
+  \ onto `task-010`. A trace panel sits bottom-right and records what actually happened.\n\
+  \nThen say which of these you saw:\n\n1. **The row moved, panel shows `DRAGSTART\
+  \ \u2026 DROP \u2026 HTTP 200`.** The drag works. The defect in this task's spec\
+  \ is not real, and I will correct the record, narrow this to sc-4 (the handle's\
+  \ ARIA role) and the hit box, and re-scope.\n2. **Panel says `PRESS NOT on a handle`.**\
+  \ You missed a 19-px-wide target. The fix is to widen and re-label the handle, and\
+  \ I can do it immediately.\n3. **Panel says `PRESS on the handle` and then nothing.**\
+  \ The spec's hypothesis is right and every automated harness is blind to it. I move\
+  \ `draggable` off the `<button>` as the spec describes.\n\nStop the sandbox with\
+  \ `Get-Process python | Where-Object {$_.CommandLine -like '*review_queue_sandbox*'}\
+  \ | Stop-Process`, or tell me and I will.\n\n**Why I stopped instead of fixing it.**\
+  \ I could not reproduce the reported failure with any instrument I have: a `<button\
+  \ draggable>` starts a drag in a bare Chromium page, Blink computes `-webkit-user-drag:\
+  \ element` on the live handle, five drag variations move the queue against a real\
+  \ build, and real headed Chrome moves it against the byte-identical bundle you reviewed\
+  \ on 8901. Evidence is in log entry 3; the rejected alternatives are in entry 4.\n\
+  \nsc-1 requires the new test to be \"demonstrated to fail against the pre-fix code\"\
+  \ and it does not fail \u2014 so by this task's own reasoning it is not measuring\
+  \ the thing it was written to measure, and building a fix on top of it would be\
+  \ the third repeat of the shape this task exists to stop. That is an acceptance\
+  \ criterion that cannot be met as written, which task-081's ball_prompt makes a\
+  \ park-on-`human/decision` case rather than something the green gate covers.\n\n\
+  **Branch `fix/task-225-drag-actually-starts`, not merged**, two commits, full ten-stage\
+  \ gate green (484s, `Ran every stage (10 of 10)`, 21 e2e tests):\n\n- `7dcb5c3`\
+  \ the two real-mouse Playwright drag tests sc-1 and sc-2 ask for \u2014 same-band\
+  \ through a reload and a `queue_move` entry, cross-band through the confirmation\
+  \ and a priority change. Both scroll each end into view first; written without that\
+  \ they passed alone and failed in the suite, which is the ENGINEERING.md bullet\
+  \ all over again.\n- `24faf3f` `scripts/review_queue_sandbox.py` \u2014 task-207's\
+  \ sandbox, in the repository this time rather than in a session's temporary directory,\
+  \ plus the trace panel. Sandbox-only: the injection is middleware in that script\
+  \ and no part of it is in the application.\n\nNo application code has been changed.\
+  \ `TaskList.tsx` is untouched, so the keyboard path, the focus restore and `gripId`\
+  \ are exactly as they were.\n\nOne more thing worth your judgement: `mcp__claude-in-chrome`'s\
+  \ `left_click_drag` produced **no events at all** against that page \u2014 not even\
+  \ `mousedown`. An agent using it would read \"I dragged, nothing moved\" as a product\
+  \ defect. I cannot tell from here whether that is what produced the original report\
+  \ or whether you hit something real by hand, and you are the only one who knows\
+  \ which."
 archived: false
 priority: high
 queue_position: 5900
@@ -17,6 +61,7 @@ tags:
 - accessibility
 - regression
 assignment:
+  owner: claude
   eligible: []
 parent: task-081-task-selection-ranking
 spec:
@@ -139,7 +184,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-225-drag-actually-starts
+  status: active
 log:
 - id: 1
   ts: '2026-08-21T16:06:58.825084Z'
@@ -152,3 +199,211 @@ log:
       id: 3f2b1a90-0223-4c11-9a01-000000000001
       kind: create
       fingerprint: e137077619cabeedbfce7c418b77b1d1
+- id: 2
+  ts: '2026-08-21T16:09:43.854141Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 7c1a4e20-5b31-4a7d-9e11-000000000225
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 3
+  ts: '2026-08-21T16:21:43.195647Z'
+  actor: claude
+  type: progress
+  body: "**The spec's suspected cause is disconfirmed, and I cannot reproduce the\
+    \ defect with any instrument I have.** Recorded in full before any code changes,\
+    \ because the task's constraint is \"confirm the cause before changing the element\"\
+    \ and what I confirmed is the opposite of what was suspected.\n\nWorktree `C:/projects/worktrees/agentjobs-225`,\
+    \ branch `fix/task-225-drag-actually-starts`, bootstrapped. No app code changed\
+    \ yet.\n\n## 1. `<button draggable>` is a valid drag source in Chromium\n\nStandalone\
+    \ probe, no app and no server: a page with four candidate handle shapes, each\
+    \ dragged with `page.mouse.move`/`down`/`move`/`up`, a capturing `dragstart` listener\
+    \ recording what fired.\n\n```\n<button draggable>              -> dragstart fired\
+    \ from: a\n<span draggable tabindex=0>     -> dragstart fired from: b\n<div draggable><button>\
+    \         -> dragstart fired from: cwrap\n<div draggable><button pe:none> -> dragstart\
+    \ fired from: dwrap\n```\n\nAll four start a drag. Blink agrees independently:\
+    \ `getComputedStyle(grip).webkitUserDrag` is `\"element\"` on the live grip button,\
+    \ the same value a fresh `<span draggable>` and `<div draggable>` compute. So\
+    \ the \"button activation consumes the gesture\" hypothesis has no support at\
+    \ the style-resolution layer either.\n\n## 2. The whole drag path works against\
+    \ the real app, in five variations\n\n`frontend/e2e/drag-probe.spec.ts` (temporary,\
+    \ not committed), real-mouse only, against a freshly built bundle of `main`:\n\
+    \n| gesture | result |\n|---|---|\n| upward, dropped on the Status cell | order\
+    \ changed |\n| upward, dropped on the task title `<a>` | order changed |\n| upward,\
+    \ dropped on the Queue cell | order changed |\n| downward, dropped on the Status\
+    \ cell | order changed |\n| downward, dropped on the task title `<a>` | order\
+    \ changed |\n| cross-band (high onto low) | `role=\"alertdialog\"` count 1 \u2014\
+    \ the confirmation, as specified |\n\nEvent traces show the full sequence every\
+    \ time: `dragstart@source`, `dragover@\u2026`, `drop@target`, `dragend@source`.\n\
+    \n## 3. It also works in real Chrome, headed, against the sandbox Jeff reviewed\n\
+    \nNot bundled Chromium \u2014 `chromium.launch({channel: \"chrome\", headless:\
+    \ false})` against the live task-207 sandbox on 8901, dragging `task-013`'s grip\
+    \ onto `task-010`:\n\n```\nBEFORE: task-001,task-002,task-013,task-010,task-011,...\n\
+    EVENTS: mousedown@task-013, dragstart@task-013, dragover@task-013,\n        dragover@task-010,\
+    \ drop@task-010, dragend@task-013\nAFTER:  task-001,task-002,task-010,task-013,task-011,...\n\
+    ```\n\nThat sandbox serves `assets/index-DdHo9wMI.js` \u2014 byte-identical to\
+    \ the bundle my worktree builds from `main`. So this is not a stale-bundle question:\
+    \ the code Jeff looked at is the code I tested. (I moved `task-013` twice while\
+    \ probing and put it back; the high band is `010, 011, 012, 013, 020, 021` again,\
+    \ as seeded.)\n\nThe server half works there too: `POST /api/projects/sandbox-healthy/tasks/task-013/queue-move`\
+    \ with the project's `default_user` (\"Jeff Posey\") returns 200 and a new `queue_position`.\
+    \ So neither a missing actor nor a refused write is silently reverting the order.\n\
+    \n## 4. One thing I did observe failing: the browser-automation drag\n\n`mcp__claude-in-chrome`'s\
+    \ `left_click_drag` against the sandbox produced **no events at all** \u2014 not\
+    \ `dragstart`, not even `mousedown` \u2014 with capturing listeners installed\
+    \ on `document` and the page otherwise responsive. A plain `left_click` on the\
+    \ grip produced nothing either. That harness's synthetic input is not reaching\
+    \ this page.\n\nThis is worth naming because it is a candidate explanation for\
+    \ the original reproduction, though I cannot prove it is what happened: **an agent\
+    \ driving that tool would see \"I dragged, nothing moved\" and read it as a product\
+    \ defect**, which is the same wrong-instrument shape task-207 log 12 is about.\
+    \ It does not account for Jeff's own report, which was by hand.\n\n## 5. What\
+    \ I have not been able to test\n\nA human hand on a real mouse. Playwright drives\
+    \ Chromium's drag through `Input.setInterceptDrags`, so it is not the OS drag\
+    \ loop even when it is real mouse events and real Chrome. I cannot rule out that\
+    \ the intercepted path and the hand path differ, and I am not going to assert\
+    \ that they do.\n\nThe other untested explanation is much more ordinary: **the\
+    \ grip's hit box is 18.56 px wide** (measured, `{\"x\":62.2,\"y\":438,\"width\"\
+    :18.5625,\"height\":44}`). A grab that lands a few pixels off it starts a text\
+    \ selection and the page does nothing at all \u2014 which is exactly the reported\
+    \ symptom, and which no automated test can ever hit because every test grabs the\
+    \ box's centre.\n\n## Consequence for the acceptance criteria\n\nsc-1 requires\
+    \ the new test to be \"demonstrated to fail against the pre-fix code\". It does\
+    \ not fail. It passes, in Chromium and in real Chrome. Per this task's own reasoning\
+    \ that is not a test I can trust to be measuring the right thing, so writing the\
+    \ fix on top of it would be the third repeat of the shape this task exists to\
+    \ stop.\n\nParking for a decision rather than changing the element on a guess.\
+    \ Next entry carries the ask."
+  data:
+    operation:
+      id: 7c1a4e20-5b31-4a7d-9e11-000000000226
+      kind: log_append
+      fingerprint: 631aede8021f135174d017066e3c5c77
+- id: 4
+  ts: '2026-08-21T16:40:40.275468Z'
+  actor: claude
+  type: decision
+  body: "**Not changing the drag handle, and not merging. Parking for one gesture\
+    \ from Jeff instead.**\n\nTwo commits are on `fix/task-225-drag-actually-starts`,\
+    \ both green through the full ten-stage gate (484s, `Ran every stage (10 of 10)`,\
+    \ 21 e2e tests). Neither of them touches the handle.\n\n- `7dcb5c3` `test(e2e):\
+    \ drive drag reordering with a real mouse` \u2014 the two tests sc-1 and sc-2\
+    \ ask for.\n- `24faf3f` `chore(review): a durable queue-order sandbox, with a\
+    \ drag trace` \u2014 `scripts/review_queue_sandbox.py`.\n\n## What was rejected,\
+    \ and why\n\n**Rejected: change the handle from `<button>` to a non-button draggable\
+    \ element.** That is the fix the spec proposes, and the spec's own constraint\
+    \ is \"confirm the cause before changing the element; do not fix a guess.\" Entry\
+    \ 3 records the confirmation attempt and it came back negative in four independent\
+    \ ways \u2014 a shape probe, Blink's own `-webkit-user-drag` computation, five\
+    \ drag variations against the real app, and real headed Chrome against the very\
+    \ bundle Jeff reviewed. Making the change anyway would be changing a working element\
+    \ on a hypothesis that the available evidence contradicts, with a live risk of\
+    \ breaking the drag *and* the focus-restore path that the phone and tablet depend\
+    \ on.\n\n**Rejected: widen the handle's hit box, or fix its ARIA role, as a way\
+    \ of closing this.** Both are probably worth doing \u2014 19x44 px is a small\
+    \ target, and `role=\"button\"` on something with no activation behaviour is sc-4's\
+    \ complaint. But shipping either as *the fix for a drag that does not start* would\
+    \ mean reporting a cause I have not established, and this task exists because\
+    \ task-207 reported a feature as delivered on evidence that did not support it.\
+    \ If the gesture turns out to work, sc-4 is a real and separable piece of work;\
+    \ if it turns out to miss the handle, the hit box is the fix and I will know that\
+    \ rather than guess it.\n\n**Rejected: merge the two commits now on the green\
+    \ gate.** The parent's autonomous posture makes a green gate stand in for review,\
+    \ but the same parent says to park on `human/decision` when \"an acceptance criterion\
+    \ cannot be met as written\", and sc-1's second sentence cannot: the test does\
+    \ not fail against the pre-fix code. Merging the half that passes and leaving\
+    \ the criterion unmet is precisely the reading task-207 log 12 identifies as the\
+    \ reason broken code was reported as delivered.\n\n## What settles it\n\n`http://127.0.0.1:8902/app/p/sandbox-healthy/tasks`\
+    \ is running, seeded, throwaway. The panel bottom-right records the gesture, and\
+    \ its three outcomes are three different tasks:\n\n| what the panel says | what\
+    \ it means | what happens next |\n|---|---|---|\n| `PRESS on the handle \u2026\
+    ` then `DRAGSTART`, `DROP`, `HTTP 200`, and the row moves | the drag works; the\
+    \ original report was an instrument artefact | this task narrows to sc-4 and the\
+    \ hit box, and the record is corrected |\n| `PRESS NOT on a handle \u2014 landed\
+    \ on td` | the grab missed a 19 px target | widen and re-label the handle; that\
+    \ is the whole fix |\n| `PRESS on the handle \u2026` and then nothing | the spec's\
+    \ hypothesis is right for the OS drag loop and wrong for every automated harness\
+    \ | move `draggable` off the button, exactly as the spec describes |\n\nVerified\
+    \ end to end before handing it over \u2014 a deliberate miss produced `PRESS NOT\
+    \ on a handle -- landed on td (in task-011)`, and a real drag produced `PRESS\
+    \ on the handle queue-grip-task-013 (19x44 px) / DRAGSTART / DRAGOVER \xD73 /\
+    \ DROP task-010 / REQUEST \u2026/queue-move / HTTP 200`, with no page errors."
+  data:
+    operation:
+      id: 7c1a4e20-5b31-4a7d-9e11-000000000227
+      kind: log_append
+      fingerprint: 06619c6770025f0c3242baafba6d2156
+- id: 5
+  ts: '2026-08-21T16:41:03.130873Z'
+  actor: claude
+  type: handoff
+  body: "**Please drag one row in the sandbox, and tell me what the panel says. That\
+    \ one gesture decides this task, and it is the only instrument left.**\n\nOpen\
+    \ http://127.0.0.1:8902/app/p/sandbox-healthy/tasks \u2014 running now, seeded,\
+    \ throwaway data, its own port and its own registry; the 8876 dashboard is not\
+    \ involved. Grab the \u283F handle on `task-013` (or any row in the high band)\
+    \ and drag it onto `task-010`. A trace panel sits bottom-right and records what\
+    \ actually happened.\n\nThen say which of these you saw:\n\n1. **The row moved,\
+    \ panel shows `DRAGSTART \u2026 DROP \u2026 HTTP 200`.** The drag works. The defect\
+    \ in this task's spec is not real, and I will correct the record, narrow this\
+    \ to sc-4 (the handle's ARIA role) and the hit box, and re-scope.\n2. **Panel\
+    \ says `PRESS NOT on a handle`.** You missed a 19-px-wide target. The fix is to\
+    \ widen and re-label the handle, and I can do it immediately.\n3. **Panel says\
+    \ `PRESS on the handle` and then nothing.** The spec's hypothesis is right and\
+    \ every automated harness is blind to it. I move `draggable` off the `<button>`\
+    \ as the spec describes.\n\nStop the sandbox with `Get-Process python | Where-Object\
+    \ {$_.CommandLine -like '*review_queue_sandbox*'} | Stop-Process`, or tell me\
+    \ and I will.\n\n**Why I stopped instead of fixing it.** I could not reproduce\
+    \ the reported failure with any instrument I have: a `<button draggable>` starts\
+    \ a drag in a bare Chromium page, Blink computes `-webkit-user-drag: element`\
+    \ on the live handle, five drag variations move the queue against a real build,\
+    \ and real headed Chrome moves it against the byte-identical bundle you reviewed\
+    \ on 8901. Evidence is in log entry 3; the rejected alternatives are in entry\
+    \ 4.\n\nsc-1 requires the new test to be \"demonstrated to fail against the pre-fix\
+    \ code\" and it does not fail \u2014 so by this task's own reasoning it is not\
+    \ measuring the thing it was written to measure, and building a fix on top of\
+    \ it would be the third repeat of the shape this task exists to stop. That is\
+    \ an acceptance criterion that cannot be met as written, which task-081's ball_prompt\
+    \ makes a park-on-`human/decision` case rather than something the green gate covers.\n\
+    \n**Branch `fix/task-225-drag-actually-starts`, not merged**, two commits, full\
+    \ ten-stage gate green (484s, `Ran every stage (10 of 10)`, 21 e2e tests):\n\n\
+    - `7dcb5c3` the two real-mouse Playwright drag tests sc-1 and sc-2 ask for \u2014\
+    \ same-band through a reload and a `queue_move` entry, cross-band through the\
+    \ confirmation and a priority change. Both scroll each end into view first; written\
+    \ without that they passed alone and failed in the suite, which is the ENGINEERING.md\
+    \ bullet all over again.\n- `24faf3f` `scripts/review_queue_sandbox.py` \u2014\
+    \ task-207's sandbox, in the repository this time rather than in a session's temporary\
+    \ directory, plus the trace panel. Sandbox-only: the injection is middleware in\
+    \ that script and no part of it is in the application.\n\nNo application code\
+    \ has been changed. `TaskList.tsx` is untouched, so the keyboard path, the focus\
+    \ restore and `gripId` are exactly as they were.\n\nOne more thing worth your\
+    \ judgement: `mcp__claude-in-chrome`'s `left_click_drag` produced **no events\
+    \ at all** against that page \u2014 not even `mousedown`. An agent using it would\
+    \ read \"I dragged, nothing moved\" as a product defect. I cannot tell from here\
+    \ whether that is what produced the original report or whether you hit something\
+    \ real by hand, and you are the only one who knows which."
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: 7c1a4e20-5b31-4a7d-9e11-000000000228
+      kind: handoff
+      fingerprint: 679544fbe1077c43cc0608bba83a9f26
+- id: 6
+  ts: '2026-08-21T16:41:14.187962Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 7c1a4e20-5b31-4a7d-9e11-000000000229
+      kind: update_content
+      fingerprint: bb71c602eb9bb37c2c1eb853cac53ddc
