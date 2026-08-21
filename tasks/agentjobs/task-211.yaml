@@ -3,7 +3,7 @@ id: task-211
 title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
   reorder, and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T19:20:44.708558Z'
+updated: '2026-08-21T19:39:37.385931Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -1238,3 +1238,47 @@ log:
     outcome: completed
     duration_seconds: 1128.381784
     log_path: C:\Users\jpose\.agentjobs\runs\run_dc7acb0e
+- id: 37
+  ts: '2026-08-21T19:32:57.457420Z'
+  actor: Jeff Posey
+  type: note
+  body: Why is this task set Completed, and all sub-tasks "Needs spec"? We just iterated
+    on and then approved and merged the final design and updated tasks, as far as
+    I understood it. That means the sub-tasks AND epic task 211 should all be "Ready",
+    right?
+  data: {}
+- id: 38
+  ts: '2026-08-21T19:39:37.385424Z'
+  actor: claude
+  type: answer
+  body: "Answering entry 37. Two separate things, and you were right about one of\
+    \ them.\n\n**task-211 completed is correct.** This was a design task, not an umbrella.\
+    \ Its deliverable \u2014 docs/playbooks-design.md \u2014 is written, approved\
+    \ and merged in 25427f1, and all five of its acceptance criteria are met. There\
+    \ is no remaining work on this record. This follows the task-081 pattern the spec\
+    \ named: the design task closes, and the implementation children carry the work\
+    \ forward.\n\n**The six children being drafts was a real miss, now fixed.** sc-5\
+    \ reads \"Implementation children are derived and held as drafts *pending Jeff's\
+    \ approval of the design*.\" That condition was satisfied the moment you approved\
+    \ and the branch merged. The closing session followed the letter \u2014 \"held\
+    \ as drafts\" \u2014 and missed the trigger clause, then recorded in entry 35\
+    \ that promoting them was your call. The specs themselves were never thin: task-214\
+    \ through task-219 all had complete summary/intent/description/constraints/out_of_scope/context,\
+    \ full acceptance criteria and dependencies. What the GUI was showing as \"Needs\
+    \ spec\" was the placeholder ball_prompt \"Finish specifying this task.\" left\
+    \ over from task_create_draft, not an actual gap.\n\nAll six promoted to ready/agent/available\
+    \ on 2026-08-21. The dependency chain gates them correctly, so they will not all\
+    \ come off the queue at once: task-214 (storage) and task-219 (queue-move check)\
+    \ are claimable now; task-215 needs task-214; task-216, task-217 and task-218\
+    \ need task-215.\n\n**Process lesson worth carrying:** an acceptance criterion\
+    \ whose text contains a condition (\"pending X\") is not met when the artifact\
+    \ exists \u2014 it is met when the condition resolves. A closing session that\
+    \ satisfies the noun and ignores the trigger leaves the next actor with a backlog\
+    \ that looks specified and cannot be dispatched, with no error anywhere to explain\
+    \ it."
+  re: 37
+  data:
+    operation:
+      id: 3f1a9c22-0007-4b7e-9c31-7a5e2d8f0107
+      kind: log_append
+      fingerprint: fb1e01c1a3b075f4a5531c4b7d0d2a3b

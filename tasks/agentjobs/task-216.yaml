@@ -2,11 +2,10 @@ schema: 2
 id: task-216
 title: 'Playbooks 3: groom, authored and proven live'
 created: '2026-08-21T04:56:17.617014Z'
-updated: '2026-08-21T16:58:00.217328Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Finish specifying this task.
+updated: '2026-08-21T19:39:06.528624Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: high
 queue_position: 10800
@@ -90,3 +89,18 @@ log:
       id: b7e4c1a2-3333-4a5e-9c00-1a2b3c4d0216
       kind: create
       fingerprint: 721de4744e3dfe22bba3b7f577d8df39
+- id: 2
+  ts: '2026-08-21T19:39:06.528520Z'
+  actor: Jeff Posey
+  type: transition
+  body: "Promoted by Jeff. sc-5 held these as drafts \"pending Jeff's approval of\
+    \ the design\" \u2014 the design was approved and merged in 25427f1, so the condition\
+    \ has been satisfied. Stays gated behind task-215 by its needs dependency."
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: 3f1a9c22-0003-4b7e-9c31-7a5e2d8f0103
+      kind: promote
+      fingerprint: 30b3c2341eda834d5c52e8d169a3d68a

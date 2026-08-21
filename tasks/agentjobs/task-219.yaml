@@ -2,11 +2,10 @@ schema: 2
 id: task-219
 title: 'The queue-move check: deterministic warnings when a human reorders'
 created: '2026-08-21T04:57:23.007031Z'
-updated: '2026-08-21T18:36:53.686333Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Finish specifying this task.
+updated: '2026-08-21T19:39:19.455175Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: medium
 queue_position: 6900
@@ -198,3 +197,19 @@ log:
       id: 3f1c9a20-7b44-4e19-9d31-5c0a1e7b2205
       kind: update_content
       fingerprint: 4a2aa5b7a6a129cf88dd2000132af70e
+- id: 4
+  ts: '2026-08-21T19:39:19.454986Z'
+  actor: Jeff Posey
+  type: transition
+  body: "Promoted by Jeff. sc-5 held these as drafts \"pending Jeff's approval of\
+    \ the design\" \u2014 the design was approved and merged in 25427f1, so the condition\
+    \ has been satisfied. This one has no needs dependency, so it is claimable immediately\
+    \ alongside task-214."
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: 3f1a9c22-0006-4b7e-9c31-7a5e2d8f0106
+      kind: promote
+      fingerprint: fb7396e6276c1760ebb57445e2dd2643

@@ -2,11 +2,10 @@ schema: 2
 id: task-214
 title: 'Playbooks 1: storage, frontmatter format, and read surfaces'
 created: '2026-08-21T04:55:30.551589Z'
-updated: '2026-08-21T16:58:00.232479Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Finish specifying this task.
+updated: '2026-08-21T19:38:57.697020Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: high
 queue_position: 10600
@@ -92,3 +91,20 @@ log:
       id: b7e4c1a2-1111-4a5e-9c00-1a2b3c4d0214
       kind: create
       fingerprint: afc0df267497408d1058dc7bab01551b
+- id: 2
+  ts: '2026-08-21T19:38:57.696851Z'
+  actor: Jeff Posey
+  type: transition
+  body: "Promoted by Jeff. sc-5 held these as drafts \"pending Jeff's approval of\
+    \ the design\" \u2014 the design was approved and merged in 25427f1, so the condition\
+    \ has been satisfied. The spec, acceptance criteria and dependencies were already\
+    \ complete; only the lifecycle and the stale \"Finish specifying this task\" prompt\
+    \ were outstanding."
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: 3f1a9c22-0001-4b7e-9c31-7a5e2d8f0101
+      kind: promote
+      fingerprint: 6603c6141764111c41fc5514501aef3c
