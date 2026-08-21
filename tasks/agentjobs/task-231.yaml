@@ -3,61 +3,13 @@ id: task-231
 title: The review panel offers verbs that are true, and records which one the human
   meant
 created: '2026-08-21T20:18:51.832048Z'
-updated: '2026-08-21T21:40:54.448866Z'
+updated: '2026-08-21T21:44:54.280620Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "All three parts are done on `fix/task-231-review-panel`, and the whole\
-  \ thing is standing up in a browser for you right now.\n\n**Look at it first, then\
-  \ read the diff.** A sandbox is running on its own port with seven throwaway tasks,\
-  \ one per state the panel branches on. Press anything, including the destructive\
-  \ controls \u2014 none of it touches your corpus, your registry, or the 8876 dashboard.\n\
-  \n    http://127.0.0.1:8897/app/p/sandbox-panel/tasks\n\n| Task | State | What to\
-  \ check |\n|---|---|---|\n| task-103 | human/decision | **The bug.** Four numbered\
-  \ questions, and now no Approve button and no mention of merging anywhere in the\
-  \ panel. |\n| task-104 | human/input | The same. |\n| task-101 | human/review |\
-  \ Unchanged verbs, plus Approve now opens a note box. Type in it \u2014 the approval\
-  \ stays an approval. |\n| task-102 | human/approval | Keeps Approve, deliberately;\
-  \ see below. |\n| task-105 | human/spec, past draft | No Approve, no Promote. |\n\
-  | task-106 | draft | Promote, and nothing about merging. |\n| task-107 | agent/hold\
-  \ | The held panel: the release condition, Resume, and no Dispatch button. |\n\n\
-  Start it again with `python scripts/review_panel_sandbox.py 8897` from the worktree;\
-  \ stop it with Ctrl-C, and I will stop it when you are done.\n\n**What changed,\
-  \ in one line each.**\n\n1. **The vocabulary grew by three** \u2014 `answer`, `redirect`,\
-  \ `hold` on the agent side. Each of the four intents you used one button for now\
-  \ has somewhere to land. `hold` also closes a real bug: a hold written as `revise`\
-  \ was auto-dispatch eligible, so on a project with auto-dispatch on, the click that\
-  \ told a run to stop started the next one. Both dispatch paths now refuse a held\
-  \ task.\n2. **The panel offers only verbs that are true**, keyed off `ball_reason`,\
-  \ and every label matches what its control writes.\n3. **Approve takes an optional\
-  \ note.** \"Approved, and also do this\" no longer has to be filed as a rejection.\
-  \ With no note the record is byte-identical to what it always was, asserted against\
-  \ the constant itself so the two branches cannot drift.\n\n**Two calls I would most\
-  \ like you to push back on if you disagree:**\n\n- **`hold` is agent-side rather\
-  \ than `external`, and rather than keeping the ball with you.** Both alternatives\
-  \ are defensible and both are argued and rejected in log entry 8. The short version:\
-  \ `external` says a third party owes the next move, which is false; keeping it with\
-  \ you leaves held tasks cluttering your review queue forever, looking like decisions\
-  \ you owe.\n- **`human/approval` still says \"Approve \u2014 agent may merge\".**\
-  \ That is arguably still false on a gate that is not a merge \u2014 but which gates\
-  \ exist and what each should say is task-001's question, and it is still `draft`.\
-  \ I did not pre-empt it; I left the seam it needs (`APPROVAL_CLEARANCE`) and wrote\
-  \ a note onto task-001 saying exactly where to add its half.\n\n**Four commits,\
-  \ not three.** The three parts are one each. The fourth carries two defects I found\
-  \ by pressing the buttons rather than by reading the diff \u2014 a held task's badge\
-  \ read \"In flight\", and the composer stayed open after a hold landed. Its message\
-  \ says why it is separate rather than folded in.\n\n**One gap, stated rather than\
-  \ glossed:** p3-2 asks for the note in \"REST, the generated client, MCP and the\
-  \ CLI\". It is in the first two. MCP and the CLI have no approve surface at all\
-  \ \u2014 approve is a human action, there is no `task_approve` tool and no `agentjobs\
-  \ approve` command, and adding either is a new capability rather than an extension\
-  \ (an MCP approve tool would let an agent approve its own work). Same for the new\
-  \ reasons on the CLI side: it has no handoff command either. If you want the CLI\
-  \ to grow a review surface, that is its own task and I will file it.\n\n`scripts/check.py`\
-  \ unqualified, green twice: 10/10 stages, 444s, then 424s after the fixes.\n\nNothing\
-  \ has been merged. On your approval I will rebase, merge --no-ff, rebuild the frontend,\
-  \ restart 8876 the way it was started, stop the sandbox, and confirm you are looking\
-  \ at the merged version."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 433
@@ -647,3 +599,69 @@ log:
     outcome: completed
     duration_seconds: 4198.872175
     log_path: C:\Users\jpose\.agentjobs\runs\run_a3c689a8
+- id: 14
+  ts: '2026-08-21T21:44:47.257689Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 15
+  ts: '2026-08-21T21:44:53.046818Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 16
+  ts: '2026-08-21T21:44:54.280427Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_d953240f
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 15
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-231` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-231-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_d953240f.'
+    cwd: C:\projects\agentjobs
+    git_head: 69d3e6c
+    session_id: cff4cfb1
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
