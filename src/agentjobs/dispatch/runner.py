@@ -148,6 +148,47 @@ a hang is not economy.
 The rendered prompt is still asserted to be short and to not restate the record, which
 is the property that matters. It is not asserted to be minimal."""
 
+SUPERVISOR_STUB = (
+    "You are the agent `{agent}` supervising parent task `{task_id}` in project "
+    "`{project_id}` (root: {project_root}). It has open children: {children}. "
+    "You are the supervisor, not the worker: start a separate session for one eligible "
+    "child at a time and let that session do the child's work. Do not work a child "
+    "yourself, do not take a worktree, and check nothing out -- you stay in the shared "
+    "working tree as it is, and each child session takes its own. AgentJobs is serving "
+    "at {api_base}. Read the parent record, then follow the parent-task protocol in "
+    + GUIDE_PATH
+    + ". Dispatch run id: {run_id}."
+)
+"""The stub for a task that has open children. Task-164.
+
+**Which stub a run gets is decided by the record, not by the dispatcher's opinion**: a
+task with an open child is an epic, and an epic's worker is a supervisor. That is the
+one checkable property Jeff's formulation reduces to -- "anything that is starting with
+a new worktree should be in a new session" -- and it needs no new field, no label
+somebody has to remember to set, and no judgement at spawn time.
+
+It says the opposite of ``PROMPT_STUB`` about worktrees, and that inversion is the whole
+reason this is a second stub rather than an extra sentence. A supervisor that obeyed the
+worktree paragraph would check out a branch in the shared clone, which is the collision
+ALLAGENTS.md's worktree rule exists to prevent, and would then commit the parent's task
+records somewhere the dashboard cannot see them. A supervisor writes no code, so it
+needs no isolation; what it needs is to be told, before it reads anything, that the
+first act the other stub demands is not its act. That is the same argument task-192 made
+for stating the worktree command here, applied in reverse.
+
+The children are named rather than counted because the supervisor's first decision is
+which one is eligible, and a count sends it back to the API for something the prompt
+could have carried for nothing. Named, not described: what each child *is* stays in its
+own record, per the pointer-not-composition rule above."""
+
+CHILDREN_NAMED = 8
+"""How many child ids the supervisor stub lists before it summarises the rest.
+
+A ceiling on prompt length rather than a considered number. Eight covers every parent in
+this repository's corpus; a wider epic gets ``and N more``, and the supervisor reads the
+rest from the record it is about to open anyway.
+"""
+
 GRACE_SECONDS = 30.0
 """How long a cancelled batch run gets to finish a ``git commit`` before it is killed."""
 
@@ -158,6 +199,23 @@ On success the body stays empty: the agent's own entries carry the substance. On
 other outcome the machine-local logs are the only account of what happened, and they are
 not in git, so a tail of them goes into the entry that is.
 """
+
+
+def describe_children(child_ids: Sequence[str]) -> str:
+    """The children clause of the supervisor stub: ids, capped, in one phrase.
+
+    Returns ``"none"`` for an empty sequence. Nothing renders that today -- the empty
+    case picks the other stub -- but a helper that returns ``""`` for "no children"
+    produces a sentence reading "It has open children: ." the first time somebody calls
+    it from anywhere else.
+    """
+    ids = list(child_ids)
+    if not ids:
+        return "none"
+    if len(ids) <= CHILDREN_NAMED:
+        return ", ".join(ids)
+    shown = ", ".join(ids[:CHILDREN_NAMED])
+    return f"{shown} and {len(ids) - CHILDREN_NAMED} more"
 
 
 # ----- the permission posture -------------------------------------------------
@@ -807,15 +865,37 @@ class DispatchRunner:
         selection = self.resolution.selection
         return selection.group if selection else None
 
+    def open_child_ids(self, task_id: str) -> List[str]:
+        """The ids of this task's still-open children, sorted, or ``[]``.
+
+        Empty for a task with no children, for one whose children are all closed, and
+        for an id storage cannot resolve. The last case is deliberate rather than
+        careless: this is read to *decorate a prompt*, and a task whose children cannot
+        be listed is dispatched as an ordinary task rather than not dispatched at all.
+        """
+        try:
+            children = self.manager.get_subtasks(task_id)
+        except Exception:  # pragma: no cover - a missing task cannot reach here
+            return []
+        return sorted(child.id for child in children if child.is_open)
+
     def build_prompt(self, task_id: str, run_id: str) -> str:
-        """The prompt stub. A pointer to the record, never a copy of it."""
-        return PROMPT_STUB.format(
+        """The prompt stub. A pointer to the record, never a copy of it.
+
+        Two stubs, chosen by one property of the record: a task with an open child is an
+        epic, so the agent sent at it is told to supervise rather than to work. See
+        ``SUPERVISOR_STUB`` for why that cannot be one extra sentence on the other one.
+        """
+        children = self.open_child_ids(task_id)
+        stub = SUPERVISOR_STUB if children else PROMPT_STUB
+        return stub.format(
             agent=self.runner.actor_id,
             task_id=task_id,
             project_id=self.resolution.project_id,
             project_root=self.project_root,
             api_base=self.api_base,
             run_id=run_id,
+            children=describe_children(children),
         )
 
     def build_argv(self, task_id: str, run_id: str) -> List[str]:
