@@ -2,7 +2,7 @@ schema: 2
 id: task-206
 title: 'Queue position: REST, the Python client, and an `agentjobs queue` sub-app'
 created: '2026-08-20T23:31:01.562704Z'
-updated: '2026-08-21T14:24:59.662345Z'
+updated: '2026-08-21T14:25:53.888261Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -521,3 +521,13 @@ log:
       id: 4156bc39-0206-4b01-9e00-000000000003
       kind: close
       fingerprint: b3c97dc9123a1d3c487701d9e5f933f5
+- id: 16
+  ts: '2026-08-21T14:25:53.888114Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 12
+  data:
+    run_id: run_4156bc39
+    outcome: completed
+    duration_seconds: 402.973562
+    log_path: C:\Users\jpose\.agentjobs\runs\run_4156bc39
