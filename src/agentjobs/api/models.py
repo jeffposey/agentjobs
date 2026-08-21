@@ -123,6 +123,28 @@ class BrokenTaskFile(BaseModel):
     reason: str
 
 
+class QueueProblemRead(BaseModel):
+    """One broken queue rule, named well enough to fix by hand."""
+
+    kind: str
+    band: str
+    tasks: List[str] = Field(default_factory=list)
+    position: Optional[int] = None
+    message: str
+
+
+class QueueBrokenRead(BaseModel):
+    """The queue could not be read, what is wrong with it, and what repairs it.
+
+    Null on a healthy corpus. Present, the dashboard renders a banner naming the
+    offending tasks instead of a next action computed from an order that does not
+    exist -- design section 8's React row.
+    """
+
+    problems: List[QueueProblemRead] = Field(default_factory=list)
+    repair_command: str
+
+
 class DashboardResponse(BaseModel):
     """The complete Python-computed dashboard contract."""
 
@@ -132,8 +154,11 @@ class DashboardResponse(BaseModel):
     waiting_tasks: List[TaskRead]
     backlog_tasks: List[TaskRead]
     next_task: Optional[TaskRead]
-    next_action: Literal["blocked", "backlog", "next_up", "nothing_claimable", "empty_project"]
+    next_action: Literal[
+        "blocked", "backlog", "queue_broken", "next_up", "nothing_claimable", "empty_project"
+    ]
     broken_files: List[BrokenTaskFile]
+    queue_broken: Optional[QueueBrokenRead] = None
 
 
 class ReviewIdentity(BaseModel):
@@ -487,16 +512,6 @@ class QueueBandRead(BaseModel):
 
     band: str
     entries: List[QueueEntryRead] = Field(default_factory=list)
-
-
-class QueueProblemRead(BaseModel):
-    """One broken queue rule, named well enough to fix by hand."""
-
-    kind: str
-    band: str
-    tasks: List[str] = Field(default_factory=list)
-    position: Optional[int] = None
-    message: str
 
 
 class QueueResponse(BaseModel):

@@ -333,8 +333,9 @@ export type DashboardResponse = {
     /**
      * Next Action
      */
-    next_action: 'blocked' | 'backlog' | 'next_up' | 'nothing_claimable' | 'empty_project';
+    next_action: 'blocked' | 'backlog' | 'queue_broken' | 'next_up' | 'nothing_claimable' | 'empty_project';
     next_task: TaskReadOutput | null;
+    queue_broken?: QueueBrokenRead | null;
     /**
      * Recent Updates
      */
@@ -1491,6 +1492,26 @@ export type QueueBandRead = {
      * Entries
      */
     entries?: Array<QueueEntryRead>;
+};
+
+/**
+ * QueueBrokenRead
+ *
+ * The queue could not be read, what is wrong with it, and what repairs it.
+ *
+ * Null on a healthy corpus. Present, the dashboard renders a banner naming the
+ * offending tasks instead of a next action computed from an order that does not
+ * exist -- design section 8's React row.
+ */
+export type QueueBrokenRead = {
+    /**
+     * Problems
+     */
+    problems?: Array<QueueProblemRead>;
+    /**
+     * Repair Command
+     */
+    repair_command: string;
 };
 
 /**
@@ -2785,8 +2806,9 @@ export type DashboardResponseWritable = {
     /**
      * Next Action
      */
-    next_action: 'blocked' | 'backlog' | 'next_up' | 'nothing_claimable' | 'empty_project';
+    next_action: 'blocked' | 'backlog' | 'queue_broken' | 'next_up' | 'nothing_claimable' | 'empty_project';
     next_task: TaskReadOutputWritable | null;
+    queue_broken?: QueueBrokenRead | null;
     /**
      * Recent Updates
      */

@@ -71,6 +71,7 @@ from .queue import (
     bands_at_or_above,
     baseline_key,
     find_queue_problems,
+    listing_key,
     order_key,
     place_of,
     placement_from,
@@ -78,6 +79,7 @@ from .queue import (
     plan_insertion,
     plan_queue_migration,
     plan_rebalance,
+    problem_dicts,
     read_queue_record,
     read_queue_records,
 )
@@ -191,16 +193,7 @@ class QueueListing:
     def as_dict(self) -> Dict[str, Any]:
         return {
             "bands": [band.as_dict() for band in self.bands],
-            "problems": [
-                {
-                    "kind": problem.kind,
-                    "band": problem.band,
-                    "tasks": list(problem.task_ids),
-                    "position": problem.position,
-                    "message": problem.render(),
-                }
-                for problem in self.problems
-            ],
+            "problems": problem_dicts(self.problems),
             "repair_command": REPAIR_COMMAND,
         }
 
@@ -311,10 +304,22 @@ class TaskManager:
         priority: Optional[Priority] = None,
         parent: Optional[str] = None,
     ) -> List[Task]:
-        """Return all tasks optionally filtered along the state axes.
+        """Return all tasks optionally filtered along the state axes, in queue order.
 
         ``ball=Ball.HUMAN`` is the human inbox -- the load-bearing query of the
         v2 design (section 5). ``parent`` narrows to one umbrella's children.
+
+        **The order is the queue's** -- ``listing_key``: open work first, by band and
+        then by ``queue_position``, with closed tasks behind it. It is settled here
+        rather than left to each caller because the alternative is what task-207 found
+        on the task list: a client sorting the same records by ``updated`` and showing a
+        human a different order from the one the scheduler acts on, with neither rule
+        chosen by anybody. Storage returns files in whatever order it read them, which
+        is not an answer either.
+
+        This never raises on a corrupt corpus, unlike selection. A listing is how you
+        see a broken queue, and you have to be able to see one in order to fix it
+        (design section 8).
         """
         tasks = self.storage.list_tasks()
         if lifecycle is not None:
@@ -325,7 +330,7 @@ class TaskManager:
             tasks = [task for task in tasks if task.priority == priority]
         if parent is not None:
             tasks = [task for task in tasks if task.parent == parent]
-        return tasks
+        return sorted(tasks, key=listing_key)
 
     def load_errors(self) -> List[TaskLoadError]:
         """Files in the task directory that exist but cannot be read as tasks.

@@ -44,9 +44,11 @@ __all__ = [
     "bands_at_or_above",
     "baseline_key",
     "find_queue_problems",
+    "listing_key",
     "next_position",
     "order_key",
     "place_of",
+    "problem_dicts",
     "placement_from",
     "plan_compaction",
     "plan_insertion",
@@ -112,6 +114,43 @@ def order_key(task: Task) -> Tuple[int, int]:
     if position is None:  # pragma: no cover - rule 6 refuses to load such a task
         raise QueueCorruptionError([QueueProblem("missing", task.priority.value, (task.id,), None)])
     return (task.priority_rank(), position)
+
+
+def listing_key(task: Task) -> Tuple[int, int, bool, int, float, str]:
+    """The order a *listing* renders in: the queue first, then everything else.
+
+    ``order_key`` is the scheduler's order and covers only open, placed work -- it
+    raises on a task with no position, because selection must never guess. A listing
+    has a wider job: it shows closed tasks too, and it has to render a corrupt corpus
+    rather than refuse to (design section 8), so it needs a key that is total over
+    every task and cannot raise.
+
+    The elements, in order and each for its own reason:
+
+    * **Open before closed.** A closed task keeps its ``priority`` but has no place in
+      line, so ordering the two together by band would file a closed ``critical`` above
+      the live ``high`` queue. The work you can still do comes first.
+    * **Band, then position** -- the queue itself, exactly as the scheduler reads it.
+    * **Unplaced last within a band.** A task with no position is not guessed into a
+      place; it sorts behind the ones that have one, the same way ``queue_listing``
+      renders a broken band. Rule 6 means an *open* task in that state does not load at
+      all -- it is reported as an unreadable file instead -- so in practice this element
+      separates closed work, and stands as the guard that a missing position is never
+      read as ``0`` and promoted to the head of the queue.
+    * **Newest first, then id.** A tie-break and only ever a tie-break: positions are
+      unique within an open band, so this decides nothing about queue order. It orders
+      the tasks that have no place in line -- closed work, and the unplaced remains of a
+      corrupt band -- where "most recently touched" is the useful answer and "some file
+      order" is not.
+    """
+    return (
+        0 if task.is_open else 1,
+        task.priority_rank(),
+        task.queue_position is None,
+        task.queue_position or 0,
+        -task.updated.timestamp(),
+        task.id,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -417,6 +456,25 @@ class QueueCorruptionError(RuntimeError):
             "the queue is broken and selection will not guess an order: "
             f"{detail}. Repair it with: {REPAIR_COMMAND}"
         )
+
+
+def problem_dicts(problems: Iterable["QueueProblem"]) -> List[Dict[str, object]]:
+    """Queue problems as plain data, in the one shape every surface renders.
+
+    Shared rather than written twice: the queue listing and the dashboard both have to
+    say what is broken, and two renderings of the same finding drift into two different
+    sentences about one fact.
+    """
+    return [
+        {
+            "kind": problem.kind,
+            "band": problem.band,
+            "tasks": list(problem.task_ids),
+            "position": problem.position,
+            "message": problem.render(),
+        }
+        for problem in problems
+    ]
 
 
 def find_queue_problems(
