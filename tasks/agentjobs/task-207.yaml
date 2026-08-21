@@ -3,7 +3,7 @@ id: task-207
 title: 'Queue position: the React list shows the real order, and you can change it
   without a mouse'
 created: '2026-08-20T23:31:25.501669Z'
-updated: '2026-08-21T14:35:16.075052Z'
+updated: '2026-08-21T15:08:43.848669Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -247,3 +247,68 @@ log:
       id: 3f2b1a90-0207-4c11-9a01-000000000011
       kind: update_content
       fingerprint: 595ea1a68c009ab648f6b9f5d3922041
+- id: 8
+  ts: '2026-08-21T15:08:43.848404Z'
+  actor: claude
+  type: decision
+  body: 'Four decisions taken while building this, each with what was rejected.
+
+
+    **1. The queue-broken banner is not a rung on the ladder.** task-081''s dashboard
+    ladder renders exactly one contextual panel. Corruption could have been made the
+    top rung, but it falsifies only one of the ladder''s answers: "this task is next"
+    is read off an order that does not exist, while "two tasks are blocked on you"
+    is read off the ball and is still true. So the banner renders *above* the panel
+    whatever the panel says -- the way unreadable task files already do -- and a new
+    `queue_broken` rung sits below the two human rungs, taking the place `next_up`
+    would have held. Rejected: making it the top rung, which would hide work stopped
+    on a human behind a corpus problem; and leaving it out, which reports `nothing_claimable`
+    on a corrupt corpus -- the worst available lie, because it is the one state where
+    a person does nothing and feels correct doing it.
+
+
+    **2. `list_tasks` settles the order, not the route and not each caller.** New
+    `queue.listing_key`: open work before closed, then band, then position, unplaced
+    last within a band, and `updated` used *only* to break ties among tasks that have
+    no place in line at all (closed work, and the unplaced remains of a corrupt band).
+    Open-before-closed is the element worth defending: a closed task keeps its `priority`,
+    so ordering by band alone files a closed `critical` above the live `high` queue.
+    Rejected: sorting in the API route, which would leave the CLI and MCP reading
+    a different order from the React app -- exactly the split this task exists to
+    close.
+
+
+    **3. No `expected_revision` on a queue move.** Found by the Playwright test and
+    then reasoned about rather than worked around: two Alt+Up presses are one gesture
+    to a person, and the second lands before the first move''s refetch, so a revision
+    guard refuses a move the user just watched happen and rolls it back. It is also
+    unnecessary -- a move names its neighbour *by id* and the manager resolves that
+    under the queue lock against whatever the band is at the time, so it does what
+    was asked however much the band moved in between; `top` and `bottom` are absolute
+    and read no snapshot at all. Same reasoning the note composer already records
+    for `add_log_entry`. `operation_id` still makes a retry safe. Reprioritize **keeps**
+    its revision, deliberately: that one is decided by a person reading a confirmation
+    panel describing specific state, one gesture at a time. Rejected: serialising
+    gestures behind the in-flight request, which drops keystrokes during exactly the
+    repeated-press case the keyboard path exists for.
+
+
+    **4. Steps are computed over the band, never over the rows on screen.** `Alt+Down`
+    means "stand behind the next task in your band", not "swap with the row below".
+    They differ whenever the list is filtered or grouped by parent, and a position
+    means nothing across bands. The cost is that a step can be invisible -- the neighbour
+    it passed may not be rendered -- which is why there is a live region saying what
+    happened. Rejected: stepping over the visible rows, which would silently jump
+    a task past every hidden task between two visible ones.
+
+
+    Also settled: `buildTaskRows` keeps its parent grouping. That is a regrouping
+    and not a sort -- siblings keep the order they arrived in -- and it only appears
+    at all when the status filter is `all` with nothing else set, because every other
+    filter state already flattens the list. The position column is what stays true
+    in both views.'
+  data:
+    operation:
+      id: 3f2b1a90-0207-4c11-9a01-000000000020
+      kind: log_append
+      fingerprint: dcd168454f53726fb3ab96db4e89f1f1
