@@ -1,0 +1,184 @@
+schema: 2
+id: task-232
+title: An epic whose children stand or fall together can be worked on one branch,
+  and the record can say so
+created: '2026-08-21T20:27:57.807005Z'
+updated: '2026-08-21T20:28:06.534911Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 743
+category: process
+tags:
+- dispatch
+- agent-dx
+- workflow
+- schema
+effort: a criterion and a design decision first; the dispatch change is small, the
+  ALLAGENTS.md change is the substantive part
+assignment:
+  eligible: []
+spec:
+  summary: "Today a parent with open children always buys three sessions, three worktrees,\
+    \ three gates, three review round trips and three merges, because dispatch picks\
+    \ the supervisor prompt from one property \u2014 does this task have open children\
+    \ \u2014 and nothing can override it. When the children are three views of one\
+    \ component and the human would never merge one while rejecting another, that\
+    \ is pure ceremony. Give the record a way to say \"work these together on one\
+    \ branch\", and state the criterion for when that is legitimate."
+  intent: "The one-session-per-child rule exists for a good reason \u2014 context\
+    \ accumulation, stated in ALLAGENTS.md and evidenced by task-060 \u2014 and that\
+    \ reason does not apply to children that share one component and one set of decisions.\
+    \ Right now there is no way to express the difference, so the expensive path is\
+    \ the only path. Jeff hit this within an hour of the rule producing a three-way\
+    \ split he did not want, and worked around it by closing the children into the\
+    \ parent. That workaround loses the per-child acceptance tracking an epic exists\
+    \ to provide, so it should not become the pattern."
+  description: "## What happened, 2026-08-21\n\nThree review-panel defects were filed\
+    \ separately, grouped under an epic (task-231), and Jeff asked for what any engineer\
+    \ would want: *\"do all 3 tasks in one branch for task-231 and only pay the ceremony\
+    \ and full gate costs once instead of 3 times.\"*\n\nThat is not currently expressible.\
+    \ `PromptBuilder.build_prompt` selects the run's prompt with\n\n```python\nstub\
+    \ = SUPERVISOR_STUB if children else PROMPT_STUB\n```\n\n([src/agentjobs/dispatch/runner.py:953](src/agentjobs/dispatch/runner.py:953)),\
+    \ where `children` is `open_child_ids()`. The same read drives the supervisor\
+    \ permission grant. `SUPERVISOR_STUB` instructs the run to take no worktree, check\
+    \ nothing out, and start a separate session per child. There is no field, no posture\
+    \ and no flag that changes it \u2014 which was deliberate (task-164: \"the one\
+    \ checkable property Jeff's formulation reduces to ... needs no new field, no\
+    \ label somebody has to remember to set\").\n\nThe workaround taken tonight was\
+    \ to close the three children as `superseded` and fold them into the parent as\
+    \ parts. It works, and it costs the per-child acceptance and lifecycle tracking\
+    \ that having children provides in the first place.\n\n## The criterion this task\
+    \ has to settle\n\nThe interesting question is not the flag, it is **when consolidating\
+    \ is legitimate**. The test proposed on task-231, to be confirmed or replaced\
+    \ here:\n\n> **Could the human reject one child and merge the others?**\n>\n>\
+    \ If yes \u2014 the children are independently shippable, and they need independent\
+    \ branches and independent review gates. If no \u2014 they stand or fall together,\
+    \ and splitting them buys three reviews of one decision.\n\nFor task-231 the answer\
+    \ was no: parts 2 and 3 were built against a vocabulary decision part 1 makes,\
+    \ so rejecting part 1 invalidates the others. Secondary signals worth weighing:\
+    \ one component or many; whether the second child's design depends on the first\
+    \ child's decision; whether one reviewer reading one diff is the natural review\
+    \ unit.\n\nThe counter-pressure is real and must be argued against, not ignored:\
+    \ ALLAGENTS.md's rule exists because a session that works four children carries\
+    \ four children's context by the fourth, and task-060's own log records the failure.\
+    \ Any criterion that lets a genuinely-large epic consolidate has reintroduced\
+    \ that. Size is part of the test, not just coupling.\n\n## Design questions, all\
+    \ open\n\n- **Where does it live?** A schema field on the parent (`execution:\
+    \ consolidated`?), a dispatch-side posture, or the agent-type layer [task-227](tasks/agentjobs/task-227.yaml)\
+    \ is designing. 227 is the obvious neighbour and may be the right home; decide\
+    \ that explicitly rather than by default.\n- **What does the consolidated prompt\
+    \ say?** It is neither existing stub: it takes a worktree like a worker, but it\
+    \ must also claim, log and close each child, and hand off once with all of them\
+    \ done.\n- **Who sets it?** If a human must set it per epic, it will be forgotten;\
+    \ if an agent may set it, the expensive-path rule is advisory. Task-164 rejected\
+    \ \"a label somebody has to remember to set\" for exactly this reason, so this\
+    \ task has to answer that objection rather than repeat the pattern it warned about.\n\
+    - **The gate rule.** Consolidation only pays if the full `scripts/check.py` runs\
+    \ once rather than per child-commit. That is a deviation from [ENGINEERING.md](ENGINEERING.md),\
+    \ authorised on task-231 as a one-off. Decide whether it generalises, and if so\
+    \ write it down with its cost: intermediate commits are not individually gate-verified,\
+    \ so a bisect can land on a commit that does not pass.\n- **Children's own review\
+    \ gates.** Today each child merges on explicit approval *of that child*. Consolidated,\
+    \ there is one approval. Say so explicitly \u2014 that is a change to the merge\
+    \ gate's meaning, not a detail.\n\n## What ships\n\nWhatever the design, the deliverable\
+    \ includes the **ALLAGENTS.md** change. \"You do not work the children\" currently\
+    \ states a threshold \u2014 \"anything that takes a worktree gets its own session\"\
+    \ \u2014 with no exception, and every agent in this repository follows it. A capability\
+    \ the docs forbid will not be used."
+  constraints: "- Do not weaken the default. One session per child stays the default;\
+    \ consolidation is the exception that must be justified per epic, and the docs\
+    \ must read that way.\n- Any criterion must be checkable by an agent reading the\
+    \ record, not a size judgement made by the party that benefits from saying yes\
+    \ \u2014 that is the objection task-164 raised against label-based approaches\
+    \ and it applies here.\n- The prompt and the permission grant are read once and\
+    \ must not be able to disagree (runner.py's existing invariant). A third mode\
+    \ must preserve that.\n- Task records still go to `main` in the shared clone,\
+    \ whatever the branch arrangement.\n- The human merge gate is not removed, only\
+    \ counted differently. One approval covering three parts is still an explicit\
+    \ approval."
+  out_of_scope: The review-panel fixes themselves (task-231). The agent-type design
+    (task-227) unless this decides to live inside it. Any change to how queue order
+    or claimability treats parents.
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: "Line 953 selects the stub from open children, and SUPERVISOR_STUB's docstring\
+      \ carries task-164's reasoning for why there is no override field \u2014 the\
+      \ argument this task must answer."
+  - path: ALLAGENTS.md
+    why: '"You do not work the children" states the worktree threshold with no exception;
+      the doc change is part of the deliverable.'
+  - path: tasks/agentjobs/task-231.yaml
+    why: The incident. Its decision entry has the full reasoning, the criterion proposed,
+      and the cost of the gate deviation.
+  - path: tasks/agentjobs/task-227.yaml
+    why: The agent-type layer this may belong inside rather than beside.
+  - path: ENGINEERING.md
+    why: The gate-before-every-commit rule that consolidation deviates from, and the
+      measured stage costs that say what the deviation is worth.
+acceptance:
+- id: c1
+  text: A criterion for when an epic may be consolidated is written down, is checkable
+    from the record rather than by size estimate, and explicitly answers task-164's
+    objection to labels somebody has to remember to set.
+  status: pending
+- id: c2
+  text: "A decision records where the capability lives \u2014 schema field, dispatch\
+    \ posture, or the task-227 agent-type layer \u2014 with the rejected alternatives."
+  status: pending
+- id: c3
+  text: Dispatching a consolidated epic produces a prompt that takes one worktree
+    and works every child in one session, with prompt and permission grant still derived
+    from a single read.
+  status: pending
+- id: c4
+  text: ALLAGENTS.md states the exception alongside the default, so an agent following
+    the docs can use it and knows when not to.
+  status: pending
+- id: c5
+  text: A decision records whether the one-gate-per-branch deviation generalises,
+    including the bisect cost if it does.
+  status: pending
+- id: c6
+  text: "The child records still carry their own claim, progress, acceptance and close\
+    \ entries under consolidation \u2014 the tracking that closing them as superseded\
+    \ loses."
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T20:27:58.202020Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 9b2d4f61-0a73-4c88-b5e2-1d3f7a90c207
+      kind: create
+      fingerprint: 1a9577b0a23dac92620708ffeb14845c
+- id: 2
+  ts: '2026-08-21T20:28:06.534769Z'
+  actor: claude
+  type: queue_move
+  body: Placed at the end of the grooming run rather than beside the epic-autonomy
+    trio, though it is dispatch work. It saves ceremony on future epics; the trio
+    ahead of it keeps unattended runs alive at all, and task-231 -- the epic that
+    motivated this -- is already unblocked by the one-off workaround, so nothing is
+    waiting on it.
+  data:
+    band: high
+    from: 11400
+    to: 743
+    placement:
+      kind: after
+      target: task-229
+    operation:
+      id: 9b2d4f61-0a73-4c88-b5e2-1d3f7a90c208
+      kind: queue_move
+      fingerprint: 361a557974c846024269db7517c537d1

@@ -3,13 +3,11 @@ id: task-226
 title: '"Request changes" is four different acts wearing one button, and the record
   says "revise" for all of them'
 created: '2026-08-21T16:19:49.631386Z'
-updated: '2026-08-21T20:18:56.833975Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-21T20:26:51.170511Z'
+lifecycle: closed
+outcome: superseded
 archived: false
 priority: high
-queue_position: 539
 category: ux
 tags:
 - gui
@@ -237,3 +235,25 @@ log:
       id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c110b
       kind: update_content
       fingerprint: 80ed2a1dad9adefca0de81764693d676
+- id: 8
+  ts: '2026-08-21T20:26:51.170340Z'
+  actor: claude
+  type: transition
+  body: "Superseded by task-231, which absorbs this as **part 1** and will be worked\
+    \ on one branch with the other two review-panel fixes. Nothing here is withdrawn:\
+    \ this record stays the working spec for that part \u2014 the four documented\
+    \ intents, the verbatim evidence from task-081 and task-222, the schema constraints,\
+    \ and the still-open question of whether the agent-side reason vocabulary grows.\
+    \ task-231 points at this file from its `context[]` and instructs whoever works\
+    \ it to read this first.\n\nClosed rather than left open because an open child\
+    \ changes how dispatch prompts a run against its parent (src/agentjobs/dispatch/runner.py:953)\
+    \ \u2014 the parent would be told to supervise and start a separate session per\
+    \ child, which is the three-way split Jeff asked to avoid. See task-231's decision\
+    \ entry for the full reasoning."
+  data:
+    lifecycle: closed
+    outcome: superseded
+    operation:
+      id: 9b2d4f61-0a73-4c88-b5e2-1d3f7a90c204
+      kind: close
+      fingerprint: 9859febfe56862561fb9cbe77a5bcf54

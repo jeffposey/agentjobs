@@ -2,13 +2,11 @@ schema: 2
 id: task-016
 title: Make the review panel ball_reason-aware so it stops offering Approve on a question
 created: '2026-08-18T05:34:58.400603Z'
-updated: '2026-08-21T20:19:00.907012Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-21T20:26:56.949341Z'
+lifecycle: closed
+outcome: superseded
 archived: false
 priority: high
-queue_position: 644
 category: ux
 tags:
 - frontend
@@ -169,3 +167,24 @@ log:
       id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c110c
       kind: update_content
       fingerprint: 80ed2a1dad9adefca0de81764693d676
+- id: 5
+  ts: '2026-08-21T20:26:56.949209Z'
+  actor: claude
+  type: transition
+  body: "Superseded by task-231, which absorbs this as **part 2** and will be worked\
+    \ on one branch with the other two review-panel fixes. Nothing here is withdrawn:\
+    \ this record stays the working spec for that part \u2014 the incident that produced\
+    \ it, the `planning` branch that is the whole bug, the ball_reason-to-verbs table,\
+    \ and the rule that tests assert on rendered button text rather than markup. task-231\
+    \ points at this file from its `context[]`.\n\nClosed rather than left open because\
+    \ an open child changes how dispatch prompts a run against its parent (src/agentjobs/dispatch/runner.py:953)\
+    \ \u2014 the parent would be told to supervise and start a separate session per\
+    \ child, which is the three-way split Jeff asked to avoid. See task-231's decision\
+    \ entry."
+  data:
+    lifecycle: closed
+    outcome: superseded
+    operation:
+      id: 9b2d4f61-0a73-4c88-b5e2-1d3f7a90c205
+      kind: close
+      fingerprint: 2a422911de8e8fd9b4ac4666a726a948

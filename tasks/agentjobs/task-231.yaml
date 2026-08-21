@@ -1,9 +1,9 @@
 schema: 2
 id: task-231
-title: 'Epic: the review panel offers verbs that are true, and records which one the
-  human meant'
+title: The review panel offers verbs that are true, and records which one the human
+  meant
 created: '2026-08-21T20:18:51.832048Z'
-updated: '2026-08-21T20:19:15.702587Z'
+updated: '2026-08-21T20:26:43.832915Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -15,93 +15,168 @@ tags:
 - gui
 - workflow
 - handoff
-- epic
-effort: three children; the first is a vocabulary decision and the other two are small
-  once it is made
+- schema
+effort: "one branch, three commits, one gate, one review \u2014 the first part is\
+  \ a vocabulary decision and the other two are small once it is made"
 assignment:
   eligible: []
 spec:
-  summary: "Umbrella over the three tasks that fix the one control pair a human uses\
-    \ to send a task back: task-226 (request-changes is four different acts wearing\
-    \ one label, all recorded as `revise`), task-016 (the panel offers \"Approve \u2014\
-    \ agent may merge\" on a task that has no branch), task-228 (approve fires with\
-    \ no way to attach a note, so approve-with-a-comment has to be filed as a rejection).\
-    \ One component, one round of schema and copy decisions, three children that should\
-    \ be worked in that order."
-  intent: 'These three were filed separately over one evening because each was noticed
-    separately, but they are one defect seen from three sides: the review panel does
-    not know what state the task is in, cannot say what the human meant, and offers
-    verbs that are sometimes false. Working them as one epic means the vocabulary
-    is decided once and the other two are built against it, instead of three sessions
-    each guessing what the labels will end up being.'
-  description: "## Why these three are one piece of work\n\nEvery human intervention\
-    \ in AgentJobs goes through one panel and two buttons. All three children are\
-    \ about that panel:\n\n| Child | The half it fixes |\n|---|---|\n| **task-226**\
-    \ | What the panel **writes**. `ball_reason: revise` is the only value a human-to-agent\
-    \ handoff can take, and it has carried four distinct intents \u2014 reject work,\
-    \ grant a permission, re-brief a run, impose a hold. A later session had to reinterpret\
-    \ one of them in prose. |\n| **task-016** | What the panel **offers**. It branches\
+  summary: "One task, three parts, one branch. The review panel is the single control\
+    \ pair every human intervention goes through, and it has three defects: it never\
+    \ reads `ball_reason`, so it offers \"Approve \u2014 agent may merge\" on a task\
+    \ with no branch; it writes `ball_reason: revise` for four different human intents;\
+    \ and Approve is a bare button, so an approval carrying a sentence has to be filed\
+    \ as a rejection. Fix all three on one branch, in one session, behind one review.\
+    \ Absorbs task-226, task-016 and task-228, which are closed as superseded and\
+    \ remain readable for their detail."
+  intent: "These three were filed separately over one evening because each was noticed\
+    \ separately. They are one defect seen from three sides, they change one component,\
+    \ and the second and third are built on a vocabulary decision the first makes\
+    \ \u2014 so a reviewer looking at part three is re-reading part one's diff anyway.\
+    \ Working them as one branch pays the worktree, the gate, the review round trip\
+    \ and the merge once instead of three times. That is the whole reason this is\
+    \ one task and not a parent with children: see the decision log."
+  description: "## The three parts\n\n| Part | The half it fixes | Absorbed from |\n\
+    |---|---|---|\n| **1. The vocabulary** | What the panel **writes**. `ball_reason:\
+    \ revise` is the only value a human-to-agent handoff can take, and it has carried\
+    \ four distinct intents \u2014 reject work, grant a permission, re-brief a run,\
+    \ impose a hold. A later session had to reinterpret one of them in prose. | [task-226](tasks/agentjobs/task-226.yaml)\
+    \ |\n| **2. The offered verbs** | What the panel **offers**. `ReviewPanel` branches\
     \ on `lifecycle === \"draft\"` alone and never reads `ball_reason`, so a task\
     \ waiting on a decision renders \"\u2713 Approve \u2014 agent may merge\" \u2014\
-    \ a sentence that is false when there is no branch. |\n| **task-228** | What the\
-    \ panel **cannot carry**. Approve is a bare button with no composer, so an approval\
-    \ with a sentence attached has to go through Request Changes, taking a round trip\
-    \ the human did not want and recording approved work as revised. |\n\n## Order,\
-    \ and why it is that order\n\n**226 \u2192 016 \u2192 228.** 226 settles whether\
-    \ the agent-side reason vocabulary grows and what each control is called; 016\
-    \ branches the offered verbs on `ball_reason` and needs those names; 228 adds\
-    \ what the approve verb can carry and is the smallest of the three. Each is separable\
-    \ and none blocks the others in the `needs` sense \u2014 the order is a sequencing\
-    \ judgement recorded here rather than a dependency, so a child that stalls does\
-    \ not deadlock the epic.\n\n**One warning for whoever works 228:** its own spec\
-    \ defers the approve payload shape to task-001, which is still `draft`. That is\
+    \ false when there is no branch. | [task-016](tasks/agentjobs/task-016.yaml) |\n\
+    | **3. The approval note** | What the panel **cannot carry**. Approve is a bare\
+    \ button with no composer, so an approval with a sentence attached goes through\
+    \ Request Changes, taking a round trip the human did not want and recording approved\
+    \ work as revised. | [task-228](tasks/agentjobs/task-228.yaml) |\n\n**The three\
+    \ absorbed tasks are closed, not deleted.** Each carries the full evidence \u2014\
+    \ the verbatim quotes, the log entries that show the cost, the code line numbers,\
+    \ the constraints, and the rejected alternatives already considered. They are\
+    \ the working spec for their part. Read all three before starting; this task is\
+    \ the plan, they are the detail.\n\n## Order, and why\n\n**1 \u2192 2 \u2192 3.**\
+    \ Part 1 settles whether the agent-side reason vocabulary grows and what each\
+    \ control is called. Part 2 branches the offered verbs on `ball_reason` and needs\
+    \ those names. Part 3 adds what the approve verb can carry, and is the smallest.\n\
+    \nThe order is a build order, not a dependency graph \u2014 nothing here blocks\
+    \ anything else in the `needs` sense, and a part that turns out harder than expected\
+    \ can be committed last without stranding the others.\n\n**One warning for part\
+    \ 3:** [task-228](tasks/agentjobs/task-228.yaml) defers the approve payload shape\
+    \ to [task-001](tasks/agentjobs/task-001.yaml), which is still `draft`. That is\
     \ a real sequencing question, not a formality \u2014 read 001 before designing\
-    \ the parameter, and raise it rather than guessing past it.\n\n## Supervision\n\
-    \nThis is a parent with open children, so whoever holds it supervises and does\
-    \ not work them: one child at a time, each in its own session and its own worktree,\
-    \ each hitting its own human review gate. Approval of one child releases that\
-    \ child, not the epic. See ALLAGENTS.md, \"You do not work the children\".\n\n\
-    ## Closing the epic\n\nClose it when all three children are closed and the panel,\
-    \ exercised by hand against a running server, offers only verbs that are true\
-    \ of the task in front of it and records which one the human meant. Verify that\
-    \ as a parent-level pass \u2014 the children each prove their own piece, and nobody\
-    \ has yet looked at the three together."
-  constraints: Children are worked in separate sessions, one at a time, each with
-    its own worktree and its own merge gate. The epic does not merge anything on its
-    own. Any schema change decided in task-226 must reach the validator, docs/task-schema.md,
-    REST, the generated client, MCP and the CLI before the children that depend on
-    its labels are built against it.
+    \ the parameter, and raise it rather than guessing past it.\n\n## How this one\
+    \ runs \u2014 read this, it is not the default protocol\n\nThis task is deliberately\
+    \ **not** a parent with children, and the difference is mechanical rather than\
+    \ stylistic. Dispatch chooses a run's prompt from one property of the record:\
+    \ [`stub = SUPERVISOR_STUB if children else PROMPT_STUB`](src/agentjobs/dispatch/runner.py:953),\
+    \ where `children` is the task's still-open children. A parent with open children\
+    \ *is* an epic to this system, and its worker is told to take no worktree and\
+    \ start a separate session per child. That is the behaviour being avoided here,\
+    \ so the children were closed into this task rather than left hanging off it.\n\
+    \nSo run it as an ordinary task, with three deviations from habit that are all\
+    \ deliberate:\n\n1. **One worktree, one branch.** `git worktree add ../worktrees/aj-231\
+    \ -b fix/task-231-review-panel`, bootstrap it, work all three parts there.\n2.\
+    \ **One commit per part**, in build order, each a coherent change with a message\
+    \ naming its part and the task it absorbed. Three commits, not one squashed blob\
+    \ \u2014 the parts are separately reviewable even though they merge together.\n\
+    3. **One full gate, once, before the handoff \u2014 not before every commit.**\
+    \ This is a deliberate deviation from [ENGINEERING.md](ENGINEERING.md)'s commit\
+    \ rule, made on Jeff's instruction, and the reasoning and its risk are in this\
+    \ task's decision log. While iterating, run the cheap stages \u2014 `scripts/check.py\
+    \ --only black,ruff,mypy,oxlint,vitest,build`, about fifteen seconds \u2014 which\
+    \ catch formatting, types and a broken build without paying for pytest. Then `scripts/check.py`\
+    \ with no arguments before you hand off, and that green is the one that counts.\n\
+    4. **One review, one merge.** Hand off once, with all three parts done. Do not\
+    \ park for review part by part.\n\nEverything else is unchanged: task records\
+    \ to `main` in the shared clone, code on the branch, no merge without explicit\
+    \ approval.\n\n## Verification\n\nThe three absorbed tasks each carry their own\
+    \ verification notes; follow them. Two things belong at this level because no\
+    \ individual part proves them:\n\n- **Exercise the panel by hand against a running\
+    \ server, in every state.** A task at `human`/`decision`, one at `human`/`review`,\
+    \ one at `human`/`approval`, and a `draft`. Per [ENGINEERING.md](ENGINEERING.md),\
+    \ assert on the rendered value a user acts on, not the presence of markup \u2014\
+    \ this component has already shipped a bug that every test passed over.\n- **Read\
+    \ the three parts together as a reviewer would.** The point of one branch is that\
+    \ the labels, the offered verbs and what they write are consistent; that consistency\
+    \ is exactly what a part-by-part review cannot see."
+  constraints: "- One worktree, one branch, three commits, one full gate before the\
+    \ handoff, one review. See \"How this one runs\" \u2014 the gate deviation is\
+    \ authorised on this task only and does not generalise.\n- Do not re-parent this\
+    \ task or add children to it. Open children change how dispatch prompts a run\
+    \ against it (runner.py:953), which is the thing this structure exists to avoid.\n\
+    - Any schema change decided in part 1 must reach the validator, docs/task-schema.md,\
+    \ REST, the generated client, MCP and the CLI \u2014 not just the React app \u2014\
+    \ before parts 2 and 3 are built against its labels.\n- Existing `revise` entries\
+    \ stay valid and are not migrated; whatever is added is additive.\n- Do not remove\
+    \ Reject & Archive from any reason \u2014 it is the escape hatch for \"this whole\
+    \ task is wrong\", valid against a decision request too.\n- The approve path stays\
+    \ `ball: agent` / `ball_reason: work` and its prompt still carries the merge-gate\
+    \ clearance; a note is additive to \"you may merge\", never a replacement.\n-\
+    \ Nothing here makes the GUI run git. The panel records; it does not merge."
   out_of_scope: "Structured multiple-choice question answering in the GUI (task-017).\
-    \ The design-approval gate variant and which gates exist (task-001). Editing a\
-    \ task's authoring fields from the browser (task-230). Anything that makes the\
-    \ GUI run git \u2014 the panel records, it does not merge."
+    \ The design-approval gate variant and which gates exist (task-001) \u2014 though\
+    \ part 3 must read it. Editing a task's authoring fields from the browser (task-230).\
+    \ A general \"work an epic's children on one branch\" capability, which is its\
+    \ own task \u2014 this is the one-off that motivated it."
   context:
+  - path: tasks/agentjobs/task-226.yaml
+    why: Part 1's full spec. Closed as superseded by this task; the four documented
+      intents, their verbatim evidence, and the schema constraints are all there.
+  - path: tasks/agentjobs/task-016.yaml
+    why: Part 2's full spec, including the ball_reason-to-verbs table and the incident
+      that produced it.
+  - path: tasks/agentjobs/task-228.yaml
+    why: Part 3's full spec, including why the payload shape defers to task-001.
   - path: frontend/src/components/TaskDetail.tsx
-    why: ReviewPanel is the single component all three children change.
+    why: "ReviewPanel \u2014 the single component all three parts change."
   - path: src/agentjobs/api/routes/tasks.py
-    why: "approve_task and request_changes \u2014 what the two controls write today."
+    why: 'approve_task and request_changes: what the two controls write today.'
   - path: docs/task-schema.md
-    why: The ball_reason union task-226 may grow and task-016 must branch over.
-  - path: ALLAGENTS.md
-    why: 'The parent-task loop: supervise the children, do not work them.'
+    why: The ball_reason union part 1 may grow and part 2 must branch over.
+  - path: src/agentjobs/dispatch/runner.py
+    why: Line 953 is why this is one task rather than a parent with children; read
+      it before restructuring anything here.
 acceptance:
-- id: e1
-  text: task-226, task-016 and task-228 are all closed completed, each having passed
-    its own human review gate.
+- id: p1-1
+  text: "Part 1: a decision is recorded on whether the agent-side reason vocabulary\
+    \ grows, with the rejected alternative \u2014 including the defensible option\
+    \ of keeping one reason and renaming only the control."
   status: pending
-- id: e2
-  text: 'Exercised by hand against a running server: a task at human/decision offers
-    no merge verb, a task at human/review does, and each control''s label matches
-    what it writes.'
+- id: p1-2
+  text: 'Part 1: if reasons are added, each reaches the schema, validator, docs/task-schema.md,
+    REST, the generated client, MCP and the CLI, not just the React app. Existing
+    revise entries still load and validate; nothing is migrated.'
   status: pending
-- id: e3
-  text: "A reader of a task a human sent back can tell from the record alone which\
-    \ of the four intents it was \u2014 or, if the vocabulary was deliberately not\
-    \ grown, the decision saying so is on task-226 with its reasoning."
+- id: p1-3
+  text: "Part 1: a reader of a task a human sent back can tell from the record alone\
+    \ whether work was rejected, a question answered, a blocker cleared, or a hold\
+    \ imposed \u2014 the failure task-081 entry 26 had to repair in prose."
   status: pending
-- id: e4
-  text: An approval carrying a note records the note verbatim and still clears the
-    merge gate; an approval without one is byte-identical to today.
+- id: p2-1
+  text: 'Part 2: a task at human/decision renders no Approve button and the secondary
+    action reads "Answer Questions"; human/input behaves the same; human/approval
+    keeps Approve; a non-draft human/spec renders no merge verb; human/review is unchanged.'
+  status: pending
+- id: p2-2
+  text: 'Part 2: tests assert on the rendered button text for each ball_reason, not
+    on the presence of markup.'
+  status: pending
+- id: p3-1
+  text: 'Part 3: approving with a note records it verbatim in the log and the ball_prompt,
+    lands agent/work, and keeps the merge-gate clearance intact. Approving with no
+    note produces exactly today''s record.'
+  status: pending
+- id: p3-2
+  text: 'Part 3: the optional note is available in REST, the generated client, MCP
+    and the CLI, not only in the React panel; and a decision records whether it carries
+    attachments.'
+  status: pending
+- id: x-1
+  text: All three parts exercised by hand against a running server across every ball_reason
+    state, with each control's label matching what it writes.
+  status: pending
+- id: x-2
+  text: One branch, three commits, one unqualified scripts/check.py green before the
+    handoff, one review request covering all three parts.
   status: pending
 deliverables: []
 dependencies: []
@@ -138,3 +213,70 @@ log:
       id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c110e
       kind: queue_move
       fingerprint: d8cb9fb4cd785acd6f0e9e055aaed052
+- id: 3
+  ts: '2026-08-21T20:26:23.521014Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, effort, spec, tags, title.
+  data:
+    fields:
+    - acceptance
+    - effort
+    - spec
+    - tags
+    - title
+    operation:
+      id: 9b2d4f61-0a73-4c88-b5e2-1d3f7a90c202
+      kind: update_content
+      fingerprint: ec5b3cce81c9da7bf697eb6d96af1a92
+- id: 4
+  ts: '2026-08-21T20:26:43.832769Z'
+  actor: claude
+  type: decision
+  body: "**One task on one branch, not a parent with three children. Filed as an epic\
+    \ twenty minutes earlier; that was wrong for what Jeff wants and this reverses\
+    \ it.**\n\nJeff, 2026-08-21: *\"what I'd really like to be able to do, is do all\
+    \ 3 tasks in one branch for task-231 and only pay the ceremony and full gate costs\
+    \ once instead of 3 times.\"*\n\n**Why the epic structure could not deliver that.**\
+    \ In this system \"epic\" is not a grouping label, it is an execution mode, and\
+    \ it is enforced mechanically. `PromptBuilder.build_prompt` chooses between two\
+    \ stubs on one property of the record \u2014 `stub = SUPERVISOR_STUB if children\
+    \ else PROMPT_STUB` (src/agentjobs/dispatch/runner.py:953), where `children` is\
+    \ `open_child_ids()`, the still-open children. The same read drives the permission\
+    \ grant (`supervisor=bool(children)`). `SUPERVISOR_STUB` tells the run, before\
+    \ it reads anything: *do not work a child yourself, do not take a worktree, check\
+    \ nothing out, start a separate session per child.* There is no override field\
+    \ and no posture that changes it. So a parent with three open children buys exactly\
+    \ three sessions, three worktrees, three gates, three review round trips and three\
+    \ merges. That is the design working as intended (task-164), not a bug.\n\n**What\
+    \ was decided.** Close task-226, task-016 and task-228 as `superseded`, fold their\
+    \ plan into this task as parts 1/2/3, and keep the three records as the detailed\
+    \ spec for each part \u2014 pointed at from `context[]`. This task then has no\
+    \ children, dispatches as an ordinary worker, and is worked on one branch in one\
+    \ session: one worktree, one bootstrap, three commits, **one full `scripts/check.py`\
+    \ before the handoff rather than before each commit**, one review, one merge,\
+    \ one rebuild-and-restart.\n\n**Why it is defensible here and not in general.**\
+    \ The test is whether the human could reject one part and merge the others. Here\
+    \ they cannot: parts 2 and 3 are built against the vocabulary part 1 settles,\
+    \ so rejecting part 1 invalidates the other two. Three things that stand or fall\
+    \ together, changing one component, reviewed by one person reading one diff, are\
+    \ one unit of work \u2014 and ALLAGENTS.md's \"you do not work the children\"\
+    \ rule is aimed at the opposite case, a supervisor accumulating four unrelated\
+    \ children's context. That reasoning does not apply to three views of one component.\n\
+    \n**Rejected: keep the epic and dispatch it anyway.** It would have produced the\
+    \ three-session split whatever the spec said, because the prompt is chosen from\
+    \ the record and not from the prose. Rejected: add a `consolidated` flag to dispatch\
+    \ now. That is real schema and dispatch work, it overlaps the agent-type layer\
+    \ task-227 is designing, and it is not worth blocking tonight's fix on. Filed\
+    \ separately instead.\n\n**The cost, stated so nobody rediscovers it.** The gate\
+    \ deviation means intermediate commits on this branch are not individually gate-verified,\
+    \ so `git bisect` across them may land on a commit that does not pass. Bounded\
+    \ by the fact that nothing reaches `main` except through the final unqualified\
+    \ green plus the merge, and by the cheap stages (~15s) still running per commit.\
+    \ If that trade turns out to be wrong, the evidence will be a bisect that wastes\
+    \ someone's afternoon, and this entry is where to record it."
+  data:
+    operation:
+      id: 9b2d4f61-0a73-4c88-b5e2-1d3f7a90c203
+      kind: log_append
+      fingerprint: f35abec9fbeb0c502c7a6e3569e45bd6
