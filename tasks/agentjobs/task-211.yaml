@@ -3,16 +3,11 @@ id: task-211
 title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
   reorder, and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T19:01:57.214988Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-21T19:19:30.150543Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 10500
 category: architecture
 tags:
 - design
@@ -21,7 +16,6 @@ tags:
 - dispatch
 - grooming
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'Design a first-class "playbook" concept: a versioned brief stored in the
@@ -133,31 +127,38 @@ acceptance:
 - id: sc-1
   text: The design defines what a playbook is, where it lives, and what one contains
     (brief, target shape, permitted verbs, human gates, outputs), versioned in git.
-  status: pending
+  verify: docs/playbooks-design.md, storage and format sections
+  status: met
 - id: sc-2
   text: 'Instantiation is settled: how a run becomes durable task state satisfying
     the resumption contract, with the run-is-a-task option explicitly defended or
     rejected.'
-  status: pending
+  verify: 'docs/playbooks-design.md, instantiation section: run-is-a-task adopted,
+    and revision 2 removed its only exception'
+  status: met
 - id: sc-3
   text: 'The groom playbook is fully specified as the proving case: propose-then-approve
     closures through close with outcome duplicate/superseded, never deleting or rewriting,
     and its relationship to reorder stated.'
-  status: pending
+  verify: docs/playbooks-design.md, groom and reorder sections
+  status: met
 - id: sc-4
   text: Invocation surfaces (CLI, dispatch, MCP) and the interaction with dispatch
     runner/model selection are specified; recurrence is decided, even if the decision
     is to defer it.
-  status: pending
+  verify: docs/playbooks-design.md, surfaces and guardrails sections
+  status: met
 - id: sc-5
   text: Implementation children are derived and held as drafts pending Jeff's approval
     of the design, following the task-081 pattern.
-  status: pending
+  verify: task-214..task-219 exist as drafts; task-219 retargeted in revision 2; task-227
+    filed separately for agent types
+  status: met
 deliverables:
 - path: docs/playbooks-design.md
   note: 'The playbook design: concept, storage, instantiation, groom/reorder/flesh-out
-    as cases, guardrails, surfaces, derived children.'
-  status: pending
+    as cases, guardrails, surfaces, derived children. Merged to main in 25427f1.'
+  status: done
 dependencies:
 - task: task-074-auto-dispatch
   type: related
@@ -175,7 +176,8 @@ dependencies:
 links: []
 branches:
 - name: docs/task-211-playbooks-design
-  status: active
+  status: merged
+  merged_at: '2026-08-21T20:05:00Z'
 log:
 - id: 1
   ts: '2026-08-21T00:56:22.635904Z'
@@ -1158,3 +1160,71 @@ log:
         eligible: true
       - runner: chatgpt-sol
         eligible: true
+- id: 33
+  ts: '2026-08-21T19:18:48.597742Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 3f7c1a2b-9d4e-4f61-8a03-1c5e7b920d13
+      kind: update_content
+      fingerprint: 7cc71d06451834cd72ffcc0a9265d1ea
+- id: 34
+  ts: '2026-08-21T19:19:09.225750Z'
+  actor: claude
+  type: progress
+  body: "Merged on Jeff's approval (run_dc7acb0e).\n\n**What happened, in order:**\n\
+    \n1. Committed Jeff's approval handoff to `main` (`f278531`) \u2014 the UI had\
+    \ written it to the working tree but nothing had committed it, so the instruction\
+    \ was one `git checkout` away from being invisible.\n2. Rebased `docs/task-211-playbooks-design`\
+    \ onto current `main` in its existing worktree `C:/projects/worktrees/agentjobs-211`.\
+    \ Clean; the two commits replayed as `85d814a` and `f9c47ad`. Diff against `main`\
+    \ is still exactly one file, `docs/playbooks-design.md`, 965 lines added, nothing\
+    \ else touched.\n3. Re-bootstrapped the worktree (22s) and ran the **full gate**\
+    \ on the rebased branch with that checkout's own interpreter: **all ten stages,\
+    \ exit 0, 502.0s** \u2014 black 0.6s, ruff 0.1s, mypy 23.4s, api 6.9s, icons 2.8s,\
+    \ oxlint 0.6s, pytest 401.9s, vitest 33.9s, build 4.5s, e2e 27.3s (21 Playwright).\
+    \ `Ran every stage (10 of 10)` \u2014 not a partial run. Log at `$CLAUDE_JOB_DIR/tmp/gate-211-merge.log`.\n\
+    \n   Re-running the gate was not ceremony: `main` had moved on since the last\
+    \ green (task-228's commits, then task-001/226/228 relations), and the previous\
+    \ session's *first* gate failure on this branch was exactly a test that reads\
+    \ task files. The rebase changed what those tests see.\n4. Merged into `main`\
+    \ with `--no-ff`: **`25427f1`**.\n\n**Why no `main..branch` surprise check was\
+    \ skipped:** it was run first. Two commits ahead, nothing already merged, so this\
+    \ was a real merge and not Jeff having done it himself.\n\n`branches[]` now records\
+    \ the branch merged; `deliverables[0]` is `done`; sc-1 through sc-5 are all `met`.\n\
+    \n**Not pushed.** `origin/main` is behind by this merge and by several other agents'\
+    \ task commits. Merging is not authorisation to push, and in this repository pushes\
+    \ have been Jeff's.\n\n**The six children are untouched and still drafts** (task-214\
+    \ \u2026 task-219, each `human`/`spec`). That is their designed state, not an\
+    \ oversight: sc-5 required them held as drafts pending approval of the design,\
+    \ and revision 2's handoff said outright that they stay drafts until Jeff promotes\
+    \ them. This run supervised nothing because nothing was eligible to supervise\
+    \ \u2014 a draft is not claimable, and promotion is Jeff's act.\n\nWorktree `C:/projects/worktrees/agentjobs-211`\
+    \ removed after the merge."
+  data:
+    operation:
+      id: 7a2d4e10-6b93-4c85-9f21-0e3a8b74c2d5
+      kind: log_append
+      fingerprint: dc9a5137948c5daeef783e1a15ec29ca
+- id: 35
+  ts: '2026-08-21T19:19:30.150167Z'
+  actor: claude
+  type: transition
+  body: "Design approved by Jeff and merged to main in 25427f1. docs/playbooks-design.md\
+    \ is on main; branch merged and deleted; worktree removed; full gate green on\
+    \ the rebased branch before the merge.\n\nThe six implementation children (task-214\
+    \ through task-219) remain drafts by design \u2014 sc-5 required exactly that,\
+    \ and promoting them is Jeff's call, not this run's."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: b1c8f5d2-4a67-49e3-8b10-2d9f6e034a77
+      kind: close
+      fingerprint: 65864295e274a760b489039ecc6b8c3c
