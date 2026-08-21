@@ -3,45 +3,11 @@ id: task-222
 title: Pre-approve `git merge` for dispatched runs, and fix the colon-less rule that
   never matched
 created: '2026-08-21T14:49:52.979769Z'
-updated: '2026-08-21T16:05:05.742043Z'
+updated: '2026-08-21T16:17:53.160525Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: "Jeff -- the work is finished and the full ten-stage gate is green (exit\
-  \ 0, 10 of 10, 510s). I cannot commit it, for the same reason you had to type the\
-  \ tuple line yourself. Entry 17 has the detail; this is what you run.\n\nTHE BLOCKER,\
-  \ stated precisely, because it is sharper than entry 11 had it. A bare `git add\
-  \ src/agentjobs/dispatch/runner.py tests/test_dispatch_runner.py docs/agent-dispatch-design.md`\
-  \ was declined. `git add` grants nothing and is reversible, so this is not about\
-  \ the widening being dangerous -- the classifier refuses any write-path operation\
-  \ naming that file, from an agent. A plain text file whose *content* described the\
-  \ change was refused too. Three declines total, with a successful read deliberately\
-  \ placed between them, so the breaker was never armed and I stopped rather than\
-  \ trying a fourth shape.\n\nWHAT IS WAITING, uncommitted, in C:/projects/worktrees/agentjobs-222\
-  \ -- three modified paths, nothing staged:\n- src/agentjobs/dispatch/runner.py --\
-  \ your line 234, untouched by me\n- tests/test_dispatch_runner.py -- +31 lines,\
-  \ two tests in TestPosture\n- docs/agent-dispatch-design.md -- the nine-prefix prose\
-  \ list, now ten\n\nYOUR COMMANDS. Everything after the commit is mine to finish\
-  \ if you would rather -- but the commit itself has to be your hand:\n\n    cd C:/projects/worktrees/agentjobs-222\n\
-  \    git add src/agentjobs/dispatch/runner.py tests/test_dispatch_runner.py docs/agent-dispatch-design.md\n\
-  \    git commit -m \"feat(dispatch): pre-approve git merge for dispatched runs\"\
-  \n    git rebase main\n    git checkout main && git merge --no-ff feat/task-222-git-merge-allow\n\
-  \nThen mark the branch merged, close the task completed, `git worktree remove C:/projects/worktrees/agentjobs-222`,\
-  \ and restart 8876 via C:/ai/shared/launchers/open-agentjobs.ps1 -Force. That restart\
-  \ is not optional bookkeeping: the server composes every dispatched run's argv,\
-  \ so until it restarts the fix is real in git and absent in practice.\n\nDO NOT\
-  \ REMOVE THE WORKTREE BEFORE COMMITTING. The work exists only as unstaged edits\
-  \ there, and it was already deleted out from under a run once tonight (entry 9).\n\
-  \nTHE DECISION I AM ACTUALLY HANDING YOU, beyond tonight's commit. This task is\
-  \ not a one-off unlucky classifier draw. Any future change to runner.py's permission\
-  \ surface will hit the same wall from any dispatched run, so dispatch's own risk\
-  \ boundary is permanently human-maintenance-only. That is a defensible design --\
-  \ arguably the guardrail working -- but it is currently undocumented, and the next\
-  \ agent will rediscover it the expensive way, as two runs did tonight. Worth a short\
-  \ paragraph in docs/agent-dispatch-design.md saying so plainly. I did not write\
-  \ it: it belongs to that same file's blast radius, and I would rather you decide\
-  \ whether to state it than have me spend another run finding out I cannot.\n\nNothing\
-  \ was pushed."
+ball: agent
+ball_reason: revise
+ball_prompt: I committed the changes. See if you can do the rebase and merge.
 archived: false
 priority: high
 queue_position: 5700
@@ -649,3 +615,99 @@ log:
     outcome: completed
     duration_seconds: 1067.717398
     log_path: C:\Users\jpose\.agentjobs\runs\run_1a2c2a65
+- id: 21
+  ts: '2026-08-21T16:14:55.923726Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by Jeff Posey:
+
+
+    I committed the changes. See if you can do the rebase and merge.'
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 22
+  ts: '2026-08-21T16:14:59.678997Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 23
+  ts: '2026-08-21T16:15:00.858561Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_e3000b37
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 22
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-222` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-222-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_e3000b37.'
+    cwd: C:\projects\agentjobs
+    git_head: 72e1436
+    session_id: 1811712a
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 24
+  ts: '2026-08-21T16:17:53.160076Z'
+  actor: claude
+  type: progress
+  body: "run_e3000b37 started, picking up from Jeff's commit (entry 21).\n\n**Found:**\
+    \ `C:/projects/worktrees/agentjobs-222` clean, branch `feat/task-222-git-merge-allow`\
+    \ carrying exactly one commit of its own \u2014 `e467a8e feat(dispatch): pre-approve\
+    \ git merge for dispatched runs`, authored by Jeff Posey, three files: `src/agentjobs/dispatch/runner.py`\
+    \ (+1), `tests/test_dispatch_runner.py` (+31), `docs/agent-dispatch-design.md`\
+    \ (+13/-1). That is run_1a2c2a65's uncommitted work, committed by hand. Read the\
+    \ diff: the tuple entry, the two literal-string tests (`test_the_merge_command_is_allowed_in_both_shells`,\
+    \ `test_pushing_is_not_pre_approved`), and the de-staled prose. Nothing extra,\
+    \ nothing missing.\n\n**Rebased onto main.** Clean, no conflicts, replayed as\
+    \ `0006e71`. Worth noting why this was not a formality: the branch was based at\
+    \ `91c2a19` and `main` has since taken the task-207 and task-208 merges, so the\
+    \ gate green recorded in entry 17 was against a base that no longer exists.\n\n\
+    **Re-running the full unqualified ten-stage `scripts/check.py`** against the rebased\
+    \ tip, with this worktree's own interpreter (`agentjobs-lS-6y0Ck-py3.13`, verified\
+    \ to import `C:\\projects\\worktrees\\agentjobs-222\\src\\agentjobs`). Output\
+    \ captured to a log on the first pass. Entry 17's green was real but it belongs\
+    \ to the pre-rebase base commit; ac-4 asks for the gate on what actually merges.\n\
+    \nNo git write-path command naming `runner.py` has been attempted this run, and\
+    \ none is planned \u2014 the commit already exists. Decline streak: 0."
+  data:
+    operation:
+      id: 4b2c9f18-77ad-4d0e-9d5b-1f5b3a0e2c41
+      kind: log_append
+      fingerprint: 497b7157a5deaac55b7718ebc063c03d
