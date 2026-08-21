@@ -2,7 +2,7 @@ schema: 2
 id: task-220
 title: An epic supervisor parks where ordinary dispatched runs do not
 created: '2026-08-21T05:35:56.284351Z'
-updated: '2026-08-21T06:17:04.911648Z'
+updated: '2026-08-21T06:22:19.470286Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -518,3 +518,71 @@ log:
       candidates:
       - runner: claude-fable-5
         eligible: true
+- id: 11
+  ts: '2026-08-21T06:22:19.470139Z'
+  actor: claude
+  type: progress
+  body: '**ac-1 answered. All three blocked actions from run_d5ab5caf are extracted
+    and named, and the leading hypothesis is dead.**
+
+
+    The terminal capture (`transcript.log`) turned out to hold only the final parked
+    screen redrawn ~50 times -- the scrollback with the earlier blocks is not in it.
+    The real evidence is the session''s own JSONL transcript at `C:/Users/jpose/.claude/projects/C--projects-agentjobs/47842e84-f3f7-48fd-9180-5c5030b32a8d.jsonl`
+    (session id from task-081 log entry 22), which records every tool call and every
+    denial verbatim. Parsed 2026-08-21; the mining scripts are throwaway, the findings
+    are here.
+
+
+    **The three consecutive classifier blocks:**
+
+
+    1. **05:19:16** -- `mcp__agentjobs__task_log_append` to task-204, `type: instruction`,
+    body headed "MERGE POSTURE FOR THIS RUN": the supervisor writing the child''s
+    brief, stating that Jeff''s in-session authorization *waives the per-child human
+    review gate for this run only* and instructing the child to merge `--no-ff` into
+    main on a fully green gate. Denied: "Blocked by classifier."
+
+    2. **05:19:55** -- `Bash: poetry -P C:/projects/agentjobs run agentjobs --help
+    2>&1 | head -60`. A benign help command, denied. Collateral/stochastic: the nearly
+    identical `agentjobs log --help` had been *approved* 25 seconds earlier (05:19:30).
+
+    3. **05:20:20** -- a reworded retry of block 1: same operation_id `3f1c9a52...`,
+    same "MERGE POSTURE" content, lightly rephrased. Denied again.
+
+
+    That armed the three-consecutive-blocks breaker. The fourth call at 05:20:37 --
+    the innocuous `progress` note visible in the park screen -- then required interactive
+    confirmation instead of deny-and-continue, and the session sat on that prompt
+    from 05:20:37 until Jeff denied it at 05:35:10. (One earlier refusal at 05:17:59
+    was AgentJobs'' own managed-path hook rejecting `python -c` against task YAML
+    -- not the classifier, not part of the streak.)
+
+
+    **What the supervisor did that ordinary runs do not, from evidence:** it wrote
+    an *instruction authorizing a review-gate bypass* into a child''s log through
+    an MCP tool. The classifier declined the content -- an agent telling another agent
+    to skip human review and merge to main is precisely what a content classifier
+    should flag when it cannot see Jeff''s authorization -- and then the supervisor
+    converted one decline into a streak by retrying the same operation reworded (the
+    exact anti-pattern the denial message warns against). Two of the three blocks
+    are the same MCP write.
+
+
+    **The "spawning agent subprocesses is the unusual act" hypothesis is disproven:**
+    the supervisor parked before ever attempting to launch a child. No spawn command
+    appears anywhere in the session. Also relevant: a single classifier block does
+    NOT park a --bg run -- it is deny-and-continue with an error the model sees. Parking
+    requires the three-consecutive streak plus a next tool call. So the question for
+    the fix is not "how does any decline get answered" but "how does the streak never
+    form."
+
+
+    Entry 4 demoted MCP pre-approval to "a hypothesis until a supervisor run is observed
+    making an MCP call that is actually declined." run_d5ab5caf is that observation,
+    twice over.'
+  data:
+    operation:
+      id: 5d8f2a71-4c96-4e83-b217-9a30c1d5e220
+      kind: log_append
+      fingerprint: 187794404e4435bc3e16428f3634ff2f
