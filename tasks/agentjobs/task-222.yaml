@@ -3,7 +3,7 @@ id: task-222
 title: Pre-approve `git merge` for dispatched runs, and fix the colon-less rule that
   never matched
 created: '2026-08-21T14:49:52.979769Z'
-updated: '2026-08-21T15:24:24.214050Z'
+updated: '2026-08-21T15:26:05.733845Z'
 lifecycle: active
 ball: human
 ball_reason: decision
@@ -407,3 +407,13 @@ log:
       id: a0c7e934-6b18-4d52-97af-2e5c1b806f4d
       kind: handoff
       fingerprint: 61a9bcca51a40e76b475e7ca41cab834
+- id: 12
+  ts: '2026-08-21T15:26:05.733676Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 6
+  data:
+    run_id: run_a19c96f0
+    outcome: completed
+    duration_seconds: 431.412519
+    log_path: C:\Users\jpose\.agentjobs\runs\run_a19c96f0
