@@ -3,54 +3,21 @@ id: task-225
 title: Drag to reorder the backlog actually starts a drag, and a test drives a real
   mouse
 created: '2026-08-21T16:06:58.493311Z'
-updated: '2026-08-21T17:03:55.382048Z'
+updated: '2026-08-21T17:20:52.308971Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: "**Please drag one row in the sandbox, and tell me what the panel says.\
-  \ That one gesture decides this task, and it is the only instrument left.**\n\n\
-  Open http://127.0.0.1:8902/app/p/sandbox-healthy/tasks \u2014 running now, seeded,\
-  \ throwaway data, its own port and its own registry; the 8876 dashboard is not involved.\
-  \ Grab the \u283F handle on `task-013` (or any row in the high band) and drag it\
-  \ onto `task-010`. A trace panel sits bottom-right and records what actually happened.\n\
-  \nThen say which of these you saw:\n\n1. **The row moved, panel shows `DRAGSTART\
-  \ \u2026 DROP \u2026 HTTP 200`.** The drag works. The defect in this task's spec\
-  \ is not real, and I will correct the record, narrow this to sc-4 (the handle's\
-  \ ARIA role) and the hit box, and re-scope.\n2. **Panel says `PRESS NOT on a handle`.**\
-  \ You missed a 19-px-wide target. The fix is to widen and re-label the handle, and\
-  \ I can do it immediately.\n3. **Panel says `PRESS on the handle` and then nothing.**\
-  \ The spec's hypothesis is right and every automated harness is blind to it. I move\
-  \ `draggable` off the `<button>` as the spec describes.\n\nStop the sandbox with\
-  \ `Get-Process python | Where-Object {$_.CommandLine -like '*review_queue_sandbox*'}\
-  \ | Stop-Process`, or tell me and I will.\n\n**Why I stopped instead of fixing it.**\
-  \ I could not reproduce the reported failure with any instrument I have: a `<button\
-  \ draggable>` starts a drag in a bare Chromium page, Blink computes `-webkit-user-drag:\
-  \ element` on the live handle, five drag variations move the queue against a real\
-  \ build, and real headed Chrome moves it against the byte-identical bundle you reviewed\
-  \ on 8901. Evidence is in log entry 3; the rejected alternatives are in entry 4.\n\
-  \nsc-1 requires the new test to be \"demonstrated to fail against the pre-fix code\"\
-  \ and it does not fail \u2014 so by this task's own reasoning it is not measuring\
-  \ the thing it was written to measure, and building a fix on top of it would be\
-  \ the third repeat of the shape this task exists to stop. That is an acceptance\
-  \ criterion that cannot be met as written, which task-081's ball_prompt makes a\
-  \ park-on-`human/decision` case rather than something the green gate covers.\n\n\
-  **Branch `fix/task-225-drag-actually-starts`, not merged**, two commits, full ten-stage\
-  \ gate green (484s, `Ran every stage (10 of 10)`, 21 e2e tests):\n\n- `7dcb5c3`\
-  \ the two real-mouse Playwright drag tests sc-1 and sc-2 ask for \u2014 same-band\
-  \ through a reload and a `queue_move` entry, cross-band through the confirmation\
-  \ and a priority change. Both scroll each end into view first; written without that\
-  \ they passed alone and failed in the suite, which is the ENGINEERING.md bullet\
-  \ all over again.\n- `24faf3f` `scripts/review_queue_sandbox.py` \u2014 task-207's\
-  \ sandbox, in the repository this time rather than in a session's temporary directory,\
-  \ plus the trace panel. Sandbox-only: the injection is middleware in that script\
-  \ and no part of it is in the application.\n\nNo application code has been changed.\
-  \ `TaskList.tsx` is untouched, so the keyboard path, the focus restore and `gripId`\
-  \ are exactly as they were.\n\nOne more thing worth your judgement: `mcp__claude-in-chrome`'s\
-  \ `left_click_drag` produced **no events at all** against that page \u2014 not even\
-  \ `mousedown`. An agent using it would read \"I dragged, nothing moved\" as a product\
-  \ defect. I cannot tell from here whether that is what produced the original report\
-  \ or whether you hit something real by hand, and you are the only one who knows\
-  \ which."
+ball: agent
+ball_reason: work
+ball_prompt: 'Finish and close. Jeff answered both open questions in chat on 2026-08-21:
+  he dragged it and it worked (entry 7), then chose the cheap sc-4 fix. Remaining:
+  merge, close, rebuild the frontend, restart 8876, remove the worktree.
+
+
+  The ball should have come back here the moment he answered and did not -- it sat
+  on human/decision with a stale prompt asking him to do something he had already
+  done, and he had to ask why the task was blocked on him. Entry 9 caught the same
+  thing independently. The rule this breaks is the obvious one: an answered question
+  is not a held ball, and the ball moves in the same pass that records the answer,
+  not later.'
 archived: false
 priority: high
 queue_position: 11200
@@ -537,3 +504,25 @@ log:
       id: bb9b9273-0225-4a00-9e00-000000000001
       kind: log_append
       fingerprint: 904b7c5c0056a60c8ab78f99cea96209
+- id: 10
+  ts: '2026-08-21T17:20:52.308746Z'
+  actor: claude
+  type: handoff
+  body: 'Finish and close. Jeff answered both open questions in chat on 2026-08-21:
+    he dragged it and it worked (entry 7), then chose the cheap sc-4 fix. Remaining:
+    merge, close, rebuild the frontend, restart 8876, remove the worktree.
+
+
+    The ball should have come back here the moment he answered and did not -- it sat
+    on human/decision with a stale prompt asking him to do something he had already
+    done, and he had to ask why the task was blocked on him. Entry 9 caught the same
+    thing independently. The rule this breaks is the obvious one: an answered question
+    is not a held ball, and the ball moves in the same pass that records the answer,
+    not later.'
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 7c1a4e20-5b31-4a7d-9e11-00000000022e
+      kind: handoff
+      fingerprint: 60d6b2a15f8d93cac494d56838518136
