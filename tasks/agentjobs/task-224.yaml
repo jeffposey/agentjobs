@@ -1,0 +1,137 @@
+schema: 2
+id: task-224
+title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
+  in the app does not clear it'
+created: '2026-08-21T15:51:07.242769Z'
+updated: '2026-08-21T15:51:07.590452Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 5800
+category: reliability
+tags:
+- dispatch
+- autonomy
+- authentication
+- research
+effort: research first; the fix is unknown until the trigger is
+assignment:
+  eligible: []
+spec:
+  summary: On 2026-08-21 Claude Code reported "Login expired" during autonomous work
+    and parked a run on a login prompt. Answering that prompt in the app did not restore
+    the session; only running `claude` in a separate terminal and logging in there
+    worked, after which the app had to be told. Establish what actually triggers this
+    and whether anything on the AgentJobs side can detect or survive it.
+  intent: 'An expiry that parks a run is survivable. An expiry whose own recovery
+    prompt does not work is not: the run is dead, the human is offline, and the failure
+    is indistinguishable from the classifier parks this project has spent a day fixing.
+    Unattended dispatch is the product; anything that reliably ends a night''s work
+    belongs on the record.'
+  description: "## What was observed, 2026-08-21\n\nReported by Jeff during the task-081\
+    \ epic run. Recorded as symptoms; the cause is what this task is for.\n\n1. Claude\
+    \ Code displayed **\"Login expired\"** during autonomous work.\n2. The session\
+    \ **parked on a prompt to log in** \u2014 the same shape of park as a permission\
+    \ prompt: a background run waiting on an answer nobody is present to give.\n3.\
+    \ **Answering that prompt did not work.** Jeff's words: \"that didn't even fucking\
+    \ work.\"\n4. What did work: open a separate terminal, run `claude` there, complete\
+    \ the login in that process, then return to the app and tell the running session\
+    \ it had been done.\n\n## The hypothesis, flagged as a hypothesis\n\nJeff's reading\
+    \ is that the logout was **deliberate, and triggered by his use of remote-controllable\
+    \ sessions** \u2014 that something treats `--remote-control` as a risk signal\
+    \ and shortens or invalidates the session.\n\n**Do not treat that as established.**\
+    \ It is a plausible reading of a coincidence, and this project has already spent\
+    \ a day on three confident framings of a different problem that were each built\
+    \ from the most recent visible symptom and each withdrawn (task-220, log entries\
+    \ 3, 4 and 7). The same discipline applies here. Competing explanations that cost\
+    \ nothing to consider:\n\n- An ordinary token lifetime that simply elapsed, and\
+    \ the correlation with remote control is that remote-controlled runs are the long\
+    \ ones.\n- A concurrency or device limit reached because several `claude --bg`\
+    \ processes were live at once \u2014 207, 208, 222 and the 081 supervisor were\
+    \ running together.\n- A client-version or rollout change unrelated to either.\n\
+    - Something specific to how a `--bg` process re-authenticates when it holds no\
+    \ terminal.\n\n## Where to start, in order\n\n1. **Search the Claude Code issue\
+    \ tracker, by recency, before any general web search.** Filter open issues on\
+    \ `login expired`, `remote-control`, `--bg` and auth/session terms, newest first.\
+    \ A recent open issue would settle this in minutes and would also say whether\
+    \ a fix is already shipping. Closed, old issues mean the search was too shallow\
+    \ \u2014 widen the terms rather than concluding it is unreported.\n2. **Establish\
+    \ the timeline from evidence, not memory.** The dispatch ledger under `~/.agentjobs/runs/`\
+    \ has each run's start and duration; the session JSONLs under `~/.claude/projects/C--projects-agentjobs/`\
+    \ record what each session was doing when it stopped. `transcript.log` in a run\
+    \ directory is **not** the evidence \u2014 task-220 entry 11 established it holds\
+    \ only the final screen redrawn dozens of times, and that dead end cost two wrong\
+    \ theories.\n3. **Determine whether the park is distinguishable from a classifier\
+    \ park**, from outside the process. This is the part with a possible AgentJobs\
+    \ answer: if an auth park looks different in the ledger or the transcript from\
+    \ a permission park, the dispatcher could name it, and a human seeing \"this run\
+    \ needs you to log in\" acts far faster than one seeing a generic park.\n4. **Only\
+    \ then** consider whether anything is worth building.\n\n## What is probably out\
+    \ of AgentJobs' control\n\nThe expiry itself is a Claude Code and account behaviour;\
+    \ AgentJobs does not own it. Detection, reporting and recovery guidance may still\
+    \ be worth owning. Say so explicitly if the conclusion is \"nothing to build here\"\
+    \ \u2014 a researched no is a real outcome and should close this task, not leave\
+    \ it open."
+  constraints: '- Report the trigger from evidence. If the evidence does not identify
+    one, say that rather than choosing the most available story.
+
+    - Do not build a workaround before the trigger is known; task-220 is the worked
+    example of what that costs.
+
+    - Do not store or log credentials, tokens, or session identifiers anywhere in
+    this repository while investigating.
+
+    - Jeff''s remote-control hypothesis is a lead, not a finding. Confirm or drop
+    it explicitly.'
+  out_of_scope: Building an authentication system for AgentJobs itself (task-066).
+    Changing dispatch's permission posture (task-220, task-222). Anything that would
+    disable remote control as a workaround without evidence that it is the cause.
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: Composes every dispatched argv, including --remote-control, and is where
+      a detected auth failure would have to be recognised.
+  - path: tasks/agentjobs/task-220.yaml
+    why: "Log entry 11 names the right evidence source for a parked run's real behaviour\
+      \ \u2014 the session JSONL, not transcript.log \u2014 and entries 3/4/7 are\
+      \ the worked example of framing a park from the nearest symptom and being wrong\
+      \ three times."
+  - path: docs/agent-dispatch-design.md
+    why: The run ledger and reaping model, which decide whether an auth park is visible
+      from outside the process at all.
+acceptance:
+- id: ac-1
+  text: The trigger is identified from evidence, or the task states plainly that the
+    evidence does not identify one and names what would.
+  status: pending
+- id: ac-2
+  text: Jeff's hypothesis that remote-controllable sessions cause the expiry is explicitly
+    confirmed or dropped, with the reasoning.
+  status: pending
+- id: ac-3
+  text: "The question of whether an auth park is distinguishable from a permission\
+    \ park \u2014 from the ledger or transcript, outside the process \u2014 is answered\
+    \ yes or no."
+  status: pending
+- id: ac-4
+  text: 'A recommendation is recorded: build something, report upstream, or nothing
+    to do. "Nothing to do" with reasoning is an acceptable outcome and closes the
+    task.'
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T15:51:07.589440Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: b4c81e59-7a26-4d13-9f80-5e2c3a6d7018
+      kind: create
+      fingerprint: 5a1c3cb1979caffdc0cfa1a8d06646ea
