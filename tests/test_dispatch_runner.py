@@ -843,6 +843,21 @@ class TestTheRunIsMeasurable:
         assert RUN_DIR_ENV not in environment
         assert RUN_ID_ENV not in environment
 
+    def test_a_run_identity_is_granted_and_never_inherited(
+        self, workspace: Path, manager: TaskManager, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A dispatcher can itself be inside a run -- an agent supervising a child is the
+        ordinary case -- and an inherited pair would file the child's gate under the
+        parent's run."""
+        from agentjobs.dispatch.phases import RUN_DIR_ENV, RUN_ID_ENV
+
+        monkeypatch.setenv(RUN_DIR_ENV, str(workspace / "someone-elses-run"))
+        monkeypatch.setenv(RUN_ID_ENV, "run_theirs")
+        runner = build(workspace, manager, make_resolution(["true", "{prompt}"]))
+
+        assert RUN_DIR_ENV not in runner._environment()
+        assert RUN_ID_ENV not in runner._environment()
+
 
 class TestBatchOutcomes:
     def test_a_clean_exit_that_moved_the_ball_is_completed(

@@ -1024,6 +1024,12 @@ class DispatchRunner:
         """
         environment = dict(os.environ)
         environment.update(self.runner.env)
+        # Granted, never inherited. A dispatcher can itself be running inside a
+        # dispatched run -- an agent supervising a child is the ordinary case -- and an
+        # inherited pair would file the child's gate under the parent's run. Popping
+        # first makes the invariant hold whatever the ambient environment says.
+        environment.pop(RUN_DIR_ENV, None)
+        environment.pop(RUN_ID_ENV, None)
         if run is not None:
             environment[RUN_DIR_ENV] = str(run.path)
             if run_id:

@@ -48,7 +48,16 @@ def default_home() -> Path:
 
 
 def as_moment(value: object) -> Optional[datetime]:
-    """A timestamp out of a record, naive values read as UTC, junk read as absent."""
+    """A timestamp out of a record, naive values read as UTC, junk read as absent.
+
+    A ``datetime`` is accepted as well as a string. Dispatch writes these through
+    ``yaml.safe_dump``, which quotes them, so they come back as strings -- but YAML
+    parses an *unquoted* ISO timestamp into a ``datetime``, and a hand-written or
+    hand-corrected ``meta.yaml`` is unquoted. Refusing that reads as "this run has no
+    duration", which is the one answer a reporting tool must not give by accident.
+    """
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
     if not isinstance(value, str):
         return None
     try:

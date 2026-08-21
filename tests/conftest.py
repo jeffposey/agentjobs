@@ -38,6 +38,25 @@ def isolate_project_registry(tmp_path_factory, monkeypatch) -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def never_inside_a_dispatched_run(monkeypatch) -> None:
+    """Detach every test from any dispatched run this process happens to belong to.
+
+    ``agentjobs.dispatch.phases`` writes a phase record when ``AGENTJOBS_RUN_DIR`` names
+    a directory, and this suite exercises ``scripts/check.py``'s ``main`` a dozen times
+    over. Run inside a real dispatched run -- which is exactly where the gate runs -- each
+    of those simulated gates appended a record to that run's ``phases.jsonl``, so the
+    measurement the records exist for was reading sixteen phantom gate runs beside one
+    real one.
+
+    ``scripts/check.py`` scrubs the pair for its own children, which covers the gate.
+    This covers a bare ``pytest`` too, and is the guarantee that does not depend on how
+    the suite was started. A test about the records sets the variables itself.
+    """
+    for name in ("AGENTJOBS_RUN_ID", "AGENTJOBS_RUN_DIR"):
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
 def isolate_claude_home(tmp_path_factory, monkeypatch) -> None:
     """Point the expired-login check at an empty directory for every test.
 

@@ -33,6 +33,13 @@ FOREIGN_IMPORT = "outside this checkout"
 # the one Poetry keys on the project path. Named the same way in `scripts/bootstrap.py`.
 ACTIVATION_VARS = ("VIRTUAL_ENV", "POETRY_ACTIVE")
 
+# What tells a process it is part of a dispatched run. The gate records its own phases
+# and its stages must not: `pytest` runs this repository's own tests of `check.main`,
+# which would then append a gate record per simulated run straight into the live ledger.
+# Observed the first time the gate was run inside a real run directory -- sixteen phantom
+# records beside one true one. Named the same way in `agentjobs.dispatch.phases`.
+RUN_VARS = ("AGENTJOBS_RUN_ID", "AGENTJOBS_RUN_DIR")
+
 
 def same_environment(active: str) -> bool:
     """Is `active` the virtualenv this interpreter is already running in?"""
@@ -69,9 +76,16 @@ def child_environment() -> dict[str, str]:
     `PYTHONHOME` goes unconditionally. It is almost never set deliberately, and an
     inherited one sends a child interpreter to another installation's standard library
     and fails naming nothing useful.
+
+    So does the dispatched-run pair, for a different reason: this process records the
+    gate's own phases, and a stage that inherited them would record more. `pytest` is the
+    case that bites -- it runs this repository's tests of `check.main`, each of which
+    would append a gate record to the live run. See `RUN_VARS`.
     """
     env = dict(os.environ)
     env.pop("PYTHONHOME", None)
+    for name in RUN_VARS:
+        env.pop(name, None)
     active = env.get("VIRTUAL_ENV")
     if active and not same_environment(active):
         for name in ACTIVATION_VARS:

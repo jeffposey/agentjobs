@@ -240,6 +240,23 @@ class TestRunReport:
     def test_a_ledger_with_no_runs_is_not_an_error(self, tmp_path: Path) -> None:
         assert run_report.main(["--home", str(tmp_path)]) == 0
 
+    def test_an_unquoted_timestamp_is_still_a_timestamp(self, tmp_path: Path) -> None:
+        """YAML parses an unquoted ISO stamp into a datetime, and a hand-edited
+        meta.yaml is unquoted. Refusing it reads as 'this run has no duration'."""
+        directory = tmp_path / "runs" / "run_a"
+        directory.mkdir(parents=True)
+        (directory / "meta.yaml").write_text(
+            "run_id: run_a\ntask_id: task-001\n"
+            "started_at: 2026-08-21T10:00:00+00:00\n"
+            "finished_at: 2026-08-21T10:30:00+00:00\n",
+            encoding="utf-8",
+        )
+
+        text = run_report.summary(run_report.load_runs(tmp_path))
+
+        assert "runs with durations   1" in text
+        assert "total run time        0.5h" in text
+
     def test_an_unreadable_meta_file_does_not_sink_the_report(self, tmp_path: Path) -> None:
         write_run(tmp_path, "run_a", task_id="task-001")
         broken = tmp_path / "runs" / "run_b"

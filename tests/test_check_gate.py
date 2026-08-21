@@ -444,6 +444,34 @@ class TestPhaseRecords:
         assert finished["passed"] is False
         assert finished["failed_stage"] == "mypy"
 
+    def test_the_stages_are_not_told_they_are_inside_a_run(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The gate records itself. A stage that inherited the pair would record more.
+
+        `pytest` is the case that bites: it runs this repository's own tests of
+        `check.main`, so run inside a real dispatched run each simulated gate appended a
+        record to that run's ledger -- sixteen phantom gate runs beside one true one, the
+        first time the gate was run inside a run directory.
+        """
+        commands: list[dict[str, str]] = []
+
+        def record(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+            commands.append(kwargs["env"])  # type: ignore[arg-type]
+            return subprocess.CompletedProcess(command, 0)
+
+        monkeypatch.setattr(check.subprocess, "run", record)
+        monkeypatch.setattr(check, "setup_problems", lambda root, origin: [])
+        monkeypatch.setattr(check.shutil, "which", lambda name: "npm.cmd")
+        self.in_a_run(tmp_path, monkeypatch)
+
+        assert check.main([]) == 0
+
+        assert len(commands) == len(check.stages())
+        for env in commands:
+            assert "AGENTJOBS_RUN_DIR" not in env
+            assert "AGENTJOBS_RUN_ID" not in env
+
     def test_outside_a_run_nothing_is_written(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
