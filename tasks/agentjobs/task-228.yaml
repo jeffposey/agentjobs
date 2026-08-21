@@ -3,13 +3,13 @@ id: task-228
 title: Approve should take an optional note, so "proceed, and also do this" stops
   being a request-changes
 created: '2026-08-21T19:02:19.523990Z'
-updated: '2026-08-21T19:02:19.923433Z'
+updated: '2026-08-21T19:02:57.337077Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
-queue_position: 7200
+queue_position: 7050
 category: ux
 tags:
 - gui
@@ -155,3 +155,21 @@ log:
       id: 3f6b0d51-97a7-4d2e-9b6d-0f5a10c9e2b1
       kind: create
       fingerprint: 175623cb24d1f3c5835d8bca2710299a
+- id: 2
+  ts: '2026-08-21T19:02:57.336955Z'
+  actor: claude
+  type: queue_move
+  body: 'Sits immediately behind task-226: same review panel, same control pair, and
+    whoever picks up one should see the other next to it rather than two rows down
+    behind an unrelated task.'
+  data:
+    band: medium
+    from: 7200
+    to: 7050
+    placement:
+      kind: after
+      target: task-226
+    operation:
+      id: b7d3c018-4e52-4a7f-9c66-1de8ba3f6207
+      kind: queue_move
+      fingerprint: 5b81371b65da36743d4fb542f77f26ac
