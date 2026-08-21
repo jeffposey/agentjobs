@@ -216,6 +216,33 @@ function accepting(): ReorderHandlers & { moves: Array<[string, QueueMove]> } {
 }
 
 describe("TaskList queue order", () => {
+  it("names the handle for what it holds, and announces the keys as keys", () => {
+    // The name is what a screen reader reads on every row a person tabs through, so it
+    // says what this handle is and where the task stands -- and nothing else. The keys
+    // used to be a sentence inside it: twenty-five words per row, describing shortcuts
+    // as prose, on a control that is announced as a button and does nothing when a
+    // button's activation keys are pressed on it.
+    renderQueue([queued("task-a", 100), queued("task-b", 200)], { reorder: accepting() });
+
+    const handle = grip("task-a");
+    expect(handle).toHaveAccessibleName("Reorder task-a, high band, position 100");
+    expect(handle).toHaveAttribute(
+      "aria-keyshortcuts",
+      "Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End",
+    );
+
+    // The instructions still exist, once, as the handle's description -- and the
+    // reference resolves, which is the half an aria-describedby usually gets wrong.
+    const described = handle.getAttribute("aria-describedby") ?? "";
+    expect(document.getElementById(described)).toHaveTextContent(
+      /step it through its priority band/,
+    );
+
+    // Still reachable: a keyboard lands on it, which is the whole reason it is focusable.
+    handle.focus();
+    expect(handle).toHaveFocus();
+  });
+
   it("renders the server's order rather than newest-first", () => {
     // Handed to the component in queue order, with `updated` deliberately upside down:
     // the deleted sort would have put task-c first, and so would any client-side rule
