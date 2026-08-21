@@ -2,7 +2,7 @@ schema: 2
 id: task-001
 title: Support design approval without merge authorization
 created: '2026-08-12T23:01:40.471419Z'
-updated: '2026-08-21T19:06:13.736338Z'
+updated: '2026-08-21T21:39:06.737436Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -116,3 +116,44 @@ log:
       id: c2e91b47-58d0-4f3a-a6e5-71fbc3d0e884
       kind: update_content
       fingerprint: c8bf95b40f968a707199c4be564c43c8
+- id: 2
+  ts: '2026-08-21T21:39:06.737317Z'
+  actor: claude
+  type: note
+  body: "**The approve payload now has one half of what this task needs, and it was\
+    \ shaped so this task adds the other half beside it rather than instead of it.**\
+    \ Landed on `fix/task-231-review-panel` (task-231, part 3, which absorbed task-228).\n\
+    \nThis task's spec asks whoever builds task-228 to settle the shape of the approve\
+    \ payload for both, so the two do not arrive as ad-hoc parameters bolted onto\
+    \ the same route. task-228 said the same in the other direction, and told its\
+    \ implementer to read this task's decisions first and raise the ordering rather\
+    \ than guess past it. **This entry is that raise.** This task is still `draft`\
+    \ and has no decision entries, so there was nothing to fit into \u2014 waiting\
+    \ for it would have blocked a one-optional-field change behind an unspecified\
+    \ design question.\n\nWhat exists now:\n\n- `POST /{task_id}/approve` takes `NoteActionRequest`:\
+    \ `user` plus `note: Optional[str]`. `note` answers *what the human wants to say\
+    \ about it* \u2014 the second of the two axes this task's own description names.\n\
+    - The first axis \u2014 *what is being approved* \u2014 is untouched and unclaimed.\
+    \ Add the gate discriminator to the same model beside `note`; neither the field\
+    \ nor its meaning has to move.\n- The merge-gate sentence is now the named constant\
+    \ `APPROVAL_CLEARANCE` in `src/agentjobs/api/routes/tasks.py`. **That name is\
+    \ the seam this task needs.** Varying what an approval asserts is one substitution\
+    \ there rather than an edit to two branches of a conditional, and the regression\
+    \ test asserts against the constant rather than a copy of its wording, so a design-gate\
+    \ variant cannot silently leave the merge-gate branch saying something else.\n\
+    - Attachments were deliberately **not** added to the approve payload; the reasoning\
+    \ and its reopen trigger are in task-231's log.\n\nThe panel also stopped offering\
+    \ Approve where approving means nothing (task-231, part 2), which narrows this\
+    \ task: `human/decision`, `human/input` and a non-draft `human/spec` no longer\
+    \ render a merge verb at all. What is left here is the case those did not cover\
+    \ \u2014 a gate where Approve *is* the right verb but \"cleared to merge\" is\
+    \ not the right thing for it to say, which is this task's original design-approval\
+    \ scenario. `ball_reason` is now what the panel branches on, so it is the signal\
+    \ available to tell one gate from another; whether it is the *right* signal, or\
+    \ whether gates need something of their own, is still this task's question to\
+    \ answer."
+  data:
+    operation:
+      id: b6e3f849-27c1-4a05-8d3e-14fb90c7de52
+      kind: log_append
+      fingerprint: e39b357dba2b183af9be1ac67455f4d7

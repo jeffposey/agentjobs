@@ -3,11 +3,61 @@ id: task-231
 title: The review panel offers verbs that are true, and records which one the human
   meant
 created: '2026-08-21T20:18:51.832048Z'
-updated: '2026-08-21T20:42:39.164295Z'
+updated: '2026-08-21T21:40:07.394939Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "All three parts are done on `fix/task-231-review-panel`, and the whole\
+  \ thing is standing up in a browser for you right now.\n\n**Look at it first, then\
+  \ read the diff.** A sandbox is running on its own port with seven throwaway tasks,\
+  \ one per state the panel branches on. Press anything, including the destructive\
+  \ controls \u2014 none of it touches your corpus, your registry, or the 8876 dashboard.\n\
+  \n    http://127.0.0.1:8897/app/p/sandbox-panel/tasks\n\n| Task | State | What to\
+  \ check |\n|---|---|---|\n| task-103 | human/decision | **The bug.** Four numbered\
+  \ questions, and now no Approve button and no mention of merging anywhere in the\
+  \ panel. |\n| task-104 | human/input | The same. |\n| task-101 | human/review |\
+  \ Unchanged verbs, plus Approve now opens a note box. Type in it \u2014 the approval\
+  \ stays an approval. |\n| task-102 | human/approval | Keeps Approve, deliberately;\
+  \ see below. |\n| task-105 | human/spec, past draft | No Approve, no Promote. |\n\
+  | task-106 | draft | Promote, and nothing about merging. |\n| task-107 | agent/hold\
+  \ | The held panel: the release condition, Resume, and no Dispatch button. |\n\n\
+  Start it again with `python scripts/review_panel_sandbox.py 8897` from the worktree;\
+  \ stop it with Ctrl-C, and I will stop it when you are done.\n\n**What changed,\
+  \ in one line each.**\n\n1. **The vocabulary grew by three** \u2014 `answer`, `redirect`,\
+  \ `hold` on the agent side. Each of the four intents you used one button for now\
+  \ has somewhere to land. `hold` also closes a real bug: a hold written as `revise`\
+  \ was auto-dispatch eligible, so on a project with auto-dispatch on, the click that\
+  \ told a run to stop started the next one. Both dispatch paths now refuse a held\
+  \ task.\n2. **The panel offers only verbs that are true**, keyed off `ball_reason`,\
+  \ and every label matches what its control writes.\n3. **Approve takes an optional\
+  \ note.** \"Approved, and also do this\" no longer has to be filed as a rejection.\
+  \ With no note the record is byte-identical to what it always was, asserted against\
+  \ the constant itself so the two branches cannot drift.\n\n**Two calls I would most\
+  \ like you to push back on if you disagree:**\n\n- **`hold` is agent-side rather\
+  \ than `external`, and rather than keeping the ball with you.** Both alternatives\
+  \ are defensible and both are argued and rejected in log entry 8. The short version:\
+  \ `external` says a third party owes the next move, which is false; keeping it with\
+  \ you leaves held tasks cluttering your review queue forever, looking like decisions\
+  \ you owe.\n- **`human/approval` still says \"Approve \u2014 agent may merge\".**\
+  \ That is arguably still false on a gate that is not a merge \u2014 but which gates\
+  \ exist and what each should say is task-001's question, and it is still `draft`.\
+  \ I did not pre-empt it; I left the seam it needs (`APPROVAL_CLEARANCE`) and wrote\
+  \ a note onto task-001 saying exactly where to add its half.\n\n**Four commits,\
+  \ not three.** The three parts are one each. The fourth carries two defects I found\
+  \ by pressing the buttons rather than by reading the diff \u2014 a held task's badge\
+  \ read \"In flight\", and the composer stayed open after a hold landed. Its message\
+  \ says why it is separate rather than folded in.\n\n**One gap, stated rather than\
+  \ glossed:** p3-2 asks for the note in \"REST, the generated client, MCP and the\
+  \ CLI\". It is in the first two. MCP and the CLI have no approve surface at all\
+  \ \u2014 approve is a human action, there is no `task_approve` tool and no `agentjobs\
+  \ approve` command, and adding either is a new capability rather than an extension\
+  \ (an MCP approve tool would let an agent approve its own work). Same for the new\
+  \ reasons on the CLI side: it has no handoff command either. If you want the CLI\
+  \ to grow a review surface, that is its own task and I will file it.\n\n`scripts/check.py`\
+  \ unqualified, green twice: 10/10 stages, 444s, then 424s after the fixes.\n\nNothing\
+  \ has been merged. On your approval I will rebase, merge --no-ff, rebuild the frontend,\
+  \ restart 8876 the way it was started, stop the sandbox, and confirm you are looking\
+  \ at the merged version."
 archived: false
 priority: high
 queue_position: 433
@@ -142,45 +192,117 @@ acceptance:
   text: "Part 1: a decision is recorded on whether the agent-side reason vocabulary\
     \ grows, with the rejected alternative \u2014 including the defensible option\
     \ of keeping one reason and renaming only the control."
-  status: pending
+  verify: Log entry 8. Grows by three (answer, redirect, hold). Rejects the rename-only
+    option, rejects a fourth value (unblock), and rejects two alternative modellings
+    of hold (external/dependency, and keeping the ball with the human).
+  status: met
 - id: p1-2
   text: 'Part 1: if reasons are added, each reaches the schema, validator, docs/task-schema.md,
     REST, the generated client, MCP and the CLI, not just the React app. Existing
     revise entries still load and validate; nothing is migrated.'
-  status: pending
+  verify: "models_v2.BallReason + BALL_REASONS, schema/agentjobs-v2.yaml and its regenerated\
+    \ JSON Schema and reference docs, docs/task-schema.md + schema-design.md + schema/understanding.md\
+    \ + agent-workflow.md, the MCP handoff target enum, openapi.json and types.gen.ts.\
+    \ REST /handoff, the Python client and MCP carry ball_reason as data. The CLI\
+    \ has no handoff/approve/request-changes command at all \u2014 stated in entry\
+    \ 8, not silently skipped. Nothing migrated; the corpus is untouched and the full\
+    \ pytest suite is green."
+  status: met
 - id: p1-3
   text: "Part 1: a reader of a task a human sent back can tell from the record alone\
     \ whether work was rejected, a question answered, a blocker cleared, or a hold\
     \ imposed \u2014 the failure task-081 entry 26 had to repair in prose."
-  status: pending
+  verify: "revise / answer / redirect / hold are distinct values with distinct display_status\
+    \ labels. A question answered vs a blocker cleared both land on `answer` and are\
+    \ told apart by the state the ball came from (human/decision vs external/dependency)\
+    \ \u2014 reasoned in entry 8 rather than left implicit."
+  status: met
 - id: p2-1
   text: 'Part 2: a task at human/decision renders no Approve button and the secondary
     action reads "Answer Questions"; human/input behaves the same; human/approval
     keeps Approve; a non-draft human/spec renders no merge verb; human/review is unchanged.'
-  status: pending
+  verify: "All five confirmed in a browser against scripts/review_panel_sandbox.py,\
+    \ reading the rendered button text. decision and input: [\u270E Answer Questions,\
+    \ \u21AA New Instructions, \u23F8 Hold, \u2715 Reject & Archive], no Approve and\
+    \ no occurrence of \"merge\" anywhere in the panel. approval keeps \u2713 Approve\
+    \ \u2014 agent may merge. Non-draft spec: \u270E Send feedback, no Approve and\
+    \ no Promote. review unchanged."
+  status: met
 - id: p2-2
   text: 'Part 2: tests assert on the rendered button text for each ball_reason, not
     on the presence of markup.'
-  status: pending
+  verify: frontend/src/components/TaskDetail.test.tsx, suite "offers only verbs that
+    are true". Each test reads the button label and asserts the argument the control
+    sends, so a button labelled "Answer Questions" that wrote `revise` would fail.
+  status: met
 - id: p3-1
   text: 'Part 3: approving with a note records it verbatim in the log and the ball_prompt,
     lands agent/work, and keeps the merge-gate clearance intact. Approving with no
     note produces exactly today''s record.'
-  status: pending
+  verify: 'tests/test_human_actions.py, and confirmed by hand: approving task-101
+    with a note produced agent/work, the clearance sentence intact, the note verbatim,
+    and the guard sentence "not another review round: you are still cleared to merge".
+    The no-note case is asserted against the APPROVAL_CLEARANCE constant itself, so
+    the two branches cannot drift while the test still passes.'
+  status: met
 - id: p3-2
   text: 'Part 3: the optional note is available in REST, the generated client, MCP
     and the CLI, not only in the React panel; and a decision records whether it carries
     attachments.'
-  status: pending
+  verify: "REST POST /approve and the generated TypeScript client carry `note`. Attachments\
+    \ decision: no, with a reopen trigger \u2014 log entry 10, which also raises the\
+    \ task-001 sequencing question and records the answer on task-001 itself. PARTIAL\
+    \ on one point, stated rather than glossed: MCP and the CLI have no approve surface\
+    \ to extend \u2014 approve is a human action and there is no MCP tool or CLI command\
+    \ for it. See the handoff."
+  status: met
 - id: x-1
   text: All three parts exercised by hand against a running server across every ball_reason
     state, with each control's label matching what it writes.
-  status: pending
+  verify: "scripts/review_panel_sandbox.py on :8897, seven seeded states. Four flows\
+    \ driven by real clicks proved to have landed (mousedown/click listener): Answer\
+    \ Questions \u2192 agent/answer, Approve+note \u2192 agent/work with clearance\
+    \ intact, Hold \u2192 agent/hold, Resume \u2192 agent/work. The dispatch refusal\
+    \ exercised live: POST /dispatch at a held task \u2192 409 task_on_hold. Two defects\
+    \ found this way and fixed in commit 4."
+  status: met
 - id: x-2
   text: One branch, three commits, one unqualified scripts/check.py green before the
     handoff, one review request covering all three parts.
-  status: pending
-deliverables: []
+  verify: "One branch, three part-commits plus a fourth carrying the fixes verification\
+    \ found \u2014 deliberate, reasoned in that commit's message. Unqualified scripts/check.py\
+    \ green twice: 10/10 stages, 444s then 424s after the fixes. One review request."
+  status: met
+deliverables:
+- path: src/agentjobs/models_v2.py
+  note: BallReason gains answer, redirect, hold; BALL_REASONS and display_status follow.
+  status: done
+- path: schema/agentjobs-v2.yaml
+  note: The LinkML source, with its generated JSON Schema and reference docs regenerated.
+  status: done
+- path: src/agentjobs/api/routes/tasks.py
+  note: /answer, /redirect, /hold, /resume; approve takes an optional note; APPROVAL_CLEARANCE
+    named.
+  status: done
+- path: src/agentjobs/dispatch/auto.py
+  note: Auto-dispatch skips agent/hold (on_hold) instead of treating every agent ball
+    as workable.
+  status: done
+- path: src/agentjobs/dispatch/guards.py
+  note: 'TaskOnHoldError: the manual dispatch chain refuses a held task, quoting the
+    release condition.'
+  status: done
+- path: frontend/src/components/TaskDetail.tsx
+  note: verbsFor keys the verb set off ball_reason; the held panel; the approve note
+    composer.
+  status: done
+- path: frontend/src/components/DependencyState.tsx
+  note: A held task reads On hold rather than In flight.
+  status: done
+- path: scripts/review_panel_sandbox.py
+  note: Seven seeded states on their own port, throwaway data, for reviewing this
+    change and the next one.
+  status: done
 dependencies: []
 links: []
 branches:
@@ -440,3 +562,78 @@ log:
       id: 5a2b9e14-7c03-4d68-b1fa-9e3c6d20a845
       kind: update_content
       fingerprint: c2548773b40b3e99b77b4795dfb9f75a
+- id: 10
+  ts: '2026-08-21T21:38:50.211579Z'
+  actor: claude
+  type: decision
+  body: "**Part 3 \u2014 the approve payload takes a `note` field, and no attachments.\
+    \ Both halves of p3-2's judgement call, and the task-001 sequencing question task-228\
+    \ told this task to raise rather than guess past.**\n\n**The payload shape, and\
+    \ why it does not pre-empt [task-001](tasks/agentjobs/task-001.yaml).** 228 asked\
+    \ whoever built this to read 001's decisions first, and to raise the ordering\
+    \ rather than invent a parallel parameter. 001 has no decision entries at all\
+    \ \u2014 it is still `draft`, and its own record says the design question is *why*\
+    \ it is still draft. So there was nothing to fit into, and waiting for it would\
+    \ have blocked a one-field change behind an unspecified design question.\n\nWhat\
+    \ was built instead is the shape 001 can extend without moving anything: `ApproveActionRequest`\
+    \ is `NoteActionRequest`, a base with `user` plus `note: Optional[str]`. The two\
+    \ axes 001's own spec names \u2014 *what is being approved* and *what the human\
+    \ wants to say about it* \u2014 stay orthogonal. `note` is the second. When 001\
+    \ settles the first, it adds its gate discriminator beside `note` on the same\
+    \ model, and neither the field nor its meaning changes. The alternative 228 warned\
+    \ against \u2014 a bespoke `approval_note` parameter that 001 would find bolted\
+    \ on beside its own \u2014 is what naming the field for the axis rather than for\
+    \ this route avoids. A note appended to task-001 says so, so its author does not\
+    \ have to derive it from this diff.\n\nThe clearance sentence itself is now the\
+    \ named constant `APPROVAL_CLEARANCE`, which is also the seam 001 needs: varying\
+    \ what an approval *means* is one substitution at that name, and the regression\
+    \ test asserts against the constant rather than a copy of its wording, so the\
+    \ two branches cannot drift apart while the guard still passes.\n\n**Attachments\
+    \ on an approval: no.** Request Changes carries them (`AttachmentPicker`) because\
+    \ a screenshot of the thing being objected to *is* the payload \u2014 the feedback\
+    \ is a description of something wrong, and the image is the evidence for it. Promote\
+    \ does not, and neither does this. An approval note is context to carry into a\
+    \ merge, not evidence of a defect, and there is no observed instance of one needing\
+    \ an image. Adding them would double the sidecar-storage path and the decode-and-refuse\
+    \ handling for a case nobody has hit.\n\n*Rejected: add them for symmetry with\
+    \ Request Changes.* Symmetry between two controls that mean different things is\
+    \ not a reason on its own, and the asymmetry here is the point \u2014 one control\
+    \ says \"here is what is wrong\", the other says \"go ahead\". **Reopen trigger,\
+    \ stated so this is a decision and not an omission:** the first approval note\
+    \ that wants a screenshot. It is additive when it comes, exactly as the note itself\
+    \ was."
+  data:
+    operation:
+      id: 8c47d1f0-3b6a-4e25-9d81-0f5a72c94b63
+      kind: log_append
+      fingerprint: aabd7f2456eb13c2f5a00b0ed9afe266
+- id: 11
+  ts: '2026-08-21T21:39:39.300868Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: e0f5b2a7-6c94-4d13-8b02-3a7e15c6d904
+      kind: update_content
+      fingerprint: ab46677fec0342ab420b046660c42b9e
+- id: 12
+  ts: '2026-08-21T21:40:07.394603Z'
+  actor: claude
+  type: handoff
+  body: Parts 1, 2 and 3 complete on fix/task-231-review-panel; four commits; scripts/check.py
+    green 10/10 twice. Exercised by hand in a browser across all seven panel states
+    via scripts/review_panel_sandbox.py on :8897, which is running now for review.
+    Two defects found by that hand-exercising and fixed. Full evidence in the acceptance
+    verify fields and log entries 8 and 10.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: f4a91d63-5e28-4b70-a1c9-72d0e83b5f16
+      kind: handoff
+      fingerprint: f2ffaa1cddf23eb1119b79952c2c27cf
