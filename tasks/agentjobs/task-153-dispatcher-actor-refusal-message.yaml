@@ -2,7 +2,7 @@ schema: 2
 id: task-153-dispatcher-actor-refusal-message
 title: Stop the dispatch refusal telling you to configure the dispatcher as a human
 created: '2026-08-18T21:02:17.186936Z'
-updated: '2026-08-21T01:43:38.533999Z'
+updated: '2026-08-21T01:44:53.342631Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -471,3 +471,21 @@ log:
       id: 6fe2389f-9700-4e64-8cef-105f3ae6462f
       kind: close
       fingerprint: 315167242ebd8941d0a0e7461288bb73
+- id: 11
+  ts: '2026-08-21T01:44:53.342470Z'
+  actor: claude
+  type: note
+  body: "Correction to the close entry, which said the worktree was removed. It is\
+    \ unregistered, not deleted: `git worktree remove C:/projects/worktrees/aj-153`\
+    \ dropped it from `git worktree list` and the merged local branch fix/task-153-dispatch-refusal-message\
+    \ is deleted, but the directory itself failed with 'Permission denied' because\
+    \ this session's own shell is pinned inside it -- a known shape in this repo.\
+    \ Nothing references it: it holds no branch and no uncommitted work.\n\nWhoever\
+    \ picks this up next can finish it in one command once this session has exited:\n\
+    \n    Remove-Item -Recurse -Force C:/projects/worktrees/aj-153\n\nEverything else\
+    \ in the close entry stands as written."
+  data:
+    operation:
+      id: 432a4237-45d3-4682-b2e3-9fe14688e07a
+      kind: log_append
+      fingerprint: 8361b7f233c392ca8c2a6f927f3d5e78
