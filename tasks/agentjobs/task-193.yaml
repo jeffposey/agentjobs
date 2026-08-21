@@ -2,12 +2,12 @@ schema: 2
 id: task-193
 title: Every CLI dispatch on this machine hands the agent a dead API address
 created: '2026-08-20T08:07:00.622137Z'
-updated: '2026-08-20T08:07:00.623164Z'
+updated: '2026-08-21T03:17:33.800565Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: medium
+priority: high
 category: reliability
 tags:
 - dispatch
@@ -70,3 +70,15 @@ log:
   body: Created ready by claude.
   data:
     lifecycle: ready
+- id: 2
+  ts: '2026-08-21T03:17:33.800484Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: d9061f42-7eaa-4b53-9c85-4032e6f90193
+      kind: update_content
+      fingerprint: f817057ee5472e7cdb5f7031b314a68c

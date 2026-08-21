@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T00:53:12.283519Z'
+updated: '2026-08-21T03:19:24.526466Z'
 lifecycle: active
 ball: external
 ball_reason: dependency
@@ -562,3 +562,80 @@ log:
       id: a1b2c3d4-0008-4a00-9e00-1a2b3c4d0081
       kind: log_append
       fingerprint: 380c73f33655dc056215b7768579c2e5
+- id: 18
+  ts: '2026-08-21T03:17:25.215510Z'
+  actor: claude
+  type: decision
+  body: "Jeff overturned part of the approved design on 2026-08-20: an agent MAY reorder\
+    \ the queue autonomously, with human review optional rather than required. This\
+    \ amends \xA712 (\"Nothing here forbids a *suggestion* later ... so long as it\
+    \ proposes a move a human accepts, and never reorders anything itself\") and sc-7\
+    \ (\"a queue_position that a human has reviewed and agreed to\"). Both were approved\
+    \ earlier the same day in log entry 13; this entry supersedes them on that one\
+    \ point and nothing else.\n\n**Why the earlier reasoning was wrong.** \xA712 rejected\
+    \ machine ordering on the strength of the evidence in log entry 1 \u2014 a human\
+    \ ranked the dispatch hierarchy correctly in under a minute while the tool answered\
+    \ task-080 then task-058. But that compared a human to a *sort function over two\
+    \ fields*, not to an agent that has read every task record. The rejection of **scoring**\
+    \ still stands and is still right: a numeric model of what a human wants is wrong\
+    \ in a way nobody can see, because a surprising answer has no place to look. An\
+    \ agent that reads the corpus and writes its reasoning is not that thing \u2014\
+    \ its output is an argument you can read and disagree with.\n\nJeff's argument,\
+    \ which is the operative one: at 75 open tasks he is the less-informed party at\
+    \ ordering time, because the records do not fit in his head. Tonight is direct\
+    \ evidence \u2014 he dispatched task-202 having misread its state and priority,\
+    \ costing ~40 minutes. Ordering authority placed with the party that has fewer\
+    \ of the facts makes the order worse, not more legitimate.\n\n**What 081 actually\
+    \ requires, restated.** The order must be explicit, durable, and carry a recoverable\
+    \ reason. `queue_move` entries written by an agent satisfy all three. What this\
+    \ program exists to kill is the *unattributed* reorder \u2014 `updated` timestamps\
+    \ silently promoting whatever was last touched \u2014 not the non-human one.\n\
+    \n**Three bounds, which are part of the decision and not commentary:**\n\n1. **Reasoning\
+    \ is recorded.** A reorder run writes why it moved what, on the record. This is\
+    \ what makes optional review safe rather than nominal: a drifted order can be\
+    \ audited after the fact instead of having to be caught live.\n2. **Triggered,\
+    \ not continuous.** Reordering runs on an explicit trigger (new tasks arrived,\
+    \ or on request), not on every dispatch. Continuous re-derivation is churn and\
+    \ makes the queue unreadable as a stable object.\n3. **A human `queue_move` is\
+    \ sticky.** The agent proposes relative to human moves and must justify overriding\
+    \ one; it does not re-derive a band from scratch each run. Jeff stated he wants\
+    \ to change priorities and queue order by hand routinely, and without this rule\
+    \ the two authorities alternate \u2014 he promotes something at 11pm, an overnight\
+    \ run buries it with a perfectly good reason, and the queue loses its credibility\
+    \ precisely because the reorder looks deliberate. This is the rule that lets both\
+    \ hold the pen.\n\n**Rejected alternative:** keeping mandatory human approval\
+    \ on every reorder, per \xA712 as approved. Rejected because it makes the ordering\
+    \ pass a recurring tax on the person with the least context, which is the cost\
+    \ that made the backlog unordered in the first place. Note that sc-7's *one-time*\
+    \ pass over the existing 75-task backlog is unaffected \u2014 that pass still\
+    \ happens, and Jeff still approves it. What changes is what happens afterward.\n\
+    \n**Consequences to execute:** docs/task-selection-design.md \xA712 and \xA713\
+    \ need this amendment folded in, and sc-7's wording needs to change from \"a human\
+    \ has reviewed and agreed\" to a form that admits an agent-written order with\
+    \ recorded reasoning. task-209's spec inherits both. The reorder agent itself\
+    \ is not yet a task; Jeff wants it dispatched to a frontier runner (Fable 5) and\
+    \ it depends on task-156 adding a task-level `difficulty` field before \"hard\
+    \ work gets the big model\" is expressible as anything other than a per-dispatch\
+    \ choice."
+  data:
+    operation:
+      id: b7e41d20-5c88-4f31-9a63-2e10c4d70081
+      kind: log_append
+      fingerprint: 2bdd185c58a9ca7fa046e00c14d9d9a2
+- id: 19
+  ts: '2026-08-21T03:19:24.526283Z'
+  actor: claude
+  type: note
+  body: "Correction to entry 18's last paragraph: the reorder agent **is** already\
+    \ a task. **task-211** (playbooks design, filed 2026-08-20) names `reorder` as\
+    \ one of its three proving cases, and already carries a same-day decision from\
+    \ Jeff on graded effort by queue depth. Entry 18's three bounds have been recorded\
+    \ there as log entry 3, which is where they bind \u2014 211 is the design that\
+    \ has to express them. task-211 raised medium \u2192 high.\n\nNothing else in\
+    \ entry 18 changes."
+  re: 18
+  data:
+    operation:
+      id: b4d06f83-1e54-4f97-a0b9-8476f9e40081
+      kind: log_append
+      fingerprint: 776f45999f07607080378615a6df916b

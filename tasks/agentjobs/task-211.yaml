@@ -3,12 +3,12 @@ id: task-211
 title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
   reorder, and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T01:13:10.650651Z'
+updated: '2026-08-21T03:19:14.784538Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: medium
+priority: high
 category: architecture
 tags:
 - design
@@ -200,3 +200,65 @@ log:
       id: a1b2c3d4-000b-4a00-9e00-1a2b3c4d0211
       kind: log_append
       fingerprint: fc17e047a64dbeae8ad2b1c880eba4c1
+- id: 3
+  ts: '2026-08-21T03:19:09.336514Z'
+  actor: claude
+  type: decision
+  body: "Design input from Jeff, 2026-08-20, recorded here because the `reorder` playbook\
+    \ is the first thing this design has to be able to express. The full reasoning\
+    \ is task-081 log entry 18; this is what binds the playbook design.\n\n**A reorder\
+    \ playbook may reorder the queue itself. Human review is optional, not required.**\
+    \ That overturns docs/task-selection-design.md \xA712, which had permitted only\
+    \ a suggestion \"a human accepts\" and forbade an agent reordering anything itself.\
+    \ Jeff's argument: at 75 open tasks he is the less-informed party at ordering\
+    \ time because the records do not fit in his head, so placing ordering authority\
+    \ with him makes the order worse rather than more legitimate. Evidence from the\
+    \ same evening \u2014 he dispatched task-202 having misread its state, costing\
+    \ ~40 minutes.\n\nThe \xA712 rejection of **scoring** is untouched and still binds:\
+    \ no numeric ranking function over signals like unblocking value, centrality,\
+    \ age or effort. The distinction the playbook concept has to preserve is that\
+    \ an agent's output is an *argument you can read and disagree with*, where a score\
+    \ is not.\n\n**Three bounds the `reorder` playbook must satisfy, and which this\
+    \ design should generalise to any judgment playbook that writes:**\n\n1. **Reasoning\
+    \ is recorded.** A run writes why it moved what, onto the record. This is what\
+    \ makes optional review safe rather than nominal \u2014 a drifted order gets audited\
+    \ after the fact instead of having to be caught live.\n2. **Triggered, not continuous.**\
+    \ It runs on an explicit trigger (new tasks arrived, or on request), never on\
+    \ every dispatch. Continuous re-derivation is churn and makes the queue unreadable\
+    \ as a stable object.\n3. **A human move is sticky.** The playbook proposes relative\
+    \ to human `queue_move`s and must justify overriding one; it does not re-derive\
+    \ a band from scratch each run. Jeff intends to change priorities and queue order\
+    \ by hand routinely. Without this rule the two authorities alternate \u2014 he\
+    \ promotes something at 11pm, an overnight run buries it with a perfectly good\
+    \ reason, and the queue loses credibility precisely because the reorder looks\
+    \ deliberate. This is the rule that lets both hold the pen, and it is the one\
+    \ most likely to be missed because nothing fails loudly when it is absent.\n\n\
+    **Runner posture:** Jeff wants judgment playbooks \u2014 reorder first, then spec-writing\
+    \ and review \u2014 dispatched to a frontier runner rather than the project default,\
+    \ naming Fable 5. Today that is only expressible per-dispatch: the runner-group\
+    \ precedence ladder is dispatch \u2192 project \u2192 machine (models_v2.py:487)\
+    \ with no task-level input, and docs/agent-dispatch-design.md \xA7\"Model policy\"\
+    \ says the difficulty \u2192 profile table is designed but not built. **task-156**\
+    \ adds the task-level `difficulty` field and is the prerequisite for a playbook\
+    \ declaring \"this is hard work, give it the big model\" as durable data rather\
+    \ than a choice remade at every dispatch. Worth carrying as a dependency or at\
+    \ minimum a link.\n\nPriority raised medium \u2192 high with this entry: this\
+    \ is the design that turns \"autonomous work is the direction\" into something\
+    \ the queue can actually run, and it now has a named consumer."
+  data:
+    operation:
+      id: f2b84d61-9c32-4d75-8ea7-6254f7b20211
+      kind: log_append
+      fingerprint: d90ca26d199620f30ea7a7cb6b913663
+- id: 4
+  ts: '2026-08-21T03:19:14.784441Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: a3c95e72-0d43-4e86-9fb8-7365c8d30211
+      kind: update_content
+      fingerprint: f817057ee5472e7cdb5f7031b314a68c

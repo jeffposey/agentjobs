@@ -3,7 +3,7 @@ id: task-197
 title: The session poller resolves the project's default runner, so a run dispatched
   from a group is polled with the wrong executable
 created: '2026-08-20T17:56:56.232826Z'
-updated: '2026-08-21T01:08:44.556524Z'
+updated: '2026-08-21T03:17:46.732946Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -118,3 +118,27 @@ log:
       id: c1a70000-1197-4a00-9e00-000000000197
       kind: log_append
       fingerprint: 2a3f0434e9fde7ed6f2e43b6db2e0d16
+- id: 3
+  ts: '2026-08-21T03:17:31.678012Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: c8f52e31-6d99-4a42-8b74-3f21d5e80197
+      kind: update_content
+      fingerprint: f817057ee5472e7cdb5f7031b314a68c
+- id: 4
+  ts: '2026-08-21T03:17:46.732861Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: e1a73c50-8b21-4c64-ad96-5143f7a10197
+      kind: update_content
+      fingerprint: 951c365e1dfac3f89eb0433665532798
