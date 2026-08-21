@@ -75,8 +75,14 @@
     overs = 0;
   }, true);
 
+  // Whether a native drag is currently in flight. `finish` refuses to close a gesture
+  // off while this is true -- see the comment on it.
+  var inFlight = false;
+
   ["dragstart", "drop", "dragend"].forEach(function (type) {
     document.addEventListener(type, function (event) {
+      if (type === "dragstart") inFlight = true;
+      if (type === "dragend") inFlight = false;
       var row = event.target.closest && event.target.closest("[data-task]");
       push(type.toUpperCase() + (row ? "  " + row.getAttribute("data-task") : ""));
     }, true);
@@ -121,6 +127,13 @@
    * rather than by reading it.
    */
   function finish() {
+    // Never mid-drag. A long autoscrolling drag saw a `mouseup` arrive while the drag
+    // was still in flight, so the gesture was summarised, cleared, and the rest of it
+    // recorded as a second gesture -- one that had no PRESS and no DRAGSTART, and so
+    // was reported as "the browser never started a drag from the handle" about a drag
+    // that had plainly started. A review instrument that says a feature did not work
+    // when it did is worse than no instrument, and that is task-225's whole incident.
+    if (inFlight) return;
     if (pending) clearTimeout(pending);
     var before = lines.orderBefore;
     var scrolledFrom = lines.scrollBefore;
@@ -139,7 +152,9 @@
       // whether the row did, because a drag that cannot leave the viewport can only
       // ever reach the rows that were already on it.
       var scrolledTo = Math.round(window.scrollY);
-      push(scrolledFrom === scrolledTo
+      push(typeof scrolledFrom !== "number"
+        ? "=> where the page started was not recorded; it is at y=" + scrolledTo + " now."
+        : scrolledFrom === scrolledTo
         ? "=> the page did NOT scroll (page y stayed at " + scrolledTo + ")."
         : "=> the page scrolled from y=" + scrolledFrom + " to y=" + scrolledTo +
           " (" + Math.abs(scrolledTo - scrolledFrom) + "px).");
