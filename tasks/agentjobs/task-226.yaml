@@ -3,7 +3,7 @@ id: task-226
 title: '"Request changes" is four different acts wearing one button, and the record
   says "revise" for all of them'
 created: '2026-08-21T16:19:49.631386Z'
-updated: '2026-08-21T16:59:32.725842Z'
+updated: '2026-08-21T19:02:29.638792Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -131,6 +131,10 @@ dependencies:
   type: related
   note: Structured questions answered in the GUI would be one of the intents this
     vocabulary needs a name for.
+- task: task-228
+  type: related
+  note: 'The other end of the same control pair: approve takes no note, so approve-with-a-comment
+    has to borrow the revise path and becomes a fifth intent recorded as revise.'
 links: []
 branches: []
 log:
@@ -145,3 +149,15 @@ log:
       id: "c7d92\u064140-3e81-4b56-a09d-6f4e2c8b1573"
       kind: create
       fingerprint: ac5b8fdba523b7b1e555cda850ef4514
+- id: 2
+  ts: '2026-08-21T19:02:29.638623Z'
+  actor: claude
+  type: note
+  body: Updated dependencies.
+  data:
+    fields:
+    - dependencies
+    operation:
+      id: a1c4e7f2-6b30-4a58-8d19-2c7b5e04f9a3
+      kind: update_content
+      fingerprint: d26f8cac800236b05267310473231baf

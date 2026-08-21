@@ -1,0 +1,157 @@
+schema: 2
+id: task-228
+title: Approve should take an optional note, so "proceed, and also do this" stops
+  being a request-changes
+created: '2026-08-21T19:02:19.523990Z'
+updated: '2026-08-21T19:02:19.923433Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+queue_position: 7200
+category: ux
+tags:
+- gui
+- workflow
+- handoff
+- api
+effort: "small \u2014 one optional field through the stack, plus the composer the\
+  \ promote path already models"
+assignment:
+  eligible: []
+spec:
+  summary: "Approve fires immediately with no way to attach a note, so any approval\
+    \ carrying a comment has to go through Request Changes instead \u2014 which hands\
+    \ the ball back for another round trip the human did not want. Approve should\
+    \ accept an optional note that rides in the ball_prompt and the log; the distinction\
+    \ is then clean: approve means proceed (note optional), request changes means\
+    \ act on the note and come back to me."
+  intent: "The point of recording approvals in the task record rather than in chat\
+    \ is that the record is what the next session reads. An approval whose accompanying\
+    \ sentence had to be filed as a rejection defeats that twice \u2014 the agent\
+    \ takes an unwanted round trip, and a cold reader sees `revise` on work that was\
+    \ approved."
+  description: "## The observation\n\nIn the review panel, **Approve** is a bare button:\
+    \ `void onApprove()` fires the moment it is clicked, with no composer ([frontend/src/components/TaskDetail.tsx:96](frontend/src/components/TaskDetail.tsx:96)).\
+    \ The backend matches \u2014 `POST /{task_id}/approve` takes a `HumanActionRequest`\
+    \ (a user, nothing else) and writes a fixed `ball_prompt`: *\"Approved -- cleared\
+    \ to merge. Rebase onto main, merge --no-ff...\"* ([src/agentjobs/api/routes/tasks.py:569](src/agentjobs/api/routes/tasks.py:569)).\n\
+    \nSo a human who approves the work **and** has something to say \u2014 a nit to\
+    \ fold in before merging, a heads-up about a follow-up, a reason for approving\
+    \ \u2014 has exactly one place to put it: **Request Changes**. That writes `ball:\
+    \ agent` / `ball_reason: revise` and, correctly for its own purpose, tells the\
+    \ agent to come back for another review. The human gets a round trip they did\
+    \ not ask for, and the record says work was rejected when it was approved.\n\n\
+    Note that **Promote already does this right**: the draft-phase primary action\
+    \ opens an optional-note form, and passes `null` rather than `\"\"` when it is\
+    \ empty so the manager writes its own sentence ([frontend/src/components/TaskDetail.tsx:110](frontend/src/components/TaskDetail.tsx:110)).\
+    \ Approve is the same shape of act and does not have it.\n\n## The semantics to\
+    \ make explicit\n\nThe two send-it-back controls should read as a clean pair,\
+    \ and the note is what separates them:\n\n- **Approve** \u2014 *proceed*. The\
+    \ agent is cleared to merge and close. A note is **optional**; if present it is\
+    \ context to carry into the merge, not a gate. The agent does not come back for\
+    \ another review.\n- **Request changes** \u2014 *act on this, then come back to\
+    \ me*. A note is **required** (it already is), and the agent's next stop is another\
+    \ human review, not the merge.\n\nToday that distinction is carried only by which\
+    \ button was pressed, and the moment an approval needs a sentence attached, the\
+    \ human is pushed onto the wrong side of it.\n\n## Scope\n\n- `POST /approve`\
+    \ accepts an optional note. Prefer reusing the existing feedback payload shape\
+    \ rather than inventing a third one; `FeedbackActionRequest` already carries `user`\
+    \ + text (+ attachments), and Request Changes uses it.\n- The note rides in the\
+    \ `ball_prompt` and the log entry **verbatim**, the way request-changes feedback\
+    \ does \u2014 an approval note that gets paraphrased into a summary is not usable\
+    \ by the agent that reads it.\n- With no note, behaviour is byte-identical to\
+    \ today: the same fixed merge-gate prompt, the same log body. This must not become\
+    \ a required field.\n- The approve prompt with a note must still say the merge\
+    \ gate is cleared. The note is additive to *\"you may merge\"*, never a replacement\
+    \ for it \u2014 an agent that reads the note and treats it as a new review round\
+    \ has inverted the whole point.\n- UI: Approve opens the optional-note composer\
+    \ the way Promote does, and the label makes clear the note does not block the\
+    \ merge.\n- Whether attachments come along with an approval note is a judgement\
+    \ call worth recording either way; Request Changes has them ([AttachmentPicker](frontend/src/components/AttachmentPicker.tsx)),\
+    \ Promote does not.\n\n## Relationship to task-226\n\n**Same control pair, opposite\
+    \ ends of the problem.** task-226 is about `ball_reason: revise` being the only\
+    \ value four different human intents can land on, so the record cannot say which\
+    \ one happened. This task is about the specific intent that has *no* control at\
+    \ all: approve-with-a-comment, which today has to borrow the revise path and therefore\
+    \ lands in 226's bucket as a fifth mis-recorded case.\n\nThe two are worth reading\
+    \ together and are cheaper done together \u2014 both touch `ReviewPanel` and both\
+    \ touch the handoff each button composes \u2014 but neither blocks the other.\
+    \ If 226 concludes the agent-side vocabulary should grow, this task's note does\
+    \ not need a new reason: it stays `agent`/`work`, because approve already means\
+    \ proceed and that is the point."
+  constraints: "- The note is optional and stays optional. Empty means today's exact\
+    \ behaviour, including the existing fixed ball_prompt and log body.\n- The note\
+    \ reaches the agent verbatim in ball_prompt and the log entry, not summarised.\n\
+    - The approve handoff stays `ball: agent` / `ball_reason: work` \u2014 a note\
+    \ does not change what approval means. If task-226 grows the agent-side vocabulary,\
+    \ this path is not one of the cases that needs a new value.\n- The prompt written\
+    \ with a note must still carry the merge-gate clearance. An agent must not be\
+    \ able to read an approval note as a request for another review round.\n- Whatever\
+    \ the API accepts reaches REST, the generated client, MCP and the CLI, not just\
+    \ the React app.\n- Do not repurpose the request-changes route with an \"approved\"\
+    \ flag. Two acts, two routes."
+  out_of_scope: "The agent-side reason vocabulary and the request-changes label (task-226).\
+    \ Making the panel's offered actions ball_reason-aware (task-016). Structured\
+    \ questions answered in the GUI (task-017). Anything that makes the GUI run git\
+    \ \u2014 approve still records, it does not merge."
+  context:
+  - path: frontend/src/components/TaskDetail.tsx
+    why: "ReviewPanel \u2014 line 96 is the bare Approve click; the promote branch\
+      \ below it is the optional-note composer to model this on."
+  - path: src/agentjobs/api/routes/tasks.py
+    why: approve_task takes HumanActionRequest and writes a fixed ball_prompt; request_changes
+      beneath it shows how feedback rides verbatim into the prompt and log.
+  - path: src/agentjobs/api/models.py
+    why: "HumanActionRequest vs FeedbackActionRequest \u2014 which payload approve\
+      \ should take."
+  - path: tasks/agentjobs/task-226.yaml
+    why: 'The other half: revise as the only value four human intents can land on.
+      Approve-with-a-note is the fifth case that has to borrow that path today.'
+acceptance:
+- id: ac-1
+  text: Approving with a note records the note verbatim in the log and in the ball_prompt,
+    and the task still lands agent/work with the merge-gate clearance intact.
+  status: pending
+- id: ac-2
+  text: "Approving with no note produces exactly today's record \u2014 same ball_prompt,\
+    \ same log body \u2014 proving the field is optional and nothing regressed."
+  status: pending
+- id: ac-3
+  text: The optional note is available in REST, the generated client, MCP and the
+    CLI, not only in the React panel.
+  status: pending
+- id: ac-4
+  text: 'The panel makes the pair legible without reading the schema: approve means
+    proceed and the note is optional context; request changes means act on the note
+    and return for review.'
+  status: pending
+- id: ac-5
+  text: A decision is recorded on whether an approval note carries attachments, with
+    the reasoning.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-226
+  type: related
+  note: Same control pair. 226 is revise carrying four intents; this is the approve-with-a-comment
+    intent that has no control and borrows revise today.
+- task: task-016
+  type: related
+  note: Which actions the panel offers given ball_reason. This adds what one of those
+    actions can carry.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T19:02:19.922307Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3f6b0d51-97a7-4d2e-9b6d-0f5a10c9e2b1
+      kind: create
+      fingerprint: 175623cb24d1f3c5835d8bca2710299a
