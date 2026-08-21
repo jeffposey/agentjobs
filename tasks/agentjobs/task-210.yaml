@@ -3,74 +3,9 @@ id: task-210
 title: check.py scrubs VIRTUAL_ENV so the gate cannot resolve to another checkout's
   environment
 created: '2026-08-21T00:53:04.242865Z'
-updated: '2026-08-21T01:31:59.751543Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review and, if you approve, merge fix/task-210-check-scrubs-virtualenv
-  (worktree C:/projects/worktrees/aj-210, two commits: 46053e6 code+tests, 5d11ee7
-  docs). Nothing is merged and nothing is pushed.
-
-
-  WHAT CHANGED - scripts/check.py only, plus its tests and one docs paragraph.
-
-  A new child_environment() copies os.environ, always drops PYTHONHOME, and drops
-  VIRTUAL_ENV and POETRY_ACTIVE when the activated virtualenv is not the one this
-  interpreter is running in. run() passes it to every child and deliberately takes
-  no env parameter, so a gate stage added later cannot forget to opt in. main() prints
-  a one-line note when it disowns the shell, so a green run is not a silent correction.
-
-
-  The three constraints held: the source-provenance guard (setup_problems/remedy)
-  is byte-for-byte unchanged and still refuses; frontend/playwright.config.ts is untouched;
-  the docs keep the whole existing explanation of WHY the hazard exists.
-
-
-  HOW IT WAS VERIFIED - sc-1, run as the experiment it is, not asserted.
-
-  VIRTUAL_ENV exported to the MAIN CLONE''s environment (agentjobs-KSKY4Ymk-py3.13)
-  and left exported, then `<worktree interpreter> scripts/check.py` from the worktree.
-  01:22:29Z to 01:29:13Z, EXIT=0. Black, Ruff, MyPy, 2130 pytest in 5m16s, both nested
-  `poetry run` frontend checks, oxlint, 154 Vitest, the production build, and 16 Playwright
-  tests -- the stage that used to fail -- all green. Playwright''s webServer is `poetry
-  run python e2e/run_server.py` and run_server.py calls verify_source_or_die, so a
-  green Playwright stage is itself the proof the nested poetry call resolved to this
-  worktree; before this change the guard refused it there, six minutes in. Full stage-by-stage
-  output is in the progress entry above.
-
-
-  Also confirmed the mechanism directly, same exported VIRTUAL_ENV: the bare nested
-  call imports C:/projects/agentjobs/src (the bug), the same call with env=check.child_environment()
-  imports C:/projects/worktrees/aj-210/src (the fix).
-
-
-  WHAT TO LOOK AT - two judgement calls I made and would want checked.
-
-  1. The scrub is CONDITIONAL, not the flat delete the spec described. An unconditional
-  delete also strips a VIRTUAL_ENV that IS this interpreter''s, which breaks a plain
-  `python -m venv .venv` checkout: Poetry then has no path-keyed environment to fall
-  back to and every nested `poetry run` in the frontend gate fails. scripts/bootstrap.py
-  already declines to overrule somebody''s own .venv for the same reason, so this
-  matches the existing idiom -- but it is a deviation from the written spec and it
-  is the thing to disagree with if you are going to disagree with something.
-
-  2. I did NOT also strip the activated venv''s Scripts directory from PATH, which
-  is what a real `deactivate` does. Nothing in the gate calls a bare `python` -- every
-  nested call is `poetry run`, which does not pick its interpreter from PATH -- and
-  if poetry itself were ever installed inside the activated venv, removing that directory
-  would make `poetry run` vanish and break the gate outright. Real cost, hypothetical
-  benefit. Reasoning and the reopen trigger are recorded as a decision on this task.
-
-
-  SIBLINGS - the change makes the `unset VIRTUAL_ENV` workaround unnecessary, never
-  required-in-reverse. With VIRTUAL_ENV already unset the new code takes the falsy
-  branch and passes the environment through untouched, so a sibling gate running mid-flight
-  under the old workaround behaves exactly as before.
-
-
-  MERGE STEPS if you approve: rebase onto main, merge --no-ff, mark the branch merged,
-  close completed, remove the worktree. No frontend rebuild or server restart is needed
-  -- this touches no runtime code, only the gate runner, its tests, and ALLAGENTS.md.'
+updated: '2026-08-21T01:36:34.336791Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -80,7 +15,6 @@ tags:
 - agent-dx
 - tooling
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: A dispatched session inherits VIRTUAL_ENV pointing at the main clone's
@@ -187,7 +121,8 @@ dependencies:
 links: []
 branches:
 - name: fix/task-210-check-scrubs-virtualenv
-  status: active
+  status: merged
+  merged_at: '2026-08-21T01:40:00Z'
 log:
 - id: 1
   ts: '2026-08-21T00:53:04.242911Z'
@@ -428,3 +363,71 @@ log:
       id: d1ac4de9-991e-4e1e-b8c3-0da3cd64ad86
       kind: handoff
       fingerprint: 1c2b4553fbfb4fc24c3261f4a6913f9d
+- id: 7
+  ts: '2026-08-21T01:34:26.201934Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 8
+  ts: '2026-08-21T01:36:34.300207Z'
+  actor: system
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 8800ea58-fd17-49c4-ba23-746329b91549
+      kind: update_content
+      fingerprint: b40178fadd23039aaeb34231770273e8
+- id: 9
+  ts: '2026-08-21T01:36:34.336662Z'
+  actor: claude
+  type: transition
+  body: 'Jeff approved the merge in chat. Rebased onto main (2e77160, which had moved
+    on with
+
+    task-153''s records), then merged --no-ff into main in the shared clone: merge
+    commit 4286120,
+
+    "merge: task-210 gate disowns a foreign VIRTUAL_ENV". Branch commits after the
+    rebase were
+
+    3d16de6 (check.py + tests) and 3b8bd9b (ALLAGENTS.md).
+
+
+    Verified on main after the merge: scripts/check.py has child_environment(), ALLAGENTS.md
+    has the
+
+    new paragraph, and the only lines the whole change removes from check.py are the
+    two run() lines it
+
+    replaces -- setup_problems and remedy, the source-provenance guard, are untouched,
+    as is
+
+    frontend/playwright.config.ts.
+
+
+    No frontend rebuild and no server restart: this touches the gate runner, its tests
+    and one docs
+
+    file, none of which the running server imports or serves. Nothing was pushed;
+    pushing is Jeff''s
+
+    call and was not part of this approval.
+
+
+    All three acceptance criteria met, all deliverables done. sc-1''s evidence is
+    the progress entry
+
+    two above this one.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 9952073e-02d8-4363-ab18-a7b224d4a457
+      kind: close
+      fingerprint: a7c5624dca3d77438351174911b167c3
