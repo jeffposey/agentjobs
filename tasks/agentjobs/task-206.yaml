@@ -2,7 +2,7 @@ schema: 2
 id: task-206
 title: 'Queue position: REST, the Python client, and an `agentjobs queue` sub-app'
 created: '2026-08-20T23:31:01.562704Z'
-updated: '2026-08-21T11:34:33.971905Z'
+updated: '2026-08-21T11:42:56.259452Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -90,34 +90,57 @@ acceptance:
 - id: sc-1
   text: Every verb in design section 10's REST list exists, is covered by a test,
     and refuses a request with no actor or no operation_id.
-  status: pending
+  verify: pytest tests/test_queue_surfaces.py -k TestEveryMutatingRouteIsAttributedAndRetrySafe
+  status: met
 - id: sc-2
   text: A corrupt queue produces 409 from `/api/tasks/next` and a non-zero exit with
     the same message from the CLI, while `queue check` and `queue repair` still succeed
     against it.
-  status: pending
+  verify: pytest tests/test_queue_surfaces.py -k TestCorruptionReachesEverySurface
+  status: met
 - id: sc-3
   text: '`agentjobs queue list` prints the full backlog in order, band by band, with
     non-claimable tasks marked and their reason shown.'
-  status: pending
+  verify: 'agentjobs queue list  # and pytest -k TestQueueListCommand'
+  status: met
 - id: sc-4
   text: '`queue_position` is settable through no generic patch path: a test asserts
     `TaskUpdateRequest` rejects it.'
-  status: pending
+  verify: pytest tests/test_queue_surfaces.py -k TestQueuePositionIsUnreachableByGenericPatch
+  status: met
 - id: sc-5
   text: The generated frontend API client is regenerated and the gate's client check
     passes.
-  status: pending
+  verify: python scripts/check.py --only api,vitest
+  status: met
 deliverables:
+- path: src/agentjobs/api/routes/queue.py
+  note: 'new: /queue, /queue/repair, /queue/compact, mounted project-scoped'
+  status: done
 - path: src/agentjobs/api/routes/tasks.py
-  note: next/explain, queue-move, reprioritize
-  status: pending
+  note: next/explain, and the 409 mapping for QueueCorruptionError
+  status: done
+- path: src/agentjobs/api/routes/status.py
+  note: queue-move and reprioritize, beside the other domain verbs
+  status: done
+- path: src/agentjobs/api/models.py
+  note: the queue request/response models; extra=forbid on SafeMutationRequest
+  status: done
+- path: src/agentjobs/manager.py
+  note: queue_listing(), the band-by-band read both REST and the CLI use
+  status: done
 - path: src/agentjobs/client.py
-  note: one method per queue verb
-  status: pending
+  note: queue(), explain_next_task(), and one operation per verb
+  status: done
 - path: src/agentjobs/cli.py
-  note: the queue sub-app
-  status: pending
+  note: the queue sub-app, and `agentjobs next --why`
+  status: done
+- path: tests/test_queue_surfaces.py
+  note: 79 tests across HTTP, the Python client and the CLI
+  status: done
+- path: docs/api-reference.md
+  note: the queue section and the CLI synopsis
+  status: done
 dependencies:
 - task: task-205
   type: needs
@@ -245,3 +268,17 @@ log:
       id: c0f71d70-0206-4a01-9e00-000000000003
       kind: log_append
       fingerprint: ce96a2670f57a291623b0aec814fbbdd
+- id: 7
+  ts: '2026-08-21T11:42:56.259135Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: c0f71d70-0206-4a01-9e00-000000000005
+      kind: update_content
+      fingerprint: caad5d1fe5da787cbeae88da05cf9e9f
