@@ -53,7 +53,7 @@ from typing import Dict, List, Optional, Sequence
 
 import yaml
 
-from agentjobs.actors import Actor, load_actors
+from agentjobs.actors import Actor, load_actors, reserved_actors
 from agentjobs.dispatch.config import (
     DispatchError,
     DispatchResolution,
@@ -323,7 +323,28 @@ def assert_runner_actor_known(config: Dict[str, object], runner: ConfigRunner) -
 
 
 def actor_kind(config: Dict[str, object], actor_id: str) -> Optional[Actor]:
-    """Look one actor up in the project's configured vocabulary."""
+    """Look one actor up: AgentJobs' reserved ids first, then the project's vocabulary.
+
+    Reserved ids are checked *before* the config and cannot be overridden by it, which
+    is the whole point. ``dispatcher`` is the id AgentJobs itself writes ``dispatch``
+    and ``dispatch_result`` entries as; it is deliberately kept out of ``load_actors``
+    (see the ``RESERVED`` docstring in ``actors.py`` -- merging it in would make the
+    configured vocabulary never-empty and break the "a fresh init accepts any id"
+    allowance). Without this lookup the most predictable actor in the system resolves
+    to ``None`` and every guard here reports it as an unrecognised stranger, with the
+    boilerplate remedy for a stranger attached: *add them to 'actors:' with
+    'kind: human'*. That remedy works, and following it would clock every future
+    dispatcher-written entry as a human act -- which is exactly the agent-starts-agent
+    loop `assert_human_clocked` exists to make unrepresentable (task-153).
+
+    Config-overrides-reserved would leave the same hole open one edit away, so the
+    order is fixed: a project that writes ``dispatcher: {kind: human}`` into its
+    ``actors:`` still gets the reserved agent, and the rule stays non-configurable in
+    fact and not merely in its docstring.
+    """
+    reserved = reserved_actors().get(actor_id)
+    if reserved is not None:
+        return reserved
     return load_actors(config).get(actor_id)
 
 
@@ -337,6 +358,11 @@ def assert_human_clocked(config: Dict[str, object], entry: LogEntry) -> Actor:
     `validate_actor`, which accepts any id on a project that has configured none -- a
     reasonable default for writing a note and the wrong one here, because "we do not
     know who this is" must not be able to start a process on someone's machine.
+
+    The unknown-actor branch keeps its "add them to 'actors:'" advice, which is right
+    for a genuinely unknown id, and is unreachable for ``dispatcher`` -- see
+    ``actor_kind``. A re-dispatch whose newest entry is AgentJobs' own is an agent's
+    entry and is refused as one.
     """
     actor = actor_kind(config, entry.actor)
     if actor is None:
@@ -347,11 +373,18 @@ def assert_human_clocked(config: Dict[str, object], entry: LogEntry) -> Actor:
             "'actors:' in .agentjobs/config.yaml with 'kind: human'."
         )
     if not actor.is_human:
+        origin = (
+            " That entry is AgentJobs' own record of an earlier dispatch, so nothing a "
+            "person did has authorised another one."
+            if entry.actor in reserved_actors()
+            else ""
+        )
         raise CausingActorNotHumanError(
             f"Log entry {entry.id} ({entry.type.value}) was written by {entry.actor!r}, "
-            "an agent. A dispatch may only be caused by a human act (design section 2, "
-            "D4) -- which is what makes an agent-starts-agent loop impossible rather "
-            "than merely capped. Act on the task yourself, then dispatch."
+            f"an agent.{origin} A dispatch may only be caused by a human act (design "
+            "section 2, D4) -- which is what makes an agent-starts-agent loop "
+            "impossible rather than merely capped. Act on the task yourself, then "
+            "dispatch."
         )
     return actor
 
