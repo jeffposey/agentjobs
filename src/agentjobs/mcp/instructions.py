@@ -19,8 +19,14 @@ handoff, release, and close to move workflow state. Reading task YAML is allowed
 
 Every mutating tool needs an `actor` from the project's configured vocabulary and a \
 caller-generated `operation_id` UUID; reusing an operation_id replays the original \
-result instead of writing twice. There is no generic status, lifecycle, or YAML \
-setter, and none is coming -- a task moves through the domain verbs or not at all.
+result instead of writing twice. There is no generic status, lifecycle, position \
+or YAML setter, and none is coming -- a task moves through the domain verbs or \
+not at all, and its place in line moves through `task_queue_move` or not at all.
+
+Call `task_next` before choosing work. It returns the queue's answer, the band and \
+position it won on, and every task passed over with the rule that excluded it. \
+Disagree with the order by calling `task_queue_move`, never by adding a \
+dependency and never by editing a position.
 
 Read `task_get` before resuming work. It returns the whole record, which is designed \
 to be sufficient working memory for a session with no other context: the spec, the \

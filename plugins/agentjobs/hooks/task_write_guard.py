@@ -406,8 +406,9 @@ def _denial(paths: Iterable[str], directory: Path, reason: str) -> str:
         "Task YAML is generated state. Use the AgentJobs MCP tools instead: "
         "task_create_ready or task_create_draft to add work, task_claim, "
         "task_handoff, task_release and task_close to move it, task_log_append to "
-        "record progress, decisions and questions, and task_update_content to edit "
-        "the spec. Call projects_list first for the project id and actor.\n\n"
+        "record progress, decisions and questions, task_update_content to edit "
+        "the spec, and task_queue_move to change where it stands in the queue. Call "
+        "projects_list first for the project id and actor.\n\n"
         "If MCP is unavailable, the agentjobs CLI and REST API reach the same "
         "validated path. Reading these files is allowed; only writing is managed."
     )

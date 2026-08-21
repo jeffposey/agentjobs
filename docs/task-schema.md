@@ -392,6 +392,15 @@ as an ordinary patch is intercepted and routed through the same placement
 `reprioritize` uses, so an existing caller keeps working and cannot break the
 uniqueness rule by carrying a number into a band it does not belong to.
 
+Away from Python, the same two verbs are `POST /api/tasks/{id}/queue-move` and
+`/reprioritize`, `agentjobs queue move` and `agentjobs queue reprioritize`, and the MCP
+tool `task_queue_move`. Every one of them names a **placement** — a neighbour, or an end
+of the band — rather than a number, and every one appends the `queue_move` entry above.
+That is the whole list: if you have an opinion about what comes first, one of those
+records it, and nothing else does. In particular a `needs` dependency does not: it is a
+prerequisite, so a false one makes the task unclaimable rather than merely later, and
+lies to every reader of the graph.
+
 `get_next_task()` sorts claimable work by `(priority_rank, queue_position)` and by
 nothing else — no timestamp participates, including as a fallback. If the bands it
 would have to read are not a valid queue it raises `QueueCorruptionError` naming the

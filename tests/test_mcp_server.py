@@ -468,6 +468,7 @@ class TestPackagedCommand:
             "task_close",
             "task_log_append",
             "task_update_content",
+            "task_queue_move",
         ]
 
     def test_stdout_carries_only_json_rpc(self, running_service):

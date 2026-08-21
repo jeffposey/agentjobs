@@ -27,6 +27,7 @@ class ErrorCode(str, Enum):
     BROKEN_TASK = "broken_task"
     INVALID_TRANSITION = "invalid_transition"
     DEPENDENCY_BLOCKED = "dependency_blocked"
+    QUEUE_BROKEN = "queue_broken"
     REVISION_CONFLICT = "revision_conflict"
     OPERATION_CONFLICT = "operation_conflict"
     LOCK_TIMEOUT = "lock_timeout"

@@ -47,6 +47,7 @@ context can pick the work up:
 | see the backlog | `tasks_list` (filter by `lifecycle`, `ball`, `priority`, `parent`) |
 | find a task by words | `tasks_search` |
 | find work to do | `task_next` (suggests; it does **not** claim) |
+| disagree with what it suggested | `task_queue_move` (never a `needs` edge) |
 | make a draft claimable | `task_promote` (the only exit from `draft`) |
 | take it | `task_claim` |
 | record what happened | `task_log_append` |
@@ -56,8 +57,17 @@ context can pick the work up:
 | edit the spec | `task_update_content` |
 | add new work | `task_create_draft` or `task_create_ready` |
 
-There is no tool that sets `lifecycle`, `ball`, or `outcome` directly, and none is
-coming. State moves through the verbs, or not at all.
+There is no tool that sets `lifecycle`, `ball`, `outcome`, or `queue_position`
+directly, and none is coming. State moves through the verbs, or not at all.
+
+**Work what `task_next` returns.** Its `queue` field shows the band and position the
+winner stands at and every open task passed over, with the rule that excluded each —
+read that before deciding the order is wrong. If you still think something else should
+be first, call `task_queue_move`, which takes a placement (`before`/`after` a named
+task, or `top`/`bottom` of the band) and never a number. Do **not** add a `needs`
+dependency to express order: dependencies are prerequisites, so a false one makes the
+task unclaimable and lies to everyone reading the graph. Do not rely on a chat
+instruction either — chat ends with the session, and the queue does not.
 
 **Handoff vs release.** A handoff names who acts next and why, and always carries a
 prompt addressed to them. Putting work back in the pool is `task_release`, not a
@@ -75,7 +85,7 @@ moment the session ends, and the next agent will make it again, differently.
   operation. If a call times out, **resend it with the same id** — the server replays
   the original result instead of writing twice. The result's `replayed` field tells you
   which happened.
-- `task_handoff`, `task_close` and `task_update_content` also need
+- `task_handoff`, `task_close`, `task_update_content` and `task_queue_move` also need
   `expected_revision`: the `updated` value from your most recent `task_get`. If the
   task moved since you read it, the call is refused and returns the current task. Read
   it, decide again, resend. Do not retry blindly.
@@ -83,7 +93,9 @@ moment the session ends, and the next agent will make it again, differently.
   `unknown_project` and `unknown_actor` mean fix your arguments; `invalid_input` means
   re-read the tool's schema; `revision_conflict` means re-read the task;
   `invalid_transition` and `dependency_blocked` mean the move is not available and
-  never will be from here; `broken_task` means a file needs repair; `lock_timeout` and
+  never will be from here; `broken_task` means a file needs repair; `queue_broken` means the stored order is
+  corrupt and `agentjobs queue repair` fixes it — do not pick a task by hand
+  instead, because the order is exactly what is in doubt; `lock_timeout` and
   `service_unavailable` are the only two worth retrying unchanged.
 
 ## When a tool fails

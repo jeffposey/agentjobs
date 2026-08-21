@@ -478,6 +478,96 @@ class TestTaskNext:
         assert after.lifecycle is Lifecycle.READY
         assert after.assignment.owner is None
 
+    def test_the_winner_carries_its_band_and_its_place_in_it(self, service):
+        """An agent handed a task should be able to see the order it came out of."""
+        registry, _, _ = service
+
+        payload = call(registry, "task_next", {"project_id": "alpha", "actor": "bot"})
+
+        assert payload["queue"]["task"] == payload["task"]["id"]
+        assert payload["queue"]["band"] == payload["task"]["priority"]
+        assert payload["queue"]["queue_position"] == payload["task"]["queue_position"]
+        assert payload["task"]["queue_position"] is not None
+
+    def test_a_list_row_carries_the_position_too(self, service):
+        """Choosing between tasks is choosing an order; a row without one cannot."""
+        registry, _, _ = service
+
+        rows = call(registry, "tasks_list", {"project_id": "alpha"})["tasks"]
+
+        open_rows = [row for row in rows if row["lifecycle"] != "closed"]
+        assert open_rows and all(row["queue_position"] is not None for row in open_rows)
+
+    def test_it_names_what_was_skipped_and_the_rule_that_skipped_it(self, service):
+        """The answer to the question a reader actually asks: why not the one I expected?
+
+        The fixture holds an active task and an umbrella with an open child, both
+        standing ahead of the winner. Neither is claimable, and each is passed over for
+        a different reason -- which is exactly what an agent needs in order to tell
+        "the queue is wrong" from "that task is not available".
+        """
+        registry, _, _ = service
+
+        payload = call(registry, "task_next", {"project_id": "alpha", "actor": "bot"})
+
+        skipped = {item["task"]: item["reason"] for item in payload["queue"]["skipped"]}
+        assert SHARED_ID in skipped and "task-900-umbrella" in skipped
+        assert skipped[SHARED_ID] != skipped["task-900-umbrella"]
+        assert all(item["position"] is not None for item in payload["queue"]["skipped"])
+        # And the prose a text-only client sees says the same thing.
+        assert "passed over" in payload["explanation"]
+        assert "task_queue_move" in payload["explanation"]
+
+    def test_the_explanation_points_at_the_move_rather_than_a_dependency(self, service):
+        """Section 11's rule, in the one place an agent is guaranteed to read it."""
+        registry, _, _ = service
+
+        payload = call(registry, "task_next", {"project_id": "alpha", "actor": "bot"})
+
+        assert "never add a needs dependency" in payload["explanation"].lower()
+
+    def test_a_broken_queue_is_reported_as_broken_rather_than_answered(self, tmp_path, monkeypatch):
+        """Two open tasks sharing one place in a band is corruption, not a tie to break.
+
+        Reported with its own code because the caller's response is specific and is
+        not "retry": repair the queue. Answering anyway would train everyone to ignore
+        the one failure whose symptom is silently working the wrong task.
+        """
+        monkeypatch.setenv("AGENTJOBS_HOME", str(tmp_path / "home"))
+        monkeypatch.delenv(TASKS_DIR_ENV, raising=False)
+        monkeypatch.delenv("AGENTJOBS_PROJECT_ROOT", raising=False)
+        monkeypatch.chdir(tmp_path)
+        reset_dependency_cache()
+        storage = build_project(
+            tmp_path / "clash",
+            "Clash",
+            [_task("task-920-one", "One"), _task("task-921-two", "Two")],
+        )
+        # Written past the model, because the model is what stops this happening.
+        path = storage.tasks_dir / "task-921-two.yaml"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "queue_position: 92100", "queue_position: 92000"
+            ),
+            encoding="utf-8",
+        )
+        ProjectRegistry(home=tmp_path / "home").add(tmp_path / "clash", project_id="clash")
+
+        with TestClient(app) as http:
+            registry = build_registry(TaskClient("http://testserver", client=http))
+
+            async def run():
+                with pytest.raises(ToolError) as caught:
+                    await registry.get("task_next").handler({"project_id": "clash", "actor": "bot"})
+                return caught.value
+
+            error = anyio.run(run)
+
+        reset_dependency_cache()
+        assert error.code is ErrorCode.QUEUE_BROKEN
+        assert error.retryable is False
+        assert "queue repair" in (error.suggested_action or "")
+
     def test_an_unknown_actor_is_refused(self, service):
         registry, _, _ = service
 
