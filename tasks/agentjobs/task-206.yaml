@@ -2,22 +2,17 @@ schema: 2
 id: task-206
 title: 'Queue position: REST, the Python client, and an `agentjobs queue` sub-app'
 created: '2026-08-20T23:31:01.562704Z'
-updated: '2026-08-21T14:19:11.926179Z'
-lifecycle: active
-ball: agent
-ball_reason: revise
-ball_prompt: Try again to merge and finish, I again am giving explicit instruction
-  to merge automatically, which is now a systemic capability of agentjobs sessions.
+updated: '2026-08-21T14:24:59.662345Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 4700
 category: developer_experience
 tags:
 - queue-order
 - api
 - cli
 assignment:
-  owner: claude
   eligible: []
 parent: task-081-task-selection-ranking
 spec:
@@ -149,7 +144,7 @@ dependencies:
 links: []
 branches:
 - name: feat/task-206-queue-rest-client-cli
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-20T23:31:01.562754Z'
@@ -462,3 +457,67 @@ log:
         eligible: true
       - runner: chatgpt-sol
         eligible: true
+- id: 13
+  ts: '2026-08-21T14:24:35.127547Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 4156bc39-0206-4b01-9e00-000000000001
+      kind: update_content
+      fingerprint: 49e3d53e90ea37073cfdec277a7e83d9
+- id: 14
+  ts: '2026-08-21T14:24:53.350000Z'
+  actor: claude
+  type: progress
+  body: "Merged and delivered, on Jeff's explicit instruction in entry 10. Run run_4156bc39.\n\
+    \n**The merge.** `feat/task-206-queue-rest-client-cli` rebased onto `main` and\
+    \ merged `--no-ff` as `7c0178b`. 16 files, +5256/-294.\n\nThe rebase was worth\
+    \ checking rather than assuming: `main` had moved three commits ahead since the\
+    \ branch was last rebased, all of them task-record commits (`task-081`, `task-206`,\
+    \ `task-207` YAML). `git diff` between the pre-rebase tip (`353ab76`) and the\
+    \ post-rebase tip (`0fd169c`) shows those three task files and **nothing else**\
+    \ \u2014 no code changed on the way past. That is why the 384.1s ten-stage green\
+    \ recorded in entry 9 still describes the merged code, and why this session did\
+    \ not pay for a second full gate.\n\n**Post-merge verification on `main`.**\n\n\
+    - `scripts/check.py --only black,ruff,mypy,api,icons,oxlint` \u2014 green, 11.7s.\
+    \ Explicitly a PARTIAL RUN and not the gate; it is here to catch drift the merge\
+    \ could have introduced, which is the only thing that could have changed.\n- `pytest\
+    \ tests/test_queue_surfaces.py` \u2014 **79 passed**, 7.2s.\n\n**Put in front\
+    \ of Jeff, which is the part that is not the merge.** `npm run build` in `frontend/`\
+    \ (the bundle is gitignored, so merging does not update it), then the server on\
+    \ 8876 restarted through `C:/ai/shared/launchers/open-agentjobs.ps1 -Force` \u2014\
+    \ its own launcher, not `agentjobs restart`, which would have bound 8765 and left\
+    \ the real dashboard stale while reporting success.\n\nConfirmed live on the running\
+    \ 8876 process, against the real 218-task corpus:\n\n- `GET /api/queue` \u2192\
+    \ 200. Four bands, 91 open: critical 1, high 54, medium 33, low 3. `problems:\
+    \ []`.\n- `GET /api/tasks/next/explain` \u2192 200.\n- `GET /app/` \u2192 200.\n\
+    - `agentjobs queue list` \u2192 the banded listing, with `!` and a `not claimable:`\
+    \ line on task-220, task-063 and task-081.\n- `agentjobs queue check` \u2192 \"\
+    The queue is sound: no problems in any band.\"\n- `agentjobs next --why` \u2192\
+    \ task-100 at high/300, naming the three tasks ahead of it and the rule that excluded\
+    \ each.\n\nNothing was pushed. The remote is untouched, as merging is not authority\
+    \ to push."
+  data:
+    operation:
+      id: 4156bc39-0206-4b01-9e00-000000000002
+      kind: log_append
+      fingerprint: b9ab4422c9a968adcbb004657550e461
+- id: 15
+  ts: '2026-08-21T14:24:59.662136Z'
+  actor: claude
+  type: transition
+  body: All five acceptance criteria met with evidence (entry 9), merged as 7c0178b
+    on Jeff's explicit instruction, and live on the 8876 dashboard (entry 14). Branch
+    marked merged and its worktree removed. Children task-207 (React) and task-208
+    (MCP) carry the remaining surfaces; both were out of scope here by the spec.
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 4156bc39-0206-4b01-9e00-000000000003
+      kind: close
+      fingerprint: b3c97dc9123a1d3c487701d9e5f933f5
