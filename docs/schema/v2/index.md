@@ -30,6 +30,7 @@ Name: agentjobs-v2
 | [Actor](classes/Actor.md) | A party that can act on tasks |
 | [AnyValue](classes/AnyValue.md) | An untyped structured value |
 | [Assignment](classes/Assignment.md) | Separates live ownership from authoring-time eligibility -- v1 conflated both... |
+| [Attachment](classes/Attachment.md) | One image stored beside the tasks, referenced from the log entry it illustrat... |
 | [Branch](classes/Branch.md) | Git branch lifecycle |
 | [ContextPointer](classes/ContextPointer.md) | A file worth reading before starting, and why it is worth reading |
 | [Deliverable](classes/Deliverable.md) | An artifact the task produces |
@@ -49,6 +50,7 @@ Name: agentjobs-v2
 | [actor](slots/actor.md) | Who or what produced this entry, referenced by actor id (D4) |
 | [archived](slots/archived.md) | Visibility flag, orthogonal to how the task ended |
 | [assignment](slots/assignment.md) | Live ownership plus authoring-time eligibility |
+| [attachments](slots/attachments.md) | Images stored beside the tasks and referenced from this entry |
 | [ball](slots/ball.md) | Who acts next |
 | [ball_prompt](slots/ball_prompt.md) | The ask, in prose, addressed to whoever holds the ball |
 | [ball_reason](slots/ball_reason.md) | Why the ball holder holds it |
@@ -67,9 +69,11 @@ Name: agentjobs-v2
 | [id](slots/id.md) | Unique task identifier (e |
 | [intent](slots/intent.md) | WHY this task exists |
 | [kind](slots/kind.md) | What kind of party this is |
+| [label](slots/label.md) | Accessible label; alt text wherever it renders |
 | [lifecycle](slots/lifecycle.md) | Where the task is in its life |
 | [links](slots/links.md) | External references |
 | [log](slots/log.md) | One append-only typed log (section 4) |
+| [media_type](slots/media_type.md) | Image media type, derived from the bytes rather than the filename |
 | [merged_at](slots/merged_at.md) | When the branch was merged, if it was |
 | [name](slots/name.md) | Git branch name |
 | [note](slots/note.md) | What it is |
@@ -79,9 +83,12 @@ Name: agentjobs-v2
 | [parent](slots/parent.md) | Task id of an umbrella task |
 | [path](slots/path.md) | Repository-relative path |
 | [priority](slots/priority.md) |  |
+| [queue_position](slots/queue_position.md) | Explicit order within the priority band |
 | [re](slots/re.md) | Optional id of an earlier entry this one responds to |
 | [rel](slots/rel.md) | What this link is |
 | [schema](slots/schema.md) | Schema version stamp |
+| [sha256](slots/sha256.md) | Content hash; also the sidecar's filename |
+| [size_bytes](slots/size_bytes.md) | Size of the stored file |
 | [spec](slots/spec.md) | The structured briefing |
 | [status](slots/status.md) |  |
 | [summary](slots/summary.md) | One to two sentences |

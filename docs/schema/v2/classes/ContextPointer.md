@@ -110,6 +110,7 @@ attributes:
     domain_of:
     - ContextPointer
     - Deliverable
+    - Attachment
     required: true
   why:
     name: why
@@ -141,6 +142,7 @@ attributes:
     domain_of:
     - ContextPointer
     - Deliverable
+    - Attachment
     range: string
     required: true
   why:
