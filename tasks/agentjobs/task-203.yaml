@@ -3,59 +3,9 @@ id: task-203
 title: The dispatcher's own write lands after the session's last commit and is left
   dangling
 created: '2026-08-20T22:28:44.615594Z'
-updated: '2026-08-21T01:42:23.596523Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review and merge decision on task-203. Branch `fix/task-203-dispatcher-commits-own-write`,
-  four commits, worktree C:/projects/worktrees/aj-203. Not merged, not pushed, awaiting
-  explicit approval.
-
-
-  **What changed.** The dispatcher now commits the task record it writes for itself.
-  New `src/agentjobs/dispatch/record_commit.py` (one function), called at six sites
-  where the dispatcher writes to a record with no session left to sweep the file up:
-  the session settle, the batch settle, a batch run that never started, the ledger''s
-  sweep of an abandoned run, a parked session''s handoff, and an auto-dispatch cap
-  refusal. `TaskStorage` gains a public `task_path()`. Docs updated in `docs/agent-dispatch-design.md`,
-  which already recorded the symptom without a resolution.
-
-
-  **How it was verified.** 13 new tests driving real git repositories rather than
-  a mocked subprocess -- two of them end to end through `DispatchRunner`, exercising
-  the code that had the bug. Full gate green in the worktree, exit 0: Black + Ruff
-  + MyPy over 155 files, 2135 pytest in 325.95s, 154 Vitest across 22 files, the production
-  build, 16 Playwright against a live server.
-
-
-  **What to look at, in the order that matters:**
-
-
-  1. `record_commit.py`''s use of `git commit --only -- <path>`. This is the whole
-  safety argument for ac-2 and ac-3, and it rests on git''s semantics rather than
-  ours: `--only` reads the named path from the working tree and ignores the index,
-  so a peer''s staged work survives. If you disagree with that reading, the test at
-  `TestOnlyOurOwnFile::test_a_peers_staged_work_stays_staged_and_uncommitted` is where
-  to poke it.
-
-  2. **The push decision (ac-4): it commits, it does not push.** Reasoning is in a
-  decision entry above, with a stated reopen trigger. This is the judgement call most
-  worth your disagreement -- your standing rule in job-hunting is push-after-commit,
-  and I argued that rule is for an agent with a human in the loop, not for a daemon.
-
-  3. **No new config knob.** Committing is on wherever dispatch is on, on the reasoning
-  that dispatch is already opt-in per project and a setting defaulting off would leave
-  the bug in place for anyone who never finds it. Say so if you want it gated.
-
-  4. The one write deliberately left alone: the pre-spawn `dispatch` entry, because
-  committing it would move HEAD past the `git_head` that same entry just recorded.
-
-
-  **After merging, the server on 8876 MUST be restarted** or the fix does nothing
-  -- the dispatcher runs inside that process and holds the old code in memory. Restart
-  it via `C:/ai/shared/launchers/open-agentjobs.ps1`, not `agentjobs restart` (that
-  binds 8765). No frontend rebuild needed; nothing under `frontend/` was touched.
-  Full reasoning and a way to confirm it is live are in a decision entry above.'
+updated: '2026-08-21T02:00:54.422333Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: infrastructure
@@ -65,7 +15,6 @@ tags:
 - task-records
 - from-live-session-2026-08-20
 assignment:
-  owner: claude
   eligible:
   - claude
   - codex
@@ -161,7 +110,7 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-203-dispatcher-commits-own-write
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-20T22:28:44.615636Z'
@@ -541,3 +490,61 @@ log:
       id: f3aae812-a684-4ff5-a92c-eaa8683bb63f
       kind: handoff
       fingerprint: 813eb9953049d33e1a014b29d3e0ce78
+- id: 9
+  ts: '2026-08-21T01:52:52.701080Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 10
+  ts: '2026-08-21T02:00:54.422182Z'
+  actor: claude
+  type: transition
+  body: 'Merged to main as 451a850 and closed completed.
+
+
+    **Authorisation.** Jeff approved through the web UI at 01:52:52 (log entry 9,
+    actor "Jeff Posey"), which moved the ball back to agent/work with "Approved --
+    cleared to merge". He accepted the push decision as it stands: the dispatcher
+    commits and does not push. Verified on the record before acting, not taken from
+    a chat message.
+
+
+    **What was done.** Rebased `fix/task-203-dispatcher-commits-own-write` onto main
+    -- clean, no conflicts; main had moved to cebd99d with task-153 and task-210 merged
+    in the interval. Merged `--no-ff`, 7 files, +756/-31.
+
+
+    **Re-verified after the rebase rather than trusting the pre-rebase run.** The
+    branch now sits on top of task-153''s `guards.py` change and task-210''s `check.py`
+    change, so the earlier green gate was evidence about a different tree. Full gate
+    on the rebased branch, exit 0: Black + Ruff + MyPy clean over 155 files, **2149
+    pytest in 291.42s** (up 14 from task-153''s tests), 154 Vitest across 22 files,
+    the production build, and 16 Playwright tests against a live server.
+
+
+    **NOT pushed.** Approval to merge is not approval to push, and nothing has authorised
+    one. `main` is ahead of `origin` locally.
+
+
+    **Post-merge steps owned by the supervising session, not duplicated here:** restarting
+    the dashboard on 8876 via `C:/ai/shared/launchers/open-agentjobs.ps1` (required
+    -- the dispatcher runs inside that process and holds the old code in memory),
+    and the gate run on merged main. The confirmation test is in the restart decision
+    entry above: dispatch anything, and a `chore(task-nnn): record run <run_id> as
+    <outcome>` commit should land at HEAD by itself.
+
+
+    **Worktree:** `git worktree remove` FAILED and the directory C:/projects/worktrees/aj-203
+    is still on disk -- this session''s own shell is pinned inside it, which is the
+    same snag task-153 hit. Still unregistered in `git worktree list`. Stderr: error:
+    failed to delete ''C:/projects/worktrees/aj-203'': Permission denied'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 0e21cc79-d13d-4003-8722-536cba686cfe
+      kind: close
+      fingerprint: 051b8eca29d3f0ac130f24ee6cd85065
