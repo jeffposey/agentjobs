@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T16:08:43.482194Z'
+updated: '2026-08-21T16:09:39.854596Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -2055,3 +2055,40 @@ log:
       id: bb9b9273-0081-4a00-9e00-000000000008
       kind: log_append
       fingerprint: 9688a0c39f60276ac8afe341c14bbc24
+- id: 48
+  ts: '2026-08-21T16:09:39.854227Z'
+  actor: claude
+  type: progress
+  body: 'task-208 closed. Five of seven children are done; two remain open.
+
+
+    VERIFIED from durable evidence only, as with every other child -- record, branch,
+    main''s log, worktree inventory. lifecycle closed / outcome completed; sc-1 through
+    sc-4 all `met`; branches[] marks feat/task-208-queue-mcp-and-rules merged; merge
+    commit b38b7d8 is on main, --no-ff; worktree removed.
+
+
+    One thing worth noting rather than passing over. Its handoff had flagged one gap
+    honestly -- that it had not driven `task_queue_move` from a live MCP client, only
+    through the packaged-protocol test. Its closing commit says it did that before
+    closing. So the criterion it could not satisfy at handoff time was satisfied by
+    the session that came back for it, rather than waived on the way past. That is
+    the opposite of what task-207 did with sc-5, on the same day, under the same posture,
+    and the difference is the whole lesson of the last hour.
+
+
+    REMAINING: task-209 parked on ball human/approval since 16:05Z, 25 proposed moves,
+    nothing applied, waiting on Jeff. task-225 active in its own session. This parent
+    cannot close until both do.
+
+
+    The queue surfaces are now complete and live: schema and migration (204), manager
+    verbs and selection (205), REST, Python client and CLI (206), the React list and
+    keyboard reorder (207, minus the drag path 225 is fixing), MCP verbs and the agent
+    rule (208). What is left is not construction -- it is one ordering decision that
+    belongs to a human, and one defect.'
+  data:
+    operation:
+      id: bb9b9273-0081-4a00-9e00-000000000009
+      kind: log_append
+      fingerprint: 4534935789b741d782bf2e26617b9120
