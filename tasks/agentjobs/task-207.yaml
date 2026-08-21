@@ -3,21 +3,17 @@ id: task-207
 title: 'Queue position: the React list shows the real order, and you can change it
   without a mouse'
 created: '2026-08-20T23:31:25.501669Z'
-updated: '2026-08-21T15:25:58.461609Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-21T15:56:34.519712Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 4800
 category: ux
 tags:
 - queue-order
 - frontend
 - accessibility
 assignment:
-  owner: claude
   eligible: []
 parent: task-081-task-selection-ranking
 spec:
@@ -87,27 +83,49 @@ acceptance:
 - id: sc-1
   text: The `updated`-first sort is gone from the frontend and a test proves the rendered
     order matches the server's queue order rather than any client-side rule.
-  status: pending
+  status: met
 - id: sc-2
   text: A Playwright test reorders the backlog using only the keyboard and the new
     order survives a reload.
-  status: pending
+  status: met
 - id: sc-3
   text: A failed move rolls the optimistic update back and surfaces the error rather
     than leaving the screen disagreeing with the server.
-  status: pending
+  status: met
 - id: sc-4
   text: A corrupt queue renders as a named, actionable banner, not as a silently mis-ordered
     list.
-  status: pending
+  status: met
 - id: sc-5
-  text: Jeff has reviewed it on a sandbox server seeded with both a healthy and a
-    corrupt queue.
+  text: 'Jeff has reviewed it on a sandbox server seeded with both a healthy and a
+    corrupt queue. NOT MET AS WRITTEN: the sandbox was built and stood up on port
+    8899 with three seeded projects, and every screen was exercised in a real browser
+    -- but Jeff has not looked at it. Left pending rather than marked met, because
+    the per-child review gate was waived for this autonomous run and a waived criterion
+    is not a satisfied one. The sandbox script is at C:/Users/jpose/.claude/jobs/6a0beee3/tmp/review_server_207.py
+    if he wants it back.'
   status: pending
 deliverables:
 - path: frontend/src/components/TaskList.tsx
-  note: queue order, position column, keyboard and drag reorder
-  status: pending
+  note: queue order, position column, keyboard and drag reorder, per-band reorder
+    lock
+  status: done
+- path: frontend/src/components/queueOrder.ts
+  note: the pure step/predict/describe arithmetic, computed over the band not the
+    view
+  status: done
+- path: frontend/src/components/QueueBroken.tsx
+  note: the corrupt-queue banner, shared by the list and the dashboard
+  status: done
+- path: frontend/src/components/NextExplanation.tsx
+  note: the dashboard's why-this-one disclosure, fetched on open
+  status: done
+- path: src/agentjobs/queue.py
+  note: listing_key and problem_dicts
+  status: done
+- path: src/agentjobs/dashboard.py
+  note: carries a broken queue instead of raising over it
+  status: done
 dependencies:
 - task: task-206
   type: needs
@@ -115,7 +133,7 @@ dependencies:
 links: []
 branches:
 - name: feat/task-207-queue-order-react-list
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-20T23:31:25.501714Z'
@@ -377,3 +395,68 @@ log:
       id: 3f2b1a90-0207-4c11-9a01-000000000021
       kind: log_append
       fingerprint: 05451252a5a5c67a45f26e60502d1a9d
+- id: 10
+  ts: '2026-08-21T15:55:38.408952Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 3f2b1a90-0207-4c11-9a01-000000000030
+      kind: update_content
+      fingerprint: dfe0f0eabb386f7825f7d746c81b14d1
+- id: 11
+  ts: '2026-08-21T15:56:34.519514Z'
+  actor: claude
+  type: transition
+  body: 'Merged to main as `b4f1e21` and live on 8876.
+
+
+    Full ten-stage gate green on the finished tree, no subset: black 0.6s, ruff 0.1s,
+    mypy 1.8s, api 5.0s, icons 3.1s, oxlint 0.7s, pytest 415.8s, vitest 5.4s, build
+    4.4s, e2e 20.9s -- 457.9s, "Ran every stage (10 of 10)". Merged `--no-ff` per
+    the autonomous-run posture recorded on task-081''s ball_prompt; the merge was
+    not declined and was attempted once. Not pushed -- nothing authorises that.
+
+
+    Delivered: frontend rebuilt, 8876 restarted through `C:/ai/shared/launchers/open-agentjobs.ps1
+    -Force`, and verified serving the merged code -- `/api/version` reports `source_root:
+    C:\projects\agentjobs`, `/api/dashboard` now carries the `queue_broken` field
+    (null, the corpus is healthy), and `/api/tasks?priority=high` comes back 100/200/300/...
+    in queue order rather than by `updated`.
+
+
+    **One thing the gate caught that a subset run would not have.** The third e2e
+    test asserted on the dashboard''s next-action panel, which is chosen by a ladder
+    over the whole project -- and every spec in `frontend/e2e` shares one project,
+    so whether the "Next up" rung was on screen depended on what the specs before
+    it had created. It passed alone and failed in the suite. Fixed by having the spec
+    assert only on rows it seeds itself (`8ffddb4`); the disclosure keeps its component
+    tests and the browser check. Third instance in this task of the same shape: a
+    test that was green for a reason unrelated to what it claimed.
+
+
+    **sc-5 is left `pending`, and that is deliberate.** The sandbox exists, was seeded
+    with a healthy queue, a broken one and a broken-and-blocked one, and every changed
+    screen was driven in Chrome -- but Jeff has not looked at it. The autonomous-run
+    posture waives the per-child review gate, which is why this closed without waiting;
+    it does not turn an unreviewed criterion into a reviewed one. If he wants it back:
+    `python C:/Users/jpose/.claude/jobs/6a0beee3/tmp/review_server_207.py 8899`, three
+    projects in the picker, temp data deleted on exit.
+
+
+    **Follow-up already recorded, not forgotten:** log entry 4 asks for the *reason*
+    a task holds its position to be shown at drag time, once task-211''s playbook
+    design defines what writes one. Nothing in this task blocks it, and the screen
+    it belongs on is now built.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 3f2b1a90-0207-4c11-9a01-000000000031
+      kind: close
+      fingerprint: 31696bf663e592c00d092f520b8d6e6f
