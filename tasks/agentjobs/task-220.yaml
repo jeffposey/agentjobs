@@ -3,7 +3,7 @@ id: task-220
 title: A dispatched run parks on every MCP tool it uses, so no unattended run can
   finish
 created: '2026-08-21T05:35:56.284351Z'
-updated: '2026-08-21T05:55:39.897702Z'
+updated: '2026-08-21T06:00:37.640390Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -236,3 +236,81 @@ log:
       id: d7f29a54-8c61-4e37-b195-2a48f7c50220
       kind: log_append
       fingerprint: 9b6529d753084b8e240514d7947a71b9
+- id: 4
+  ts: '2026-08-21T06:00:37.640271Z'
+  actor: claude
+  type: decision
+  body: '**Correction to log entry 3, which over-generalised from one failure. `auto`
+    is not broken for unattended runs, and the fix it proposed must not be built as
+    written.**
+
+
+    Jeff pushed back on 2026-08-21: dispatch worked repeatedly tonight without asking
+    him anything, so the problem is not dispatch or `auto` in general. He is right,
+    and the run ledger says so.
+
+
+    **Eight dispatched runs on 2026-08-20/21. Six completed unattended, start to finish,
+    with no prompt:** run_fa103400 (task-202, 697s), run_b46b2abf (task-164, 3596s),
+    run_7b2413eb (task-164, 720s), run_249c7e73 (task-189, 2469s), run_4008e36b (task-189,
+    610s), run_8c352a34 (task-211, 1168s, on the big-dawg group). Those runs took
+    worktrees, ran the full gate, merged, closed their tasks and removed their worktrees.
+    `auto` did that. Entry 3''s claim that "`auto` cannot run unattended, by construction"
+    is false, and the six runs above are the disproof.
+
+
+    **The two that parked had unrelated causes, and neither is the mode:**
+
+
+    - **run_8a76889b (task-202)** parked on *"Confirm product-strategy file state"*
+    -- a command reaching into `C:/projects/product-strategy`, a different repository
+    outside the dispatched project''s root. The classifier declined cross-repo access.
+    That is arguably the classifier working correctly.
+
+    - **run_d5ab5caf (task-081)** parked in the supervisor path, after three consecutive
+    blocks, with an MCP `task_log_append` against task-204 shown as the last of them.
+
+
+    So parks are not the normal case; they happen when a run does something *unusual*.
+    Reaching into another project is unusual. **Launching agent subprocesses -- which
+    is the supervisor role''s entire job -- is unusual.** That is where the remaining
+    problem is concentrated, and it is a far narrower target than entry 3 described.
+
+
+    **Consequences, and what is now explicitly NOT to be done:**
+
+
+    1. **Do not switch dispatch to `dontAsk`.** Entry 3 recommended it. Under `dontAsk`
+    every allow-list omission becomes a silent denial rather than a pause, so applying
+    it to a path where six of eight runs already succeed would trade a working system
+    for a quieter-failing one. The mode research in entry 3 is accurate and worth
+    keeping; the conclusion drawn from it was not.
+
+    2. **Do not widen `ALLOW_PREFIXES` globally** on this task''s authority. Nothing
+    in the evidence shows ordinary runs need it -- they are completing today with
+    the nine that exist.
+
+    3. **The real scope is the supervisor role**: a session whose job is to start
+    child sessions needs that specific capability to survive the classifier, and needs
+    it without loosening what every other run may do. Whether that is a targeted allow
+    rule, a distinct posture used only for umbrella tasks, or something about how
+    children are launched is an open question this task should answer before writing
+    code.
+
+
+    The MCP pre-approval in ac-1..ac-5 may still be worth doing on its own merits,
+    but it is no longer established as the cause of anything. Demote it to a hypothesis
+    until a supervisor run is observed making an MCP call that is actually declined.
+
+
+    **Process note, recorded because it is the more useful lesson.** This is the third
+    framing of this task in ninety minutes -- MCP permissions, then the permission
+    mode, now the supervisor role -- each one built on the most recent visible symptom
+    rather than on the ledger, which was available the whole time and would have settled
+    it immediately. The next session should start from the run ledger and the two
+    parked transcripts, not from this task''s earlier entries.'
+  data:
+    operation:
+      id: e8a35b71-9d42-4f68-a3c7-5b19d8e60220
+      kind: log_append
+      fingerprint: 62a54234ac09989ecab9fe02a2d1a9c6
