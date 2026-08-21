@@ -3,209 +3,41 @@ id: task-202
 title: Give every registered project its MCP server, so a dispatched session has the
   tools
 created: '2026-08-20T22:27:11.789778Z'
-updated: '2026-08-21T02:37:12.914983Z'
+updated: '2026-08-21T02:44:59.377635Z'
 lifecycle: active
 ball: human
-ball_reason: input
-ball_prompt: "Dispatched session `7c962e37` is parked on a permission prompt and will\
-  \ wait indefinitely. Answer it wherever the session is open. Or attach locally with\
-  \ `claude attach 7c962e37`.\n\nThe end of its terminal, verbatim:\n\n```\n   \u2502\
-  \ git -C C:/projects/product-strategy status --porcelain; echo \"---\"; cat C:/projects/product-strategy/.mcp.json\n\
-  \   Confirm product-strategy file state\n                                      \
-  \                                                                              \
-  \                                                                              \
-  \       \u2502 Auto mode classifier requires confirmation for this command.    \
-  \                                                                              \
-  \                                                        \u2502 3 consecutive actions\
-  \ were blocked. Please review the transcript before continuing.\n \u2502 Latest\
-  \ blocked action: Blocked by classifier\n Do you want to proceed?\n \u276F 1. Yes\
-  \                                                                              \
-  \                                                                              \
-  \                                      2. Yes, and allow access to /c/projects/product-strategy\
-  \ and git -C C:/projects/product-strategy status --porcelain commands\n   3. No\n\
-  \ Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                 \u25CF Background\
-  \ command \"Run the full repository gate\" completed (exit code 0)             \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \u25CF\
-  \ Gate failed on a typing nit in my test helper. Fixing.                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \           Ran 4 shell commands                                               \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                   \u25CF Now the backfill for the three remaining registered projects.\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                           Ran 1 shell command                                \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                   \u25CF Now verifying each declared command actually\
-  \ connects \u2014 the reference test from the spec.                            \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                 Ran 2 shell commands\n\u25CF Write(~\\\
-  .claude\\jobs\\7c962e37\\tmp\\mcp-commit-msg.txt)                              \
-  \                                                                              \
-  \                                       \u23BF \_Wrote 14 lines to ..\\..\\Users\\\
-  jpose\\.claude\\jobs\\7c962e37\\tmp\\mcp-commit-msg.txt                        \
-  \                                                                              \
-  \                    1 chore: declare the AgentJobs MCP server for this project\
-  \                                                                              \
-  \                                                                2             \
-  \                                                                              \
-  \                                                                              \
-  \                              3 Without this file an agent working here starts\
-  \ with no AgentJobs tools and falls                                            \
-  \                                                                          4 back\
-  \ to the CLI or the REST API. That fallback works, which is why the gap went   \
-  \                                                                              \
-  \                                      5 unnoticed -- nothing fails, the session\
-  \ is just slower and several turns more                                        \
-  \                                                                              \
-  \   6 confused. A session that cannot reach the tools also cannot record its own\
-  \ work,\n       7 because the direct-write guard correctly refuses the YAML edit\
-  \ it reaches for next.\n       8\n       9 Written by `agentjobs project mcp-setup`\
-  \ (agentjobs task-202). The console script                                     \
-  \                                                                              \
-  \ 10 rather than an interpreter path, so it survives a rebuilt virtualenv. The port\
-  \ is\n     \u2026 +4 lines\n\u25CF Running 7 shell commands\u2026\n  \u23BF  $ git\
-  \ -C C:/projects/product-strategy status --porcelain; echo \"---\"; cat C:/projects/product-strategy/.mcp.json\n\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500 Bash command\n   \u2502 git -C C:/projects/product-strategy\
-  \ status --porcelain; echo \"---\"; cat C:/projects/product-strategy/.mcp.json\n\
-  \   Confirm product-strategy file state\n                                      \
-  \                                                                              \
-  \                                                                              \
-  \       \u2502 Auto mode classifier requires confirmation for this command.    \
-  \                                                                              \
-  \                                                        \u2502 3 consecutive actions\
-  \ were blocked. Please review the transcript before continuing.\n \u2502 Latest\
-  \ blocked action: Blocked by classifier\n Do you want to proceed?\n \u276F 1. Yes\
-  \                                                                              \
-  \                                                                              \
-  \                                      2. Yes, and allow access to /c/projects/product-strategy\
-  \ and git -C C:/projects/product-strategy status --porcelain commands\n   3. No\n\
-  \ Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                 \u25CF Background\
-  \ command \"Run the full repository gate\" completed (exit code 0)             \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \u25CF\
-  \ Gate failed on a typing nit in my test helper. Fixing.                       \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \           Ran 4 shell commands                                               \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                   \u25CF Now the backfill for the three remaining registered projects.\
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                           Ran 1 shell command                                \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                   \u25CF Now verifying each declared command actually\
-  \ connects \u2014 the reference test from the spec.                            \
-  \                                                                              \
-  \                                                                              \
-  \                                                                              \
-  \                                                 Ran 2 shell commands\n\u25CF Write(~\\\
-  .claude\\jobs\\7c962e37\\tmp\\mcp-commit-msg.txt)                              \
-  \                                                                              \
-  \                                       \u23BF \_Wrote 14 lines to ..\\..\\Users\\\
-  jpose\\.claude\\jobs\\7c962e37\\tmp\\mcp-commit-msg.txt                        \
-  \                                                                              \
-  \                    1 chore: declare the AgentJobs MCP server for this project\
-  \                                                                              \
-  \                                                                2             \
-  \                                                                              \
-  \                                                                              \
-  \                              3 Without this file an agent working here starts\
-  \ with no AgentJobs tools and falls                                            \
-  \                                                                          4 back\
-  \ to the CLI or the REST API. That fallback works, which is why the gap went   \
-  \                                                                              \
-  \                                      5 unnoticed -- nothing fails, the session\
-  \ is just slower and several turns more                                        \
-  \                                                                              \
-  \   6 confused. A session that cannot reach the tools also cannot record its own\
-  \ work,\n       7 because the direct-write guard correctly refuses the YAML edit\
-  \ it reaches for next.\n       8\n       9 Written by `agentjobs project mcp-setup`\
-  \ (agentjobs task-202). The console script                                     \
-  \                                                                              \
-  \ 10 rather than an interpreter path, so it survives a rebuilt virtualenv. The port\
-  \ is\n     \u2026 +4 lines\n\u25CF Running 7 shell commands\u2026\n  \u23BF  $ git\
-  \ -C C:/projects/product-strategy status --porcelain; echo \"---\"; cat C:/projects/product-strategy/.mcp.json\n\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500 Bash command\n   \u2502 git -C C:/projects/product-strategy\
-  \ status --porcelain; echo \"---\"; cat C:/projects/product-strategy/.mcp.json\n\
-  \   Confirm product-strategy file state\n                                      \
-  \                                                                              \
-  \                                                                              \
-  \       \u2502 Auto mode classifier requires confirmation for this command.    \
-  \                                                                              \
-  \                                                        \u2502 3 consecutive actions\
-  \ were blocked. Please review the transcript before continuing.\n \u2502 Latest\
-  \ blocked action: Blocked by classifier\n Do you want to proceed?\n \u276F 1. Yes\
-  \                                                                              \
-  \                                                                              \
-  \                                      2. Yes, and allow access to /c/projects/product-strategy\
-  \ and git -C C:/projects/product-strategy status --porcelain commands\n   3. No\n\
-  \ Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain\n```"
+ball_reason: review
+ball_prompt: "Ready for review and merge approval. Branch `feat/task-202-init-writes-mcp-json`\
+  \ (worktree C:/projects/worktrees/aj-202), commits 953cfa1 code+tests and 71ef010\
+  \ docs. Full `scripts/check.py` green, exit=0.\n\nNote: the earlier approval in\
+  \ this log (entry 7, 02:38) answered a permission prompt, not a review \u2014 the\
+  \ work was not committed yet at that point. This is the actual review request.\n\
+  \nWhat to look at:\n- `src/agentjobs/project_setup.py` \u2014 `ensure_mcp_server_entry`,\
+  \ the merge rules. Never rewrites an existing `agentjobs` entry; raises on a file\
+  \ it cannot safely merge into, which callers downgrade to a warning.\n- `src/agentjobs/cli.py`\
+  \ \u2014 `init` now writes the file; new `agentjobs project mcp-setup [path] [--url]`.\n\
+  - `src/agentjobs/api/routes/projects.py` \u2014 the web init path does the same,\
+  \ addressed from the request socket.\n- `docs/mcp.md` \u2014 the new section, and\
+  \ the port answer.\n\nTwo decisions to accept or push back on, both logged with\
+  \ their rejected alternatives: (9) `init` does not touch your client settings, so\
+  \ a fresh machine still sees the one-time approval dialog for an interactive session;\
+  \ (10) 8765 stays the shipped default, and a machine that serves elsewhere says\
+  \ so once in `api_base`.\n\nThree things done outside the branch that a diff will\
+  \ not show you:\n1. `.mcp.json` backfilled and verified in fantasyfootball (committed\
+  \ 57ec7d1) and mastercalls (committed 79a2bc8). Nothing pushed.\n2. product-strategy\
+  \ has the file, verified connecting, but **uncommitted** \u2014 the permission classifier\
+  \ blocked `git add` there twice and I stopped. One command finishes it: `git -C\
+  \ C:/projects/product-strategy add .mcp.json && git commit -m 'chore: declare the\
+  \ AgentJobs MCP server for this project'`.\n3. `api_base: http://127.0.0.1:8876`\
+  \ added to `~/.agentjobs/dispatch.yaml`. This is what makes `init` write 8876 rather\
+  \ than the dead 8765 on this machine, and it also fixes a CLI dispatch. Delete those\
+  \ seven lines to revert.\n\nac-2 is the one criterion not literally demonstrated:\
+  \ proving it needs a dispatch into a project registered by the merged code. What\
+  \ is proven is every link in that chain \u2014 `init` writes the file, the declared\
+  \ command connects and serves 14 tools, and `mcpjson_server_names()` returns `[\"\
+  agentjobs\"]` for it, which is exactly what dispatch pre-approves. Worth confirming\
+  \ with one real dispatch after merge.\n\nOn approval I will rebase, merge --no-ff,\
+  \ mark the branch merged, close the task, and remove the worktree."
 archived: false
 priority: high
 category: developer_experience
@@ -298,7 +130,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-202-init-writes-mcp-json
+  status: active
 log:
 - id: 1
   ts: '2026-08-20T22:27:11.789814Z'
@@ -648,3 +482,196 @@ log:
   data:
     ball: human
     ball_reason: input
+- id: 7
+  ts: '2026-08-21T02:38:14.927589Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 8
+  ts: '2026-08-21T02:43:40.437011Z'
+  actor: claude
+  type: progress
+  body: "Implemented on branch `feat/task-202-init-writes-mcp-json`, worktree C:/projects/worktrees/aj-202.\
+    \ Two commits: 953cfa1 (code + tests), 71ef010 (docs). Full `scripts/check.py`\
+    \ gate green in that worktree.\n\nWhat was built.\n\n1. `ensure_mcp_server_entry(root,\
+    \ base_url)` in `src/agentjobs/project_setup.py` writes or merges the `agentjobs`\
+    \ entry into a project's `.mcp.json`. Console-script form (`command: \"agentjobs\"\
+    `, `args: [\"mcp\"]`, `env.AGENTJOBS_URL`), never an interpreter path. Merges\
+    \ beside other servers and other top-level keys; an existing `agentjobs` entry\
+    \ is returned as `None` and never rewritten; a file that will not parse raises\
+    \ `ProjectError`, which every caller treats as a warning rather than a failure.\n\
+    \n2. `agentjobs init` calls it after `_ensure_gitignore`, and the web route `POST\
+    \ /api/projects/init` does the same, so both onboarding surfaces produce the same\
+    \ file. `MCP_CONFIG_FILENAME` now lives in `project_setup.py`; `dispatch/runner.py`\
+    \ imports it instead of declaring its own copy, so the file dispatch reads and\
+    \ the file init writes cannot drift apart by name.\n\n3. New `agentjobs project\
+    \ mcp-setup [path] [--url]` backfills a project registered before this existed,\
+    \ or a checkout that never had the file.\n\n4. Address resolution. The web route\
+    \ derives the URL from the socket the request arrived on (`api_base_from_server`),\
+    \ on `dispatch/address.py`'s reasoning that an observed address cannot be stale\
+    \ and this server is the one the new project's agents will talk to. The CLI uses\
+    \ `configured_api_base()` \u2014 `AGENTJOBS_API_BASE`, then `api_base:` in `~/.agentjobs/dispatch.yaml`\
+    \ \u2014 falling back to loopback on the port the project was just configured\
+    \ with, and printing a line naming `api_base` when it had to guess.\n\nVerification.\n\
+    \n- 17 new tests in `tests/test_project_mcp_setup.py` covering create, merge,\
+    \ preserve-existing, three malformed-file shapes, init via CLI with and without\
+    \ a declared address, init not failing over a malformed file, all four `project\
+    \ mcp-setup` paths, and both web-init paths. One test asserts `mcpjson_server_names()`\
+    \ returns `[\"agentjobs\"]` for a file this code wrote \u2014 that is the actual\
+    \ join between the two halves, since those names are what dispatch passes in `enabledMcpjsonServers`.\n\
+    - Full gate: Black, Ruff, MyPy, 2063 pytest, frontend client check, Vitest, production\
+    \ build, Playwright. exit=0.\n- End to end on this machine: `agentjobs init` in\
+    \ a scratch directory wrote `AGENTJOBS_URL: http://127.0.0.1:8876`, and spawning\
+    \ the declared command from Node with that env logged \"Connected to AgentJobs\
+    \ 0.1.0 (task schema v2) at http://127.0.0.1:8876; 5 project(s) available\" and\
+    \ \"Serving 14 tool(s)\" to stderr while staying silent on stdout \u2014 the reference\
+    \ check named in the spec.\n\nBackfill (ac-3). fantasy-football, mastercalls and\
+    \ product-strategy all have the file, each verified by launching its declared\
+    \ command: all three connect and serve 14 tools, stdout empty. `mcpjson_server_names()`\
+    \ returns `[\"agentjobs\"]` for all three plus job-hunting. Committed in fantasyfootball\
+    \ (57ec7d1) and mastercalls (79a2bc8). **product-strategy is written and verified\
+    \ but NOT committed** \u2014 the auto-mode permission classifier blocked `git\
+    \ add` there twice and I stopped rather than working around it. `git -C C:/projects/product-strategy\
+    \ add .mcp.json && git commit` is the whole of what remains, and nothing was pushed\
+    \ anywhere.\n\nOne machine-local change outside any repository, called out because\
+    \ it is not in a diff: `api_base: http://127.0.0.1:8876` added near the top of\
+    \ `~/.agentjobs/dispatch.yaml`, with a comment dating it to this task. Without\
+    \ it `init` on this machine would write 8765 \u2014 the port that is specifically\
+    \ dead here \u2014 and reproduce the bug for every future project. It also fixes\
+    \ a CLI dispatch, which until now fell through to the same dead default. Reversible\
+    \ by deleting those seven lines."
+  data:
+    operation:
+      id: 6a1c0f2e-7b41-4d3a-9e18-2f0c5a7b1d90
+      kind: log_append
+      fingerprint: 02ba98a120aa078861200d24b52a0e1d
+- id: 9
+  ts: '2026-08-21T02:44:05.032718Z'
+  actor: claude
+  type: decision
+  body: "Spec point 2 \u2014 `init` does NOT write `enabledMcpjsonServers` into the\
+    \ user's client settings.\n\nDecided: the file `init` writes is the project's\
+    \ own `.mcp.json` and nothing else. Approval is left to the two mechanisms that\
+    \ already exist \u2014 dispatch pre-approves the names it reads out of that file\
+    \ via `--settings`, which covers the background case that has no terminal to answer\
+    \ a prompt with; an interactive session gets Claude Code's one-time \"New MCP\
+    \ server found in this project\" dialog and the human answers it.\n\nRejected:\
+    \ having `init` also append `\"agentjobs\"` to `~/.claude/settings.json`. Two\
+    \ reasons. It reaches outside the directory the user pointed the command at, to\
+    \ a file AgentJobs does not own, in order to pre-consent on their behalf to running\
+    \ a program \u2014 that is the wrong default for a tool whose whole guard story\
+    \ is \"make the right thing easy, not the wrong thing impossible\". And it is\
+    \ Claude-Code-specific: `.mcp.json` is a shape several clients read, `enabledMcpjsonServers`\
+    \ is one client's settings key, so `init` would be silently doing nothing for\
+    \ a Codex or Gemini user while appearing to have handled approval for everyone.\n\
+    \nReopen trigger: if a *fresh* machine (one whose settings do not already carry\
+    \ the key) hits the dialog on a dispatched run despite `enabledMcpjsonServers`\
+    \ in `--settings`, then the pre-approval does not in fact cover every path and\
+    \ this decision is wrong. Not observed \u2014 dispatch's pre-approval is one of\
+    \ the three sources that apply regardless of folder trust, per the reasoning already\
+    \ in `mcpjson_server_names`."
+  data:
+    operation:
+      id: b3d7e214-9c05-42f8-8a6d-71e4c3f0aa12
+      kind: log_append
+      fingerprint: a84d8ae6c0cd04212d503183b7fdc9a2
+- id: 10
+  ts: '2026-08-21T02:44:25.992615Z'
+  actor: claude
+  type: decision
+  body: "Spec point 4, answered by measurement rather than reasoning \u2014 and the\
+    \ spec's premise about the plugin's port was wrong.\n\nWhat `claude mcp list`\
+    \ reports in this repository, which has both the enabled plugin and a project-scoped\
+    \ file:\n\n```\nplugin:agentjobs:agentjobs: agentjobs mcp - Failed to connect\n\
+    agentjobs: C:/.../virtualenvs/agentjobs-KSKY4Ymk-py3.13/Scripts/python.exe -m\
+    \ agentjobs.cli mcp - Connected\n```\n\nTwo independent entries, namespaced apart\
+    \ by the client. So yes, a project with both runs two servers offering the same\
+    \ fourteen tools. Decided that this is not worth preventing: they do not collide\
+    \ by name, the project-scoped one is the only one whose address a machine can\
+    \ correct without editing an installed plugin's cache, and suppressing either\
+    \ would mean AgentJobs reaching into a client's plugin state. Recorded in `docs/mcp.md`\
+    \ so nobody has to rediscover it. Rejected alternative: naming the project-scoped\
+    \ server something like `agentjobs-project` to make the pair obviously distinct\
+    \ \u2014 that would break `enabledMcpjsonServers: [\"agentjobs\"]` already sitting\
+    \ in user settings, and dispatch reads the name out of the file anyway, so the\
+    \ rename buys clarity in a listing at the cost of an approval prompt.\n\nThe plugin\
+    \ failing to connect above is a separate, pre-existing problem and is deliberately\
+    \ not chased here: `agentjobs mcp` spawns and connects fine from this shell, from\
+    \ Python, and from Node, so it is not the command or the port. Worth its own task\
+    \ if it matters.\n\nPort reconciliation (ac-4). The spec says \"the plugin ships\
+    \ 8876 and the docs still show 8765\". That is not what the repository contains\
+    \ \u2014 `plugins/agentjobs/.mcp.json` ships **8765**, and `plugins/agentjobs/README.md`\
+    \ already says 8765 is the default with \"override in your client's config if\
+    \ yours listens elsewhere\". What ships 8876 is the *installed cache copy* at\
+    \ `~/.claude/plugins/cache/agentjobs/agentjobs/0.1.0/.mcp.json`, hand-patched\
+    \ on this machine. So the docs and the plugin already agreed; the thing that disagreed\
+    \ was reality on one machine, with no sanctioned place to say so.\n\nDecided:\
+    \ 8765 stays the documented default everywhere, because it is what `agentjobs\
+    \ serve` binds with no arguments and is right for anyone installing fresh. A machine\
+    \ that serves elsewhere states it **once**, in `AGENTJOBS_API_BASE` or `api_base:`\
+    \ in `~/.agentjobs/dispatch.yaml` \u2014 the value dispatch already reads for\
+    \ the same question \u2014 and `init` now reads the same value. Rejected: changing\
+    \ the shipped default to 8876, which would be one machine's port baked into everybody's\
+    \ plugin."
+  data:
+    operation:
+      id: c48f9a06-2d13-4b77-b5e2-6f9a0e3c8d51
+      kind: log_append
+      fingerprint: 96737c48f966814484379e606f855608
+- id: 11
+  ts: '2026-08-21T02:44:39.409677Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: d59a1b73-04ec-4f26-b1cd-38a7e6f2c405
+      kind: update_content
+      fingerprint: 1e82569c441c398c34d69e4e32e55cae
+- id: 12
+  ts: '2026-08-21T02:44:59.377274Z'
+  actor: claude
+  type: handoff
+  body: "Ready for review and merge approval. Branch `feat/task-202-init-writes-mcp-json`\
+    \ (worktree C:/projects/worktrees/aj-202), commits 953cfa1 code+tests and 71ef010\
+    \ docs. Full `scripts/check.py` green, exit=0.\n\nNote: the earlier approval in\
+    \ this log (entry 7, 02:38) answered a permission prompt, not a review \u2014\
+    \ the work was not committed yet at that point. This is the actual review request.\n\
+    \nWhat to look at:\n- `src/agentjobs/project_setup.py` \u2014 `ensure_mcp_server_entry`,\
+    \ the merge rules. Never rewrites an existing `agentjobs` entry; raises on a file\
+    \ it cannot safely merge into, which callers downgrade to a warning.\n- `src/agentjobs/cli.py`\
+    \ \u2014 `init` now writes the file; new `agentjobs project mcp-setup [path] [--url]`.\n\
+    - `src/agentjobs/api/routes/projects.py` \u2014 the web init path does the same,\
+    \ addressed from the request socket.\n- `docs/mcp.md` \u2014 the new section,\
+    \ and the port answer.\n\nTwo decisions to accept or push back on, both logged\
+    \ with their rejected alternatives: (9) `init` does not touch your client settings,\
+    \ so a fresh machine still sees the one-time approval dialog for an interactive\
+    \ session; (10) 8765 stays the shipped default, and a machine that serves elsewhere\
+    \ says so once in `api_base`.\n\nThree things done outside the branch that a diff\
+    \ will not show you:\n1. `.mcp.json` backfilled and verified in fantasyfootball\
+    \ (committed 57ec7d1) and mastercalls (committed 79a2bc8). Nothing pushed.\n2.\
+    \ product-strategy has the file, verified connecting, but **uncommitted** \u2014\
+    \ the permission classifier blocked `git add` there twice and I stopped. One command\
+    \ finishes it: `git -C C:/projects/product-strategy add .mcp.json && git commit\
+    \ -m 'chore: declare the AgentJobs MCP server for this project'`.\n3. `api_base:\
+    \ http://127.0.0.1:8876` added to `~/.agentjobs/dispatch.yaml`. This is what makes\
+    \ `init` write 8876 rather than the dead 8765 on this machine, and it also fixes\
+    \ a CLI dispatch. Delete those seven lines to revert.\n\nac-2 is the one criterion\
+    \ not literally demonstrated: proving it needs a dispatch into a project registered\
+    \ by the merged code. What is proven is every link in that chain \u2014 `init`\
+    \ writes the file, the declared command connects and serves 14 tools, and `mcpjson_server_names()`\
+    \ returns `[\"agentjobs\"]` for it, which is exactly what dispatch pre-approves.\
+    \ Worth confirming with one real dispatch after merge.\n\nOn approval I will rebase,\
+    \ merge --no-ff, mark the branch merged, close the task, and remove the worktree."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: e7c2b840-51fa-4d19-9b03-a6d4e91c7f28
+      kind: handoff
+      fingerprint: 872b73ab1716efb39e0902425ba9fa64
