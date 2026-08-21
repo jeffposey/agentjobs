@@ -2,11 +2,57 @@ schema: 2
 id: task-153-dispatcher-actor-refusal-message
 title: Stop the dispatch refusal telling you to configure the dispatcher as a human
 created: '2026-08-18T21:02:17.186936Z'
-updated: '2026-08-21T01:32:42.873384Z'
+updated: '2026-08-21T01:38:57.703014Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Ready for review on branch fix/task-153-dispatch-refusal-message (commit\
+  \ 1431921, rebased onto main at 4e29bf5). Not merged, not pushed.\n\nWHAT CHANGED\
+  \ -- src/agentjobs/dispatch/guards.py only, plus two test files.\n\n`actor_kind()`\
+  \ now resolves AgentJobs' reserved ids before the project's configured vocabulary.\
+  \ `dispatcher` therefore resolves to the reserved *agent* instead of None, so `assert_human_clocked`\
+  \ takes its agent branch rather than its unknown-actor branch, and the refusal no\
+  \ longer ships the recipe for switching the rule off.\n\nThe message a re-dispatch\
+  \ now produces, verbatim:\n\n  Log entry 6 (dispatch_result) was written by 'dispatcher',\
+  \ an agent. That entry is\n  AgentJobs' own record of an earlier dispatch, so nothing\
+  \ a person did has authorised\n  another one. A dispatch may only be caused by a\
+  \ human act (design section 2, D4) --\n  which is what makes an agent-starts-agent\
+  \ loop impossible rather than merely capped.\n  Act on the task yourself, then dispatch.\n\
+  \nThe words 'actors:', 'kind: human' and 'config.yaml' are gone from that path,\
+  \ and the HTTP `suggested_action` for `not_human_clocked` already said the right\
+  \ thing ('Act on the task yourself, then dispatch. This rule is not configurable.').\n\
+  \nTHE ONE JUDGEMENT CALL, AND WHERE I WENT SLIGHTLY BEYOND THE LETTER OF THE SPEC.\
+  \ Reserved ids are checked *before* the config and cannot be overridden by it. So\
+  \ a project that writes `dispatcher: {kind: human}` into its own actors -- by hand,\
+  \ or because it read the old message before this landed -- is still refused. Config-first\
+  \ would have fixed the wording while leaving the hole open one edit away, which\
+  \ seemed the wrong trade for a guard whose docstring claims to be 'the rule, and\
+  \ not a configuration option'. A test pins this.\n\nBecause the fix is in the shared\
+  \ `actor_kind` lookup, `assert_authorizer_is_human` also stops emitting the same\
+  \ recipe when handed 'dispatcher' as an authorising identity. I judged that the\
+  \ same defect at the same lookup rather than the 'broader audit of refusal copy'\
+  \ the spec puts out of scope -- but it is the one thing here you might want to overrule,\
+  \ and backing it out would mean duplicating the reserved lookup inside `assert_human_clocked`\
+  \ alone.\n\nWHAT DID NOT CHANGE, as the constraints require: `load_actors` (no reserved\
+  \ actor added), `resolve_causing_entry` (dispatcher entries are still eligible causing\
+  \ entries), the human-clocked rule itself, and `frontend/src/components/DispatchPanel.tsx`\
+  \ (untouched -- no second per-surface override exists).\n\nVERIFICATION. Full gate\
+  \ twice on this worktree's own interpreter, exit 0 both times, second run after\
+  \ the rebase: Black/Ruff/MyPy clean, 2128 pytest in 5m03s, 154 Vitest across 22\
+  \ files, production build, 16 Playwright against a live server.\n\nSix tests added.\
+  \ The one worth reading is the end-to-end sc-5 case in tests/test_dispatch_guards.py:\
+  \ it dispatches with the fake runner, settles the supervisor, asserts the newest\
+  \ entry's actor really is `dispatcher`, re-dispatches (refused, no run started,\
+  \ corrected text), then writes one human note and dispatches successfully. Re-arming\
+  \ is verified rather than assumed. The API-level test in tests/test_dispatch_api.py\
+  \ asserts the 403 body carries neither the recipe in `detail` nor in `suggested_action`.\n\
+  \nWHAT TO LOOK AT. (1) The reserved-before-config ordering in `actor_kind` and whether\
+  \ you want its reach into `assert_authorizer_is_human`. (2) The added clause in\
+  \ the agent-branch message -- it is the only user-visible wording change. (3) That\
+  \ the tests assert the *absence* of the dangerous advice, not merely the presence\
+  \ of the new wording, since absence is the property that matters here.\n\nOn approval\
+  \ I will rebase, merge --no-ff, mark the branch merged, close the task, and remove\
+  \ the worktree. No frontend rebuild is needed -- nothing under frontend/ changed."
 archived: false
 priority: high
 category: reliability
@@ -325,3 +371,63 @@ log:
       id: 4b087e19-f189-4880-b3db-b2a01004c6b8
       kind: log_append
       fingerprint: b048a84e919172f24c73373e971761c1
+- id: 7
+  ts: '2026-08-21T01:38:57.702860Z'
+  actor: claude
+  type: handoff
+  body: "Ready for review on branch fix/task-153-dispatch-refusal-message (commit\
+    \ 1431921, rebased onto main at 4e29bf5). Not merged, not pushed.\n\nWHAT CHANGED\
+    \ -- src/agentjobs/dispatch/guards.py only, plus two test files.\n\n`actor_kind()`\
+    \ now resolves AgentJobs' reserved ids before the project's configured vocabulary.\
+    \ `dispatcher` therefore resolves to the reserved *agent* instead of None, so\
+    \ `assert_human_clocked` takes its agent branch rather than its unknown-actor\
+    \ branch, and the refusal no longer ships the recipe for switching the rule off.\n\
+    \nThe message a re-dispatch now produces, verbatim:\n\n  Log entry 6 (dispatch_result)\
+    \ was written by 'dispatcher', an agent. That entry is\n  AgentJobs' own record\
+    \ of an earlier dispatch, so nothing a person did has authorised\n  another one.\
+    \ A dispatch may only be caused by a human act (design section 2, D4) --\n  which\
+    \ is what makes an agent-starts-agent loop impossible rather than merely capped.\n\
+    \  Act on the task yourself, then dispatch.\n\nThe words 'actors:', 'kind: human'\
+    \ and 'config.yaml' are gone from that path, and the HTTP `suggested_action` for\
+    \ `not_human_clocked` already said the right thing ('Act on the task yourself,\
+    \ then dispatch. This rule is not configurable.').\n\nTHE ONE JUDGEMENT CALL,\
+    \ AND WHERE I WENT SLIGHTLY BEYOND THE LETTER OF THE SPEC. Reserved ids are checked\
+    \ *before* the config and cannot be overridden by it. So a project that writes\
+    \ `dispatcher: {kind: human}` into its own actors -- by hand, or because it read\
+    \ the old message before this landed -- is still refused. Config-first would have\
+    \ fixed the wording while leaving the hole open one edit away, which seemed the\
+    \ wrong trade for a guard whose docstring claims to be 'the rule, and not a configuration\
+    \ option'. A test pins this.\n\nBecause the fix is in the shared `actor_kind`\
+    \ lookup, `assert_authorizer_is_human` also stops emitting the same recipe when\
+    \ handed 'dispatcher' as an authorising identity. I judged that the same defect\
+    \ at the same lookup rather than the 'broader audit of refusal copy' the spec\
+    \ puts out of scope -- but it is the one thing here you might want to overrule,\
+    \ and backing it out would mean duplicating the reserved lookup inside `assert_human_clocked`\
+    \ alone.\n\nWHAT DID NOT CHANGE, as the constraints require: `load_actors` (no\
+    \ reserved actor added), `resolve_causing_entry` (dispatcher entries are still\
+    \ eligible causing entries), the human-clocked rule itself, and `frontend/src/components/DispatchPanel.tsx`\
+    \ (untouched -- no second per-surface override exists).\n\nVERIFICATION. Full\
+    \ gate twice on this worktree's own interpreter, exit 0 both times, second run\
+    \ after the rebase: Black/Ruff/MyPy clean, 2128 pytest in 5m03s, 154 Vitest across\
+    \ 22 files, production build, 16 Playwright against a live server.\n\nSix tests\
+    \ added. The one worth reading is the end-to-end sc-5 case in tests/test_dispatch_guards.py:\
+    \ it dispatches with the fake runner, settles the supervisor, asserts the newest\
+    \ entry's actor really is `dispatcher`, re-dispatches (refused, no run started,\
+    \ corrected text), then writes one human note and dispatches successfully. Re-arming\
+    \ is verified rather than assumed. The API-level test in tests/test_dispatch_api.py\
+    \ asserts the 403 body carries neither the recipe in `detail` nor in `suggested_action`.\n\
+    \nWHAT TO LOOK AT. (1) The reserved-before-config ordering in `actor_kind` and\
+    \ whether you want its reach into `assert_authorizer_is_human`. (2) The added\
+    \ clause in the agent-branch message -- it is the only user-visible wording change.\
+    \ (3) That the tests assert the *absence* of the dangerous advice, not merely\
+    \ the presence of the new wording, since absence is the property that matters\
+    \ here.\n\nOn approval I will rebase, merge --no-ff, mark the branch merged, close\
+    \ the task, and remove the worktree. No frontend rebuild is needed -- nothing\
+    \ under frontend/ changed."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 23f332fd-ac1a-4df3-9bbd-e4a810fd26af
+      kind: handoff
+      fingerprint: 23362134229c3246e170a6ddc0e3fb7d
