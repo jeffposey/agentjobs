@@ -3,7 +3,7 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-21T23:49:42.124823Z'
+updated: '2026-08-21T23:59:46.229683Z'
 lifecycle: ready
 ball: human
 ball_reason: decision
@@ -1083,3 +1083,57 @@ log:
       id: 4b7d2e91-3c6a-4f18-9e75-0d2a6b41c8f3
       kind: log_append
       fingerprint: 54f21d6f095f83776c78df43e7e7a762
+- id: 30
+  ts: '2026-08-21T23:59:46.229357Z'
+  actor: claude
+  type: answer
+  body: "## Correction to entry 27: the 18:40 recovery was Jeff, not a self-heal.\
+    \ And what replaces it is a sharper fact.\n\nEntry 27 left open \"which process\
+    \ wrote `.credentials.json` at 23:40:44Z, and whether Jeff ran `/login` in that\
+    \ window\", and leaned on it as possibly a second unaided recovery. **Jeff answered:\
+    \ he logged in.** This machine is CDT, `-0500`, so every UTC timestamp on this\
+    \ record is five hours ahead of the wall clock he was watching \u2014 `23:40:44Z`\
+    \ is **18:40:44 his time**, which is the login he remembers doing about twenty\
+    \ minutes before he read this.\n\nThree things in entry 27 are withdrawn:\n\n\
+    - \"A *different* process obtained a working credential\" \u2014 it was `claude\
+    \ auth login`, run by a human. Nothing mysterious wrote that file.\n- \"Self-healed\
+    \ in 30s via keychain re-check\" \u2014 the daemon's `token found via keychain\
+    \ re-check` at 23:41:02Z found the token Jeff had written 18 seconds earlier.\
+    \ The re-check worked; there was nothing to heal from by then.\n- \"Two of the\
+    \ three self-healed unaided\" \u2014 **one of three did**, the 2026-08-20 occurrence,\
+    \ which entry 6 established had no human action. Both 2026-08-21 occurrences needed\
+    \ Jeff.\n\nThe 2ms first-attempt failure with no retries stands, and so does the\
+    \ latch (`daemon-auth-status.json` still reading `auth_required` while everything\
+    \ runs fine).\n\n### What the correction exposes, which is better than what it\
+    \ removes\n\nWith the recovery explained, the **death** is not, and the arithmetic\
+    \ is now tight:\n\n- The credential in force was written at **23:44:31Z minus\
+    \ 8h = 15:44:31Z** (entry 6, the recovery from the first occurrence). Entry 6\
+    \ verified the 8-hour lifetime twice, so that token was good until **23:44:31Z**.\n\
+    - Session `0fa21703` died at **23:39:59.562Z** saying `Login expired \xB7 Please\
+    \ run /login` \u2014 with **4 minutes 32 seconds of token life left**.\n- The\
+    \ daemon's scheduled refresh did not start until **23:40:32.445Z**, 33 seconds\
+    \ *after* the session was already dead, and then failed in 2ms.\n\nSo the session\
+    \ was refused on a credential that had not expired, and the daemon's refresh failure\
+    \ is downstream of that rather than the cause of it. That inverts the causal order\
+    \ entry 6 established for the 15:33 occurrence, where the daemon failed first\
+    \ and the sessions died after.\n\n**This is now the open question, and it is not\
+    \ the one entry 27 asked.** Not \"what recovered it\" \u2014 Jeff did. It is:\
+    \ *what refused a valid credential at 23:39:59, half a minute before anything\
+    \ in the daemon log went wrong?* Nothing on disk answers that. `~/.claude/daemon.log`\
+    \ records no auth line at all between 23:35:47 and 23:40:32; the session JSONL\
+    \ records the refusal but not what it was refused by.\n\nBoth 2026-08-21 occurrences\
+    \ share the signature of a **still-valid token being treated as absent** \u2014\
+    \ at 15:36:59 the daemon discarded one it had just called `(token still valid)`,\
+    \ and at 15:39:59 a session was refused one with 4\xBD minutes left. That is the\
+    \ thing worth putting in front of upstream, and it is sharper than what entry\
+    \ 8 drafted.\n\n### Timezone note, so this does not have to be caught twice\n\n\
+    Everything on this record \u2014 the daemon log, the session JSONLs, the run ledger,\
+    \ `daemon-auth-status.json` \u2014 is UTC. Jeff's clock is CDT. **Subtract five\
+    \ hours** to compare a record here against something he remembers. The 15:33Z\
+    \ incident he experienced as 10:33am; tonight's as 6:40pm.\n"
+  re: 27
+  data:
+    operation:
+      id: 8f3c1a06-52b9-4d47-a1e0-6c9b3f27d5ea
+      kind: log_append
+      fingerprint: e9b1aba3b5f3baf8d14578c75fa2305f
