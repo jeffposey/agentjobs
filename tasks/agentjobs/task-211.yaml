@@ -3,7 +3,7 @@ id: task-211
 title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
   reorder, and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T18:49:07.287379Z'
+updated: '2026-08-21T18:49:45.621503Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -1120,3 +1120,13 @@ log:
       id: 3f1c9a20-7b44-4e19-9d31-5c0a1e7b2209
       kind: handoff
       fingerprint: 3788d5ce213ab82eed38bc08cf10bae7
+- id: 29
+  ts: '2026-08-21T18:49:45.621132Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 24
+  data:
+    run_id: run_5e030d6e
+    outcome: completed
+    duration_seconds: 2562.51513
+    log_path: C:\Users\jpose\.agentjobs\runs\run_5e030d6e
