@@ -2,33 +2,12 @@ schema: 2
 id: task-206
 title: 'Queue position: REST, the Python client, and an `agentjobs queue` sub-app'
 created: '2026-08-20T23:31:01.562704Z'
-updated: '2026-08-21T11:46:53.878177Z'
+updated: '2026-08-21T14:19:11.926179Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: "THE WORK IS DONE AND VERIFIED. ONE COMMAND IS LEFT AND THE HARNESS WILL\
-  \ NOT LET ME RUN IT.\n\nRun this from C:/projects/agentjobs, on main:\n\n    git\
-  \ merge --no-ff feat/task-206-queue-rest-client-cli -F C:/Users/jpose/.claude/jobs/39a62dc4/tmp/merge-msg.txt\n\
-  \nThen mark the branch merged in branches[], close this task completed, and `git\
-  \ worktree remove ../worktrees/agentjobs-206`. Do not push -- nothing authorises\
-  \ it.\n\nWHY IT IS PARKED. Claude Code's auto-mode classifier refused `git merge`\
-  \ three times, including a read-only `git status` that merely mentioned MERGE_HEAD.\
-  \ This is a permission decision only you can make -- grant a Bash rule for `git\
-  \ merge` in settings, or run the command yourself. It is not about the work: nothing\
-  \ failed, and nothing is half-applied. `.git/MERGE_HEAD` and `.git/MERGE_MSG` do\
-  \ not exist, so no merge ever started; the tree is clean and main is exactly where\
-  \ it was.\n\nSTATE, so a fresh session needs nothing else. Branch feat/task-206-queue-rest-client-cli,\
-  \ worktree C:/projects/worktrees/agentjobs-206, already rebased onto main (a clean\
-  \ rebase over three task-YAML-only commits; verified it changed no source). Five\
-  \ commits: 57b93c4 the feature, 7abdb02 the docs and regenerated client, 5340987\
-  \ formatting, 79fa7da the LiveUpdates fix, ba858c2 the compact-reporting fix --\
-  \ rebased, so the hashes have moved but the sequence has not.\n\nTHE GATE. `scripts/check.py`\
-  \ with no arguments, from the worktree, with the interpreter the bootstrap printed:\
-  \ green, all ten stages, exit 0, 384.1s, \"Ran every stage (10 of 10)\". 2410 pytest,\
-  \ 164 vitest, 16 Playwright. Not a --from or --only run. Under task-081's autonomous\
-  \ posture that green is the merge authorisation, so this needs no review of the\
-  \ work itself -- only the permission.\n\nsc-1 to sc-5 are all marked met with a\
-  \ verify command on each. Evidence is in the progress entry below."
+ball: agent
+ball_reason: revise
+ball_prompt: Try again to merge and finish, I again am giving explicit instruction
+  to merge automatically, which is now a systemic capability of agentjobs sessions.
 archived: false
 priority: high
 queue_position: 4700
@@ -414,3 +393,72 @@ log:
       id: c0f71d70-0206-4a01-9e00-000000000007
       kind: log_append
       fingerprint: e0a18a6a688bbedf5210cb1bf1e74068
+- id: 10
+  ts: '2026-08-21T14:19:07.089733Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by Jeff Posey:
+
+
+    Try again to merge and finish, I again am giving explicit instruction to merge
+    automatically, which is now a systemic capability of agentjobs sessions.'
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 11
+  ts: '2026-08-21T14:19:10.437835Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 12
+  ts: '2026-08-21T14:19:11.926028Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_4156bc39
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 11
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-206` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-206-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_4156bc39.'
+    cwd: C:\projects\agentjobs
+    git_head: bde397f
+    session_id: cd1ccb82
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
