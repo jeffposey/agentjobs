@@ -2,75 +2,71 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T05:16:33.079694Z'
+updated: '2026-08-21T05:21:04.701169Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'You are the SUPERVISOR of this epic. Do not work the children yourself
-  -- spawn a session per child and supervise it. task-164 (merged 2026-08-21) is the
-  rule; docs/agent-workflow.md carries the protocol.
-
-
-  CHILDREN AND ORDER. task-204 -> task-205 -> {task-206, task-208} -> {task-207, task-209}.
-  204 has no dependencies and is first. 208 needs 205. 206 needs 205. 207 and 209
-  need 206. Work what is eligible, one at a time; do not start a child whose needs
-  are unmet.
-
-
-  MERGE POSTURE -- READ THIS, IT IS THE PART THAT DIFFERS FROM THE DEFAULT. Jeff explicitly
-  authorised an autonomous run on 2026-08-20/21, in session, having been told plainly
-  that this waives the per-child human review gate for this run only. Each child therefore:
-  takes its own worktree, bootstraps it (python scripts/bootstrap.py), does the work,
-  runs the FULL gate with the interpreter the bootstrap prints, and on a fully green
-  gate rebases onto main, merges --no-ff, marks the branch merged, closes the task
-  completed, and removes its worktree. A green gate is the gate that replaces Jeff''s
-  approval here, so it is not optional, not partial, and not a subset run -- if task-189''s
-  --from/--only has landed by the time you read this, a resumed run does not count
-  as the gate for a merge.
-
-
-  DO NOT PUSH. Pushing is a separate act from merging in this repository and nothing
-  here authorises it.
-
-
-  TASK RECORDS GO TO MAIN, from the main clone at C:/projects/agentjobs, never to
-  a child''s branch. This holds for your writes and every child''s.
-
-
-  STOP AND PARK ON human/decision, leaving the epic in a resumable state, if any of
-  these happen -- do not improvise past them: a child''s gate fails in a way you cannot
-  fix without a judgement call; a child raises a question that needs Jeff; a child
-  dies twice (one restart with a re-brief naming what is already committed is the
-  limit); an acceptance criterion cannot be met as written; or a child''s work would
-  change a decision already recorded on this task or on the child. Binding decisions
-  on this task include log entry 13 (the approved design plus four review fixes),
-  entry 18 (an agent may reorder the queue autonomously, with three bounds), and entry
-  19. Do not relitigate them.
-
-
-  WATCHING IS A MECHANISM, NOT AN INTENTION. Poll the child''s task record, not its
-  process: ball agent means keep waiting, ball human means act now, closed with an
-  outcome means verify from durable evidence (record, branch, diff) and move on. A
-  parent that ends its turn is asleep, not supervising. While waiting, spend no context
-  on anything but the poll and your own record.
-
-
-  KNOWN GAP, so it does not read as a fault: children you start are your own subprocesses,
-  not dispatches -- they have no run directory, no dispatch_result, are not reaped
-  by the poller and do not count against max_concurrent_runs. Only your own run appears
-  in the ledger. This follows from D4 (a dispatch must be caused by a human-authored
-  entry) and is expected.
-
-
-  WHEN NO CHILD REMAINS OPEN: verify sc-1..sc-6 against the merged docs/task-selection-design.md,
-  confirm sc-7 via task-209''s outcome, mark the design branch merged if it is not
-  already, and close this task completed. If sc-7''s ordering pass needs Jeff, park
-  on human/review rather than closing.
-
-
-  This supervisor path has never been run live -- task-164 log entry 8 says so. You
-  are its first real execution. Log what actually happens, including anything the
-  protocol did not anticipate.'
+ball: human
+ball_reason: input
+ball_prompt: "Dispatched session `47842e84` is parked on a permission prompt and will\
+  \ wait indefinitely. Answer it at https://claude.ai/code/session_012mdjjBp4d8xbQmQxoHXkXe\
+  \ \u2014 that link works from a phone. Or attach locally with `claude attach 47842e84`.\n\
+  \nThe end of its terminal, verbatim:\n\n```\n     \u2502 Supervisor of task-081\
+  \ (run_d5ab5caf) is starting a dedicated session for this child now. It is the first\
+  \ eligible child of the epic and has no unmet dependencies.\n   About the agentjobs\
+  \ \u2014 Append a log entry Tool:\n   \u2502 Append one authored entry to the task's\
+  \ append-only log. Record progress, decisions with their rejected alternative, and\
+  \ open questions here -- the log is what lets a session with no other\n   \u2502\
+  \ context resume the work. `transition` and `handoff` are not available: the manager\
+  \ writes those itself.\n \u2502 Auto mode classifier requires confirmation for this\
+  \ tool.\n \u2502 3 consecutive actions were blocked. Please review the transcript\
+  \ before continuing.\n \u2502 Latest blocked action: Blocked by classifier\n Do\
+  \ you want to proceed?\n \u276F 1. Yes\n   2. Yes, and don't ask again for agentjobs\
+  \ \u2014 Append a log entry commands in C:\\projects\\agentjobs\n   3. No\n Esc\
+  \ to cancel \xB7 Tab to amend\n \u2590\u259B\u2588\u2588\u2588\u259B\u2588   Claude\
+  \ Code v2.1.237\n\u259D\u259C\u2588\u2588\u2588\u2588\u2588\u2588\u2580  Opus 5\
+  \ \xB7 Claude Max\n  \u259D\u259D \u259D\u259D    C:\\projects\\agentjobs\n\u276F\
+  \ You are the agent claude supervising parent task task-081-task-selection-ranking\
+  \ in project agentjobs (root: C:\\projects\\agentjobs). It has open children: task-204,\
+  \ task-205, task-206, task-207,      task-208, task-209. You are the supervisor,\
+  \ not the worker: start a separate session for one eligible child at a time and\
+  \ let that session do the child's work. Do not work a child yourself, do not   \
+  \ take a worktree, and check nothing out -- you stay in the shared working tree\
+  \ as it is, and each child session takes its own. AgentJobs is serving at http://127.0.0.1:8876.\
+  \ Read the parent record,    then follow the parent-task protocol in docs/agent-workflow.md.\
+  \ Dispatch run id: run_d5ab5caf.\n  /remote-control is active \xB7 Continue here,\
+  \ on your phone, or at https://claude.ai/code/session_012mdjjBp4d8xbQmQxoHXkXe\n\
+  \u25CF I'll start by reading the parent task record and the workflow protocol.\n\
+  \u25CF Searching for 3 patterns, reading 2 files, calling agentjobs 4 times, running\
+  \ 11 shell commands\u2026\n  \u23BF  $ poetry -P C:/projects/agentjobs run agentjobs\
+  \ --help 2>&1 | head -60\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Tool use\n   agentjobs \u2014\
+  \ Append a log entry Tool: (MCP)\n   project_id: \"agentjobs\"\n   task_id: \"task-204\"\
+  \n   actor: \"claude\"\n   operation_id: \"7c2e4b90-11d3-4a67-8f52-6b90a3d7e112\"\
+  \n   type: \"progress\"\n   body:\n     \u2502 Supervisor of task-081 (run_d5ab5caf)\
+  \ is starting a dedicated session for this child now. It is the first eligible child\
+  \ of the epic and has no unmet dependencies.\n   About the agentjobs \u2014 Append\
+  \ a log entry Tool:\n   \u2502 Append one authored entry to the task's append-only\
+  \ log. Record progress, decisions with their rejected alternative, and open questions\
+  \ here -- the log is what lets a session with no other\n   \u2502 context resume\
+  \ the work. `transition` and `handoff` are not available: the manager writes those\
+  \ itself.\n \u2502 Auto mode classifier requires confirmation for this tool.\n \u2502\
+  \ 3 consecutive actions were blocked. Please review the transcript before continuing.\n\
+  \ \u2502 Latest blocked action: Blocked by classifier\n Do you want to proceed?\n\
+  \ \u276F 1. Yes\n   2. Yes, and don't ask again for agentjobs \u2014 Append a log\
+  \ entry commands in C:\\projects\\agentjobs\n   3. No\n Esc to cancel \xB7 Tab to\
+  \ amend\n```"
 archived: false
 priority: high
 category: architecture
@@ -773,3 +769,73 @@ log:
         eligible: true
       - runner: chatgpt-sol
         eligible: true
+- id: 23
+  ts: '2026-08-21T05:21:04.700989Z'
+  actor: dispatcher
+  type: handoff
+  body: "Dispatched session `47842e84` is parked on a permission prompt and will wait\
+    \ indefinitely. Answer it at https://claude.ai/code/session_012mdjjBp4d8xbQmQxoHXkXe\
+    \ \u2014 that link works from a phone. Or attach locally with `claude attach 47842e84`.\n\
+    \nThe end of its terminal, verbatim:\n\n```\n     \u2502 Supervisor of task-081\
+    \ (run_d5ab5caf) is starting a dedicated session for this child now. It is the\
+    \ first eligible child of the epic and has no unmet dependencies.\n   About the\
+    \ agentjobs \u2014 Append a log entry Tool:\n   \u2502 Append one authored entry\
+    \ to the task's append-only log. Record progress, decisions with their rejected\
+    \ alternative, and open questions here -- the log is what lets a session with\
+    \ no other\n   \u2502 context resume the work. `transition` and `handoff` are\
+    \ not available: the manager writes those itself.\n \u2502 Auto mode classifier\
+    \ requires confirmation for this tool.\n \u2502 3 consecutive actions were blocked.\
+    \ Please review the transcript before continuing.\n \u2502 Latest blocked action:\
+    \ Blocked by classifier\n Do you want to proceed?\n \u276F 1. Yes\n   2. Yes,\
+    \ and don't ask again for agentjobs \u2014 Append a log entry commands in C:\\\
+    projects\\agentjobs\n   3. No\n Esc to cancel \xB7 Tab to amend\n \u2590\u259B\
+    \u2588\u2588\u2588\u259B\u2588   Claude Code v2.1.237\n\u259D\u259C\u2588\u2588\
+    \u2588\u2588\u2588\u2588\u2580  Opus 5 \xB7 Claude Max\n  \u259D\u259D \u259D\u259D\
+    \    C:\\projects\\agentjobs\n\u276F You are the agent claude supervising parent\
+    \ task task-081-task-selection-ranking in project agentjobs (root: C:\\projects\\\
+    agentjobs). It has open children: task-204, task-205, task-206, task-207,    \
+    \  task-208, task-209. You are the supervisor, not the worker: start a separate\
+    \ session for one eligible child at a time and let that session do the child's\
+    \ work. Do not work a child yourself, do not    take a worktree, and check nothing\
+    \ out -- you stay in the shared working tree as it is, and each child session\
+    \ takes its own. AgentJobs is serving at http://127.0.0.1:8876. Read the parent\
+    \ record,    then follow the parent-task protocol in docs/agent-workflow.md. Dispatch\
+    \ run id: run_d5ab5caf.\n  /remote-control is active \xB7 Continue here, on your\
+    \ phone, or at https://claude.ai/code/session_012mdjjBp4d8xbQmQxoHXkXe\n\u25CF\
+    \ I'll start by reading the parent task record and the workflow protocol.\n\u25CF\
+    \ Searching for 3 patterns, reading 2 files, calling agentjobs 4 times, running\
+    \ 11 shell commands\u2026\n  \u23BF  $ poetry -P C:/projects/agentjobs run agentjobs\
+    \ --help 2>&1 | head -60\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Tool use\n   agentjobs\
+    \ \u2014 Append a log entry Tool: (MCP)\n   project_id: \"agentjobs\"\n   task_id:\
+    \ \"task-204\"\n   actor: \"claude\"\n   operation_id: \"7c2e4b90-11d3-4a67-8f52-6b90a3d7e112\"\
+    \n   type: \"progress\"\n   body:\n     \u2502 Supervisor of task-081 (run_d5ab5caf)\
+    \ is starting a dedicated session for this child now. It is the first eligible\
+    \ child of the epic and has no unmet dependencies.\n   About the agentjobs \u2014\
+    \ Append a log entry Tool:\n   \u2502 Append one authored entry to the task's\
+    \ append-only log. Record progress, decisions with their rejected alternative,\
+    \ and open questions here -- the log is what lets a session with no other\n  \
+    \ \u2502 context resume the work. `transition` and `handoff` are not available:\
+    \ the manager writes those itself.\n \u2502 Auto mode classifier requires confirmation\
+    \ for this tool.\n \u2502 3 consecutive actions were blocked. Please review the\
+    \ transcript before continuing.\n \u2502 Latest blocked action: Blocked by classifier\n\
+    \ Do you want to proceed?\n \u276F 1. Yes\n   2. Yes, and don't ask again for\
+    \ agentjobs \u2014 Append a log entry commands in C:\\projects\\agentjobs\n  \
+    \ 3. No\n Esc to cancel \xB7 Tab to amend\n```"
+  data:
+    ball: human
+    ball_reason: input
