@@ -177,6 +177,16 @@ activated virtualenv over the one it keys on the project path. So `poetry run` f
 worktree resolves to the main clone's environment however many times you bootstrap, and
 `check.py` correctly refuses each time. The printed path cannot be redirected.
 
+**That is the whole of it: naming the interpreter is the only thing you have to do.**
+You do not need to unset, re-export or otherwise manage `VIRTUAL_ENV` around a gate run.
+The gate disowns a foreign one for every process it spawns, so the nested `poetry run`
+calls inside it — the frontend's OpenAPI and icon checks, and the server Playwright
+starts — resolve to this checkout too. Before task-210 they did not, and a worktree gate
+run went green through Black, Ruff, MyPy, pytest, Vitest and the production build and
+was then refused at the Playwright stage, six minutes in, for pointing at the main
+clone. The hazard above is still real everywhere else; `poetry run` outside the gate
+still prefers whatever your shell activated.
+
 The same preference is why the bootstrap now tells you it is **ignoring** an activated
 virtualenv that belongs to another checkout. Until task-194 it did not: a worktree's
 `poetry install` rewrote the main clone's editable install, and the dashboard on 8876
