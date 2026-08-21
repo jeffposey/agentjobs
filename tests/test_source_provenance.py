@@ -18,6 +18,8 @@ cannot cause one.
 from __future__ import annotations
 
 import importlib.util
+import os
+import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -365,3 +367,115 @@ def test_the_gate_gives_the_ordinary_advice_otherwise(monkeypatch: pytest.Monkey
     assert check.remedy([f"agentjobs imports from elsewhere, {check.FOREIGN_IMPORT}"]) == (
         ORDINARY_ADVICE
     )
+
+
+# --- and the gate cannot hand one to its own children ---------------------------------
+#
+# Task-210. The guard above is correct and stays; what was wrong is the environment the
+# gate spawned its children in. `npm run check` and Playwright's `webServer` both start
+# nested `poetry run` processes, which prefer an activated `VIRTUAL_ENV` over the
+# path-keyed environment -- so a worktree gate run reached the last stage, six minutes
+# in, and was refused there for pointing at the main clone.
+
+FOREIGN_VENV = "C:/venvs/agentjobs-KSKY4Ymk-py3.13"
+
+
+def test_a_foreign_virtualenv_is_not_passed_to_children(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VIRTUAL_ENV", FOREIGN_VENV)
+    monkeypatch.setenv("POETRY_ACTIVE", "1")
+
+    env = check.child_environment()
+
+    assert "VIRTUAL_ENV" not in env
+    assert "POETRY_ACTIVE" not in env
+
+
+def test_pythonhome_is_never_passed_to_children(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A child interpreter that reads another installation's stdlib fails obscurely."""
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    monkeypatch.setenv("PYTHONHOME", "C:/Python311")
+
+    assert "PYTHONHOME" not in check.child_environment()
+
+
+def test_this_interpreters_own_virtualenv_is_left_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+    """It agrees with us. Removing it would strand a plain `python -m venv .venv`
+    checkout, where Poetry has no path-keyed environment to fall back to -- the case
+    `scripts/bootstrap.py` also declines to overrule."""
+    monkeypatch.setenv("VIRTUAL_ENV", sys.prefix)
+    monkeypatch.setenv("POETRY_ACTIVE", "1")
+
+    env = check.child_environment()
+
+    assert env["VIRTUAL_ENV"] == sys.prefix
+    assert env["POETRY_ACTIVE"] == "1"
+
+
+def test_the_rest_of_the_environment_survives(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Scrubbing two names, not sanitising the environment. PATH still has to work."""
+    monkeypatch.setenv("VIRTUAL_ENV", FOREIGN_VENV)
+    monkeypatch.setenv("AGENTJOBS_E2E_PORT", "24242")
+
+    env = check.child_environment()
+
+    assert env["AGENTJOBS_E2E_PORT"] == "24242"
+    assert env.get("PATH") == os.environ.get("PATH")
+
+
+def test_no_activated_virtualenv_changes_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    monkeypatch.delenv("PYTHONHOME", raising=False)
+
+    assert check.child_environment() == dict(os.environ)
+
+
+def test_every_check_the_gate_runs_gets_the_scrubbed_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The regression guard proper (sc-2).
+
+    `run()` is the single door every stage of the gate goes through, and it takes no
+    environment argument, so this holds for stages added later too. Asserting on what
+    `subprocess.run` was actually handed is the only way to catch someone quietly
+    reinstating the inherited environment.
+    """
+    monkeypatch.setenv("VIRTUAL_ENV", FOREIGN_VENV)
+    monkeypatch.setenv("POETRY_ACTIVE", "1")
+    seen: list[dict[str, str]] = []
+
+    def record(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        seen.append(kwargs["env"])  # type: ignore[arg-type]
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(check.subprocess, "run", record)
+    monkeypatch.setattr(check, "setup_problems", lambda root, origin: [])
+    monkeypatch.setattr(check.shutil, "which", lambda name: "npm.cmd")
+
+    assert check.main() == 0
+
+    # Black, Ruff, MyPy, pytest, and the frontend's own gate -- which is the one that
+    # starts the nested `poetry run` processes this exists for.
+    assert len(seen) == 5
+    for env in seen:
+        assert "VIRTUAL_ENV" not in env
+        assert "POETRY_ACTIVE" not in env
+
+
+def test_the_gate_says_when_it_disowns_the_shell(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A silent correction is one nobody can confirm happened."""
+    monkeypatch.setenv("VIRTUAL_ENV", FOREIGN_VENV)
+
+    note = check.disowned_environment_note()
+
+    assert note is not None
+    assert FOREIGN_VENV in note and sys.prefix in note
+
+
+def test_the_gate_stays_quiet_when_there_is_nothing_to_disown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    assert check.disowned_environment_note() is None
+
+    monkeypatch.setenv("VIRTUAL_ENV", sys.prefix)
+    assert check.disowned_environment_note() is None
