@@ -3,7 +3,7 @@ id: task-207
 title: 'Queue position: the React list shows the real order, and you can change it
   without a mouse'
 created: '2026-08-20T23:31:25.501669Z'
-updated: '2026-08-21T15:56:34.519712Z'
+updated: '2026-08-21T16:06:27.220441Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -460,3 +460,48 @@ log:
       id: 3f2b1a90-0207-4c11-9a01-000000000031
       kind: close
       fingerprint: 31696bf663e592c00d092f520b8d6e6f
+- id: 12
+  ts: '2026-08-21T16:06:27.220243Z'
+  actor: claude
+  type: note
+  body: '**This closed too early, and the drag path does not work.** Recorded here
+    because the record currently says `completed` over a half-working feature.
+
+
+    Jeff reviewed the sandbox on 2026-08-21 and reported that clicking and dragging
+    does not reorder anything. Reproduced: dragging a grip from one row onto another
+    leaves the band untouched.
+
+
+    **The close was wrong.** sc-5 was left `pending` and the task was closed `completed`
+    anyway, on the reading that task-081''s autonomous-run posture waived it. That
+    posture waives the *merge* gate -- it does not turn an unreviewed criterion into
+    a satisfied one, and closing over it is what let broken code be reported as delivered.
+    The first thing the review did was find a defect, which is the argument against
+    the reading I used. There is deliberately no `reopen` verb (task-205), so the
+    fix is a follow-up task rather than a reversal here.
+
+
+    **Same failure shape as the other two in this task, for the third time.** The
+    drag tests fire `dragStart` synthetically -- `fireEvent.dragStart` in jsdom, and
+    nothing at all in Playwright. A synthetic `dragstart` proves the handler works
+    once the browser has decided to start a drag. It cannot prove the browser will
+    start one, and that is exactly the step that fails. Every drag test in this task
+    asserted the half that was fine.
+
+
+    Suspected cause, not yet confirmed: the handle is a `<button draggable>`, and
+    Chrome does not initiate a native drag from a button because activation behaviour
+    consumes the gesture. Consistent with what is observed -- clicking the grip focuses
+    it and the keyboard path works, dragging it does nothing. The follow-up task carries
+    the confirmation and the fix.
+
+
+    The keyboard path, the queue order, the position column, the corrupt-queue banner
+    and the dashboard panel were all exercised by hand in Chrome and do work. Drag
+    is the one part that was only ever exercised through a synthetic event.'
+  data:
+    operation:
+      id: 3f2b1a90-0207-4c11-9a01-000000000040
+      kind: log_append
+      fingerprint: 1aade1a98c2c7f1cc0d58fd42cb498bb
