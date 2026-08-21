@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T09:22:52.798578Z'
+updated: '2026-08-21T09:28:17.349118Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -993,3 +993,80 @@ log:
       id: 3f1c8e02-5a4b-4d19-9c7e-1a2b3c4d5e6f
       kind: log_append
       fingerprint: 21f04bac9f8fde07fb4fba852b1330b8
+- id: 30
+  ts: '2026-08-21T09:28:17.348763Z'
+  actor: claude
+  type: progress
+  body: 'Child 1 of 6 done. task-205 started.
+
+
+    TASK-204 VERIFIED from durable evidence only -- its record, its branch, and main''s
+    log. I did not re-run its gate and did not read its diff.
+
+    - lifecycle closed / outcome completed; sc-1..sc-5 all `met`, each carrying its
+    own evidence on the criterion.
+
+    - branches[] marks feat/task-204-queue-position-schema merged; merge commit e7c668c
+    is on main, --no-ff.
+
+    - The record states a full ten-stage `scripts/check.py`, exit 0, 386s, explicitly
+    not a --from or --only run. That is the thing standing in for Jeff''s approval
+    under this epic''s posture, so it is the one claim I checked the wording of.
+
+    - Not pushed, as required.
+
+
+    What landed: e6188d2 the field, rule 6, src/agentjobs/queue.py, _check_queue and
+    42 tests; b00c863 the LinkML regeneration; e7c668c the merge; c41da69 the corpus
+    migration, 93 open tasks positioned, each file +2/-1.
+
+
+    The child did the part that usually gets skipped: it rebuilt the frontend, restarted
+    the 8876 server through C:/ai/shared/launchers/open-agentjobs.ps1 -Force (correctly
+    not `agentjobs restart`, which binds 8765), and read the live API back -- 218
+    tasks, no open task without a position, high band reading 100 task-063, 200 task-081,
+    300 task-100, 400 task-120, 500 task-121. Note that task-081 now carries queue_position
+    200, assigned by its own epic''s first child.
+
+
+    Sequencing worth recording because it generalises: StrictModel sets extra="forbid",
+    so a process on pre-merge code cannot read a migrated task file at all. The corpus
+    commit therefore has to follow the code commit, never precede it, and the server
+    restart is load-bearing rather than politeness. Any later child that changes the
+    on-disk shape of a task file inherits this ordering.
+
+
+    TIMING, for whoever plans the next epic: dispatched 08:04Z, closed 09:25Z. 81
+    minutes for a schema field, a validator, 42 tests, a full gate, a merge, a 93-file
+    corpus migration and a live verification. The gate was 386s of it.
+
+
+    STARTED task-205 -- background session b0e6f93c, same posture and settings blob
+    as 204. Branch feat/task-205-queue-verbs-selection, worktree ../worktrees/agentjobs-205.
+    Its brief adds one thing beyond the 204 shape: a pointer to 204''s closing entry,
+    which names three things 204 deliberately left for it (create/close not yet under
+    the project queue lock and no reopen path; update_task(priority=...) can still
+    duplicate a position; queue.py is the foundation the verbs build on). That is
+    a pointer to the record, not a restatement of it.
+
+
+    LEFT ALONE DELIBERATELY: worktrees/agentjobs-204 still exists and session 8c7d3704
+    still reports busy/working, so it is presumably mid-cleanup. Removing a worktree
+    under a live session is a known way to strand it. I will check it again rather
+    than force it.
+
+
+    OUT OF SCOPE, recorded so it is not lost: 204 reports `agentjobs validate` finding
+    187 pre-existing findings on the live corpus -- 74 unknown-category, 113 unknown-actor
+    on `system`, 13 non-canonical-serialization, all on closed tasks predating the
+    current config vocabulary. None are queue findings and none were caused by this
+    work. The cost is that a genuinely new finding is now unspottable among them.
+    Not filed; not mine to file mid-epic.
+
+
+    No permission prompt and no classifier decline on this second spawn either.'
+  data:
+    operation:
+      id: 7a2d4b18-6c39-4e27-b1f5-2d3e4f5a6b70
+      kind: log_append
+      fingerprint: c5052220a36ae095a7b1ee9372a5efd6
