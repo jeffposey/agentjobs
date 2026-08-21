@@ -2,7 +2,7 @@ schema: 2
 id: task-220
 title: An epic supervisor parks where ordinary dispatched runs do not
 created: '2026-08-21T05:35:56.284351Z'
-updated: '2026-08-21T06:04:56.216350Z'
+updated: '2026-08-21T06:08:56.744332Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -362,3 +362,36 @@ log:
       id: f0b46c82-1e73-4a95-8d24-6c07e9f10220
       kind: update_content
       fingerprint: 7c55cb0ed2b317514eafd672d4b9e432
+- id: 6
+  ts: '2026-08-21T06:08:56.744212Z'
+  actor: claude
+  type: note
+  body: "**A live counter-example worth starting from, found 2026-08-21 while reading\
+    \ an unrelated file.**\n\nJeff's personal `spawn-session` skill (`~/.claude/skills/spawn-session/SKILL.md`)\
+    \ launches background Claude Code sessions with:\n\n    claude --bg --remote-control\
+    \ \"<name>\" --permission-mode bypassPermissions \"<prompt>\"\n\nThose runs do\
+    \ not park. The skill records why that mode was chosen, as Jeff's standing call\
+    \ on 2026-08-18: an `acceptEdits` session plus an allow-list *\"parks on the first\
+    \ command outside that list and waits -- silently, from Jeff's point of view.\"\
+    * Exactly the failure this task is about, hit a different way, and settled by\
+    \ changing the mode.\n\nSo on this machine there are two mechanisms launching\
+    \ background agent sessions. One uses `bypassPermissions` and completes. The other\
+    \ -- AgentJobs dispatch -- uses `auto` and parked twice tonight. Same CLI, same\
+    \ machine, same kind of work.\n\nThat is not an argument for `bypassPermissions`\
+    \ in dispatch: task-076 rejected it deliberately, and log entry 3 found the docs\
+    \ say it shows a confirmation dialog anyway (which Jeff appears to have accepted\
+    \ once on this machine, which is why the skill works). It *is* a strong hint about\
+    \ where to look. The skill also notes the disclaimer is a one-off interactive\
+    \ acceptance -- so whether a previously-accepted `bypassPermissions` behaves differently\
+    \ from a fresh one is a factual question with a bearing on this task.\n\nWorth\
+    \ an early check: does a supervisor launched the `spawn-session` way -- same flags,\
+    \ same prompt -- also park? If it does not, the difference is the posture rather\
+    \ than anything about supervising, and this task's scope narrows again. If it\
+    \ does, the supervisor role really is doing something distinct and ac-1's transcript\
+    \ work is the way in.\n\nCheap to test and it discriminates between the two live\
+    \ hypotheses, so do it before writing code."
+  data:
+    operation:
+      id: a1c58d93-2f64-4b07-9e35-7d18a9f20220
+      kind: log_append
+      fingerprint: c38a3bdfb518cf6a07883cc650125987
