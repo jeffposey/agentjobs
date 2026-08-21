@@ -11,15 +11,24 @@ npm run check
 ```
 
 `npm run install:e2e` provisions Playwright's pinned Chromium build once per machine
-or whenever Playwright is upgraded. `npm run check` is the frontend gate. It first exports FastAPI's OpenAPI document
-directly from the application (no running server required), regenerates the checked-in
-client, fails when either `openapi.json` or `src/api/generated/` is stale, runs the
-jsdom component suite, builds the app, and runs one Playwright path against a real
-server and a fresh temporary project. The full repository gate is
+or whenever Playwright is upgraded. `npm run check` is the frontend gate. It first
+exports FastAPI's OpenAPI document directly from the application (no running server
+required), regenerates the checked-in client, fails when either `openapi.json` or
+`src/api/generated/` no longer matches what the application produces, runs the jsdom
+component suite, builds the app, and runs one Playwright path against a real server and
+a fresh temporary project. The full repository gate is
 `poetry run python scripts/check.py` from the repository root; that is the command to
 run before commit because it includes both pytest and this frontend check. To
 intentionally refresh generated artifacts, run `npm run generate:api` and review the
 diff.
+
+Both generated checks compare against **the working tree, not `HEAD`**: they ask whether
+the file on disk matches what the application produces, never whether you have committed
+it. Until task-189 the client half asked the second question and reported it as the
+first, so a client you had just regenerated failed the gate with a message telling you to
+regenerate it. The gate runs *before* a commit, so it cannot require one. It does print a
+note naming `src/api/generated` when those files are uncommitted, because `git add` takes
+explicit paths here and generated output is what that habit forgets.
 
 `npm run check` also verifies that the committed PWA icons match
 `assets/app-icon.svg`. Run `npm run generate:icons` after changing that source. The

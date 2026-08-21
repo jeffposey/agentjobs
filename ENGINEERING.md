@@ -35,22 +35,68 @@ source rather than a neighbouring one's.
     ```bash
     poetry run python scripts/check.py
     ```
--   This single gate runs Black, Ruff and MyPy, then pytest, then verifies the
-    generated frontend API client, lints, runs the Vitest component suite in jsdom,
-    builds the React app, and exercises one real-server browser path with Playwright.
+-   The gate is ten named stages run **cheapest first**, and it prints what each one
+    cost. From one green run on this machine, 2026-08-21, nothing else competing for it:
+
+    | # | Stage | What it checks | Cost |
+    |---|---|---|---|
+    | 1 | `black` | Python formatting | 0.5s |
+    | 2 | `ruff` | Python lint | 0.1s |
+    | 3 | `mypy` | Python types | 1.5s |
+    | 4 | `api` | `openapi.json` and the generated client both match the app | 4.5s |
+    | 5 | `icons` | the committed PWA icons match `assets/app-icon.svg` | 3.2s |
+    | 6 | `oxlint` | frontend lint | 0.5s |
+    | 7 | `pytest` | 2190 Python tests | 326.5s |
+    | 8 | `vitest` | 164 jsdom component tests across 23 files | 4.7s |
+    | 9 | `build` | `tsc --noEmit` and the production bundle | 3.6s |
+    | 10 | `e2e` | 16 Playwright tests against a live server | 20.0s |
+    | | | | **365.0s** |
+
+    MyPy is the one stage whose cost moves: 1.5s against a warm cache, about nineteen
+    seconds on the first run after a checkout. Nothing else in the cheap block varies
+    enough to notice.
+
     Use focused pytest or npm commands while iterating, but do not substitute them for
     the gate.
--   Format, lint and types come first because they take about seven seconds together
-    and catch what pytest never will; there is no reason to spend four minutes finding
-    a misformatted file. They are *in* the gate rather than only in the pre-commit list
-    below because a list nothing enforces is a statement of intent. Task-166 found
-    `poetry run mypy .` had been aborting on a module-name collision before it checked
-    a single file, and a Black drift sitting on `main`, both surviving for exactly that
-    reason.
--   Budget **about six minutes when you have the machine to yourself**, measured
-    2026-08-20: ~7s for Black, Ruff and MyPy, 2046 Python tests in 4m33s, then about
-    70s for the frontend half — 153 Vitest component tests across 22 files, the
-    production build, and 16 Playwright tests against a live server. 355s in total.
+-   **Anything that can answer in seconds runs before anything that takes minutes.**
+    Format, lint and types catch what pytest never will, and there is no reason to spend
+    five minutes finding a misformatted file. Task-189 carried the same reasoning through
+    stages 4 to 6, which used to run *after* pytest: together they cost 8.2 seconds, and
+    a session working task-188 paid four and a half minutes twice to reach one of them.
+    Everything above the pytest line now costs 10.3 seconds together.
+-   The checks are *in* the gate rather than only in the pre-commit list below because a
+    list nothing enforces is a statement of intent. Task-166 found `poetry run mypy .`
+    had been aborting on a module-name collision before it checked a single file, and a
+    Black drift sitting on `main`, both surviving for exactly that reason.
+-   Two orderings are real dependencies rather than preferences, and stay: `build` writes
+    the bundle `e2e` drives, and `api` exports the OpenAPI document before anything
+    compares a generated client against it. Every other stage's position is purely a
+    question of what it costs.
+-   **Resume; do not re-run.** A failure names the stage it happened in, and every stage
+    is addressable:
+    ```bash
+    poetry run python scripts/check.py --list          # the stages, in order
+    poetry run python scripts/check.py --from vitest   # this stage and everything after
+    poetry run python scripts/check.py --only oxlint   # just these (repeatable, or a,b)
+    ```
+    **The unqualified command is what the commit rule above means, and the only thing
+    that does.** `--from` and `--only` exist for the loop between a late failure and its
+    fix. A partial run prints `PARTIAL RUN`, names every stage it skipped, and repeats
+    both at the end — so a green from `--from e2e` cannot be reported as a green from the
+    gate.
+-   **The gate runs before the commit, so no stage of it may require one.** The two
+    generated checks — `openapi.json` and `src/api/generated/` — compare against **the
+    working tree**, never `HEAD`: they ask whether the files on disk match what the
+    application produces. Until task-189 the client half asked instead whether they were
+    committed, and reported the answer as staleness, so a client you had just regenerated
+    failed the gate with a message telling you to regenerate it. That is the contradiction
+    the old check created, and this is the direction it is resolved in: **regenerate, run
+    the gate, then commit.** The `api` stage names `frontend/src/api/generated` when those
+    files are uncommitted, and does not fail — `git add` takes explicit paths here, and
+    generated output is what that habit forgets.
+-   Budget **about six minutes when you have the machine to yourself** — 365s for the
+    table above, of which pytest is 326s. The other nine stages come to 38s between
+    them, so the gate's wall clock is the Python suite and almost nothing else.
 -   **Budget longer when you do not, and do not read slow as hung.** Several agents work
     this repository at once and this machine now allows three dispatched runs, so gates
     overlapping is the normal case rather than an unusual one. Measured the same day, on

@@ -12,7 +12,7 @@
     "generate:api-client": "openapi-ts",
     "generate:api": "npm run generate:api-schema && npm run generate:api-client",
     "check:api-schema": "poetry run python ../scripts/export_openapi.py openapi.json --check",
-    "check:api-client": "openapi-ts && node scripts/assert-generated-clean.mjs",
+    "check:api-client": "node scripts/check-generated-client.mjs",
     "check:api": "npm run check:api-schema && npm run check:api-client",
     "lint": "oxlint --ignore-pattern src/api/generated/** .",
     "test": "vitest run",

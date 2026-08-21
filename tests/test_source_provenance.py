@@ -451,11 +451,11 @@ def test_every_check_the_gate_runs_gets_the_scrubbed_environment(
     monkeypatch.setattr(check, "setup_problems", lambda root, origin: [])
     monkeypatch.setattr(check.shutil, "which", lambda name: "npm.cmd")
 
-    assert check.main() == 0
+    assert check.main([]) == 0
 
-    # Black, Ruff, MyPy, pytest, and the frontend's own gate -- which is the one that
-    # starts the nested `poetry run` processes this exists for.
-    assert len(seen) == 5
+    # Every stage in the table, including the npm ones -- they are what start the
+    # nested `poetry run` processes this exists for.
+    assert len(seen) == len(check.stages())
     for env in seen:
         assert "VIRTUAL_ENV" not in env
         assert "POETRY_ACTIVE" not in env

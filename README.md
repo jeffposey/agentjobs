@@ -207,10 +207,13 @@ npm run check
 ```
 
 The repository commit gate is `poetry run python scripts/check.py` from the root. It
-runs the Python suite and the frontend's generated-contract check, linter, Vitest
-component suite, production build, and one real-server Playwright path. `npm run check`
-is the focused frontend half of that gate. Run `npm run generate:api` when an
-intentional backend contract change needs to be recorded.
+runs ten stages, cheapest first: formatting, lint and types, the generated-contract
+checks, the frontend linter, then the Python suite, the Vitest component suite, the
+production build, and one real-server Playwright path. `scripts/check.py --list` prints
+them; `--from <stage>` resumes after a late failure without paying for the stages that
+already passed. The unqualified command runs all ten, and that is the one the commit
+rule means. `npm run check` is the focused frontend half of the gate. Run
+`npm run generate:api` when an intentional backend contract change needs to be recorded.
 
 During development Vite serves it at `http://localhost:5173/app/` and proxies API
 requests to AgentJobs on port 8765. After `npm run build`, FastAPI serves the same app
