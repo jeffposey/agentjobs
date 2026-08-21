@@ -3,11 +3,20 @@ import { Link } from "react-router-dom";
 import type { DashboardResponse, TaskRead } from "../api/types";
 import { BrokenFiles } from "./BrokenFiles";
 import { DependencyState } from "./DependencyState";
+import { QueueBroken } from "./QueueBroken";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 
 type DashboardProps = {
   dashboard: DashboardResponse;
   projectId: string;
+  /**
+   * The "why this one" disclosure, supplied by the page rather than built here.
+   *
+   * It owns a query of its own, and this component is otherwise pure presentation
+   * rendered straight from a response object in its tests. Same shape as the dispatch
+   * panel's `renderOutput`, and for the same reason.
+   */
+  renderWhyThisOne?: () => React.ReactNode;
 };
 
 const priorityClasses: Record<string, string> = {
@@ -67,7 +76,7 @@ function CreateTaskLink({ projectId }: { projectId: string }) {
   );
 }
 
-function NextAction({ dashboard, projectId }: DashboardProps) {
+function NextAction({ dashboard, projectId, renderWhyThisOne }: DashboardProps) {
   const base = projectPath(projectId);
 
   switch (dashboard.next_action) {
@@ -168,9 +177,23 @@ function NextAction({ dashboard, projectId }: DashboardProps) {
               <Badge className="bg-dark-surface text-dark-muted">{task.priority}</Badge>
             </div>
           </Link>
+          {renderWhyThisOne?.()}
         </section>
       );
     }
+    case "queue_broken":
+      return (
+        <section data-testid="next-action" className="rounded-lg border border-dark-border bg-dark-surface p-6">
+          <h2 className="mb-1 text-sm font-medium text-dark-text">
+            The queue cannot say what is next
+          </h2>
+          <p className="text-xs text-dark-muted">
+            There is open work, and it may well be claimable — but two tasks claim one place
+            in line, so nothing here can honestly tell you which comes first. The banner above
+            names them and the command that repairs it.
+          </p>
+        </section>
+      );
     case "nothing_claimable":
       return (
         <section data-testid="next-action" className="rounded-lg border border-dark-border bg-dark-surface p-6">
@@ -210,7 +233,7 @@ client.claim_task(task.id, agent="agent-name")`}</pre>
   }
 }
 
-export function Dashboard({ dashboard, projectId }: DashboardProps) {
+export function Dashboard({ dashboard, projectId, renderWhyThisOne }: DashboardProps) {
   const statTiles = [
     ["Needs you", dashboard.stats.waiting_for_human, "text-orange-400"],
     ["In Progress", dashboard.stats.in_progress, ""],
@@ -225,7 +248,13 @@ export function Dashboard({ dashboard, projectId }: DashboardProps) {
   return (
     <div className="space-y-6">
       <BrokenFiles files={dashboard.broken_files} />
-      <NextAction dashboard={dashboard} projectId={projectId} />
+      {dashboard.queue_broken && (
+        <QueueBroken
+          problems={dashboard.queue_broken.problems ?? []}
+          repairCommand={dashboard.queue_broken.repair_command}
+        />
+      )}
+      <NextAction dashboard={dashboard} projectId={projectId} renderWhyThisOne={renderWhyThisOne} />
       <section className="overflow-hidden rounded-lg border border-dark-border bg-dark-surface" aria-label="Task statistics">
         <dl className="grid grid-cols-5 divide-x divide-dark-border">
           {statTiles.map(([label, count, className]) => (

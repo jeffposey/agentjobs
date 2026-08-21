@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import type { BrokenTaskFile, TaskRead } from "../api/types";
-import { TaskList } from "./TaskList";
+import type { BrokenTaskFile, Priority, QueueProblemRead, TaskRead } from "../api/types";
+import { TaskList, type ReorderHandlers } from "./TaskList";
+import type { QueueMove } from "./queueOrder";
 
 function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {
   return {
@@ -149,5 +150,226 @@ describe("TaskList filtering", () => {
     // copy said the children "must finish first", which the claim no longer requires.
     expect(screen.getByText(/2 open sub-tasks to finish\./)).toBeVisible();
     expect(screen.getByText(/Claim it to supervise them/)).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// task-207 -- the list shows the real order, and you can change it without a mouse
+// ---------------------------------------------------------------------------
+
+function queued(id: string, position: number, priority: Priority = "high"): TaskRead {
+  return task(id, { priority, queue_position: position });
+}
+
+function renderQueue(
+  tasks: Array<TaskRead>,
+  options: {
+    reorder?: ReorderHandlers | null;
+    problems?: Array<QueueProblemRead>;
+    unavailable?: string | null;
+    entry?: string;
+  } = {},
+) {
+  render(
+    <MemoryRouter initialEntries={[options.entry ?? "/p/inbox/tasks"]}>
+      <TaskList
+        tasks={tasks}
+        brokenFiles={[]}
+        projectId="inbox"
+        reorder={options.reorder ?? null}
+        queueProblems={options.problems ?? []}
+        repairCommand="agentjobs queue repair"
+        reorderUnavailable={options.unavailable ?? null}
+      />
+    </MemoryRouter>,
+  );
+}
+
+/** The ids in the order the table renders them. */
+function renderedOrder() {
+  return Array.from(document.querySelectorAll("[data-task]")).map(
+    (row) => row.getAttribute("data-task") ?? "",
+  );
+}
+
+function rowFor(taskId: string) {
+  return document.querySelector(`[data-task="${taskId}"]`) as HTMLElement;
+}
+
+function queueCell(taskId: string) {
+  return rowFor(taskId).querySelector('[data-label="Queue"]') as HTMLElement;
+}
+
+function grip(taskId: string) {
+  return screen.getByRole("button", { name: new RegExp(`^Reorder ${taskId},`) });
+}
+
+function accepting(): ReorderHandlers & { moves: Array<[string, QueueMove]> } {
+  const moves: Array<[string, QueueMove]> = [];
+  return {
+    moves,
+    move: async (taskId, move) => {
+      moves.push([taskId, move]);
+    },
+    reprioritize: async () => {},
+  };
+}
+
+describe("TaskList queue order", () => {
+  it("renders the server's order rather than newest-first", () => {
+    // Handed to the component in queue order, with `updated` deliberately upside down:
+    // the deleted sort would have put task-c first, and so would any client-side rule
+    // still keyed on a timestamp.
+    renderQueue([
+      { ...queued("task-a", 100), updated: "2026-08-13T01:00:00Z" },
+      { ...queued("task-b", 200), updated: "2026-08-13T02:00:00Z" },
+      { ...queued("task-c", 300), updated: "2026-08-13T03:00:00Z" },
+    ]);
+
+    expect(renderedOrder()).toEqual(["task-a", "task-b", "task-c"]);
+  });
+
+  it("shows each task's place in line as a value, not just a tooltip", () => {
+    renderQueue([
+      queued("task-a", 100),
+      task("task-closed", {
+        lifecycle: "closed",
+        ball: null,
+        ball_reason: null,
+        outcome: "completed",
+        display_status: "Completed",
+      }),
+    ], { entry: "/p/inbox/tasks?status=all" });
+
+    expect(rowFor("task-a").getAttribute("data-queue-position")).toBe("100");
+    expect(queueCell("task-a")).toHaveTextContent("100");
+    // Nothing is claimed about a closed task's place, because it has none.
+    expect(queueCell("task-closed")).toHaveTextContent("—");
+    expect(rowFor("task-closed").getAttribute("data-queue-position")).toBe("");
+  });
+
+  it("fires exactly one move per keypress, stepping through the band", async () => {
+    const handlers = accepting();
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], {
+      reorder: handlers,
+    });
+
+    fireEvent.keyDown(grip("task-b"), { key: "ArrowUp", altKey: true });
+    await waitFor(() => expect(handlers.moves).toHaveLength(1));
+    expect(handlers.moves[0]).toEqual(["task-b", { before: "task-a" }]);
+  });
+
+  it("writes nothing for a gesture that would not move the task", async () => {
+    const handlers = accepting();
+    renderQueue([queued("task-a", 100), queued("task-b", 200)], { reorder: handlers });
+
+    // task-a is already first and task-b already last. A move that lands a task where
+    // it already is still writes a queue_move entry recording a decision nobody made.
+    fireEvent.keyDown(grip("task-a"), { key: "Home", altKey: true });
+    fireEvent.keyDown(grip("task-a"), { key: "ArrowUp", altKey: true });
+    fireEvent.keyDown(grip("task-b"), { key: "End", altKey: true });
+    await waitFor(() => expect(renderedOrder()).toEqual(["task-a", "task-b"]));
+
+    expect(handlers.moves).toEqual([]);
+  });
+
+  it("ignores an arrow key without Alt, so ordinary navigation still works", () => {
+    const handlers = accepting();
+    renderQueue([queued("task-a", 100), queued("task-b", 200)], { reorder: handlers });
+
+    fireEvent.keyDown(grip("task-b"), { key: "ArrowUp" });
+
+    expect(handlers.moves).toHaveLength(0);
+  });
+
+  it("shows the new order immediately and announces it", async () => {
+    renderQueue([queued("task-a", 100), queued("task-b", 200)], { reorder: accepting() });
+
+    fireEvent.keyDown(grip("task-b"), { key: "ArrowUp", altKey: true });
+
+    await waitFor(() => expect(renderedOrder()).toEqual(["task-b", "task-a"]));
+    expect(screen.getByText("task-b moved ahead of task-a in the high band.")).toBeInTheDocument();
+  });
+
+  it("rolls the optimistic order back and says so when the move is refused", async () => {
+    const reorder: ReorderHandlers = {
+      move: vi.fn().mockRejectedValue(new Error("409")),
+      reprioritize: vi.fn(),
+    };
+    renderQueue([queued("task-a", 100), queued("task-b", 200)], { reorder });
+
+    fireEvent.keyDown(grip("task-b"), { key: "ArrowUp", altKey: true });
+
+    // Back to what the server last said -- not left showing a place the task is not in.
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        /task-b could not be moved, so the list has been put back/,
+      ),
+    );
+    expect(renderedOrder()).toEqual(["task-a", "task-b"]);
+  });
+
+  it("asks before a drag changes a priority as well as a place", async () => {
+    const reorder: ReorderHandlers = { move: vi.fn(), reprioritize: vi.fn() };
+    renderQueue([queued("task-a", 100), queued("task-m", 100, "medium")], { reorder });
+
+    fireEvent.dragStart(grip("task-a"));
+    fireEvent.drop(rowFor("task-m"));
+
+    const dialog = await screen.findByRole("alertdialog", { name: "Confirm a priority change" });
+    expect(dialog).toHaveTextContent(/leave the high band for the medium band/);
+    expect(reorder.reprioritize).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Move it to medium" }));
+    await waitFor(() =>
+      expect(reorder.reprioritize).toHaveBeenCalledWith("task-a", "medium", "task-m"),
+    );
+    // Still one decision per gesture: a band change is a reprioritize, never a move.
+    expect(reorder.move).not.toHaveBeenCalled();
+  });
+
+  it("moves within a band on a drop without asking anything", async () => {
+    const handlers = accepting();
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], {
+      reorder: handlers,
+    });
+
+    fireEvent.dragStart(grip("task-a"));
+    fireEvent.drop(rowFor("task-c"));
+
+    await waitFor(() => expect(handlers.moves).toHaveLength(1));
+    expect(handlers.moves[0]).toEqual(["task-a", { after: "task-c" }]);
+  });
+
+  it("names the broken queue and refuses to offer an order it cannot justify", () => {
+    renderQueue([queued("task-a", 100), queued("task-b", 100)], {
+      reorder: accepting(),
+      problems: [
+        {
+          kind: "duplicate",
+          band: "high",
+          tasks: ["task-a", "task-b"],
+          position: 100,
+          message: "band 'high' position 100 is claimed by task-a, task-b",
+        },
+      ],
+    });
+
+    const banner = screen.getByRole("alert", { name: "Queue is broken" });
+    expect(banner).toHaveTextContent("band 'high' position 100 is claimed by task-a, task-b");
+    expect(banner).toHaveTextContent("agentjobs queue repair");
+    // Every gesture places a task relative to a neighbour, and corruption is exactly
+    // what makes a neighbour's position untrustworthy.
+    expect(screen.queryByRole("button", { name: /^Reorder task-a,/ })).not.toBeInTheDocument();
+  });
+
+  it("says why reordering is off when the project names nobody to attribute it to", () => {
+    renderQueue([queued("task-a", 100)], {
+      reorder: null,
+      unavailable: "Reordering is off because this project configures no human actor.",
+    });
+
+    expect(screen.getByText(/configures no human actor/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: /^Reorder task-a,/ })).not.toBeInTheDocument();
   });
 });

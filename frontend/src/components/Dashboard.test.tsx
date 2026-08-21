@@ -220,3 +220,72 @@ describe("Dashboard supporting sections", () => {
     expect(warning).toHaveTextContent("task-broken.yaml — schema: Input should be 2");
   });
 });
+
+// ---------------------------------------------------------------------------
+// task-207 -- a corrupt queue is said out loud rather than answered around
+// ---------------------------------------------------------------------------
+
+const DUPLICATE = {
+  problems: [
+    {
+      kind: "duplicate",
+      band: "high",
+      tasks: ["task-a", "task-b"],
+      position: 100,
+      message: "band 'high' position 100 is claimed by task-a, task-b",
+    },
+  ],
+  repair_command: "agentjobs queue repair",
+};
+
+describe("Dashboard on a broken queue", () => {
+  it("names the offending tasks and the repair command in a banner", () => {
+    renderDashboard(dashboard({ next_action: "queue_broken", queue_broken: DUPLICATE }));
+
+    const banner = screen.getByRole("alert", { name: "Queue is broken" });
+    expect(banner).toHaveTextContent("band 'high' position 100 is claimed by task-a, task-b");
+    expect(banner).toHaveTextContent("agentjobs queue repair");
+  });
+
+  it("refuses to name a next task rather than reporting an empty backlog", () => {
+    renderDashboard(dashboard({ next_action: "queue_broken", queue_broken: DUPLICATE }));
+
+    // "Nothing claimable" would be the worst available lie here: it is the one state
+    // in which a person does nothing and feels correct doing it.
+    expect(screen.getByTestId("next-action")).toHaveTextContent(
+      "The queue cannot say what is next",
+    );
+    expect(screen.queryByText("Nothing claimable right now")).not.toBeInTheDocument();
+  });
+
+  it("keeps the banner up while a more urgent panel holds the ladder", () => {
+    // Corruption falsifies "this one is next". It does not falsify "work has stopped
+    // on these until you act", which is read off the ball and is still true.
+    renderDashboard(
+      dashboard({ next_action: "blocked", waiting_tasks: [blocked], queue_broken: DUPLICATE }),
+    );
+
+    expect(screen.getByTestId("next-action")).toHaveTextContent("1 Task Blocked on You");
+    expect(screen.getByRole("alert", { name: "Queue is broken" })).toBeVisible();
+  });
+
+  it("shows no banner at all when the queue is a queue", () => {
+    renderDashboard(dashboard({ next_action: "next_up", next_task: claimable }));
+
+    expect(screen.queryByRole("alert", { name: "Queue is broken" })).not.toBeInTheDocument();
+  });
+
+  it("puts the why-this-one disclosure beside the task it is offering", () => {
+    render(
+      <MemoryRouter>
+        <Dashboard
+          dashboard={dashboard({ next_action: "next_up", next_task: claimable })}
+          projectId="inbox"
+          renderWhyThisOne={() => <p>Because it is first in the high band.</p>}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Because it is first in the high band.")).toBeVisible();
+  });
+});
