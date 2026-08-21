@@ -3,10 +3,11 @@ id: task-189
 title: The gate makes you pay four minutes to learn something it knew in one second,
   and there is no way to resume it
 created: '2026-08-20T06:40:10.935944Z'
-updated: '2026-08-20T06:40:10.936648Z'
-lifecycle: ready
+updated: '2026-08-21T04:12:12.010993Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: developer_experience
@@ -16,6 +17,7 @@ tags:
 - check-gate
 effort: half a day
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: "scripts/check.py runs its 4-minute pytest stage before a block of checks\
@@ -161,3 +163,99 @@ log:
       id: 3f2a8c11-6d45-4b9e-9a03-5c7e1d842b60
       kind: create
       fingerprint: 7aceb480e547f3cb17852fc27f01cd64
+- id: 2
+  ts: '2026-08-21T04:11:45.464227Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 3
+  ts: '2026-08-21T04:11:45.869011Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 4
+  ts: '2026-08-21T04:11:46.712886Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_249c7e73
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 2
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-189` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-189-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_249c7e73.'
+    cwd: C:\projects\agentjobs
+    git_head: ae2883a
+    session_id: e64b10ef
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 5
+  ts: '2026-08-21T04:12:12.010852Z'
+  actor: claude
+  type: note
+  body: "Raised with Jeff at dispatch time, 2026-08-20, and recorded here because\
+    \ it is not in the spec and the chat it came from will not survive the session.\n\
+    \n**This task edits the gate while using the gate to verify itself, and the obvious\
+    \ success measure is the wrong one.** Reordering stages and adding `--from`/`--only`\
+    \ will make the gate faster, and faster is easy to demonstrate. What must also\
+    \ be demonstrated is that it still **catches the same things** \u2014 a failure\
+    \ the old order surfaced at minute five should still fail the new order, just\
+    \ at second twenty instead.\n\nConcretely, the verification worth doing: take\
+    \ a failure of each kind the reordering moves \u2014 a stale generated client,\
+    \ an icon check, an oxlint violation \u2014 introduce it deliberately, and confirm\
+    \ the reordered gate fails on it, with the same verdict, earlier. A stage that\
+    \ got reordered into a position where it silently stops running is the failure\
+    \ mode here, and a timing improvement is exactly what it would look like from\
+    \ the outside.\n\nThe same applies to `--only` and `--from`: the risk is not that\
+    \ they are slow, it is that a resumed run reports green for stages it skipped.\
+    \ Whatever they print must make it unambiguous which stages actually executed,\
+    \ so a green from a partial run cannot be mistaken for a green from a full one.\
+    \ That matters most for the case this task exists to serve \u2014 an agent iterating\
+    \ with `--from`, then reporting the gate passed.\n\nNot filed as an acceptance\
+    \ criterion because the task is claimed and running; treat it as a constraint\
+    \ on how sc-level evidence is presented, not as new scope."
+  data:
+    operation:
+      id: f8b30d17-5a29-4e61-b7c4-08d1a2e30189
+      kind: log_append
+      fingerprint: 55e8de0ea82fb20487cf9e39134007df
