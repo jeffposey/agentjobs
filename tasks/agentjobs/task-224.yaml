@@ -3,11 +3,33 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-21T20:44:44.215203Z'
-lifecycle: closed
-outcome: completed
+updated: '2026-08-21T23:49:42.124823Z'
+lifecycle: ready
+ball: human
+ball_reason: decision
+ball_prompt: 'Third occurrence, 2026-08-21 23:39-23:41 UTC, and the first one the
+  detector this task built actually caught: run_92d3e98c (task-234) carries auth_stalled_at:
+  2026-08-21T23:39:59.562Z and was swept `cancelled` rather than recorded as a success.
+  The detector works; the underlying failure has not stopped, and this occurrence
+  has a different shape from the two researched before it (see the newest progress
+  entry).
+
+
+  Two things are yours to decide, neither started:
+
+  1. Post the comment on the open upstream issue anthropics/claude-code#79685. Nothing
+  has been posted; log entry 8 lists the three findings this investigation adds that
+  the issue does not have.
+
+  2. Whether to open an Anthropic support ticket. Nobody has opened one, and no ticket
+  id exists anywhere on this record.
+
+
+  If the answer to both is ''not yet'', hand the ball back to the agent to keep collecting
+  occurrences, or close this again as completed.'
 archived: false
 priority: high
+queue_position: 11400
 category: reliability
 tags:
 - dispatch
@@ -966,3 +988,98 @@ log:
     outcome: completed
     duration_seconds: 325.458934
     log_path: C:\Users\jpose\.agentjobs\runs\run_48f5e182
+- id: 27
+  ts: '2026-08-21T23:48:57.608869Z'
+  actor: claude
+  type: queue_move
+  body: Reopened into the bottom of the high band.
+  data:
+    band: high
+    from: null
+    to: 11400
+    placement:
+      kind: bottom
+- id: 28
+  ts: '2026-08-21T23:48:57.608896Z'
+  actor: claude
+  type: note
+  body: Updated ball, ball_prompt, ball_reason, lifecycle, outcome.
+  data:
+    fields:
+    - ball
+    - ball_prompt
+    - ball_reason
+    - lifecycle
+    - outcome
+    operation:
+      id: 7bd2abf3-a65f-47d1-9503-da19707f397e
+      kind: update_content
+      fingerprint: 6f9ef383c021cb2a88decb11e5ee1138
+- id: 29
+  ts: '2026-08-21T23:49:42.124512Z'
+  actor: claude
+  type: progress
+  body: "## Reopened: third occurrence, 2026-08-21 23:39\u201323:41 UTC. The detector\
+    \ caught it. The failure has a new shape.\n\nReopened at Jeff's request after\
+    \ it happened a second time today. Evidence below is `~/.claude/daemon.log`, `~/.claude/daemon-auth-status.json`,\
+    \ `.credentials.json` **file mtime only**, and `~/.agentjobs/runs/run_92d3e98c/meta.yaml`.\
+    \ No credential or token values are reproduced.\n\n### What this task built worked,\
+    \ on its first real encounter\n\n`run_92d3e98c` (task-234, session `0fa21703`)\
+    \ carries `auth_stalled_at: 2026-08-21T23:39:59.562Z` and `outcome: cancelled`.\
+    \ It was **not** recorded as a success \u2014 which is precisely the failure entry\
+    \ 8 named, where `run_a1e35ca5` lost six minutes to a dead credential and the\
+    \ ledger said `completed`. Task-234 log entry 12 is the handoff the detector produced,\
+    \ and it names `claude auth login` and says answering inside the session cannot\
+    \ work. That is ac-5 through ac-7 doing their job in production, roughly three\
+    \ hours after merge.\n\n### But the failure itself is not the same failure\n\n\
+    | | 2026-08-21 15:33 (entry 6) | 2026-08-21 23:40 (new) |\n|---|---|---|\n| refresh\
+    \ attempts | 4, over 3m19s | **1** |\n| time to fail | 7.1s, 6.4s, 5.7s, then\
+    \ 1ms | **2ms**, first attempt |\n| session death vs. daemon failure | session\
+    \ died **3m05s after** the refresh started failing | session died **33s before**\
+    \ the scheduled refresh ran at all |\n| recovery | human ran `/login` | **self-healed\
+    \ in 30s** via keychain re-check |\n\nVerbatim, the whole of it:\n\n```\n[2026-08-21T23:40:32.445Z]\
+    \ [supervisor] auth: proactive refresh starting\n[2026-08-21T23:40:32.447Z] [supervisor]\
+    \ auth: proactive refresh failed, signalling re-auth required\n[2026-08-21T23:40:32.456Z]\
+    \ [supervisor] auth: headless daemon cannot complete OAuth \u2014 run `claude\
+    \ auth login` to refresh\n[2026-08-21T23:41:02.459Z] [supervisor] auth: scheduling\
+    \ proactive refresh in 28542s\n[2026-08-21T23:41:02.459Z] [supervisor] auth: token\
+    \ found via keychain re-check\n```\n\nThe refresh fired exactly on schedule \u2014\
+    \ 15:44:50 + 28541s = 23:40:31 \u2014 and failed in **2 milliseconds**. Entry\
+    \ 6 read the 5\u20137 second failures as network round-trips that timed out. Two\
+    \ milliseconds is not a network round-trip. Nothing left the machine.\n\n### The\
+    \ strongest new fact: the credential was rewritten while the daemon believed there\
+    \ was no token\n\n`.credentials.json` mtime is **2026-08-21 18:40:44.602 CDT =\
+    \ 23:40:44.602Z** \u2014 12 seconds after the daemon logged `no token found`,\
+    \ and 18 seconds before its keychain re-check found one. So a *different* process\
+    \ obtained a working credential in the same minute the daemon gave up on refreshing.\n\
+    \nThat, plus the 2ms failure and the 2026-08-20 self-heal, makes the local reading\
+    \ much stronger than the upstream one: **the refresh token was fine; the daemon\
+    \ could not read or write the credential store.** Two `bg` workers were live across\
+    \ the window and the `bg spawned`/`bg settled` lines interleave with the auth\
+    \ lines in the same log, which is the contention shape.\n\n**Not established,\
+    \ and I am not choosing:** which process wrote at 23:40:44, and whether Jeff ran\
+    \ `/login` in that window. If he did not, this is the second unaided self-heal\
+    \ and the local reading is close to settled. That is a question for him, and it\
+    \ is the cheapest thing on this record to answer.\n\n### `daemon-auth-status.json`\
+    \ latched again, exactly as entry 8 warned\n\nIt reads `{\"status\":\"auth_required\"\
+    ,\"since\":1787355632454}` \u2014 23:40:32.454Z \u2014 **six minutes after** the\
+    \ token was found and while this session and several `bg` workers run fine. Second\
+    \ confirmed instance of the latch never being cleared. Entry 8's instruction not\
+    \ to use it as a live gate holds.\n\n### Support and upstream status: unchanged,\
+    \ because nothing has been sent\n\n- **anthropics/claude-code#79685** \u2014 still\
+    \ the right issue, still open, still no maintainer response. **No comment has\
+    \ been posted.** Entry 8 drafted what to say; posting to a public tracker is not\
+    \ an agent's to do.\n- **No Anthropic support ticket exists.** None was opened,\
+    \ none is referenced anywhere on this record, and no ticket id has ever appeared\
+    \ here. If Jeff has opened one outside this repo, nothing on the record knows\
+    \ about it.\n\nThe 2ms failure and the 23:40:44 credential rewrite are new material\
+    \ for that comment and were not available when entry 8 was written.\n\n### Frequency,\
+    \ which is the argument for doing something\n\nThree occurrences in roughly 40\
+    \ hours of heavy dispatch: 2026-08-20 07:48, 2026-08-21 15:33, 2026-08-21 23:40.\
+    \ Two of the three self-healed within 30\u2013120 seconds with no human. The one\
+    \ that did not is the one where a human was awake to fix it.\n"
+  data:
+    operation:
+      id: 4b7d2e91-3c6a-4f18-9e75-0d2a6b41c8f3
+      kind: log_append
+      fingerprint: 54f21d6f095f83776c78df43e7e7a762
