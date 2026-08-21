@@ -3,7 +3,7 @@ id: task-211
 title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
   reorder, and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T03:33:42.590252Z'
+updated: '2026-08-21T03:36:47.787891Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -311,3 +311,53 @@ log:
       id: c5e07a94-2f65-4d18-b1ca-8597a0f50211
       kind: log_append
       fingerprint: 75cdf5050abd6e36eb49c0a3bf28ee2e
+- id: 6
+  ts: '2026-08-21T03:36:47.787736Z'
+  actor: claude
+  type: decision
+  body: "Jeff refined the interaction, 2026-08-20, and it supersedes the reason-at-drag-time\
+    \ proposal in log entry 5:\n\n> \"if I click and drag to reorder, which would\
+    \ stick, it uses AI playbook thing that checks and gives me a reason why I shouldn't\
+    \ do it\"\n\n**The move lands immediately and is authoritative. A playbook then\
+    \ checks it and objects if it has grounds.** Not a confirmation gate \u2014 the\
+    \ drag is never blocked, never awaits a model, and is durable the instant it happens.\n\
+    \n**Why this beats entry 5's version, which is now the rejected alternative.**\
+    \ Reason-at-drag-time shows a static justification for the position of the task\
+    \ being grabbed. Three problems, all fixed by inverting it:\n\n1. **It becomes\
+    \ wallpaper.** An explanation shown on every drag is read the first three times\
+    \ and ignored after. An objection raised only when there is a real one carries\
+    \ signal precisely because it is rare.\n2. **It explains the wrong thing.** The\
+    \ risk in a drag is rarely the task grabbed \u2014 it is what got pushed *down*.\
+    \ Promoting X above Y demotes Y, and Y may be gating three other tasks. A post-hoc\
+    \ check reasons about the *consequences* of the move; a recited prior justification\
+    \ cannot.\n3. **It cannot say anything new.** The prior reason was written before\
+    \ this move existed. Only a check run after the fact can evaluate the queue as\
+    \ it now stands.\n\n**Consequences the design must settle:**\n\n- **Shape.** This\
+    \ is a *reactive* playbook \u2014 triggered by a human action, scoped to one move,\
+    \ returning an objection or silence. That is a different shape from the three\
+    \ batch-over-the-backlog cases this task currently specifies (groom, reorder,\
+    \ flesh-out), and the design does not presently have the category. Add it or reject\
+    \ it explicitly; a reactive playbook is cheap, fast, and probably the most-run\
+    \ one in the product.\n- **Cost and debounce.** Jeff intends to reorder routinely,\
+    \ and a model call per drag is real latency and real money. The check should debounce\
+    \ over a reorder session \u2014 settle, then check once \u2014 rather than firing\
+    \ per drop. State the trigger boundary.\n- **Dismissal is one click each way.**\
+    \ A blocking modal reintroduces the friction this design removed. A non-blocking\
+    \ notice with `undo` and `keep` is the shape; anything heavier will be ignored\
+    \ or resented.\n- **An overruled objection is a stronger anchor than a bare drag,\
+    \ and should be recorded as one.** If Jeff moves a task, reads the objection,\
+    \ and keeps the move, he is at that point the *informed* party \u2014 which is\
+    \ exactly the condition entry 3 says legitimises a human override. That state\
+    \ should be distinguishable in the record from an unexamined drag, and a position\
+    \ held against a stated objection should be close to immovable by a later reorder\
+    \ run. This resolves the trap in entry 5 properly: rather than trying to inform\
+    \ the human before the fact, the system lets the move stand and then earns its\
+    \ authority.\n\nThe anchor mechanism from entry 5 is unchanged \u2014 provenance\
+    \ from the `queue_move` actor, no new field, anchors expiring on material change.\
+    \ What changes is only how the human comes to be informed: after the move, on\
+    \ grounds, instead of before it, always."
+  data:
+    operation:
+      id: e7a29cb6-4187-4f3a-9d1c-a7b06f710211
+      kind: log_append
+      fingerprint: a8c2a4b368b1d9072db9aec08b3312df
