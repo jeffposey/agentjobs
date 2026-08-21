@@ -9,6 +9,11 @@ This guide shows how to apply it with the schema-v2 Python client.
 
 ## Before you write anything: take your own worktree
 
+**One exception, and your prompt already told you if it applies:** an agent sent at a
+task that has open children is a supervisor, writes no code, and takes no worktree. Skip
+to [working a parent task](#working-a-parent-task-you-supervise-the-children-you-do-not-work-them).
+Everyone else, read on.
+
 **A dispatched run starts in the project's shared working tree, and nothing isolates it
 for you.** Other agents may be working that same tree at the same moment, and none of you
 can see the others. A shared checkout has one `HEAD` and one set of files, so a
@@ -50,6 +55,143 @@ are committed there. A run isolated that way could do the work and then be unabl
 record it. So the containment is unchanged in what it protects; taking it is now your
 first act rather than the launcher's. The full argument, with the reproduction, is in
 [the dispatch design](agent-dispatch-design.md).
+
+## Working a parent task: you supervise the children, you do not work them
+
+A task with an open child is an epic. **Whoever holds it starts a separate session per
+child and stays running as the supervisor.** You do not work a child in your own session,
+however small it looks, and you do not work two at once.
+
+Your prompt says which of these you are, because dispatch reads it off the record: a task
+with open children gets the supervisor prompt, and every other task gets the ordinary
+one. There is no flag to set and no judgement call at spawn time.
+
+### Why a session, and where the line is
+
+The reason is context, not parallelism — the loop is still one child at a time.
+
+A session that works four children carries four children's worth of exploration by the
+fourth, and the transcript a handoff was supposed to replace is exactly what the next
+session cannot read. Every child worked in its own session ends with its findings in a
+place the next reader can actually open: the task record. The supervisor's own context
+stays small enough to still be a supervisor at the end of the epic.
+
+**The threshold is: anything that takes a worktree gets a session.** Two reasons to
+prefer it over a size estimate:
+
+- It is checkable. "Is this big enough to be worth a session?" is a judgement made by the
+  party with an interest in saying no; "does this write code?" is not.
+- The worktree boundary is already a session boundary in everything but name. A worktree
+  exists because a shared clone has one `HEAD`; one session moving between two of them is
+  precisely the interleaving the isolation was for.
+
+So: a child that edits files, runs the test gate, or produces a branch gets a session. A
+child that is a decision to record, a question to answer, a task to file, or a record to
+correct does not — that is task bookkeeping, it takes no worktree, and a spawned session
+for it costs more than it saves.
+
+### The supervisor is thin, deliberately
+
+Every layer here is an agent that can be wrong, so a supervisor that re-derives each
+child's context to double-check it is not a safeguard — it is a second agent doing the
+work, with the context cost this rule exists to avoid.
+
+**You read durable output, not transcripts.** A child's record, its acceptance statuses,
+its branch and its diff are the evidence. If the record does not say what happened, the
+answer is a handoff back to the child asking it to say so, not archaeology in its
+scrollback. You are checking that the child reported and verified its work — not
+re-verifying the work.
+
+### Starting a child
+
+Start the child the way you were started: your runner's CLI, backgrounded, carrying the
+ordinary worker prompt with the child's id in it — the one at the top of this guide, not
+the supervisor prompt you were given. With Claude Code that is:
+
+```bash
+claude --bg --remote-control --permission-mode auto "<the worker prompt for that child>"
+```
+
+**The child claims itself**, as the ordinary lifecycle says — worktree, branch, then
+claim. Do not claim it on its behalf: you would take the ownership its own session then
+cannot, and the first thing it did would be to fail a claim on a task it is already
+working.
+
+**You cannot use AgentJobs dispatch to start it, and that is by design.** A dispatch must
+be caused by a stored log entry a human wrote (design §2, D4) — it is what makes
+agent-starts-agent impossible rather than merely capped — and nothing you write satisfies
+that. The consequence is worth knowing rather than discovering: **the children you start
+are your own subprocesses, not AgentJobs runs.** They have no run directory, no entry in
+the run ledger, no `dispatch_result`, and the poller will not settle or reap them. What
+holds instead is the task record, which is what you should be watching anyway.
+
+### Supervision, in the four states a child can be in
+
+**Watching is a mechanism, not an intention.** A supervisor that ends its turn saying it
+will "check back periodically" is not supervising, it is asleep; on 2026-08-19 that is
+exactly what happened, and the human found the parked child before the supervisor did.
+Poll in a backgrounded wait that exits on the condition.
+
+**Poll the task record, not the process.** `idle`/`done` on a session is the wrong
+signal: a child parked on review has a live process and is the one state that needs you.
+`ball` is the signal.
+
+| What you see on the child | What it means | What you do |
+| --- | --- | --- |
+| `ball: agent` | Working | Keep waiting |
+| `ball: human` | Parked | Act now — see below |
+| `lifecycle: closed` + `outcome` | Finished | Verify, then next child |
+| `ball: agent`, process gone, no new log entries | Died | Recover — see below |
+
+**Child finished.** The child closed itself with an outcome — which, where a merge gate
+applies, means its work was approved and merged by the session that did it. Verify from
+the record and the repository: acceptance statuses filled in, branch marked `merged`, the
+merge commit present. Then pick the next eligible child by `dependencies[]` and start it.
+Do not re-run the child's verification; do check that it says it ran it.
+
+**Child parked.** The ball is `human`, and which reason it carries decides whether it is
+yours at all:
+
+- `human/review` is the merge gate. It is not yours to release, whatever you think of the
+  diff, and approving on the human's behalf is the one thing this whole protocol is built
+  to prevent. Your job is to make sure the human knows it is waiting.
+- `human/decision`, `input` or `spec` is a question. Answer it **only** if the parent's
+  own spec already decides it — that is what a parent record is for — and record the
+  answer as an `answer` entry on the child threaded to its question. Anything the parent
+  does not decide is escalated, not guessed.
+
+Either way, **stop starting children**: the next child may depend on the parked one, and
+an unattended run that keeps going past a question is how a wrong answer gets built on.
+If your own turn is ending while the child is parked, hand the parent off first —
+`external/dependency`, naming the child — so the parent record does not read `agent/work`
+while nothing is happening to it.
+
+**Child died.** The session is gone, the child's ball is still `agent`, and nothing new
+was written to its record. Before anything else, look at what survived: the child's branch
+may have commits, and its worktree may have uncommitted work. Then, at most once per
+child, start one fresh session with a `ball_prompt` naming what is already committed and
+what is left. **One restart, then hand the child to a human** — a child that dies twice is
+dying for a reason you cannot see from here, and a supervisor that keeps retrying spends
+a night proving it.
+
+Clean up only what is safe to clean: never force-remove a worktree holding uncommitted
+work. Commit it to the child's own branch first so the next session can see it, or leave
+it and say so in the handoff.
+
+**Parent idle.** While a child runs, do nothing that costs context. That is not idleness
+for its own sake — your context is the resource this rule protects, and spending it while
+waiting is the same failure as working the children yourself, arrived at politely.
+
+Permitted: the poll itself, and writing progress to the parent record. Not permitted:
+starting a second child, reading the running child's diff "to be ready", or pre-loading
+the next child's context. Read the next child's record when it is the next child.
+
+### Closing the parent
+
+When no unfinished child remains, the parent is not automatically done. Evaluate the
+parent's own acceptance criteria against the children's durable evidence, do any
+parent-level verification the record calls for, and close it only where that evidence
+supports it. Children finishing is not the same as the parent's criteria being met.
 
 ## Task YAML is readable generated state
 
