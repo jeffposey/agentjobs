@@ -30,6 +30,7 @@ URI: [aj:enum/LogEntryType](https://github.com/jeffposey/agentjobs/schema/v2/enu
 | instruction | None | A directive to the working agent |
 | dispatch | None | A run was started against this task |
 | dispatch_result | None | How a run ended |
+| queue_move | None | Somebody decided where this task stands in its band (section 5 |
 
 
 
@@ -105,6 +106,14 @@ permissible_values:
     description: How a run ended. `re` threads it back to its `dispatch` entry; `data`
       carries run_id and outcome, plus exit_code, duration_seconds and log_path where
       the runner mode has them. Written by the dispatcher, never trusted to callers.
+  queue_move:
+    text: queue_move
+    description: 'Somebody decided where this task stands in its band (section 5.2).
+      `data` carries band, from, to and the placement that was asked for, plus `moved_with`
+      for a group move and `from_band` when a reprioritise changed the band as well.
+      Rebalances and compactions write none of these: nobody decided anything, and
+      mechanical renumbering would bury the entries that mean something. Written by
+      the manager, never trusted to callers.'
 
 ```
 </details>

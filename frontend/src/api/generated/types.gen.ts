@@ -1103,7 +1103,7 @@ export type LogEntry = {
  *
  * Type of a log entry (design doc section 4).
  */
-export type LogEntryType = 'note' | 'progress' | 'transition' | 'handoff' | 'decision' | 'question' | 'answer' | 'instruction' | 'dispatch' | 'dispatch_result';
+export type LogEntryType = 'note' | 'progress' | 'transition' | 'handoff' | 'decision' | 'question' | 'answer' | 'instruction' | 'dispatch' | 'dispatch_result' | 'queue_move';
 
 /**
  * MutationResult

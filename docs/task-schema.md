@@ -197,17 +197,41 @@ One append-only typed log replaces v1's `status_updates`, `comments` and
 `prompts.followups`.
 
 Types: `note` · `progress` · `transition` · `handoff` · `decision` · `question` ·
-`answer` · `instruction` · `dispatch` · `dispatch_result`.
+`answer` · `instruction` · `dispatch` · `dispatch_result` · `queue_move`.
 
 Integrity rules, enforced: ids are unique and ascending, and `re:` must reference an
 **earlier** entry that exists. An open `question` is one with no `answer` threaded to
 it, which makes unresolved threads queryable (`Task.open_questions()`).
 
-`transition`, `dispatch` and `dispatch_result` are written by the manager, never by a
-caller — the API rejects an attempt to post one directly, because an entry that does not
-accompany a real event is a lie in an append-only record. They are the model's
-`MANAGER_WRITTEN_LOG_TYPES`, and every write path consults that set rather than listing
-types of its own.
+`transition`, `dispatch`, `dispatch_result` and `queue_move` are written by the manager,
+never by a caller — the API rejects an attempt to post one directly, because an entry
+that does not accompany a real event is a lie in an append-only record. They are the
+model's `MANAGER_WRITTEN_LOG_TYPES`, and every write path consults that set rather than
+listing types of its own.
+
+### `queue_move`
+
+Somebody decided where this task stands in its band. Written by `move`, by
+`reprioritize`, by a create that named an explicit placement, and by the generic patch
+paths that change a task's band or reopen it.
+
+```yaml
+- id: 9
+  actor: Jeff Posey
+  type: queue_move
+  body: Moved to the top of the band.
+  data:
+    band: high
+    from: 4200                 # null on a create
+    to: 50
+    placement: {kind: top}     # top | bottom | before | after (+ target)
+    moved_with: [task-121]     # group moves only: who actually moved
+    from_band: medium          # reprioritize only: the band it left
+```
+
+**Rebalances and compactions write none of these.** Nobody decided anything, and forty
+entries saying "300 became 1400" would bury the ones that record a real choice. Both are
+visible in git and in the receipt ledger, which is where mechanical rewrites belong.
 
 ### `dispatch` and `dispatch_result`
 
@@ -355,9 +379,25 @@ each of which appends its own `transition` or `handoff` log entry:
 | `add_log_entry(id, actor=…, type=…, body=…)` | note/progress/decision/question/answer/instruction |
 | `record_dispatch(id, actor=…, run_id=…, argv=…, …)` | appends the `dispatch` entry for a started run |
 | `record_dispatch_result(id, actor=…, run_id=…, outcome=…)` | appends the terminal `dispatch_result` |
+| `move(id, actor=…, before=|after=|top=|bottom=, with_children=…)` | changes where it stands in its band |
+| `reprioritize(id, priority, actor=…, before=|after=|top=)` | changes band and place together |
 
 `update_task()` edits content fields (title, spec, acceptance, tags…) and deliberately
 cannot touch the axes.
+
+**`queue_position` is not a content field either.** There is no `set_queue_position`,
+for the same reason there is no `set_lifecycle`: the number is a consequence of a
+decision, and the decision is what the record should show. A `priority` change arriving
+as an ordinary patch is intercepted and routed through the same placement
+`reprioritize` uses, so an existing caller keeps working and cannot break the
+uniqueness rule by carrying a number into a band it does not belong to.
+
+`get_next_task()` sorts claimable work by `(priority_rank, queue_position)` and by
+nothing else — no timestamp participates, including as a fallback. If the bands it
+would have to read are not a valid queue it raises `QueueCorruptionError` naming the
+tasks and the repair command, rather than answering from some other field.
+`explain_next()` returns the same answer with the work it stands in front of and the
+claimability rule that excluded each.
 
 A round-trip check:
 
