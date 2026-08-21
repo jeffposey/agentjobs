@@ -3,70 +3,13 @@ id: task-189
 title: The gate makes you pay four minutes to learn something it knew in one second,
   and there is no way to resume it
 created: '2026-08-20T06:40:10.935944Z'
-updated: '2026-08-21T04:52:55.031439Z'
+updated: '2026-08-21T04:57:24.500612Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review `chore/task-189-gate-order-and-resume` (worktree `C:/projects/worktrees/aj-189`,
-  three commits on top of `main` at 21a359c). Nothing is merged.
-
-
-  **What to look at, in the order that matters**
-
-
-  1. `scripts/check.py` -- the `stages()` table is the change. Ten named stages, cheapest
-  first. Are `api`, `icons` and `oxlint` in the right place above `pytest`, and are
-  the two dependencies I kept (`build` before `e2e`, schema before client inside `api`)
-  the only real ones?
-
-  2. `frontend/scripts/check-generated-client.mjs` -- replaces `assert-generated-clean.mjs`.
-  The decision is log entry 7: the gate runs before the commit, so *stale* fails and
-  *uncommitted* is a note. This is the judgement call in the task and the one place
-  I would most want you to disagree if you are going to.
-
-  3. `ENGINEERING.md` -- the stage table with measured costs, and the paragraph that
-  states the commit ordering. This is what a future agent reads instead of rediscovering
-  any of it.
-
-
-  **Evidence**
-
-
-  - Full gate green, all ten stages, 365.0s: black 0.5, ruff 0.1, mypy 1.5, api 4.5,
-  icons 3.2, oxlint 0.5, pytest 326.5 (2190 tests), vitest 4.7 (164 tests), build
-  3.6, e2e 20.0 (16 tests). The table in ENGINEERING.md is that run.
-
-  - The reordering still catches what it used to, verified by breaking things on purpose
-  and running the *unqualified* gate: a misformatted file failed `black` at 2.7s;
-  a hand-edited `types.gen.ts` failed `api` at 6.2s (was ~4m40s); a corrupted `icon-192.png`
-  failed `icons` at 8.9s (was ~4m40s). Same verdicts, same stages, earlier.
-
-  - Following the new stale message exactly -- review the regenerated files, commit
-  them -- passes on the next run. That was the specific dead end.
-
-  - `--from vitest` ran 3 of 10 in 28.8s and printed `PARTIAL RUN: 3 of 10 stages
-  ... This is not the gate` at the top and again at the bottom.
-
-  - 26 new tests in `tests/test_check_gate.py`, 10 in `frontend/scripts/check-generated-client.test.mjs`.
-
-
-  **Two things you should decide, neither of which I acted on**
-
-
-  - **The `oxlint` stage cannot fail** (log entry 8). oxlint reports at warning severity
-  and is run without `--deny-warnings`, so it exits 0 whatever it finds -- reproduced
-  with `debugger;` and with a `const` reassignment. This predates the task and fixing
-  it changes *what* is checked, which the constraints rule out here. Worth a follow-up
-  task? I have not filed one.
-
-  - **Uncommitted generated files no longer fail the gate.** I am confident this is
-  right and the reasoning is in log entry 7, but it is the one place where the gate
-  stops refusing something it used to refuse, so it deserves your eye rather than
-  mine.
-
-
-  Not pushed. `main` has moved since I branched (task-164, task-211); I will rebase
-  onto it at merge time, on your approval.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 category: developer_experience
@@ -534,3 +477,68 @@ log:
     outcome: completed
     duration_seconds: 2469.071664
     log_path: C:\Users\jpose\.agentjobs\runs\run_249c7e73
+- id: 12
+  ts: '2026-08-21T04:57:21.373674Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 13
+  ts: '2026-08-21T04:57:23.304888Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 14
+  ts: '2026-08-21T04:57:24.500439Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_4008e36b
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 13
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-189` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-189-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_4008e36b.'
+    cwd: C:\projects\agentjobs
+    git_head: d0c5103
+    session_id: ba4cb674
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
