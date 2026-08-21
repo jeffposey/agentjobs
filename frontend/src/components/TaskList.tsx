@@ -1,9 +1,10 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import type { BrokenTaskFile, QueueProblemRead, TaskRead } from "../api/types";
 import { BrokenFiles } from "./BrokenFiles";
 import { DependencyState } from "./DependencyState";
+import { startDragAutoScroll } from "./dragAutoScroll";
 import { QueueBroken } from "./QueueBroken";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 import {
@@ -40,6 +41,10 @@ const PRIORITY_CLASSES: Record<string, string> = {
   medium: "bg-yellow-900 text-yellow-200",
   low: "bg-slate-700 text-slate-200",
 };
+/**
+ * The drag payload's MIME type. Private on purpose -- see the `onDragStart` comment.
+ */
+const DRAG_TYPE = "application/x-agentjobs-task-id";
 const STEP_KEYS: Record<string, StepDirection> = {
   ArrowUp: "up",
   ArrowDown: "down",
@@ -216,6 +221,17 @@ export function TaskList({
   // Nothing is said twice: where the queue is broken the banner above has already said
   // it at more length than a footnote could.
   const unavailableReason = brokenBands.size > 0 ? null : reorderUnavailable;
+
+  // Scroll the page while a drag is held near the top or bottom of the window.
+  //
+  // Keyed on `dragging`, so the loop exists only for a drag this list started: a link
+  // or a file dragged in from outside never moves the page. `startDragAutoScroll` also
+  // tears itself down on drop and dragend, so the loop cannot outlive the gesture even
+  // if this state were somehow left set.
+  useEffect(() => {
+    if (!dragging) return;
+    return startDragAutoScroll();
+  }, [dragging]);
 
   // Put focus back on the handle of the task that just moved.
   //
@@ -431,12 +447,19 @@ export function TaskList({
                             // What is being dragged is held in state, not read back out
                             // of the payload: a browser hides `dataTransfer` data during
                             // dragover, which is exactly when the drop target has to
-                            // decide whether it will accept. The payload is still set,
-                            // for the drag image and for anything outside this table.
+                            // decide whether it will accept.
+                            //
+                            // The payload is still set, because some browsers will not
+                            // start a drag without one -- but under a private type
+                            // rather than `text/plain`. As plain text the row could be
+                            // dropped into any other application on the machine, which
+                            // is not a thing anybody wants a queue position to do. A
+                            // type nothing else understands leaves the gesture with
+                            // nowhere to deposit itself outside this table.
                             setDragging(row.task.id);
                             if (event.dataTransfer) {
                               event.dataTransfer.effectAllowed = "move";
-                              event.dataTransfer.setData("text/plain", row.task.id);
+                              event.dataTransfer.setData(DRAG_TYPE, row.task.id);
                             }
                           }}
                           onDragEnd={() => setDragging(null)}

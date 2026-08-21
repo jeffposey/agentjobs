@@ -213,3 +213,65 @@ test("a cross-band drag asks before it reprioritises", async ({ page, request })
   await page.reload();
   await expect.poll(() => order(page, [high, low])).toEqual([high, low]);
 });
+
+/**
+ * The page scrolls while a drag is held at an edge -- the one claim jsdom cannot make.
+ *
+ * `dragAutoScroll.test.ts` drives the loop with a hand-turned frame clock and a fake
+ * scroller, which settles the arithmetic and the teardown but says nothing about
+ * whether a real browser fires `dragover` at the document during a drag, or whether
+ * `window.scrollBy` moves this page. That is what this covers.
+ *
+ * It is still not the acceptance evidence for "a person can now reach an off-screen
+ * row": Playwright's drag goes in through `Input.setInterceptDrags`, below the
+ * operating system's drag loop, and task-225 is the incident that says what happens
+ * when that distinction is forgotten. A hand on a mouse in the seeded sandbox is the
+ * evidence for that, and it is recorded on task-229.
+ */
+test("scrolls the page while a drag is held at the bottom edge, and stops on release", async ({
+  page,
+  request,
+}) => {
+  // Enough rows that the document is taller than the window whatever else has been
+  // seeded, and in `low` so this does not crowd the bands the drags above assert over.
+  await seed(
+    request,
+    Array.from({ length: 30 }, (_, index) => `Autoscroll filler ${index}`),
+    "low",
+  );
+
+  await page.goto("/app/p/_local/tasks");
+  const grip = page.locator("[id^=queue-grip-]").first();
+  await expect(grip).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  expect(
+    await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight),
+  ).toBeGreaterThan(200);
+
+  const box = await grip.boundingBox();
+  const viewport = page.viewportSize();
+  if (!box || !viewport) throw new Error("No grip box or viewport.");
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  // Two moves, because Chromium starts the drag on the second one. Both land inside
+  // the bottom edge zone, which is where the loop is supposed to take over.
+  await page.mouse.move(box.x + box.width / 2, viewport.height - 6, { steps: 15 });
+  await page.mouse.move(box.x + box.width / 2 + 2, viewport.height - 4, { steps: 5 });
+
+  // Held still from here on. The loop must keep scrolling from the last reading rather
+  // than needing a stream of events, because a held hand does not produce one.
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+
+  await page.mouse.up();
+  // Where the release happens to land is not this test's subject: the top row and the
+  // rows at the bottom edge are in different bands, so the drop may raise the
+  // confirmation. Clear it, so the panel appearing cannot be mistaken for the loop
+  // still moving the page.
+  const confirm = page.getByRole("alertdialog", { name: "Confirm a priority change" });
+  if (await confirm.isVisible()) await confirm.getByRole("button", { name: "Cancel" }).click();
+
+  const settled = await page.evaluate(() => window.scrollY);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.scrollY)).toBe(settled);
+});
