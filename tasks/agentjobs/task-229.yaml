@@ -3,7 +3,7 @@ id: task-229
 title: Drag-to-reorder does not scroll the page, so you can only move a task as far
   as the viewport
 created: '2026-08-21T20:09:48.827525Z'
-updated: '2026-08-21T21:10:31.754948Z'
+updated: '2026-08-21T21:11:01.853577Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -514,3 +514,13 @@ log:
       id: e0ad1b29-8da6-4f1c-b274-af5dbe1a00aa
       kind: close
       fingerprint: a5f8b7533e699f18de4c0e8b2c431d40
+- id: 15
+  ts: '2026-08-21T21:11:01.853323Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 5
+  data:
+    run_id: run_85e26f5b
+    outcome: completed
+    duration_seconds: 3160.193167
+    log_path: C:\Users\jpose\.agentjobs\runs\run_85e26f5b
