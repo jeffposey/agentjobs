@@ -3,7 +3,7 @@ id: task-202
 title: Give every registered project its MCP server, so a dispatched session has the
   tools
 created: '2026-08-20T22:27:11.789778Z'
-updated: '2026-08-21T02:58:09.719134Z'
+updated: '2026-08-21T02:58:41.083943Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -801,3 +801,13 @@ log:
       id: f2064a8e-9c71-4d3b-a5e0-1b8d47c96032
       kind: close
       fingerprint: 62e8861ab88f6604ff3a2117a18d70a0
+- id: 21
+  ts: '2026-08-21T02:58:41.083789Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 16
+  data:
+    run_id: run_fa103400
+    outcome: completed
+    duration_seconds: 697.238051
+    log_path: C:\Users\jpose\.agentjobs\runs\run_fa103400
