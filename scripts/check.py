@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import os
 import shutil
 import subprocess
 import sys
+import time
+from dataclasses import dataclass
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+FRONTEND = ROOT / "frontend"
 
 # The one setup problem an activated virtualenv can explain, and so the only one its
 # remedy should be offered for.
@@ -147,12 +151,166 @@ def remedy(problems: list[str]) -> str:
     return "Run `python scripts/bootstrap.py`, then `poetry run python scripts/check.py`."
 
 
-def main() -> int:
-    """Run the Python checks, then the frontend's generated, lint, test and build ones.
+PYTHON = "python"
+NPM = "npm"
 
-    Format, lint and types run before pytest: together they take about seven seconds
+
+@dataclass(frozen=True)
+class Stage:
+    """One check the gate runs, named so it can be asked for on its own."""
+
+    name: str
+    args: tuple[str, ...]
+    cwd: Path
+    what: str
+
+    def command(self, npm: str) -> list[str]:
+        """The argv to run, with the two runners resolved at call time.
+
+        `sys.executable` and the npm shim are both properties of the machine rather
+        than of the stage, so the table below stays a plain description of *what* runs
+        and this decides *how*.
+        """
+        if self.args[0] == PYTHON:
+            return [sys.executable, *self.args[1:]]
+        return [npm, *self.args[1:]]
+
+
+def stages() -> list[Stage]:
+    """Every check, cheapest first, subject to the dependencies that are real.
+
+    The ordering rule is one sentence: **a stage that can answer in seconds runs before
+    one that takes minutes.** ENGINEERING.md already made that argument for Black, Ruff
+    and MyPy and then stopped, leaving the frontend's own second-long hygiene checks --
+    the OpenAPI match, the generated client, the icons, oxlint -- stranded behind a
+    four-minute pytest run. Task-189 measured what that cost: four full gate runs, about
+    sixteen minutes, to surface three failures, two of which were knowable in a second.
+
+    Two orderings survive the reshuffle because they are genuine dependencies rather
+    than habit: `build` writes the bundle that `e2e` then drives, and `api` exports the
+    OpenAPI document before anything compares a generated client against it. Every other
+    stage is independent, so its position is purely a question of what it costs.
+
+    `pytest` sits where the cheap block ends, and the last three follow it in ascending
+    order. Vitest and the build are seconds rather than minutes and could in principle
+    join the cheap block; they are not there because both depend on the frontend
+    toolchain being installed and neither has ever caught something the Python suite
+    would have hidden. If that changes, move them -- the cost of each is printed at the
+    end of every run, which is the whole point of printing it.
+    """
+    return [
+        Stage("black", (PYTHON, "-m", "black", "--check", "."), ROOT, "Python formatting"),
+        Stage("ruff", (PYTHON, "-m", "ruff", "check", "."), ROOT, "Python lint"),
+        Stage("mypy", (PYTHON, "-m", "mypy", "."), ROOT, "Python types"),
+        Stage("api", (NPM, "run", "check:api"), FRONTEND, "OpenAPI document and generated client"),
+        Stage("icons", (NPM, "run", "check:icons"), FRONTEND, "generated PWA icons"),
+        Stage("oxlint", (NPM, "run", "lint"), FRONTEND, "frontend lint"),
+        Stage("pytest", (PYTHON, "-m", "pytest"), ROOT, "Python test suite"),
+        Stage("vitest", (NPM, "run", "test"), FRONTEND, "frontend component suite"),
+        Stage("build", (NPM, "run", "build"), FRONTEND, "typecheck and production build"),
+        Stage("e2e", (NPM, "run", "test:e2e"), FRONTEND, "Playwright, against a live server"),
+    ]
+
+
+def select(all_stages: list[Stage], only: list[str], start: str | None) -> list[Stage]:
+    """Narrow the gate for an iteration, in the table's order whatever order was asked.
+
+    Selection exists for the loop between a late failure and its fix, and for nothing
+    else. The unqualified `scripts/check.py` still runs every stage, and that is the
+    form the commit rule in ENGINEERING.md names -- a flag that could be mistaken for
+    the gate would be a way to commit past it.
+
+    Unknown names raise rather than being skipped. A typo that silently selects nothing
+    would report a green gate that ran no checks, which is the worst outcome available
+    here.
+    """
+    known = {stage.name: stage for stage in all_stages}
+    for name in [*only, *([start] if start else [])]:
+        if name not in known:
+            raise ValueError(f"unknown stage {name!r}; known stages: {', '.join(known)}")
+
+    if only:
+        wanted = set(only)
+        return [stage for stage in all_stages if stage.name in wanted]
+    if start:
+        index = [stage.name for stage in all_stages].index(start)
+        return all_stages[index:]
+    return all_stages
+
+
+def format_timings(timings: list[tuple[str, float]]) -> str:
+    """A per-stage cost table, printed by every run so nobody has to instrument one.
+
+    The whole argument of task-189 is a measurement, and a measurement that needs a
+    special invocation to obtain is one that stops being taken. Re-measuring the budget
+    in ENGINEERING.md is now a matter of reading the bottom of any gate run.
+    """
+    width = max((len(name) for name, _ in timings), default=len("total"))
+    lines = [f"  {name.ljust(width)}  {seconds:6.1f}s" for name, seconds in timings]
+    total = sum(seconds for _, seconds in timings)
+    lines.append(f"  {'total'.ljust(width)}  {total:6.1f}s")
+    return "\n".join(lines)
+
+
+def scope_note(selected: list[Stage], all_stages: list[Stage]) -> str:
+    """Say, in both directions, how much of the gate this run is.
+
+    The risk `--only` and `--from` introduce is not that a partial run is slow; it is
+    that its green is indistinguishable from the gate's green, so an agent iterating
+    with `--from e2e` reports "the gate passed" having run one stage of ten. So a
+    partial run names every stage it skipped, and says outright that it is not the gate.
+
+    A full run says so too. "Ran every stage" is the sentence somebody quotes, and it
+    should only be printable by a run that did.
+    """
+    if len(selected) == len(all_stages):
+        return f"Ran every stage ({len(all_stages)} of {len(all_stages)})."
+    ran = ", ".join(stage.name for stage in selected)
+    skipped = ", ".join(stage.name for stage in all_stages if stage not in selected)
+    return (
+        f"PARTIAL RUN: {len(selected)} of {len(all_stages)} stages. Ran {ran}.\n"
+        f"Skipped {skipped}. This is not the gate -- run `scripts/check.py` with no "
+        "arguments before committing."
+    )
+
+
+def parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run the repository's verification gate.",
+        epilog=(
+            "With no arguments every stage runs, and that is the form the commit rule "
+            "refers to. --only and --from exist for iterating on a late failure."
+        ),
+    )
+    parser.add_argument(
+        "--only",
+        action="append",
+        default=[],
+        metavar="STAGE",
+        help="run just these stages (repeatable, or comma-separated)",
+    )
+    parser.add_argument(
+        "--from",
+        dest="start",
+        metavar="STAGE",
+        help="run this stage and every stage after it",
+    )
+    parser.add_argument("--list", action="store_true", help="print the stages and exit")
+    args = parser.parse_args(argv)
+    args.only = [name for group in args.only for name in group.split(",") if name]
+    if args.only and args.start:
+        parser.error("--only and --from cannot be combined")
+    return args
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the gate, cheapest stage first, and say what each stage cost.
+
+    Format, lint and types run before pytest: together they take a handful of seconds
     and they fail on things pytest will never notice, so paying four minutes to find a
-    misformatted file is the wrong order.
+    misformatted file is the wrong order. Task-189 carried that reasoning through the
+    frontend's own second-long checks, which used to sit behind pytest; `stages()` has
+    the order and the two dependencies that constrain it.
 
     They are in the gate rather than only in ENGINEERING.md's pre-commit list because
     that list is documentation of an intention and this is the thing anyone actually
@@ -161,6 +319,18 @@ def main() -> int:
     and a `black` drift on `main`, both of which had survived precisely because nothing
     enforced them.
     """
+    args = parse_args(argv)
+    try:
+        selected = select(stages(), args.only, args.start)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    if args.list:
+        for stage in stages():
+            print(f"  {stage.name:<8} {stage.what}")
+        return 0
+
     npm = shutil.which("npm.cmd") or shutil.which("npm")
     if npm is None:
         print("npm is required to run the frontend checks.", file=sys.stderr)
@@ -178,14 +348,30 @@ def main() -> int:
     if note is not None:
         print(f"\n{note}", flush=True)
 
-    try:
-        run([sys.executable, "-m", "black", "--check", "."], cwd=ROOT)
-        run([sys.executable, "-m", "ruff", "check", "."], cwd=ROOT)
-        run([sys.executable, "-m", "mypy", "."], cwd=ROOT)
-        run([sys.executable, "-m", "pytest"], cwd=ROOT)
-        run([npm, "run", "check"], cwd=ROOT / "frontend")
-    except subprocess.CalledProcessError as exc:
-        return exc.returncode
+    scope = scope_note(selected, stages())
+    print(f"\n{scope}", flush=True)
+
+    timings: list[tuple[str, float]] = []
+    for stage in selected:
+        started = time.perf_counter()
+        try:
+            run(stage.command(npm), cwd=stage.cwd)
+        except subprocess.CalledProcessError as exc:
+            timings.append((stage.name, time.perf_counter() - started))
+            print(f"\nFailed at stage '{stage.name}'.", file=sys.stderr)
+            if len(timings) > 1:
+                print(
+                    f"Fix it, then resume with `--from {stage.name}` instead of paying "
+                    "for the stages above a second time.",
+                    file=sys.stderr,
+                )
+            print(f"\n{format_timings(timings)}", flush=True)
+            return exc.returncode
+        timings.append((stage.name, time.perf_counter() - started))
+
+    # Repeated after the stages, not only before them: the line before is thousands of
+    # lines of pytest output away by now, and the last thing printed is what gets read.
+    print(f"\n{format_timings(timings)}\n\n{scope}", flush=True)
     return 0
 
 
