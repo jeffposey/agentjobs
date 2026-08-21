@@ -1,0 +1,147 @@
+schema: 2
+id: task-226
+title: '"Request changes" is four different acts wearing one button, and the record
+  says "revise" for all of them'
+created: '2026-08-21T16:19:49.631386Z'
+updated: '2026-08-21T16:19:49.971977Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+queue_position: 3500
+category: ux
+tags:
+- gui
+- workflow
+- schema
+- handoff
+effort: a vocabulary decision first; the UI and schema changes are small once it is
+  made
+assignment:
+  eligible: []
+spec:
+  summary: 'The one control a human has for sending a task back to an agent is labelled
+    "request changes" and always writes ball_reason: revise. In one night it was used
+    to reject work, to grant a permission, to re-brief a parked run, and to impose
+    a wait condition. Three of those four were not revisions, and the record does
+    not distinguish them.'
+  intent: "The reason axis exists so a task says why it moved. When every human-to-agent\
+    \ handoff collapses to one value, that axis stops carrying information at exactly\
+    \ the point a human intervened \u2014 which is the point a later reader most needs\
+    \ it. The label is the visible symptom; the lost distinction is the cost."
+  description: "## The observation\n\nSending a task back to an agent is a single\
+    \ control labelled **\"request changes\"**, and it always produces `ball: agent`\
+    \ / `ball_reason: revise`. That is the only human-to-agent handoff the UI offers.\n\
+    \nJeff, 2026-08-21, on using it for the third distinct purpose in an evening:\
+    \ *\"we need to rename that button, its used for more situations.\"*\n\n## Four\
+    \ uses, one night, all recorded as `revise`\n\nEvery one of these is a real entry\
+    \ in this corpus:\n\n1. **Reject work / ask for changes** \u2014 the labelled\
+    \ purpose. This is the only one the name fits.\n2. **Grant a permission so a stuck\
+    \ run can proceed.** task-081 log entry 35: *\"I told it to merge from request\
+    \ changes in gui and that worked fine.\"* Nothing was being revised; a blocked\
+    \ run was being released.\n3. **Re-brief a parked run.** task-222 log entry 13:\
+    \ the line had been typed by hand, and the note told the run what to do instead.\
+    \ That is a new instruction, not a correction of work.\n4. **Impose a wait condition.**\
+    \ task-081 log entry 25: *\"Wait for autonomous dispatch fixes before we try this\
+    \ again.\"* That is a stop with a release condition. It was recorded as `revise`,\
+    \ and a later session had to reinterpret it \u2014 entry 26 reads *\"Jeff's instruction\
+    \ was ... a condition, not a stop\"* \u2014 because the record did not say which\
+    \ it was.\n\nCase 4 is the one that shows the cost. A cold reader could not evaluate\
+    \ the condition from the record; a session had to reconstruct the intent and rewrite\
+    \ the prompt so the next reader could act on it. That is the resumption contract\
+    \ failing.\n\n## What is actually wrong\n\nTwo separable problems, and the second\
+    \ is the one that matters:\n\n- **The label.** \"Request changes\" describes one\
+    \ of four things the control does, so it reads as wrong three times out of four.\n\
+    - **The vocabulary.** `agent` currently admits `work` and `revise`. Every human\
+    \ intervention lands on `revise` because there is nowhere else for it to go. The\
+    \ schema is not recording a poor choice; it is recording the only choice.\n\n\
+    So renaming the button alone would be cosmetic. The question to settle first is\
+    \ whether the agent-side reason vocabulary should grow \u2014 candidates like\
+    \ `answer` (the human replied to a question), `unblock` (a permission or dependency\
+    \ was cleared), `redirect` (new instructions, prior work stands), and `hold` (stop,\
+    \ with a stated release condition) \u2014 and only then what the UI should call\
+    \ each.\n\nWeigh that against schema churn: every added reason is a value every\
+    \ client must handle, and `docs/task-schema.md` and the validator both encode\
+    \ the union. A defensible outcome is \"rename the button, keep one reason\" \u2014\
+    \ but it should be a decision with reasoning, not the current default, which nobody\
+    \ chose.\n\n## Relationship to task-016\n\n**task-016 is the inbound half and\
+    \ this is the outbound half.** 016 stops the review panel offering *Approve* on\
+    \ a task whose `ball_reason` is `question` \u2014 it makes the panel's available\
+    \ actions depend on why the ball arrived. This task is about what the panel *writes*\
+    \ when the human acts, and whether one value can carry four intents. They touch\
+    \ the same component and should probably be read together, but neither subsumes\
+    \ the other: 016 could ship in full and every human handoff would still be recorded\
+    \ as `revise`."
+  constraints: "- Settle the vocabulary question before touching the label; a rename\
+    \ over an unchanged schema is cosmetic.\n- Any new reason must be added through\
+    \ the schema's existing discriminated union and reach the validator, docs/task-schema.md,\
+    \ the generated client, MCP, and the CLI \u2014 a reason only the React app knows\
+    \ about is worse than none.\n- Do not add a generic free-text reason. The axis\
+    \ is queryable because it is a closed set.\n- Existing `revise` entries stay valid\
+    \ and are not migrated; whatever is added is additive."
+  out_of_scope: "Structured multiple-choice questions answered in the GUI (task-017).\
+    \ Making the panel's offered actions ball_reason-aware (task-016). The human-side\
+    \ reason vocabulary \u2014 spec, review, decision, approval, input \u2014 which\
+    \ is not implicated here."
+  context:
+  - path: docs/task-schema.md
+    why: The handoff target union and the agent-side reason vocabulary that currently
+      offers only work and revise.
+  - path: frontend/src/components/
+    why: The review panel that renders the single request-changes control and composes
+      the handoff it writes.
+  - path: tasks/agentjobs/task-081-task-selection-ranking.yaml
+    why: Log entries 25, 26 and 35 are three of the four uses, and 26 is where a session
+      had to reinterpret a revise that was actually a hold.
+  - path: tasks/agentjobs/task-222.yaml
+    why: Log entry 13 is the re-brief case, and entry 14 had to supersede it in prose
+      because the record could not say it was a new instruction.
+acceptance:
+- id: ac-1
+  text: "A decision is recorded on whether the agent-side reason vocabulary grows,\
+    \ with the rejected alternative \u2014 including the defensible option of keeping\
+    \ one reason and renaming only the control."
+  status: pending
+- id: ac-2
+  text: If reasons are added, each reaches the schema, validator, docs/task-schema.md,
+    REST, the generated client, MCP and the CLI, not just the React app.
+  status: pending
+- id: ac-3
+  text: The control's label or labels match what the human is actually doing in each
+    case, and a human choosing between them can tell which is which without reading
+    the schema.
+  status: pending
+- id: ac-4
+  text: "A reader of a task where a human sent it back can tell from the record alone\
+    \ whether work was rejected, a question answered, a blocker cleared, or a hold\
+    \ imposed \u2014 the failure task-081 entry 26 had to repair in prose."
+  status: pending
+- id: ac-5
+  text: Existing revise entries still load and still validate; nothing in the corpus
+    is migrated.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-016
+  type: related
+  note: 'The inbound half: which actions the panel offers given ball_reason. This
+    task is what it writes.'
+- task: task-017
+  type: related
+  note: Structured questions answered in the GUI would be one of the intents this
+    vocabulary needs a name for.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T16:19:49.971220Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: "c7d92\u064140-3e81-4b56-a09d-6f4e2c8b1573"
+      kind: create
+      fingerprint: ac5b8fdba523b7b1e555cda850ef4514
