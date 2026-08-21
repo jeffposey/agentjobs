@@ -3,7 +3,7 @@ id: task-189
 title: The gate makes you pay four minutes to learn something it knew in one second,
   and there is no way to resume it
 created: '2026-08-20T06:40:10.935944Z'
-updated: '2026-08-21T04:12:12.010993Z'
+updated: '2026-08-21T04:32:17.849369Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -114,9 +114,10 @@ spec:
   context:
   - path: scripts/check.py
     why: 'The gate itself: stage order, and where a --from/--only would live.'
-  - path: frontend/scripts/assert-generated-clean.mjs
-    why: The check that asserts against HEAD and reports it as staleness. Both halves
-      of defect 2 are here.
+  - path: frontend/scripts/check-generated-client.mjs
+    why: The replacement for assert-generated-clean.mjs. Snapshots the generated directory,
+      regenerates it, and answers 'does it match the schema' and 'is it committed'
+      separately, with a different message for each.
   - path: ENGINEERING.md
     why: "Documents the order, the ~5 minute budget, and the argument for putting\
       \ cheap checks first \u2014 which this task extends. Also the 'run the gate\
@@ -150,7 +151,9 @@ dependencies:
   note: 'Gate concurrency: a re-run can block a second worktree entirely, which compounds
     the cost of every wasted run here.'
 links: []
-branches: []
+branches:
+- name: chore/task-189-gate-order-and-resume
+  status: active
 log:
 - id: 1
   ts: '2026-08-20T06:40:10.935991Z'
@@ -259,3 +262,54 @@ log:
       id: f8b30d17-5a29-4e61-b7c4-08d1a2e30189
       kind: log_append
       fingerprint: 55e8de0ea82fb20487cf9e39134007df
+- id: 6
+  ts: '2026-08-21T04:27:32.700619Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: c767dd77-d5d3-4e43-aea8-267054ca9855
+      kind: update_content
+      fingerprint: 4448620f25d547d4040c4fd17abafb28
+- id: 7
+  ts: '2026-08-21T04:29:51.232830Z'
+  actor: claude
+  type: decision
+  body: "**The gate runs before the commit; the generated-client check therefore compares\
+    \ against the working tree, not `HEAD`.**\n\nThe constraint asked which side of\
+    \ the contradiction wins. It is the pre-commit rule.\n\n`frontend/scripts/assert-generated-clean.mjs`\
+    \ ran `openapi-ts` and then `git diff --quiet -- src/api/generated`, which compares\
+    \ the working tree to **HEAD**. That conflated two questions and answered only\
+    \ one of them out loud. It is replaced by `frontend/scripts/check-generated-client.mjs`,\
+    \ which:\n\n1. snapshots `src/api/generated`, regenerates it, and compares \u2014\
+    \ *does the client match the schema?* This fails the gate. The message names the\
+    \ changed files and says the regenerated output is already on disk and needs to\
+    \ go in the commit. It deliberately does **not** say \"run `npm run generate:api`\"\
+    , because the check has just run it, and that instruction is what turned a failure\
+    \ into a dead end.\n2. asks `git status` separately \u2014 *is it committed?*\
+    \ This is **not** a failure. It prints a note naming the paths.\n\nWhy the second\
+    \ is not a failure: a gate that requires a commit to already exist can never be\
+    \ the last thing you run before making one, and the documented workaround \u2014\
+    \ commit the generated files first \u2014 means committing something no gate has\
+    \ inspected. Asking whether the client matches *this working tree's* schema is\
+    \ also strictly stronger than asking whether it matches HEAD's, which may be arbitrarily\
+    \ old, and it aligns the client check with `check:api-schema`, which has always\
+    \ compared against the file on disk.\n\n**Rejected alternative:** keep failing\
+    \ on uncommitted output and document \"commit generated files, then run the gate\"\
+    . Rejected because it inverts the pre-commit rule for one stage, and because it\
+    \ buys nothing \u2014 the invariant that matters is client-matches-schema, which\
+    \ is fully checked without it. An incomplete commit is still caught: any checkout\
+    \ that does not carry the regenerated files (a fresh clone, CI, a colleague's)\
+    \ regenerates and fails at question 1.\n\nBoth paths verified by hand against\
+    \ the real check, not only in unit tests. Corrupting a generated file produced\
+    \ the stale message; regenerating after an `openapi.json` edit produced the uncommitted\
+    \ note; following the stale message exactly (review, then commit) passed on the\
+    \ next run."
+  data:
+    operation:
+      id: f274ddea-7847-4dbc-a61e-d4f21960a5bc
+      kind: log_append
+      fingerprint: 3c3d1f1ae4480593b45d6669fcb0f60f
