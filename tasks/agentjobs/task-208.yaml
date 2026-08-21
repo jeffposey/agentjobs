@@ -2,35 +2,13 @@ schema: 2
 id: task-208
 title: 'Queue position: MCP verbs, the rule agents follow, and the reference docs'
 created: '2026-08-20T23:31:46.849335Z'
-updated: '2026-08-21T15:52:14.996764Z'
+updated: '2026-08-21T15:55:53.599153Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Review branch `feat/task-208-queue-mcp-and-rules` (two commits, f218874\
-  \ and 92ad88b, on top of 17c7145). Nothing is merged. `git diff main..feat/task-208-queue-mcp-and-rules`\
-  \ is the whole of it: 18 files, +725/-39.\n\nWhat to look at, in the order I would:\n\
-  \n1. **The `task_queue_move` schema** in `src/agentjobs/mcp/mutation_tools.py` \u2014\
-  \ this is the one call worth arguing about. It takes `placement` as a discriminated\
-  \ union (`{where: before|after, neighbour: <id>}` or `{where: top|bottom}`) rather\
-  \ than the four flat before/after/top/bottom flags that REST, the CLI and the Python\
-  \ client all use. The union makes `before` plus `top` fail validation instead of\
-  \ silently picking one, and it matches the handoff-target union already in that\
-  \ module. The cost is one more shape for the same verb across surfaces. If you would\
-  \ rather it mirrored the flags, say so and it is a small change.\n2. **The section\
-  \ 11 rule** in `ALLAGENTS.md` (first subsection of Task Management) and `docs/agent-workflow.md`\
-  \ (just before the canonical agent loop). Both put the move first and the three\
-  \ prohibitions after, per the spec's constraint. Read whether it lands as a rule\
-  \ you would actually follow.\n3. **The new `queue_broken` error code** \u2014 log\
-  \ entry 9 has the reasoning and both rejected alternatives. This is the one thing\
-  \ here the spec did not ask for.\n\nVerification: `scripts/check.py` with no arguments,\
-  \ all ten stages green, 490s. 15 new tests. I have not exercised the tool from a\
-  \ live MCP client \u2014 the packaged-protocol test drives `agentjobs mcp` as a\
-  \ real subprocess over the wire and asserts the fifteen-tool inventory, but a real\
-  \ Claude Code or Codex session calling `task_queue_move` is human verification,\
-  \ same as task-116.\n\nNo UI change, so no review server: the whole surface is a\
-  \ tool schema, a doc and a log entry.\n\nApprove the merge or name what to change.\
-  \ On approval I rebase onto main, merge --no-ff, close, and remove the worktree\
-  \ at C:/projects/worktrees/agentjobs-208."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 4900
@@ -409,3 +387,21 @@ log:
       id: bb9b9273-0208-4a00-9e00-000000000001
       kind: log_append
       fingerprint: 2aac4a814b3a656b494839f0b37088ec
+- id: 12
+  ts: '2026-08-21T15:55:16.125152Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 13
+  ts: '2026-08-21T15:55:53.598841Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 6
+  data:
+    run_id: run_a1e35ca5
+    outcome: completed
+    duration_seconds: 2956.908665
+    log_path: C:\Users\jpose\.agentjobs\runs\run_a1e35ca5
