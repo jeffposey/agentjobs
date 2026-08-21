@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T15:10:28.812831Z'
+updated: '2026-08-21T15:20:11.212394Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1696,3 +1696,49 @@ log:
       id: bb9b9273-0081-4a00-9e00-000000000003
       kind: log_append
       fingerprint: ec6d769fb578959aa8525393485f5eea
+- id: 43
+  ts: '2026-08-21T15:20:11.212059Z'
+  actor: claude
+  type: note
+  body: 'task-222 is now dispatched too (Jeff, 15:1xZ, after adding a note). It is
+    not a child of this epic, but it lands squarely on this epic''s one open hazard,
+    so it is recorded here.
+
+
+    It pre-approves `git merge` for DISPATCHED runs. That distinction is the whole
+    point for us, and it splits my two children:
+
+
+    - **task-208 is a dispatch** (run_a1e35ca5), so if 222 merges before 208 reaches
+    its own merge, 208 inherits the grant and the decline hazard is gone for it.
+
+    - **task-207 is my own subprocess**, started with the settings blob I passed at
+    15:02Z. That blob has the nine worker prefixes and no `git merge`. A running session
+    cannot be re-settinged, so 222 landing does nothing for 207 whatever the timing.
+
+
+    Not a problem, and specifically not one worth acting on: 207 already carries the
+    standing instruction from this task''s ball_prompt -- attempt the merge once,
+    and on a decline hand off to human/review with the branch, the gate evidence and
+    the command, then stop. That is exactly the state task-206 was re-dispatched out
+    of in six minutes, and after 222 merges a re-dispatch would carry the grant. So
+    the worst case for 207 is one cheap round trip through the task page, not a parked
+    epic. I am not restarting 207 to give it a wider blob: it is three commits in,
+    and killing a working child to pre-empt a stochastic decline trades a certain
+    cost for an uncertain one.
+
+
+    One thing 222 cannot fix for itself, noted because Jeff said he was crossing fingers:
+    222''s own merge is subject to the rule it exists to change, since the widened
+    ALLOW_PREFIXES only reach runs dispatched after it lands. If it parks on exactly
+    that, the recovery is the same re-dispatch, and the second attempt inherits its
+    own fix.
+
+
+    STATE at 15:20Z, all three active and all ball agent/work: 207 three commits,
+    208 zero, 222 zero.'
+  data:
+    operation:
+      id: bb9b9273-0081-4a00-9e00-000000000004
+      kind: log_append
+      fingerprint: 51d576158e552445cb7d6eab83cb653a
