@@ -1,0 +1,125 @@
+schema: 2
+id: task-212
+title: 'Analytics page: move the count tiles off the dashboard and grow them into
+  trends'
+created: '2026-08-21T02:34:12.460054Z'
+updated: '2026-08-21T02:34:12.460802Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: ux
+tags:
+- analytics
+- dashboard
+- frontend
+- epic
+assignment:
+  eligible: []
+spec:
+  summary: "The dashboard carries a five-tile count strip (Needs you / In Progress\
+    \ / Blocked / Completed / Total) in the middle of the page. It is a point-in-time\
+    \ snapshot occupying the most valuable space on the screen, and a snapshot cannot\
+    \ answer the question a person actually has. This umbrella moves the counts to\
+    \ their own page, reached from a small link or icon where the strip is today,\
+    \ and grows that page into real analytics \u2014 how the numbers are trending,\
+    \ whether the backlog is growing or shrinking, how fast work is moving."
+  intent: "A count of 14 open tasks is meaningless on its own. It matters only against\
+    \ last week's 9 or last week's 22 \u2014 one is a project going under, the other\
+    \ is a project finishing. The dashboard is for \"what do I do next\", and the\
+    \ ladder in NextAction answers that well; the tile strip answers a different question\
+    \ badly and charges prime real estate for it. Separating the two lets the dashboard\
+    \ get shorter and the numbers get useful at the same time."
+  description: "Two movements, in order.\n\n**1. Relocate.** The `<section aria-label=\"\
+    Task statistics\">` strip in `frontend/src/components/Dashboard.tsx` moves out\
+    \ of the dashboard body onto its own route (`/p/:projectId/analytics` or similar).\
+    \ What is left behind at the point of removal is a small, unobtrusive affordance\
+    \ \u2014 a link or icon, not a banner \u2014 that gets you there. The dashboard\
+    \ keeps the next-action ladder, Active Tasks and Recent Updates.\n\n**2. Grow.**\
+    \ The new page stops being a relocated snapshot and becomes an analytics view:\
+    \ the same counts over time, backlog growth or shrinkage, completion throughput,\
+    \ the age of open work, and where tasks are piling up (waiting on human, blocked\
+    \ on dependencies). What exactly it shows, and how the history behind it is obtained,\
+    \ is the design child's job to settle \u2014 not this record's.\n\n**The open\
+    \ architectural question, stated here so nobody starts coding before it is answered:**\
+    \ AgentJobs stores no time series. `stats` in `src/agentjobs/dashboard.py` is\
+    \ computed by counting the tasks as they are right now. Trends need history, and\
+    \ there are at least three candidate sources \u2014 replaying each task's `log[]`,\
+    \ which already timestamps every claim, handoff and close; walking git history\
+    \ of `tasks/`, which is a real dated snapshot series; or writing periodic rollups.\
+    \ They differ in cost, in fidelity, and in whether they can show a past that predates\
+    \ the feature. Picking among them is the first child.\n\nSequenced as: design\
+    \ \u2192 backend history/metrics API \u2192 the page and its charts \u2192 the\
+    \ dashboard removal and the link. The design child creates the implementation\
+    \ children."
+  constraints: '- The dashboard''s next-action ladder is the thing that works. Do
+    not disturb it.
+
+    - The entry point must be discoverable but small. The point of the exercise is
+    reclaiming that vertical space, so replacing five tiles with a banner is a failure.
+
+    - Jeff reads this on a phone and a tablet over Tailscale as often as on the desktop.
+    Charts that only work at 1400px wide are not done.
+
+    - Watch the parse cost. Every API response carries `X-Task-Parses`; a history
+    view that re-reads every task file on every poll will be visibly slower than the
+    dashboard it sits beside, and `docs/performance.md` has the tooling to prove which
+    it is.
+
+    - Counting rules already settled stay settled: "Completed" counts `outcome ==
+    completed` only, deliberately, so closed-but-cancelled work is not in it. See
+    the comment in `Dashboard.tsx`.'
+  out_of_scope: "Cross-project analytics (this is per-project, as the rest of the\
+    \ app is). Any agent-performance or per-actor scoring. A general reporting or\
+    \ export feature. Adding a database \u2014 if durable history turns out to be\
+    \ necessary the design child says so with reasons, but nothing here presumes it."
+  context:
+  - path: frontend/src/components/Dashboard.tsx
+    why: Holds the stat-tile strip being moved, and the next-action ladder that stays.
+  - path: src/agentjobs/dashboard.py
+    why: "Where stats are computed today \u2014 counted live from current task state,\
+      \ with no history behind them."
+  - path: docs/performance.md
+    why: The X-Task-Parses instrumentation and bench tooling that a history view has
+      to answer to.
+  - path: docs/task-selection-design.md
+    why: Precedent for how a design child in this repo produces a doc that the implementation
+      children then cite by section.
+acceptance:
+- id: sc-1
+  text: The dashboard no longer renders the five-tile count strip in its body, and
+    the next-action ladder, Active Tasks and Recent Updates are unchanged.
+  status: pending
+- id: sc-2
+  text: A small link or icon at the point of removal reaches the analytics page, and
+    the page is a real route that survives a reload and a direct visit.
+  status: pending
+- id: sc-3
+  text: 'The analytics page shows the counts it replaced, plus at minimum: their movement
+    over time, and whether the backlog is growing or shrinking.'
+  status: pending
+- id: sc-4
+  text: The page is legible and usable at phone width, verified in a browser and not
+    only asserted in a test.
+  status: pending
+- id: sc-5
+  text: A before/after from scripts/bench.py, or a task-parse count, shows what the
+    page costs to load.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T02:34:12.460095Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 6b0d2c1e-9a4f-4d7a-9c31-8f2e5a7b4d10
+      kind: create
+      fingerprint: fe2161b620a971d1afa9846bbfea5700

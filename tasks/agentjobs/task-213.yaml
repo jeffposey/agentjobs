@@ -1,0 +1,141 @@
+schema: 2
+id: task-213
+title: 'Design the analytics page: where the history comes from, and what the page
+  says'
+created: '2026-08-21T02:34:52.929949Z'
+updated: '2026-08-21T02:34:52.930916Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: design
+tags:
+- analytics
+- design
+- epic-child
+assignment:
+  eligible: []
+parent: task-212
+spec:
+  summary: "Produce `docs/analytics-design.md` \u2014 the specification the rest of\
+    \ task-212 is built from. It has to answer two things: where a time series comes\
+    \ from in a system that stores none, and what the analytics page actually shows\
+    \ a person who opens it. It writes no production code; it ends by creating the\
+    \ implementation children."
+  intent: Every other child of task-212 depends on a decision this one makes. If history
+    comes from replaying task logs, there is no storage work and the past is available
+    immediately; if it comes from rollups, there is a writer, a schedule, a file format,
+    and no history until the feature has been running a while. Those are different
+    projects. Deciding by starting to code picks whichever one the first agent happened
+    to think of.
+  description: "Deliverable is `docs/analytics-design.md`, following the shape of\
+    \ `docs/task-selection-design.md` \u2014 numbered sections, so implementation\
+    \ children can cite \"section 4\" instead of restating the spec.\n\n**Part one:\
+    \ where history comes from.** Evaluate the candidates and pick one, on the record,\
+    \ with the rejected alternatives and why they lost.\n\n- *Replay `log[]`.* Every\
+    \ task file already carries a timestamped log, and the manager verbs append to\
+    \ it \u2014 `claim`, `handoff`, `release`, `close` all leave a dated entry. In\
+    \ principle a task's lifecycle/ball state on any past date is reconstructable\
+    \ by replaying its log from `created`. Establish whether that is actually true\
+    \ for the current corpus: schema-v1 tasks migrated by `migrate_schema.py`, tasks\
+    \ edited by hand during recovery, and tasks created before the verbs existed may\
+    \ not replay cleanly. Say what the gaps are and what a chart does when it hits\
+    \ one.\n- *Walk git history of `tasks/`.* The repo is the honest snapshot series\
+    \ \u2014 `git log` over the tasks directory gives real dated states, including\
+    \ the hand-edits. Cost is the question: how expensive is checking out or reading\
+    \ N historical revisions of ~210 files, and can it be bounded by sampling one\
+    \ revision per day rather than per commit.\n- *Write rollups.* A periodic snapshot\
+    \ of the counts to a file. Cheapest to read, needs a writer and a trigger, and\
+    \ shows nothing until it has been running. If this wins, say what triggers it\
+    \ and what happens to a project where the server is rarely up.\n- A hybrid is\
+    \ allowed \u2014 e.g. backfill once from git, then append rollups \u2014 but say\
+    \ so explicitly rather than leaving it implied.\n\nJudge them on: fidelity (does\
+    \ the number match what the dashboard showed that day), cost per page load in\
+    \ task parses and wall clock, whether history exists for the past as well as the\
+    \ future, and how much code each one is.\n\n**Part two: what the page says.**\
+    \ Not a chart list \u2014 start from the questions a person opens the page to\
+    \ answer. At least: is the backlog growing or shrinking; is work getting finished\
+    \ faster or slower; is anything aging badly; where is work stuck (waiting on a\
+    \ human, blocked on dependencies). Then specify the visualisations that answer\
+    \ them, the time ranges offered, and what the page shows when there is barely\
+    \ any history yet \u2014 a two-day-old project must not render as a broken chart.\n\
+    \nSpecify the API surface as well: endpoints, shapes, and how they fit the existing\
+    \ generated frontend client (`npm run` client generation is part of `scripts/check.py`,\
+    \ so the contract matters).\n\n**Part three: the entry point.** Decide the affordance\
+    \ that replaces the tile strip on the dashboard \u2014 what it is, what it says,\
+    \ whether it carries a number, and where it sits. Include a mobile treatment.\n\
+    \n**Then create the implementation children** under task-212, sequenced with `dependencies[]`,\
+    \ each citing its section of the design doc."
+  constraints: "- Ship the doc, not the code. The only files this task writes are\
+    \ `docs/analytics-design.md` and its own task records.\n- A decision is not recorded\
+    \ until it names what it rejected and why. Log the history-source choice as a\
+    \ `decision` entry on this task, not only inside the doc.\n- Back the cost claims\
+    \ with a measurement. \"Replaying logs is cheap\" is a hypothesis; a task-parse\
+    \ count or a timing from `scripts/bench.py` over the real 210-task corpus is a\
+    \ finding. A throwaway script for that is fine and does not get committed.\n-\
+    \ Read `docs/task-schema.md` before assuming what a log entry guarantees. The\
+    \ four state axes and which verbs write which entries are what determines whether\
+    \ replay works at all.\n- Whatever charting approach you propose has to survive\
+    \ the existing gate \u2014 Vitest in jsdom and a Playwright path \u2014 so weigh\
+    \ a dependency against what it costs there."
+  out_of_scope: Writing the page, the API, or the dashboard change. Choosing a chart
+    library by installing one. Cross-project or per-actor analytics, which the parent
+    excludes.
+  context:
+  - path: docs/task-selection-design.md
+    why: "The model for this deliverable \u2014 numbered sections that implementation\
+      \ children cite rather than restate."
+  - path: docs/task-schema.md
+    why: "Schema v2's four state axes and which manager verbs append which log entries\
+      \ \u2014 this determines whether log replay can reconstruct a past state at\
+      \ all."
+  - path: src/agentjobs/dashboard.py
+    why: The current stats computation, and the definition of each count the page
+      must not silently change.
+  - path: src/agentjobs/migrate_schema.py
+    why: What v1 tasks were turned into. Migrated logs are the likeliest place replay
+      fidelity breaks.
+  - path: docs/performance.md
+    why: The measurement tooling the cost comparison has to use.
+acceptance:
+- id: sc-1
+  text: docs/analytics-design.md exists, in numbered sections, and a reader with no
+    other context can implement from it.
+  status: pending
+- id: sc-2
+  text: The history-source decision is made and recorded as a decision log entry on
+    this task, naming the rejected alternatives and why each lost.
+  status: pending
+- id: sc-3
+  text: The cost comparison cites a real measurement against the live task corpus,
+    not an estimate.
+  status: pending
+- id: sc-4
+  text: The doc states the questions the page answers before the charts that answer
+    them, and specifies the empty and thin-history states.
+  status: pending
+- id: sc-5
+  text: The API surface is specified concretely enough that the backend child does
+    not have to redesign it.
+  status: pending
+- id: sc-6
+  text: Implementation children exist under task-212, ordered by dependencies[], each
+    citing its section of the doc.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T02:34:52.930017Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c4f7a91b-2e63-4b58-9d80-71a3f6c8e522
+      kind: create
+      fingerprint: 2a478cf94d5b79a050aaa179f6b53014
