@@ -4,6 +4,44 @@ Shared guidance for all AI agents working in this repository. Universal engineer
 
 ## Task Management
 
+### Work what the queue says is next
+
+The backlog has a stored order, not a sort over timestamps. `agentjobs next` — or
+`task_next` over MCP — is the answer, and `--why` explains it: the band and position the
+winner stands at, and every open task the queue passed over with the claimability rule
+that excluded each. Read that before concluding the order is wrong; a task missing from
+the answer is usually blocked, claimed, or holding open children rather than mis-placed.
+
+**If you think something else should be first, move it.**
+
+```bash
+agentjobs queue list                      # the reviewable order, band by band
+agentjobs queue move task-045 --top       # or --before/--after <id>, or --bottom
+```
+
+Over MCP that is `task_queue_move`, with the `actor` and `operation_id` every mutation
+carries. Either way the move is attributed and appends a `queue_move` entry, so the next
+session inherits the decision instead of re-deriving it.
+
+Three things not to do instead, each of which has a real cost:
+
+- **Do not add a `needs` dependency to make one task come before another.** Dependencies
+  are prerequisites. A false one is not a strong hint about order — it makes the task
+  unclaimable until the other closes, deadlocks the graph if it ever points both ways,
+  and lies to every reader who takes it at face value.
+- **Do not hand-edit `queue_position`.** There is no `set_queue_position` for the same
+  reason there is no `set_lifecycle`: the number is a consequence of a decision, and the
+  decision is what the record should show. A number written by hand can also collide
+  with another open task in the band, which is corruption the queue refuses to answer
+  over rather than guess past.
+- **Do not rely on an instruction given in chat to reorder work.** Chat does not survive
+  the session. The queue does, and it is what the next agent will read.
+
+If a tool reports `queue_broken` — or the CLI exits non-zero from `agentjobs queue
+check` — the order itself is in doubt, so picking a task by hand is the one response
+that cannot be right. `agentjobs queue repair` states everything it guessed, and what it
+guessed is exactly what a human should look at afterwards.
+
 ### Parent Task Loop
 
 When asked to work or drive a parent task, treat the parent and its descendants as the

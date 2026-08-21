@@ -51,6 +51,7 @@ ALL_TOOLS = [
     "task_close",
     "task_log_append",
     "task_update_content",
+    "task_queue_move",
 ]
 
 

@@ -272,6 +272,62 @@ apply. Before ending a session, write every resumption-critical fact to the log 
 the `ball_prompt` current. A handoff is defective if the next participant needs the chat
 transcript to discover what happened, why a decision was made, or what to do next.
 
+## Work What the Queue Says Is Next
+
+The backlog has a stored order — `queue_position`, an integer inside a priority band —
+not a sort over timestamps. Selection is `(priority_rank, queue_position)` and nothing
+else, so logging progress on a task no longer promotes it.
+
+```python
+from agentjobs import TaskClient
+
+with TaskClient() as client:
+    task = client.get_next_task(agent="my-agent")
+    why = client.explain_next_task(agent="my-agent")
+```
+
+`explain_next_task()` — `agentjobs next --why`, or the `queue` field of the MCP
+`task_next` result — returns the band and position the winner stands at, the empty bands
+checked above it, and every open task ahead of it with the claimability rule that
+excluded each. Read it before concluding the order is wrong: a task missing from the
+answer is usually blocked, claimed, or holding open children rather than mis-placed.
+
+**If you think something else should be first, move it**, so the next session inherits
+the decision rather than re-deriving it:
+
+```bash
+agentjobs queue list                      # the reviewable order, band by band
+agentjobs queue move task-045 --top       # or --before/--after <id>, or --bottom
+```
+
+```python
+client.operations.queue_move("task-045", actor="my-agent", operation_id=str(uuid4()),
+                             expected_revision=task.updated, top=True,
+                             body="Blocks the release; the rest of high can wait.")
+```
+
+Over MCP that is `task_queue_move`, which takes an `actor` and an `operation_id` like
+every other mutation and accepts a placement — a neighbour or an end of the band —
+rather than a number. Every route appends a `queue_move` log entry, which is the only
+record of *why* the order changed.
+
+Three things not to do instead:
+
+- **Do not add a `needs` dependency to express order.** Dependencies are prerequisites.
+  A false one makes the task unclaimable until the other closes, deadlocks the graph if
+  it ever points both ways, and lies to every reader who takes it at face value.
+- **Do not hand-edit `queue_position`.** There is no setter for it, for the same reason
+  there is no `set_lifecycle`: the number is a consequence of a decision, and the record
+  should show the decision. A hand-written number can also collide with another open
+  task in the band, which is corruption selection refuses to answer over.
+- **Do not rely on a chat instruction to reorder work.** Chat does not survive the
+  session; the queue does, and it is what the next agent reads.
+
+A broken queue is reported, never guessed past: `get_next_task()` raises
+`QueueCorruptionError`, REST answers `409`, and MCP returns the `queue_broken` code.
+`agentjobs queue check` shows the whole picture and `agentjobs queue repair` fixes it,
+stating everything it guessed.
+
 ## Canonical Agent Loop
 
 ```python

@@ -105,7 +105,7 @@ Two notes on what the file does and does not do:
   `init` does not write to your client's settings on your behalf.
 - **It is separate from the plugin.** A project with both ends up with two server
   entries, listed by `claude mcp list` as `agentjobs` and `plugin:agentjobs:agentjobs`.
-  They are independent processes serving the same fourteen tools, not a conflict, and
+  They are independent processes serving the same fifteen tools, not a conflict, and
   the project-scoped one is the one whose address a machine can correct without editing
   an installed plugin's cache.
 
@@ -135,7 +135,7 @@ Add a STDIO server entry:
 }
 ```
 
-You get the same fourteen tools. You do **not** get a pre-tool hook: the guard ships one
+You get the same fifteen tools. You do **not** get a pre-tool hook: the guard ships one
 entry point per client protocol, and only Codex's and Claude Code's are written. The
 decision itself is client-agnostic, so a third client needs a third entry point rather
 than a third guard — unbuilt work rather than a platform limit. See
@@ -147,13 +147,13 @@ than a third guard — unbuilt work rather than a platform limit. See
 agentjobs mcp --base-url http://127.0.0.1:8765
 ```
 
-It should sit there speaking nothing on stdout and log `Serving 14 tool(s)` to stderr.
+It should sit there speaking nothing on stdout and log `Serving 15 tool(s)` to stderr.
 From a client, `projects_list` should return your projects with their configured
 actors.
 
 ## The tools
 
-Five read, nine mutation. Their schemas are published in `tools/list` and that is the
+Five read, ten mutation. Their schemas are published in `tools/list` and that is the
 authoritative reference — the fields, types and constraints live there, and a copy in
 this page would go stale.
 
@@ -163,7 +163,7 @@ this page would go stale.
 | `tasks_list` | One project's tasks, filtered, with unreadable files reported alongside. |
 | `task_get` | The complete record: spec, current ask, log, dependency facts, children. |
 | `tasks_search` | Substring search within one project. |
-| `task_next` | Suggests claimable work, and explains an empty answer. Never claims. |
+| `task_next` | Suggests claimable work: first in the queue, with the band, the position, and everything passed over to reach it. Explains an empty answer. Never claims. |
 | `task_create_draft` | New task, born `draft/human/spec`. |
 | `task_create_ready` | New task, born `ready/agent/available`. Not claimed. |
 | `task_promote` | The spec is finished: `draft` becomes `ready/agent/available`. The only exit from `draft`. |
@@ -173,12 +173,22 @@ this page would go stale.
 | `task_close` | End the task with an outcome. |
 | `task_log_append` | Append progress, a decision, a question, an answer. |
 | `task_update_content` | Edit authoring content only. |
+| `task_queue_move` | Change where a task stands in its band. The only way the order changes. |
 
-There is no `set_lifecycle`, no `set_ball`, no generic patch, no `save_yaml`, no batch,
-and no `create_and_claim`. State moves through the verbs or not at all, and the schemas
-make an invalid combination unrepresentable rather than warning about it: a handoff
-target of `human`/`work` does not validate, and `lifecycle` is simply absent from the
-content patch.
+There is no `set_lifecycle`, no `set_ball`, no `set_queue_position`, no generic patch,
+no `save_yaml`, no batch, and no `create_and_claim`. State moves through the verbs or
+not at all, and the schemas make an invalid combination unrepresentable rather than
+warning about it: a handoff target of `human`/`work` does not validate, and `lifecycle`
+is simply absent from the content patch.
+
+`task_queue_move` follows the same rule about the order. It takes a **placement** — a
+neighbour (`before`/`after`) or an end of the band (`top`/`bottom`) — and never a
+position number, so a caller cannot choose a place without knowing what else is in the
+band. The server does the arithmetic under the queue lock, where it is the only writer.
+Use it when you disagree with what `task_next` returned: move the task, and the next
+session inherits the decision. Do not express order with a `needs` dependency instead —
+dependencies are prerequisites, and a false one makes the task unclaimable and lies to
+every reader of the graph.
 
 ## Two rules every call obeys
 
@@ -215,6 +225,7 @@ Every failure carries a stable code:
 | `task_not_found` | No such task in that project. | No |
 | `broken_task` | The file exists and will not parse. Repair it. | No |
 | `invalid_transition` | The move is not available from this state. | No |
+| `queue_broken` | The stored order is not one selection can answer over: an open task with no position, two sharing one, or a position below 1. The message names them. `agentjobs queue repair`. | After repairing |
 | `dependency_blocked` | Unmet `needs` dependencies. (An umbrella with open children is *not* this: it can be claimed, and the claim hands over supervision.) | No |
 | `revision_conflict` | You decided against a stale read. Current task returned. | After re-reading |
 | `operation_conflict` | That operation id was used for a different request. | With a new id |
