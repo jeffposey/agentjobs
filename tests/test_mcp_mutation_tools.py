@@ -654,7 +654,13 @@ class TestDomainRefusals:
         assert error.current_task is not None
         assert manager.get_task(task.id).ball.value == "agent"
 
-    def test_an_umbrella_with_open_children_is_dependency_blocked(self, service):
+    def test_claiming_an_umbrella_hands_over_the_supervision_ask(self, service):
+        """task-164. It used to refuse with DEPENDENCY_BLOCKED; now it says what to do.
+
+        The claim succeeds because driving an epic is work someone has to own. What
+        stops it being taken by accident is that the ask written back names the seat --
+        supervise, one session per child -- rather than "execute the spec".
+        """
         registry, manager, _ = service
         parent = manager.create_task(
             id="task-900-umbrella",
@@ -672,9 +678,12 @@ class TestDomainRefusals:
             parent=parent.id,
         )
 
-        error = refuse(registry, "task_claim", base(task_id=parent.id))
+        call(registry, "task_claim", base(task_id=parent.id))
 
-        assert error.code is ErrorCode.DEPENDENCY_BLOCKED
+        claimed = manager.get_task(parent.id)
+        assert claimed.lifecycle is Lifecycle.ACTIVE
+        assert "Supervise this epic" in (claimed.ball_prompt or "")
+        assert "task-901-child" in (claimed.ball_prompt or "")
 
     def test_reusing_an_operation_id_for_a_different_request_is_a_conflict(self, service):
         registry, manager, _ = service

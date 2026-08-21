@@ -111,6 +111,80 @@ def test_claim_task_sets_owner_and_logs_transition(tmp_path: Path) -> None:
     assert task.log[-1].actor == "codex"
 
 
+def _umbrella(manager: TaskManager, *, children: int = 2) -> str:
+    """A ready parent with *children* open children. Returns the parent's id."""
+    manager.create_task(
+        id="task-164-parent",
+        title="Umbrella",
+        description="Drive the children.",
+        category="test",
+        lifecycle=Lifecycle.READY,
+    )
+    for index in range(children):
+        manager.create_task(
+            id=f"task-164-child-{index}",
+            title=f"Child {index}",
+            description="Contained work.",
+            category="test",
+            lifecycle=Lifecycle.READY,
+            parent="task-164-parent",
+        )
+    return "task-164-parent"
+
+
+def test_claiming_an_umbrella_takes_the_supervisors_seat(tmp_path: Path) -> None:
+    """task-164. Driving an epic is work, and it belongs to one agent for its length.
+
+    It used to be refused outright, which left the only agent doing the job with no way
+    to say so on the record -- and made the supervisor prompt dispatch composes for a
+    parent unreachable, because dispatch claims before it spawns.
+    """
+    manager = _manager(tmp_path)
+    parent = _umbrella(manager)
+
+    task = manager.claim_task(parent, agent="claude")
+
+    assert task.lifecycle is Lifecycle.ACTIVE
+    assert task.assignment.owner == "claude"
+    assert task.ball_prompt is not None
+    assert "Supervise this epic" in task.ball_prompt
+    assert "task-164-child-0" in task.ball_prompt
+    assert "task-164-child-1" in task.ball_prompt
+    assert "supervise" in (task.log[-1].body or "")
+
+
+def test_claiming_an_ordinary_task_still_says_execute_the_spec(tmp_path: Path) -> None:
+    """The other half: nothing changes for a task with no children."""
+    manager = _manager(tmp_path)
+    manager.create_task(
+        id="task-164-leaf",
+        title="Leaf",
+        description="Do the thing.",
+        category="test",
+        lifecycle=Lifecycle.READY,
+    )
+
+    task = manager.claim_task("task-164-leaf", agent="claude")
+
+    assert task.ball_prompt == "Execute the spec; log progress and hand off when done."
+
+
+def test_get_next_task_still_never_hands_out_an_umbrella(tmp_path: Path) -> None:
+    """The invariant that survives the relaxed claim: named, never handed out.
+
+    Automatic selection must not put an agent in the supervisor's seat by accident;
+    only a caller that named this id gets one.
+    """
+    manager = _manager(tmp_path)
+    parent = _umbrella(manager)
+
+    nxt = manager.get_next_task(agent="claude")
+
+    assert nxt is not None
+    assert nxt.id != parent
+    assert nxt.parent == parent
+
+
 def test_claim_refuses_unready_task(tmp_path: Path) -> None:
     manager = _manager(tmp_path)
     manager.create_task(id="task-011", title="Draft", description="", category="misc")

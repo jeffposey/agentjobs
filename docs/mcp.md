@@ -215,7 +215,7 @@ Every failure carries a stable code:
 | `task_not_found` | No such task in that project. | No |
 | `broken_task` | The file exists and will not parse. Repair it. | No |
 | `invalid_transition` | The move is not available from this state. | No |
-| `dependency_blocked` | Unmet needs, or an umbrella with open children. | No |
+| `dependency_blocked` | Unmet `needs` dependencies. (An umbrella with open children is *not* this: it can be claimed, and the claim hands over supervision.) | No |
 | `revision_conflict` | You decided against a stale read. Current task returned. | After re-reading |
 | `operation_conflict` | That operation id was used for a different request. | With a new id |
 | `lock_timeout` | Another writer holds the task. | Yes |

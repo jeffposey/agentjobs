@@ -85,8 +85,9 @@ assignment:
   owner: claude              # actor id (D4); set on claim, cleared on release/close
   eligible: [claude, codex]  # who may claim; empty list = anyone
 
-parent: null               # task id of umbrella task; tasks with open children
-                           # are never claimable
+parent: null               # task id of umbrella task; a task with open children is
+                           # never offered by /next, but naming it in a claim takes
+                           # the supervisor's seat (task-164)
 
 # ----- the specification -----
 spec:
