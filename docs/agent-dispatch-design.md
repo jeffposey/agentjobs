@@ -684,7 +684,18 @@ project's allow-list.** Everything else parks, and AgentJobs turns a parked sess
 ball → `human`/`input` with the pending command quoted in the `ball_prompt`, answerable
 from a phone. The seed list is deliberately boring: `poetry run pytest:*`,
 `poetry run ruff:*`, `poetry run black:*`, `poetry run mypy:*`, `npm run:*`,
-`git status:*`, `git diff:*`, `git add:*`, `git commit:*`.
+`git status:*`, `git diff:*`, `git add:*`, `git commit:*` — and, since
+2026-08-21, `git merge:*`.
+
+That last one is the exception that proves the rule, and task-222 records why it was
+made on Jeff's explicit authorisation rather than by a widening nobody reviewed.
+`git merge` is not boring the way `git status` is: it writes to the working tree and
+creates commits. What makes it acceptable is that the merge is the sanctioned end of
+the documented lifecycle and is gated on a human approval recorded on the task —
+the classifier was never the thing authorising it, only an unreliable obstacle in
+front of it, and a run that does all of its work and then cannot land it is the most
+expensive shape a failure takes. `git push` stays absent and must: pushing is a
+separate act from merging here, and nothing authorises it.
 
 The allow-list is still a maintenance surface that will be widened under pressure. What
 changes is that widening it is a **visible act** — a prompt someone answered with "don't

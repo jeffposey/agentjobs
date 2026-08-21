@@ -231,6 +231,7 @@ ALLOW_PREFIXES = (
     "git diff",
     "git add",
     "git commit",
+    "git merge",
 )
 """The seed allow-list from task-076: deliberately boring commands.
 
