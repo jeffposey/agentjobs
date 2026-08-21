@@ -3,14 +3,11 @@ id: task-222
 title: Pre-approve `git merge` for dispatched runs, and fix the colon-less rule that
   never matched
 created: '2026-08-21T14:49:52.979769Z'
-updated: '2026-08-21T16:17:53.160525Z'
-lifecycle: active
-ball: agent
-ball_reason: revise
-ball_prompt: I committed the changes. See if you can do the rebase and merge.
+updated: '2026-08-21T16:29:17.484876Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 5700
 category: infrastructure
 tags:
 - dispatch
@@ -18,7 +15,6 @@ tags:
 - autonomy
 effort: "small \u2014 one tuple entry plus tests"
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "Jeff authorised widening dispatch's ALLOW_PREFIXES to include `git merge`\
@@ -91,26 +87,26 @@ acceptance:
 - id: ac-1
   text: '`git merge` is in ALLOW_PREFIXES, and allow_rules() emits both Bash(git merge:*)
     and PowerShell(git merge:*) in the colon form.'
-  status: pending
+  status: met
 - id: ac-2
   text: A test names `git merge` explicitly and a paired test asserts `git push` is
     absent from the emitted rules, so a future widening must be deliberate rather
     than incidental.
-  status: pending
+  status: met
 - id: ac-3
   text: read_only and autonomous posture argv are unchanged, proven by the existing
     exact-argv tests still passing untouched.
-  status: pending
+  status: met
 - id: ac-4
   text: "The full ten-stage scripts/check.py passes, unqualified \u2014 not a --from\
     \ or --only run."
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
 branches:
 - name: feat/task-222-git-merge-allow
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-21T14:49:53.285700Z'
@@ -711,3 +707,80 @@ log:
       id: 4b2c9f18-77ad-4d0e-9d5b-1f5b3a0e2c41
       kind: log_append
       fingerprint: 497b7157a5deaac55b7718ebc063c03d
+- id: 25
+  ts: '2026-08-21T16:27:31.911169Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 6d1e8b25-3a90-4c77-bf42-8e0d5a1c9b36
+      kind: update_content
+      fingerprint: 1ba7a3e52f37369fec053768c5a0c497
+- id: 26
+  ts: '2026-08-21T16:29:09.928263Z'
+  actor: claude
+  type: progress
+  body: "run_e3000b37: merged, live, closing.\n\n**Gate, on the rebased tip.** Full\
+    \ unqualified ten-stage `scripts/check.py`, this worktree's own interpreter. **Exit\
+    \ 0, \"Ran every stage (10 of 10)\", 470.9s** \u2014 black 1.8s, ruff 0.2s, mypy\
+    \ 24.0s, api 5.6s, icons 3.2s, oxlint 0.7s, pytest 404.4s (2444 collected), vitest\
+    \ 5.7s, build 4.0s, e2e 21.6s (19 passed). No `PARTIAL RUN` banner; grepped for\
+    \ it and it is absent. That covers ac-4 against the tree that actually merged,\
+    \ not the pre-rebase one.\n\n**Merged.** `8d34314 Merge branch 'feat/task-222-git-merge-allow'`,\
+    \ `--no-ff`, into `main` in the shared clone. Three files, +44/-1 \u2014 the same\
+    \ diff as `git show --stat` on the branch, nothing acquired in the merge. Branch\
+    \ marked `merged` and deleted (`0006e71`); worktree `C:/projects/worktrees/agentjobs-222`\
+    \ removed and gone from `git worktree list`. Authority: Jeff's entry 4, entry\
+    \ 13 (\"run the full gate, merge\") and entry 21 (\"see if you can do the rebase\
+    \ and merge\"), plus the green gate. **Nothing pushed.**\n\n**The `git merge`\
+    \ itself was not declined.** `git merge --no-ff feat/task-222-git-merge-allow`\
+    \ went through first time. That is a live data point against the standing note\
+    \ that merge is a coin flip, and it is consistent with entry 19's diagnosis: the\
+    \ merge command's argument list names a branch, not `runner.py`.\n\n**One decline,\
+    \ and it confirms entry 19 rather than adding anything.** After merging I tried\
+    \ a single combined verification \u2014 `grep` for the two prefixes in `src/agentjobs/dispatch/runner.py`\
+    \ *and* an import printing the emitted rules. Refused. Named the file in a command's\
+    \ arguments, so it falls exactly inside the boundary entry 19 isolated. I did\
+    \ not retry it in any form; streak reset by ordinary unrelated work. ac-1 rests\
+    \ on the committed diff (`+1` line in `ALLOW_PREFIXES`) and on the two merged\
+    \ tests passing inside the gate, which assert the emitted strings literally \u2014\
+    \ that is stronger evidence than the grep would have been, so nothing is actually\
+    \ missing.\n\n**Server restarted, which is the step that makes this real.** `C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -Force -NoOpen`. Listener on 8876 moved from PID 300636 to PID 371792 (python,\
+    \ started 11:27:59 local). `/api/version` answers with `source_root: C:\\projects\\\
+    agentjobs`, `/app/` returns 200. Until that restart the widening existed in git\
+    \ and not in any argv the dispatcher composes.\n\n**Not verified, and deliberately\
+    \ not:** that a freshly dispatched run's `--settings` now carries `Bash(git merge:*)`.\
+    \ Entry 14 said to confirm the restart and dispatch nothing, so the next real\
+    \ dispatch is where that shows up. The restarted process imports the merged source\
+    \ from the clone, so there is no plausible path by which it would not \u2014 but\
+    \ that is an inference, not a measurement, and it is stated as one.\n\n**Scope\
+    \ reminder for whoever reads this next**, because the task title invites the wrong\
+    \ conclusion: this fixes *dispatched* runs only. An epic supervisor's children\
+    \ get no `--settings` from dispatch, and what covers them is the machine-local\
+    \ `.claude/settings.local.json` correction described in the spec \u2014 untracked,\
+    \ carried no commit, and not something this merge changed."
+  data:
+    operation:
+      id: 9f0b6c31-58ad-4e72-b1c9-2d4e7a03f8b5
+      kind: log_append
+      fingerprint: f26ac48136dd581924c664938df75fc7
+- id: 27
+  ts: '2026-08-21T16:29:17.484600Z'
+  actor: claude
+  type: transition
+  body: Merged as 8d34314 with a green ten-stage gate on the rebased tip; all four
+    acceptance criteria met. `git merge` is pre-approved for dispatched runs, `git
+    push` is not, and a paired test now pins both. Server on 8876 restarted so the
+    change reaches the argv the dispatcher composes. Nothing pushed.
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 2e7d4a09-6c31-4b58-9e07-3f8a1d5b0c24
+      kind: close
+      fingerprint: e5c3f6e4aaffef2894e115560752b02d
