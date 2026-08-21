@@ -3,10 +3,59 @@ id: task-203
 title: The dispatcher's own write lands after the session's last commit and is left
   dangling
 created: '2026-08-20T22:28:44.615594Z'
-updated: '2026-08-20T22:28:44.616364Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-21T01:42:23.596523Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: 'Review and merge decision on task-203. Branch `fix/task-203-dispatcher-commits-own-write`,
+  four commits, worktree C:/projects/worktrees/aj-203. Not merged, not pushed, awaiting
+  explicit approval.
+
+
+  **What changed.** The dispatcher now commits the task record it writes for itself.
+  New `src/agentjobs/dispatch/record_commit.py` (one function), called at six sites
+  where the dispatcher writes to a record with no session left to sweep the file up:
+  the session settle, the batch settle, a batch run that never started, the ledger''s
+  sweep of an abandoned run, a parked session''s handoff, and an auto-dispatch cap
+  refusal. `TaskStorage` gains a public `task_path()`. Docs updated in `docs/agent-dispatch-design.md`,
+  which already recorded the symptom without a resolution.
+
+
+  **How it was verified.** 13 new tests driving real git repositories rather than
+  a mocked subprocess -- two of them end to end through `DispatchRunner`, exercising
+  the code that had the bug. Full gate green in the worktree, exit 0: Black + Ruff
+  + MyPy over 155 files, 2135 pytest in 325.95s, 154 Vitest across 22 files, the production
+  build, 16 Playwright against a live server.
+
+
+  **What to look at, in the order that matters:**
+
+
+  1. `record_commit.py`''s use of `git commit --only -- <path>`. This is the whole
+  safety argument for ac-2 and ac-3, and it rests on git''s semantics rather than
+  ours: `--only` reads the named path from the working tree and ignores the index,
+  so a peer''s staged work survives. If you disagree with that reading, the test at
+  `TestOnlyOurOwnFile::test_a_peers_staged_work_stays_staged_and_uncommitted` is where
+  to poke it.
+
+  2. **The push decision (ac-4): it commits, it does not push.** Reasoning is in a
+  decision entry above, with a stated reopen trigger. This is the judgement call most
+  worth your disagreement -- your standing rule in job-hunting is push-after-commit,
+  and I argued that rule is for an agent with a human in the loop, not for a daemon.
+
+  3. **No new config knob.** Committing is on wherever dispatch is on, on the reasoning
+  that dispatch is already opt-in per project and a setting defaulting off would leave
+  the bug in place for anyone who never finds it. Say so if you want it gated.
+
+  4. The one write deliberately left alone: the pre-spawn `dispatch` entry, because
+  committing it would move HEAD past the `git_head` that same entry just recorded.
+
+
+  **After merging, the server on 8876 MUST be restarted** or the fix does nothing
+  -- the dispatcher runs inside that process and holds the old code in memory. Restart
+  it via `C:/ai/shared/launchers/open-agentjobs.ps1`, not `agentjobs restart` (that
+  binds 8765). No frontend rebuild needed; nothing under `frontend/` was touched.
+  Full reasoning and a way to confirm it is live are in a decision entry above.'
 archived: false
 priority: high
 category: infrastructure
@@ -16,6 +65,7 @@ tags:
 - task-records
 - from-live-session-2026-08-20
 assignment:
+  owner: claude
   eligible:
   - claude
   - codex
@@ -75,25 +125,43 @@ acceptance:
 - id: ac-1
   text: After a dispatched run completes, the project's working tree is clean with
     respect to the task record the dispatcher wrote.
-  status: pending
+  verify: tests/test_dispatch_record_commit.py::TestThroughTheDispatcher -- a real
+    batch run through DispatchRunner in a real git repo, asserting `git status --porcelain
+    -uall` is empty afterwards; and the same for a run that could not start.
+  status: met
 - id: ac-2
   text: The dispatcher stages only the task file it appended to, never the whole tree.
-  status: pending
+  verify: '`git commit --only -m <msg> -- <path>`, one path, never -A. TestOnlyOurOwnFile::test_another_task_file_is_not_swept_in
+    asserts `git show --name-only HEAD` names only that file while a second task file
+    stays modified.'
+  status: met
 - id: ac-3
   text: Concurrent uncommitted work by a human or another agent in the same clone
     is not swept into the dispatcher's commit.
-  status: pending
+  verify: TestOnlyOurOwnFile::test_a_peers_staged_work_stays_staged_and_uncommitted
+    -- a peer's half-finished edit is `git add`-ed before the dispatcher commits,
+    and is still staged and still uncommitted afterwards. `--only` ignores the index,
+    which is what makes this hold; a bare `git commit` would have taken it.
+  status: met
 - id: ac-4
   text: A decision is logged on whether the dispatcher pushes, with the reasoning.
-  status: pending
+  verify: 'Decision entry in this log: it commits, it does not push, with the reasoning
+    and a reopen trigger. Asserted as well as written down -- TestItNeverPushes adds
+    a bare repo as `origin` and requires its HEAD not to move.'
+  status: met
 - id: ac-5
   text: Any sibling writes outside a session's lifetime in dispatch/auto.py, poller.py
     and ledger.py are checked and either fixed or ruled out in the log.
-  status: pending
+  verify: Ruling entry in this log. auto.py fixed (cap refusal), ledger.py fixed (sweep
+    of an abandoned run), poller.py ruled out (makes no manager calls at all). runner.py
+    fixed at four further sites and guards.py ruled out, both beyond what was asked.
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-203-dispatcher-commits-own-write
+  status: active
 log:
 - id: 1
   ts: '2026-08-20T22:28:44.615636Z'
@@ -106,3 +174,370 @@ log:
       id: 9e2c74b1-40fd-4a55-8b6c-1d0f9a3e6207
       kind: create
       fingerprint: 734d3d54a1eee8a3bc5c122f3d165115
+- id: 2
+  ts: '2026-08-21T01:15:45.773401Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 3
+  ts: '2026-08-21T01:41:44.468730Z'
+  actor: claude
+  type: progress
+  body: 'Implemented and verified. Branch `fix/task-203-dispatcher-commits-own-write`,
+    four commits, worktree C:/projects/worktrees/aj-203. Not merged, not pushed.
+
+
+    **What the bug actually is.** Not one write site, six. The reported symptom was
+    the terminal `dispatch_result`, but the same gap exists at every point where the
+    dispatcher writes to a task record with no session left to sweep the file up:
+
+
+    1. `runner._finish_session` -- result entry plus optional handoff, after the session
+    exited (the reported one).
+
+    2. `runner._finish_batch` -- same, after the process exited.
+
+    3. `runner.start_batch`''s spawn-failure path -- no session ever existed.
+
+    4. `ledger._settle` -- the sweep of an abandoned run, which runs precisely because
+    nothing is left to speak for it.
+
+    5. `runner._park_session` -- the session is alive but parked on a permission prompt
+    and will not act again until a human answers, so it is not coming back to commit
+    this handoff.
+
+    6. `auto._record_cap_refusal` -- the most orphaned of the lot: dispatch was refused,
+    so there is no session and no run directory either.
+
+
+    **What was built.** `src/agentjobs/dispatch/record_commit.py`, one function `commit_task_record(manager,
+    task_id, *, subject)`, called at the end of each of the six sites -- after any
+    handoff that followed the entry, so one event produces one commit rather than
+    two. `TaskStorage` gains a public `task_path()` so the helper does not reach through
+    `_task_path` and still gets its containment check.
+
+
+    Mechanism, and why each part is there:
+
+
+    - `git commit --only -m <msg> -- <path>`. `--only` commits that path from the
+    working tree and ignores the index entirely. This is the ac-3 property and it
+    is git''s, not ours: a colleague''s `git add`-ed but uncommitted work in the same
+    clone is still staged and still theirs afterwards. Never `-A`, and never a bare
+    `git commit`, which would take whatever the index happens to hold.
+
+    - An untracked task file needs `git add --intent-to-add -- <path>` first, because
+    `--only` resolves its pathspec against what git knows and an untracked file is
+    not that ("pathspec did not match any file(s)"). It registers the path without
+    staging content.
+
+    - A file that is already clean returns without committing, so there is no empty
+    commit per poll tick.
+
+    - Retries up to three times, 0.5s apart, and only on `index.lock` contention --
+    two runs can settle at once.
+
+    - 30s timeout per git invocation, so a wedged git cannot hang a poller tick.
+
+    - Never raises. This runs on the terminal path of a finished run: no repository,
+    no git on PATH, a pre-commit hook that refuses, a lock it could not get -- each
+    returns an outcome, recorded as `record_commit` in the run''s `meta.yaml`. There
+    is no logger in this subsystem, and a run directory is meant to be a complete
+    account of its own run, so that is where a later reader finds out git refused.
+    The run is reported exactly as it would have been either way.
+
+
+    **What was deliberately NOT changed.** The pre-spawn `dispatch` entry (`runner._record_dispatch`)
+    is not committed. It is the one dispatcher write reliably swept up by the session
+    it starts, and committing it would move `HEAD` past the `git_head` that same entry
+    just recorded -- making the run''s own diff include the dispatcher''s own commit.
+    The single case with no session following is a failed spawn, and there the immediate
+    `dispatch_result` commit carries both entries. If this is ever observed dangling
+    in practice, the same helper is one line away at that site.
+
+
+    **No new config knob.** Dispatch is already opt-in per project (`enabled: false`
+    by default), so enabling dispatch is the opt-in. A project whose tasks directory
+    is not in a git repository gets a no-op. The alternative -- a `commit_task_records`
+    setting defaulting off -- would leave the reported bug in place for everyone who
+    never finds the setting, and adds a config surface, docs and tests for no safety
+    gain.
+
+
+    **Verification.**
+
+
+    - `tests/test_dispatch_record_commit.py`, 13 tests, driving **real git repositories**
+    rather than a mocked `subprocess`. The whole value of the change is in git''s
+    own semantics, and a mocked git would assert the flag was passed while proving
+    nothing about what it does.
+
+    - Two of them run end to end through `DispatchRunner` in a real repo, exercising
+    the code that had the bug rather than the fix alone: a completed batch run ends
+    with `git status` empty, and a run that could not start does too.
+
+    - The ac-3 case constructs the exact hazard -- a peer''s half-finished edit to
+    `src/app.py`, staged -- and asserts it is still staged and still uncommitted afterwards,
+    and that `git show --name-only HEAD` names only the task file.
+
+    - ac-4 is asserted, not merely written down: a bare repo is added as `origin`,
+    and its `HEAD` must not move.
+
+    - Failure paths: no repository, no file on disk, and a `pre-commit` hook that
+    exits 1 -- the last asserts the file is left exactly as it was.
+
+    - Full gate green, exit 0, in this worktree: Black + Ruff + MyPy clean over 155
+    files, **2135 pytest in 325.95s**, 154 Vitest across 22 files, the production
+    build, and 16 Playwright tests against a live server.
+
+
+    **Remaining:** nothing in scope. Handing to human/review. Not merged, not pushed.'
+  data:
+    operation:
+      id: fb4ebf90-bef1-462a-bb40-894f5dc5e889
+      kind: log_append
+      fingerprint: c494a2fe03054a18199c28d6ce0acf44
+- id: 4
+  ts: '2026-08-21T01:41:44.495570Z'
+  actor: claude
+  type: decision
+  body: '**Decision (ac-4): the dispatcher commits but does NOT push.**
+
+
+    Reasoning, since the rejected alternative is the part a later reader cannot recover
+    from the diff.
+
+
+    A commit is local, reversible, and repairs exactly the problem reported -- a working
+    tree left dirty by a write nobody owned. A push is none of those things:
+
+
+    - It publishes to a shared remote, which is a different grant of authority from
+    tidying your own write. An unattended background daemon does not have it.
+
+    - It can be rejected non-fast-forward. Handling that means fetching, rebasing
+    or forcing, unattended, in a clone somebody else is working. That is the mechanism
+    by which automation destroys work rather than tidying it, and a retry loop around
+    a rejected push is exactly the shape of that failure.
+
+    - It can want credentials a background process should not be taught to supply,
+    and it can start CI.
+
+    - AgentJobs cannot know a remote is safe to push to. This workspace contains projects
+    whose standing rule is that they must never acquire one. A general tool that pushes
+    by default is wrong for those projects and cannot detect that it is.
+
+
+    The counter-argument, stated fairly: in job-hunting the standing rule is push-after-commit,
+    and a commit that only ever sits local is a loose end of a different kind. But
+    that rule is for an agent working in a session with a human in the loop; it is
+    not a mandate for a daemon. And the loose end it leaves is much smaller than the
+    one being fixed -- an unpushed local commit is resolved as a matter of course
+    by the next human or session in that clone, whereas a dirty working tree trips
+    the next dispatch''s clean-tree check and has to be noticed by hand.
+
+
+    **Reopen trigger:** if unpushed dispatcher commits are observed accumulating across
+    days in a project that expects a remote, revisit with an explicit per-project
+    `push_task_records: true` opt-in. Not a changed default.'
+  data:
+    operation:
+      id: 362a62fd-15dc-4862-9820-ae8ac8395784
+      kind: log_append
+      fingerprint: 39ec5df528f0c5a7fc18d8b1c34cd60d
+- id: 5
+  ts: '2026-08-21T01:41:44.522360Z'
+  actor: claude
+  type: decision
+  body: '**Decision: the alternative the spec asked to be priced -- session commits
+    a placeholder, dispatcher amends it -- is rejected.**
+
+
+    Four reasons, any one sufficient:
+
+
+    1. `--amend` rewrites a commit the session may already have pushed. Landing it
+    would then need a force-push, which is precisely what must never happen automatically.
+
+    2. `--amend` rewrites `HEAD`, whoever wrote it. The session has exited by then,
+    so anything else that committed in that clone in the interval gets its commit
+    silently rewritten with the dispatcher''s content. The window is small and the
+    failure is total.
+
+    3. It couples every dispatched session''s prompt to dispatcher internals -- the
+    session would have to write a placeholder it has no way to know is needed, and
+    the prompt stub is deliberately almost nothing more than a pointer to the record.
+
+    4. It does nothing for three of the six sites, where no session ever existed to
+    write a placeholder: a spawn that failed, the ledger''s sweep of an abandoned
+    run, and an auto-dispatch cap refusal.
+
+
+    A fresh commit is strictly simpler and has no rewrite hazard.'
+  data:
+    operation:
+      id: 3bdbcb62-5cc1-4903-bfca-27eaa87376f5
+      kind: log_append
+      fingerprint: 51561fdc66359e1340a8c669602ae49f
+- id: 6
+  ts: '2026-08-21T01:41:44.550966Z'
+  actor: claude
+  type: decision
+  body: '**Ruling (ac-5): sibling writes in `dispatch/auto.py`, `poller.py` and `ledger.py`.**
+
+
+    Checked all three, plus `runner.py` and `guards.py`. Every `manager.*` call in
+    the subsystem was enumerated and classified.
+
+
+    **`auto.py` -- FIXED, one site.** `_record_cap_refusal` writes a `note` naming
+    the tripped budget cap and, for a count cap, hands the ball to a human. No run
+    was started, so there is no session and no run directory: this is the most dangling
+    write of the set, and it fires exactly when someone is already confused about
+    why no agent appeared. One `commit_task_record` call now covers both writes. The
+    `if not refusal.parks_task: return` early return was restructured into a positive
+    conditional so the commit runs on both paths; no behaviour changed.
+
+
+    **`poller.py` -- RULED OUT, correctly.** It makes no `manager` calls at all: `grep
+    -n "manager\." src/agentjobs/dispatch/poller.py` returns nothing. Its own module
+    docstring states the intent -- it finds live runs and hands them to `runner.poll_session`,
+    and "makes no decisions of its own". Every write it causes happens inside `_park_session`,
+    `_finish_session` or `_settle_finished_session` in `runner.py`, all of which are
+    fixed. Nothing to do here, and adding a commit call would be a second implementation
+    of a decision that deliberately has one.
+
+
+    **`ledger.py` -- FIXED, one site.** `_settle` sweeps a run that nothing is left
+    to follow -- startup reconciliation declaring an interrupted batch run terminal,
+    or a session whose record is being retired. By construction no session survives
+    it. One commit call at the end, with the outcome written to the run''s own `meta.yaml`
+    through the existing `write_status`, matching how that function already records
+    `unattributed`.
+
+
+    **`runner.py` -- FIXED, four sites; one ruled out.** Fixed: `_finish_session`,
+    `_finish_batch`, the batch spawn-failure path, and `_park_session`. `_park_session`
+    is worth calling out because it is the least obvious: the session is technically
+    alive, so it does not look like a write outside a session''s lifetime, but a parked
+    session waits indefinitely on a permission prompt and will make no further commit
+    until a human answers it. The handoff telling that human it is parked would sit
+    uncommitted until then -- invisible in the dashboard, which is the one place they
+    would look.
+
+
+    Ruled out: `_record_dispatch`, the pre-spawn `dispatch` entry. It is reliably
+    swept up by the session it starts, and committing it would move `HEAD` past the
+    `git_head` that same entry just recorded, making the run''s own diff include the
+    dispatcher''s commit.
+
+
+    **`guards.py` -- RULED OUT.** No `manager.` calls; `dispatch_task` delegates to
+    `runner._record_dispatch`, covered by the ruling above.'
+  data:
+    operation:
+      id: 0833dd45-e8b1-469d-9b9f-e88d65db522f
+      kind: log_append
+      fingerprint: 101a61235bd093207695f179af2a9b75
+- id: 7
+  ts: '2026-08-21T01:41:44.581768Z'
+  actor: claude
+  type: decision
+  body: '**Restart answer for the supervisor, stated explicitly rather than left to
+    be inferred: YES, the server on port 8876 must be restarted after merging, or
+    the fix does nothing.**
+
+
+    The change is Python source under `src/agentjobs/dispatch/`. The dispatcher and
+    the poller run *inside* the `agentjobs serve` process, which imports that code
+    at process start and holds it in memory. A merge to `main` updates the files on
+    disk and changes nothing about the running process -- the next dispatched run
+    would still be executed by the old code and would still leave its `dispatch_result`
+    uncommitted. That is the stale-server failure ENGINEERING.md''s safety rails already
+    describe, and it would look exactly like the fix not working.
+
+
+    **No frontend rebuild is needed.** Nothing under `frontend/` was touched, so `npm
+    run build` is not part of the post-merge step.
+
+
+    **Restart it the way it was started, not with `agentjobs restart`.** Port 8876
+    is served by `C:/ai/shared/launchers/open-agentjobs.ps1`, with a separate tsnet
+    proxy publishing it on the tailnet. `agentjobs restart` binds the default 8765
+    and would appear to succeed while leaving the real dashboard on the old process.
+
+
+    **How to confirm the fix is live rather than assuming it:** dispatch any task,
+    and after the run settles check `git -C C:/projects/agentjobs status --porcelain
+    -- tasks/`. That task''s file should not appear, and `git log -1` should show
+    a `chore(task-nnn): record run <run_id> as <outcome>` commit. The run''s own `meta.yaml`
+    carries a `record_commit` line saying what happened, including if git refused.'
+  data:
+    operation:
+      id: 742681e4-bde5-43c0-9b8a-4721bc68ab8f
+      kind: log_append
+      fingerprint: 8040bf744a8c55ffffcb37b099b6fe7d
+- id: 8
+  ts: '2026-08-21T01:42:23.596368Z'
+  actor: claude
+  type: handoff
+  body: 'Review and merge decision on task-203. Branch `fix/task-203-dispatcher-commits-own-write`,
+    four commits, worktree C:/projects/worktrees/aj-203. Not merged, not pushed, awaiting
+    explicit approval.
+
+
+    **What changed.** The dispatcher now commits the task record it writes for itself.
+    New `src/agentjobs/dispatch/record_commit.py` (one function), called at six sites
+    where the dispatcher writes to a record with no session left to sweep the file
+    up: the session settle, the batch settle, a batch run that never started, the
+    ledger''s sweep of an abandoned run, a parked session''s handoff, and an auto-dispatch
+    cap refusal. `TaskStorage` gains a public `task_path()`. Docs updated in `docs/agent-dispatch-design.md`,
+    which already recorded the symptom without a resolution.
+
+
+    **How it was verified.** 13 new tests driving real git repositories rather than
+    a mocked subprocess -- two of them end to end through `DispatchRunner`, exercising
+    the code that had the bug. Full gate green in the worktree, exit 0: Black + Ruff
+    + MyPy over 155 files, 2135 pytest in 325.95s, 154 Vitest across 22 files, the
+    production build, 16 Playwright against a live server.
+
+
+    **What to look at, in the order that matters:**
+
+
+    1. `record_commit.py`''s use of `git commit --only -- <path>`. This is the whole
+    safety argument for ac-2 and ac-3, and it rests on git''s semantics rather than
+    ours: `--only` reads the named path from the working tree and ignores the index,
+    so a peer''s staged work survives. If you disagree with that reading, the test
+    at `TestOnlyOurOwnFile::test_a_peers_staged_work_stays_staged_and_uncommitted`
+    is where to poke it.
+
+    2. **The push decision (ac-4): it commits, it does not push.** Reasoning is in
+    a decision entry above, with a stated reopen trigger. This is the judgement call
+    most worth your disagreement -- your standing rule in job-hunting is push-after-commit,
+    and I argued that rule is for an agent with a human in the loop, not for a daemon.
+
+    3. **No new config knob.** Committing is on wherever dispatch is on, on the reasoning
+    that dispatch is already opt-in per project and a setting defaulting off would
+    leave the bug in place for anyone who never finds it. Say so if you want it gated.
+
+    4. The one write deliberately left alone: the pre-spawn `dispatch` entry, because
+    committing it would move HEAD past the `git_head` that same entry just recorded.
+
+
+    **After merging, the server on 8876 MUST be restarted** or the fix does nothing
+    -- the dispatcher runs inside that process and holds the old code in memory. Restart
+    it via `C:/ai/shared/launchers/open-agentjobs.ps1`, not `agentjobs restart` (that
+    binds 8765). No frontend rebuild needed; nothing under `frontend/` was touched.
+    Full reasoning and a way to confirm it is live are in a decision entry above.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: f3aae812-a684-4ff5-a92c-eaa8683bb63f
+      kind: handoff
+      fingerprint: 813eb9953049d33e1a014b29d3e0ce78
