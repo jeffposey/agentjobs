@@ -3,42 +3,22 @@ id: task-211
 title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
   reorder, and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T17:58:24.658283Z'
+updated: '2026-08-21T18:23:03.521320Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Read the design on your phone here:\n\nhttps://claude.ai/code/artifact/1588a618-c81b-4239-90a0-94a009c93d4a\n\
-  \nIt is docs/playbooks-design.md verbatim at commit 44bcda2 \u2014 nothing edited\
-  \ or summarised \u2014 with a section index behind the Contents button and every\
-  \ in-prose \xA7-reference turned into a tap target. Start at \xA710 Decisions; it\
-  \ is linked from the header and is the two-minute version. The page is private to\
-  \ your account unless you share it.\n\nThe review ask is unchanged from entry 12:\
-  \ approve or push back on P1-P10. Nothing else is waiting on you.\n\nThree things\
-  \ worth knowing.\n\nFirst, nothing was dispatched this run. The prompt came in as\
-  \ the supervisor variant because task-211 has six open children, but task-214..219\
-  \ are all drafts parked at human/spec by the design's own rule \u2014 they stay\
-  \ drafts until you approve. The children are not blocked on a session; they are\
-  \ blocked on you. On approval, a session rebases and merges the docs branch, and\
-  \ you promote the children when you want them started (task-219, the reactive lane,\
-  \ carries its own do-not-start gate on top).\n\nSecond, the repeat guide you asked\
-  \ for is at C:/ai/shared/doc-artifacts/ \u2014 publish_doc.py and README.md. It\
-  \ supersedes the C:/ai/inbox/ path named in the earlier prompt, which has been deleted\
-  \ so there is one copy rather than two that drift. It is in ai/shared rather than\
-  \ the agentjobs repo because it works on any repo's markdown, not just this product's.\
-  \ Doing the same page again is now one command plus a publish. Entry 19 has the\
-  \ exact invocation for this doc and the evidence that the generalised tool renders\
-  \ it identically to what you are already reading.\n\nThird, your idea about all\
-  \ design artifacts being remotely accessible is still not filed. The guide names\
-  \ it as the thing this prototype is standing in for, and says the real version is\
-  \ AgentJobs serving rendered docs over the tailnet you already have \u2014 which\
-  \ drops the publish step, the stale-link hazard, and reading docs out of a branch\
-  \ by hand. Say the word and I will write the task.\n\nOne caveat on the page itself,\
-  \ stated because the repo's own rule says to name the instrument: layout, both themes,\
-  \ the encoding and the tables were verified by reading computed styles, but the\
-  \ Contents toggle was only proven by calling click() in the page \u2014 the browser-automation\
-  \ click delivered focus and no click event, which is the task-225 failure mode rather\
-  \ than a page bug. If tapping Contents does nothing for you, that is real and I\
-  \ want to know."
+ball: agent
+ball_reason: revise
+ball_prompt: 'Looking good, my first hesitation is queue-check. Seems overly complicated
+  and hard to use as it is. What if we postpone the playbook idea for that, and use
+  a new immediate deterministic process for queue check, where it prompts you immediately
+  based on the existing "why" text, if possible.
+
+
+  I also want to say now I''ve been thinking of another lay on top of runner groups.
+  It would be Agent Type, and I would create one called Producer that would then get
+  configured to use default runner, and then these playbooks point to agent types,
+  not the runner groups. I think that is worth it, what do you think? I would then
+  have lead engineer, senior engineer, and junior engineer that map to big dawg, default,
+  and the one that uses sonnet'
 archived: false
 priority: high
 queue_position: 10500
@@ -779,3 +759,241 @@ log:
     outcome: completed
     duration_seconds: 1280.020948
     log_path: C:\Users\jpose\.agentjobs\runs\run_a99eda3f
+- id: 22
+  ts: '2026-08-21T18:07:00.398683Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by Jeff Posey:
+
+
+    Looking good, my first hesitation is queue-check. Seems overly complicated and
+    hard to use as it is. What if we postpone the playbook idea for that, and use
+    a new immediate deterministic process for queue check, where it prompts you immediately
+    based on the existing "why" text, if possible.
+
+
+    I also want to say now I''ve been thinking of another lay on top of runner groups.
+    It would be Agent Type, and I would create one called Producer that would then
+    get configured to use default runner, and then these playbooks point to agent
+    types, not the runner groups. I think that is worth it, what do you think? I would
+    then have lead engineer, senior engineer, and junior engineer that map to big
+    dawg, default, and the one that uses sonnet'
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 23
+  ts: '2026-08-21T18:07:02.723679Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 24
+  ts: '2026-08-21T18:07:03.853105Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_5e030d6e
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 23
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)", "mcp__agentjobs"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` supervising parent task `task-211` in project `agentjobs`
+      (root: C:\projects\agentjobs). It has open children: task-214, task-215, task-216,
+      task-217, task-218, task-219. You are the supervisor, not the worker: start
+      a separate session for one eligible child at a time and let that session do
+      the child''s work. Do not work a child yourself, do not take a worktree, and
+      check nothing out -- you stay in the shared working tree as it is, and each
+      child session takes its own. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the parent record, then follow the parent-task protocol in docs/agent-workflow.md.
+      Dispatch run id: run_5e030d6e.'
+    cwd: C:\projects\agentjobs
+    git_head: 81b9790
+    session_id: cd274000
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 25
+  ts: '2026-08-21T18:22:37.848395Z'
+  actor: claude
+  type: decision
+  body: "**Answering the first half of entry 22: queue-check becomes deterministic.\
+    \ Adopted, and it is an improvement rather than a compromise.** Design \xA75.4\
+    \ rewritten; P8 replaced; the reactive-playbook category withdrawn.\n\nJeff: *\"\
+    Seems overly complicated and hard to use as it is. What if we postpone the playbook\
+    \ idea for that, and use a new immediate deterministic process for queue check,\
+    \ where it prompts you immediately based on the existing 'why' text, if possible.\"\
+    *\n\n**It is possible, and the deterministic check is not thin.** Every one of\
+    \ these is computable from data the move handler has already loaded \u2014 `_skip_reason`,\
+    \ `dependencies[]`, `unblocks_count`, `find_queue_problems`:\n\n1. **The task\
+    \ you promoted cannot be claimed** \u2014 unmet `needs`, open children, `draft`,\
+    \ already claimed, not eligible. The queue will skip past it where you just put\
+    \ it. This is literally `explain_next()`'s `--why` text pointed at one task rather\
+    \ than the whole backlog, and it is the common mistake.\n2. **You ordered a task\
+    \ above something it needs** \u2014 the order just written cannot execute in the\
+    \ order it reads.\n3. **What you demoted gates other work** \u2014 *\"this pushed\
+    \ task-204 down; three open tasks need it.\"*\n4. **The move changes nothing**\
+    \ \u2014 the head above the drop is unclaimable, so `next` returns what it returned\
+    \ before.\n5. **The queue is not in a state to be reasoned about** \u2014 a duplicate\
+    \ or missing position in the band.\n\n**Why this is better and not just cheaper.**\
+    \ Entry 6 rejected reason-at-drag-time on three grounds: it becomes wallpaper,\
+    \ it explains the grabbed task when the risk is what got pushed *down*, and a\
+    \ prior justification cannot see the queue as it now stands. All three grounds\
+    \ survive the change of engine and the deterministic check clears all three \u2014\
+    \ it fires only on a fact, warning 3 names the demoted task, and it runs after\
+    \ the move. **The inversion you argued for in entry 6 is kept in full; only the\
+    \ model is gone.** What the model version added on top was a 120-second debounce,\
+    \ which was a cost rather than a feature: it existed solely to amortise the price\
+    \ of a call, and with no call there is nothing left to buy \u2014 only a notice\
+    \ arriving two minutes late, after five more moves, possibly after the tab is\
+    \ closed.\n\n**What is genuinely lost.** The model could have said a move was\
+    \ *unwise* rather than *illegal*. Not smuggled back, for two reasons. First, that\
+    \ is `reorder`'s job and `reorder` does it better: judging an order needs the\
+    \ whole band in view, and a check scoped to one drag is the worst available vantage\
+    \ point for it. Second, it second-guesses the one act this design already decided\
+    \ you own \u2014 entry 3's argument is that at 75 open tasks you are the *less-informed*\
+    \ party at ordering time, and what follows from that is an agent that **orders**,\
+    \ not an agent that **comments on your ordering**. So: **the deterministic check\
+    \ catches the move that cannot work; `reorder` supplies the judgement, over the\
+    \ whole band, when asked.**\n\n**The anchor mechanics survive on better evidence.**\
+    \ Because the check is synchronous, \"kept over a stated warning\" becomes certain\
+    \ rather than inferred \u2014 the warning was on screen when you chose to keep.\
+    \ Under the debounced version it was a guess about whether a notice arriving two\
+    \ minutes later had been read at all. `undo`/`keep` is unchanged, one click each\
+    \ way, and `keep` still promotes the position to the strong anchor `reorder` must\
+    \ not move.\n\n**What the change removed structurally, which is the part worth\
+    \ noticing.** The reactive lane was the design's **only exception to \xA74.1's\
+    \ run-is-a-task rule**, and carrying it required a reserved actor to write objections,\
+    \ a machine-local debounce window, a batch-mode spend ceiling, and a fail-open\
+    \ story. All five are gone and \xA74's central rule now holds without qualification.\
+    \ It also removes the last automatic model call in the design: **every remaining\
+    \ playbook run is started by a human on purpose.** And with no dispatch in the\
+    \ path there is nothing to be unavailable from a phone on the tailnet, which is\
+    \ where you actually reorder.\n\n**Rejected: keeping both, deterministic first\
+    \ and a model second.** Tempting and premature \u2014 it is the reopen condition,\
+    \ not the design. Stated in \xA75.4: reopen when you find yourself wanting an\
+    \ argument about whether a move is *wise* at the moment you make it, and find\
+    \ that running `reorder` afterwards does not serve. The reactive lane would then\
+    \ return **on top of** the deterministic check, never instead of it, because the\
+    \ check is free and always available.\n\n**Consequence: it stops being a playbook\
+    \ child.** The check is a property of the `queue move` verb, in the family of\
+    \ `queue check` and `explain_next()` \u2014 queue-program work (task-081, task-207),\
+    \ not playbook work. **task-219 has been retargeted accordingly**: new title,\
+    \ spec, constraints and acceptance; its `needs` on task-215 dropped, so it now\
+    \ depends on no playbook machinery and can ship first or last. Its old *do-not-start-without-Jeff's-go-ahead*\
+    \ constraint is dropped with the machinery that justified it \u2014 there is no\
+    \ model call, no spend and no new category left in it. It is still a draft."
+  re: 22
+  data:
+    operation:
+      id: 3f1c9a20-7b44-4e19-9d31-5c0a1e7b2203
+      kind: log_append
+      fingerprint: 8d936fbd60dd7da205a245d2e91796f8
+- id: 26
+  ts: '2026-08-21T18:23:03.521035Z'
+  actor: claude
+  type: decision
+  body: "**Answering the second half of entry 22: agent types. Yes \u2014 worth it,\
+    \ with two conditions, and it is not this task's to build.** Filed as **task-227**\
+    \ (draft). Design \xA77.3 written; P11 added; P6 reworded.\n\n**Why yes, and it\
+    \ is not a matter of taste: you already have exactly one agent type, hardcoded,\
+    \ and it is called `supervisor`.** `posture_flags(..., supervisor=True)` widens\
+    \ the permission allow-list via `supervisor_allow_rules()`, and `compose_argv`\
+    \ picks `SUPERVISOR_STUB` over `PROMPT_STUB` \u2014 both derived from the record\
+    \ (the task has an open child), **neither touching the runner**. That is a role\
+    \ that changes what the agent is told and what it is permitted to do. Your proposal\
+    \ generalises something this codebase already needed once and solved by special\
+    \ case, which is the best evidence available that a layer is real rather than\
+    \ speculative.\n\n**Condition 1: an agent type must carry more than a runner group,\
+    \ or it is an alias table \u2014 and your own examples prove it.** `Producer`\
+    \ \u2192 default runner. `senior engineer` \u2192 default runner. If a runner\
+    \ group is all an agent type carries, those two are one object with two names,\
+    \ and the vocabulary has failed at its second example. The payload that makes\
+    \ it a real object is what `supervisor` already carries, generalised:\n\n- **a\
+    \ role brief in the prompt stub** \u2014 a Producer grooms, orders and specs,\
+    \ and should be *told* it does not write code;\n- **a permission profile** \u2014\
+    \ today the allow-list is keyed on posture alone. A Producer that only touches\
+    \ task records wants a far narrower list than an engineer, and that is a safety\
+    \ property, not flavour. It has a named beneficiary already: task-220 found that\
+    \ three consecutive classifier blocks arm a breaker that parks a `--bg` run, and\
+    \ concluded the fix is *\"making sure the streak cannot form for the role that\
+    \ provokes it\"*. A role-scoped allow-list **is** that fix, generalised.\n- **a\
+    \ default posture and mode**;\n- **a default runner group** \u2014 one field among\
+    \ several, rather than the whole thing.\n\n**Condition 2: keep role and cost on\
+    \ separate axes, which is where I'd push back on the engineer ladder.** Lead /\
+    \ senior / junior as you described them map onto big-dawg / default / sonnet \u2014\
+    \ that is the `difficulty` axis (task-156) wearing job titles. Writing it into\
+    \ a repo file writes a **spend** decision into portable content, which is the\
+    \ thing \xA76.3 exists to prevent, and it costs you two concrete things: the same\
+    \ playbook can no longer be run cheaply on a spare machine without editing a repo\
+    \ file, and a reader cannot tell whether \"senior engineer\" constrains *behaviour*\
+    \ or *budget*.\n\nThe test, which is the same test as condition 1: **if lead,\
+    \ senior and junior differ in what they are permitted to do and how their work\
+    \ is reviewed, they are agent types; if they differ only in which model runs,\
+    \ they are `difficulty` with job titles.** I suspect you actually mean the first\
+    \ \u2014 \"junior engineer\" carries a real idea about narrower scope and closer\
+    \ review that \"easy\" does not \u2014 and if so the ladder is fine and the tiers\
+    \ should carry that payload explicitly rather than implying it through a runner\
+    \ choice.\n\n**Where it lives, if built as its own object.** Definitions \u2014\
+    \ name, role brief, permission profile, default posture \u2014 in **project config,\
+    \ git-tracked**, because \"Producer\" means the same thing on every machine. The\
+    \ **binding to a runner group in machine config**, beside the groups, because\
+    \ which executables exist does not travel. That split is what keeps a playbook\
+    \ portable *and* keeps \xA76.3 intact: the playbook names a kind of agent, the\
+    \ repo says what that kind is, the machine says what runs it.\n\n**One alternative\
+    \ you should see before anyone builds it: the actor vocabulary may already be\
+    \ the right home.** `actors:` is per-project, git-tracked, and *already carries\
+    \ role language in its display names* \u2014 `claude` renders as \"Claude (Lead\
+    \ Engineer)\", `codex` as \"Codex (Workhorse)\". An actor id is already independent\
+    \ of which model ran (Opus and Fable both write `actor: claude`). Making agent\
+    \ type a property of the actor \u2014 or making `producer` a fourth actor \u2014\
+    \ would give attribution for free: the backlog would show which grooming the Producer\
+    \ role did, which no separate layer gives you. The cost is that identity and role\
+    \ stop being separable, so one agent working in two roles needs two ids. Not settled\
+    \ here; it is task-227's first question.\n\n**Why it is not part of this task.**\
+    \ Agent type is dispatch-layer work with consumers well beyond playbooks \u2014\
+    \ every ordinary dispatch has an agent type too, and `supervisor` proves it \u2014\
+    \ so folding it in would put task-211 in the business of designing dispatch. task-227\
+    \ is a design pass in the same mould, priority medium, draft, with the findings\
+    \ above written into its spec so its session does not re-derive them.\n\n**Consequence\
+    \ for this design: one line, and it was already abstract.** P6 said a playbook\
+    \ declares `difficulty` and never names a runner. Reworded so the rule is *the\
+    \ indirection*, not the field name: **a playbook declares what kind of agent should\
+    \ run it; the machine binds that to a runner.** If agent types land, `agent_type`\
+    \ becomes that declaration with `difficulty` beside it as the orthogonal axis,\
+    \ and nothing else in the playbook design moves. That is the whole reason there\
+    \ was an indirection instead of a group name in the frontmatter, and it means\
+    \ task-227 can settle either way without reopening task-211."
+  re: 22
+  data:
+    operation:
+      id: 3f1c9a20-7b44-4e19-9d31-5c0a1e7b2204
+      kind: log_append
+      fingerprint: a0184d2abe5e17fffc7288695d7a92ea

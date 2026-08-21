@@ -1,0 +1,173 @@
+schema: 2
+id: task-227
+title: 'Design agent types: a role layer above runner groups that carries prompt,
+  permissions and posture'
+created: '2026-08-21T18:16:01.269884Z'
+updated: '2026-08-21T18:16:01.566886Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: medium
+queue_position: 7100
+category: architecture
+tags:
+- design
+- dispatch
+- agent-dx
+- runners
+assignment:
+  eligible: []
+spec:
+  summary: "Design a first-class \"agent type\" \u2014 a named role (Producer, engineer\
+    \ tiers) defined in project config and bound to a runner group by machine config,\
+    \ carrying a role brief, a permission profile and a default posture. Dispatch\
+    \ already has exactly one such role hardcoded (`supervisor`); this generalises\
+    \ it. Design pass only."
+  intent: 'Dispatch can express which *runner* runs a job but not what *kind of agent*
+    is doing it, so role is smuggled in three unrelated ways: hardcoded (`supervisor`),
+    by display-name convention in `actors:`, and by picking a runner group whose name
+    gestures at capability. A named role layer makes "a Producer runs this" durable,
+    portable and attributable, and gives role-scoped permissions a place to live.'
+  description: "Raised by Jeff on the task-211 design review, 2026-08-21 (task-211\
+    \ log entry 22): a layer above runner groups called **agent type**. `Producer`\
+    \ bound to the default runner; playbooks pointing at agent types rather than runner\
+    \ groups; and `lead engineer` / `senior engineer` / `junior engineer` bound to\
+    \ `big-dawg` / `default` / the Sonnet runner.\n\nThe task-211 answer (its \xA7\
+    7.4 and log entry 26) is *yes, worth it, and not task-211's to build* \u2014 it\
+    \ is dispatch-layer work with consumers beyond playbooks, since every ordinary\
+    \ dispatch has an agent type too. This is that design task. The findings task-211\
+    \ already established, which this design inherits rather than re-derives:\n\n\
+    **1. The layer exists today, hardcoded, with one member called `supervisor`.**\
+    \ `posture_flags(..., supervisor=True)` widens the permission allow-list with\
+    \ `supervisor_allow_rules()`, and `compose_argv` selects `SUPERVISOR_STUB` over\
+    \ `PROMPT_STUB` \u2014 both derived from the record (the task has an open child),\
+    \ neither touching the runner. That is a role that changes what the agent is told\
+    \ and what it may do. Agent type generalises a special case that already earned\
+    \ its place.\n\n**2. An agent type must carry more than a runner group, or it\
+    \ is an alias table.** Proof from the proposal itself: `Producer` binds to the\
+    \ default runner and `senior engineer` binds to the default runner. If a group\
+    \ is all an agent type carries, those two are one object with two names, and the\
+    \ vocabulary fails at its second example. Candidate payload, all of it modelled\
+    \ on what `supervisor` already carries:\n- a **role brief** in the prompt stub\
+    \ (a Producer grooms, orders and specs; it should be told it does not write code);\n\
+    - a **permission profile** \u2014 the allow-list, today keyed on posture alone.\
+    \ Named beneficiary: task-220 found that three consecutive classifier blocks arm\
+    \ a breaker that parks a `--bg` run, and concluded the fix is \"making sure the\
+    \ streak cannot form for the role that provokes it\". A role-scoped allow-list\
+    \ is that fix, generalised.\n- a **default posture and mode**;\n- a **default\
+    \ runner group**, as one field among several rather than the whole thing.\n\n\
+    **3. Keep role and cost on separate axes.** Lead/senior/junior as described map\
+    \ onto big-dawg/default/sonnet, which is the `difficulty` axis (task-156) wearing\
+    \ job titles. Writing that into a repo file writes a spend decision into portable\
+    \ content \u2014 the thing the playbooks design's \xA76.3 gate-2 analogue exists\
+    \ to prevent. The test: if the three tiers differ in what they are permitted to\
+    \ do and how their work is reviewed, they are agent types; if they differ only\
+    \ in which model runs, they are `difficulty` with job titles. The design must\
+    \ take a position, not leave it implied.\n\n**What this design has to settle:**\n\
+    \n- **Where definitions live.** The task-211 recommendation is a split: definitions\
+    \ (name, role brief, permission profile, default posture) in **project config,\
+    \ git-tracked**, because \"Producer\" means the same thing on every machine; the\
+    \ **binding to a runner group in machine config** beside the groups, because which\
+    \ executables exist does not travel. Defend or reject.\n- **Whether it is a new\
+    \ object at all, or a property of `actors`.** `actors:` is already per-project,\
+    \ git-tracked, and already carries role language in its display names \u2014 `claude`\
+    \ renders as \"Claude (Lead Engineer)\", `codex` as \"Codex (Workhorse)\" \u2014\
+    \ and an actor id is already independent of which model ran (Opus and Fable both\
+    \ write `actor: claude`). Making agent type a property of the actor, or making\
+    \ `producer` a fourth actor, would give attribution for free: the backlog would\
+    \ show which grooming the Producer role did. The cost is that identity and role\
+    \ stop being separable, so one agent working in two roles needs two ids. This\
+    \ is the first alternative the design should dispose of, either way.\n- **How\
+    \ it composes with the existing precedence ladder** (dispatch \u2192 project \u2192\
+    \ machine, `models_v2.py` and `dispatch/config.py`) without breaking a flat config\
+    \ that has never heard of groups, which task-177 was careful to keep byte-identical\
+    \ in git.\n- **How it composes with `difficulty` (task-156)** and the unbuilt\
+    \ difficulty \u2192 profile table in the dispatch design's model policy section.\n\
+    - **What `supervisor` becomes.** It is currently derived from the record rather\
+    \ than declared. Does it become an agent type, stay derived, or both \u2014 and\
+    \ if both, what wins when they disagree?\n- **The permission profile's safety\
+    \ story.** The allow-list is AgentJobs' own risk boundary (`posture_flags`' docstring\
+    \ is explicit that the operator does not own it). A project-config-declared permission\
+    \ profile moves part of that boundary into repo content. The design must say what\
+    \ a profile may widen, what it may only narrow, and why that is safe \u2014 or\
+    \ conclude that profiles may only narrow.\n\n**Shape:** design pass in the task-081\
+    \ / task-211 mould \u2014 a doc in `docs/`, reviewed and accepted by Jeff, implementation\
+    \ children derived and held as drafts. Do not implement."
+  constraints: '- Design only; implementation is derived children held as drafts until
+    the design is approved.
+
+    - The design must state rejected alternatives with reasons, per this repo''s design-doc
+    convention.
+
+    - A flat `runners:` config that has never heard of groups or types must stay unchanged
+    in behaviour and byte-identical in what it writes to git, as task-177 required
+    of groups.
+
+    - Nothing here may widen a posture''s permission boundary implicitly; `posture_flags`
+    owns that boundary and the design must say explicitly what a role profile may
+    and may not do to it.'
+  out_of_scope: "Building any of it. Redesigning runner groups (task-177 is settled).\
+    \ Building the difficulty \u2192 profile table (that is task-156 plus the dispatch\
+    \ design's model policy). Changing the playbooks design, which needs only its\
+    \ indirection to keep pointing somewhere."
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: SUPERVISOR_STUB, allow_rules() and supervisor_allow_rules() are the one hardcoded
+      agent type this design generalises.
+  - path: src/agentjobs/dispatch/config.py
+    why: Runner groups and the precedence ladder the new layer sits above.
+  - path: src/agentjobs/actors.py
+    why: The per-project actor vocabulary, which is the leading alternative home for
+      agent type.
+  - path: docs/agent-dispatch-design.md
+    why: The dispatch design this extends, including the unbuilt model policy table.
+acceptance:
+- id: sc-1
+  text: The design settles whether agent type is a new object or a property of the
+    existing actor vocabulary, disposing of the rejected option with reasons.
+  status: pending
+- id: sc-2
+  text: It defines what an agent type carries beyond a runner group -- role brief,
+    permission profile, default posture/mode -- and shows that two types binding the
+    same runner group are still distinguishable.
+  status: pending
+- id: sc-3
+  text: It states where definitions live versus where the runner binding lives, and
+    why a repo-committed type name stays portable across machines.
+  status: pending
+- id: sc-4
+  text: 'It takes a position on the engineer tiers: agent types, or `difficulty` with
+    job titles, with the test applied rather than asserted.'
+  status: pending
+- id: sc-5
+  text: It says exactly what a role permission profile may do to the posture boundary,
+    and why that is safe; and what becomes of the derived `supervisor` role.
+  status: pending
+- id: sc-6
+  text: Implementation children are derived and held as drafts pending Jeff's approval
+    of the design.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-211
+  type: related
+  note: "Raised on its review; task-211 \xA77.4 records the findings this inherits."
+- task: task-156
+  type: related
+  note: The difficulty axis this must stay separate from.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T18:16:01.565998Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 3f1c9a20-7b44-4e19-9d31-5c0a1e7b2201
+      kind: create
+      fingerprint: 9d43b5ab98fdaea715d2d4f372583a1d

@@ -1,8 +1,8 @@
 schema: 2
 id: task-219
-title: "Playbooks 6: the reactive lane \u2014 queue-check on human reorder bursts"
+title: 'The queue-move check: deterministic warnings when a human reorders'
 created: '2026-08-21T04:57:23.007031Z'
-updated: '2026-08-21T16:59:32.736339Z'
+updated: '2026-08-21T18:21:34.745480Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -10,87 +10,151 @@ ball_prompt: Finish specifying this task.
 archived: false
 priority: medium
 queue_position: 6900
-category: architecture
+category: feature
 tags:
-- playbooks
 - queue-order
 - frontend
-- dispatch
+- agent-dx
 assignment:
   eligible: []
 parent: task-211
 spec:
-  summary: "Build the reactive playbook category around queue-check: a debounced,\
-    \ spend-capped, batch-mode check that fires after a human's reorder burst settles,\
-    \ records objections on the objected tasks, and surfaces a one-click undo/keep\
-    \ in the React queue \u2014 keep-over-objection becoming the strong anchor reorder\
-    \ respects. Fails open, always. Do not start without Jeff's explicit go-ahead."
-  intent: 'The most-run playbook in the product once it exists: it is what makes human
-    authority over the queue informed rather than blind, without ever blocking the
-    human''s hand.'
-  description: "Implements section 5.4 of docs/playbooks-design.md (the task-211 deliverable;\
-    \ add it to context[] once it merges), and the interaction Jeff described on 2026-08-20\
-    \ (task-211 log entry 6, binding): the drag lands immediately and is authoritative;\
-    \ a playbook then checks it and objects only on grounds.\n\nScope:\n\n- Trigger:\
-    \ a human reorder burst (consecutive human queue_moves in one project) is checked\
-    \ once, when 120s pass with no further human move. The window is machine-local\
-    \ config with that default. One model call per burst, never per drop.\n- The run:\
-    \ a batch-mode runner call (spend ceiling via --max-budget-usd, structured output)\
-    \ whose input is the burst's moves plus the queue and affected records, and whose\
-    \ output is silence or objections. Not a task, not a session \u2014 the reactive\
-    \ exception the design argues in \xA74/\xA75.4.\n- Record: each objection is appended\
-    \ to the objected task's log, referencing the queue_move entry it answers. It\
-    \ lands whether or not a browser is open.\n- Surface: a non-blocking notice in\
-    \ the React queue (task-207's list) with the objection text and one-click undo\
-    \ (inverse queue_move, human actor) / keep (appends the human's kept-over-objection\
-    \ entry, re: the objection). Keep promotes the position to a strong anchor, which\
-    \ reorder (task-217) must not move. No blocking modal.\n- Fail open, structurally:\
-    \ dispatch disabled, no runner, budget exhausted, or check error means nothing\
-    \ happens and the move stands. The check is advisory by construction.\n\nTests\
-    \ that matter: the debounce boundary (two moves 60s apart are one burst; a move\
-    \ 3 minutes later is a new one); fail-open with dispatch disabled; the objection\
-    \ entry lands and threads to the move; keep produces the strong-anchor record;\
-    \ undo is a logged human queue_move."
-  constraints: "Design decision P8 is binding. DO NOT START without Jeff's explicit\
-    \ go-ahead on building the reactive lane at all \u2014 this child spends money\
-    \ on an everyday human gesture and is the most new machinery in the program (same\
-    \ constraint shape as the loops children task-150/151). The move is never blocked\
-    \ and never awaits the model."
-  out_of_scope: Any other reactive playbook. Recurrence or scheduling. Blocking confirmation
-    UX of any kind. Reading or extending dispatch caps for the reactive lane beyond
-    the per-check spend ceiling.
+  summary: When a human moves a task in the queue, the move lands and the response
+    carries deterministic warnings about it -- the promoted task is unclaimable, it
+    was ordered above its own prerequisite, what it demoted gates other work, the
+    move is a no-op, the band is corrupt. A non-blocking notice offers one-click undo/keep;
+    keep records the strong anchor that reorder must respect. No model, no spend,
+    no debounce.
+  intent: A human reordering the backlog cannot see the dependency graph, so the commonest
+    ordering mistake -- promoting something that is blocked -- is invisible at the
+    moment it is made and silent afterwards. Every fact needed to catch it is already
+    computed by the queue; this puts it in front of the person at the one moment it
+    matters.
+  description: 'Implements section 5.4 of docs/playbooks-design.md (the task-211 deliverable;
+    add it to context[] once it merges).
+
+
+    **Retargeted 2026-08-21 on Jeff''s review of that design (task-211 log entries
+    22 and 25).** This task previously specified `queue-check` as a *reactive playbook*:
+    a 120s-debounced, spend-capped, batch-mode model call producing objections. That
+    is withdrawn. Jeff''s judgement was that it was "overly complicated and hard to
+    use as it is", and his proposal -- an immediate deterministic check driven by
+    the `--why` text the queue already produces -- was adopted. What is left is smaller,
+    faster, always available, and needs no playbook machinery at all.
+
+
+    **What it does.** A human moves a task -- a drag in the React list, `queue move`
+    on the CLI, the REST call under either. The move lands and is authoritative, exactly
+    as before; it is never blocked and never awaits anything. The response carries
+    zero or more **warnings**, computed synchronously from data the move handler has
+    already loaded.
+
+
+    **The warnings, and the fact behind each:**
+
+
+    - **The task you promoted cannot be claimed** -- `_skip_reason`: unmet `needs`,
+    open children, `draft` lifecycle, already claimed, not eligible. The queue will
+    skip past it where it was just put. This is the existing `explain_next()` / `--why`
+    text pointed at one task instead of the whole backlog, and it is the common case.
+
+    - **You ordered a task above something it needs** -- `dependencies[]`. The order
+    just written cannot execute in the order it reads.
+
+    - **What you demoted gates other work** -- `unblocks_count` from the dependency
+    facts: *this pushed task-204 down; three open tasks need it.* This is the one
+    that answers task-211 log entry 6''s point that the risk in a drag is usually
+    what got pushed down, not what was grabbed.
+
+    - **The move changes nothing** -- the head of the band above the drop is unclaimable,
+    so `next` returns what it returned before. Usually means the real blocker is elsewhere.
+
+    - **The queue is not in a state to be reasoned about** -- `find_queue_problems`
+    / `QueueCorruptionError`, which `queue check` already detects.
+
+
+    **Surface.** A non-blocking notice in the React queue list (task-207''s) carrying
+    the warning with `undo` and `keep`, one click each way. `undo` issues the inverse
+    `queue move`, logged, human actor. `keep` appends the kept-over-warning entry
+    that promotes the position to a **strong anchor**, which `reorder` (task-217)
+    must not move. Ignoring the notice leaves an ordinary anchor. No blocking modal
+    -- that reintroduces the friction the whole post-hoc shape exists to avoid.
+
+
+    Because the check is synchronous, "the human was informed and kept the move anyway"
+    is a fact about the record rather than an assumption about whether a notice arriving
+    two minutes later was read. That is what makes the strong anchor legitimate.
+
+
+    **CLI and REST get the same warnings**, not just the browser: `queue move` prints
+    them, and the REST response carries them, so a move made from a script or a phone
+    is checked identically.
+
+
+    **Tests that matter:** each warning class fires on its own construction and stays
+    silent otherwise; a move that is legal produces no warning at all (the check must
+    not become wallpaper); the warnings are computed without a second full parse of
+    the corpus (assert on task parses, per the performance convention, not on wall
+    clock); `keep` produces the strong-anchor record `reorder` reads; `undo` is an
+    ordinary logged human `queue_move`.'
+  constraints: '- Design decision P8 (revised) is binding: deterministic and synchronous,
+    no model call anywhere in this path, and the move is never blocked and never awaits
+    anything.
+
+    - The check reports; it never refuses a move. A corrupt band produces a warning,
+    not a rejection -- consistent with `queue_listing` reporting rather than raising.
+
+    - Silence is the normal outcome. A warning that fires on legal moves is a defect,
+    not a feature.
+
+    - Assert on rendered values and on task parses, not on markup presence or wall-clock
+    time (ENGINEERING.md, Verification).'
+  out_of_scope: Any judgement about whether a move is *wise* rather than *legal* --
+    that is `reorder`'s job (task-217), over the whole band, on demand. Any model
+    call. Recurrence, debouncing, or spend ceilings, none of which this needs. Reordering
+    the queue automatically.
   context:
-  - path: docs/agent-dispatch-design.md
-    why: "Batch runner mode (\xA74) is the shape of the check call; the gates that\
-      \ must fail it open rather than closed."
+  - path: src/agentjobs/manager.py
+    why: '`explain_next()` and `_skip_reason` are the existing deterministic ''why''
+      this reuses.'
+  - path: src/agentjobs/queue.py
+    why: '`find_queue_problems`, `place_of` and the band model the warnings are computed
+      against.'
 acceptance:
 - id: sc-1
-  text: A settled human reorder burst produces at most one check call, debounced at
-    the configured window; per-drop calls are impossible.
+  text: Each warning class -- unclaimable promoted task, ordered above a prerequisite,
+    demoted task that gates others, no-op move, corrupt band -- fires on a move that
+    constructs it and on no other.
   status: pending
 - id: sc-2
-  text: Objections land on the objected tasks' logs threaded to the moves they answer;
-    the React notice offers one-click undo and keep; keep records the kept-over-objection
-    entry that makes a strong anchor.
+  text: A legal move produces no warning at all, proven over a set of ordinary moves;
+    silence is the normal outcome.
   status: pending
 - id: sc-3
-  text: 'Fail-open demonstrated: with dispatch disabled or the check erroring, the
-    move stands and nothing blocks or retries.'
+  text: The warnings are returned by the CLI, the REST move endpoint and the React
+    list alike, from one implementation.
   status: pending
 - id: sc-4
-  text: The check call runs batch mode with a spend ceiling; no session, no run task.
+  text: The React notice is non-blocking and offers one-click undo and keep; undo
+    is a logged human queue_move, and keep records the kept-over-warning entry that
+    task-217's brief reads as a strong anchor.
+  status: pending
+- id: sc-5
+  text: No model call, dispatch call, or debounce exists anywhere in the path, and
+    the check adds no additional full parse of the corpus.
   status: pending
 deliverables: []
 dependencies:
-- task: task-215
-  type: needs
-  note: The playbook model and dispatch plumbing the check call reuses.
 - task: task-207
   type: related
-  note: The React queue list the objection notice lands on.
+  note: The React queue list the notice lands on; this is the natural completion of
+    its unaddressed 'why does a task sit here' pointer.
 - task: task-217
   type: related
   note: reorder is the consumer of the strong-anchor record this produces.
+- task: task-081
+  type: related
+  note: The queue program this belongs to; it needs no playbook machinery.
 links: []
 branches: []
 log:
@@ -105,3 +169,20 @@ log:
       id: b7e4c1a2-6666-4a5e-9c00-1a2b3c4d0219
       kind: create
       fingerprint: 3569201e9f4f8071b33ab5aa3c2faf23
+- id: 2
+  ts: '2026-08-21T18:21:34.745260Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, category, dependencies, spec, tags, title.
+  data:
+    fields:
+    - acceptance
+    - category
+    - dependencies
+    - spec
+    - tags
+    - title
+    operation:
+      id: 3f1c9a20-7b44-4e19-9d31-5c0a1e7b2202
+      kind: update_content
+      fingerprint: 81736b0f44aae890ef439118562c3410
