@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T16:09:39.854596Z'
+updated: '2026-08-21T16:43:12.153800Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -2092,3 +2092,66 @@ log:
       id: bb9b9273-0081-4a00-9e00-000000000009
       kind: log_append
       fingerprint: 4534935789b741d782bf2e26617b9120
+- id: 49
+  ts: '2026-08-21T16:43:12.153446Z'
+  actor: claude
+  type: progress
+  body: 'Both remaining children are now parked on Jeff, and neither park is mine
+    to release. Nothing is left for a supervisor to start: every child of this epic
+    is either closed or waiting on him.
+
+
+    TASK-225 parked on human/decision after 33 minutes, and it parked for the right
+    reason. It could not reproduce the drag failure with any instrument it has --
+    a `<button draggable>` starts a drag in a bare Chromium page, Blink computes `-webkit-user-drag:
+    element` on the live handle, five drag variations move the queue against a real
+    build, and headed Chrome moves it against the byte-identical bundle Jeff reviewed.
+    sc-1 requires the new test to be demonstrated failing against the pre-fix code,
+    and it does not fail. So by this task''s own reasoning the test is not measuring
+    the thing it was written to measure, and building a fix on it would be the third
+    repeat of exactly the shape task-225 exists to stop. "An acceptance criterion
+    cannot be met as written" is a park case in this task''s ball_prompt, and it used
+    it correctly rather than shipping a fix for a defect it could not see.
+
+
+    It changed no application code. TaskList.tsx is untouched, so the keyboard path,
+    the focus restore and gripId are as they were. Two commits on fix/task-225-drag-actually-starts,
+    not merged, ten-stage gate green at 484s: the two real-mouse Playwright drag tests,
+    and scripts/review_queue_sandbox.py -- task-207''s sandbox moved into the repository
+    instead of a session''s temporary directory, with a trace panel added. Sandbox-only;
+    the trace injection is middleware in that script and no part of it is in the application.
+
+
+    WHAT IT NEEDS IS ONE GESTURE, which is why no agent can settle it: drag a row
+    on http://127.0.0.1:8902/app/p/sandbox-healthy/tasks and report which of three
+    things the trace panel says. Those three answers lead to three different tasks
+    -- no defect and a re-scope, a hit-box miss on a 19px target, or the spec''s hypothesis
+    confirmed.
+
+
+    I KILLED MY OWN SANDBOX ON 8901. I had restarted task-207''s copy there earlier
+    to close its sc-5 gap; task-225 then stood up the repository version on 8902 with
+    the trace panel that actually answers the question. Two sandboxes on two ports,
+    differing in the one instrument that matters, is a way to get a useless answer
+    from a correct gesture. 8901 is stopped and confirmed not answering; 8902 is up.
+
+
+    A NOTE ON THE THREE PARKS THIS EPIC HAS PRODUCED, because they are not the same
+    thing and the record should not blur them. task-206 parked because a tool call
+    was refused -- a harness limit, recoverable by re-dispatch. task-209 parked because
+    an acceptance criterion names a human -- by design, the work is complete and waiting.
+    task-225 parked because a criterion cannot be met as written -- a genuine unknown,
+    and the only one where the next step is unclear until Jeff acts. Only the third
+    is evidence that anything is wrong.
+
+
+    STATE at 16:45Z. Closed: 204, 205, 206, 207, 208. Open: task-209 (human/approval,
+    25 moves proposed, nothing applied) and task-225 (human/decision, one gesture
+    needed). Both polled in backgrounded waits that exit when the ball leaves the
+    human. This parent stays agent/work while those loops run; if I stop before either
+    moves, it hands off naming both.'
+  data:
+    operation:
+      id: bb9b9273-0081-4a00-9e00-00000000000a
+      kind: log_append
+      fingerprint: a0054c318025a396f3dcf5df10fdd111
