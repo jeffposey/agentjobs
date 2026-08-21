@@ -3,7 +3,7 @@ id: task-209
 title: 'Order the live backlog: put the whole open corpus in a work order Jeff has
   agreed to'
 created: '2026-08-20T23:32:09.717972Z'
-updated: '2026-08-21T17:06:01.746769Z'
+updated: '2026-08-21T17:06:40.998989Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -823,3 +823,13 @@ log:
       id: bb9b9273-0209-4a00-9e00-000000000003
       kind: log_append
       fingerprint: dc34e398707133d392b24586c6fcb2bd
+- id: 20
+  ts: '2026-08-21T17:06:40.998833Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 11
+  data:
+    run_id: run_bff7e030
+    outcome: completed
+    duration_seconds: 680.625363
+    log_path: C:\Users\jpose\.agentjobs\runs\run_bff7e030
