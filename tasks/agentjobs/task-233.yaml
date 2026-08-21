@@ -3,7 +3,7 @@ id: task-233
 title: 'Cycle time: 21 hours of dispatched runs over 23 tasks, and nothing measures
   where it goes'
 created: '2026-08-21T20:42:00.402460Z'
-updated: '2026-08-21T20:42:00.990141Z'
+updated: '2026-08-21T20:57:02.061637Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -195,3 +195,65 @@ log:
       id: c4e81a37-9d52-4b60-8f13-2a7e05b9d301
       kind: create
       fingerprint: c704dd054376399e3dc2e671837fb540
+- id: 2
+  ts: '2026-08-21T20:57:02.061504Z'
+  actor: claude
+  type: progress
+  body: "**The pytest measurement promised in the spec, plus a verified root cause\
+    \ for why parallelism does not work today.** Read the caveat before quoting any\
+    \ number.\n\n## The five configurations\n\n`pytest-xdist 3.8.0` was installed\
+    \ into the Poetry venv only \u2014 **not** added to `pyproject.toml` and not committed.\
+    \ It is still installed; whoever works this task can use it, and `poetry run pip\
+    \ uninstall pytest-xdist` reverses it.\n\n| | Config | Wall clock | Exit | What\
+    \ it means |\n|---|---|---|---|---|\n| A | coverage + serial \u2014 **exactly\
+    \ what the gate runs today** | **494s** | 0 | full suite, green |\n| B | `--no-cov`\
+    \ + serial | **431s** | 0 | full suite, green |\n| C | `--no-cov -n auto` (32\
+    \ workers) | 28s | **1** | **never ran** |\n| D | coverage + `-n auto` | 41s |\
+    \ **1** | **never ran** |\n| E | `--no-cov -n 8` | 11s | **1** | **never ran**\
+    \ |\n\n**Do not read C, D or E as speedups.** They are the time taken to fail\
+    \ during worker startup. The giveaway was that E, with fewer workers, was *faster*\
+    \ than C \u2014 which cannot happen if both are executing the suite. Captured\
+    \ output:\n\n```\nERROR gw1 ... ERROR gw7\n7 errors in 6.55s\nDifferent tests\
+    \ were collected between workers\n```\n\n**A caveat on A and B too:** both were\
+    \ measured while two dispatched agent sessions were working other tasks on this\
+    \ machine. ENGINEERING.md's uncontended figure for the same stage is 326.5s, so\
+    \ treat 494s and 431s as contended and compare them only with each other.\n\n\
+    ## What is real, from A and B\n\n**Coverage costs 63 seconds \u2014 13% of the\
+    \ pytest stage \u2014 on every gate run**, and writes an HTML report that nothing\
+    \ reads before a commit. That saving is independent of everything below and needs\
+    \ no parallelism.\n\n## Why parallelism fails: one line, verified\n\nxdist requires\
+    \ every worker to collect tests in the same order. `tests/test_models_v2.py:257`\
+    \ parametrizes like this:\n\n```python\n[(ball, reason) for ball, reasons in BALL_REASONS.items()\
+    \ for reason in reasons]\n```\n\nand `BALL_REASONS` ([models_v2.py:141](src/agentjobs/models_v2.py:141))\
+    \ maps each `Ball` to a **`frozenset`** of reasons. Set iteration order depends\
+    \ on string hashing, Python randomises the hash seed **per process**, and each\
+    \ xdist worker is its own process \u2014 so every worker collects those parametrized\
+    \ cases in a different order and xdist refuses to run. The failure diff shows\
+    \ exactly that: the same `[agent-available]`, `[human-decision]`, `[human-input]`\
+    \ cases moving between positions.\n\n**It is the only occurrence.** Grepping every\
+    \ `parametrize` in `tests/` for a set-like source returns that one line. `frozenset`\
+    \ is the right type for the model \u2014 this is a test-ordering defect, not a\
+    \ production one, and the fix is to sort at the parametrize site, not to change\
+    \ `BALL_REASONS`.\n\n## What this does and does not establish\n\nIt establishes\
+    \ that the **first** blocker is one line and understood. It does **not** establish\
+    \ that the suite is parallel-safe: no test has yet run under xdist, so every other\
+    \ shared-state hazard the spec warns about \u2014 temp directories, fixed ports,\
+    \ `~/.agentjobs` home, `TestRealCorpus` reading the live task corpus \u2014 is\
+    \ still completely unmeasured. Expect a second round of failures after the ordering\
+    \ fix, and treat that as the normal path rather than as the change not working.\n\
+    \n**The prize is worth the audit.** pytest is 89% of the gate. If the suite can\
+    \ be made parallel-safe on a 32-core machine, the gate stops being the thing anyone\
+    \ plans around.\n\n## Suggested sequence for whoever works this\n\n1. Sort the\
+    \ parametrize; confirm workers agree on collection.\n2. Run under xdist and triage\
+    \ what fails, in one pass rather than one at a time.\n3. Fix or `-p no:randomly`-style\
+    \ isolate the shared-state cases; xdist's `--dist loadfile` or `loadgroup` can\
+    \ pin a whole file to one worker where a fixture genuinely cannot be shared.\n\
+    4. Only then compare like with like: full serial green vs full parallel green,\
+    \ same commit, same pass/fail counts, three consecutive runs before believing\
+    \ it.\n5. Coverage off by default with an opt-in flag is separable and can land\
+    \ first."
+  data:
+    operation:
+      id: c4e81a37-9d52-4b60-8f13-2a7e05b9d306
+      kind: log_append
+      fingerprint: 4aaf8cadfedce5b20b3c186f37e114b9
