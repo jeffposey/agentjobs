@@ -3,7 +3,7 @@ id: task-225
 title: Drag to reorder the backlog actually starts a drag, and a test drives a real
   mouse
 created: '2026-08-21T16:06:58.493311Z'
-updated: '2026-08-21T16:41:14.188321Z'
+updated: '2026-08-21T17:01:28.453940Z'
 lifecycle: active
 ball: human
 ball_reason: decision
@@ -53,7 +53,7 @@ ball_prompt: "**Please drag one row in the sandbox, and tell me what the panel s
   \ which."
 archived: false
 priority: high
-queue_position: 5900
+queue_position: 11200
 category: ux
 tags:
 - queue-order
@@ -165,22 +165,37 @@ acceptance:
   text: A Playwright test drags one task onto another using real mouse events, the
     queue order changes, and the new order survives a reload. The test is demonstrated
     to fail against the pre-fix code.
+  verify: 'First sentence done: frontend/e2e/queue-order.spec.ts, ''drags one task
+    onto another with a real mouse''. Second sentence unsatisfiable -- there is no
+    pre-fix code, because there was no defect (log entry 7). Awaiting Jeff''s call
+    on rewording or dropping it.'
   status: pending
 - id: sc-2
   text: A cross-band drag still raises the confirmation and calls reprioritize rather
     than move, driven the same way.
-  status: pending
+  verify: frontend/e2e/queue-order.spec.ts, 'a cross-band drag asks before it reprioritises'
+    -- real mouse, alertdialog asserted, nothing written until the confirm is clicked,
+    then the priority changes. Green in the full gate.
+  status: met
 - id: sc-3
   text: 'The keyboard path is unchanged: focus survives a step, and two presses in
     a row move the same task.'
-  status: pending
+  verify: TaskList.tsx was never modified on this branch, and the existing two-press
+    keyboard test passes in the full ten-stage gate.
+  status: met
 - id: sc-4
   text: The drag handle's role and accessible name describe what it is, and it is
     still reachable by keyboard.
+  verify: Still open, and now the only code work this task has left. role="button"
+    on an element with no activation behaviour is a genuine defect independent of
+    the drag.
   status: pending
 - id: sc-5
   text: Jeff has dragged a task in a browser and seen the order change.
-  status: pending
+  verify: '2026-08-21, sandbox on 8902: Jeff dragged task-013 onto task-010 by hand
+    in Chrome. Trace panel screenshotted -- PRESS on the handle, DRAGSTART, DROP task-010,
+    queue-move HTTP 200 -- and the order changed. Log entry 7.'
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -407,3 +422,59 @@ log:
       id: 7c1a4e20-5b31-4a7d-9e11-000000000229
       kind: update_content
       fingerprint: bb71c602eb9bb37c2c1eb853cac53ddc
+- id: 7
+  ts: '2026-08-21T17:01:12.659579Z'
+  actor: claude
+  type: answer
+  body: "**Jeff dragged it by hand and it worked. Outcome 1. This task's premise is\
+    \ dead.**\n\n2026-08-21, sandbox on 8902, `task-013` dragged back onto `task-010`.\
+    \ His words: \"i dragged 13 back to 10 and it did\". The panel, screenshotted:\n\
+    \n```\nPRESS  on the handle queue-grip-task-013  (19x44 px)\nDRAGSTART  task-013\n\
+    DRAGOVER  task-013\nDRAGOVER  task-010\nDROP  task-010\nREQUEST /api/projects/sandbox-healthy/tasks/task-013/queue-move\n\
+    DRAGEND  task-013\n   -> HTTP 200\n```\n\nA hand, a real mouse, real Chrome, the\
+    \ merged bundle. Every step fires, the request answers 200, the order changes.\n\
+    \n**So drag-to-reorder is not broken and never was.** The `<button draggable>`\
+    \ hypothesis is wrong, the reported defect does not exist, and the five automated\
+    \ instruments in entry 3 that all said \"this works\" were right. sc-5 is met,\
+    \ by the person the criterion names.\n\n## What this does to the acceptance criteria\n\
+    \n- **sc-5 \u2014 met.** Directly, by Jeff, in a browser.\n- **sc-2 \u2014 met.**\
+    \ The cross-band test drives a real mouse, gets the confirmation, and the priority\
+    \ changes.\n- **sc-3 \u2014 met.** `TaskList.tsx` was never touched, and the keyboard\
+    \ test still passes in the gate.\n- **sc-1 \u2014 the test exists and passes;\
+    \ its second sentence is unsatisfiable.** \"Demonstrated to fail against the pre-fix\
+    \ code\" presumes a defect, and there is no pre-fix code because there was nothing\
+    \ to fix. Marking it `met` would be a lie in the direction this task exists to\
+    \ prevent, so it stays `pending` pending Jeff's call on whether to reword it or\
+    \ drop it.\n- **sc-4 \u2014 still open, and now the only real work left.** `role=\"\
+    button\"` on an element that does nothing when activated is a genuine defect,\
+    \ independent of the drag. It should not be closed silently on the back of this.\n\
+    \n## What was wrong, then\n\nNot the code. The instrument, and then the record.\
+    \ `mcp__claude-in-chrome`'s `left_click_drag` produces no events at all against\
+    \ this page \u2014 entry 3, section 4 \u2014 so an agent using it sees \"I dragged,\
+    \ nothing moved\" and has no way to tell that apart from a broken feature. task-207\
+    \ log 12 states the drag failure as reproduced fact; on this evidence it is not,\
+    \ and that entry needs a correction pointing here. Its other conclusion still\
+    \ stands: closing a task `completed` over a `pending` sc-5 was wrong, and it was\
+    \ wrong for process reasons that have nothing to do with whether the drag worked.\n\
+    \nThe lesson generalises past this task and is worth carrying into `ENGINEERING.md`\
+    \ beside the two bullets already there: **a browser-automation gesture that produces\
+    \ no result is not evidence of a defect until you have checked that the gesture\
+    \ reached the page.** The check is one capturing listener."
+  re: 5
+  data:
+    operation:
+      id: 7c1a4e20-5b31-4a7d-9e11-00000000022a
+      kind: log_append
+      fingerprint: e00aa276a9d74bbd22103e7e14df31ab
+- id: 8
+  ts: '2026-08-21T17:01:28.453596Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 7c1a4e20-5b31-4a7d-9e11-00000000022b
+      kind: update_content
+      fingerprint: 01cefba79ac966ecc8db4546707c2cdd

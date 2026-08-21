@@ -3,7 +3,7 @@ id: task-207
 title: 'Queue position: the React list shows the real order, and you can change it
   without a mouse'
 created: '2026-08-20T23:31:25.501669Z'
-updated: '2026-08-21T16:06:27.220441Z'
+updated: '2026-08-21T17:01:46.823193Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -505,3 +505,46 @@ log:
       id: 3f2b1a90-0207-4c11-9a01-000000000040
       kind: log_append
       fingerprint: 1aade1a98c2c7f1cc0d58fd42cb498bb
+- id: 13
+  ts: '2026-08-21T17:01:46.822898Z'
+  actor: claude
+  type: note
+  body: "**Correction to entry 12: the drag path is not broken. Half of that entry\
+    \ was wrong, and the half that was right is the more important half.**\n\nDated\
+    \ 2026-08-21, from task-225, which was created to fix the defect entry 12 reports.\n\
+    \n**Wrong: \"dragging a grip from one row onto another leaves the band untouched.\"\
+    ** Jeff dragged `task-013` onto `task-010` by hand, in Chrome, against the merged\
+    \ bundle, and the order changed. The trace: `PRESS on the handle queue-grip-task-013\
+    \ (19x44 px)` \u2192 `DRAGSTART` \u2192 `DRAGOVER` \u2192 `DROP task-010` \u2192\
+    \ `queue-move` \u2192 `HTTP 200`. Five automated instruments agree \u2014 a bare-page\
+    \ probe of four handle shapes, Blink's own `-webkit-user-drag` computation, five\
+    \ drop-position variations against a real build, real headed Chrome, and the `queue-move`\
+    \ route itself. task-225 entries 3 and 7 carry the evidence.\n\n**Wrong: the suspected\
+    \ cause.** `<button draggable>` is a perfectly good drag source in Chromium. Chrome\
+    \ does not consume the gesture, and `dragstart` fires.\n\n**What actually produced\
+    \ the reproduction, most likely.** `mcp__claude-in-chrome`'s `left_click_drag`\
+    \ sends nothing this page can see \u2014 with capturing listeners on `document`,\
+    \ a drag *and a plain click* on the grip produced no events at all, not even `mousedown`.\
+    \ An agent driving that tool sees the order unchanged and has no way to distinguish\
+    \ \"the feature is broken\" from \"my gesture never arrived\". That is the same\
+    \ wrong-instrument failure entry 12 is otherwise about, one level up: **entry\
+    \ 12 diagnosed a testing problem using a tool with a testing problem.**\n\n**Still\
+    \ right, and unaffected:** closing this task `completed` while sc-5 sat `pending`\
+    \ was wrong. That reasoning does not depend on whether the drag worked \u2014\
+    \ an unreviewed criterion is unreviewed either way, and the autonomous posture\
+    \ waives the merge gate rather than turning a pending criterion into a satisfied\
+    \ one. Entry 12's own argument for that stands.\n\n**Still right:** the three-defect\
+    \ pattern about tests that set up the state they are meant to check. task-225\
+    \ hit a fourth instance of it while writing the replacement tests \u2014 both\
+    \ new real-mouse drag tests passed alone and failed in the suite, because `page.mouse`\
+    \ takes viewport coordinates and scrolls nothing, so the rows were below the fold\
+    \ and the press landed on whatever was there.\n\n**Net for this task's record:**\
+    \ the feature shipped here works, including drag. The close was still premature\
+    \ for the reason entry 12 gives. No reopening \u2014 task-225 holds what is left,\
+    \ which is the handle's ARIA role."
+  re: 12
+  data:
+    operation:
+      id: 7c1a4e20-5b31-4a7d-9e11-00000000022c
+      kind: log_append
+      fingerprint: ea80136bc5e785eea0b94559c83cc8d0
