@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import type { BrokenTaskFile, QueueProblemRead, TaskRead } from "../api/types";
@@ -129,6 +129,11 @@ function filterValue(params: URLSearchParams, key: string, allowed: Set<string>,
   return allowed.has(candidate) ? candidate : fallback;
 }
 
+/** The reorder handle's own id, so focus can be put back on it after a step. */
+function gripId(taskId: string) {
+  return `queue-grip-${taskId}`;
+}
+
 function taskPath(projectId: string, taskId: string) {
   return `/p/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`;
 }
@@ -169,6 +174,8 @@ export function TaskList({
   const [moveError, setMoveError] = useState<string | null>(null);
   const [bandChange, setBandChange] = useState<BandChange | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  // The task whose handle should hold focus after the next render.
+  const restoreFocus = useRef<string | null>(null);
 
   const search = params.get("q") ?? "";
   const status = filterValue(params, "status", STATUS_FILTERS, "open");
@@ -201,6 +208,21 @@ export function TaskList({
   // it at more length than a footnote could.
   const unavailableReason = brokenBands.size > 0 ? null : reorderUnavailable;
 
+  // Put focus back on the handle of the task that just moved.
+  //
+  // Without this the keyboard path works exactly once. React reorders the rows by
+  // moving their DOM nodes, and a browser drops focus from a node that is detached and
+  // reinserted -- so the second Alt+Down of a two-step reorder either does nothing or,
+  // worse, moves whichever task slid into the vacated row. Neither a jsdom test nor a
+  // Playwright test that focuses the handle before every press can see this; it was
+  // found by pressing the key twice in a real browser.
+  useLayoutEffect(() => {
+    const taskId = restoreFocus.current;
+    if (!taskId) return;
+    restoreFocus.current = null;
+    document.getElementById(gripId(taskId))?.focus();
+  });
+
   const updateParam = (key: string, value: string, fallback: string) => {
     const next = new URLSearchParams(params);
     if (value === fallback) next.delete(key);
@@ -220,6 +242,7 @@ export function TaskList({
   const runMove = async (taskId: string, move: QueueMove | null) => {
     if (!handlers || !move) return;
     setMoveError(null);
+    restoreFocus.current = taskId;
     setPending({ signature, tasks: applyMove(ordered, taskId, move) });
     setAnnouncement(describeMove(ordered, taskId, move));
     try {
@@ -393,6 +416,7 @@ export function TaskList({
                       {movable && (
                         <button
                           type="button"
+                          id={gripId(row.task.id)}
                           draggable
                           onDragStart={(event) => {
                             // What is being dragged is held in state, not read back out

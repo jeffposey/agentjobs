@@ -291,6 +291,27 @@ describe("TaskList queue order", () => {
     expect(screen.getByText("task-b moved ahead of task-a in the high band.")).toBeInTheDocument();
   });
 
+  it("keeps focus on the task that moved, so a second press moves the same task", async () => {
+    // React reorders rows by moving their DOM nodes, and a browser drops focus from a
+    // node that is detached and reinserted. Without putting it back, the keyboard path
+    // works exactly once -- and the second press moves whichever task slid into the
+    // vacated row, which is worse than doing nothing.
+    const handlers = accepting();
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], {
+      reorder: handlers,
+    });
+
+    grip("task-c").focus();
+    fireEvent.keyDown(grip("task-c"), { key: "ArrowUp", altKey: true });
+    await waitFor(() => expect(renderedOrder()).toEqual(["task-a", "task-c", "task-b"]));
+    expect(document.activeElement).toBe(grip("task-c"));
+
+    // Pressed again without touching anything: still task-c that moves.
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowUp", altKey: true });
+    await waitFor(() => expect(renderedOrder()).toEqual(["task-c", "task-a", "task-b"]));
+    expect(handlers.moves.map(([id]) => id)).toEqual(["task-c", "task-c"]);
+  });
+
   it("rolls the optimistic order back and says so when the move is refused", async () => {
     const reorder: ReorderHandlers = {
       move: vi.fn().mockRejectedValue(new Error("409")),
