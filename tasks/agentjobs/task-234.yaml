@@ -3,18 +3,13 @@ id: task-234
 title: Merging after approval costs a whole second agent session, about eleven minutes,
   on every task
 created: '2026-08-21T20:43:16.534300Z'
-updated: '2026-08-21T23:40:06.148407Z'
+updated: '2026-08-21T23:41:38.701881Z'
 lifecycle: active
 ball: human
-ball_reason: input
-ball_prompt: "Dispatched session `0fa21703` stopped on an expired login at 2026-08-21T23:39:59.562000+00:00\
-  \ and will not resume by itself. It said: \"Login expired \xB7 Please run /login\"\
-  .\n\n**Run `claude auth login` in a terminal on that machine.** Answering inside\
-  \ the session cannot work: Claude Code's background auth daemon has already discarded\
-  \ the credential, so anything sent to the session is retried against a token that\
-  \ no longer exists and fails instantly.\n\nThen send the session a message to wake\
-  \ it, or attach with `claude attach 0fa21703`. It resumes in place -- nothing is\
-  \ lost and this task does not need re-dispatching."
+ball_reason: decision
+ball_prompt: Run run_92d3e98c ended `cancelled` and nobody was told what this task
+  needs. Read the dispatch_result entry, then either dispatch again or take it on
+  yourself.
 archived: false
 priority: critical
 queue_position: 200
@@ -484,3 +479,31 @@ log:
   data:
     ball: human
     ball_reason: input
+- id: 10
+  ts: '2026-08-21T23:40:57.102798Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 11
+  ts: '2026-08-21T23:41:38.658585Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: stopped session 0fa21703
+  re: 8
+  data:
+    run_id: run_92d3e98c
+    outcome: cancelled
+    duration_seconds: 101.615137
+    log_path: C:\Users\jpose\.agentjobs\runs\run_92d3e98c
+- id: 12
+  ts: '2026-08-21T23:41:38.701673Z'
+  actor: dispatcher
+  type: handoff
+  body: Run run_92d3e98c ended `cancelled` and nobody was told what this task needs.
+    Read the dispatch_result entry, then either dispatch again or take it on yourself.
+  data:
+    ball: human
+    ball_reason: decision
