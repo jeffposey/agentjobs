@@ -787,6 +787,63 @@ class TestSupervisorStub:
 # ----- batch mode -------------------------------------------------------------
 
 
+class TestTheRunIsMeasurable:
+    """A dispatched run has to be able to say where its time went (task-233).
+
+    Before this, ``meta.yaml`` held a start and a finish and the only other artefact
+    was ``transcript.log`` -- a raw TTY capture in which a line appears as many times as
+    the terminal repainted it. So the run was a black box, and the ranking of what to
+    fix was inference.
+
+    The mechanism is two environment variables on the spawned session, which every
+    child of the agent inherits: the gate, the CLI, the MCP server. The test below is
+    end to end on purpose. Asserting that ``_environment`` returns a dict containing the
+    keys would pass with the spawn sites still calling the no-argument form.
+    """
+
+    def test_a_spawned_agent_can_write_a_phase_record_into_its_own_run(
+        self, workspace: Path, manager: TaskManager, task, tmp_path: Path
+    ) -> None:
+        from agentjobs.dispatch.phases import read_phases
+
+        script = write_script(
+            tmp_path / "agent.py",
+            """
+            from agentjobs.dispatch.phases import record_phase_from_env
+
+            record_phase_from_env("gate_finished", passed=True, seconds=12.5)
+            """,
+        )
+        runner = build(
+            workspace, manager, make_resolution([sys.executable, str(script), "{prompt}"])
+        )
+
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        join(handle)
+
+        directory = workspace / "home" / "runs" / handle.run_id
+        (record,) = read_phases(directory)
+        assert record["kind"] == "gate_finished"
+        assert record["seconds"] == 12.5
+        assert record["run_id"] == handle.run_id
+
+    def test_the_polling_helpers_are_not_told_they_are_inside_a_run(
+        self, workspace: Path, manager: TaskManager
+    ) -> None:
+        """They ask the runner about a session; they are not doing work inside one.
+
+        A phase record written by a poll would attribute the poller's time to whichever
+        run it happened to be asking about.
+        """
+        from agentjobs.dispatch.phases import RUN_DIR_ENV, RUN_ID_ENV
+
+        runner = build(workspace, manager, make_resolution(["true", "{prompt}"]))
+        environment = runner._environment()
+
+        assert RUN_DIR_ENV not in environment
+        assert RUN_ID_ENV not in environment
+
+
 class TestBatchOutcomes:
     def test_a_clean_exit_that_moved_the_ball_is_completed(
         self, workspace: Path, manager: TaskManager, task, tmp_path: Path
