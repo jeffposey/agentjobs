@@ -2,57 +2,9 @@ schema: 2
 id: task-153-dispatcher-actor-refusal-message
 title: Stop the dispatch refusal telling you to configure the dispatcher as a human
 created: '2026-08-18T21:02:17.186936Z'
-updated: '2026-08-21T01:38:57.703014Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Ready for review on branch fix/task-153-dispatch-refusal-message (commit\
-  \ 1431921, rebased onto main at 4e29bf5). Not merged, not pushed.\n\nWHAT CHANGED\
-  \ -- src/agentjobs/dispatch/guards.py only, plus two test files.\n\n`actor_kind()`\
-  \ now resolves AgentJobs' reserved ids before the project's configured vocabulary.\
-  \ `dispatcher` therefore resolves to the reserved *agent* instead of None, so `assert_human_clocked`\
-  \ takes its agent branch rather than its unknown-actor branch, and the refusal no\
-  \ longer ships the recipe for switching the rule off.\n\nThe message a re-dispatch\
-  \ now produces, verbatim:\n\n  Log entry 6 (dispatch_result) was written by 'dispatcher',\
-  \ an agent. That entry is\n  AgentJobs' own record of an earlier dispatch, so nothing\
-  \ a person did has authorised\n  another one. A dispatch may only be caused by a\
-  \ human act (design section 2, D4) --\n  which is what makes an agent-starts-agent\
-  \ loop impossible rather than merely capped.\n  Act on the task yourself, then dispatch.\n\
-  \nThe words 'actors:', 'kind: human' and 'config.yaml' are gone from that path,\
-  \ and the HTTP `suggested_action` for `not_human_clocked` already said the right\
-  \ thing ('Act on the task yourself, then dispatch. This rule is not configurable.').\n\
-  \nTHE ONE JUDGEMENT CALL, AND WHERE I WENT SLIGHTLY BEYOND THE LETTER OF THE SPEC.\
-  \ Reserved ids are checked *before* the config and cannot be overridden by it. So\
-  \ a project that writes `dispatcher: {kind: human}` into its own actors -- by hand,\
-  \ or because it read the old message before this landed -- is still refused. Config-first\
-  \ would have fixed the wording while leaving the hole open one edit away, which\
-  \ seemed the wrong trade for a guard whose docstring claims to be 'the rule, and\
-  \ not a configuration option'. A test pins this.\n\nBecause the fix is in the shared\
-  \ `actor_kind` lookup, `assert_authorizer_is_human` also stops emitting the same\
-  \ recipe when handed 'dispatcher' as an authorising identity. I judged that the\
-  \ same defect at the same lookup rather than the 'broader audit of refusal copy'\
-  \ the spec puts out of scope -- but it is the one thing here you might want to overrule,\
-  \ and backing it out would mean duplicating the reserved lookup inside `assert_human_clocked`\
-  \ alone.\n\nWHAT DID NOT CHANGE, as the constraints require: `load_actors` (no reserved\
-  \ actor added), `resolve_causing_entry` (dispatcher entries are still eligible causing\
-  \ entries), the human-clocked rule itself, and `frontend/src/components/DispatchPanel.tsx`\
-  \ (untouched -- no second per-surface override exists).\n\nVERIFICATION. Full gate\
-  \ twice on this worktree's own interpreter, exit 0 both times, second run after\
-  \ the rebase: Black/Ruff/MyPy clean, 2128 pytest in 5m03s, 154 Vitest across 22\
-  \ files, production build, 16 Playwright against a live server.\n\nSix tests added.\
-  \ The one worth reading is the end-to-end sc-5 case in tests/test_dispatch_guards.py:\
-  \ it dispatches with the fake runner, settles the supervisor, asserts the newest\
-  \ entry's actor really is `dispatcher`, re-dispatches (refused, no run started,\
-  \ corrected text), then writes one human note and dispatches successfully. Re-arming\
-  \ is verified rather than assumed. The API-level test in tests/test_dispatch_api.py\
-  \ asserts the 403 body carries neither the recipe in `detail` nor in `suggested_action`.\n\
-  \nWHAT TO LOOK AT. (1) The reserved-before-config ordering in `actor_kind` and whether\
-  \ you want its reach into `assert_authorizer_is_human`. (2) The added clause in\
-  \ the agent-branch message -- it is the only user-visible wording change. (3) That\
-  \ the tests assert the *absence* of the dangerous advice, not merely the presence\
-  \ of the new wording, since absence is the property that matters here.\n\nOn approval\
-  \ I will rebase, merge --no-ff, mark the branch merged, close the task, and remove\
-  \ the worktree. No frontend rebuild is needed -- nothing under frontend/ changed."
+updated: '2026-08-21T01:43:38.533999Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: reliability
@@ -63,7 +15,6 @@ tags:
 - guards
 effort: small
 assignment:
-  owner: claude
   eligible: []
 parent: task-181-dispatch-phase-one-hardening
 spec:
@@ -191,27 +142,33 @@ acceptance:
   text: 'A dispatch refused because the causing entry was written by a reserved actor
     reports it as an agent''s entry, and its suggested remedy is to act on the task
     first -- never to add the actor to actors: as a human'
-  status: pending
+  verify: pytest tests/test_dispatch_guards.py::TestHumanClockedRule::test_the_dispatchers_own_entry_is_refused_as_an_agents
+  status: met
 - id: sc-2
   text: The unknown-actor branch still produces its existing advice for genuinely
     unknown actor ids, which remains correct for that case
-  status: pending
+  verify: pytest tests/test_dispatch_guards.py::TestHumanClockedRule::test_a_genuinely_unknown_actor_keeps_the_advice_that_suits_one
+  status: met
 - id: sc-3
   text: A test dispatches a task whose newest log entry is dispatcher-written and
     asserts the refusal text contains no instruction to configure an actor as human
-  status: pending
+  verify: pytest tests/test_dispatch_guards.py::TestHumanClockedRule::test_the_refusal_never_advises_configuring_the_dispatcher_as_human
+  status: met
 - id: sc-4
   text: The fix is in guards.py and reaches the HTTP API and CLI without a new per-surface
     override; DispatchPanel.tsx needs no change
-  status: pending
+  verify: pytest tests/test_dispatch_api.py -k the_dispatchers_own_entry_refuses_without_a_recipe
+  status: met
 - id: sc-5
   text: Re-dispatch is still refused after a completed run, and still re-armed by
     any human-written log entry -- verified, not assumed
-  status: pending
+  verify: pytest tests/test_dispatch_guards.py::TestHumanClockedRule::test_a_second_dispatch_is_refused_and_a_human_entry_re_arms_it
+  status: met
 deliverables:
 - path: src/agentjobs/dispatch/guards.py
-  note: Reserved actors routed to the agent refusal branch
-  status: pending
+  note: Reserved actors resolve before the configured vocabulary, so a dispatcher-caused
+    refusal takes the agent branch and never advises configuring an actor as human.
+  status: done
 dependencies:
 - task: task-071-dispatch-api-guards
   type: related
@@ -223,7 +180,7 @@ dependencies:
 links: []
 branches:
 - name: fix/task-153-dispatch-refusal-message
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-18T21:02:17.186993Z'
@@ -431,3 +388,86 @@ log:
       id: 23f332fd-ac1a-4df3-9bbd-e4a810fd26af
       kind: handoff
       fingerprint: 23362134229c3246e170a6ddc0e3fb7d
+- id: 8
+  ts: '2026-08-21T01:40:58.370069Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 9
+  ts: '2026-08-21T01:43:04.902322Z'
+  actor: system
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: f2feec9e-de1a-46a6-a55c-4a9d8528316e
+      kind: update_content
+      fingerprint: dc8521bff106ebc788ec079d4f1b4ddc
+- id: 10
+  ts: '2026-08-21T01:43:38.533806Z'
+  actor: claude
+  type: transition
+  body: 'Approved by Jeff Posey through the web UI (log entry 8) and merged.
+
+
+    Merge: `git merge --no-ff fix/task-153-dispatch-refusal-message` into main, merge
+    commit on top of 6a0dc3d; branch commit 53b90fd after a final rebase onto current
+    main. Three files, 155 insertions: src/agentjobs/dispatch/guards.py, tests/test_dispatch_guards.py,
+    tests/test_dispatch_api.py. Not pushed -- pushing is a separate act and was not
+    authorised.
+
+
+    All five acceptance criteria marked met, each with a runnable `verify` command
+    naming the test that holds it. The evidence in prose, because `verify` only carries
+    a command:
+
+
+    - **sc-1** -- a dispatcher-caused refusal now reads "...was written by ''dispatcher'',
+    an agent. That entry is AgentJobs'' own record of an earlier dispatch, so nothing
+    a person did has authorised another one. ... Act on the task yourself, then dispatch."
+
+    - **sc-2** -- the unknown-actor branch is untouched; its test asserts both "does
+    not configure as an actor" and "''kind: human''" still appear for a genuinely
+    unknown id.
+
+    - **sc-3** -- the test asserts the *absence* of ''kind: human'', ''actors:'' and
+    ''config.yaml'' from the dispatcher path, rather than only the presence of new
+    wording. Absence is the property that matters.
+
+    - **sc-4** -- fix confined to guards.py; the API test asserts the 403 body carries
+    the recipe in neither `detail` nor `suggested_action`; the CLI renders `str(exc)`
+    from the same exception; DispatchPanel.tsx unmodified.
+
+    - **sc-5** -- verified end to end, not assumed: dispatch with the fake runner,
+    settle the supervisor, assert the newest entry''s actor really is ''dispatcher'',
+    re-dispatch -> refused with `live_runs(home) == []` so no run started, then one
+    human-written note -> the next dispatch succeeds and returns a run id.
+
+
+    Gate green twice (exit 0): Black/Ruff/MyPy, 2128 pytest, 154 Vitest across 22
+    files, production build, 16 Playwright against a live server. The second run followed
+    the rebase.
+
+
+    Delivery note: nothing under frontend/ changed, so no rebuild is needed. The dashboard
+    process on 8876 still holds the pre-merge guards.py in memory and will keep emitting
+    the old refusal until it is restarted the way it was started (C:/ai/shared/launchers/open-agentjobs.ps1)
+    -- left to Jeff rather than done unilaterally, because three sibling sessions
+    are writing task records through that server right now.
+
+
+    Worktree C:/projects/worktrees/aj-153 removed as part of this close.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 6fe2389f-9700-4e64-8cef-105f3ae6462f
+      kind: close
+      fingerprint: 315167242ebd8941d0a0e7461288bb73
