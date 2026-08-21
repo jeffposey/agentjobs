@@ -3,88 +3,82 @@ id: task-222
 title: Pre-approve `git merge` for dispatched runs, and fix the colon-less rule that
   never matched
 created: '2026-08-21T14:49:52.979769Z'
-updated: '2026-08-21T15:26:05.733845Z'
+updated: '2026-08-21T15:42:09.271485Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: 'run_a19c96f0 could not make the change and stopped clean. Nothing is
-  committed; the worktree at C:/projects/worktrees/agentjobs-222 is untouched, bootstrapped,
-  and on feat/task-222-git-merge-allow at 91c2a19. Entry 9 is read and acknowledged
-  -- I lost no work, because both declines meant no file was ever written.
+ball: agent
+ball_reason: revise
+ball_prompt: 'SUPERSEDES the note in log entry 13, which was sent from a stale draft.
+  Where the two disagree, this wins. The only difference that matters: entry 13 told
+  you to write the docstring. DO NOT WRITE THE DOCSTRING.
 
 
-  **The auto-mode classifier refuses this edit, and it is the edit rather than the
-  wording.** Four declines here:
+  THE CODE CHANGE IS ALREADY DONE, BY JEFF, BY HAND. `"git merge",` is at line 234
+  of C:/projects/worktrees/agentjobs-222/src/agentjobs/dispatch/runner.py, uncommitted.
+  Verify it with a read and then LEAVE ALLOW_PREFIXES ALONE. Do not reformat it, do
+  not reorder it, do not add a comment to it, do not touch the docstring beneath it.
+  ac-1 is satisfied by that line; your job is everything else.
 
 
-  1. Bash/python literal replacement -- tuple entry plus a docstring paragraph justifying
-  the widening.
-
-  2. The Edit tool, same content.
-
-  3. The Edit tool with the justification stripped out entirely: a bare three-line
-  addition of `"git merge",` to the tuple, nothing else.
-
-  4. A plain `ls -la` on the target file.
-
-
-  (3) rules out the prose. (4) has no content to object to at all. Add the interactive
-  session''s own decline on the same edit, recorded in entry 9, and it is reproducible
-  across sessions, tools, and content.
+  WHY, because run_a19c96f0 already burned itself finding this out and you should
+  not repeat it. The auto-mode classifier refuses edits to this file from an autonomous
+  agent -- four declines across two sessions, and critically its attempt (3) was a
+  BARE three-line tuple addition with all justification stripped out, which was refused
+  exactly like the annotated ones. So it is not the wording and it is not the docstring''s
+  prose; it is that an agent editing the file that decides what agents may run, to
+  widen it, reads as self-escalation from inside a classifier that cannot see Jeff''s
+  authorisation on this record. You will not talk your way past it. That is why a
+  human typed the line.
 
 
-  That is coherent rather than a bug. This run is an autonomous agent editing the
-  file that decides which commands autonomous agents may run without asking, in order
-  to add `git merge` to it. From inside the classifier that is self-escalation, and
-  it cannot see the authorisation -- which lives here, on this record, in entry 4.
-  The feature and its safety rail are both working as designed and are pointed at
-  each other. Worth writing down somewhere durable: **a project cannot widen its own
-  agents'' permission surface from inside an agent running under that surface.** It
-  is a bootstrapping problem, not a bug in either half.
+  WHAT YOU DO:
 
 
-  **Your call.** Three options, and entry 9 has already eliminated the easy one:
+  1. Tests in tests/test_dispatch_runner.py. A test naming `git merge` explicitly,
+  and a paired one asserting `git push` is ABSENT from allow_rules() output -- the
+  anti-rot pair, so a future widening has to be deliberate. Assert the emitted rule
+  as a literal string, not by rebuilding it from the same f-string the source uses;
+  a test written `f"{tool}({prefix}:*)"` on both sides passes against any form at
+  all. TestPosture at line 171 is where these belong. This file grants nothing and
+  should not be declined.
 
 
-  1. ~~Another auto-mode session, interactive or dispatched~~ -- ruled out. The watch
-  session hit the same wall.
-
-  2. **An interactive session in the default permission mode**, where the edit raises
-  a prompt you answer rather than a classifier verdict. Untested. Worth one try, because
-  a prompt and a classifier are different gates and only the classifier has refused
-  so far -- but if the watch session''s attempt was also auto-mode, this is the same
-  experiment it already ran.
-
-  3. **Re-dispatch at posture `autonomous`** -- bypassPermissions, no classifier in
-  the path. This is the one that will certainly work. The diff is three lines in a
-  tuple; what you are weighing is the posture, not the change.
-
-  4. **Edit the tuple yourself** and hand the branch back for the tests, docs and
-  gate.
+  2. docs/agent-dispatch-design.md line 687 enumerates all nine prefixes in prose
+  and is now stale at ten. Fix it. ATTEMPT ONCE. If it is declined, skip it, log that
+  you skipped it and why, and carry on -- a stale doc line is worth far less than
+  your run.
 
 
-  I would go (4), then (3) for the rest. The edit is fifteen seconds of your time
-  and it is the only part that is blocked; everything downstream -- two tests, one
-  doc line, the ten-stage gate -- is ordinary work any run can do. Spending a bypassPermissions
-  posture to buy three lines is a poor trade when the alternative is you typing them.
+  3. The FULL ten-stage `scripts/check.py`, unqualified. Not --from, not --only. Use
+  the absolute interpreter path `python scripts/bootstrap.py` prints, not `poetry
+  run`. The worktree is already bootstrapped; you do not need to run it again. Budget
+  six minutes and longer with 207 and 208 gating concurrently -- quiet is not stuck.
 
 
-  **What remains, so whoever picks it up does not re-derive it.** `ALLOW_PREFIXES`
-  is the only source of the emitted rules: `allow_rules()` is a comprehension over
-  it, and the exact-argv test builds its expectation from `settings_json(allow_list=True,
-  ...)` rather than a literal. So the tuple entry is the whole code change and ac-3
-  holds by construction. Then: the two tests ac-2 asks for, and one stale enumeration
-  at docs/agent-dispatch-design.md line 687, which names all nine prefixes as "deliberately
-  boring" and goes wrong the moment a tenth lands that is not.
+  4. On green: commit Jeff''s line and your tests together as one logical change,
+  staging explicit paths, never `git add -A` -- three other sessions are live in this
+  repository. Then rebase onto main and merge --no-ff. Jeff approved this work in
+  log entry 4 and again in entry 13; the green gate plus that approval is your authority
+  to merge. Mark the branch merged in branches[], close the task completed, and `git
+  worktree remove C:/projects/worktrees/agentjobs-222`.
 
 
-  **One thing to weigh separately, since it may change what this task is worth.**
-  Per the spec''s own scope note, this entry reaches dispatched runs only. It does
-  not cover an epic supervisor''s children, and the settings.local.json colon fix
-  already applied covers those. So the merge-parking you actually hit is fixed; what
-  is left here is the durable, in-repository half. Still worth landing, but not urgent
-  -- and a fair moment to ask whether an untracked machine-local file is the right
-  home for the half doing the real work.'
+  5. DO NOT PUSH. Nothing authorises it.
+
+
+  6. Restart the 8876 server afterwards through C:/ai/shared/launchers/open-agentjobs.ps1
+  -Force. This change only reaches a dispatched run through the server that composes
+  its argv, so until that restart the fix is real in git and absent in practice --
+  which is exactly the staleness that made this whole evening longer than it needed
+  to be. Verify by dispatching nothing; just confirm the process restarted.
+
+
+  IF ANY CALL IS DECLINED: stop at ONE. Do not reword it, do not split it, do not
+  reach for a different tool with the same content. Three consecutive declines arm
+  the breaker and the next call waits forever. Hand off to human/decision naming the
+  exact call, and stop. Jeff is awake and at his machine.
+
+
+  TASK RECORDS GO TO MAIN from C:/projects/agentjobs, never to your branch.'
 archived: false
 priority: high
 queue_position: 5700
@@ -417,3 +411,96 @@ log:
     outcome: completed
     duration_seconds: 431.412519
     log_path: C:\Users\jpose\.agentjobs\runs\run_a19c96f0
+- id: 13
+  ts: '2026-08-21T15:39:22.040218Z'
+  actor: Jeff Posey
+  type: handoff
+  body: "Changes requested by Jeff Posey:\n\nThe ALLOW_PREFIXES line is already in\
+    \ \u2014 I added \"git merge\" by hand at line 234 in the worktree. Do not edit\
+    \ that tuple. Write the tests and the docstring, run the full gate, merge."
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 14
+  ts: '2026-08-21T15:42:09.271301Z'
+  actor: claude
+  type: handoff
+  body: 'SUPERSEDES the note in log entry 13, which was sent from a stale draft. Where
+    the two disagree, this wins. The only difference that matters: entry 13 told you
+    to write the docstring. DO NOT WRITE THE DOCSTRING.
+
+
+    THE CODE CHANGE IS ALREADY DONE, BY JEFF, BY HAND. `"git merge",` is at line 234
+    of C:/projects/worktrees/agentjobs-222/src/agentjobs/dispatch/runner.py, uncommitted.
+    Verify it with a read and then LEAVE ALLOW_PREFIXES ALONE. Do not reformat it,
+    do not reorder it, do not add a comment to it, do not touch the docstring beneath
+    it. ac-1 is satisfied by that line; your job is everything else.
+
+
+    WHY, because run_a19c96f0 already burned itself finding this out and you should
+    not repeat it. The auto-mode classifier refuses edits to this file from an autonomous
+    agent -- four declines across two sessions, and critically its attempt (3) was
+    a BARE three-line tuple addition with all justification stripped out, which was
+    refused exactly like the annotated ones. So it is not the wording and it is not
+    the docstring''s prose; it is that an agent editing the file that decides what
+    agents may run, to widen it, reads as self-escalation from inside a classifier
+    that cannot see Jeff''s authorisation on this record. You will not talk your way
+    past it. That is why a human typed the line.
+
+
+    WHAT YOU DO:
+
+
+    1. Tests in tests/test_dispatch_runner.py. A test naming `git merge` explicitly,
+    and a paired one asserting `git push` is ABSENT from allow_rules() output -- the
+    anti-rot pair, so a future widening has to be deliberate. Assert the emitted rule
+    as a literal string, not by rebuilding it from the same f-string the source uses;
+    a test written `f"{tool}({prefix}:*)"` on both sides passes against any form at
+    all. TestPosture at line 171 is where these belong. This file grants nothing and
+    should not be declined.
+
+
+    2. docs/agent-dispatch-design.md line 687 enumerates all nine prefixes in prose
+    and is now stale at ten. Fix it. ATTEMPT ONCE. If it is declined, skip it, log
+    that you skipped it and why, and carry on -- a stale doc line is worth far less
+    than your run.
+
+
+    3. The FULL ten-stage `scripts/check.py`, unqualified. Not --from, not --only.
+    Use the absolute interpreter path `python scripts/bootstrap.py` prints, not `poetry
+    run`. The worktree is already bootstrapped; you do not need to run it again. Budget
+    six minutes and longer with 207 and 208 gating concurrently -- quiet is not stuck.
+
+
+    4. On green: commit Jeff''s line and your tests together as one logical change,
+    staging explicit paths, never `git add -A` -- three other sessions are live in
+    this repository. Then rebase onto main and merge --no-ff. Jeff approved this work
+    in log entry 4 and again in entry 13; the green gate plus that approval is your
+    authority to merge. Mark the branch merged in branches[], close the task completed,
+    and `git worktree remove C:/projects/worktrees/agentjobs-222`.
+
+
+    5. DO NOT PUSH. Nothing authorises it.
+
+
+    6. Restart the 8876 server afterwards through C:/ai/shared/launchers/open-agentjobs.ps1
+    -Force. This change only reaches a dispatched run through the server that composes
+    its argv, so until that restart the fix is real in git and absent in practice
+    -- which is exactly the staleness that made this whole evening longer than it
+    needed to be. Verify by dispatching nothing; just confirm the process restarted.
+
+
+    IF ANY CALL IS DECLINED: stop at ONE. Do not reword it, do not split it, do not
+    reach for a different tool with the same content. Three consecutive declines arm
+    the breaker and the next call waits forever. Hand off to human/decision naming
+    the exact call, and stop. Jeff is awake and at his machine.
+
+
+    TASK RECORDS GO TO MAIN from C:/projects/agentjobs, never to your branch.'
+  data:
+    ball: agent
+    ball_reason: revise
+    operation:
+      id: e2f7b431-6a05-4d92-8c47-1b93e5a07d26
+      kind: handoff
+      fingerprint: ff1e4cb3d23086ba37856372bcd17eed
