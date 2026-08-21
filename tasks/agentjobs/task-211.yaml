@@ -1,0 +1,183 @@
+schema: 2
+id: task-211
+title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
+  reorder, and flesh-out'
+created: '2026-08-21T00:56:22.635852Z'
+updated: '2026-08-21T00:56:22.636796Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+category: architecture
+tags:
+- design
+- playbooks
+- agent-dx
+- dispatch
+- grooming
+assignment:
+  eligible: []
+spec:
+  summary: 'Design a first-class "playbook" concept: a versioned brief stored in the
+    repo (groom, reorder, flesh-out, ...) that dispatch can instantiate as a task
+    against a project or a single task. Deterministic verbs stay the rails; a playbook
+    is the reusable judgment work that rides them. Design pass only -- it derives
+    implementation children, in the shape task-081 set.'
+  intent: AI-judgment work over the backlog (grooming, ordering, spec-writing) currently
+    depends on one-off prompts that die with their session. A written-once, versioned
+    brief makes that work repeatable, auditable, and improvable -- and gives the product
+    a vocabulary for the layer between deterministic verbs and ad-hoc agent chat.
+  description: 'Filed 2026-08-20 from a naming discussion with Jeff that exposed a
+    real gap in the product''s vocabulary and machinery.
+
+
+    **The three-layer picture the design must formalise:**
+
+
+    1. **Deterministic verbs** (CLI, REST, MCP tools): literal Python, no model. `queue
+    move`, `close --outcome superseded`, `task_promote`. These exist and keep growing
+    (the task-081 program adds the queue verbs).
+
+    2. **Dispatched AI work**: an agent session run against a brief. Exists today
+    (dispatch, task-074, task-078), but every brief is written fresh -- "groom the
+    backlog" means someone composes a prompt or a task from scratch each time, and
+    the quality of the run depends on how good that one-off brief was.
+
+    3. **Playbooks -- the missing middle**: a named, versioned, reusable brief checked
+    into the repo, which dispatch can instantiate as a task. "Groom" written once,
+    well, with its rules and its human gates stated, then run many times. Given the
+    product is called AgentJobs, a playbook is literally a job definition an agent
+    can be given repeatedly.
+
+
+    **Motivating playbooks, which the design should treat as its test cases:**
+
+
+    - **groom**: find duplicate, superseded, and stale tasks; propose closures with
+    reasons; a human approves before anything closes; closures go through `close`
+    with `outcome: duplicate|superseded`. Never deletes, never rewrites specs. Distinct
+    from reorder: groom prunes the list, the queue orders what survives.
+
+    - **reorder**: the task-209 pattern generalised -- propose a band-by-band order,
+    human approves, write it through `queue move`.
+
+    - **flesh-out**: take a thin task and produce a full spec (summary/intent/description/constraints/acceptance)
+    as a draft or a proposed patch for human review.
+
+
+    **What the design must settle** (each is an acceptance criterion below):
+
+
+    - **Storage and format**: where playbooks live (repo directory? per-project?),
+    what one contains -- the brief itself, the target shape (project vs single task),
+    the verbs it is permitted to use, its human gates, its outputs. Versioned in git
+    like everything else.
+
+    - **Instantiation**: how a playbook run becomes durable state. The strong prior
+    from this repo''s philosophy: a run IS a task (created from the playbook, logged,
+    handed off, closed), so the record survives the session and the resumption contract
+    holds. The design should defend or reject that.
+
+    - **Invocation surfaces**: CLI (`agentjobs playbook run groom`?), the dispatch
+    UI, MCP -- and how a playbook interacts with dispatch''s existing runner/model
+    selection (task-080 dispatch model profiles touched adjacent ground).
+
+    - **Guardrails**: a playbook''s proposals go through the same manager verbs as
+    everyone else -- no bulk YAML rewriting, no bypass of human gates. Groom in particular
+    must be propose-then-approve, mirroring task-209''s constraint that ordering is
+    not grooming.
+
+    - **Recurrence**: whether a playbook can be scheduled/looped (task-078 agent loops)
+    or is strictly on-demand for now. Deferring recurrence is an acceptable answer
+    if stated.
+
+    - **Naming**: "playbook" is the working name; the design may argue for another
+    (routine, job template). Whatever it picks becomes the user-facing term everywhere.
+
+
+    **Shape of the work**: this is a design pass in the task-081 mould -- produce
+    a design doc in docs/, get it reviewed and accepted by Jeff, and derive implementation
+    children held as drafts until approval. Do not implement anything in this task.
+
+
+    Priority note: filed as medium; where it sits relative to the queue-position program
+    is Jeff''s call, and once task-204..206 land that ordering will be expressible
+    directly.'
+  constraints: '- Design only; implementation is derived children held as drafts until
+    the design is approved.
+
+    - Playbooks act through existing manager verbs and respect human gates; the design
+    may not introduce a bypass.
+
+    - The design must state rejected alternatives with reasons, per this repo''s design-doc
+    convention.'
+  out_of_scope: Implementing any playbook or runner machinery. Building recurrence/scheduling
+    (decide its place, do not build it). The task-209 live reorder itself, which proceeds
+    under the queue program regardless.
+  context:
+  - path: docs/task-selection-design.md
+    why: The accepted design whose shape (decisions, rejected alternatives, derived
+      children) this design pass follows.
+  - path: docs/agent-dispatch-design.md
+    why: How dispatch works today; playbooks instantiate through it.
+  - path: ALLAGENTS.md
+    why: The workflow contract a playbook run must obey (verbs only, human gates,
+      resumption contract).
+acceptance:
+- id: sc-1
+  text: The design defines what a playbook is, where it lives, and what one contains
+    (brief, target shape, permitted verbs, human gates, outputs), versioned in git.
+  status: pending
+- id: sc-2
+  text: 'Instantiation is settled: how a run becomes durable task state satisfying
+    the resumption contract, with the run-is-a-task option explicitly defended or
+    rejected.'
+  status: pending
+- id: sc-3
+  text: 'The groom playbook is fully specified as the proving case: propose-then-approve
+    closures through close with outcome duplicate/superseded, never deleting or rewriting,
+    and its relationship to reorder stated.'
+  status: pending
+- id: sc-4
+  text: Invocation surfaces (CLI, dispatch, MCP) and the interaction with dispatch
+    runner/model selection are specified; recurrence is decided, even if the decision
+    is to defer it.
+  status: pending
+- id: sc-5
+  text: Implementation children are derived and held as drafts pending Jeff's approval
+    of the design, following the task-081 pattern.
+  status: pending
+deliverables:
+- path: docs/playbooks-design.md
+  note: 'The playbook design: concept, storage, instantiation, groom/reorder/flesh-out
+    as cases, guardrails, surfaces, derived children.'
+  status: pending
+dependencies:
+- task: task-074-auto-dispatch
+  type: related
+  note: Dispatch is the engine a playbook run rides.
+- task: task-078-agent-loops
+  type: related
+  note: Recurrence, if the design wants it, is this machinery.
+- task: task-081-task-selection-ranking
+  type: related
+  note: The design-first pattern to follow, and reorder (task-209) is the first playbook-shaped
+    run in the wild.
+- task: task-080-dispatch-model-profiles
+  type: related
+  note: 'Adjacent design: how dispatch picks a runner/model for a brief.'
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T00:56:22.635904Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: a1b2c3d4-0009-4a00-9e00-1a2b3c4d0002
+      kind: create
+      fingerprint: 0c9b7edd8d6e9a0669defb289efedc4f
