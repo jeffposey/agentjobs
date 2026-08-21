@@ -3,7 +3,7 @@ id: task-209
 title: 'Order the live backlog: put the whole open corpus in a work order Jeff has
   agreed to'
 created: '2026-08-20T23:32:09.717972Z'
-updated: '2026-08-21T00:35:32.022254Z'
+updated: '2026-08-21T01:13:05.550643Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -139,3 +139,32 @@ log:
       id: a1b2c3d4-0002-4a00-9e00-1a2b3c4d0209
       kind: promote
       fingerprint: a4ef18b3022b7bc4e761f9a28b056ae3
+- id: 4
+  ts: '2026-08-21T01:13:05.550519Z'
+  actor: claude
+  type: decision
+  body: 'Jeff settled the effort policy for this ordering pass (2026-08-20): grade
+    the judgment by queue depth instead of ordering the whole backlog with uniform
+    precision. Concretely, when the proposal is built and presented: (1) the head
+    of each band -- roughly the next 5 tasks -- is ordered exactly, with a reason
+    per move; (2) the next 5-10 are placed in rough buckets, not deliberated pairwise;
+    (3) the tail is NOT ordered at all -- it keeps the migration baseline, and gets
+    only a fast triage scan whose single question is "does anything here belong near
+    the head?". Rationale: a position 40-deep is provisional by construction -- it
+    will be re-thought before anything consumes it, so precision there is wasted effort,
+    and reordering happens regularly enough that the tail''s order is never actually
+    executed. Rejected alternative: full-precision ordering of all ~80 open tasks,
+    rejected as spending Jeff''s scarcest resource on positions that decay before
+    use. Two clarifications that keep this compatible with the acceptance criteria:
+    the schema invariant is untouched (every open task still carries a position; the
+    mechanical baseline provides the tail''s), and sc-1''s "approval of the list"
+    is satisfied by approving the head exactly and explicitly accepting the baseline
+    for the tail -- deliberately leaving the tail unordered is itself a considered
+    decision, and it must be recorded as one. The triage scan exists because the forgotten-task
+    problem (task-081 log entry 1) lives in the tail: graded effort means not ORDERING
+    the tail, never not LOOKING at it.'
+  data:
+    operation:
+      id: a1b2c3d4-000a-4a00-9e00-1a2b3c4d0209
+      kind: log_append
+      fingerprint: 4043a0992ba93ba72cc35f7226e6ec0d

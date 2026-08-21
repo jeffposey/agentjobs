@@ -3,7 +3,7 @@ id: task-211
 title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
   reorder, and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T00:56:22.636796Z'
+updated: '2026-08-21T01:13:10.650651Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -181,3 +181,22 @@ log:
       id: a1b2c3d4-0009-4a00-9e00-1a2b3c4d0002
       kind: create
       fingerprint: 0c9b7edd8d6e9a0669defb289efedc4f
+- id: 2
+  ts: '2026-08-21T01:13:10.650473Z'
+  actor: claude
+  type: decision
+  body: 'Design input from Jeff (2026-08-20), binding on the reorder playbook this
+    design specifies: reorder runs use graded effort by queue depth, not uniform precision
+    over the band. Exact ordering for the head (roughly the next 5 tasks), rough buckets
+    for the next 5-10, and no ordering for the tail beyond a fast triage scan for
+    anything that belongs near the head -- the tail keeps whatever positions it has.
+    Rationale and the rejected full-precision alternative are recorded as the same-day
+    decision on task-209, which is the first (manual) run of this policy; the playbook
+    generalises it. Note the division of labour this implies: reorder''s triage scan
+    surfaces misplaced tasks, while tail *rot* (dupes, superseded work) is the groom
+    playbook''s job -- the two playbooks meet at the tail from different directions.'
+  data:
+    operation:
+      id: a1b2c3d4-000b-4a00-9e00-1a2b3c4d0211
+      kind: log_append
+      fingerprint: fc17e047a64dbeae8ad2b1c880eba4c1
