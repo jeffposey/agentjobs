@@ -63,6 +63,7 @@ EXPECTED_TOOLS = [
     "task_close",
     "task_log_append",
     "task_update_content",
+    "task_queue_move",
 ]
 
 ACTORS = {
@@ -306,7 +307,7 @@ class TestPackagedProtocol:
         assert lines
         for line in lines:
             assert json.loads(line)["jsonrpc"] == "2.0"
-        assert "Serving 14 tool(s)" in completed.stderr
+        assert "Serving 15 tool(s)" in completed.stderr
 
     def test_a_full_mutation_round_trip_persists_through_the_pipe(self, live_service):
         """One create and one claim, over a real subprocess, landing in a real file."""

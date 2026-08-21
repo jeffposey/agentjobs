@@ -125,6 +125,24 @@ def _service_error(
                 "the reported field, and re-run `agentjobs validate`."
             ),
         )
+    if exc.status_code == 409:
+        # Selection refuses to answer over a queue it cannot trust rather than
+        # guessing from some other field, and the refusal names every offending task
+        # and the repair command. Passing that through as `internal_error` would read
+        # as "AgentJobs is broken" when the truth is "your corpus is, and here is the
+        # fix" -- and would train a reader to ignore the one failure that otherwise
+        # shows up as silently working the wrong task.
+        return ToolError(
+            code=ErrorCode.QUEUE_BROKEN,
+            message=str(exc),
+            project_id=project_id,
+            task_id=task_id,
+            suggested_action=(
+                "Run `agentjobs queue check` to see the whole picture, then "
+                "`agentjobs queue repair`. Do not pick a task by hand instead: the "
+                "order is exactly what is in doubt."
+            ),
+        )
     if exc.status_code is None:
         return ToolError(
             code=ErrorCode.SERVICE_UNAVAILABLE,
@@ -384,40 +402,113 @@ def build_tasks_search(client: TaskClient) -> ToolDefinition:
 # ---------------------------------------------------------------------------
 # task_next
 # ---------------------------------------------------------------------------
+#: The section 9 explanation, in the shape the service returns it. Deliberately not
+#: reshaped here: it is an explanation rather than a record, and a second definition
+#: of it in this module would be free to drift from the one REST and the CLI render.
+QUEUE_EXPLANATION_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["task", "band", "queue_position", "empty_bands_above", "skipped"],
+    "description": (
+        "Why this task is next, and every open task the queue passed over to reach "
+        "it. Read `skipped` before concluding the order is wrong: a task missing from "
+        "the answer is usually blocked, claimed, or holding open children rather than "
+        "mis-placed."
+    ),
+    "properties": {
+        "task": {"type": ["string", "null"]},
+        "band": {"type": ["string", "null"], "description": "The winner's priority band."},
+        "queue_position": {
+            "type": ["integer", "null"],
+            "description": "Its place within that band.",
+        },
+        "empty_bands_above": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Higher bands checked first and found to hold no open work.",
+        },
+        "skipped": {
+            "type": "array",
+            "description": (
+                "Open tasks ahead of the winner, each with the claimability rule that "
+                "excluded it. Empty when nothing stood in front of it."
+            ),
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["task", "position", "reason"],
+                "properties": {
+                    "task": {"type": "string"},
+                    "position": {"type": ["integer", "null"]},
+                    "reason": {"type": "string"},
+                },
+            },
+        },
+    },
+}
+
+
+def _queue_line(queue: Mapping[str, Any]) -> str:
+    """The one sentence about the order that a text-only client still sees."""
+    band = queue.get("band")
+    position = queue.get("queue_position")
+    skipped = list(queue.get("skipped") or [])
+    place = f"{band}/{position}" if band and position is not None else "an unrecorded position"
+    if not skipped:
+        return f"It stands at {place}, ahead of all other open work."
+    names = "; ".join(f"{item.get('task')} ({item.get('reason')})" for item in skipped[:3])
+    more = "" if len(skipped) <= 3 else f"; and {len(skipped) - 3} more"
+    return f"It stands at {place}. The queue passed over {names}{more}."
+
+
 def build_task_next(client: TaskClient) -> ToolDefinition:
-    """Suggest the next claimable task. It never claims one."""
+    """Suggest the next claimable task, with the order that produced it. Never claims."""
 
     async def handler(arguments: Mapping[str, Any]) -> Union[ToolOutput, types.CallToolResult]:
         project_id = require_project_id(arguments)
         project = resolve_project(client, project_id)
         actor = require_actor(arguments, project)
+        priority = arguments.get("priority")
         scoped = client.for_project(project_id)
         try:
-            record = scoped.read_next_task(priority=arguments.get("priority"), agent=actor)
+            record = scoped.read_next_task(priority=priority, agent=actor)
+            # Fetched even when there is a winner, at the cost of a second call. The
+            # alternative is an agent that disagrees with the answer and cannot see
+            # what it is disagreeing with -- which is how a false `needs` edge gets
+            # invented to express an opinion about order.
+            queue = scoped.explain_next_task(priority=priority, agent=actor)
             if record is not None:
                 explanation = (
                     f"{record.get('id')} is ready, eligible for {actor}, and has no "
-                    "unmet needs. It is NOT claimed; call task_claim to take it."
+                    f"unmet needs. It is NOT claimed; call task_claim to take it. "
+                    f"{_queue_line(queue)} If you think something else should be "
+                    f"first, move it with task_queue_move -- never add a needs "
+                    f"dependency to express order."
                 )
                 payload: Dict[str, Any] = {
                     "task": task_summary(record, project_id=project_id),
                     "explanation": explanation,
+                    "queue": queue,
                 }
                 return success(payload, explanation)
-            explanation = _explain_no_work(scoped, actor=actor, priority=arguments.get("priority"))
+            explanation = _explain_no_work(scoped, actor=actor, priority=priority)
         except TaskClientError as exc:
             raise _service_error(exc, project_id=project_id) from exc
 
-        return success({"task": None, "explanation": explanation}, explanation)
+        return success({"task": None, "explanation": explanation, "queue": queue}, explanation)
 
     return ToolDefinition(
         name="task_next",
         title="Next claimable task",
         description=(
             "Suggest the next task this actor could claim: ready, eligible, with no "
-            "unmet needs. It does NOT claim anything -- call task_claim separately. "
-            "When nothing is available it explains why, distinguishing an empty "
-            "backlog from work that is blocked, unreadable, or claimed by someone else."
+            "unmet needs, and first in the managed queue. It does NOT claim anything "
+            "-- call task_claim separately. `queue` carries the band and position it "
+            "won on, plus every open task passed over to reach it and the rule that "
+            "excluded each. Work what this returns; if you disagree with the order, "
+            "call task_queue_move rather than inventing a dependency. When nothing is "
+            "available it explains why, distinguishing an empty backlog from work "
+            "that is blocked, unreadable, or claimed by someone else."
         ),
         input_schema={
             "type": "object",
@@ -432,10 +523,11 @@ def build_task_next(client: TaskClient) -> ToolDefinition:
         output_schema={
             "type": "object",
             "additionalProperties": False,
-            "required": ["task", "explanation"],
+            "required": ["task", "explanation", "queue"],
             "properties": {
                 "task": {"oneOf": [TASK_SUMMARY_SCHEMA, {"type": "null"}]},
                 "explanation": {"type": "string"},
+                "queue": QUEUE_EXPLANATION_SCHEMA,
             },
         },
         annotations=read_only_annotations("Next claimable task"),

@@ -1,4 +1,4 @@
-"""Contract and rejection coverage for the nine mutation MCP tools.
+"""Contract and rejection coverage for the ten mutation MCP tools.
 
 Driven against the real FastAPI application, so every success goes all the way to a
 YAML file and back and every refusal is the one the authoritative manager actually
@@ -47,6 +47,7 @@ MUTATION_NAMES = [
     "task_close",
     "task_log_append",
     "task_update_content",
+    "task_queue_move",
 ]
 
 
@@ -154,7 +155,7 @@ def ready_task(manager: TaskManager, task_id: str = "task-001-work"):
 # ac-1 and ac-4: the published surface, and what is absent from it
 # ---------------------------------------------------------------------------
 class TestPublishedSurface:
-    def test_exactly_the_eight_accepted_mutation_tools_are_published(self, service):
+    def test_exactly_the_accepted_mutation_tools_are_published(self, service):
         registry, _, _ = service
 
         published = [name for name in registry.names if name in set(MUTATION_NAMES)]
@@ -170,7 +171,7 @@ class TestPublishedSurface:
     def test_the_verbs_that_act_on_read_content_require_a_revision(self, service):
         registry, _, _ = service
 
-        for name in ("task_handoff", "task_close", "task_update_content"):
+        for name in ("task_handoff", "task_close", "task_update_content", "task_queue_move"):
             assert "expected_revision" in registry.get(name).input_schema["required"], name
 
     def test_an_append_does_not_require_a_revision(self, service):
@@ -812,6 +813,204 @@ class TestSchemaRefusalsReachTheAgent:
 
         assert result.isError is False
         assert result.structuredContent["task"]["lifecycle"] == "active"
+
+
+# ---------------------------------------------------------------------------
+# task-208: the order moves through a verb, and only through a verb
+# ---------------------------------------------------------------------------
+class TestQueueMove:
+    """`task_queue_move` is the whole of the MCP surface for changing the order.
+
+    The assertions worth having here are not that a move moves something -- the
+    manager is tested for that -- but that the *tool* keeps the two properties the
+    design leans on: no way to write a position number, and a retry that replays.
+    """
+
+    def _two_ready_tasks(self, manager: TaskManager):
+        first = ready_task(manager, "task-001-work")
+        second = ready_task(manager, "task-002-second")
+        return first, second
+
+    def test_it_moves_a_task_relative_to_a_neighbour(self, service):
+        registry, manager, _ = service
+        first, second = self._two_ready_tasks(manager)
+        assert first.queue_position < second.queue_position
+
+        result = call(
+            registry,
+            "task_queue_move",
+            base(
+                task_id=second.id,
+                expected_revision=second.updated.isoformat(),
+                placement={"where": "before", "neighbour": first.id},
+                body="It blocks the release.",
+            ),
+        )
+
+        assert result["task"]["queue_position"] < manager.get_task(first.id).queue_position
+
+    def test_top_and_bottom_need_no_neighbour(self, service):
+        registry, manager, _ = service
+        first, second = self._two_ready_tasks(manager)
+
+        moved = call(
+            registry,
+            "task_queue_move",
+            base(
+                task_id=second.id,
+                expected_revision=second.updated.isoformat(),
+                placement={"where": "top"},
+            ),
+        )
+
+        assert moved["task"]["queue_position"] < manager.get_task(first.id).queue_position
+
+    def test_the_decision_lands_in_the_log_as_a_queue_move_entry(self, service):
+        """The number is recoverable from the file; the reasoning is only here."""
+        registry, manager, _ = service
+        first, second = self._two_ready_tasks(manager)
+
+        call(
+            registry,
+            "task_queue_move",
+            base(
+                task_id=second.id,
+                expected_revision=second.updated.isoformat(),
+                placement={"where": "before", "neighbour": first.id},
+                body="It blocks the release.",
+            ),
+        )
+
+        entries = [
+            item for item in manager.get_task(second.id).log if item.type.value == "queue_move"
+        ]
+        assert entries and entries[-1].body == "It blocks the release."
+
+    def test_there_is_no_way_to_write_a_position_number(self, service):
+        """The property the whole design rests on: a caller cannot choose a number.
+
+        Two open tasks sharing one position is corruption the queue refuses to answer
+        over, and a caller writing a number is choosing blind. Asserted against the
+        published schema rather than the handler, because the schema is what an agent
+        reads and what the SDK enforces before dispatch.
+        """
+        registry, manager, _ = service
+        first, second = self._two_ready_tasks(manager)
+
+        schema = registry.get("task_queue_move").input_schema
+        assert "queue_position" not in schema["properties"]
+        assert "position" not in schema["properties"]
+        for candidate in (
+            {"where": "before", "neighbour": first.id, "position": 150},
+            {"where": "top", "position": 1},
+            {"position": 150},
+        ):
+            assert schema_rejects(
+                registry,
+                "task_queue_move",
+                base(
+                    task_id=second.id,
+                    expected_revision=second.updated.isoformat(),
+                    placement=candidate,
+                ),
+            ), candidate
+
+    def test_two_placements_at_once_do_not_validate(self, service):
+        """`before` plus `top` reads fine as separate fields and means nothing."""
+        registry, manager, _ = service
+        first, second = self._two_ready_tasks(manager)
+
+        assert schema_rejects(
+            registry,
+            "task_queue_move",
+            base(
+                task_id=second.id,
+                expected_revision=second.updated.isoformat(),
+                placement={"where": "before", "neighbour": first.id, "top": True},
+            ),
+        )
+
+    def test_a_neighbour_placement_without_a_neighbour_is_refused(self, service):
+        registry, manager, _ = service
+        _, second = self._two_ready_tasks(manager)
+
+        assert schema_rejects(
+            registry,
+            "task_queue_move",
+            base(
+                task_id=second.id,
+                expected_revision=second.updated.isoformat(),
+                placement={"where": "after"},
+            ),
+        )
+
+    def test_a_missing_placement_is_refused_by_the_handler_too(self, service):
+        """Belt and braces: the schema requires it, and the handler does not assume so."""
+        registry, manager, _ = service
+        _, second = self._two_ready_tasks(manager)
+
+        error = refuse(
+            registry,
+            "task_queue_move",
+            base(task_id=second.id, expected_revision=second.updated.isoformat()),
+        )
+
+        assert error.code is ErrorCode.INVALID_INPUT
+        assert error.field_errors[0].path == "placement"
+
+    def test_repeating_the_operation_id_replays_instead_of_moving_twice(self, service):
+        """A retry after a timeout must not walk the task two places up the band."""
+        registry, manager, _ = service
+        first, second = self._two_ready_tasks(manager)
+        arguments = base(
+            task_id=second.id,
+            expected_revision=second.updated.isoformat(),
+            placement={"where": "before", "neighbour": first.id},
+        )
+
+        applied = call(registry, "task_queue_move", arguments)
+        replayed = call(registry, "task_queue_move", dict(arguments))
+
+        assert applied["replayed"] is False
+        assert replayed["replayed"] is True
+        assert replayed["task"]["queue_position"] == applied["task"]["queue_position"]
+
+    def test_a_stale_revision_is_refused(self, service):
+        registry, manager, _ = service
+        first, second = self._two_ready_tasks(manager)
+        stale = second.updated.isoformat()
+        manager.add_log_entry(second.id, actor="bot", type="note", body="Something happened.")
+
+        error = refuse(
+            registry,
+            "task_queue_move",
+            base(
+                task_id=second.id,
+                expected_revision=stale,
+                placement={"where": "before", "neighbour": first.id},
+            ),
+        )
+
+        assert error.code is ErrorCode.REVISION_CONFLICT
+
+    def test_it_reports_the_new_place_rather_than_the_lifecycle(self, service):
+        """A move changes no state, so "is now ready" would answer a question nobody asked."""
+        registry, manager, _ = service
+        first, second = self._two_ready_tasks(manager)
+
+        async def run():
+            result = await registry.get("task_queue_move").handler(
+                base(
+                    task_id=second.id,
+                    expected_revision=second.updated.isoformat(),
+                    placement={"where": "top"},
+                )
+            )
+            return result[0][0].text
+
+        text = anyio.run(run)
+        assert text.startswith(f"Moved {second.id} to ")
+        assert "is now" not in text
 
 
 # ---------------------------------------------------------------------------

@@ -25,6 +25,7 @@ _SUMMARY_PASSTHROUGH = (
     "ball_prompt",
     "outcome",
     "priority",
+    "queue_position",
     "category",
     "parent",
     "updated",
@@ -125,6 +126,16 @@ TASK_SUMMARY_SCHEMA: Dict[str, Any] = {
         "ball_prompt": {"type": ["string", "null"]},
         "outcome": {"type": ["string", "null"]},
         "priority": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+        "queue_position": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "description": (
+                "Where this task stands *within* its priority band. Null once the task "
+                "is closed. It is order and nothing else: high/900 comes before "
+                "medium/100, because the band decides first and the number only breaks "
+                "ties inside it. Change it with task_queue_move, never by patching."
+            ),
+        },
         "category": {"type": "string"},
         "parent": {"type": ["string", "null"]},
         "owner": {"type": ["string", "null"]},

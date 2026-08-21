@@ -1,14 +1,16 @@
-"""The nine mutation MCP tools.
+"""The ten mutation MCP tools.
 
 Every one is a thin, typed domain verb over ``TaskClient``. None of them reimplements
 a lifecycle rule: the manager owns those, and a second copy here would eventually
 disagree with the first and be wrong in a way nobody could see.
 
 What the schemas do enforce is *shape*, and they are deliberately narrow. There is no
-``set_lifecycle``, no ``set_ball``, no generic patch, no ``save_yaml``, no batch, and
-no ``create_and_claim``. The state axes move only through claim, handoff, release and
-close, and the schemas make an invalid holder/reason pair unrepresentable rather than
-warning about it in prose -- a warning is advice, a schema is a wall.
+``set_lifecycle``, no ``set_ball``, no ``set_queue_position``, no generic patch, no
+``save_yaml``, no batch, and no ``create_and_claim``. The state axes move only through
+claim, handoff, release and close, the order moves only through ``task_queue_move``,
+and the schemas make an invalid holder/reason pair or a bare position number
+unrepresentable rather than warning about it in prose -- a warning is advice, a schema
+is a wall.
 """
 
 from __future__ import annotations
@@ -144,6 +146,62 @@ HANDOFF_TARGET_SCHEMA: Dict[str, Any] = {
                 "reason": {"type": "string", "enum": ["dependency", "service"]},
                 "prompt": {"type": "string", "minLength": 1},
             },
+        },
+    ],
+}
+
+#: Where a task lands in its band, as a discriminated union for the same reason the
+#: handoff target is one: `before` together with `top` reads fine as separate fields
+#: and means nothing, so it simply does not validate.
+#:
+#: There is no position number here, and that is the whole design. A caller that could
+#: write one would be choosing a place without knowing what else is in the band, which
+#: is how two open tasks end up sharing a position -- corruption the queue refuses to
+#: answer over. Name a neighbour or an end; the server does the arithmetic under the
+#: queue lock, where it is the only writer.
+QUEUE_PLACEMENT_SCHEMA: Dict[str, Any] = {
+    "description": (
+        "Where the task lands in its band. Exactly one placement, named relative to "
+        "another task or to an end of the band. No position number is accepted."
+    ),
+    "oneOf": [
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["where", "neighbour"],
+            "properties": {
+                "where": {"const": "before"},
+                "neighbour": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The task this one should come immediately ahead of.",
+                },
+            },
+        },
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["where", "neighbour"],
+            "properties": {
+                "where": {"const": "after"},
+                "neighbour": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The task this one should come immediately behind.",
+                },
+            },
+        },
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["where"],
+            "properties": {"where": {"const": "top"}},
+        },
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["where"],
+            "properties": {"where": {"const": "bottom"}},
         },
     ],
 }
@@ -564,6 +622,66 @@ def _build_update_content(client: TaskClient) -> Any:
     return handler
 
 
+def _build_queue_move(client: TaskClient) -> Any:
+    async def handler(arguments: Mapping[str, Any]) -> Union[ToolOutput, types.CallToolResult]:
+        project_id = require_project_id(arguments)
+        project = resolve_project(client, project_id)
+        actor = require_actor(arguments, project)
+        task_id = _require(arguments, "task_id")
+        operation_id = _require(arguments, "operation_id")
+        revision = _require(arguments, "expected_revision")
+        placement = arguments.get("placement")
+        if not isinstance(placement, Mapping) or not placement.get("where"):
+            raise ToolError(
+                code=ErrorCode.INVALID_INPUT,
+                message=(
+                    "placement is required: name where the task goes, as "
+                    '{"where": "before"|"after", "neighbour": "task-id"} or '
+                    '{"where": "top"|"bottom"}.'
+                ),
+                project_id=project_id,
+                task_id=task_id,
+                field_errors=[FieldError(path="placement", message="Required.")],
+            )
+        where = str(placement.get("where"))
+        neighbour = placement.get("neighbour")
+        if where in ("before", "after") and not isinstance(neighbour, str):
+            raise ToolError(
+                code=ErrorCode.INVALID_INPUT,
+                message=f"placement.where '{where}' needs the neighbour it is relative to.",
+                project_id=project_id,
+                task_id=task_id,
+                field_errors=[FieldError(path="placement.neighbour", message="Required.")],
+            )
+        try:
+            result = client.for_project(project_id).operations.queue_move(
+                task_id,
+                actor=actor,
+                operation_id=operation_id,
+                expected_revision=revision,
+                before=neighbour if where == "before" else None,
+                after=neighbour if where == "after" else None,
+                top=where == "top",
+                bottom=where == "bottom",
+                with_children=bool(arguments.get("with_children", False)),
+                body=arguments.get("body"),
+            )
+        except TaskClientError as exc:
+            raise _service_error(exc, project_id=project_id, task_id=task_id) from exc
+        task = result.task
+        # The new place, not the lifecycle: a move does not change state, so the
+        # shared summary would report "is now active" and say nothing about what the
+        # caller actually asked for.
+        summary = (
+            "Already applied"
+            if result.replayed
+            else f"Moved {task.id} to {task.priority.value}/{task.queue_position}."
+        )
+        return success(_result_payload(result, project_id), summary)
+
+    return handler
+
+
 # ---------------------------------------------------------------------------
 # Inventory
 # ---------------------------------------------------------------------------
@@ -750,5 +868,43 @@ def mutation_tool_definitions(client: TaskClient) -> List[ToolDefinition]:
                 also_required=["patch"],
             ),
             _build_update_content(client),
+        ),
+        _mutation_tool(
+            "task_queue_move",
+            "Move a task in the queue",
+            (
+                "Change where a task stands in its priority band -- the only way the "
+                "order changes. Use this when you disagree with what task_next "
+                "returned: move the task you think should be first, so the next "
+                "session inherits the decision instead of re-arguing it. Never add a "
+                "needs dependency to express order; dependencies are prerequisites, "
+                "and a false one deadlocks the graph and lies to every reader of it. "
+                "Placement names a neighbour or an end of the band, never a number: "
+                "the server computes the position under the queue lock, because a "
+                "caller choosing one blind is how two tasks come to share it."
+            ),
+            _verb_schema(
+                revision=True,
+                extra={
+                    "placement": QUEUE_PLACEMENT_SCHEMA,
+                    "with_children": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": (
+                            "Move this task's open children with it, keeping their "
+                            "order among themselves."
+                        ),
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": (
+                            "Why the order changed. It becomes the queue_move log "
+                            "entry, which is the only record of the reasoning."
+                        ),
+                    },
+                },
+                also_required=["placement"],
+            ),
+            _build_queue_move(client),
         ),
     ]
