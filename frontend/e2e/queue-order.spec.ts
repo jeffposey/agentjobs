@@ -105,19 +105,21 @@ test("a step that would not move anything writes nothing", async ({ page, reques
   expect(record.log.filter((entry: { type: string }) => entry.type === "queue_move")).toHaveLength(0);
 });
 
-test("shows the position it is about to change, and explains the task it offers", async ({
-  page,
-  request,
-}) => {
+test("shows the position it is about to change", async ({ page, request }) => {
   const [first] = await seed(request, ["Positioned", "Second in line"]);
 
   await page.goto("/app/p/_local/tasks");
   const row = page.locator(`[data-task="${first}"]`);
-  // The number a person is changing, rendered as a value rather than implied by
-  // where the row happens to sit.
+  // The number a person is changing, rendered as a value rather than implied by where
+  // the row happens to sit.
   await expect(row).toHaveAttribute("data-queue-position", /^\d+$/);
-
-  await page.goto("/app/");
-  await page.getByText("Why this one?").click();
-  await expect(page.getByText(/first in line and claimable|Ahead of it in line/)).toBeVisible();
+  await expect(row.locator('[data-label="Queue"]')).toContainText(/\d+/);
 });
+
+// The dashboard's "Why this one?" disclosure is deliberately not covered here. Which
+// panel the dashboard renders is decided by a ladder over the *whole* project, and this
+// directory shares one project across every spec -- so whether the "Next up" rung is on
+// screen depends on what the specs that ran earlier happened to create. A test that
+// asserts it passes alone and fails in the suite, which is exactly what it did. It is
+// covered instead by NextExplanation.test.tsx against the real endpoint's shape, and it
+// was exercised by hand in a browser against a seeded sandbox (task-207 log).
