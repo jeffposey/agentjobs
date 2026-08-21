@@ -603,11 +603,25 @@ def after_human_handoff(
     return manager.get_task(task.id) or task
 
 
+APPROVAL_CLEARANCE = (
+    "Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark "
+    "the branch merged in branches[], and close this task completed. "
+    "No merge has happened yet: the UI records approval, it does not run git."
+)
+"""The sentence every approval carries, note or no note.
+
+Named rather than written twice so the with-note branch cannot drift from the
+without-note one. An approval that quietly lost its merge clearance because somebody
+attached a sentence to it would produce exactly the round trip this route pair exists
+to remove.
+"""
+
+
 @router.post("/{task_id}/approve", response_model=HumanActionResponse)
 async def approve_task(
     task_id: str,
     request: Request,
-    payload: HumanActionRequest,
+    payload: NoteActionRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
 ) -> HumanActionResponse:
@@ -618,8 +632,17 @@ async def approve_task(
     point, since approvals used to live only in chat -- and moves the ball: the agent
     must now rebase, merge --no-ff, mark the branch merged, and close the task
     (ENGINEERING.md, "The Merge Gate").
+
+    ``note`` is optional and strictly additive (task-228). With none, this writes byte
+    for byte what it wrote before the field existed. With one, the note rides *after*
+    the merge clearance, verbatim and unsummarised, followed by a sentence saying it is
+    context to carry into the merge -- because an agent that reads an approval note as
+    a fresh review round has inverted the point of attaching one. Before this, an
+    approval carrying a sentence had to go through Request Changes: a round trip the
+    human did not ask for, and a record that said `revise` about work that was approved.
     """
     user = acting_user(project, payload.user)
+    note = (payload.note or "").strip()
     try:
         task = manager.handoff(
             task_id,
@@ -627,11 +650,24 @@ async def approve_task(
             ball=Ball.AGENT,
             ball_reason=BallReason.WORK,
             ball_prompt=(
-                "Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark "
-                "the branch merged in branches[], and close this task completed. "
-                "No merge has happened yet: the UI records approval, it does not run git."
+                (
+                    APPROVAL_CLEARANCE
+                    + NL2
+                    + f"Note from {user}:"
+                    + NL2
+                    + note
+                    + NL2
+                    + "That note is context to carry into the merge, not another "
+                    + "review round: you are still cleared to merge."
+                )
+                if note
+                else APPROVAL_CLEARANCE
             ),
-            body=f"Approved by {user} through the web UI.",
+            body=(
+                f"Approved by {user} through the web UI:" + NL2 + note
+                if note
+                else f"Approved by {user} through the web UI."
+            ),
         )
         return HumanActionResponse(task=after_human_handoff(manager, project, task, request))
     except ValueError as exc:

@@ -237,7 +237,7 @@ function ReviewPanel({
   onPromote,
   onResume,
 }: TaskDetailProps) {
-  const [mode, setMode] = useState<"none" | "promote" | "resume" | "send" | "reject">("none");
+  const [mode, setMode] = useState<"none" | "promote" | "approve" | "resume" | "send" | "reject">("none");
   const [sendVerb, setSendVerb] = useState<SendBackVerb | null>(null);
   const [feedback, setFeedback] = useState("");
   const [attachments, setAttachments] = useState<Array<PendingAttachment>>([]);
@@ -247,7 +247,7 @@ function ReviewPanel({
   const working = Boolean(busy) || Boolean(promoteBusy);
   const verbs = verbsFor(detail.task);
   const reset = () => { setMode("none"); setSendVerb(null); setFeedback(""); setAttachments([]); };
-  const toggle = (next: "promote" | "resume" | "reject") => {
+  const toggle = (next: "promote" | "approve" | "resume" | "reject") => {
     setSendVerb(null);
     setFeedback("");
     setAttachments([]);
@@ -275,7 +275,7 @@ function ReviewPanel({
             ) : (
               <>
                 {verbs.primary && (
-                  <button type="button" disabled={working} onClick={() => (verbs.primary?.kind === "promote" ? toggle("promote") : void onApprove())} className="touch-target rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">{verbs.primary.text}</button>
+                  <button type="button" disabled={working} onClick={() => toggle(verbs.primary?.kind === "promote" ? "promote" : "approve")} className="touch-target rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">{verbs.primary.text}</button>
                 )}
                 <button type="button" disabled={working} onClick={() => toggleSend(verbs.secondary)} className="touch-target rounded-lg bg-yellow-600 px-4 font-semibold text-white hover:bg-yellow-700 disabled:opacity-60">{verbs.secondary.text}</button>
                 {verbs.extras.map((verb) => (
@@ -295,6 +295,19 @@ function ReviewPanel({
               working={working}
               onChange={setFeedback}
               onSubmit={(note) => void onPromote(note)}
+              onCancel={reset}
+            />
+          )}
+          {mode === "approve" && (
+            <NoteForm
+              id="approve-note"
+              label="Approval note (optional) — does not block the merge"
+              placeholder="Anything to carry into the merge. Left empty, this is exactly a plain approval."
+              submitText="Approve"
+              value={feedback}
+              working={working}
+              onChange={setFeedback}
+              onSubmit={(note) => void onApprove(note)}
               onCancel={reset}
             />
           )}
@@ -501,7 +514,10 @@ export type TaskDetailProps = {
   // actually tells a human what happened and what to do about it.
   promoteBusy?: boolean;
   promoteError?: string | null;
-  onApprove: () => Promise<void> | void;
+  // A note, because approving and saying something about it are one act, not two
+  // (task-228). null means no note, and the record is then byte-identical to the
+  // one approve wrote before the parameter existed.
+  onApprove: (note: string | null) => Promise<void> | void;
   // One prop rather than four near-identical ones. Every send-back is the same act --
   // a note, and the ball moving to the agent -- and the reason is what differs, so the
   // component's contract mirrors the vocabulary instead of paraphrasing it.

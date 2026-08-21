@@ -483,3 +483,71 @@ def test_a_send_back_without_a_note_is_refused(
     # 400 rather than 422: this app maps validation refusals itself, the same way
     # /request-changes has always answered an empty feedback field.
     assert response.status_code == 400
+
+
+# ----- task-231 part 3: approve carries an optional note ---------------------------
+
+
+def test_approving_with_a_note_keeps_the_merge_clearance(
+    client: TestClient, sample_task_in_review: str
+) -> None:
+    """The note is additive to "you may merge", never a replacement for it.
+
+    An agent that reads an approval note as a fresh review round has inverted the whole
+    point of being able to attach one, so the prompt says so in as many words.
+    """
+    note = "Fold the naming nit in before you merge."
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/approve",
+        json={"user": "jeff", "note": note},
+    )
+
+    assert response.status_code == 200
+    task = response.json()["task"]
+    assert task["ball"] == "agent"
+    assert task["ball_reason"] == "work"
+    assert "cleared to merge" in task["ball_prompt"]
+    assert "does not run git" in task["ball_prompt"]
+    # Verbatim, not summarised: a paraphrased note is not usable by the agent reading it.
+    assert note in task["ball_prompt"]
+    assert "not another review round" in task["ball_prompt"]
+    assert note in (task["log"][-1]["body"] or "")
+
+
+def test_approving_without_a_note_writes_exactly_what_it_always_did(
+    client: TestClient, sample_task_in_review: str
+) -> None:
+    """The regression guard for an optional field: absent must mean unchanged.
+
+    Asserted against the constant itself rather than against a copy of the sentence, so
+    a future edit to the clearance wording cannot make this test pass while the two
+    branches have drifted apart.
+    """
+    from agentjobs.api.routes.tasks import APPROVAL_CLEARANCE
+
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/approve",
+        json={"user": "jeff"},
+    )
+
+    assert response.status_code == 200
+    task = response.json()["task"]
+    assert task["ball_prompt"] == APPROVAL_CLEARANCE
+    assert task["log"][-1]["body"] == "Approved by jeff through the web UI."
+
+
+@pytest.mark.parametrize("note", [None, "", "   "])
+def test_an_empty_approval_note_is_the_same_as_none(
+    client: TestClient, sample_task_in_review: str, note: object
+) -> None:
+    """A textarea a human opened and closed again must not change the record."""
+    from agentjobs.api.routes.tasks import APPROVAL_CLEARANCE
+
+    payload: dict = {"user": "jeff"}
+    if note is not None:
+        payload["note"] = note
+
+    response = client.post(f"/api/tasks/{sample_task_in_review}/approve", json=payload)
+
+    assert response.status_code == 200
+    assert response.json()["task"]["ball_prompt"] == APPROVAL_CLEARANCE

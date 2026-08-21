@@ -455,6 +455,14 @@ export const answerTaskApiProjectsProjectIdTasksTaskIdAnswerPost = <ThrowOnError
  * point, since approvals used to live only in chat -- and moves the ball: the agent
  * must now rebase, merge --no-ff, mark the branch merged, and close the task
  * (ENGINEERING.md, "The Merge Gate").
+ *
+ * ``note`` is optional and strictly additive (task-228). With none, this writes byte
+ * for byte what it wrote before the field existed. With one, the note rides *after*
+ * the merge clearance, verbatim and unsummarised, followed by a sentence saying it is
+ * context to carry into the merge -- because an agent that reads an approval note as
+ * a fresh review round has inverted the point of attaching one. Before this, an
+ * approval carrying a sentence had to go through Request Changes: a round trip the
+ * human did not ask for, and a record that said `revise` about work that was approved.
  */
 export const approveTaskApiProjectsProjectIdTasksTaskIdApprovePost = <ThrowOnError extends boolean = false>(options: Options<ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostData, ThrowOnError>) => (options.client ?? client).post<ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponses, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostErrors, ThrowOnError>({
     url: '/api/projects/{project_id}/tasks/{task_id}/approve',
@@ -996,6 +1004,14 @@ export const answerTaskApiTasksTaskIdAnswerPost = <ThrowOnError extends boolean 
  * point, since approvals used to live only in chat -- and moves the ball: the agent
  * must now rebase, merge --no-ff, mark the branch merged, and close the task
  * (ENGINEERING.md, "The Merge Gate").
+ *
+ * ``note`` is optional and strictly additive (task-228). With none, this writes byte
+ * for byte what it wrote before the field existed. With one, the note rides *after*
+ * the merge clearance, verbatim and unsummarised, followed by a sentence saying it is
+ * context to carry into the merge -- because an agent that reads an approval note as
+ * a fresh review round has inverted the point of attaching one. Before this, an
+ * approval carrying a sentence had to go through Request Changes: a round trip the
+ * human did not ask for, and a record that said `revise` about work that was approved.
  */
 export const approveTaskApiTasksTaskIdApprovePost = <ThrowOnError extends boolean = false>(options: Options<ApproveTaskApiTasksTaskIdApprovePostData, ThrowOnError>) => (options.client ?? client).post<ApproveTaskApiTasksTaskIdApprovePostResponses, ApproveTaskApiTasksTaskIdApprovePostErrors, ThrowOnError>({
     url: '/api/tasks/{task_id}/approve',

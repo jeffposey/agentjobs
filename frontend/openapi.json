@@ -1296,24 +1296,6 @@
         "title": "HandoffRequest",
         "type": "object"
       },
-      "HumanActionRequest": {
-        "description": "Base request for human actions.",
-        "properties": {
-          "user": {
-            "description": "User performing the action",
-            "examples": [
-              "jeff"
-            ],
-            "title": "User",
-            "type": "string"
-          }
-        },
-        "required": [
-          "user"
-        ],
-        "title": "HumanActionRequest",
-        "type": "object"
-      },
       "HumanActionResponse": {
         "description": "A manager-backed human action returns the newly persisted task state.",
         "properties": {
@@ -6093,7 +6075,7 @@
     },
     "/api/projects/{project_id}/tasks/{task_id}/approve": {
       "post": {
-        "description": "Record human approval and hand the ball back to the agent (agent/work).\n\nNothing here merges anything. The GUI cannot run git, and a button that implied\notherwise would lie. It records the approval in the task record -- which is the\npoint, since approvals used to live only in chat -- and moves the ball: the agent\nmust now rebase, merge --no-ff, mark the branch merged, and close the task\n(ENGINEERING.md, \"The Merge Gate\").",
+        "description": "Record human approval and hand the ball back to the agent (agent/work).\n\nNothing here merges anything. The GUI cannot run git, and a button that implied\notherwise would lie. It records the approval in the task record -- which is the\npoint, since approvals used to live only in chat -- and moves the ball: the agent\nmust now rebase, merge --no-ff, mark the branch merged, and close the task\n(ENGINEERING.md, \"The Merge Gate\").\n\n``note`` is optional and strictly additive (task-228). With none, this writes byte\nfor byte what it wrote before the field existed. With one, the note rides *after*\nthe merge clearance, verbatim and unsummarised, followed by a sentence saying it is\ncontext to carry into the merge -- because an agent that reads an approval note as\na fresh review round has inverted the point of attaching one. Before this, an\napproval carrying a sentence had to go through Request Changes: a round trip the\nhuman did not ask for, and a record that said `revise` about work that was approved.",
         "operationId": "approve_task_api_projects__project_id__tasks__task_id__approve_post",
         "parameters": [
           {
@@ -6119,7 +6101,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/HumanActionRequest"
+                "$ref": "#/components/schemas/NoteActionRequest"
               }
             }
           },
@@ -8410,7 +8392,7 @@
     },
     "/api/tasks/{task_id}/approve": {
       "post": {
-        "description": "Record human approval and hand the ball back to the agent (agent/work).\n\nNothing here merges anything. The GUI cannot run git, and a button that implied\notherwise would lie. It records the approval in the task record -- which is the\npoint, since approvals used to live only in chat -- and moves the ball: the agent\nmust now rebase, merge --no-ff, mark the branch merged, and close the task\n(ENGINEERING.md, \"The Merge Gate\").",
+        "description": "Record human approval and hand the ball back to the agent (agent/work).\n\nNothing here merges anything. The GUI cannot run git, and a button that implied\notherwise would lie. It records the approval in the task record -- which is the\npoint, since approvals used to live only in chat -- and moves the ball: the agent\nmust now rebase, merge --no-ff, mark the branch merged, and close the task\n(ENGINEERING.md, \"The Merge Gate\").\n\n``note`` is optional and strictly additive (task-228). With none, this writes byte\nfor byte what it wrote before the field existed. With one, the note rides *after*\nthe merge clearance, verbatim and unsummarised, followed by a sentence saying it is\ncontext to carry into the merge -- because an agent that reads an approval note as\na fresh review round has inverted the point of attaching one. Before this, an\napproval carrying a sentence had to go through Request Changes: a round trip the\nhuman did not ask for, and a record that said `revise` about work that was approved.",
         "operationId": "approve_task_api_tasks__task_id__approve_post",
         "parameters": [
           {
@@ -8427,7 +8409,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/HumanActionRequest"
+                "$ref": "#/components/schemas/NoteActionRequest"
               }
             }
           },

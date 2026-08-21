@@ -408,7 +408,7 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
       promoteBusy={promote.isPending}
       promoteError={promoteError}
       dispatch={dispatch}
-      onApprove={async () => { if (!user) return; await approve.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user } }); await refresh(); }}
+      onApprove={async (note) => { if (!user) return; await approve.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, note } }); await refresh(); }}
       onResume={async (note) => { if (!user) return; await resume.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, note } }); await refresh(); }}
       onSendBack={async (reason, feedback, attachments) => {
         if (!user) return;

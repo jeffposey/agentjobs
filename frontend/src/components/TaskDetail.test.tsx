@@ -53,7 +53,7 @@ const detail: TaskDetailResponse = {
 
 function renderDetail(value = detail, extra: { promoteError?: string | null; promoteBusy?: boolean } = {}) {
   const actions = {
-    onApprove: vi.fn(async () => undefined),
+    onApprove: vi.fn(async (_note: string | null) => undefined),
     // Typed with its parameters so a test can read back what the panel sent, not just
     // that it was called. `reason` is first because it is the thing worth asserting:
     // a control whose label says "Answer Questions" and whose call says "revise" is
@@ -191,7 +191,10 @@ describe("TaskDetail resumption contract", () => {
     const actions = renderDetail();
 
     fireEvent.click(screen.getByRole("button", { name: /Approve/ }));
-    await waitFor(() => expect(actions.onApprove).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    // null, not "": an approval with nothing attached must write exactly the record it
+    // wrote before the note existed.
+    await waitFor(() => expect(actions.onApprove).toHaveBeenCalledWith(null));
 
     fireEvent.click(screen.getByRole("button", { name: /Request Changes/ }));
     fireEvent.change(screen.getByLabelText("Feedback or questions"), { target: { value: "Tighten the layout." } });
@@ -542,4 +545,19 @@ describe("TaskDetail review panel offers only verbs that are true", () => {
     await waitFor(() => expect(actions.onResume).toHaveBeenCalledWith(null));
   });
 
+  it("carries an approval note without turning the approval into a request for changes", async () => {
+    const actions = renderDetail();
+
+    fireEvent.click(screen.getByRole("button", { name: "✓ Approve — agent may merge" }));
+    fireEvent.change(screen.getByLabelText("Approval note (optional) — does not block the merge"), {
+      target: { value: "  Fold the naming nit in first.  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    // Trimmed, and it goes through approve. Before this it had to go through Request
+    // Changes, which recorded approved work as `revise` and asked for a round trip
+    // nobody wanted.
+    await waitFor(() => expect(actions.onApprove).toHaveBeenCalledWith("Fold the naming nit in first."));
+    expect(actions.onSendBack).not.toHaveBeenCalled();
+  });
 });

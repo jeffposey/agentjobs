@@ -936,20 +936,6 @@ export type HandoffRequest = {
 };
 
 /**
- * HumanActionRequest
- *
- * Base request for human actions.
- */
-export type HumanActionRequest = {
-    /**
-     * User
-     *
-     * User performing the action
-     */
-    user: string;
-};
-
-/**
  * HumanActionResponse
  *
  * A manager-backed human action returns the newly persisted task state.
@@ -4345,7 +4331,7 @@ export type AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponses = {
 export type AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponse = AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponses[keyof AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponses];
 
 export type ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostData = {
-    body: HumanActionRequest;
+    body: NoteActionRequest;
     path: {
         /**
          * Task Id
@@ -5660,7 +5646,7 @@ export type AnswerTaskApiTasksTaskIdAnswerPostResponses = {
 export type AnswerTaskApiTasksTaskIdAnswerPostResponse = AnswerTaskApiTasksTaskIdAnswerPostResponses[keyof AnswerTaskApiTasksTaskIdAnswerPostResponses];
 
 export type ApproveTaskApiTasksTaskIdApprovePostData = {
-    body: HumanActionRequest;
+    body: NoteActionRequest;
     path: {
         /**
          * Task Id

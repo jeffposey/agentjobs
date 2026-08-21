@@ -859,6 +859,14 @@ export const answerTaskApiProjectsProjectIdTasksTaskIdAnswerPostMutation = (opti
  * point, since approvals used to live only in chat -- and moves the ball: the agent
  * must now rebase, merge --no-ff, mark the branch merged, and close the task
  * (ENGINEERING.md, "The Merge Gate").
+ *
+ * ``note`` is optional and strictly additive (task-228). With none, this writes byte
+ * for byte what it wrote before the field existed. With one, the note rides *after*
+ * the merge clearance, verbatim and unsummarised, followed by a sentence saying it is
+ * context to carry into the merge -- because an agent that reads an approval note as
+ * a fresh review round has inverted the point of attaching one. Before this, an
+ * approval carrying a sentence had to go through Request Changes: a round trip the
+ * human did not ask for, and a record that said `revise` about work that was approved.
  */
 export const approveTaskApiProjectsProjectIdTasksTaskIdApprovePostMutation = (options?: Partial<Options<ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostData>>): UseMutationOptions<ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponse, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostError, Options<ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostData>> => {
     const mutationOptions: UseMutationOptions<ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponse, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostError, Options<ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostData>> = {
@@ -1714,6 +1722,14 @@ export const answerTaskApiTasksTaskIdAnswerPostMutation = (options?: Partial<Opt
  * point, since approvals used to live only in chat -- and moves the ball: the agent
  * must now rebase, merge --no-ff, mark the branch merged, and close the task
  * (ENGINEERING.md, "The Merge Gate").
+ *
+ * ``note`` is optional and strictly additive (task-228). With none, this writes byte
+ * for byte what it wrote before the field existed. With one, the note rides *after*
+ * the merge clearance, verbatim and unsummarised, followed by a sentence saying it is
+ * context to carry into the merge -- because an agent that reads an approval note as
+ * a fresh review round has inverted the point of attaching one. Before this, an
+ * approval carrying a sentence had to go through Request Changes: a round trip the
+ * human did not ask for, and a record that said `revise` about work that was approved.
  */
 export const approveTaskApiTasksTaskIdApprovePostMutation = (options?: Partial<Options<ApproveTaskApiTasksTaskIdApprovePostData>>): UseMutationOptions<ApproveTaskApiTasksTaskIdApprovePostResponse, ApproveTaskApiTasksTaskIdApprovePostError, Options<ApproveTaskApiTasksTaskIdApprovePostData>> => {
     const mutationOptions: UseMutationOptions<ApproveTaskApiTasksTaskIdApprovePostResponse, ApproveTaskApiTasksTaskIdApprovePostError, Options<ApproveTaskApiTasksTaskIdApprovePostData>> = {
