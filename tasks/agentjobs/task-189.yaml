@@ -3,7 +3,7 @@ id: task-189
 title: The gate makes you pay four minutes to learn something it knew in one second,
   and there is no way to resume it
 created: '2026-08-20T06:40:10.935944Z'
-updated: '2026-08-21T04:32:17.849369Z'
+updated: '2026-08-21T04:44:40.869702Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -313,3 +313,136 @@ log:
       id: f274ddea-7847-4dbc-a61e-d4f21960a5bc
       kind: log_append
       fingerprint: 3c3d1f1ae4480593b45d6669fcb0f60f
+- id: 8
+  ts: '2026-08-21T04:44:06.598786Z'
+  actor: claude
+  type: question
+  body: 'Found while verifying that the reordered stages still catch what they used
+    to (log entry 5''s constraint): **the `oxlint` stage cannot fail.**
+
+
+    oxlint reports its rule violations at `warning` severity and is invoked as `oxlint
+    --ignore-pattern src/api/generated/** .` with no `--deny-warnings` and no severity
+    override, so it exits 0 whatever it finds. Reproduced twice: a file containing
+    `debugger;` and a file reassigning a `const` each produced a printed diagnostic
+    and exit code 0, both from `npx oxlint` directly and from `npm run lint`.
+
+
+    This predates task-189 and is not caused by the reordering -- the stage was equally
+    decorative when it ran after pytest. It is out of scope here on the constraint
+    "reordering must not change what is checked, only when": adding `--deny-warnings`
+    changes what is checked, and would fail the gate on findings that have been accumulating
+    unenforced since the stage was written.
+
+
+    So the demonstration that survives is three of the four moved stages rather than
+    four. `black`, `api` and `icons` were each broken deliberately and the unqualified
+    gate failed on them at **2.7s, 6.2s and 8.9s** respectively, where the same failures
+    previously cost a full pytest run first. `oxlint` could not be demonstrated because
+    no input makes it fail.
+
+
+    **Question for Jeff:** file a follow-up to make the lint stage enforcing? It is
+    a small change with an unknown-sized backlog behind it -- someone has to look
+    at what `oxlint` currently prints on a clean tree before promising the gate will
+    be green. I have not filed anything.'
+  data:
+    operation:
+      id: 9e4305eb-793b-48a0-b3a3-c0ba0cf0c3f2
+      kind: log_append
+      fingerprint: a8a73369cf0231efcf1aa156841a79eb
+- id: 9
+  ts: '2026-08-21T04:44:40.869475Z'
+  actor: claude
+  type: progress
+  body: 'Working pass. Branch `chore/task-189-gate-order-and-resume`, worktree `C:/projects/worktrees/aj-189`.
+
+
+    **What changed**
+
+
+    - `scripts/check.py` is now a table of ten named stages -- `black ruff mypy api
+    icons oxlint pytest vitest build e2e` -- run cheapest first. The four frontend
+    hygiene checks that used to sit behind pytest (`api`, `icons`, `oxlint`) are hoisted
+    above it. `build` before `e2e` and the schema-before-client ordering inside `api`
+    are kept as real dependencies.
+
+    - Every run prints a per-stage cost table. Re-measuring the budget no longer needs
+    instrumentation, which is why the numbers in ENGINEERING.md can now be expected
+    to stay current.
+
+    - `--list`, `--from <stage>` and `--only <a,b>` added. A partial run prints `PARTIAL
+    RUN: n of 10`, names every stage it skipped, and says it is not the gate -- at
+    the start and again at the end, because by the end the start is thousands of lines
+    of pytest output away. Unknown stage names are refused rather than silently selecting
+    nothing.
+
+    - A failure prints the stage name and, when anything ran before it, `Fix it, then
+    resume with --from <stage>`.
+
+    - `frontend/scripts/assert-generated-clean.mjs` is replaced by `frontend/scripts/check-generated-client.mjs`.
+    See the decision entry above.
+
+
+    **Measured, this machine, 2026-08-21, one gate at a time**
+
+
+    black 0.5s, ruff 0.1s, mypy 1.5s warm (~19s on the day''s first run), api 4.0s,
+    icons 2.9s, oxlint 0.5s, pytest ~305s over 2190 tests, vitest 5.8s, build 4.1s,
+    e2e 18.9s over 16 tests. About 345s total, of which pytest is 305s -- everything
+    above the pytest line is about ten seconds together.
+
+
+    **That the reordering did not stop anything from being checked**
+
+
+    Each failure introduced deliberately, then the *unqualified* gate run:
+
+
+    | Broken | Failed at | Cost | Previously |
+
+    |---|---|---|---|
+
+    | a misformatted test file | `black` | 2.7s | ~10s, already first |
+
+    | a hand-edited `types.gen.ts` | `api` | 6.2s | ~4m40s |
+
+    | a corrupted `icon-192.png` | `icons` | 8.9s | ~4m40s |
+
+
+    Same verdicts, same stages, earlier. `oxlint` could not be demonstrated -- see
+    the open question above.
+
+
+    `--from vitest` ran 3 of 10 stages in 28.8s and printed the partial-run banner
+    twice; `--only`/`--from`/`--list` are covered by 26 tests in `tests/test_check_gate.py`,
+    including that the bare command still runs all ten and that a partial run cannot
+    print "Ran every stage".
+
+
+    **Also**
+
+
+    - `tests/test_check_gate.py` is new: stage order, the two real dependencies, selection
+    semantics, the partial-run announcement, the resume hint, the timing table, a
+    contract test that `check.py`''s frontend stages and `npm run check` name the
+    same scripts, and three tests that hold ENGINEERING.md to the decisions above.
+
+    - `frontend/scripts/check-generated-client.test.mjs` covers the two messages,
+    including that the stale one never says "run `npm run generate:api`" -- the instruction
+    that made the original a dead end.
+
+    - `tests/test_source_provenance.py` updated: its environment-scrub test asserted
+    exactly five child processes, now `len(check.stages())`.
+
+    - Docs: ENGINEERING.md (stage table, budget, resume, the commit-order resolution),
+    ALLAGENTS.md step 4, README.md, frontend/README.md.
+
+    - The task''s own `spec.context` pointed at the deleted `assert-generated-clean.mjs`;
+    `tests/test_task_corpus.py` caught that in the first full run and it now points
+    at the replacement.'
+  data:
+    operation:
+      id: 7d9badc2-f026-4b86-88c6-21591d256a7a
+      kind: log_append
+      fingerprint: 4929889164cb8caf11594d145905f027
