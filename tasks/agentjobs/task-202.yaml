@@ -3,41 +3,13 @@ id: task-202
 title: Give every registered project its MCP server, so a dispatched session has the
   tools
 created: '2026-08-20T22:27:11.789778Z'
-updated: '2026-08-21T02:45:29.312779Z'
+updated: '2026-08-21T02:47:04.540736Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Ready for review and merge approval. Branch `feat/task-202-init-writes-mcp-json`\
-  \ (worktree C:/projects/worktrees/aj-202), commits 953cfa1 code+tests and 71ef010\
-  \ docs. Full `scripts/check.py` green, exit=0.\n\nNote: the earlier approval in\
-  \ this log (entry 7, 02:38) answered a permission prompt, not a review \u2014 the\
-  \ work was not committed yet at that point. This is the actual review request.\n\
-  \nWhat to look at:\n- `src/agentjobs/project_setup.py` \u2014 `ensure_mcp_server_entry`,\
-  \ the merge rules. Never rewrites an existing `agentjobs` entry; raises on a file\
-  \ it cannot safely merge into, which callers downgrade to a warning.\n- `src/agentjobs/cli.py`\
-  \ \u2014 `init` now writes the file; new `agentjobs project mcp-setup [path] [--url]`.\n\
-  - `src/agentjobs/api/routes/projects.py` \u2014 the web init path does the same,\
-  \ addressed from the request socket.\n- `docs/mcp.md` \u2014 the new section, and\
-  \ the port answer.\n\nTwo decisions to accept or push back on, both logged with\
-  \ their rejected alternatives: (9) `init` does not touch your client settings, so\
-  \ a fresh machine still sees the one-time approval dialog for an interactive session;\
-  \ (10) 8765 stays the shipped default, and a machine that serves elsewhere says\
-  \ so once in `api_base`.\n\nThree things done outside the branch that a diff will\
-  \ not show you:\n1. `.mcp.json` backfilled and verified in fantasyfootball (committed\
-  \ 57ec7d1) and mastercalls (committed 79a2bc8). Nothing pushed.\n2. product-strategy\
-  \ has the file, verified connecting, but **uncommitted** \u2014 the permission classifier\
-  \ blocked `git add` there twice and I stopped. One command finishes it: `git -C\
-  \ C:/projects/product-strategy add .mcp.json && git commit -m 'chore: declare the\
-  \ AgentJobs MCP server for this project'`.\n3. `api_base: http://127.0.0.1:8876`\
-  \ added to `~/.agentjobs/dispatch.yaml`. This is what makes `init` write 8876 rather\
-  \ than the dead 8765 on this machine, and it also fixes a CLI dispatch. Delete those\
-  \ seven lines to revert.\n\nac-2 is the one criterion not literally demonstrated:\
-  \ proving it needs a dispatch into a project registered by the merged code. What\
-  \ is proven is every link in that chain \u2014 `init` writes the file, the declared\
-  \ command connects and serves 14 tools, and `mcpjson_server_names()` returns `[\"\
-  agentjobs\"]` for it, which is exactly what dispatch pre-approves. Worth confirming\
-  \ with one real dispatch after merge.\n\nOn approval I will rebase, merge --no-ff,\
-  \ mark the branch merged, close the task, and remove the worktree."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 category: developer_experience
@@ -685,3 +657,68 @@ log:
     outcome: completed
     duration_seconds: 1929.1632
     log_path: C:\Users\jpose\.agentjobs\runs\run_8a76889b
+- id: 14
+  ts: '2026-08-21T02:47:01.786253Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 15
+  ts: '2026-08-21T02:47:03.741165Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 16
+  ts: '2026-08-21T02:47:04.540522Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_fa103400
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 15
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-202` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-202-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_fa103400.'
+    cwd: C:\projects\agentjobs
+    git_head: b862a28
+    session_id: 9ebc9d6d
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
