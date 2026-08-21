@@ -3,55 +3,13 @@ id: task-209
 title: 'Order the live backlog: put the whole open corpus in a work order Jeff has
   agreed to'
 created: '2026-08-20T23:32:09.717972Z'
-updated: '2026-08-21T16:05:42.931056Z'
+updated: '2026-08-21T16:56:34.899695Z'
 lifecycle: active
-ball: human
-ball_reason: approval
-ball_prompt: 'Approve, amend or reject the ordering proposal in log entry 6. Nothing
-  has been applied yet -- the live corpus is still on the migration baseline, and
-  no move happens until your approval is on this record (sc-1 requires it here, not
-  in chat).
-
-
-  What you are approving, in three parts:
-
-
-  1. THE HEAD, ordered exactly. HIGH becomes 193, 196, 224, 011, 012 -- the five ways
-  dispatch and the React app misreport their own state, on the reasoning that everything
-  else in the backlog is executed through those two instruments. MEDIUM becomes 010,
-  105, 015, 053, 013, led by the corpus test that fails in every worktree while the
-  process mandates worktrees.
-
-
-  2. THE ROUGH BUCKET, not deliberated pairwise. HIGH 6-13: 198, 199, 014, 007, 120,
-  121, 100, 018. MEDIUM 6-11: 183, 197, 201, 223, 104, 106. Plus one demotion: task-063
-  from HIGH 100 to the bottom of the band, because its only open child is a MEDIUM
-  task.
-
-
-  3. THE TAIL, deliberately left unordered, keeping the migration baseline. Per log
-  entry 4 that is itself the decision, so approving it is approving not to order it.
-  It was read, not ordered: the triage scan is in entry 6 and names task-221 as the
-  one item that came close to the head and was declined.
-
-
-  The CRITICAL band (task-220 alone) and the LOW band (three tasks) are unchanged.
-
-
-  sc-4 is satisfied as proposed and as it stands today: task-120 sits at HIGH 10,
-  well ahead of task-208 and task-209 at 45 and 46.
-
-
-  Three things looked wrong and were NOT fixed, per the no-grooming constraint --
-  they are open questions in log entry 7 and none of them blocks approval: task-198
-  and task-199 look like the same defect filed twice; task-010 arguably belongs in
-  HIGH rather than MEDIUM; task-063''s band no longer matches its remaining work.
-  Answer them if you want, or leave them.
-
-
-  On approval I apply 25 `agentjobs queue move` calls -- one per move, each logged,
-  no bulk rewrite -- then re-read `agentjobs queue list` and confirm it matches this
-  list before closing.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 5000
@@ -461,3 +419,118 @@ log:
       id: d9061cb2-0209-4c11-9b40-000000000104
       kind: handoff
       fingerprint: 6dbd08ea224c5c241f1c361f406fc703
+- id: 9
+  ts: '2026-08-21T16:55:14.040009Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 10
+  ts: '2026-08-21T16:55:19.665638Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 11
+  ts: '2026-08-21T16:55:21.339835Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_bff7e030
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 10
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-209` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-209-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_bff7e030.'
+    cwd: C:\projects\agentjobs
+    git_head: 0cac010
+    session_id: f7d3dce0
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 12
+  ts: '2026-08-21T16:56:34.899480Z'
+  actor: claude
+  type: note
+  body: 'From the task-081 supervisor, for run_bff7e030 reading this cold. Not an
+    instruction and not an amendment -- one correction to a generated string, so you
+    do not spend your first ten minutes looking for something that does not exist.
+
+
+    **There is no branch and there is no merge here.** The current ball_prompt reads
+    "Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark the branch
+    merged in branches[]". That is the dashboard''s generic approval template, written
+    by the UI when Jeff clicked approve at 16:55:14Z. It is correct for the code children
+    of this epic and wrong for this one. `branches` is empty and stays empty: this
+    task''s own out_of_scope is "Any code change", and its only deliverable is the
+    ordered corpus committed straight to main.
+
+
+    **What Jeff actually approved is the ordering proposal in log entry 6**, which
+    your predecessor put in front of him and which he approved unchanged through the
+    web UI. Entry 9 is the approval; sc-1 asks for it to be recorded on this task
+    and it now is.
+
+
+    **So the remaining work is step 4 of the spec, and only that.** Apply the 25 `agentjobs
+    queue move` calls -- one per move, each logged, no bulk YAML rewrite and no hand-edited
+    positions -- then re-read `agentjobs queue list` and confirm it matches the approved
+    list before closing. Commit the corpus to main from this clone. No worktree: your
+    predecessor deliberately took none, for the reason above.
+
+
+    Two constraints from the spec that are easy to drop when resuming into "apply
+    the approved thing": no `needs` dependency may be added to express order, and
+    ordering is not grooming -- if a task looks wrong on the way past, raise it as
+    a question entry rather than fixing it. Three such questions are already open
+    in log entry 7 and none of them blocks this work.
+
+
+    One thing to check rather than assume before you move anything: the corpus has
+    changed since the proposal was written at 16:05Z. task-208 closed, and task-225
+    was filed as a new open task in the high band. Re-read the list first and reconcile
+    it against entry 6 rather than replaying 25 moves computed against a backlog that
+    no longer exists. If the reconciliation changes any position, say so on the record
+    -- Jeff approved a list, not a procedure.'
+  data:
+    operation:
+      id: bb9b9273-0209-4a00-9e00-000000000001
+      kind: log_append
+      fingerprint: fd73144e8121e0f47cd4949a50985006
