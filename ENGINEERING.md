@@ -327,3 +327,28 @@ review request the reviewer can actually see.
     through CDP, below the browser's own shortcut handling and below anything a real
     window does with focus. It is the right tool for driving a page and the wrong
     evidence for "this key combination works" -- for that, press it yourself.
+-   **"I did it and nothing happened" is not a defect until you have proved the gesture
+    reached the page.** It has two explanations -- the feature is broken, or your input
+    never arrived -- and a browser-automation tool reports success either way. task-225
+    is the incident: `mcp__claude-in-chrome`'s `left_click_drag` delivered **no events at
+    all** to the task list, not even `mousedown`, with correct coordinates and a
+    successful-looking tool result. A session read that as "drag-to-reorder does not
+    work", filed it as reproduced fact, and an afternoon went into fixing something that
+    was never broken. A hand on a real mouse moved the row first try.
+
+    The check is one line, and it costs nothing next to what skipping it costs:
+
+    ```js
+    document.addEventListener("mousedown", (e) => console.log("got", e.target.id), true);
+    ```
+
+    Empty means the harness, not the application. Never write *reproduced* into a task
+    record on the strength of an automated gesture alone -- name the instrument, and say
+    whether the gesture landed. The same caution runs the other way: Playwright drives
+    Chromium's drag through `Input.setInterceptDrags` rather than the operating system's
+    drag loop, so it is good evidence that the handlers, the client call and the route
+    work, and it is not a hand on a mouse. When the question is whether a *gesture*
+    works, a person has to make it -- stand up a sandbox and ask, and have the page
+    record what happened rather than expecting them to screenshot a panel before their
+    next click clears it, which is how the first attempt at this lost its evidence.
+    `scripts/review_queue_sandbox.py` is that sandbox and it keeps its traces now.
