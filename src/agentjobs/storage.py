@@ -243,6 +243,14 @@ class TaskStorage:
             filename = f"{task_id}.yaml"
         return contained_path(self.tasks_dir, filename)
 
+    def task_path(self, task_id: str) -> Path:
+        """Where a task's file lives, for callers that need the path and not the task.
+
+        The containment check above applies here too, so a caller handing this to git
+        cannot be talked into naming a file outside the project's tasks directory.
+        """
+        return self._task_path(task_id)
+
     def load_task(self, task_id: str) -> Optional[Task]:
         """Load a task from its YAML file.
 
