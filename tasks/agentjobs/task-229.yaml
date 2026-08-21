@@ -3,11 +3,37 @@ id: task-229
 title: Drag-to-reorder does not scroll the page, so you can only move a task as far
   as the viewport
 created: '2026-08-21T20:09:48.827525Z'
-updated: '2026-08-21T20:18:22.714950Z'
+updated: '2026-08-21T20:38:44.194146Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Drag now scrolls the page at the window edges. Everything is verified\
+  \ except the one thing no instrument can verify \u2014 that a hand on a real mouse\
+  \ can reach an off-screen row \u2014 and that is what this asks of you.\n\n**The\
+  \ sandbox is running: http://127.0.0.1:8899/app/p/sandbox-tall/tasks** \u2014 72\
+  \ rows, four or five screens, its own port and its own throwaway data in a temp\
+  \ directory. Nothing there is real; click anything. The 8876 dashboard is untouched\
+  \ and is still on `main`, so it does not have this change.\n\nWhat to try, in the\
+  \ `high` band (the long run of \"Backlog filler\" rows):\n1. Grab the \u283F grip\
+  \ of a row near the bottom, drag to the top edge of the window and **hold still**.\
+  \ The page should scroll up, slowly at the edge of the zone and fast in the last\
+  \ few pixels. Drop it on a row near the top.\n2. The same downward: grab something\
+  \ near the top, hold at the bottom edge.\n3. Start a drag and press Escape, or let\
+  \ go over the filter panel. The page must stop moving immediately.\n4. Drag a row\
+  \ out of the browser window if you want to check the minor half: the ghost still\
+  \ leaves the window (that is the OS drag loop and HTML5 drag has no say in it),\
+  \ but it now carries a private MIME type instead of plain text, so it can no longer\
+  \ deposit a task id into another application. See the decision entry.\n\nThe panel\
+  \ in the bottom-right records every gesture, including how far the page scrolled,\
+  \ and posts it to the server \u2014 so you do not have to screenshot anything, and\
+  \ I can read what happened at http://127.0.0.1:8899/review/traces.\n\n**To stop\
+  \ it:** kill the python process running `scripts/review_queue_sandbox.py` (Ctrl-C\
+  \ in its window, or `Get-Process python | Where-Object { $_.CommandLine -like '*review_queue_sandbox*'\
+  \ } | Stop-Process`). Its temp directory deletes itself. I will stop it myself once\
+  \ you are done if you would rather leave it.\n\nBranch `fix/task-229-drag-autoscroll`\
+  \ in `C:/projects/worktrees/aj-229`, two commits, full `scripts/check.py` green\
+  \ (all ten stages, 490.9s). Not merged, not pushed. If the by-hand check passes,\
+  \ say so and I will merge, close, rebuild and restart 8876."
 archived: false
 priority: high
 queue_position: 736
@@ -117,29 +143,40 @@ acceptance:
 - id: a1
   text: Dragging a grip and holding near the top or bottom edge of the window scrolls
     the page, at a rate that ramps with proximity to the edge, in both directions.
-  status: pending
+  verify: frontend/src/components/dragAutoScroll.test.ts (ramp and both directions)
+    + frontend/e2e/queue-order.spec.ts 'scrolls the page while a drag is held at the
+    bottom edge'
+  status: met
 - id: a2
   text: A task at the bottom of a list several screens tall can be dragged to a target
     at the top of its band in one uninterrupted gesture, verified by a person with
     a real mouse in a seeded sandbox.
+  verify: By hand at http://127.0.0.1:8899/app/p/sandbox-tall/tasks -- no automated
+    instrument can answer this one.
   status: pending
 - id: a3
   text: The scroll loop is torn down on drop, on dragend, and on a cancelled drag;
     no rAF loop survives the gesture.
-  status: pending
+  verify: dragAutoScroll.test.ts (drop, dragend, idempotent stop) + TaskList.test.tsx
+    ('stops scrolling when a drag is cancelled rather than dropped')
+  status: met
 - id: a4
   text: The transport choice (edge-autoscroll on HTML5 drag vs. pointer-event rewrite)
     is recorded as a decision entry with its rejected alternative, and the drag-outside-the-browser
     behaviour is either fixed or explicitly accepted with a reason.
-  status: pending
+  verify: log entry 6 (decision)
+  status: met
 - id: a5
   text: Keyboard reorder and the cross-band confirmation are unchanged; scripts/check.py
     green.
-  status: pending
+  verify: scripts/check.py, all ten stages, 490.9s, 2026-08-21
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-229-drag-autoscroll
+  status: active
 log:
 - id: 1
   ts: '2026-08-21T20:09:49.309018Z'
@@ -240,3 +277,145 @@ log:
         eligible: true
       - runner: chatgpt-sol
         eligible: true
+- id: 6
+  ts: '2026-08-21T20:37:42.294041Z'
+  actor: claude
+  type: decision
+  body: "Transport: option A \u2014 keep the HTML5 drag, add an edge-autoscroll loop.\
+    \ Option B (a pointer-event rewrite with `setPointerCapture`) is rejected for\
+    \ now.\n\n**Why A.** The defect is that the page does not scroll, and that is\
+    \ one self-contained loop: `frontend/src/components/dragAutoScroll.ts` is 120\
+    \ lines including its documentation and it touches nothing else. B would have\
+    \ replaced a gesture that, since task-225, demonstrably starts and drops correctly\
+    \ \u2014 re-deriving the drop target from coordinates, reimplementing the cross-band\
+    \ confirmation's trigger, and re-earning the evidence that the gesture works at\
+    \ all. That is a large risk to carry for a benefit (touch) the spec puts out of\
+    \ scope.\n\n**What choosing A costs, stated plainly so the next reader does not\
+    \ have to rediscover it.** HTML5 drag does not fire on touch devices, so dragging\
+    \ on a phone or tablet is still not a thing, and the phone reordering story remains\
+    \ keyboard and controls. That is the case B would have bought, and it is what\
+    \ should reopen this decision: **if touch drag is ever claimed as a requirement,\
+    \ the answer is B, and this loop is thrown away rather than adapted.** A pointer-event\
+    \ implementation gets autoscroll for free because it owns its own move loop.\n\
+    \n**Item 2, the drag leaving the browser \u2014 partly fixed, and the remainder\
+    \ explicitly accepted.** The payload moves from `text/plain` to `application/x-agentjobs-task-id`.\
+    \ The harm was that a queue position could be dropped as text into any other application\
+    \ on the machine; under a type nothing else understands there is nowhere outside\
+    \ this table for the gesture to deposit itself. What is *not* fixed is that Chrome\
+    \ still lets the drag image travel outside the window, because that is the operating\
+    \ system's drag loop and an HTML5 drag has no say in it. Confining the gesture\
+    \ to the document is precisely what B buys by construction, and it is accepted\
+    \ here rather than worked around: a ghost that goes nowhere is cosmetic, and the\
+    \ task calls this half minor."
+  data:
+    operation:
+      id: b1d4c2e0-8a17-4d63-9f2b-1c7a5e3d0011
+      kind: log_append
+      fingerprint: 503bbc704821aa93c65b94542836265b
+- id: 7
+  ts: '2026-08-21T20:38:04.383158Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: c2e5d3f1-9b28-4e74-8a3c-2d8b6f4e0022
+      kind: update_content
+      fingerprint: b6cd5bd5d2f19042df171dc11e28c402
+- id: 8
+  ts: '2026-08-21T20:38:27.985635Z'
+  actor: claude
+  type: progress
+  body: "Implemented on `fix/task-229-drag-autoscroll` (worktree `C:/projects/worktrees/aj-229`),\
+    \ two commits, gate green.\n\n**The fix.** `frontend/src/components/dragAutoScroll.ts`\
+    \ (new). `startDragAutoScroll()` attaches a capture `dragover` listener that records\
+    \ the pointer's Y, and runs a `requestAnimationFrame` loop that scrolls the window\
+    \ while that Y sits inside an 80px edge zone. The rate ramps on a squared curve\
+    \ from 90 px/s at the boundary of the zone to 1100 px/s at the edge itself \u2014\
+    \ gentle enough to place a row one line at a time, fast enough to cross several\
+    \ screens. Movement is computed from elapsed time rather than per frame, so a\
+    \ slow machine covers the same ground, with a 100ms cap so a missed frame is not\
+    \ repaid in one jump. `TaskList.tsx` starts it from a `useEffect` keyed on the\
+    \ existing `dragging` state and stops it on cleanup.\n\n**Two things about the\
+    \ loop worth knowing before changing it.** It does *not* depend on `dragover`\
+    \ continuing to fire: a held hand produces no events, and the loop keeps scrolling\
+    \ from the last reading it has. And it tears itself down from its own capture\
+    \ `drop`/`dragend` listeners as well as through the React cleanup, so the loop\
+    \ cannot outlive the gesture even if the component's state were left set.\n\n\
+    **The payload.** `text/plain` \u2192 `application/x-agentjobs-task-id` in `onDragStart`.\
+    \ See the decision entry for what that does and does not fix.\n\n**Verified, and\
+    \ what each piece is worth.**\n- `dragAutoScroll.test.ts`, 15 cases, drives the\
+    \ loop with a hand-turned frame clock and a fake scroller: the ramp, both directions,\
+    \ symmetry, the elapsed-time arithmetic, the frame cap, a held-still pointer,\
+    \ and teardown on drop / on dragend / twice over. Settles the arithmetic, says\
+    \ nothing about a browser.\n- `TaskList.test.tsx`, 5 new cases: that the page\
+    \ scrolls both ways for a drag this list started, that it does not for one it\
+    \ did not, that a cancelled drag (`dragend`, no drop) stops it, and that the payload\
+    \ type is private. **Checked these can see the defect** \u2014 with the effect\
+    \ stubbed out, three of them fail; that check is the one task-207 and task-225\
+    \ did not make in this file.\n- `frontend/e2e/queue-order.spec.ts`, one new test\
+    \ in real Chromium: seeds 30 rows so the document is taller than the window, presses\
+    \ a grip, moves into the bottom edge zone, then *holds still* and polls `window.scrollY`.\
+    \ It passes, which is the only automated evidence that a real browser fires `dragover`\
+    \ at the document and that `window.scrollBy` moves this page. It then releases\
+    \ and asserts `scrollY` stops changing. **It is not evidence a person can reach\
+    \ an off-screen row** \u2014 Playwright goes in through `Input.setInterceptDrags`,\
+    \ below the operating system's drag loop, which is task-225's incident exactly.\n\
+    - `scripts/check.py`, all ten stages, 490.9s, exit 0. pytest 2190, vitest 45 files,\
+    \ 22 e2e.\n\n**The sandbox for the by-hand check (a2).** `scripts/review_queue_sandbox.py`\
+    \ seeded fourteen tasks across three projects \u2014 under one screen, so the\
+    \ fixture built to review this feature could not show the defect. Added a fourth\
+    \ project, `sandbox-tall`, with 60 more high-band tasks: 72 rows, four or five\
+    \ screens. The trace panel now collapses `dragover` into one running line (a screen-crossing\
+    \ drag fires hundreds, and one line each pushed PRESS and DRAGSTART out of the\
+    \ panel's 24-line window) and reports how far the page moved, so the gesture leaves\
+    \ durable evidence either way.\n\nRunning now on 8899 \u2014 its own port, its\
+    \ own throwaway registry and data under a temp directory that is deleted when\
+    \ it stops. Nothing touches the 8876 corpus."
+  data:
+    operation:
+      id: d3f6e4a2-1c39-4f85-9b4d-3e9c7a5f0033
+      kind: log_append
+      fingerprint: 8f3a5e4f4995886f96cc756d0853f820
+- id: 9
+  ts: '2026-08-21T20:38:44.193967Z'
+  actor: claude
+  type: handoff
+  body: "Drag now scrolls the page at the window edges. Everything is verified except\
+    \ the one thing no instrument can verify \u2014 that a hand on a real mouse can\
+    \ reach an off-screen row \u2014 and that is what this asks of you.\n\n**The sandbox\
+    \ is running: http://127.0.0.1:8899/app/p/sandbox-tall/tasks** \u2014 72 rows,\
+    \ four or five screens, its own port and its own throwaway data in a temp directory.\
+    \ Nothing there is real; click anything. The 8876 dashboard is untouched and is\
+    \ still on `main`, so it does not have this change.\n\nWhat to try, in the `high`\
+    \ band (the long run of \"Backlog filler\" rows):\n1. Grab the \u283F grip of\
+    \ a row near the bottom, drag to the top edge of the window and **hold still**.\
+    \ The page should scroll up, slowly at the edge of the zone and fast in the last\
+    \ few pixels. Drop it on a row near the top.\n2. The same downward: grab something\
+    \ near the top, hold at the bottom edge.\n3. Start a drag and press Escape, or\
+    \ let go over the filter panel. The page must stop moving immediately.\n4. Drag\
+    \ a row out of the browser window if you want to check the minor half: the ghost\
+    \ still leaves the window (that is the OS drag loop and HTML5 drag has no say\
+    \ in it), but it now carries a private MIME type instead of plain text, so it\
+    \ can no longer deposit a task id into another application. See the decision entry.\n\
+    \nThe panel in the bottom-right records every gesture, including how far the page\
+    \ scrolled, and posts it to the server \u2014 so you do not have to screenshot\
+    \ anything, and I can read what happened at http://127.0.0.1:8899/review/traces.\n\
+    \n**To stop it:** kill the python process running `scripts/review_queue_sandbox.py`\
+    \ (Ctrl-C in its window, or `Get-Process python | Where-Object { $_.CommandLine\
+    \ -like '*review_queue_sandbox*' } | Stop-Process`). Its temp directory deletes\
+    \ itself. I will stop it myself once you are done if you would rather leave it.\n\
+    \nBranch `fix/task-229-drag-autoscroll` in `C:/projects/worktrees/aj-229`, two\
+    \ commits, full `scripts/check.py` green (all ten stages, 490.9s). Not merged,\
+    \ not pushed. If the by-hand check passes, say so and I will merge, close, rebuild\
+    \ and restart 8876."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: e4a7b5c3-2d40-4a96-8c5e-4f0d8b6a0044
+      kind: handoff
+      fingerprint: 3941c51515a4d11356b57298a59eca52
