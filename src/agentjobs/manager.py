@@ -45,6 +45,7 @@ from .models_v2 import (
     Task,
     utcnow,
 )
+from .queue import next_position
 from .storage import TaskLoadError, TaskStorage
 
 if TYPE_CHECKING:
@@ -539,6 +540,19 @@ class TaskManager:
             task_kwargs.update(ball=Ball.AGENT, ball_reason=BallReason.AVAILABLE)
             kwargs.pop("ball_prompt", None)
         task_kwargs.update(kwargs)
+        # A task is born open, and rule 6 says an open task has a place in line, so
+        # creation has to give it one or produce a model that will not validate. The
+        # bottom of the band is the placement that assumes least: a task nobody has
+        # placed does not preempt an order somebody thought about (design section 5.1).
+        #
+        # Deliberately *not* under the project queue lock, which does not exist yet:
+        # that lock, explicit --before/--after placement on create, and the reopen path
+        # are task-205. Two concurrent creates racing here can land on one position, in
+        # exactly the way two concurrent creates already race for an id when no
+        # operation_id is supplied -- and `agentjobs validate` reports the duplicate.
+        task_kwargs.setdefault(
+            "queue_position", next_position(self.storage.list_tasks(), Priority(priority))
+        )
 
         task = Task.model_validate(task_kwargs)
         creator = actor or (operation.actor if operation is not None else None)
@@ -964,6 +978,10 @@ class TaskManager:
             task.ball_reason = None
             task.ball_prompt = None
             task.assignment.owner = None
+            # Leaving the line, in the same write that drops the ball (design section
+            # 5.4). No queue lock is needed even once task-205 adds one: removing a
+            # value cannot create a duplicate, which keeps this hot path cheap.
+            task.queue_position = None
             if archive:
                 task.archived = True
             self._append_entry(

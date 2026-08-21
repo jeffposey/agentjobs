@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import glob
 from pathlib import Path
-from typing import List, Sequence
+from typing import Dict, List, Optional, Sequence
 
+from agentjobs.models_v2 import Priority
+from agentjobs.queue import QUEUE_STEP, next_position
 from agentjobs.storage import TaskStorage
 
 from .converter import TaskConverter
@@ -30,6 +32,25 @@ def _collect_source_files(source_patterns: Sequence[str]) -> List[Path]:
             seen.add(resolved)
             files.append(path)
     return files
+
+
+def _claim_next_position(
+    priority: Priority,
+    cursor: Dict[Priority, int],
+    storage: Optional[TaskStorage],
+) -> int:
+    """Take the next free position in ``priority``, remembering it for the next call.
+
+    The first task to reach a band pays one corpus read to find its bottom; the rest
+    step down from there. On a dry run there is no storage to read, so the band starts
+    empty -- the numbers are then a preview, which is all a dry run promises.
+    """
+    if priority not in cursor:
+        existing = storage.list_tasks() if storage is not None else []
+        cursor[priority] = next_position(existing, priority)
+    else:
+        cursor[priority] += QUEUE_STEP
+    return cursor[priority]
 
 
 def migrate_tasks(
@@ -58,11 +79,18 @@ def migrate_tasks(
 
     results: List[MigrationResult] = []
     source_files = _collect_source_files(source_patterns)
+    # An import joins a queue that may already have tasks in it, and every task it
+    # brings needs its own place in line. Seeded from the target directory the first
+    # time a band is touched, then stepped locally: reading the corpus once per band
+    # rather than once per file, and never handing two imported tasks one position.
+    band_cursor: Dict[Priority, int] = {}
 
     for source_file in sorted(source_files):
         try:
             parsed = parser.parse_file(source_file)
             task = converter.convert(parsed, prompts_dir=prompts_path)
+            if task.is_open:
+                task.queue_position = _claim_next_position(task.priority, band_cursor, storage)
 
             warnings: List[str] = []
             description = task.spec.description or ""

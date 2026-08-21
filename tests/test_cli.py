@@ -211,7 +211,7 @@ def test_list_tasks_filtering(tmp_path: Path, monkeypatch) -> None:
         if content["title"] == "Low Task":
             content["lifecycle"] = "closed"
             content["outcome"] = "completed"
-            for key in ("ball", "ball_reason", "ball_prompt"):
+            for key in ("ball", "ball_reason", "ball_prompt", "queue_position"):
                 content.pop(key, None)
             task_file.write_text(yaml.safe_dump(content, sort_keys=False))
             break

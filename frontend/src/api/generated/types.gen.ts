@@ -1679,6 +1679,12 @@ export type Task = {
     parent?: string | null;
     priority?: Priority;
     /**
+     * Queue Position
+     *
+     * Order within the priority band. Present if and only if the task is open.
+     */
+    queue_position?: number | null;
+    /**
      * Schema
      *
      * Schema version stamp. Always 2 for this model (D3).
@@ -1972,6 +1978,12 @@ export type TaskReadInput = {
     parent?: string | null;
     priority?: Priority;
     /**
+     * Queue Position
+     *
+     * Order within the priority band. Present if and only if the task is open.
+     */
+    queue_position?: number | null;
+    /**
      * Schema
      *
      * Schema version stamp. Always 2 for this model (D3).
@@ -2111,6 +2123,12 @@ export type TaskReadOutput = {
      */
     parent?: string | null;
     priority?: Priority;
+    /**
+     * Queue Position
+     *
+     * Order within the priority band. Present if and only if the task is open.
+     */
+    queue_position?: number | null;
     /**
      * Schema
      *
@@ -2518,6 +2536,12 @@ export type TaskWritable = {
     parent?: string | null;
     priority?: Priority;
     /**
+     * Queue Position
+     *
+     * Order within the priority band. Present if and only if the task is open.
+     */
+    queue_position?: number | null;
+    /**
      * Schema
      *
      * Schema version stamp. Always 2 for this model (D3).
@@ -2668,6 +2692,12 @@ export type TaskReadOutputWritable = {
      */
     parent?: string | null;
     priority?: Priority;
+    /**
+     * Queue Position
+     *
+     * Order within the priority band. Present if and only if the task is open.
+     */
+    queue_position?: number | null;
     /**
      * Schema
      *

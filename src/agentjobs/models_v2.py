@@ -667,6 +667,11 @@ class Task(StrictModel):
     )
 
     priority: Priority = Field(default=Priority.MEDIUM)
+    queue_position: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description="Order within the priority band. Present if and only if the task is open.",
+    )
     category: str = Field(..., description="Project taxonomy; validated against config.")
     tags: List[str] = Field(default_factory=list)
     effort: Optional[str] = Field(
@@ -690,7 +695,7 @@ class Task(StrictModel):
 
     @model_validator(mode="after")
     def _check_consistency(self) -> "Task":
-        """Enforce the five rules that make the state model coherent.
+        """Enforce the six rules that make the state model coherent.
 
         Note on null versus absent: they mean the same thing for `ball` and `outcome`,
         and both are accepted. Omission is the canonical form -- what the migrator and
@@ -764,6 +769,25 @@ class Task(StrictModel):
             )
         if self.lifecycle is Lifecycle.ACTIVE and not self.assignment.owner:
             raise ValueError("an active task is claimed, so assignment.owner is required")
+
+        # 6. queue_position is absent if and only if the task is closed -- deliberately
+        #    the same shape as rule 1, and for the same reason. An open task is work
+        #    somebody will pick up, so it has a place in line; a closed task is not in
+        #    line at all. Drafts hold positions too: a draft is open, it is merely not
+        #    claimable, and selection filters it out on lifecycle rather than on
+        #    position. Uniqueness within a band is the other half of the invariant and
+        #    is *not* checkable here -- a task file knows nothing about its siblings --
+        #    so it lives in validation._check_queue (design doc section 3.2).
+        if closed and self.queue_position is not None:
+            raise ValueError(
+                f"a closed task must not have a queue_position (got "
+                f"{self.queue_position}); it is not in line any more"
+            )
+        if not closed and self.queue_position is None:
+            raise ValueError(
+                f"lifecycle '{self.lifecycle.value}' is open, so queue_position is "
+                "required -- open work with no place in line has no defined order"
+            )
 
         return self
 

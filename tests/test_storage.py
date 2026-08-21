@@ -24,6 +24,7 @@ def _build_task(task_id: str, title: str = "Sample") -> Task:
         ball=Ball.AGENT,
         ball_reason=BallReason.AVAILABLE,
         priority=Priority.MEDIUM,
+        queue_position=100,
         category="testing",
         spec=Spec(summary=f"{title} summary", description="Task description"),
     )

@@ -65,6 +65,7 @@ def build_project(root: Path, name: str, actors: list, default_user: str) -> Non
             ball=Ball.AGENT,
             ball_reason=BallReason.AVAILABLE,
             priority=Priority.HIGH,
+            queue_position=100,
             category="infrastructure",
             spec=Spec(summary=f"Belongs to {name}", description=f"Belongs to {name}"),
         )

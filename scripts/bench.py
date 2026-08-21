@@ -205,6 +205,10 @@ def _synthetic_task(index: int, *, total: int) -> Dict[str, Any]:
         "ball_reason": "available",
         "archived": False,
         "priority": ["low", "medium", "high", "critical"][index % 4],
+        # Every open task needs a place in its band, and the bands here are the four
+        # above round-robin -- so index // 4 numbers each band 100, 200, 300, ...
+        # without two generated tasks ever colliding.
+        "queue_position": (index // 4 + 1) * 100,
         "category": "performance",
         "tags": ["generated", "benchmark"],
         "effort": "hours",
