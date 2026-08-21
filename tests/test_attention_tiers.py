@@ -39,6 +39,11 @@ from agentjobs.storage import TaskStorage
 NOW = datetime(2026, 8, 11, tzinfo=timezone.utc)
 
 
+def _position(task_id: str) -> int:
+    """A distinct place in line for a fixture, derived from its id."""
+    return int(task_id.split("-")[1]) * 100
+
+
 def make_task(
     task_id: str,
     *,
@@ -65,8 +70,11 @@ def make_task(
         ball_prompt="Do the thing." if ball else None,
         outcome=outcome,
         priority=priority,
-        # Rule 6: open work has a place in line, closed work has none.
-        queue_position=None if lifecycle is Lifecycle.CLOSED else 100,
+        # Rule 6: open work has a place in line, closed work has none -- and since
+        # task-205 the position is unique per band, so it is derived from the id
+        # rather than shared. Two fixtures on one number is a corrupt queue, and
+        # selection refuses to answer over one.
+        queue_position=None if lifecycle is Lifecycle.CLOSED else _position(task_id),
         category="general",
         spec=Spec(summary=f"Summary of {task_id}", description="Body."),
     )

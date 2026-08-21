@@ -177,6 +177,20 @@ class Priority(ValueEnum):
     CRITICAL = "critical"
 
 
+PRIORITY_RANK = {
+    Priority.CRITICAL: 0,
+    Priority.HIGH: 1,
+    Priority.MEDIUM: 2,
+    Priority.LOW: 3,
+}
+"""Urgency as a sort key, most urgent first. The band half of the queue's total order.
+
+Named here rather than left inline in ``Task.priority_rank`` because the queue asks the
+same question about *bands* with no task in hand -- "which bands sit above this one" --
+and two copies of this mapping would eventually disagree about one of them.
+"""
+
+
 class AcceptanceStatus(ValueEnum):
     """State of one acceptance criterion.
 
@@ -239,10 +253,16 @@ class LogEntryType(ValueEnum):
     INSTRUCTION = "instruction"
     DISPATCH = "dispatch"
     DISPATCH_RESULT = "dispatch_result"
+    QUEUE_MOVE = "queue_move"
 
 
 MANAGER_WRITTEN_LOG_TYPES = frozenset(
-    {LogEntryType.TRANSITION, LogEntryType.DISPATCH, LogEntryType.DISPATCH_RESULT}
+    {
+        LogEntryType.TRANSITION,
+        LogEntryType.DISPATCH,
+        LogEntryType.DISPATCH_RESULT,
+        LogEntryType.QUEUE_MOVE,
+    }
 )
 """Entry types only the manager may append (design doc section 3, rule 5).
 
@@ -913,13 +933,8 @@ class Task(StrictModel):
         ]
 
     def priority_rank(self) -> int:
-        """Sort key: critical first."""
-        return {
-            Priority.CRITICAL: 0,
-            Priority.HIGH: 1,
-            Priority.MEDIUM: 2,
-            Priority.LOW: 3,
-        }[self.priority]
+        """Sort key: critical first. The band half of ``(band, place)``."""
+        return PRIORITY_RANK[self.priority]
 
 
 class SchemaVersionError(ValueError):

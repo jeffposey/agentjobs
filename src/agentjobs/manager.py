@@ -9,9 +9,21 @@ Callers never write the axes directly.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING, Union
+from typing import (
+    Any,
+    Collection,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    TYPE_CHECKING,
+    Union,
+    cast,
+)
 
 from .operations import (
     Operation,
@@ -25,6 +37,7 @@ from .operations import (
 from .attachments import AttachmentPayload
 from .models_v2 import (
     MANAGER_WRITTEN_LOG_TYPES,
+    PRIORITY_RANK,
     Attachment,
     Ball,
     BallReason,
@@ -45,8 +58,29 @@ from .models_v2 import (
     Task,
     utcnow,
 )
-from .queue import next_position
-from .storage import TaskLoadError, TaskStorage
+from .queue import (
+    QueueAssignment,
+    QueueCorruptionError,
+    QueuePlace,
+    QueueProblem,
+    QueueRecord,
+    Placement,
+    RenumberPass,
+    band_entries,
+    bands_at_or_above,
+    baseline_key,
+    find_queue_problems,
+    order_key,
+    place_of,
+    placement_from,
+    plan_compaction,
+    plan_insertion,
+    plan_queue_migration,
+    plan_rebalance,
+    read_queue_record,
+    read_queue_records,
+)
+from .storage import TaskLoadError, TaskStorage, load_yaml
 
 if TYPE_CHECKING:
     from .webhooks import WebhookManager
@@ -61,6 +95,86 @@ class DependencyFacts:
     needs_cycles: Tuple[Tuple[str, ...], ...]
     unblocks_count: int
     open_children_count: int
+
+
+@dataclass(frozen=True)
+class SkippedTask:
+    """One open task the queue passed over, and the claimability rule that did it."""
+
+    task: str
+    queue_position: Optional[int]
+    reason: str
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {"task": self.task, "position": self.queue_position, "reason": self.reason}
+
+
+@dataclass(frozen=True)
+class NextExplanation:
+    """Why this task is next -- the answer plus the work it stands in front of.
+
+    ``task`` is None when nothing is claimable, in which case ``skipped`` lists every
+    open task with the rule that excluded it. That is the listing a reader wants
+    precisely when a tool has just told them there is nothing to do.
+    """
+
+    task: Optional[str]
+    band: Optional[str]
+    queue_position: Optional[int]
+    empty_bands_above: Tuple[str, ...]
+    skipped: Tuple[SkippedTask, ...]
+
+    def as_dict(self) -> Dict[str, Any]:
+        """The structure in design section 9, ready to serialise."""
+        return {
+            "task": self.task,
+            "band": self.band,
+            "queue_position": self.queue_position,
+            "empty_bands_above": list(self.empty_bands_above),
+            "skipped": [item.as_dict() for item in self.skipped],
+        }
+
+
+@dataclass(frozen=True)
+class _Rejoin:
+    """A place computed for a task a generic patch is putting back into a band."""
+
+    position: int
+    body: str
+    data: Dict[str, Any]
+
+
+@dataclass(frozen=True)
+class QueueRepairReport:
+    """What :meth:`TaskManager.repair_queue` did, stated so a human can review it.
+
+    Repair guesses -- it has to, because a duplicate position contains no record of who
+    was meant to be first. Everything it guessed is named here, which is what makes the
+    guess reviewable instead of silent.
+    """
+
+    assigned: Tuple[QueueAssignment, ...] = ()
+    rebalanced: Tuple[str, ...] = ()
+    unrepairable: Tuple[str, ...] = ()
+
+    @property
+    def changed(self) -> bool:
+        return bool(self.assigned or self.rebalanced)
+
+    def render(self) -> str:
+        lines = [
+            f"Positions assigned:      {len(self.assigned)}",
+            f"Bands rebalanced:        {len(self.rebalanced)}",
+            f"Could not be repaired:   {len(self.unrepairable)}",
+        ]
+        if self.assigned:
+            lines += ["", "ASSIGNED (review these -- they were guessed)"]
+            lines += [item.render() for item in self.assigned]
+        if self.rebalanced:
+            lines += ["", "REBALANCED", *(f"  {band}" for band in self.rebalanced)]
+        if self.unrepairable:
+            lines += ["", "SKIPPED", *(f"  {name}" for name in self.unrepairable)]
+        return "\n".join(lines)
 
 
 WORK_PROMPT = "Execute the spec; log progress and hand off when done."
@@ -328,34 +442,144 @@ class TaskManager:
             ids.sort()
         return open_children
 
+    def _skip_reason(
+        self,
+        task: Task,
+        priority: Optional[Priority],
+        agent: Optional[str],
+        states: Dict[str, bool],
+        open_children: Dict[str, List[str]],
+    ) -> Optional[str]:
+        """Why this task is not claimable right now, or None if it is.
+
+        One string per rule, in a fixed order, because a task usually breaks more than
+        one and "active *and* has four open children" answers a question nobody asked.
+        Lifecycle first: it is the reason a reader can act on.
+        """
+        if task.lifecycle is not Lifecycle.READY:
+            holder = task.ball.value if task.ball else "nobody"
+            return f"not ready ({task.lifecycle.value}, held by {holder})"
+        children = open_children.get(task.id)
+        if children:
+            return f"has {len(children)} open " + ("child" if len(children) == 1 else "children")
+        unmet = self._unmet_needs(task, states)
+        if unmet:
+            return f"waiting on {', '.join(unmet)}"
+        eligible = task.assignment.eligible
+        if agent is not None and eligible and agent not in eligible:
+            return f"restricted to {', '.join(eligible)}"
+        if priority is not None and task.priority is not priority:
+            return f"outside the requested '{priority.value}' band"
+        return None
+
+    def _claimable(
+        self,
+        tasks: Sequence[Task],
+        priority: Optional[Priority],
+        agent: Optional[str],
+        states: Dict[str, bool],
+        open_children: Dict[str, List[str]],
+    ) -> List[Task]:
+        """The claimability filter, unchanged by the queue. It decides *whether*."""
+        return [
+            task
+            for task in tasks
+            if self._skip_reason(task, priority, agent, states, open_children) is None
+        ]
+
     def get_next_task(
         self,
         priority: Optional[Priority] = None,
         *,
         agent: Optional[str] = None,
     ) -> Optional[Task]:
-        """Highest-priority claimable task: ready, eligible, no unmet needs, no open children."""
+        """The claimable task that stands first in line: ``(band, queue_position)``.
+
+        Claimability decides *whether* -- ready, eligible for the asker, no unmet needs,
+        no open children -- and the queue decides *which*. A blocked task does not block
+        the queue: it is filtered out and the queue moves past it.
+
+        **No timestamp participates, including as a fallback.** Until task-081 this
+        sorted by ``updated`` descending, which meant that logging progress on a task
+        promoted it, and that the answer to "what should I work on" changed because
+        somebody wrote a note. If the queue cannot be trusted the answer is
+        :class:`QueueCorruptionError`, not a guess from a different field -- see
+        :meth:`assert_queue_integrity`.
+        """
+        tasks = self.storage.list_tasks()
+        candidates = self._claimable(
+            tasks, priority, agent, self._dependency_states(), self._open_children()
+        )
+        if not candidates:
+            return None
+        winning_rank = min(task.priority_rank() for task in candidates)
+        self.assert_queue_integrity(bands_at_or_above(winning_rank))
+        candidates.sort(key=order_key)
+        return candidates[0]
+
+    def explain_next(
+        self,
+        priority: Optional[Priority] = None,
+        *,
+        agent: Optional[str] = None,
+    ) -> "NextExplanation":
+        """The winner, and every open task ahead of it with the rule that excluded it.
+
+        The scheduler now has a defensible answer, so it gives it. This is the reply to
+        the question a human actually asks when a tool hands them a task -- "why not the
+        one I was expecting?" -- and it makes the queue self-teaching: somebody who sees
+        their favourite task skipped for "has 7 open children" has just learned a rule.
+
+        ``skipped`` covers only tasks ahead of the winner, which is also why the
+        integrity check reaches past the claimable candidates: the explanation asserts
+        an order over those tasks, so their positions have to be trustworthy too.
+        """
         tasks = self.storage.list_tasks()
         states = self._dependency_states()
         open_children = self._open_children()
-        candidates = [
-            task
-            for task in tasks
-            if task.lifecycle is Lifecycle.READY
-            and (priority is None or task.priority == priority)
-            and (agent is None or not task.assignment.eligible or agent in task.assignment.eligible)
-            and not self._unmet_needs(task, states)
-            and task.id not in open_children
-        ]
-        if not candidates:
-            return None
-        candidates.sort(
-            key=lambda task: (
-                task.priority_rank(),
-                -task.updated.timestamp(),
-            )
+        candidates = self._claimable(tasks, priority, agent, states, open_children)
+
+        winner: Optional[Task] = None
+        if candidates:
+            winning_rank = min(task.priority_rank() for task in candidates)
+            self.assert_queue_integrity(bands_at_or_above(winning_rank))
+            winner = min(candidates, key=order_key)
+
+        # With no winner nothing is ahead of anything, so every open task is skipped --
+        # which is the listing a reader wants when a tool has just told them there is
+        # nothing to do.
+        limit = order_key(winner) if winner is not None else None
+        ahead = sorted(
+            (task for task in tasks if task.is_open and (limit is None or order_key(task) < limit)),
+            key=order_key,
         )
-        return candidates[0]
+        skipped = tuple(
+            SkippedTask(
+                task=task.id,
+                queue_position=task.queue_position,
+                reason=reason,
+            )
+            for task in ahead
+            for reason in [self._skip_reason(task, priority, agent, states, open_children)]
+            if reason is not None
+        )
+
+        empty_above: Tuple[str, ...] = ()
+        if winner is not None:
+            occupied = {task.priority.value for task in tasks if task.is_open}
+            empty_above = tuple(
+                band.value
+                for band in sorted(PRIORITY_RANK, key=lambda item: PRIORITY_RANK[item])
+                if PRIORITY_RANK[band] < winner.priority_rank() and band.value not in occupied
+            )
+
+        return NextExplanation(
+            task=winner.id if winner else None,
+            band=winner.priority.value if winner else None,
+            queue_position=winner.queue_position if winner else None,
+            empty_bands_above=empty_above,
+            skipped=skipped,
+        )
 
     # ------------------------------------------------------------------
     # Creation and generic edits
@@ -411,6 +635,7 @@ class TaskManager:
         actor: Optional[str] = None,
         operation_id: Optional[str] = None,
         attachments: Optional[Sequence[AttachmentPayload]] = None,
+        placement: Optional[Placement] = None,
         **kwargs: Any,
     ) -> Task:
         """Create a new task, generating an identifier when omitted.
@@ -419,50 +644,50 @@ class TaskManager:
         agent/available). Any other starting state would skip the transitions the log
         exists to record.
 
-        With an ``operation_id``, creation is idempotent: the whole body runs under a
-        project-wide lock, and a retry finds the task the first attempt made instead of
-        producing a second one. That lock is what makes an auto-generated id safe --
-        two concurrent creates would otherwise both read the same next id, both find
-        nothing on disk, and one would overwrite the other.
-        """
-        if operation_id is None:
-            return self._create_unlocked(
-                id=id,
-                title=title,
-                description=description,
-                summary=summary,
-                priority=priority,
-                category=category,
-                lifecycle=lifecycle,
-                actor=actor,
-                operation=None,
-                attachments=attachments,
-                **kwargs,
-            )
+        With an ``operation_id``, creation is idempotent: a retry finds the task the
+        first attempt made instead of producing a second one.
 
-        operation = Operation(
-            id=operation_id,
-            kind="create",
-            actor=actor or "system",
-            payload={"id": id, "title": title, "lifecycle": Lifecycle(lifecycle).value},
+        **Both project locks are held, in the fixed order** ``.creation`` then
+        ``.queue`` (design section 7). Creation decides two things by computing a
+        maximum and then writing -- the next id and the bottom of the band -- and those
+        are two separate races. The creation lock alone left the second one open: a
+        create racing a *move* can duplicate a position even when it races no other
+        create.
+
+        ``placement`` is for the caller who already knows where the task goes. The
+        default is the bottom of its band: a task nobody has placed does not get to
+        preempt an order somebody thought about.
+        """
+        operation = (
+            None
+            if operation_id is None
+            else Operation(
+                id=operation_id,
+                kind="create",
+                actor=actor or "system",
+                payload={"id": id, "title": title, "lifecycle": Lifecycle(lifecycle).value},
+            )
         )
         with self.storage.creation_lock():
-            existing = self._find_created_by(operation)
-            if existing is not None:
-                return existing
-            return self._create_unlocked(
-                id=id,
-                title=title,
-                description=description,
-                summary=summary,
-                priority=priority,
-                category=category,
-                lifecycle=lifecycle,
-                actor=actor,
-                operation=operation,
-                attachments=attachments,
-                **kwargs,
-            )
+            if operation is not None:
+                existing = self._find_created_by(operation)
+                if existing is not None:
+                    return existing
+            with self.storage.queue_lock():
+                return self._create_unlocked(
+                    id=id,
+                    title=title,
+                    description=description,
+                    summary=summary,
+                    priority=priority,
+                    category=category,
+                    lifecycle=lifecycle,
+                    actor=actor,
+                    operation=operation,
+                    attachments=attachments,
+                    placement=placement,
+                    **kwargs,
+                )
 
     def _find_created_by(self, operation: Operation) -> Optional[Task]:
         """Return the task a previous attempt at this creation produced, if any.
@@ -499,9 +724,10 @@ class TaskManager:
         actor: Optional[str],
         operation: Optional[Operation],
         attachments: Optional[Sequence[AttachmentPayload]] = None,
+        placement: Optional[Placement] = None,
         **kwargs: Any,
     ) -> Task:
-        """Build and persist one task. Callers holding the creation lock stay serialised."""
+        """Build and persist one task. The caller holds both project locks."""
         task_id = id or self.storage.generate_task_id()
         if self.storage.load_task(task_id):
             raise ValueError(f"Task '{task_id}' already exists.")
@@ -541,18 +767,14 @@ class TaskManager:
             kwargs.pop("ball_prompt", None)
         task_kwargs.update(kwargs)
         # A task is born open, and rule 6 says an open task has a place in line, so
-        # creation has to give it one or produce a model that will not validate. The
-        # bottom of the band is the placement that assumes least: a task nobody has
-        # placed does not preempt an order somebody thought about (design section 5.1).
-        #
-        # Deliberately *not* under the project queue lock, which does not exist yet:
-        # that lock, explicit --before/--after placement on create, and the reopen path
-        # are task-205. Two concurrent creates racing here can land on one position, in
-        # exactly the way two concurrent creates already race for an id when no
-        # operation_id is supplied -- and `agentjobs validate` reports the duplicate.
-        task_kwargs.setdefault(
-            "queue_position", next_position(self.storage.list_tasks(), Priority(priority))
-        )
+        # creation has to give it one or produce a model that will not validate
+        # (design section 5.1). The queue lock is held by create_task above, so the
+        # band read below cannot be overtaken between the read and the write.
+        chosen = placement or Placement(Placement.BOTTOM)
+        if chosen.target is not None:
+            self._require_band_member(chosen.target, Priority(priority))
+        if "queue_position" not in task_kwargs:
+            task_kwargs["queue_position"] = self._place(Priority(priority), chosen)[0]
 
         task = Task.model_validate(task_kwargs)
         creator = actor or (operation.actor if operation is not None else None)
@@ -577,6 +799,22 @@ class TaskManager:
                 operation=operation,
                 attachments=stored,
             )
+        if placement is not None:
+            # Somebody decided where this goes, so the record says so. The default
+            # bottom-of-band is not a decision and writes nothing: an entry on every
+            # create saying "it went last" would bury the ones that mean something.
+            self._append_entry(
+                task,
+                actor=creator or "system",
+                type=LogEntryType.QUEUE_MOVE,
+                body=f"Created at {placement.describe()} of the {priority.value} band.",
+                data={
+                    "band": priority.value,
+                    "from": None,
+                    "to": task.queue_position,
+                    "placement": placement.as_data(),
+                },
+            )
         return self.storage.save_task(task)
 
     def update_task(
@@ -594,6 +832,14 @@ class TaskManager:
         caller read it, so an edit computed from stale content cannot silently discard
         someone else's. Without one, behaviour is exactly as before -- last write wins
         -- which keeps existing callers working.
+
+        **A patch that changes a task's band, or reopens it, is intercepted** and given
+        a place in the band it is joining, under the queue lock, before the patch is
+        applied (design sections 5.3 and 5.4). This is not a courtesy: ``priority`` is
+        an ordinary content field on every existing caller, and a band change that
+        carried its old number across would put two tasks on one position with nothing
+        in the record to say which came first. The allowlist never gains
+        ``queue_position``, so the number itself stays unreachable by patch.
         """
         operation = self._operation(
             operation_id,
@@ -601,6 +847,7 @@ class TaskManager:
             actor or "system",
             {"updates": {key: value for key, value in sorted(updates.items())}},
         )
+        rejoin = self._rejoining_the_queue(task_id, updates)
 
         def apply(existing: Task) -> Optional[Task]:
             if replay_or_conflict(existing, operation):
@@ -613,7 +860,17 @@ class TaskManager:
             payload.update(updates)
             payload["id"] = existing.id
             payload["created"] = existing.created
+            if rejoin is not None:
+                payload["queue_position"] = rejoin.position
             updated = Task.model_validate(payload)
+            if rejoin is not None:
+                self._append_entry(
+                    updated,
+                    actor=actor or "system",
+                    type=LogEntryType.QUEUE_MOVE,
+                    body=rejoin.body,
+                    data=rejoin.data,
+                )
             if operation is not None:
                 # A content update writes no log entry of its own, so without this
                 # there would be nowhere to record the operation and a retry could not
@@ -630,6 +887,58 @@ class TaskManager:
             return updated
 
         return self._mutate(task_id, apply)
+
+    def _rejoining_the_queue(
+        self, task_id: str, updates: Mapping[str, object]
+    ) -> Optional["_Rejoin"]:
+        """The place a generic patch has to be given, computed under the queue lock.
+
+        Two patches put a task into a band it is not currently in line in:
+
+        * a **band change** on an open task (design section 5.3), and
+        * a **reopen** -- a closed task whose ``lifecycle`` is patched back to something
+          open (design section 5.4), which re-enters at the bottom and does not remember
+          where it used to be. The queue moved on without it.
+
+        There is deliberately no ``reopen`` verb yet, so this generic patch is the only
+        path that can produce one, and it is the path that has to hold the lock.
+
+        Returns None -- doing no work and taking no lock -- for the overwhelming
+        majority of patches, which touch neither field.
+        """
+        if "priority" not in updates and "lifecycle" not in updates:
+            return None
+        existing = self.get_task(task_id)
+        if existing is None:
+            return None
+
+        band = (
+            Priority(cast(Any, updates["priority"])) if "priority" in updates else existing.priority
+        )
+        reopening = not existing.is_open and (
+            "lifecycle" in updates
+            and Lifecycle(cast(Any, updates["lifecycle"])) is not Lifecycle.CLOSED
+        )
+        rebanding = existing.is_open and band is not existing.priority
+        if not (reopening or rebanding):
+            return None
+
+        with self.storage.queue_lock():
+            position = self._place(band, Placement(Placement.BOTTOM), excluding=(task_id,))[0]
+        reason = "Reopened" if reopening else f"Moved from the {existing.priority.value} band"
+        data: Dict[str, Any] = {
+            "band": band.value,
+            "from": existing.queue_position,
+            "to": position,
+            "placement": Placement(Placement.BOTTOM).as_data(),
+        }
+        if rebanding:
+            data["from_band"] = existing.priority.value
+        return _Rejoin(
+            position=position,
+            body=f"{reason} into the bottom of the {band.value} band.",
+            data=data,
+        )
 
     def delete_task(self, task_id: str) -> bool:
         """Delete task from storage."""
@@ -1027,6 +1336,510 @@ class TaskManager:
             return task
 
         return self._mutate(task_id, apply)
+
+    # ------------------------------------------------------------------
+    # The queue verbs (design doc sections 5 to 8)
+    #
+    # Reordering is a managed operation, not a content patch. There is no
+    # `set_queue_position`, exactly as there is no `set_lifecycle` and for the same
+    # reason: the number is a consequence of a decision, and the decision is what the
+    # record should show.
+    #
+    # Every verb below holds the project queue lock and reads the band from disk
+    # *inside* it, never from the snapshot cache -- a decision made on a stale band is
+    # the bug the lock exists to prevent, and it fails silently by producing two tasks
+    # on one number.
+    # ------------------------------------------------------------------
+
+    def _require_band_member(self, task_id: str, band: Priority) -> Task:
+        """The task a ``before``/``after`` names, refused unless it is in this band.
+
+        Naming a task in a different band is an error rather than an implicit
+        reprioritise: those are two different decisions, and conflating them makes the
+        log unreadable -- a `queue_move` would silently also be a band change.
+        """
+        target = self.storage.load_task_uncached(task_id)
+        if target is None:
+            raise TaskNotFoundError(f"Task '{task_id}' not found.")
+        if not target.is_open:
+            raise ValueError(
+                f"Task '{task_id}' is closed, so it is not in line; nothing can be "
+                "placed relative to it."
+            )
+        if target.priority is not band:
+            raise ValueError(
+                f"Task '{task_id}' is in the '{target.priority.value}' band, not "
+                f"'{band.value}'. before/after name a task in the same band -- moving "
+                "between bands is reprioritize's decision, not move's."
+            )
+        return target
+
+    def _place(
+        self,
+        band: Priority,
+        placement: Placement,
+        *,
+        count: int = 1,
+        excluding: Sequence[str] = (),
+    ) -> List[int]:
+        """The numbers ``count`` tasks take to land at ``placement``. Queue lock held.
+
+        Rebalances the band and asks once more when the chosen gap is exhausted, which
+        is the single retry design section 4 allows. A second failure is not a gap
+        problem -- a freshly rebalanced band is spaced ``QUEUE_STEP`` apart -- so it is
+        reported as what it is rather than retried again.
+        """
+        tasks = self.storage.list_tasks_uncached()
+        positions = plan_insertion(
+            band_entries(tasks, band, excluding=excluding), placement, count=count
+        )
+        if positions is not None:
+            return positions
+
+        self._renumber(plan_rebalance(band_entries(tasks, band)))
+        tasks = self.storage.list_tasks_uncached()
+        positions = plan_insertion(
+            band_entries(tasks, band, excluding=excluding), placement, count=count
+        )
+        if positions is None:
+            raise ValueError(
+                f"there is no room for {count} tasks at {placement.describe()} of the "
+                f"'{band.value}' band even after a rebalance; compact the band or move "
+                "fewer tasks at once"
+            )
+        return positions
+
+    def apply_position(self, task_id: str, position: int) -> Optional[Task]:
+        """Write one renumbered position, or skip a task that has since closed.
+
+        The per-task write every renumbering pass goes through, and the reason a
+        renumber survives the one writer that does not take the queue lock. ``close``
+        deliberately does not lock (design section 5.4), so a task present in the band
+        snapshot can close before its write arrives -- and applying the snapshot blindly
+        would put a position back onto a closed task, breaking consistency rule 6 in a
+        file the renumber itself had just written.
+
+        So openness is re-checked here, under that task's own lock, against a fresh
+        read. A skipped task leaves a wider gap, which is the normal state of a sparse
+        band; the direction argument in :func:`~agentjobs.queue.plan_renumber` is
+        unaffected because skipping a write never reorders anything.
+
+        Returns the task when the position is in place, None when it was skipped. No log
+        entry: a renumber records no decision, and forty entries saying "300 became
+        1400" would bury the ones that do.
+        """
+
+        def apply(task: Task) -> Optional[Task]:
+            if not task.is_open or task.queue_position == position:
+                return None
+            task.queue_position = position
+            return task
+
+        try:
+            task = self._mutate(task_id, apply)
+        except TaskNotFoundError:
+            return None
+        return task if task.is_open and task.queue_position == position else None
+
+    def _renumber(self, passes: Sequence[RenumberPass]) -> List[Tuple[str, int]]:
+        """Apply a renumbering plan in the order it was planned. Queue lock held."""
+        applied: List[Tuple[str, int]] = []
+        for renumber_pass in passes:
+            for task_id, position in renumber_pass:
+                if self.apply_position(task_id, position) is not None:
+                    applied.append((task_id, position))
+        return applied
+
+    def rebalance_band(self, band: Priority) -> List[Tuple[str, int]]:
+        """Restore usable spacing in one band without changing anybody's place.
+
+        Automatic on gap exhaustion; exposed because a caller that knows a band is
+        crowded may as well say so. Writes no ``queue_move`` entries -- nobody decided
+        anything.
+        """
+        with self.storage.queue_lock():
+            entries = band_entries(self.storage.list_tasks_uncached(), band)
+            return self._renumber(plan_rebalance(entries))
+
+    def compact_band(self, band: Priority) -> List[Tuple[str, int]]:
+        """Renumber a band back to ``100, 200, 300, ...``.
+
+        Explicit only, never automatic, and purely cosmetic: a background process
+        quietly rewriting forty task files is exactly the kind of thing that should
+        require somebody to type it.
+        """
+        with self.storage.queue_lock():
+            entries = band_entries(self.storage.list_tasks_uncached(), band)
+            return self._renumber(plan_compaction(entries))
+
+    def move(
+        self,
+        task_id: str,
+        *,
+        before: Optional[str] = None,
+        after: Optional[str] = None,
+        top: bool = False,
+        bottom: bool = False,
+        with_children: bool = False,
+        actor: str,
+        body: Optional[str] = None,
+        operation_id: Optional[str] = None,
+        expected_revision: Optional[Union[datetime, str]] = None,
+    ) -> Task:
+        """Change where a task stands in its band. The only way the order changes.
+
+        Exactly one placement. ``before``/``after`` name a task in the **same band**.
+
+        **The write is one file**, plus the moved children of a group move. That is what
+        sparse numbering buys: the mover takes a new number and its neighbours are
+        untouched, so a reorder is a one-line diff instead of a forty-file diff that
+        conflicts with everything else in flight. If a move is rewriting the band, the
+        numbering has been implemented wrong.
+
+        ``with_children`` carries the task's open descendants with it, contiguously, in
+        their existing relative order -- and **only the ones in its own band**.
+        Contiguity is a within-band property: positions in different bands are never
+        compared, so "next to its parent" has no meaning for a ``medium`` child of a
+        ``high`` epic. Those children keep their places, and ``moved_with`` names
+        exactly who moved, so the record also shows who stayed. A group move never
+        changes anyone's priority; that is ``reprioritize``'s decision.
+        """
+        placement = placement_from(before=before, after=after, top=top, bottom=bottom)
+        operation = self._operation(
+            operation_id,
+            "queue_move",
+            actor,
+            {
+                "placement": placement.as_data(),
+                "with_children": with_children,
+                "body": body,
+            },
+        )
+        self._ensure_task_exists(task_id)
+
+        with self.storage.queue_lock():
+            tasks = self.storage.list_tasks_uncached()
+            task = next((item for item in tasks if item.id == task_id), None)
+            if task is None:
+                raise TaskNotFoundError(f"Task '{task_id}' not found.")
+            # Under the queue lock, so a retry that arrives while the first attempt is
+            # still writing children waits rather than duplicating their moves.
+            if replay_or_conflict(task, operation):
+                return task
+            check_revision(task, expected_revision)
+            if not task.is_open:
+                raise ValueError(f"Task '{task_id}' is closed, so it is not in line.")
+
+            band = task.priority
+            movers = [task, *self._open_descendants_in_band(task_id, tasks, band)]
+            if not with_children:
+                movers = [task]
+            mover_ids = [item.id for item in movers]
+            if placement.target is not None:
+                if placement.target in mover_ids:
+                    raise ValueError(
+                        f"Task '{task_id}' cannot be placed relative to '{placement.target}': "
+                        "it is one of the tasks being moved."
+                    )
+                self._require_band_member(placement.target, band)
+
+            positions = self._place(band, placement, count=len(movers), excluding=mover_ids)
+
+            # Children first, so the entry the root ends up carrying names the tasks
+            # that actually moved rather than the ones that were planned to. Every
+            # intermediate state is still a duplicate-free band: the slots were free
+            # before anybody was written into them.
+            moved_with = [
+                child.id
+                for child, position in zip(movers[1:], positions[1:])
+                if self.apply_position(child.id, position) is not None
+            ]
+            data: Dict[str, Any] = {
+                "band": band.value,
+                "from": task.queue_position,
+                "to": positions[0],
+                "placement": placement.as_data(),
+            }
+            if with_children:
+                data["moved_with"] = moved_with
+            carried = f" with {len(moved_with)} descendant(s)" if moved_with else ""
+            return self._write_place(
+                task_id,
+                positions[0],
+                actor=actor,
+                body=body or f"Moved to {placement.describe()}{carried}.",
+                data=data,
+                operation=operation,
+                expected_revision=expected_revision,
+            )
+
+    def reprioritize(
+        self,
+        task_id: str,
+        priority: Priority,
+        *,
+        before: Optional[str] = None,
+        after: Optional[str] = None,
+        top: bool = False,
+        actor: str,
+        body: Optional[str] = None,
+        operation_id: Optional[str] = None,
+        expected_revision: Optional[Union[datetime, str]] = None,
+    ) -> Task:
+        """Change a task's band and its place in that band, in one decision.
+
+        The default placement in the target band is the **bottom**. A band change
+        already says everything about urgency; where inside the new band it lands is a
+        separate question the caller may answer explicitly, and "bottom" is the answer
+        that assumes least.
+
+        There is no ``with_children`` here on purpose. A group move is about keeping an
+        epic next to its work inside one band; carrying children across a band boundary
+        would be reprioritising them too, which is a decision each of them deserves in
+        its own right and its own log entry.
+        """
+        band = Priority(priority)
+        placement = (
+            Placement(Placement.BOTTOM)
+            if before is None and after is None and not top
+            else placement_from(before=before, after=after, top=top)
+        )
+        operation = self._operation(
+            operation_id,
+            "reprioritize",
+            actor,
+            {"priority": band.value, "placement": placement.as_data(), "body": body},
+        )
+        self._ensure_task_exists(task_id)
+
+        with self.storage.queue_lock():
+            task = self.storage.load_task_uncached(task_id)
+            if task is None:
+                raise TaskNotFoundError(f"Task '{task_id}' not found.")
+            if replay_or_conflict(task, operation):
+                return task
+            check_revision(task, expected_revision)
+            if not task.is_open:
+                raise ValueError(f"Task '{task_id}' is closed, so it is not in line.")
+            if placement.target is not None:
+                self._require_band_member(placement.target, band)
+
+            position = self._place(band, placement, excluding=(task_id,))[0]
+            data: Dict[str, Any] = {
+                "band": band.value,
+                "from": task.queue_position,
+                "to": position,
+                "placement": placement.as_data(),
+            }
+            if band is not task.priority:
+                data["from_band"] = task.priority.value
+            where = (
+                f"from {task.priority.value} to {band.value}"
+                if band is not task.priority
+                else f"within {band.value}"
+            )
+            return self._write_place(
+                task_id,
+                position,
+                priority=band,
+                actor=actor,
+                body=body or f"Reprioritized {where}, at {placement.describe()}.",
+                data=data,
+                operation=operation,
+                expected_revision=expected_revision,
+            )
+
+    def _write_place(
+        self,
+        task_id: str,
+        position: int,
+        *,
+        actor: str,
+        body: str,
+        data: Dict[str, Any],
+        operation: Optional[Operation],
+        expected_revision: Optional[Union[datetime, str]],
+        priority: Optional[Priority] = None,
+    ) -> Task:
+        """One task's new place plus the ``queue_move`` entry that records the decision."""
+
+        def apply(task: Task) -> Optional[Task]:
+            if replay_or_conflict(task, operation):
+                return None
+            check_revision(task, expected_revision)
+            if priority is not None:
+                task.priority = priority
+            task.queue_position = position
+            self._append_entry(
+                task,
+                actor=actor,
+                type=LogEntryType.QUEUE_MOVE,
+                body=body,
+                data=data,
+                operation=operation,
+            )
+            return task
+
+        return self._mutate(task_id, apply)
+
+    def _open_descendants_in_band(
+        self, task_id: str, tasks: Sequence[Task], band: Priority
+    ) -> List[Task]:
+        """Open descendants of a task that share its band, in their existing order.
+
+        The whole subtree, not just direct children: an epic's grandchildren are its
+        work too. Bands are flat, so a descendant in another band is simply not part of
+        this move.
+        """
+        children: Dict[str, List[Task]] = {}
+        for task in tasks:
+            if task.parent:
+                children.setdefault(task.parent, []).append(task)
+
+        found: List[Task] = []
+        seen = {task_id}
+        frontier = [task_id]
+        while frontier:
+            current = frontier.pop()
+            for child in children.get(current, []):
+                if child.id in seen:
+                    continue
+                seen.add(child.id)
+                frontier.append(child.id)
+                if child.is_open and child.priority is band:
+                    found.append(child)
+        found.sort(key=lambda task: (task.queue_position or 0, task.id))
+        return found
+
+    # ------------------------------------------------------------------
+    # Corruption is loud (design doc section 8)
+    # ------------------------------------------------------------------
+
+    def _queue_places(self) -> List[QueuePlace]:
+        """Every open task's claim on a band, including the files that will not load.
+
+        Loaded tasks supply theirs for free. A file that fails to load is then read raw
+        -- and that matters, because the commonest corruption, an open task with no
+        ``queue_position``, is rejected by consistency rule 6 at load time and would
+        otherwise be invisible to a check built on loaded tasks alone.
+
+        The raw reads are bounded by how broken the corpus is, not by how big it is: a
+        healthy corpus costs nothing beyond the listing every caller already does.
+        """
+        loaded = self.storage.load_all()
+        places = [place_of(task) for task in loaded.tasks if task.is_open]
+        for error in loaded.errors:
+            record = read_queue_record(error.path)
+            if record is not None and record.is_open:
+                places.append(QueuePlace(record.task_id, record.priority, record.queue_position))
+        return places
+
+    def assert_queue_integrity(self, bands: Optional[Collection[str]] = None) -> None:
+        """Raise :class:`QueueCorruptionError` if the checked bands are not a queue.
+
+        Selection calls this before it answers, over the winning band and the bands
+        above it. **Refusing is the point.** A queue that quietly answers while corrupt
+        trains everybody to ignore corruption, and the failure it produces -- an agent
+        silently working the wrong task -- leaves no trace anywhere.
+
+        Deliberately narrower than the corpus: a duplicate in ``low`` does not falsify
+        the claim that a particular ``high`` task is next, and making every selection
+        hostage to corruption in a band it never reads would punish the wrong caller.
+        ``check_queue`` and ``repair_queue`` cover every band, always.
+        """
+        problems = find_queue_problems(self._queue_places(), bands=bands)
+        if problems:
+            raise QueueCorruptionError(problems)
+
+    def check_queue(self) -> List[QueueProblem]:
+        """Every queue rule broken anywhere in the corpus. Reports, never raises.
+
+        You have to be able to see a broken queue in order to fix it, which is why this
+        and ``repair`` are the two deliberate exceptions to the rule above.
+        """
+        return find_queue_problems(self._queue_places())
+
+    def repair_queue(self) -> QueueRepairReport:
+        """Make a broken queue into a queue again, and say exactly what was guessed.
+
+        Operates on a corrupt corpus by definition, so it reads the raw files rather
+        than loaded tasks -- the records it most needs are the ones rule 6 refuses to
+        load. Open tasks with no usable position, and the losing claimants of a shared
+        one, are placed at the bottom of their band ordered by ``created`` then id: both
+        halves immutable, so two runs over one corpus agree.
+
+        It never invents an opinion it does not have. A duplicate position contains no
+        record of who was meant to be first, so the tie-break is arbitrary by necessity
+        -- and every task it touched is named in the report, which is what makes the
+        guess reviewable rather than silent.
+        """
+        with self.storage.queue_lock():
+            directory = self.storage.tasks_dir
+            records, _ = read_queue_records(directory)
+            open_records = [record for record in records if record.is_open]
+
+            # Who keeps a contested number: earliest created, id breaking the tie. The
+            # losers are stripped to None and fall through to the bottom-of-band pass
+            # below, which is the same rule the corpus migration used.
+            claims: Dict[Tuple[str, int], List[QueueRecord]] = {}
+            stripped: List[QueueRecord] = []
+            for record in open_records:
+                if record.queue_position is None or record.queue_position < 1:
+                    stripped.append(record)
+                else:
+                    claims.setdefault((record.priority, record.queue_position), []).append(record)
+            for group in claims.values():
+                group.sort(key=baseline_key)
+                stripped.extend(group[1:])
+
+            losers = {record.task_id for record in stripped}
+            cleaned = [
+                record if record.task_id not in losers else replace(record, queue_position=None)
+                for record in open_records
+            ]
+            plan = plan_queue_migration(cleaned)
+
+            unrepairable: List[str] = []
+            assigned: List[QueueAssignment] = []
+            for assignment in plan.assignments:
+                if self._write_raw_position(assignment.task_id, assignment.position):
+                    assigned.append(assignment)
+                else:
+                    unrepairable.append(f"{assignment.task_id}.yaml")
+
+            # Only the bands that were actually broken. Rebalancing a healthy band would
+            # rewrite every file in it to change nothing, which is churn a repair has no
+            # business producing.
+            touched = sorted({assignment.band for assignment in assigned})
+            for band in touched:
+                entries = band_entries(self.storage.list_tasks_uncached(), Priority(band))
+                self._renumber(plan_rebalance(entries))
+
+            return QueueRepairReport(
+                assigned=tuple(assigned),
+                rebalanced=tuple(touched),
+                unrepairable=tuple(unrepairable),
+            )
+
+    def _write_raw_position(self, task_id: str, position: int) -> bool:
+        """Set one position by rewriting the file, for records that will not load.
+
+        ``mutate_task`` reads the task first, which is precisely what a file missing its
+        ``queue_position`` cannot survive -- so repair goes the way the corpus migration
+        goes: patch the raw mapping, validate, and save through storage so the file
+        comes out canonical with a receipt behind it. False when the file is broken in
+        some *other* way, which repair names rather than guesses at.
+        """
+        path = self.storage.task_path(task_id)
+        try:
+            raw = load_yaml(path.read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                return False
+            raw["queue_position"] = position
+            self.storage.save_task(Task.model_validate(raw))
+        except Exception:
+            return False
+        return True
 
     # ------------------------------------------------------------------
     # The log

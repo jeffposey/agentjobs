@@ -1525,7 +1525,8 @@
           "answer",
           "instruction",
           "dispatch",
-          "dispatch_result"
+          "dispatch_result",
+          "queue_move"
         ],
         "title": "LogEntryType",
         "type": "string"
