@@ -20,7 +20,9 @@ from typing import Dict, List, Optional
 import pytest
 import yaml
 
+from agentjobs.dispatch.address import DEFAULT_API_BASE, ApiBaseProbe
 from agentjobs.dispatch.config import (
+    CONFIG_FILENAME,
     DispatchDisabledError,
     DispatchNotConfiguredError,
     DispatchSentinelError,
@@ -41,6 +43,7 @@ from agentjobs.dispatch.guards import (
     OwnerMismatchError,
     RecordCannotBriefError,
     TaskClosedError,
+    UnreachableApiBaseError,
     assert_human_clocked,
     describe_slot_holders,
     dispatch_task,
@@ -120,6 +123,7 @@ def write_dispatch_config(
     enabled: bool = True,
     project_enabled: bool = True,
     limits: Optional[Dict[str, object]] = None,
+    api_base: Optional[str] = None,
     **project_overrides: object,
 ) -> Path:
     """A machine-local dispatch config that permits 'sandbox' unless told otherwise.
@@ -131,6 +135,11 @@ def write_dispatch_config(
     ``limits`` writes the machine-wide caps. It exists so a test can raise
     ``max_concurrent_runs`` above 1 and check what still refuses at the higher ceiling
     -- the per-task lock, which is a different guarantee and must not move with it.
+
+    ``api_base`` is a named parameter rather than one of ``project_overrides`` because
+    it is machine-wide: the address is a property of where AgentJobs serves, not of any
+    one project, and ``**project_overrides`` would file it under the project entry where
+    nothing reads it.
     """
     entry = {"enabled": project_enabled, "runner": "fake", "require_clean_tree": True}
     entry.update(project_overrides)
@@ -149,6 +158,8 @@ def write_dispatch_config(
     }
     if limits is not None:
         config["limits"] = limits
+    if api_base is not None:
+        config["api_base"] = api_base
     path = home / "dispatch.yaml"
     path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
     return path
@@ -1207,3 +1218,160 @@ class TestSufficiency:
         assert stored is not None
         assert stored.acceptance == []
         assert record_can_brief(stored) is True
+
+
+# ----- the address the run would be handed (task-193) -------------------------
+
+
+def unreachable(api_base: str, **_: object) -> ApiBaseProbe:
+    """A probe result for an address with nothing behind it."""
+    return ApiBaseProbe(
+        api_base=api_base,
+        answered=False,
+        is_agentjobs=False,
+        detail="nothing answered ([Errno 111] Connection refused)",
+    )
+
+
+class TestTheAddressIsCheckedBeforeAnythingStarts:
+    """Resolving an address and having a working one are different facts.
+
+    Every dispatch from this machine's CLI resolved cleanly to ``http://localhost:8765``
+    and told three real agents to use it, which nothing there serves (task-193). The
+    resolver was not broken. What was missing is anyone asking whether the answer was
+    true, and the reason nobody noticed is the reason it matters: an agent that cannot
+    reach AgentJobs cannot report that it cannot reach AgentJobs.
+    """
+
+    def test_a_dead_address_refuses_the_dispatch(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        ready_task,
+        monkeypatch,
+    ) -> None:
+        write_dispatch_config(home, fake_runner)
+        monkeypatch.setattr("agentjobs.dispatch.guards.probe_api_base", unreachable)
+
+        with pytest.raises(UnreachableApiBaseError) as excinfo:
+            run(manager, project, home, ready_task.id)
+
+        assert excinfo.value.reason == "api_base_unreachable"
+        assert live_runs(home) == []
+
+    def test_the_refusal_names_the_address_and_where_it_came_from(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        ready_task,
+        monkeypatch,
+    ) -> None:
+        """A machine that declared nothing needs to be told to declare something --
+        which is different advice from "the line you wrote is stale"."""
+        write_dispatch_config(home, fake_runner)
+        monkeypatch.setattr("agentjobs.dispatch.guards.probe_api_base", unreachable)
+
+        with pytest.raises(UnreachableApiBaseError) as excinfo:
+            run(manager, project, home, ready_task.id)
+
+        message = str(excinfo.value)
+        assert DEFAULT_API_BASE in message
+        assert "api_base" in message
+        assert str(home / CONFIG_FILENAME) in message
+
+    def test_a_stale_declaration_is_reported_as_a_declaration(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        ready_task,
+        monkeypatch,
+    ) -> None:
+        write_dispatch_config(home, fake_runner, api_base="http://127.0.0.1:8876")
+        monkeypatch.setattr("agentjobs.dispatch.guards.probe_api_base", unreachable)
+
+        with pytest.raises(UnreachableApiBaseError) as excinfo:
+            run(manager, project, home, ready_task.id)
+
+        message = str(excinfo.value)
+        assert "http://127.0.0.1:8876" in message
+        assert "stale" in message
+
+    def test_nothing_is_claimed_or_written_when_the_address_is_dead(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        ready_task,
+        monkeypatch,
+    ) -> None:
+        """The gate sits with the checks that write nothing, so a refusal leaves the
+        task exactly as it was -- unclaimed, and with no authorising entry behind it."""
+        write_dispatch_config(home, fake_runner)
+        monkeypatch.setattr("agentjobs.dispatch.guards.probe_api_base", unreachable)
+        before = manager.get_task(ready_task.id)
+        assert before is not None
+
+        with pytest.raises(UnreachableApiBaseError):
+            run(manager, project, home, ready_task.id)
+
+        after = manager.get_task(ready_task.id)
+        assert after is not None
+        assert after.lifecycle is before.lifecycle
+        assert after.assignment.owner == before.assignment.owner
+        assert len(after.log) == len(before.log)
+
+    def test_an_observed_address_is_never_probed(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        ready_task,
+        monkeypatch,
+    ) -> None:
+        """The browser reads its address off the socket answering that very request, so
+        asking again is a server calling itself from inside its own request handler."""
+        write_dispatch_config(home, fake_runner)
+        calls: List[str] = []
+
+        def record(api_base: str, **_: object) -> ApiBaseProbe:
+            calls.append(api_base)
+            return unreachable(api_base)
+
+        monkeypatch.setattr("agentjobs.dispatch.guards.probe_api_base", record)
+
+        handle = dispatch_task(
+            manager=manager,
+            project=project,
+            project_config=PROJECT_CONFIG,
+            request=DispatchRequest(task_id=ready_task.id),
+            home=home,
+            api_base="http://127.0.0.1:8876",
+        )
+        settle(handle)
+
+        assert calls == []
+        assert handle.api_base == "http://127.0.0.1:8876"
+
+    def test_an_address_that_answers_lets_the_run_start(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        ready_task,
+    ) -> None:
+        """The conftest stub answers, so this is the ordinary path with the gate in it."""
+        write_dispatch_config(home, fake_runner, api_base="http://127.0.0.1:8876")
+
+        handle = run(manager, project, home, ready_task.id)
+        settle(handle)
+
+        assert handle.api_base == "http://127.0.0.1:8876"

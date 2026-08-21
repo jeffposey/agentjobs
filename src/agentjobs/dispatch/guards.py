@@ -54,10 +54,18 @@ from typing import Dict, List, Optional, Sequence
 import yaml
 
 from agentjobs.actors import Actor, load_actors, reserved_actors
+from agentjobs.dispatch.address import (
+    API_BASE_ENV,
+    ApiBaseSource,
+    ResolvedApiBase,
+    probe_api_base,
+    resolve_api_base_detail,
+)
 from agentjobs.dispatch.config import (
     DispatchError,
     DispatchResolution,
     assert_dispatch_permitted,
+    dispatch_config_path,
 )
 from agentjobs.dispatch.config import DispatchRunner as ConfigRunner
 from agentjobs.dispatch.ledger import RunLockTimeout, acquire_run_lock
@@ -173,6 +181,23 @@ class DirtyTreeError(DispatchRefused):
     reason = "dirty_tree"
 
 
+class UnreachableApiBaseError(DispatchRefused):
+    """Nothing answers at the address this run's agent would be told to use.
+
+    The only gate here that refuses on evidence gathered from outside this process, and
+    it earns that because the failure it catches is the one nothing else can report. An
+    agent reads its task record over HTTP and writes its result back the same way, so an
+    agent given a dead address cannot log that it was given a dead address. The run's
+    entire symptom is silence, and the money is already spent by the time anyone looks.
+
+    Only reached when the caller observed no address -- the CLI, and any library caller
+    that passes none. A dispatch from the browser derives the address from the socket
+    its own request arrived on, which is answering by construction.
+    """
+
+    reason = "api_base_unreachable"
+
+
 class ClaimLostError(DispatchRefused):
     """Someone else claimed the task first, so nothing was started."""
 
@@ -183,6 +208,50 @@ class OwnerMismatchError(DispatchRefused):
     """The task is owned by an actor other than the runner's agent."""
 
     reason = "owner_mismatch"
+
+
+# ----- the address a run would be handed --------------------------------------
+
+
+def assert_api_base_answers(home: Optional[Path] = None) -> ResolvedApiBase:
+    """Refuse a dispatch whose agent would be told an address nothing serves.
+
+    Call this only when nobody upstream observed an address. What is left then is a
+    *declaration* -- an environment variable, a line in ``dispatch.yaml``, or the
+    built-in fallback standing in for a declaration nobody made -- and a declaration is
+    a claim about a port rather than evidence about one.
+
+    The refusal is deliberately not a warning. A warning is the right shape for a
+    problem the reader will notice anyway, and this one is the opposite: the run starts,
+    the agent goes quiet, and the only artifact is a task record that stopped changing.
+    Every other outcome of this check costs one loopback round trip.
+
+    Returns the resolved address so a caller can report what it verified.
+    """
+    resolved = resolve_api_base_detail(None, home=home)
+    probe = probe_api_base(resolved.value)
+    if probe.answered:
+        return resolved
+
+    if resolved.source is ApiBaseSource.FALLBACK:
+        raise UnreachableApiBaseError(
+            f"An agent dispatched from here would be told AgentJobs is at "
+            f"{resolved.value}, and {probe.detail}. Nothing on this machine has said "
+            f"where AgentJobs serves, so that address is the built-in fallback rather "
+            f"than an answer. Set 'api_base:' in "
+            f"{dispatch_config_path(home)} to the address you actually serve on, or "
+            f"export {API_BASE_ENV} for this shell. Refused rather than started: an "
+            f"agent that cannot reach AgentJobs cannot report that it cannot reach "
+            f"AgentJobs, so the run's only symptom would be silence."
+        )
+    raise UnreachableApiBaseError(
+        f"An agent dispatched from here would be told AgentJobs is at "
+        f"{resolved.value}, and {probe.detail}. That address comes from "
+        f"{resolved.describe_source(home)}, so either AgentJobs is not running or it "
+        f"has moved and the declaration is stale. Refused rather than started: an agent "
+        f"that cannot reach AgentJobs cannot report that it cannot reach AgentJobs, so "
+        f"the run's only symptom would be silence."
+    )
 
 
 # ----- the human-clocked rule -------------------------------------------------
@@ -547,6 +616,12 @@ def dispatch_task(
     address the server answered on says so, and everyone else leaves it to
     ``dispatch/address.py``. Repeating a default here is what let the HTTP and CLI paths
     disagree about what a dispatched agent was told (task-154).
+
+    ``None`` also selects the reachability gate. Resolving an address and *having* one
+    are different things, and a caller with nothing to observe is exactly the caller
+    whose address is a claim -- so before anything is written, `assert_api_base_answers`
+    checks that something is listening where this run's agent would be told to look
+    (task-193).
     """
     task = manager.get_task(request.task_id)
     if task is None:
@@ -571,6 +646,7 @@ def dispatch_task(
     # runner: this proves dispatch was permitted when it was asked, not for the lifetime
     # of the answer.
     resolution = assert_dispatch_permitted(project.id, home, group=request.group)
+    machine_home = _home(home, resolution)
 
     # Two ways in, and they differ only in where the authorising entry comes from.
     #
@@ -601,7 +677,7 @@ def dispatch_task(
             )
     assert_runner_actor_known(project_config, resolution.runner)
 
-    running = live_runs(_home(home, resolution))
+    running = live_runs(machine_home)
     for run in running:
         if run.task_id == task.id:
             raise LiveRunExistsError(
@@ -634,10 +710,16 @@ def dispatch_task(
                 f"{git_head(project.root)}."
             )
 
+    # Last of the checks that write nothing, and the only one that leaves this process:
+    # it costs a loopback round trip, so it goes after every refusal that is free. A
+    # caller that observed its own address -- the browser -- skips it, because the
+    # socket it read the address from is the socket answering this call.
+    if api_base is None:
+        assert_api_base_answers(machine_home)
+
     # Taken before the claim and held for the run's lifetime. The storage lock the
     # claim uses protects a write lasting microseconds; this one protects a process
     # lasting half an hour, which is why it cannot be the same `with` block.
-    machine_home = _home(home, resolution)
     try:
         lock = acquire_run_lock(machine_home, task.id, timeout=1.0)
     except RunLockTimeout as exc:

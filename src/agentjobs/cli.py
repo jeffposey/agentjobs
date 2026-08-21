@@ -11,7 +11,11 @@ from typing import List, Optional
 import typer
 import yaml
 
-from .dispatch.address import configured_api_base
+from .dispatch.address import (
+    configured_api_base,
+    probe_api_base,
+    resolve_api_base_detail,
+)
 from .dispatch.config import (
     DispatchConfig,
     DispatchError,
@@ -1181,6 +1185,39 @@ def dispatch_reap() -> None:
         typer.echo(f"\n{kept} session(s) not removed. Read why above before reaping again.")
 
 
+def _report_agent_address() -> None:
+    """Say what a CLI dispatch would tell an agent, and whether anything is there.
+
+    This is a status command's whole job for this value, and it did not report it at
+    all until task-193 -- so the only place the address was ever shown was
+    ``dispatch run``, one line after the money was spent. A wrong one is invisible
+    everywhere else by construction: an agent that cannot reach AgentJobs cannot report
+    that it cannot reach AgentJobs.
+
+    The probe is not optional here. Printing an address flatly is what this command
+    already did by printing nothing, and an address a reader cannot check is an address
+    a reader assumes is fine.
+    """
+    resolved = resolve_api_base_detail(None)
+    probe = probe_api_base(resolved.value)
+    typer.echo(f"Agent address:  {resolved.value}  ({resolved.describe_source()})")
+    if probe.answered and probe.is_agentjobs:
+        typer.echo(f"                {probe.detail}")
+        return
+    if probe.answered:
+        typer.secho(
+            f"                ⚠️  {probe.detail}. Something is listening there and it "
+            "is not this application.",
+            fg=typer.colors.YELLOW,
+        )
+        return
+    typer.secho(
+        f"                ❌ {probe.detail}. A dispatch from this shell is refused "
+        "until it does; a run given this address would go quiet rather than fail.",
+        fg=typer.colors.RED,
+    )
+
+
 @dispatch_app.command("config")
 def dispatch_show_config(
     project_id: Optional[str] = typer.Option(
@@ -1201,6 +1238,7 @@ def dispatch_show_config(
         f"Sentinel:       {sentinel_path()} "
         f"{'PRESENT - all dispatch refused' if sentinel_active() else '(absent)'}"
     )
+    _report_agent_address()
 
     if config is None:
         return

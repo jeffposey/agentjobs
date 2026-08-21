@@ -54,6 +54,10 @@ enabled: false
 # Leave it out if you serve on the CLI's default port, 8765. Set it if you serve on
 # anything else, and remember it is the port YOU serve on, not one anyone else assumes.
 #
+# `agentjobs dispatch config` prints the address a CLI dispatch would hand an agent and
+# checks that something answers there, so you can see this is right without spending a
+# run to find out. `agentjobs dispatch run` refuses outright if nothing does.
+#
 # api_base: http://localhost:8876
 
 # ----- runners: one named recipe per way of starting an agent -----------------

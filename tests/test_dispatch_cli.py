@@ -16,6 +16,7 @@ import yaml
 from typer.testing import CliRunner
 
 from agentjobs.cli import app
+from agentjobs.dispatch.address import DEFAULT_API_BASE, ApiBaseProbe
 from agentjobs.dispatch.config import (
     CONFIG_FILENAME,
     SENTINEL_FILENAME,
@@ -407,3 +408,79 @@ class TestTheExampleConfig:
         assert result.exit_code == 1
         assert "already exists" in result.output
         assert (home() / CONFIG_FILENAME).read_text(encoding="utf-8") == before
+
+
+class TestTheAgentAddressIsVisibleBeforeADispatch:
+    """``dispatch config`` reported the address nowhere at all until task-193.
+
+    So the only place it was ever shown was ``dispatch run``, one line after the run
+    had started -- which is to say, after the money was spent and after the only
+    remaining symptom of a wrong one was a task record that stopped changing.
+    """
+
+    def stub_probe(self, monkeypatch, *, answered: bool, is_agentjobs: bool, detail: str):
+        monkeypatch.setattr(
+            "agentjobs.cli.probe_api_base",
+            lambda api_base, **_: ApiBaseProbe(
+                api_base=api_base,
+                answered=answered,
+                is_agentjobs=is_agentjobs,
+                detail=detail,
+            ),
+        )
+
+    def test_it_names_the_address_and_the_source_that_produced_it(self, monkeypatch) -> None:
+        write_config(api_base="http://127.0.0.1:8876")
+        self.stub_probe(monkeypatch, answered=True, is_agentjobs=True, detail="AgentJobs answered")
+
+        result = runner.invoke(app, ["dispatch", "config"])
+
+        assert result.exit_code == 0, result.output
+        assert "Agent address:  http://127.0.0.1:8876" in result.output
+        assert str(home() / CONFIG_FILENAME) in result.output
+        assert "AgentJobs answered" in result.output
+
+    def test_an_undeclared_address_is_reported_as_a_fallback(self, monkeypatch) -> None:
+        """The state task-193 was filed for. A machine that has said nothing is not a
+        machine that has said 8765."""
+        self.stub_probe(monkeypatch, answered=False, is_agentjobs=False, detail="nothing answered")
+
+        result = runner.invoke(app, ["dispatch", "config"])
+
+        assert result.exit_code == 0, result.output
+        assert DEFAULT_API_BASE in result.output
+        assert "nothing on this machine declared an address" in result.output
+
+    def test_a_dead_address_says_a_dispatch_would_be_refused(self, monkeypatch) -> None:
+        write_config(api_base="http://127.0.0.1:8876")
+        self.stub_probe(monkeypatch, answered=False, is_agentjobs=False, detail="nothing answered")
+
+        result = runner.invoke(app, ["dispatch", "config"])
+
+        assert "refused" in result.output
+        assert "go quiet" in result.output
+
+    def test_a_stranger_on_the_port_is_a_warning_not_a_refusal(self, monkeypatch) -> None:
+        """The probe cannot tell a different service from an AgentJobs too old to serve
+        ``/api/version``, and only one of those is broken."""
+        write_config(api_base="http://127.0.0.1:8876")
+        self.stub_probe(
+            monkeypatch,
+            answered=True,
+            is_agentjobs=False,
+            detail="answered HTTP 200, but not as AgentJobs",
+        )
+
+        result = runner.invoke(app, ["dispatch", "config"])
+
+        assert "not as AgentJobs" in result.output
+        assert "refused" not in result.output
+
+    def test_it_is_reported_even_when_there_is_no_dispatch_config_at_all(self, monkeypatch) -> None:
+        """The command returns early on an absent config, and this is exactly the
+        machine most likely to be pointed at the wrong port."""
+        self.stub_probe(monkeypatch, answered=False, is_agentjobs=False, detail="nothing answered")
+
+        result = runner.invoke(app, ["dispatch", "config"])
+
+        assert "Agent address:" in result.output

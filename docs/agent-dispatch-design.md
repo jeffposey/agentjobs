@@ -355,6 +355,44 @@ was serving. That is a worse failure than it sounds: an agent that cannot reach 
 cannot log the fact that it cannot reach AgentJobs, so the run's only symptom is silence.
 `agentjobs dispatch run` now prints the address it resolved, for the same reason.
 
+#### And then checks it answers
+
+Resolving correctly is not the same as being right. Sources (2), (3) and (4) are claims
+about a port — made by an environment, a file, or by this design standing in for a file
+nobody wrote — and every one of them can be stale or absent while the resolver behaves
+exactly as specified. Task-193 is that observed: on the machine this was built for, three
+real dispatches each resolved cleanly to (4) and told the agent `:8765`, which nothing
+there serves. They survived only because the agents read their task YAML off disk.
+
+So a dispatch with **no observed address** — the CLI, and any library caller that passes
+none — is gated on the address answering. `probe_api_base` asks `/api/version` with a two
+second timeout, and `dispatch_task` refuses with `api_base_unreachable` if nothing
+replies. It refuses rather than warns because the failure it prevents is silent by
+construction: the run starts, the money is spent, and the only artifact is a task record
+that stops changing.
+
+Three outcomes, and they are deliberately not two:
+
+| Probe result | Meaning | Dispatch |
+| --- | --- | --- |
+| answered as AgentJobs | `/api/version` returned this application's shape | proceeds |
+| answered, but not as AgentJobs | something is listening; a reused port, or a version too old to serve `/api/version` | proceeds, and `dispatch config` warns |
+| nothing answered | connection refused, or filtered until the timeout | **refused** |
+
+The middle row proceeds because the check cannot tell a stranger on the port from an
+older AgentJobs, and only one of those is broken. Refusing on a distinction the code
+cannot actually draw would be a gate that blocks working setups.
+
+An address that *was* observed is never probed. It arrived on the socket answering the
+very request doing the dispatching, so the question is already answered — and a server
+issuing a synchronous HTTP call to itself from inside a request handler is a deadlock
+waiting for a worker count of one.
+
+`agentjobs dispatch config` reports the same thing without dispatching anything: the
+resolved address, the source that produced it, and what answered there. Before task-193
+it reported the address nowhere at all, so the only place it was ever shown was
+`dispatch run`, one line after the run started.
+
 ### The task-side record
 
 Two new `LogEntryType` values — `dispatch` and `dispatch_result`. Adding them is a

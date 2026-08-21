@@ -13,8 +13,13 @@ AgentJobs. The only symptom is a run that goes quiet.
 
 from __future__ import annotations
 
+import http.server
+import json
 import os
+import socket
+import threading
 from pathlib import Path
+from typing import Callable, Iterator
 
 import pytest
 import yaml
@@ -22,10 +27,13 @@ import yaml
 from agentjobs.dispatch.address import (
     API_BASE_ENV,
     DEFAULT_API_BASE,
+    ApiBaseSource,
     api_base_from_server,
     configured_api_base,
     normalise_api_base,
+    probe_api_base,
     resolve_api_base,
+    resolve_api_base_detail,
 )
 from agentjobs.dispatch.config import CONFIG_FILENAME, DispatchConfigError, load_dispatch_config
 
@@ -50,6 +58,67 @@ def write_config(home: Path, **overrides: object) -> Path:
     path = home / CONFIG_FILENAME
     path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
     return path
+
+
+def _serve(handler: Callable[..., http.server.BaseHTTPRequestHandler]) -> Iterator[str]:
+    """A throwaway HTTP server on an ephemeral port, yielded as an api_base."""
+    server = http.server.HTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def _responder(status: int, body: bytes):
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802 - the stdlib's spelling
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_: object) -> None:
+            """Silence. The suite's output is not a web server access log."""
+
+    return Handler
+
+
+@pytest.fixture
+def fake_agentjobs() -> Iterator[str]:
+    """Answers ``/api/version`` the way this application does."""
+    body = json.dumps({"version": "0.1.0", "schema_version": 2}).encode()
+    yield from _serve(_responder(200, body))
+
+
+@pytest.fixture
+def stranger_server() -> Iterator[str]:
+    """Answers 200, but not as AgentJobs -- a port someone else got to first."""
+    yield from _serve(_responder(200, b"<html>some other service</html>"))
+
+
+@pytest.fixture
+def not_found_server() -> Iterator[str]:
+    """Answers 404 -- an HTTP server that has never heard of ``/api/version``."""
+    yield from _serve(_responder(404, b"not found"))
+
+
+@pytest.fixture
+def closed_port() -> str:
+    """An address on this machine with nothing behind it.
+
+    Bound and released so the port is known to be free, which is as close to a
+    guarantee as this gets without holding it open -- and holding it open is exactly
+    what would make it answer.
+    """
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    return f"http://127.0.0.1:{port}"
 
 
 class TestTheAddressOfTheSocketThatAnswered:
@@ -206,3 +275,82 @@ class TestConfigSchema:
 def test_the_environment_name_matches_the_family_it_belongs_to() -> None:
     assert API_BASE_ENV == "AGENTJOBS_API_BASE"
     assert os.environ.get(API_BASE_ENV) is None
+
+
+class TestWhichSourceAnswered:
+    """The address alone cannot tell a reader which line to go and edit."""
+
+    def test_an_observed_address_is_marked_observed(self) -> None:
+        resolved = resolve_api_base_detail("http://127.0.0.1:8876/")
+        assert resolved.value == "http://127.0.0.1:8876"
+        assert resolved.source is ApiBaseSource.OBSERVED
+
+    def test_the_environment_is_named(self, monkeypatch) -> None:
+        monkeypatch.setenv(API_BASE_ENV, "http://127.0.0.1:9001")
+        resolved = resolve_api_base_detail()
+        assert resolved.source is ApiBaseSource.ENVIRONMENT
+        assert API_BASE_ENV in resolved.describe_source()
+
+    def test_the_config_file_is_named_by_path(self, isolated_home: Path) -> None:
+        write_config(isolated_home, api_base="http://127.0.0.1:8876")
+        resolved = resolve_api_base_detail(home=isolated_home)
+        assert resolved.source is ApiBaseSource.CONFIG
+        assert str(isolated_home / CONFIG_FILENAME) in resolved.describe_source(isolated_home)
+
+    def test_a_machine_that_declared_nothing_says_so(self, isolated_home: Path) -> None:
+        """The distinction task-193 exists for: a fallback is not an answer."""
+        resolved = resolve_api_base_detail(home=isolated_home)
+        assert resolved.value == DEFAULT_API_BASE
+        assert resolved.source is ApiBaseSource.FALLBACK
+        assert "nothing on this machine declared" in resolved.describe_source(isolated_home)
+
+    def test_the_value_half_still_agrees_with_the_detailed_half(self, isolated_home: Path) -> None:
+        write_config(isolated_home, api_base="http://127.0.0.1:8876")
+        assert (
+            resolve_api_base(home=isolated_home)
+            == resolve_api_base_detail(home=isolated_home).value
+        )
+
+
+class TestDoesAnythingAnswerThere:
+    """A resolved address is a claim about a port. This is the only thing that checks it.
+
+    Driven against a real socket rather than a mocked ``urlopen``: what is being pinned
+    is which of three answers each real-world shape produces, and a stub that returns
+    the shape under test proves only that the assertion was written down twice.
+    """
+
+    def test_an_agentjobs_server_is_recognised(self, fake_agentjobs: str) -> None:
+        probe = probe_api_base(fake_agentjobs)
+        assert probe.answered and probe.is_agentjobs
+        assert "AgentJobs answered" in probe.detail
+
+    def test_a_stranger_on_the_port_answers_but_is_not_agentjobs(
+        self, stranger_server: str
+    ) -> None:
+        """Something is listening. Worth saying, not worth refusing over -- an AgentJobs
+        old enough to have no ``/api/version`` presents identically."""
+        probe = probe_api_base(stranger_server)
+        assert probe.answered
+        assert not probe.is_agentjobs
+
+    def test_a_404_still_counts_as_answering(self, not_found_server: str) -> None:
+        probe = probe_api_base(not_found_server)
+        assert probe.answered
+        assert not probe.is_agentjobs
+        assert "404" in probe.detail
+
+    def test_a_closed_port_answers_nothing(self, closed_port: str) -> None:
+        probe = probe_api_base(closed_port)
+        assert not probe.answered
+        assert not probe.is_agentjobs
+        assert "nothing answered" in probe.detail
+
+    def test_a_trailing_slash_does_not_produce_a_double_slash(self, fake_agentjobs: str) -> None:
+        assert probe_api_base(fake_agentjobs + "/").is_agentjobs
+
+    def test_a_proxy_in_the_environment_is_ignored(self, fake_agentjobs: str, monkeypatch) -> None:
+        """Loopback asked through a proxy is the proxy's loopback, not ours."""
+        monkeypatch.setenv("http_proxy", "http://127.0.0.1:9")
+        monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9")
+        assert probe_api_base(fake_agentjobs).is_agentjobs
