@@ -3,10 +3,11 @@ id: task-211
 title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
   reorder, and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T03:36:47.787891Z'
-lifecycle: ready
+updated: '2026-08-21T04:44:00.727004Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: architecture
@@ -17,6 +18,7 @@ tags:
 - dispatch
 - grooming
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: 'Design a first-class "playbook" concept: a versioned brief stored in the
@@ -361,3 +363,64 @@ log:
       id: e7a29cb6-4187-4f3a-9d1c-a7b06f710211
       kind: log_append
       fingerprint: a8c2a4b368b1d9072db9aec08b3312df
+- id: 7
+  ts: '2026-08-21T04:43:30.254058Z'
+  actor: Jeff Posey
+  type: note
+  body: authorizing use of big-dawg for this
+  data: {}
+- id: 8
+  ts: '2026-08-21T04:43:59.106579Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 9
+  ts: '2026-08-21T04:44:00.726850Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_8c352a34
+    agent: claude
+    runner: claude-fable-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 7
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-fable-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-211` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-211-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_8c352a34.'
+    cwd: C:\projects\agentjobs
+    git_head: 39ae9f2
+    session_id: dbde6f55
+    selection:
+      group: big-dawg
+      source: dispatch
+      candidates:
+      - runner: claude-fable-5
+        eligible: true
