@@ -33,6 +33,18 @@ export function dependencyState(task: TaskRead) {
       reasons: [],
     };
   }
+  if (task.ball === "agent" && task.ball_reason === "hold") {
+    // Before this, a held task fell through to `lifecycle === "active"` and read "In
+    // flight" -- the badge asserting work was underway on the one task a human had
+    // deliberately stopped. It sits above the blocked and dependency branches because
+    // a hold outranks them: what a reader needs to know is that nothing will move
+    // until a person releases it, whatever else is also true.
+    return {
+      kind: "waiting" as const,
+      label: task.display_status,
+      reasons: task.ball_prompt ? [task.ball_prompt] : [],
+    };
+  }
   if ((task.unmet_needs?.length ?? 0) > 0) {
     return {
       kind: "blocked" as const,

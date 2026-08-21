@@ -56,3 +56,44 @@ describe("DependencyState closed outcomes", () => {
     expect(screen.getByText("Superseded").className).not.toEqual(completedClasses);
   });
 });
+
+describe("DependencyState on a held task", () => {
+  // task-231: `agent/hold` is the first agent-ball state that is not workable, so
+  // every place that read "active" as "somebody is working on it" had to be revisited.
+  // This badge was one of them: it fell through to `lifecycle === "active"` and read
+  // "In flight" on the one task a human had deliberately stopped. Found by looking at
+  // it in a browser, not by any test that existed at the time.
+  const held: TaskRead = {
+    schema: 2,
+    id: "task-held",
+    title: "A held task",
+    created: "2026-08-13T08:00:00Z",
+    updated: "2026-08-13T09:00:00Z",
+    lifecycle: "active",
+    ball: "agent",
+    ball_reason: "hold",
+    ball_prompt: "ON HOLD -- wait for the dispatch fixes.",
+    display_status: "On hold (claude)",
+    priority: "high",
+    category: "general",
+    tags: [],
+    assignment: { owner: "claude", eligible: [] },
+    spec: { summary: "Summary.", description: "Body." },
+  };
+
+  it("says it is on hold rather than in flight", () => {
+    render(<DependencyState task={held} />);
+
+    expect(screen.getByText("On hold (claude)")).toBeVisible();
+    expect(screen.queryByText("In flight")).not.toBeInTheDocument();
+  });
+
+  it("says so even when the task is also blocked on an unmet dependency", () => {
+    // A hold outranks the dependency: nothing moves until a person releases it,
+    // whatever else is also true of the task.
+    render(<DependencyState task={{ ...held, unmet_needs: ["task-042"] }} />);
+
+    expect(screen.getByText("On hold (claude)")).toBeVisible();
+    expect(screen.queryByText("Blocked")).not.toBeInTheDocument();
+  });
+});

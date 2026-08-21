@@ -331,7 +331,19 @@ function ReviewPanel({
                 event.preventDefault();
                 const value = feedback.trim();
                 if (!value) return;
-                void onSendBack(sendVerb.reason, value, toUploads(attachments));
+                // Close the composer once the write lands, and only then. Every other
+                // send-back moves the ball off the human and takes this whole panel
+                // with it, so nothing had to clean up after itself -- but a hold
+                // leaves the panel rendered as the held one, and the composer that
+                // imposed the hold sat open underneath it, offering to submit again.
+                // Observed in a browser; no test asked the question.
+                //
+                // On failure the text stays put: the banner above says what went
+                // wrong, and throwing the human's prose away is not a way to report it.
+                void Promise.resolve(onSendBack(sendVerb.reason, value, toUploads(attachments))).then(
+                  reset,
+                  () => undefined,
+                );
               }}
             >
               <AttachmentPicker

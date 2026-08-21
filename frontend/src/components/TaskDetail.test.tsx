@@ -545,6 +545,35 @@ describe("TaskDetail review panel offers only verbs that are true", () => {
     await waitFor(() => expect(actions.onResume).toHaveBeenCalledWith(null));
   });
 
+  it("closes the composer once a hold lands, since the panel does not go away", async () => {
+    // Every other send-back moves the ball off the human and takes the panel with it.
+    // A hold does not -- it becomes the held panel -- so the form that imposed the
+    // hold was left open underneath, still offering Submit. Found in a browser.
+    const actions = renderDetail();
+
+    fireEvent.click(screen.getByRole("button", { name: "⏸ Hold" }));
+    fireEvent.change(screen.getByLabelText("Release condition"), { target: { value: "Wait for the invoice." } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => expect(actions.onSendBack).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument());
+    expect(screen.queryByLabelText("Release condition")).not.toBeInTheDocument();
+  });
+
+  it("keeps what the human typed when a send-back fails", async () => {
+    // The banner above the form reports the failure. Throwing the prose away as well
+    // would make the human retype it to find out whether the second attempt works.
+    const actions = renderDetail();
+    actions.onSendBack.mockRejectedValueOnce(new Error("the network, briefly"));
+
+    fireEvent.click(screen.getByRole("button", { name: "⏸ Hold" }));
+    fireEvent.change(screen.getByLabelText("Release condition"), { target: { value: "Wait for the invoice." } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => expect(actions.onSendBack).toHaveBeenCalled());
+    expect(screen.getByLabelText("Release condition")).toHaveValue("Wait for the invoice.");
+  });
+
   it("carries an approval note without turning the approval into a request for changes", async () => {
     const actions = renderDetail();
 
