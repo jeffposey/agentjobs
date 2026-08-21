@@ -3,44 +3,9 @@ id: task-164-epic-orchestration-rule
 title: An agent working an epic runs its children as separate sessions and supervises
   them
 created: '2026-08-19T16:44:19.421276Z'
-updated: '2026-08-21T04:22:02.368671Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Review branch `feat/task-164-supervisor-dispatch` (3 commits on top\
-  \ of 33528cb, nothing pushed). Full gate green from the worktree at C:/projects/worktrees/aj-164:\
-  \ 2183 pytest, 154 Vitest, 16 Playwright, Black/Ruff/MyPy clean.\n\n**Three things\
-  \ to look at, in order of how much they need you.**\n\n1. **`claim_task` no longer\
-  \ refuses a task with open children.** This was not in the task's plan and it is\
-  \ the one change with real reach. Dispatch claims before it spawns, so without it\
-  \ a parent could not be dispatched at all and the whole feature was unreachable.\
-  \ The claim now writes a supervision ask naming the open children instead of \"\
-  Execute the spec\". `get_next_task()` is untouched: an epic is still never *handed*\
-  \ to anyone, only taken by name. Reasoning and the rejected alternative are in log\
-  \ entry 7. If you would rather keep the refusal and gate it behind a flag, say so\
-  \ and I will rework it.\n\n2. **The rule itself** \u2014 `ALLAGENTS.md` gains \"\
-  You do not work the children\" and the protocol lives in `docs/agent-workflow.md`.\
-  \ The threshold is *anything that takes a worktree*. Read those two sections as\
-  \ the deliverable; the code follows them.\n\n3. **The prompt split** \u2014 a task\
-  \ with open children gets a supervisor stub that tells the agent NOT to take a worktree,\
-  \ which is the exact opposite of what every other dispatch is told. Rendered against\
-  \ the real task-160 (nine open children) it names eight and says \"and 1 more\"\
-  .\n\n**What is not evidenced, so you are not being asked to take it on trust:**\
-  \ sc-4 is left `pending` because nothing here has been shown by a live run that\
-  \ actually spawns children. That is blocked, not skipped \u2014 turning on dispatch\
-  \ for a project is an edit to `~/.agentjobs/dispatch.yaml` that only you may make,\
-  \ and dispatching task-160 for real would start an agent working nine children into\
-  \ `main`. If you want that demonstration, authorise it and say which parent; otherwise\
-  \ it is task-022's `ac-7`, which already declares `needs: task-164`.\n\n**One open\
-  \ question in log entry 7 that is yours, not mine:** a supervisor cannot dispatch\
-  \ its children (D4 \u2014 only a human act causes a dispatch), so the children it\
-  \ starts are plain subprocesses with no ledger row, no reaping, and no concurrency\
-  \ accounting, while the supervisor holds a slot for the whole epic. I did not file\
-  \ a task for it. It belongs to task-022 or to your call.\n\n**On approval:** this\
-  \ touches `frontend/src/components/DependencyState.tsx`, so after the merge the\
-  \ frontend needs `npm run build` and the 8876 server needs restarting \u2014 and\
-  \ 8876 was started by `C:/ai/shared/launchers/open-agentjobs.ps1`, so `agentjobs\
-  \ restart` is the wrong command for it."
+updated: '2026-08-21T04:42:37.245634Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -51,7 +16,6 @@ tags:
 - documentation
 effort: medium -- a documented rule, then the runner behaviour that follows it
 assignment:
-  owner: claude
   eligible: []
 parent: task-160-dispatch-phase-two
 spec:
@@ -166,7 +130,7 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-164-supervisor-dispatch
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-19T16:44:19.421315Z'
@@ -489,3 +453,135 @@ log:
     outcome: completed
     duration_seconds: 3595.680855
     log_path: C:\Users\jpose\.agentjobs\runs\run_b46b2abf
+- id: 13
+  ts: '2026-08-21T04:31:05.103509Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 14
+  ts: '2026-08-21T04:31:07.548173Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 15
+  ts: '2026-08-21T04:31:08.297036Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_7b2413eb
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 14
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-164-epic-orchestration-rule`
+      in project `agentjobs` (root: C:\projects\agentjobs). You are running in that
+      project''s shared working tree and are NOT isolated. Before writing anything,
+      run `git worktree add ../worktrees/<repo>-<nnn> -b <type>/task-164-epic-orchestration-rule-<slug>`
+      and work from that path. Use that shell command, not a built-in worktree tool:
+      those relocate the session''s permission root, which parks a background run
+      on a prompt nobody can answer. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the task record and follow the resumption contract in docs/agent-workflow.md.
+      Dispatch run id: run_7b2413eb.'
+    cwd: C:\projects\agentjobs
+    git_head: f855867
+    session_id: 3f6129b5
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 16
+  ts: '2026-08-21T04:40:20.308679Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 4a1e9c07-2b58-4d31-9f6a-5c8d3e70a164
+      kind: update_content
+      fingerprint: ce800ec28b64fa5657e00406e50148ae
+- id: 17
+  ts: '2026-08-21T04:42:30.271581Z'
+  actor: claude
+  type: progress
+  body: "**Merged on Jeff's approval (entry 13), and put in front of him.**\n\n`feat/task-164-supervisor-dispatch`\
+    \ rebased onto `main` \u2014 clean, no conflicts; `main` had only moved by task-file\
+    \ commits since the branch was cut. The gate was re-run on the rebased branch\
+    \ rather than trusted from before it, with this worktree's own interpreter: **exit\
+    \ 0 \u2014 Black, Ruff, MyPy, 2183 Python tests in 5m15s, the OpenAPI and client\
+    \ checks, 154 Vitest across 22 files, the production build, and 16 Playwright\
+    \ tests against a live server.** Merged `--no-ff` as `459af99`; three commits,\
+    \ 17 files, +723/-61. Branch marked `merged` in `branches[]`, local branch deleted,\
+    \ `worktrees/aj-164` removed.\n\n**The last step of the merge gate, done rather\
+    \ than assumed.** The change touches the frontend (`DependencyState.tsx`) and\
+    \ Python that a running server holds in memory (`manager.py`, `dispatch/runner.py`,\
+    \ `task_detail.html`), so neither the merge nor a `git pull` would have shown\
+    \ Jeff anything new. `npm run build` in the main clone, then a restart of the\
+    \ 8876 server **through the launcher that started it** \u2014 `open-agentjobs.ps1\
+    \ -NoOpen -Force`, not `agentjobs restart`, which binds 8876's neighbour and would\
+    \ have left the real dashboard stale while reporting success.\n\nVerified live,\
+    \ not inferred: `/app/` is served the freshly built bundle (`index-BtDIX0mm.js`,\
+    \ the hash this build emitted), and the legacy detail page for `task-160` \u2014\
+    \ a real epic with open children \u2014 now renders *\"Claim it deliberately and\
+    \ it hands you the supervisor's seat\"* where it used to say the task was not\
+    \ claimable. That is the merged Python and the merged template answering from\
+    \ the process Jeff's PWA talks to.\n\n**Closing with sc-4 still `pending`, deliberately\
+    \ and on the record.** It is decided and implemented; what it lacks is the live\
+    \ unattended run, which needs a human to authorise both a `~/.agentjobs/dispatch.yaml`\
+    \ edit and an agent that would merge into `main` across nine children. That demonstration\
+    \ is task-022's `ac-7`, and task-022 already declares `needs: task-164`. Approval\
+    \ was given with that limitation stated in the handoff, so closing does not quietly\
+    \ upgrade it.\n\nNot pushed: approval to merge is not approval to push, and `main`\
+    \ is now 12 commits ahead of `origin/main`."
+  re: 13
+  data:
+    operation:
+      id: 5b2f0d18-3c69-4e42-8a7b-6d9e4f81b164
+      kind: log_append
+      fingerprint: dff11c3915217dc1262026498980e775
+- id: 18
+  ts: '2026-08-21T04:42:37.245453Z'
+  actor: claude
+  type: transition
+  body: Merged as 459af99 on Jeff's approval and verified live on the 8876 server.
+    sc-1, sc-2 and sc-3 met; sc-4 decided and implemented but left `pending`, since
+    the live unattended run it asks for is task-022's ac-7 and needs a human to authorise
+    it. Details in entry 17.
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 6c3a1e29-4d70-4f53-9b8c-7e0f5a92c164
+      kind: close
+      fingerprint: 1301d342306432ee02fe7f95665a5f47
