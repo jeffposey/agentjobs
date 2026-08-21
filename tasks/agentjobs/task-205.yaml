@@ -3,21 +3,17 @@ id: task-205
 title: 'Queue position: assignment, the reorder verbs, and selection that ignores
   timestamps'
 created: '2026-08-20T23:30:38.205143Z'
-updated: '2026-08-21T10:35:16.207091Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-21T10:40:50.517158Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 4600
 category: infrastructure
 tags:
 - queue-order
 - scheduling
 - concurrency
 assignment:
-  owner: claude
   eligible: []
 parent: task-081-task-selection-ranking
 spec:
@@ -203,7 +199,7 @@ dependencies:
 links: []
 branches:
 - name: feat/task-205-queue-verbs-selection
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-20T23:30:38.205199Z'
@@ -457,3 +453,72 @@ log:
       id: 5a1c2e30-0205-4b11-9c30-000000000006
       kind: update_content
       fingerprint: f138c61fdb09d94d1c8c364e65d27fe7
+- id: 10
+  ts: '2026-08-21T10:40:27.846216Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 5a1c2e30-0205-4b11-9c30-000000000007
+      kind: update_content
+      fingerprint: cbc2a7fbaa9cf61eb5a379b8ee045c3a
+- id: 11
+  ts: '2026-08-21T10:40:50.516913Z'
+  actor: claude
+  type: transition
+  body: "Merged and live. sc-1 to sc-7 all met, each with its evidence recorded on\
+    \ the criterion.\n\nMERGED under task-081's autonomous posture, on a fully green\
+    \ `scripts/check.py` (all ten stages, exit 0, 363s, no `--from` or `--only`) rather\
+    \ than on a human approval. Merge commit on main, `--no-ff`, branch marked merged.\
+    \ Not pushed -- nothing authorised that.\n\nWHAT IS ON MAIN.\n- 48f3dc8 `feat(queue)`:\
+    \ the queue lock and its uncached reads, creation under both locks, `move`/`reprioritize`,\
+    \ the `update_task` interceptions, rebalance/compaction with the direction rule\
+    \ and the concurrent-close skip, integrity/check/repair, `get_next_task` by (band,\
+    \ position), `explain_next`, and 54 tests.\n- 3ebdb41 `chore(schema)`: `queue_move`\
+    \ in the LinkML enum, every regenerated artefact, the OpenAPI document, the TypeScript\
+    \ client, and docs/task-schema.md.\n- The merge commit.\n\nVERIFIED THROUGH THE\
+    \ REAL PATH, not just the suite. Restarted the 8876 server through `C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -Force` (not `agentjobs restart`, which binds 8765 and is not that process),\
+    \ then compared what the two rankings say about the live corpus:\n\n    pre-merge\
+    \ sort would pick : task-221   high   updated 2026-08-21T09:22:53Z\n    merged\
+    \ selection picks    : task-100-dependency-cycle-deadlock  high/300\n    live\
+    \ server GET /tasks/next: task-100-dependency-cycle-deadlock  high/300\n    queue\
+    \ problems on live     : 0\n\nThat is the whole point of task-081 in four lines.\
+    \ The old ranking would hand an agent whatever was edited most recently; the new\
+    \ one hands it the task that stands first in line, and the dashboard on 8876 agrees,\
+    \ which is how we know the running process is on the merged code and not the one\
+    \ it replaced. `explain_next()` on the same corpus names the three tasks ahead\
+    \ of the winner with the rule that excluded each: task-220 and task-081 both \"\
+    not ready (active, held by agent)\", task-063 \"has 1 open child\".\n\nTHE FRONTEND\
+    \ WAS NOT REBUILT, deliberately, and this is the one claim worth checking rather\
+    \ than taking. The only frontend-source change in the merge is one line of `types.gen.ts`:\
+    \ the `LogEntryType` union gains `'queue_move'`. TypeScript types are erased at\
+    \ compile time, so the emitted bundle is byte-identical and `frontend_dist/` is\
+    \ already behaviourally current. The gate's `build` stage compiled it green. If\
+    \ a later child adds a component that renders the new entry type, that one *will*\
+    \ need a rebuild.\n\nFOR TASK-206 AND TASK-208, both of which are now unblocked:\n\
+    1. The manager surface they wrap is `move`, `reprioritize`, `rebalance_band`,\
+    \ `compact_band`, `check_queue`, `repair_queue`, `explain_next` and `create_task(placement=Placement(...))`.\
+    \ All take an `actor` and an `operation_id` and replay correctly.\n2. `QueueCorruptionError`\
+    \ is a `RuntimeError`, not a `ValueError`, so it does **not** fall through the\
+    \ existing 409 mapping for refused verbs. Design section 8 wants 409 with the\
+    \ same detail; that is a route change task-206 has to make explicitly, and forgetting\
+    \ it will surface as a 500.\n3. The error message already names `agentjobs queue\
+    \ repair`, which is task-208's command. Keep that string in step with the verb\
+    \ it names -- it is `queue.REPAIR_COMMAND`, in one place, for exactly that reason.\n\
+    4. `explain_next()` returns a dataclass with `as_dict()` producing design section\
+    \ 9's shape verbatim, so the REST schema is a transcription rather than a design\
+    \ exercise.\n\nONE THING DELIBERATELY LEFT: there is no `reopen` verb, so the\
+    \ generic `update_task` patch is the reopen path and is where the queue lock went.\
+    \ The reasoning and what a future verb has to do about it are in the decision\
+    \ entry above."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 5a1c2e30-0205-4b11-9c30-000000000008
+      kind: close
+      fingerprint: b8b09591eb7f8cad45483cb27cd077b5
