@@ -186,6 +186,37 @@ class TestPosture:
         for prefix in ("poetry run pytest", "git commit", "npm run"):
             assert f"({prefix}:*)" in rules
 
+    def test_the_merge_command_is_allowed_in_both_shells(self) -> None:
+        """task-222. Every dispatched run that finishes its work ends in a merge.
+
+        The rules are written out as literal strings rather than rebuilt with
+        ``f"{tool}({prefix}:*)"``. A test that composes its expectation from the same
+        expression the source uses passes against any form at all -- including the
+        colon-less one the test above exists to catch -- so it would assert nothing
+        about the thing that actually goes wrong here.
+        """
+        rules = allow_rules()
+
+        assert "Bash(git merge:*)" in rules
+        assert "PowerShell(git merge:*)" in rules
+
+    def test_pushing_is_not_pre_approved(self) -> None:
+        """The anti-rot half of the pair above, also task-222.
+
+        ``git merge`` was added on Jeff's explicit authorisation recorded on that task,
+        because the merge is the sanctioned end of the documented lifecycle and is
+        gated on a human approval rather than on the classifier. Pushing is a separate
+        act from merging in this repository and nothing authorises it. Asserting its
+        absence next to the entry that was added means a later widening has to delete
+        a test stating why, instead of slipping in beside a list that merely happens
+        not to mention it.
+        """
+        rules = allow_rules()
+
+        assert "Bash(git push:*)" not in rules
+        assert "PowerShell(git push:*)" not in rules
+        assert not any("git push" in rule for rule in rules)
+
     def test_read_only_gets_no_tools_and_no_worktree(self) -> None:
         flags = posture_flags(Posture.READ_ONLY, [])
 
