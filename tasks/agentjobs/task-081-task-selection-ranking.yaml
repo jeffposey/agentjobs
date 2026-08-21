@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T05:21:04.701169Z'
+updated: '2026-08-21T05:35:23.495096Z'
 lifecycle: active
 ball: human
 ball_reason: input
@@ -839,3 +839,13 @@ log:
   data:
     ball: human
     ball_reason: input
+- id: 24
+  ts: '2026-08-21T05:35:23.494849Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 22
+  data:
+    run_id: run_d5ab5caf
+    outcome: completed
+    duration_seconds: 1131.136103
+    log_path: C:\Users\jpose\.agentjobs\runs\run_d5ab5caf
