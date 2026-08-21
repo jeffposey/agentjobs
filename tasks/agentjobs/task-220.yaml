@@ -2,7 +2,7 @@ schema: 2
 id: task-220
 title: An epic supervisor parks where ordinary dispatched runs do not
 created: '2026-08-21T05:35:56.284351Z'
-updated: '2026-08-21T07:38:42.773733Z'
+updated: '2026-08-21T07:47:56.405730Z'
 lifecycle: active
 ball: human
 ball_reason: decision
@@ -767,3 +767,73 @@ log:
       id: e5a81c02-7b36-4d49-c8f0-2094dab50220
       kind: update_content
       fingerprint: 2abb2e1f47e8848f596908e22b11240f
+- id: 17
+  ts: '2026-08-21T07:47:56.405543Z'
+  actor: claude
+  type: progress
+  body: '**Implemented in an interactive session, ac-2/ac-4/ac-5 written. Branch `fix/task-220-supervisor-mcp-allow`,
+    commit bfa8a93, rebased onto main.**
+
+
+    Entry 12''s design built as specified, no deviations:
+
+
+    - `supervisor_allow_rules(mcp_servers)` -> `["mcp__<name>", ...]`, server-level.
+
+    - `settings_json(..., supervisor: bool = False)` appends them **inside the branch
+    that already carries an allow-list**, so `read_only` and `autonomous` cannot reach
+    it.
+
+    - `posture_flags(..., *, supervisor: bool = False)` threads it.
+
+    - `build_argv()` reads `open_child_ids()` **once** and passes it to both `build_prompt()`
+    (new optional `children` parameter) and `posture_flags(supervisor=bool(children))`.
+    One read, so a supervisor prompt cannot be paired with a worker''s permissions
+    -- which is the bug this fixes, in the shape it would return in.
+
+    - `posture_flags`'' docstring claim that `auto` "never needs a terminal" is deleted
+    and replaced with what is actually true, since that sentence is the assumption
+    this whole task was spent discovering.
+
+    - `docs/agent-workflow.md` gains **A refusal is not a wall -- but three in a row
+    is**: deny-and-continue, the breaker, and do-not-reword-a-refusal, with run_d5ab5caf
+    as the worked example and the stochastic help-command datum.
+
+
+    Ten tests in `TestSupervisorMcpGrant`, including the rule form asserted as a **literal**
+    rather than derived from the same expression the source uses -- a test written
+    `f"mcp__{name}"` on both sides would pass against any form at all, which is the
+    colon lesson repeated -- and one that asserts the supervisor prompt and the grant
+    appear in the same argv, so a future refactor that splits the two reads fails
+    here instead of in a parked run.
+
+
+    **Verification, stated exactly, because Jeff waived the gate and a waived gate
+    must not be reported as a passed one.**
+
+
+    Run 1 (full, 405s) reached every stage: black, ruff, mypy, api, icons, oxlint
+    all green; **pytest 2232 passed, 1 failed**. The single failure was `test_validate.py::TestRealCorpus::test_the_tolerated_drift_is_only_taxonomy_and_serialization`,
+    an `absolute-path` finding against the live corpus -- caused by this task''s own
+    `context[]` pointing at a run transcript under `~/.agentjobs`, not by the code.
+    Fixed by moving that pointer into prose; the main clone now reports zero `absolute-path`
+    findings, confirmed directly against `validate_corpus`.
+
+
+    Run 2 (`--from pytest`) reproduced the same single failure, because the worktree''s
+    `tasks/` was still at the pre-fix commit. The rebase onto main brings the corrected
+    record in.
+
+
+    **Not re-run after the rebase, at Jeff''s instruction:** vitest, build, e2e. They
+    did not execute in either run. The change is Python plus one markdown file and
+    touches no frontend source, so the risk is low -- but low is not verified, and
+    whoever merges should know the last three stages have no result on this branch.
+
+
+    `git status` clean in the worktree; nothing pushed.'
+  data:
+    operation:
+      id: f6b93d18-4c72-4a85-b036-71e2a8c60220
+      kind: log_append
+      fingerprint: 46aeb67c7164fe6f5cf908c233558145
