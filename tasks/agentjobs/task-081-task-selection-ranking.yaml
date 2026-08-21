@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T15:49:40.091564Z'
+updated: '2026-08-21T15:59:16.330012Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1887,3 +1887,94 @@ log:
       id: bb9b9273-0081-4a00-9e00-000000000006
       kind: log_append
       fingerprint: ad0649b64b737403bfd15d0dd3c70bdb
+- id: 46
+  ts: '2026-08-21T15:59:16.329594Z'
+  actor: claude
+  type: progress
+  body: 'Child 4 (task-207) done and merged. Child 5 (task-208) approved by Jeff and
+    re-dispatched. Child 6 (task-209) started -- the last one.
+
+
+    TASK-207 VERIFIED from durable evidence only. lifecycle closed / outcome completed;
+    branches[] marks feat/task-207-queue-order-react-list merged; merge commit b4f1e21
+    on main, --no-ff, six commits; worktree gone. It rebuilt the frontend and restarted
+    8876, and 8876 answers with source_root C:\projects\agentjobs, so the dashboard
+    Jeff opens is the merged version rather than the one it replaced.
+
+
+    ONE ACCEPTANCE CRITERION IS PENDING AND THE CHILD WAS RIGHT TO LEAVE IT THAT WAY.
+    sc-5 is "Jeff has reviewed it on a sandbox server seeded with both a healthy and
+    a corrupt queue". The child built the sandbox, stood it up, exercised every screen
+    in a real browser -- and then marked the criterion `pending` rather than `met`,
+    on the grounds that the review gate being waived for this run does not make an
+    unlooked-at screen a looked-at one. That is the correct reading and I am not overriding
+    it. A waived criterion is not a satisfied one.
+
+
+    I CLOSED THAT GAP AS FAR AS A SUPERVISOR CAN. Jeff''s standing rule is that a
+    change visible in a browser gets stood up on its own port with its own throwaway
+    data, as part of the handoff rather than after he asks. The child''s session is
+    gone, so I restarted its sandbox myself: http://127.0.0.1:8901/app/, three seeded
+    projects (sandbox-healthy, sandbox-broken, sandbox-blocked) on a temporary AGENTJOBS_HOME
+    that is deleted when the process stops. The live corpus is not involved. This
+    took no worktree and wrote no code, so it is not me working a child. sc-5 stays
+    pending until Jeff actually looks; only he can close it.
+
+
+    TWO VERIFICATION TRAPS 207 FOUND, which it wrote into ENGINEERING.md and which
+    are worth repeating at supervisor altitude because they invalidate a whole class
+    of green test:
+
+    - **Do not set up the state your test is meant to be checking.** Its keyboard
+    reorder was covered in jsdom and in Playwright, both green, and the feature worked
+    exactly once per click. Both tests re-focused the row''s handle before every keypress;
+    the defect was that focus did not survive a keypress, because React reorders rows
+    by moving DOM nodes and a browser drops focus from a node it reinserts. The two
+    tests written to prove it worked were the reason nobody could see it. Found by
+    pressing the key twice in a browser.
+
+    - **A Playwright keypress is not a person''s keypress.** page.keyboard.press goes
+    in over CDP, below the browser''s own shortcut handling and below anything a real
+    window does with focus.
+
+
+    TASK-208: Jeff approved in the dashboard at 15:55Z and the ball moved to agent/work
+    with "Approved -- cleared to merge". He could not dispatch it at first, and the
+    cause is worth recording as a product observation rather than a mistake: the run
+    had not been reaped, so run_a1e35ca5 still read active and the task page offered
+    him nothing. It settled at 404a746 (2957s) and he re-dispatched immediately after.
+    The gap between "the session is done" and "the ledger says the run is done" is
+    a window in which an approved task cannot be actioned by anyone -- not the dead
+    session, not the human. Filing that is not mine to do mid-epic; it belongs with
+    task-224, which already covers the neighbouring case.
+
+
+    TASK-209 STARTED -- background session c3d83a32, same worker settings blob. TWO
+    DEPARTURES FROM THE CHILD SHAPE, both deliberate:
+
+    1. **No worktree and no branch.** It is the only child that changes no code; its
+    own out_of_scope says so and its only deliverable is the ordered corpus committed
+    straight to main. ALLAGENTS.md''s worktree rule covers work that goes on a branch,
+    and names task metadata committed straight to main as the exception. A worktree
+    here would be an empty directory somebody has to remember to remove.
+
+    2. **Its brief states step 3 as a hard stop.** sc-1 requires Jeff''s approval
+    of the band-by-band list recorded on the task before any move is applied. That
+    is an acceptance criterion, not the merge gate, so this epic''s waiver does not
+    touch it -- and a child that has just read a posture saying "a green gate replaces
+    his approval" is exactly the reader who might generalise it one step too far.
+    The brief also points at entries 18 and 19 as binding, since they amended this
+    task''s premise about who may reorder.
+
+
+    So 209 will park on Jeff with a list, by design. Nothing in this epic closes until
+    he reads it.
+
+
+    STATE at 16:05Z: 207 closed/merged. 208 agent/work, re-dispatched, merging. 209
+    agent/work, just started. Both polled.'
+  data:
+    operation:
+      id: bb9b9273-0081-4a00-9e00-000000000007
+      kind: log_append
+      fingerprint: a2561236dfaad42506e4fdd28708b08f
