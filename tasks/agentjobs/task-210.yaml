@@ -3,11 +3,74 @@ id: task-210
 title: check.py scrubs VIRTUAL_ENV so the gate cannot resolve to another checkout's
   environment
 created: '2026-08-21T00:53:04.242865Z'
-updated: '2026-08-21T01:22:59.344672Z'
+updated: '2026-08-21T01:31:59.751543Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: 'Review and, if you approve, merge fix/task-210-check-scrubs-virtualenv
+  (worktree C:/projects/worktrees/aj-210, two commits: 46053e6 code+tests, 5d11ee7
+  docs). Nothing is merged and nothing is pushed.
+
+
+  WHAT CHANGED - scripts/check.py only, plus its tests and one docs paragraph.
+
+  A new child_environment() copies os.environ, always drops PYTHONHOME, and drops
+  VIRTUAL_ENV and POETRY_ACTIVE when the activated virtualenv is not the one this
+  interpreter is running in. run() passes it to every child and deliberately takes
+  no env parameter, so a gate stage added later cannot forget to opt in. main() prints
+  a one-line note when it disowns the shell, so a green run is not a silent correction.
+
+
+  The three constraints held: the source-provenance guard (setup_problems/remedy)
+  is byte-for-byte unchanged and still refuses; frontend/playwright.config.ts is untouched;
+  the docs keep the whole existing explanation of WHY the hazard exists.
+
+
+  HOW IT WAS VERIFIED - sc-1, run as the experiment it is, not asserted.
+
+  VIRTUAL_ENV exported to the MAIN CLONE''s environment (agentjobs-KSKY4Ymk-py3.13)
+  and left exported, then `<worktree interpreter> scripts/check.py` from the worktree.
+  01:22:29Z to 01:29:13Z, EXIT=0. Black, Ruff, MyPy, 2130 pytest in 5m16s, both nested
+  `poetry run` frontend checks, oxlint, 154 Vitest, the production build, and 16 Playwright
+  tests -- the stage that used to fail -- all green. Playwright''s webServer is `poetry
+  run python e2e/run_server.py` and run_server.py calls verify_source_or_die, so a
+  green Playwright stage is itself the proof the nested poetry call resolved to this
+  worktree; before this change the guard refused it there, six minutes in. Full stage-by-stage
+  output is in the progress entry above.
+
+
+  Also confirmed the mechanism directly, same exported VIRTUAL_ENV: the bare nested
+  call imports C:/projects/agentjobs/src (the bug), the same call with env=check.child_environment()
+  imports C:/projects/worktrees/aj-210/src (the fix).
+
+
+  WHAT TO LOOK AT - two judgement calls I made and would want checked.
+
+  1. The scrub is CONDITIONAL, not the flat delete the spec described. An unconditional
+  delete also strips a VIRTUAL_ENV that IS this interpreter''s, which breaks a plain
+  `python -m venv .venv` checkout: Poetry then has no path-keyed environment to fall
+  back to and every nested `poetry run` in the frontend gate fails. scripts/bootstrap.py
+  already declines to overrule somebody''s own .venv for the same reason, so this
+  matches the existing idiom -- but it is a deviation from the written spec and it
+  is the thing to disagree with if you are going to disagree with something.
+
+  2. I did NOT also strip the activated venv''s Scripts directory from PATH, which
+  is what a real `deactivate` does. Nothing in the gate calls a bare `python` -- every
+  nested call is `poetry run`, which does not pick its interpreter from PATH -- and
+  if poetry itself were ever installed inside the activated venv, removing that directory
+  would make `poetry run` vanish and break the gate outright. Real cost, hypothetical
+  benefit. Reasoning and the reopen trigger are recorded as a decision on this task.
+
+
+  SIBLINGS - the change makes the `unset VIRTUAL_ENV` workaround unnecessary, never
+  required-in-reverse. With VIRTUAL_ENV already unset the new code takes the falsy
+  branch and passes the environment through untouched, so a sibling gate running mid-flight
+  under the old workaround behaves exactly as before.
+
+
+  MERGE STEPS if you approve: rebase onto main, merge --no-ff, mark the branch merged,
+  close completed, remove the worktree. No frontend rebuild or server restart is needed
+  -- this touches no runtime code, only the gate runner, its tests, and ALLAGENTS.md.'
 archived: false
 priority: high
 category: developer_experience
@@ -90,23 +153,28 @@ acceptance:
   text: With VIRTUAL_ENV deliberately set to the main clone's environment, `python
     scripts/check.py` in a bootstrapped worktree passes end to end, including the
     Playwright stage, using the worktree's own environment throughout.
-  status: pending
+  verify: VIRTUAL_ENV=<main clone venv> <worktree venv python> scripts/check.py
+  status: met
 - id: sc-2
   text: A test (or check.py self-check) proves the child environment check.py spawns
     does not contain VIRTUAL_ENV, so the behaviour cannot silently regress.
-  status: pending
+  verify: pytest tests/test_source_provenance.py -k child_environment or gate_runs
+  status: met
 - id: sc-3
   text: ALLAGENTS.md's bootstrap section no longer instructs readers to manage VIRTUAL_ENV
     themselves for gate runs, while still explaining the hazard for direct `poetry
     run` use.
-  status: pending
+  status: met
 deliverables:
 - path: scripts/check.py
-  note: scrub VIRTUAL_ENV/PYTHONHOME from child environments
-  status: pending
+  note: scrub VIRTUAL_ENV/POETRY_ACTIVE (when foreign) and PYTHONHOME from child environments
+  status: done
 - path: ALLAGENTS.md
   note: bootstrap section updated to the post-fix world
-  status: pending
+  status: done
+- path: tests/test_source_provenance.py
+  note: eight task-210 regression tests for the child environment
+  status: done
 dependencies:
 - task: task-189
   type: related
@@ -205,3 +273,158 @@ log:
       id: aadc9548-5763-42c0-b181-771b5de54253
       kind: log_append
       fingerprint: 172311cf46867d150442e28a69c75da8
+- id: 4
+  ts: '2026-08-21T01:31:27.844133Z'
+  actor: claude
+  type: progress
+  body: "sc-1 experiment passed: gate green end to end, including Playwright, with\
+    \ VIRTUAL_ENV exported to the main clone's environment throughout.\n\nTHE sc-1\
+    \ EXPERIMENT, run exactly as specified.\n\nSetup: worktree C:/projects/worktrees/aj-210\
+    \ on fix/task-210-check-scrubs-virtualenv,\nbootstrapped, its own environment\
+    \ agentjobs-VvZZpm2j-py3.13. VIRTUAL_ENV deliberately\nEXPORTED to the MAIN CLONE's\
+    \ environment agentjobs-KSKY4Ymk-py3.13 -- the one the gate\nmust not resolve\
+    \ to -- and left exported for the whole run. No unset, no workaround.\n\nCommand:\
+    \ <worktree interpreter> scripts/check.py\nStart 01:22:29Z, finish 01:29:13Z,\
+    \ EXIT=0. 6m44s, with sibling gates on the machine.\n\nThe gate said so itself,\
+    \ before running anything:\n  Ignoring the activated virtualenv .../agentjobs-KSKY4Ymk-py3.13.\n\
+    \  Every check below runs against ...\agentjobs-VvZZpm2j-py3.13, this checkout's\
+    \ own\n  environment, including the nested `poetry run` calls the frontend and\
+    \ Playwright make.\n\nEvery stage green, in order:\n  black --check .        \
+    \    All done\n  ruff check .               ok\n  mypy .                     ok\n\
+    \  pytest                     2130 passed in 316.27s (0:05:16)\n  npm run check\n\
+    \    check:api-schema         poetry run python ../scripts/export_openapi.py --check\
+    \  [nested poetry]\n    check:api-client         openapi-ts + assert-generated-clean\n\
+    \    check:icons              poetry run python scripts/generate_icons.py --check\
+    \     [nested poetry]\n    lint                     oxlint\n    test         \
+    \            22 files, 154 tests passed (Vitest)\n    build                  \
+    \  tsc --noEmit + vite build + service worker\n    test:e2e                 16\
+    \ passed (17.7s)   <-- THE STAGE THAT USED TO FAIL\n\nPlaywright reported: [e2e]\
+    \ checkout C:\\projects\\worktrees\aj-210 owns\nhttp://127.0.0.1:28358. Its webServer\
+    \ is `poetry run python e2e/run_server.py`, and\nrun_server.py calls verify_source_or_die\
+    \ -- so a green Playwright stage is itself the\nproof that the nested poetry call\
+    \ resolved to THIS worktree. Had it resolved to the main\nclone, as it did before\
+    \ this change, the guard would have refused the server and the\nstage would have\
+    \ failed, which is the whole six-minutes-then-Playwright failure this task\nwas\
+    \ filed for.\n\nIndependent A/B confirmation of the mechanism, run before the\
+    \ gate, same exported\nVIRTUAL_ENV, from the worktree:\n  A. poetry run python\
+    \ -c \"import agentjobs; print(agentjobs.__file__)\"\n     -> C:\\projects\agentjobs\\\
+    src\agentjobs\\__init__.py            (the bug)\n  B. the same call with env=check.child_environment()\n\
+    \     -> C:\\projects\\worktrees\aj-210\\src\agentjobs\\__init__.py    (the fix)\n\
+    \nsc-2: eight tests in tests/test_source_provenance.py, under a task-210 heading\
+    \ beside the\ntask-194 guards. The regression guard proper monkeypatches subprocess.run,\
+    \ calls\ncheck.main(), and asserts all five stages were handed an env with no\
+    \ VIRTUAL_ENV and no\nPOETRY_ACTIVE -- it fails if anyone reinstates the inherited\
+    \ environment, and run() takes\nno env parameter so a stage added later is covered\
+    \ automatically. Also covered:\nPYTHONHOME always dropped, this interpreter's\
+    \ own VIRTUAL_ENV preserved, PATH and\nunrelated variables untouched, an unactivated\
+    \ shell passed through unchanged, and the\nnote emitted only when there is something\
+    \ to disown. Included in the 2130 above.\n\nsc-3: ALLAGENTS.md \"Bootstrapping\
+    \ a worktree\" now states that naming the interpreter is\nthe only thing the reader\
+    \ has to do and that VIRTUAL_ENV needs no managing around a gate\nrun, while keeping\
+    \ the existing WHY verbatim and closing with the fact that `poetry run`\noutside\
+    \ the gate still prefers whatever the shell activated. ENGINEERING.md needed no\n\
+    change: it links to that section and never taught the workaround itself.\n\nNot\
+    \ weakened, not special-cased: setup_problems and remedy are byte-for-byte the\
+    \ same\nguard, and frontend/playwright.config.ts is untouched.\n\nCommits on fix/task-210-check-scrubs-virtualenv:\n\
+    \  46053e6 fix(check): disown a foreign VIRTUAL_ENV before spawning gate children\n\
+    \  5d11ee7 docs(allagents): stop making VIRTUAL_ENV the reader's problem for gate\
+    \ runs\nWorktree tree is clean. Not merged, not pushed.\n\nSibling sessions: the\
+    \ change makes the `unset VIRTUAL_ENV` workaround unnecessary, never\nrequired-in-reverse.\
+    \ A shell with VIRTUAL_ENV already unset hits the `active is falsy`\npath and\
+    \ the environment is passed through untouched, so a gate mid-flight under the\
+    \ old\nworkaround behaves exactly as it did."
+  data:
+    operation:
+      id: ed48db37-519c-4be8-aa76-2806ead592e4
+      kind: log_append
+      fingerprint: 225a7feba9d4b4665c0985eeaebdae8d
+- id: 5
+  ts: '2026-08-21T01:31:27.876802Z'
+  actor: system
+  type: note
+  body: Updated acceptance, deliverables.
+  data:
+    fields:
+    - acceptance
+    - deliverables
+    operation:
+      id: 41298d7d-95ca-4635-8d46-35e47deb8b84
+      kind: update_content
+      fingerprint: b7dea35ae3bdc1d5c62beed9b13e9b43
+- id: 6
+  ts: '2026-08-21T01:31:59.751394Z'
+  actor: claude
+  type: handoff
+  body: 'Review and, if you approve, merge fix/task-210-check-scrubs-virtualenv (worktree
+    C:/projects/worktrees/aj-210, two commits: 46053e6 code+tests, 5d11ee7 docs).
+    Nothing is merged and nothing is pushed.
+
+
+    WHAT CHANGED - scripts/check.py only, plus its tests and one docs paragraph.
+
+    A new child_environment() copies os.environ, always drops PYTHONHOME, and drops
+    VIRTUAL_ENV and POETRY_ACTIVE when the activated virtualenv is not the one this
+    interpreter is running in. run() passes it to every child and deliberately takes
+    no env parameter, so a gate stage added later cannot forget to opt in. main()
+    prints a one-line note when it disowns the shell, so a green run is not a silent
+    correction.
+
+
+    The three constraints held: the source-provenance guard (setup_problems/remedy)
+    is byte-for-byte unchanged and still refuses; frontend/playwright.config.ts is
+    untouched; the docs keep the whole existing explanation of WHY the hazard exists.
+
+
+    HOW IT WAS VERIFIED - sc-1, run as the experiment it is, not asserted.
+
+    VIRTUAL_ENV exported to the MAIN CLONE''s environment (agentjobs-KSKY4Ymk-py3.13)
+    and left exported, then `<worktree interpreter> scripts/check.py` from the worktree.
+    01:22:29Z to 01:29:13Z, EXIT=0. Black, Ruff, MyPy, 2130 pytest in 5m16s, both
+    nested `poetry run` frontend checks, oxlint, 154 Vitest, the production build,
+    and 16 Playwright tests -- the stage that used to fail -- all green. Playwright''s
+    webServer is `poetry run python e2e/run_server.py` and run_server.py calls verify_source_or_die,
+    so a green Playwright stage is itself the proof the nested poetry call resolved
+    to this worktree; before this change the guard refused it there, six minutes in.
+    Full stage-by-stage output is in the progress entry above.
+
+
+    Also confirmed the mechanism directly, same exported VIRTUAL_ENV: the bare nested
+    call imports C:/projects/agentjobs/src (the bug), the same call with env=check.child_environment()
+    imports C:/projects/worktrees/aj-210/src (the fix).
+
+
+    WHAT TO LOOK AT - two judgement calls I made and would want checked.
+
+    1. The scrub is CONDITIONAL, not the flat delete the spec described. An unconditional
+    delete also strips a VIRTUAL_ENV that IS this interpreter''s, which breaks a plain
+    `python -m venv .venv` checkout: Poetry then has no path-keyed environment to
+    fall back to and every nested `poetry run` in the frontend gate fails. scripts/bootstrap.py
+    already declines to overrule somebody''s own .venv for the same reason, so this
+    matches the existing idiom -- but it is a deviation from the written spec and
+    it is the thing to disagree with if you are going to disagree with something.
+
+    2. I did NOT also strip the activated venv''s Scripts directory from PATH, which
+    is what a real `deactivate` does. Nothing in the gate calls a bare `python` --
+    every nested call is `poetry run`, which does not pick its interpreter from PATH
+    -- and if poetry itself were ever installed inside the activated venv, removing
+    that directory would make `poetry run` vanish and break the gate outright. Real
+    cost, hypothetical benefit. Reasoning and the reopen trigger are recorded as a
+    decision on this task.
+
+
+    SIBLINGS - the change makes the `unset VIRTUAL_ENV` workaround unnecessary, never
+    required-in-reverse. With VIRTUAL_ENV already unset the new code takes the falsy
+    branch and passes the environment through untouched, so a sibling gate running
+    mid-flight under the old workaround behaves exactly as before.
+
+
+    MERGE STEPS if you approve: rebase onto main, merge --no-ff, mark the branch merged,
+    close completed, remove the worktree. No frontend rebuild or server restart is
+    needed -- this touches no runtime code, only the gate runner, its tests, and ALLAGENTS.md.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: d1ac4de9-991e-4e1e-b8c3-0da3cd64ad86
+      kind: handoff
+      fingerprint: 1c2b4553fbfb4fc24c3261f4a6913f9d
