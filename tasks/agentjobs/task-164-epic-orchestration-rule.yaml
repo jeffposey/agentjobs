@@ -3,11 +3,44 @@ id: task-164-epic-orchestration-rule
 title: An agent working an epic runs its children as separate sessions and supervises
   them
 created: '2026-08-19T16:44:19.421276Z'
-updated: '2026-08-21T03:47:23.855999Z'
+updated: '2026-08-21T04:21:14.381735Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Review branch `feat/task-164-supervisor-dispatch` (3 commits on top\
+  \ of 33528cb, nothing pushed). Full gate green from the worktree at C:/projects/worktrees/aj-164:\
+  \ 2183 pytest, 154 Vitest, 16 Playwright, Black/Ruff/MyPy clean.\n\n**Three things\
+  \ to look at, in order of how much they need you.**\n\n1. **`claim_task` no longer\
+  \ refuses a task with open children.** This was not in the task's plan and it is\
+  \ the one change with real reach. Dispatch claims before it spawns, so without it\
+  \ a parent could not be dispatched at all and the whole feature was unreachable.\
+  \ The claim now writes a supervision ask naming the open children instead of \"\
+  Execute the spec\". `get_next_task()` is untouched: an epic is still never *handed*\
+  \ to anyone, only taken by name. Reasoning and the rejected alternative are in log\
+  \ entry 7. If you would rather keep the refusal and gate it behind a flag, say so\
+  \ and I will rework it.\n\n2. **The rule itself** \u2014 `ALLAGENTS.md` gains \"\
+  You do not work the children\" and the protocol lives in `docs/agent-workflow.md`.\
+  \ The threshold is *anything that takes a worktree*. Read those two sections as\
+  \ the deliverable; the code follows them.\n\n3. **The prompt split** \u2014 a task\
+  \ with open children gets a supervisor stub that tells the agent NOT to take a worktree,\
+  \ which is the exact opposite of what every other dispatch is told. Rendered against\
+  \ the real task-160 (nine open children) it names eight and says \"and 1 more\"\
+  .\n\n**What is not evidenced, so you are not being asked to take it on trust:**\
+  \ sc-4 is left `pending` because nothing here has been shown by a live run that\
+  \ actually spawns children. That is blocked, not skipped \u2014 turning on dispatch\
+  \ for a project is an edit to `~/.agentjobs/dispatch.yaml` that only you may make,\
+  \ and dispatching task-160 for real would start an agent working nine children into\
+  \ `main`. If you want that demonstration, authorise it and say which parent; otherwise\
+  \ it is task-022's `ac-7`, which already declares `needs: task-164`.\n\n**One open\
+  \ question in log entry 7 that is yours, not mine:** a supervisor cannot dispatch\
+  \ its children (D4 \u2014 only a human act causes a dispatch), so the children it\
+  \ starts are plain subprocesses with no ledger row, no reaping, and no concurrency\
+  \ accounting, while the supervisor holds a slot for the whole epic. I did not file\
+  \ a task for it. It belongs to task-022 or to your call.\n\n**On approval:** this\
+  \ touches `frontend/src/components/DependencyState.tsx`, so after the merge the\
+  \ frontend needs `npm run build` and the 8876 server needs restarting \u2014 and\
+  \ 8876 was started by `C:/ai/shared/launchers/open-agentjobs.ps1`, so `agentjobs\
+  \ restart` is the wrong command for it."
 archived: false
 priority: high
 category: developer_experience
@@ -102,18 +135,31 @@ acceptance:
 - id: sc-1
   text: The rule is written into the repo's agent instructions, stating when it binds
     and when it does not, with the reasoning for the threshold
-  status: pending
+  verify: 'ALLAGENTS.md -- Parent Task Loop steps 2-4 and the section ''You do not
+    work the children''. Threshold: anything that takes a worktree, with the argument
+    for it over a size estimate.'
+  status: met
 - id: sc-2
   text: A fresh worktree can run scripts/check.py by following a documented bootstrap,
     demonstrated once end to end
-  status: pending
+  verify: 'This worktree, created fresh: python scripts/bootstrap.py in 26s, then
+    scripts/check.py green with the interpreter it printed -- 2183 pytest, 154 Vitest,
+    16 Playwright.'
+  status: met
 - id: sc-3
   text: 'Supervision is specified for all four cases: child finished, child parked,
     child died, parent idle'
-  status: pending
+  verify: docs/agent-workflow.md, 'Supervision, in the four states a child can be
+    in'. Pinned by test_the_guide_states_the_parent_protocol, which fails if any of
+    the four is removed.
+  status: met
 - id: sc-4
   text: Whether a dispatched agent orchestrates a parent task is decided, and if yes,
     implemented and shown working on a real parent with at least two children
+  verify: 'Decided and implemented (log entry 7). Shown on the real task-160 with
+    nine open children: build_prompt renders the supervisor stub and build_argv the
+    full command. NOT shown by a live run that actually spawns children -- see the
+    handoff; that needs a human to authorise the spend and is task-022''s ac-7.'
   status: pending
 deliverables: []
 dependencies: []
@@ -325,3 +371,111 @@ log:
       id: 7d2e4b19-3c56-4f80-b2a7-9e1d6c04a164
       kind: log_append
       fingerprint: 44b8c5e6f21e74cd1906cc2e4f296794
+- id: 8
+  ts: '2026-08-21T04:04:53.095633Z'
+  actor: claude
+  type: progress
+  body: "**Implemented on `feat/task-164-supervisor-dispatch`. What was written, and\
+    \ what was verified how.**\n\n**sc-1 \u2014 the rule.** `ALLAGENTS.md` gains a\
+    \ section, *You do not work the children*, and its Parent Task Loop steps 2\u2013\
+    4 now say who works a child (a separate session) and who merges it (that session,\
+    \ on its own approval). The threshold is **anything that takes a worktree**, with\
+    \ the argument for it over a size estimate: it is checkable, where \"big enough\
+    \ to be worth a session?\" is a judgement made by the party with an interest in\
+    \ saying no. The Task Lifecycle section, which is written for the worker, now\
+    \ opens by saying it is not yours if your task has an open child. The vendor-neutral\
+    \ half \u2014 the protocol itself \u2014 is in `docs/agent-workflow.md`, since\
+    \ dispatch points every run at that guide and dispatch serves any project.\n\n\
+    **sc-2 \u2014 the bootstrap, demonstrated end to end.** This worktree was created\
+    \ fresh and bootstrapped with `python scripts/bootstrap.py`: **26 seconds**, which\
+    \ confirms rather than contradicts the ~30s figure already documented. It printed\
+    \ its own interpreter, and `scripts/check.py` run with that interpreter passes\
+    \ in full \u2014 Black, Ruff, MyPy, 2181 Python tests, the OpenAPI and client\
+    \ checks, Vitest, the production build, and 16 Playwright tests against a live\
+    \ server. That is the whole of sc-2: a fresh worktree, a documented command, a\
+    \ green gate, no hand-repair anywhere in between.\n\n**sc-3 \u2014 four states,\
+    \ all specified.** `docs/agent-workflow.md` carries the table (`ball: agent` \u2192\
+    \ wait; `ball: human` \u2192 act; closed with an outcome \u2192 verify and move\
+    \ on; ball still `agent` with the process gone \u2192 recover) and a paragraph\
+    \ each. *Finished* and *parked* were established by the 2026-08-19 run in entry\
+    \ 2 and are written up as they were learned, including that a parked child stops\
+    \ the loop rather than the loop stepping past it. *Died* and *parent idle* are\
+    \ specified in entry 7 above and written into the guide. The two rules that run\
+    \ above all four \u2014 watching is a mechanism, and the record is the signal\
+    \ \u2014 are stated in both files.\n\n**sc-4 \u2014 decided yes, and implemented.**\
+    \ Entry 7 has the reasoning. In code:\n- `SUPERVISOR_STUB` and `describe_children()`\
+    \ in `dispatch/runner.py`; `build_prompt()` chooses the stub from `open_child_ids()`.\n\
+    - `claim_task()` no longer refuses a task with open children; it writes `supervision_prompt()`\
+    \ naming them. `get_next_task()` is untouched, so an epic is still never *handed*\
+    \ to anyone.\n- The two surfaces that told the old story were corrected: the React\
+    \ `DependencyState` copy said the children \"must finish first\", and the legacy\
+    \ Jinja detail page said \"not claimable\".\n\n**Verification beyond the suite.**\
+    \ `build_prompt` was run against the real corpus, not a fixture: `task-160-dispatch-phase-two`\
+    \ (9 open children) renders the supervisor prompt with eight children named and\
+    \ \"and 1 more\"; `task-164` itself, a leaf, renders the unchanged worker prompt.\
+    \ The full argv dispatch would execute for the parent was rendered too, posture\
+    \ flags included. Twenty-one new tests cover the stub choice, the worktree inversion,\
+    \ the leaf regression (byte-equal to the old prompt), the id cap, the claim in\
+    \ the manager, over the API and through MCP, and a documentation-contract test\
+    \ that fails if the guide loses the parent protocol or any of the four states.\n\
+    \n**What sc-4 does not have, stated plainly: no live unattended run.** Nothing\
+    \ here has been shown by dispatching a real parent and watching children start.\
+    \ That is blocked rather than skipped \u2014 enabling any project for dispatch\
+    \ is an edit to `~/.agentjobs/dispatch.yaml`, which by gate 3 nothing but a human\
+    \ may make, and dispatching `task-160` for real would start an agent merging into\
+    \ `main` on nine children. The behaviour that composition produces is task-022's\
+    \ `ac-7`, and task-022 already declares `needs: task-164`.\n\n**Not done, deliberately:**\
+    \ no follow-up task filed for the ledger gap in entry 7 (agent-started children\
+    \ are invisible to the run ledger). It belongs to task-022 or to a decision, and\
+    \ the Parent Task Loop says not to file work for oneself mid-loop."
+  data:
+    operation:
+      id: b41f7c85-2a90-4d63-8e17-5f0c39b21642
+      kind: log_append
+      fingerprint: 7082b2e22479d48a63904660ad7ecf7e
+- id: 9
+  ts: '2026-08-21T04:20:43.401969Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: c9a06e73-51b8-4a2d-9f34-6b8712ed0164
+      kind: update_content
+      fingerprint: 2e5bd157bb40994245d672c69e09219f
+- id: 10
+  ts: '2026-08-21T04:21:04.762039Z'
+  actor: claude
+  type: handoff
+  body: 'Implemented and verified on `feat/task-164-supervisor-dispatch`; not merged,
+    not pushed. sc-1, sc-2 and sc-3 are met with the evidence recorded on each criterion.
+    sc-4 is decided and implemented but deliberately left pending: the live demonstration
+    it asks for needs a human to authorise the spend, and the composition it would
+    demonstrate is task-022''s.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: d5b83f21-7e40-4c98-a163-2f9074bc0164
+      kind: handoff
+      fingerprint: d971d2e91a4bf22a296b0abd3d55dd91
+- id: 11
+  ts: '2026-08-21T04:21:14.381537Z'
+  actor: claude
+  type: note
+  body: "Two figures in entry 8 were written from an earlier run and are wrong. The\
+    \ final gate, over the three committed commits: **2183 Python tests**, not 2181;\
+    \ 154 Vitest across 22 files; 16 Playwright. And **13 new tests**, not twenty-one\
+    \ \u2014 10 in `test_dispatch_runner.py` (3 for `describe_children`, 7 for the\
+    \ supervisor stub) and 3 in `test_manager.py`. The rest of the test churn is rewrites\
+    \ of assertions that asserted the old refusal: five in `test_subtasks.py`, one\
+    \ each in `test_mcp_mutation_tools.py`, `test_idempotency.py` and `TaskList.test.tsx`.\
+    \ Everything else in entry 8 stands."
+  re: 8
+  data:
+    operation:
+      id: e0c15a46-9b27-4d81-a5f2-73e806b41649
+      kind: log_append
+      fingerprint: f9043821f4cdaecf924d4915a1e35036
