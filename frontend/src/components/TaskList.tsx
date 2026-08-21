@@ -129,6 +129,15 @@ function filterValue(params: URLSearchParams, key: string, allowed: Set<string>,
   return allowed.has(candidate) ? candidate : fallback;
 }
 
+/**
+ * The paragraph above the table describing the reorder keys.
+ *
+ * Every handle points at it with `aria-describedby` rather than carrying the
+ * instructions in its own name. It is rendered exactly when reordering is available,
+ * which is also exactly when a handle exists, so the reference never dangles.
+ */
+const REORDER_HELP_ID = "queue-reorder-help";
+
 /** The reorder handle's own id, so focus can be put back on it after a step. */
 function gripId(taskId: string) {
   return `queue-grip-${taskId}`;
@@ -340,7 +349,7 @@ export function TaskList({
           </select>
         </div>
         {handlers ? (
-          <p className="mt-3 text-xs text-dark-muted">
+          <p id={REORDER_HELP_ID} className="mt-3 text-xs text-dark-muted">
             Rows are in queue order. Focus a task and press <kbd>Alt</kbd>+<kbd>↑</kbd> or{" "}
             <kbd>Alt</kbd>+<kbd>↓</kbd> to step it through its priority band, or{" "}
             <kbd>Alt</kbd>+<kbd>Home</kbd> and <kbd>Alt</kbd>+<kbd>End</kbd> for the ends.
@@ -431,7 +440,14 @@ export function TaskList({
                             }
                           }}
                           onDragEnd={() => setDragging(null)}
-                          aria-label={`Reorder ${row.task.id}, ${bandOf(row.task)} band, position ${row.task.queue_position}. Alt with the arrow keys moves it; Alt+Home and Alt+End send it to the ends.`}
+                          // The name says what this handle is and what it currently
+                          // holds. The keys are `aria-keyshortcuts`, which is what that
+                          // attribute is for -- a screen reader announces them as
+                          // shortcuts, and announces them once, rather than reading a
+                          // sentence of instructions on every row a person tabs through.
+                          aria-label={`Reorder ${row.task.id}, ${bandOf(row.task)} band, position ${row.task.queue_position}`}
+                          aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End"
+                          aria-describedby={REORDER_HELP_ID}
                           className="touch-target cursor-grab rounded px-1 text-dark-muted hover:bg-dark-border hover:text-dark-text"
                         >
                           <span aria-hidden="true">⠿</span>

@@ -13,7 +13,7 @@ import { expect, test, type APIRequestContext, type Page } from "@playwright/tes
  * gesture look like it worked; only a fresh page proves the server agreed.
  */
 
-async function seed(request: APIRequestContext, titles: Array<string>) {
+async function seed(request: APIRequestContext, titles: Array<string>, priority = "high") {
   const ids: Array<string> = [];
   for (const title of titles) {
     const response = await request.post("/api/tasks", {
@@ -21,7 +21,7 @@ async function seed(request: APIRequestContext, titles: Array<string>) {
         title,
         description: "Seeded for the queue-order path.",
         summary: `Queue fixture: ${title}.`,
-        priority: "high",
+        priority,
         lifecycle: "ready",
         actor: "E2E Human",
       },
@@ -123,3 +123,93 @@ test("shows the position it is about to change", async ({ page, request }) => {
 // asserts it passes alone and fails in the suite, which is exactly what it did. It is
 // covered instead by NextExplanation.test.tsx against the real endpoint's shape, and it
 // was exercised by hand in a browser against a seeded sandbox (task-207 log).
+
+/**
+ * Drag, driven by a real mouse rather than a synthesised `dragstart`.
+ *
+ * task-207 covered dragging with `fireEvent.dragStart` in jsdom and with nothing at all
+ * in Playwright. A synthetic `dragstart` proves the handler does the right arithmetic
+ * *once the browser has decided to start a drag*; it cannot prove the browser will start
+ * one, and "the browser never starts one" was the reported defect. So these two press,
+ * move and release the mouse and let Chromium decide, which is the only part the older
+ * tests could not reach.
+ *
+ * Read what they are and are not evidence for. Playwright drives Chromium's drag through
+ * `Input.setInterceptDrags`, so this is the browser's own drag controller deciding
+ * whether the handle is a drag source, but it is not the operating system's drag loop.
+ * These catch a regression in the element, the handlers, the client call and the route.
+ * They cannot stand in for a hand on a mouse -- see task-225.
+ */
+async function dragOnto(page: Page, sourceId: string, targetId: string) {
+  const grip = page.locator(`[id="queue-grip-${sourceId}"]`);
+  const target = page.locator(`[data-task="${targetId}"] [data-label="Status"]`);
+  // `page.mouse` takes viewport coordinates and scrolls nothing. Every spec in this
+  // directory shares one server and one project, so by the time this runs the list
+  // holds whatever earlier specs created and the rows this test seeded are below the
+  // fold -- the mouse would then press on whatever happens to be at those coordinates
+  // instead, and the test would report a broken drag. Both ends are scrolled into view
+  // first, and the boxes are read only after all the scrolling is done.
+  await target.scrollIntoViewIfNeeded();
+  await grip.scrollIntoViewIfNeeded();
+  const from = await grip.boundingBox();
+  const onto = await target.boundingBox();
+  if (!from || !onto) throw new Error(`No box for ${sourceId} -> ${targetId}.`);
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  // Two moves after the press, deliberately. Chromium starts a drag on the *second*
+  // move, so a single jump to the target releases the button before a drag ever begins
+  // and the test would report a broken feature that works.
+  await page.mouse.move(onto.x + onto.width / 2, onto.y + onto.height / 2, { steps: 15 });
+  await page.mouse.move(onto.x + onto.width / 2 + 3, onto.y + onto.height / 2 + 3, { steps: 5 });
+  await page.mouse.up();
+}
+
+test("drags one task onto another with a real mouse, and the server keeps the order", async ({
+  page,
+  request,
+}) => {
+  const seeded = await seed(request, ["Drag first", "Drag second", "Drag third"]);
+  const [first, second, third] = seeded;
+
+  await page.goto("/app/p/_local/tasks");
+  await expect.poll(() => order(page, seeded)).toEqual([first, second, third]);
+
+  await dragOnto(page, third, first);
+  await expect.poll(() => order(page, seeded)).toEqual([third, first, second]);
+
+  // The reload is the assertion, exactly as it is for the keyboard path above:
+  // everything before it would look identical if the move had only ever been optimistic.
+  await page.reload();
+  await expect.poll(() => order(page, seeded)).toEqual([third, first, second]);
+
+  const record = await (await request.get(`/api/tasks/${third}`)).json();
+  expect(
+    record.log.filter((entry: { type: string }) => entry.type === "queue_move"),
+  ).toHaveLength(1);
+});
+
+test("a cross-band drag asks before it reprioritises", async ({ page, request }) => {
+  const [high] = await seed(request, ["Drag out of high"], "high");
+  const [low] = await seed(request, ["Drag onto low"], "low");
+
+  await page.goto("/app/p/_local/tasks");
+  await expect.poll(() => order(page, [high, low])).toEqual([high, low]);
+
+  await dragOnto(page, high, low);
+
+  // Two decisions in one gesture, so the second is asked out loud. Nothing has been
+  // written yet at this point.
+  const confirm = page.getByRole("alertdialog", { name: "Confirm a priority change" });
+  await expect(confirm).toBeVisible();
+  await expect(confirm).toContainText(high);
+  expect((await (await request.get(`/api/tasks/${high}`)).json()).priority).toBe("high");
+
+  await confirm.getByRole("button", { name: "Move it to low" }).click();
+
+  // And it is a reprioritise, not a move: the band is what changed.
+  await expect
+    .poll(async () => (await (await request.get(`/api/tasks/${high}`)).json()).priority)
+    .toBe("low");
+  await page.reload();
+  await expect.poll(() => order(page, [high, low])).toEqual([high, low]);
+});
