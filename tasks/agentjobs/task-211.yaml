@@ -3,22 +3,52 @@ id: task-211
 title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
   reorder, and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T18:23:03.521320Z'
+updated: '2026-08-21T18:49:07.287379Z'
 lifecycle: active
-ball: agent
-ball_reason: revise
-ball_prompt: 'Looking good, my first hesitation is queue-check. Seems overly complicated
-  and hard to use as it is. What if we postpone the playbook idea for that, and use
-  a new immediate deterministic process for queue check, where it prompts you immediately
-  based on the existing "why" text, if possible.
-
-
-  I also want to say now I''ve been thinking of another lay on top of runner groups.
-  It would be Agent Type, and I would create one called Producer that would then get
-  configured to use default runner, and then these playbooks point to agent types,
-  not the runner groups. I think that is worth it, what do you think? I would then
-  have lead engineer, senior engineer, and junior engineer that map to big dawg, default,
-  and the one that uses sonnet'
+ball: human
+ball_reason: review
+ball_prompt: "Both questions from your review are answered, revision 2 is on the branch,\
+  \ and your phone link is updated in place: https://claude.ai/code/artifact/1588a618-c81b-4239-90a0-94a009c93d4a\n\
+  \n**1. queue-check \u2014 agreed, and it is a better design, not a smaller one.**\
+  \ \xA75.4 is rewritten. The check is synchronous now: the move lands, the response\
+  \ carries warnings computed from what the queue already knows. Five of them, all\
+  \ deterministic \u2014 the task you promoted cannot be claimed (this is `--why`\
+  \ pointed at one task), you ordered something above its own prerequisite, what you\
+  \ demoted gates other work, the move is a no-op, the band is corrupt. Your entry-6\
+  \ reasoning survives intact: it fires only on a fact, it names the demoted task,\
+  \ and it runs after the move. The 120s debounce existed only to amortise a model\
+  \ call, so it bought nothing but delay. What is lost is judgement about whether\
+  \ a move is *unwise* \u2014 that belongs to `reorder`, which sees the whole band.\
+  \ Withdrawing the lane also removed the design's only exception to run-is-a-task,\
+  \ its reserved actor, its spend ceiling and its fail-open branch. Reopen condition\
+  \ is stated. task-219 is retargeted: still a draft, no longer needs task-215, and\
+  \ can ship before any playbook exists.\n\n**2. agent types \u2014 yes, worth it,\
+  \ with two conditions, and I filed it as task-227 (draft) rather than absorbing\
+  \ it here.** \xA77.3 has the argument. The strongest point in its favour is that\
+  \ you already have one, hardcoded: `supervisor` changes the prompt stub and the\
+  \ permission allow-list and touches no runner. The conditions: (a) an agent type\
+  \ must carry more than a runner group or it is an alias table \u2014 your own examples\
+  \ prove it, since Producer and senior engineer both bind to default and would be\
+  \ indistinguishable; the payload worth carrying is the role brief, a permission\
+  \ profile, a default posture. (b) Keep role and cost on separate axes. **This is\
+  \ where I would push back on lead/senior/junior as described** \u2014 mapped onto\
+  \ big-dawg/default/sonnet they are `difficulty` with job titles, and writing a spend\
+  \ decision into a repo file is the thing \xA76.3 exists to prevent. The test: if\
+  \ the three tiers differ in what they may *do* and how their work is reviewed, they\
+  \ are agent types; if they differ only in which model runs, they are difficulty\
+  \ wearing titles. I suspect you mean the first, in which case say so in the definitions\
+  \ rather than implying it through a runner choice. task-227 also raises an alternative\
+  \ worth your eye before anyone builds: the `actors:` vocabulary may already be the\
+  \ right home \u2014 it is per-project, git-tracked, and already says \"Claude (Lead\
+  \ Engineer)\".\n\nP6 is reworded so a playbook declares *what kind of agent should\
+  \ run it* rather than a named field, which lets task-227 settle either way without\
+  \ reopening this design.\n\n**What you are approving:** revision 2 of the doc, commit\
+  \ 625ee2a on `docs/task-211-playbooks-design` (docs-only diff), plus the retargeting\
+  \ of task-219 and the filing of task-227. Everything else from the first review\
+  \ stands unchanged. Full gate green on the rebased branch \u2014 2448 pytest, 195\
+  \ vitest, 21 Playwright, all ten stages.\n\nOn approval I rebase, merge --no-ff,\
+  \ close this, and remove the worktree. The children stay drafts until you promote\
+  \ them, per the design's own rule."
 archived: false
 priority: high
 queue_position: 10500
@@ -997,3 +1027,96 @@ log:
       id: 3f1c9a20-7b44-4e19-9d31-5c0a1e7b2204
       kind: log_append
       fingerprint: a0184d2abe5e17fffc7288695d7a92ea
+- id: 27
+  ts: '2026-08-21T18:48:46.966496Z'
+  actor: claude
+  type: progress
+  body: "Revision 2 committed and verified (run_5e030d6e). Branch `docs/task-211-playbooks-design`,\
+    \ commit **625ee2a**, rebased onto main (4fc67a2). Diff is `docs/playbooks-design.md`\
+    \ and nothing else.\n\n**Verification: full gate green on the rebased branch**\
+    \ \u2014 2448 pytest, 195 vitest across 25 files, 21 Playwright, all ten stages,\
+    \ 505.8s, exit 0. Log at `$CLAUDE_JOB_DIR/tmp/gate3.log`.\n\nThat took three gate\
+    \ runs for a markdown-only change, and only the last failure was in the work itself:\n\
+    \n1. First run: one failure, `test_agentjobs_context_paths_exist` \u2014 task-189's\
+    \ context pointer naming `frontend/scripts/check-generated-client.mjs`, which\
+    \ exists on `main` and not on a branch cut before task-189 merged. **Rebase a\
+    \ design branch before running the gate on it**; the corpus test resolves task\
+    \ records from `main` against the *checked-out* tree, so a stale branch fails\
+    \ on records that are perfectly fine.\n2. Second run: three failures, all mine\
+    \ \u2014 `task-219` and `task-227` named `task-081` and `task-156` by bare number,\
+    \ but both files carry a slug (`task-081-task-selection-ranking`, `task-156-task-difficulty-field`).\
+    \ Fixed in 4fc67a2.\n3. Third run: green, above.\n\n**The phone page is republished\
+    \ to the same URL**, so the existing link is revision 2:\n**https://claude.ai/code/artifact/1588a618-c81b-4239-90a0-94a009c93d4a**\
+    \ \u2014 masthead now reads `Revision 2, awaiting your review`, commit 625ee2a,\
+    \ and the doc's own header carries a Revision-2 note naming the two changed decisions.\n\
+    \n**One real page defect found while previewing, and fixed in the shared tool**\
+    \ (`C:/ai/shared/doc-artifacts/publish_doc.py`): the page scrolled sideways at\
+    \ a phone-width viewport. `article` is a grid item, and a grid item's automatic\
+    \ minimum is its min-content width \u2014 so a wide table or code block pushed\
+    \ the whole column past the viewport even though each already had its own scroll\
+    \ container. `article{min-width:0}` fixes it; verified that page-level `scrollWidth\
+    \ === clientWidth` afterwards *and* that all 3 table wrappers and all 4 `<pre>`\
+    \ blocks still scroll internally, so the symptom is not fixed by hiding content.\
+    \ This was present in the first published page too. Recorded as gotcha 5 in that\
+    \ guide with the two one-line checks.\n\nVerified by reading computed styles and\
+    \ geometry in a real browser rather than by a gesture; nothing here depended on\
+    \ an automated click (the task-225 rule)."
+  data:
+    operation:
+      id: 3f1c9a20-7b44-4e19-9d31-5c0a1e7b2208
+      kind: log_append
+      fingerprint: 4f1a417a2c400773eb7022c5fb35217e
+- id: 28
+  ts: '2026-08-21T18:49:07.287099Z'
+  actor: claude
+  type: handoff
+  body: "Both questions from your review are answered, revision 2 is on the branch,\
+    \ and your phone link is updated in place: https://claude.ai/code/artifact/1588a618-c81b-4239-90a0-94a009c93d4a\n\
+    \n**1. queue-check \u2014 agreed, and it is a better design, not a smaller one.**\
+    \ \xA75.4 is rewritten. The check is synchronous now: the move lands, the response\
+    \ carries warnings computed from what the queue already knows. Five of them, all\
+    \ deterministic \u2014 the task you promoted cannot be claimed (this is `--why`\
+    \ pointed at one task), you ordered something above its own prerequisite, what\
+    \ you demoted gates other work, the move is a no-op, the band is corrupt. Your\
+    \ entry-6 reasoning survives intact: it fires only on a fact, it names the demoted\
+    \ task, and it runs after the move. The 120s debounce existed only to amortise\
+    \ a model call, so it bought nothing but delay. What is lost is judgement about\
+    \ whether a move is *unwise* \u2014 that belongs to `reorder`, which sees the\
+    \ whole band. Withdrawing the lane also removed the design's only exception to\
+    \ run-is-a-task, its reserved actor, its spend ceiling and its fail-open branch.\
+    \ Reopen condition is stated. task-219 is retargeted: still a draft, no longer\
+    \ needs task-215, and can ship before any playbook exists.\n\n**2. agent types\
+    \ \u2014 yes, worth it, with two conditions, and I filed it as task-227 (draft)\
+    \ rather than absorbing it here.** \xA77.3 has the argument. The strongest point\
+    \ in its favour is that you already have one, hardcoded: `supervisor` changes\
+    \ the prompt stub and the permission allow-list and touches no runner. The conditions:\
+    \ (a) an agent type must carry more than a runner group or it is an alias table\
+    \ \u2014 your own examples prove it, since Producer and senior engineer both bind\
+    \ to default and would be indistinguishable; the payload worth carrying is the\
+    \ role brief, a permission profile, a default posture. (b) Keep role and cost\
+    \ on separate axes. **This is where I would push back on lead/senior/junior as\
+    \ described** \u2014 mapped onto big-dawg/default/sonnet they are `difficulty`\
+    \ with job titles, and writing a spend decision into a repo file is the thing\
+    \ \xA76.3 exists to prevent. The test: if the three tiers differ in what they\
+    \ may *do* and how their work is reviewed, they are agent types; if they differ\
+    \ only in which model runs, they are difficulty wearing titles. I suspect you\
+    \ mean the first, in which case say so in the definitions rather than implying\
+    \ it through a runner choice. task-227 also raises an alternative worth your eye\
+    \ before anyone builds: the `actors:` vocabulary may already be the right home\
+    \ \u2014 it is per-project, git-tracked, and already says \"Claude (Lead Engineer)\"\
+    .\n\nP6 is reworded so a playbook declares *what kind of agent should run it*\
+    \ rather than a named field, which lets task-227 settle either way without reopening\
+    \ this design.\n\n**What you are approving:** revision 2 of the doc, commit 625ee2a\
+    \ on `docs/task-211-playbooks-design` (docs-only diff), plus the retargeting of\
+    \ task-219 and the filing of task-227. Everything else from the first review stands\
+    \ unchanged. Full gate green on the rebased branch \u2014 2448 pytest, 195 vitest,\
+    \ 21 Playwright, all ten stages.\n\nOn approval I rebase, merge --no-ff, close\
+    \ this, and remove the worktree. The children stay drafts until you promote them,\
+    \ per the design's own rule."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 3f1c9a20-7b44-4e19-9d31-5c0a1e7b2209
+      kind: handoff
+      fingerprint: 3788d5ce213ab82eed38bc08cf10bae7
