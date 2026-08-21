@@ -1780,7 +1780,9 @@ ball model was introduced to make unrepresentable.
     which is where §5 always got it. But `failed` and `crashed` have **no representation
     at all**: a session that errors internally still reports `idle`/`done`. Batch mode
     gets both free from the process exit. This is the price of session mode, and it is
-    why batch was retained rather than deleted.
+    why batch was retained rather than deleted. One error is now named anyway — an
+    expired login, read from the session transcript rather than the ledger, because the
+    ledger cannot carry it. See below.
 
 Every forced ball move is logged with the dispatcher as actor, not the agent. This
 requires a reserved `dispatcher` actor id, since `validate_actor` checks against the
@@ -1796,6 +1798,58 @@ answers from any device, and the session resumes.
 
 It follows that a parked run is never escalated by a timeout — see §4. A timeout is not
 a human act, and §2 requires that every grant of autonomy trace to one.
+
+### An expired login is the one session failure the ledger cannot see
+
+A parked session is alive and waiting. An **expired login is the opposite**, and that
+difference is why it went unnoticed for two days.
+
+Claude Code does not refresh its own credential per session: a shared background daemon
+owns the OAuth refresh for every `--bg` worker. On 2026-08-21 that refresh failed four
+times over three minutes, after which the daemon discarded a token its own log line calls
+`(token still valid)`, forty seconds before it would have expired anyway. Every
+dispatched session on the machine died mid-turn. The desktop app, same account and same
+machine, was unaffected throughout. task-224 has the timeline.
+
+What a dying session does is **end the turn**: it emits one synthetic assistant message
+saying `Login expired · Please run /login` and goes idle with nothing pending. So
+`claude agents --json` reports `idle`/`done` — byte-identical to a session that finished
+its work — and §9's `finished` path settles it. `run_a1e35ca5` is in the ledger as
+`outcome: completed` after losing six minutes to a dead credential and needing a human to
+notice and re-authenticate.
+
+`dispatch.auth` closes that gap, and its scope is deliberately one thing: **make the
+failure legible in the tracker**. The expiry itself is Claude Code's and the account's,
+not AgentJobs'.
+
+- **The signal is the session's own JSONL transcript**, where the failing turn carries a
+  top-level `"error": "authentication_failed"`. Across every session log on this machine
+  that field had three occurrences and all three were genuine. It is parsed as JSON and
+  matched on the field, never grepped as a substring — any session that reads *about*
+  this bug has the string in its own transcript.
+- **A poll that finds one parks the run and hands the ball to `human`/`input`**, with a
+  `ball_prompt` naming the only thing that fixes it: `claude auth login`, in a terminal,
+  on that machine. Answering inside the session cannot work; the credential is already
+  gone, so a message sent to a stalled session is retried against nothing and fails in
+  milliseconds. Verified, 2026-08-21.
+- **Parked, not finished, and not reaped.** Recovery is in place: after a re-auth the
+  already-running session picks up where it stopped, with no restart and no re-dispatch.
+  Reaping would destroy that and turn six lost minutes into a lost night. Holding the run
+  lock is correct for the same reason — a fresh dispatch at the same task would die
+  exactly as this one did.
+- **It clears itself.** The dead line stays in the transcript forever; what makes it
+  history is a real model reply underneath it. After that the run settles through the
+  ordinary `finished` path.
+
+Three things were considered and rejected, and are named here so they are not
+re-proposed. A **token refresher or `ANTHROPIC_API_KEY` fallback** puts AgentJobs in the
+credential business, which is task-066's territory, and `claude setup-token` strips the
+claude.ai connectors this project's own MCP server runs on. A **retry loop** is verified
+useless: the retry fails in nine milliseconds and burns the run's turns for nothing.
+Reading **`~/.claude/daemon.log` or `daemon-auth-status.json` as a live gate** relies on
+undocumented internals, and the status file is a latch nobody clears — it still read
+`auth_required` three hours after a successful re-auth while six workers ran fine on the
+new token.
 
 ### Restart, reconciliation, and the rule that reversed
 

@@ -11,6 +11,7 @@ from typing import List, Optional
 import typer
 import yaml
 
+from .dispatch.auth import read_auth_stall
 from .dispatch.address import (
     configured_api_base,
     probe_api_base,
@@ -1104,6 +1105,56 @@ def dispatch_status(
             f"{record.run_id:14} {record.task_id[:34]:34} {record.mode:8} "
             f"{state[:10]:10} {shown:>9}  {record.session_id or '-'}"
         )
+
+
+@dispatch_app.command("auth-check")
+def dispatch_auth_check(
+    session_id: Optional[str] = typer.Argument(
+        None, help="One session id. Omit to check every live session run."
+    ),
+) -> None:
+    """Say whether a session died on an expired login. Exits 1 when one has.
+
+    The state this answers for is invisible everywhere else: a session killed by an
+    expired credential ends its turn and reports `idle`/`done`, exactly like one that
+    finished its work (task-224). The dispatch poller checks this by itself for runs it
+    started -- this command is for the children an agent supervisor starts, which are
+    that supervisor's own subprocesses and appear in no ledger.
+
+    The exit code is the point. A supervisor's watch loop can branch on it without
+    parsing anything, and the branch matters: an auth-stalled child looks exactly like a
+    child that died, and restarting it is the one response guaranteed not to work.
+    """
+    if session_id:
+        checked = [(session_id, read_auth_stall(session_id))]
+    else:
+        checked = [
+            (record.session_id, read_auth_stall(record.session_id, since=record.started_at))
+            for record in live_runs(default_home())
+            if record.is_session and record.session_id
+        ]
+
+    if not checked:
+        typer.echo("No live session runs to check.")
+        return
+
+    stalled = [(name, stall) for name, stall in checked if stall is not None]
+    for name, stall in checked:
+        if stall is None:
+            typer.echo(f"✅ {name}: no expired login in its transcript.")
+        else:
+            typer.secho(
+                f"⛔ {name}: stopped on an expired login at {stall.at.isoformat()}.",
+                fg=typer.colors.RED,
+            )
+            typer.echo(f"   {stall.log_path}")
+    if stalled:
+        typer.secho(
+            "Run `claude auth login` in a terminal on this machine, then send each "
+            "stalled session a message to wake it. It resumes in place.",
+            fg=typer.colors.YELLOW,
+        )
+        raise typer.Exit(code=1)
 
 
 @dispatch_app.command("cancel")

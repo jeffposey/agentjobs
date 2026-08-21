@@ -16,12 +16,14 @@ import asyncio
 import json
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List
 
 import pytest
 import yaml
 
+from agentjobs.dispatch.auth import CLAUDE_HOME_ENV
 from agentjobs.dispatch.ledger import acquire_run_lock
 from agentjobs.dispatch.poller import (
     SESSION_POLL_SECONDS,
@@ -34,7 +36,20 @@ from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType
 from agentjobs.projects import ProjectRegistry
 from agentjobs.storage import TaskStorage
 
+from test_dispatch_auth import (
+    auth_failure_line,
+    real_reply_line,
+    write_transcript,
+)
 from test_dispatch_runner import FAKE_CLI, write_script
+
+FAKE_FULL_SESSION = "b55b35ad-0000-4000-8000-000000000001"
+"""The fake CLI's short id, extended to the UUID Claude Code names a transcript for."""
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
 
 # ----- a machine with dispatch configured -------------------------------------
 
@@ -342,6 +357,171 @@ class TestTranscriptCapture:
         assert json.loads((fake_cli.parent / "ledger.json").read_text()) == [], "not reaped"
         captured = (home / "runs" / run_id / TRANSCRIPT_FILENAME).read_text(encoding="utf-8")
         assert "poetry run alembic upgrade head" in captured
+
+
+# ----- a dead credential ------------------------------------------------------
+
+
+class TestASessionKilledByAnExpiredLogin:
+    """task-224: the failure the ledger cannot see, and the poller now can.
+
+    Claude Code's background auth daemon owns the OAuth refresh for every ``--bg``
+    worker. When that refresh fails the daemon discards the credential and every
+    dispatched session dies mid-turn -- and reports ``idle``/``done`` while doing it,
+    which is byte-identical to a session that finished its work. On 2026-08-21 that put
+    ``outcome: completed`` on a run that had died and needed a human to rescue it.
+
+    The signal lives in the session's own JSONL, so these tests write one.
+    """
+
+    def _claude_home(self, tmp_path: Path, monkeypatch, lines: List[dict]) -> Path:
+        """A Claude home holding one session transcript, found the way the runner finds it."""
+        home = tmp_path / "claude"
+        write_transcript(home, lines, session=FAKE_FULL_SESSION)
+        monkeypatch.setenv(CLAUDE_HOME_ENV, str(home))
+        return home
+
+    def _dead(self, offset: int = 1) -> dict:
+        return auth_failure_line(at=_now() + timedelta(seconds=offset), session=FAKE_FULL_SESSION)
+
+    def test_the_poller_hands_the_ball_back_with_the_command_that_fixes_it(
+        self, machine, tmp_path: Path, monkeypatch
+    ) -> None:
+        home, _, manager, fake_cli = machine
+        run_id = _start_session(machine)
+        task_id = _run_meta(home, run_id)["task_id"]
+        self._claude_home(tmp_path, monkeypatch, [self._dead()])
+        _set_ledger(fake_cli, [{"id": "b55b35ad", "status": "idle", "state": "done"}])
+
+        assert _results(home, run_id).phase is SessionPhase.AUTH_STALLED
+
+        after = manager.get_task(task_id)
+        assert after is not None
+        assert after.ball is Ball.HUMAN
+        assert after.ball_reason is BallReason.INPUT
+        assert after.ball_prompt is not None
+        assert "claude auth login" in after.ball_prompt, "the one instruction that works"
+        assert "expired login" in after.ball_prompt
+
+    def test_the_run_is_parked_rather_than_recorded_as_a_success(
+        self, machine, tmp_path: Path, monkeypatch
+    ) -> None:
+        """The whole defect. `idle`/`done` plus a ball that moved earlier reads as a
+        clean finish, and run_a1e35ca5 is in the real ledger as `completed` for exactly
+        that reason -- after dying and being rescued by hand."""
+        home, _, manager, fake_cli = machine
+        run_id = _start_session(machine)
+        task_id = _run_meta(home, run_id)["task_id"]
+        manager.handoff(
+            task_id,
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Some earlier handoff, before auth died.",
+        )
+        self._claude_home(tmp_path, monkeypatch, [self._dead()])
+        _set_ledger(fake_cli, [{"id": "b55b35ad", "status": "idle", "state": "done"}])
+
+        _results(home, run_id)
+
+        meta = _run_meta(home, run_id)
+        assert meta["status"] == "parked", "a dead run must not be settled as finished"
+        assert "auth_stalled_at" in meta
+        after = manager.get_task(task_id)
+        assert after is not None
+        assert not [
+            entry for entry in after.log if entry.type is LogEntryType.DISPATCH_RESULT
+        ], "no terminal entry: the run is recoverable in place"
+
+    def test_the_session_is_not_reaped_because_it_recovers_in_place(
+        self, machine, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Verified on 2026-08-21: after a re-auth the running session picked up where it
+        stopped, with no restart. Reaping would turn six lost minutes into a lost night."""
+        home, _, _, fake_cli = machine
+        run_id = _start_session(machine)
+        self._claude_home(tmp_path, monkeypatch, [self._dead()])
+        _set_ledger(fake_cli, [{"id": "b55b35ad", "status": "idle", "state": "done"}])
+
+        _results(home, run_id)
+
+        assert json.loads((fake_cli.parent / "ledger.json").read_text()), "reaped anyway"
+
+    def test_polling_again_does_not_hand_off_twice(
+        self, machine, tmp_path: Path, monkeypatch
+    ) -> None:
+        home, _, manager, fake_cli = machine
+        run_id = _start_session(machine)
+        task_id = _run_meta(home, run_id)["task_id"]
+        self._claude_home(tmp_path, monkeypatch, [self._dead()])
+        _set_ledger(fake_cli, [{"id": "b55b35ad", "status": "idle", "state": "done"}])
+
+        _results(home, run_id)
+        _results(home, run_id)
+
+        after = manager.get_task(task_id)
+        assert after is not None
+        handoffs = [
+            entry
+            for entry in after.log
+            if entry.type is LogEntryType.HANDOFF and entry.actor == "dispatcher"
+        ]
+        assert len(handoffs) == 1, f"repeated itself: {handoffs}"
+
+    def test_a_session_that_was_re_authenticated_settles_normally(
+        self, machine, tmp_path: Path, monkeypatch
+    ) -> None:
+        """The dead line stays in the transcript forever. What clears it is a real reply
+        underneath it, and after that this run is an ordinary finished run again."""
+        home, _, manager, fake_cli = machine
+        run_id = _start_session(machine)
+        task_id = _run_meta(home, run_id)["task_id"]
+        manager.handoff(
+            task_id,
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Please look at this.",
+        )
+        self._claude_home(
+            tmp_path,
+            monkeypatch,
+            [
+                self._dead(),
+                real_reply_line(at=_now() + timedelta(minutes=2), session=FAKE_FULL_SESSION),
+            ],
+        )
+        _set_ledger(fake_cli, [{"id": "b55b35ad", "status": "idle", "state": "done"}])
+
+        assert _results(home, run_id).phase is SessionPhase.FINISHED
+        assert _run_meta(home, run_id)["status"] == "finished"
+
+    def test_a_run_whose_transcript_predates_it_is_left_alone(
+        self, machine, tmp_path: Path, monkeypatch
+    ) -> None:
+        """A session id can be resumed, so a failure from before this run started says
+        nothing about this run."""
+        home, _, _, fake_cli = machine
+        run_id = _start_session(machine)
+        self._claude_home(
+            tmp_path,
+            monkeypatch,
+            [auth_failure_line(at=_now() - timedelta(hours=1), session=FAKE_FULL_SESSION)],
+        )
+        _set_ledger(fake_cli, [{"id": "b55b35ad", "status": "busy", "state": "working"}])
+
+        assert _results(home, run_id).phase is SessionPhase.RUNNING
+
+    def test_a_runner_with_no_claude_transcript_polls_exactly_as_before(
+        self, machine, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Every non-Claude runner takes this path, and it must cost them nothing."""
+        home, _, _, fake_cli = machine
+        run_id = _start_session(machine)
+        monkeypatch.setenv(CLAUDE_HOME_ENV, str(tmp_path / "empty"))
+        _set_ledger(fake_cli, [{"id": "b55b35ad", "status": "waiting", "state": "blocked"}])
+
+        assert _results(home, run_id).phase is SessionPhase.PARKED
 
 
 # ----- the loop ---------------------------------------------------------------

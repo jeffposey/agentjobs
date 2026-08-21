@@ -9,6 +9,7 @@ the reachable execution surface exactly as wide as that hand-written file says.
 from __future__ import annotations
 
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,7 @@ from typer.testing import CliRunner
 
 from agentjobs.cli import app
 from agentjobs.dispatch.address import DEFAULT_API_BASE, ApiBaseProbe
+from agentjobs.dispatch.auth import CLAUDE_HOME_ENV
 from agentjobs.dispatch.config import (
     CONFIG_FILENAME,
     SENTINEL_FILENAME,
@@ -27,9 +29,22 @@ from agentjobs.dispatch.config import (
 from agentjobs.dispatch.scaffold import EXAMPLE_CONFIG
 from agentjobs.projects import ProjectRegistry
 
+from test_dispatch_auth import (
+    SESSION,
+    auth_failure_line,
+    real_reply_line,
+    write_transcript,
+)
 from test_dispatch_config import home, write_config, write_grouped_config
 
 runner = CliRunner()
+
+
+def _later():
+    """Two minutes after the fixture failure -- long enough to be a recovery."""
+    from test_dispatch_auth import WHEN
+
+    return WHEN + timedelta(minutes=2)
 
 
 class TestDispatchCli:
@@ -222,6 +237,63 @@ class TestDispatchRun:
                 ball_prompt="Review please.",
             )
         return task.id
+
+
+class TestAuthCheckCommand:
+    """The supervisor-facing half of task-224.
+
+    A supervisor's children are its own subprocesses and appear in no ledger, so the
+    dispatch poller cannot see them. This command is how such a supervisor tells "the
+    child died" -- where one restart is right -- from "everything on this machine is
+    logged out" -- where a restart is guaranteed to die the same way.
+    """
+
+    def _claude_home(self, tmp_path: Path, monkeypatch, lines: list) -> None:
+        claude = tmp_path / "claude"
+        write_transcript(claude, lines)
+        monkeypatch.setenv(CLAUDE_HOME_ENV, str(claude))
+
+    def test_a_stalled_session_exits_one_and_names_the_command_that_fixes_it(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        self._claude_home(tmp_path, monkeypatch, [auth_failure_line()])
+
+        result = runner.invoke(app, ["dispatch", "auth-check", SESSION])
+
+        assert result.exit_code == 1, result.output
+        assert "expired login" in result.output
+        assert "claude auth login" in result.output
+
+    def test_a_healthy_session_exits_zero(self, tmp_path: Path, monkeypatch) -> None:
+        self._claude_home(
+            tmp_path,
+            monkeypatch,
+            [
+                auth_failure_line(),
+                real_reply_line(at=_later()),
+            ],
+        )
+
+        result = runner.invoke(app, ["dispatch", "auth-check", SESSION])
+
+        assert result.exit_code == 0, result.output
+        assert "no expired login" in result.output
+
+    def test_a_session_nobody_has_a_transcript_for_is_not_an_error(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Every non-Claude runner lands here, and a missing transcript proves nothing."""
+        monkeypatch.setenv(CLAUDE_HOME_ENV, str(tmp_path / "empty"))
+
+        result = runner.invoke(app, ["dispatch", "auth-check", "deadbeef"])
+
+        assert result.exit_code == 0, result.output
+
+    def test_with_no_argument_it_says_so_when_no_session_run_is_live(self) -> None:
+        result = runner.invoke(app, ["dispatch", "auth-check"])
+
+        assert result.exit_code == 0, result.output
+        assert "No live session runs" in result.output
 
 
 class TestDispatchReapCommand:
