@@ -2,7 +2,7 @@ schema: 2
 id: task-220
 title: An epic supervisor parks where ordinary dispatched runs do not
 created: '2026-08-21T05:35:56.284351Z'
-updated: '2026-08-21T06:28:56.417696Z'
+updated: '2026-08-21T07:38:42.773733Z'
 lifecycle: active
 ball: human
 ball_reason: decision
@@ -47,8 +47,11 @@ spec:
     second.** This task was framed three different ways in ninety minutes on 2026-08-21
     -- MCP permissions, then the permission mode, then the supervisor role -- each
     from whatever symptom was on screen at the time. Entry 4 is the current understanding
-    and it withdrew most of entry 3. The spec below has been rewritten to match; treat
-    the earlier framings as history, not instruction.
+    and it withdrew most of entry 3. Treat the earlier framings as history, not instruction.
+
+
+    **Entry 11 (Fable, big-dawg) answered ac-1 and the diagnosis is settled.** What
+    follows is kept for context; the live findings are in entries 11 and 12.
 
 
     ## What is actually known
@@ -71,40 +74,28 @@ spec:
     Out of scope here.
 
     - `run_d5ab5caf` (task-081) parked after 316s supervising an epic, on the three-consecutive-blocks
-    circuit breaker, with an MCP `task_log_append` against task-204 shown as the last
-    blocked action. Its transcript is at `C:/Users/jpose/.agentjobs/runs/run_d5ab5caf/transcript.log`
-    and the verbatim tail is on task-081 log entry 23.
+    circuit breaker. Entry 11 has all three blocked actions, extracted from the session''s
+    own JSONL transcript under `~/.claude/projects/`. **The terminal capture in the
+    run directory is not the evidence** -- it holds only the final parked screen redrawn
+    about fifty times. That dead end cost this task two of its three wrong framings.
 
 
-    ## The question to answer first
+    ## The answer (entry 11)
 
 
-    **What did the supervisor do that ordinary runs do not?** The obvious hypothesis,
-    unproven: its job is to launch child agent sessions, and spawning an AI agent
-    subprocess is exactly the kind of unusual action a classifier declines. Ordinary
-    runs never do it.
+    The supervisor parked **before it ever launched a child**; no spawn command appears
+    in the session at all. Two of the three blocks were the same `task_log_append`:
+    the supervisor writing a child''s brief, whose content said the child could merge
+    to `main` without human review. A content classifier declines that, correctly,
+    because the authorisation it rests on lives on the parent''s task record where
+    the classifier cannot see it. The supervisor then reworded and retried, turning
+    one decline into a streak.
 
 
-    The breaker fires on *three consecutive* blocks and only the third is displayed.
-    **The first two are the evidence and nobody has read them yet.** The transcript
-    is a raw terminal capture with ANSI escapes, which is why an earlier attempt to
-    mine it gave up; it is still the primary source and worth parsing properly.
-
-
-    Do not write code before this is answered. Three fixes have already been proposed
-    and withdrawn for skipping it.
-
-
-    ## Constraints on whatever the fix turns out to be
-
-
-    The supervisor needs its specific capability without widening what every other
-    dispatched run may do. Candidate shapes, none prescribed: a targeted allow rule
-    for the spawn command; a distinct posture used only for umbrella tasks; or changing
-    *how* children are launched so the unusual act stops being unusual -- note that
-    task-164 log entry 7 records that a supervisor cannot use dispatch for its children
-    (D4 requires a human-authored entry) and so shells out directly, which may be
-    the whole cause.
+    Also established: a single classifier block does **not** park a `--bg` run --
+    it is deny-and-continue. Parking needs three consecutive blocks plus one further
+    call. So the fix is not "how does a decline get answered" but "how does the streak
+    never form".
 
 
     ## Verification
@@ -114,13 +105,9 @@ spec:
     starting `task-204` in its own session, with no prompt and no park. That is also
     the first live exercise of task-164''s supervisor path, which has never run end
     to end.'
-  constraints: '- Diagnose before fixing. Establish what was actually blocked from
-    run_d5ab5caf''s transcript -- all three blocked actions, not just the displayed
-    one.
-
-    - Do not switch dispatch to `dontAsk` (withdrawn in log entry 4). It converts
-    every allow-list omission from a pause into a silent failure, and six of eight
-    runs currently succeed under `auto`.
+  constraints: '- Do not switch dispatch to `dontAsk` (withdrawn in log entry 4).
+    It converts every allow-list omission from a pause into a silent failure, and
+    six of eight runs currently succeed under `auto`.
 
     - Do not widen `ALLOW_PREFIXES` globally on this task''s authority. Nothing in
     the evidence shows ordinary runs need it. Any widening is Jeff''s call -- task-076
@@ -129,25 +116,31 @@ spec:
     - Do not use `bypassPermissions`: rejected by task-076, and the docs say it shows
     a confirmation dialog anyway, so it is not headless either.
 
-    - Whatever is granted to the supervisor must not be granted to every run.'
+    - Whatever is granted to the supervisor must not be granted to every run.
+
+    - Do not reword and retry a refused call. That is what turned one decline into
+    the streak that parked run_d5ab5caf, and it now has a rule of its own in docs/agent-workflow.md.'
   out_of_scope: The task-202 cross-repo park (different cause, arguably correct behaviour).
     The `EnterWorktree` escalation (task-192, closed). Whether agent-started children
     belong in the run ledger (task-164 log entry 7). Widening the Bash/PowerShell
     prefix list for ordinary runs (task-076).
   context:
-  - path: C:/Users/jpose/.agentjobs/runs/run_d5ab5caf/transcript.log
-    why: The primary evidence. Raw terminal capture with ANSI escapes; the two blocked
-      actions before the displayed one have not been read by anyone.
-  - path: tasks/agentjobs/task-081-task-selection-ranking.yaml
-    why: Log entry 23 has the verbatim park tail. Entry 20's ball_prompt is the supervisor
-      brief the run was working from.
   - path: src/agentjobs/dispatch/runner.py
-    why: posture_flags() at 375 chooses the mode; allow_rules() at 246 and ALLOW_PREFIXES
-      at 235 define what is pre-approved; SUPERVISOR_STUB at 151 is what a supervisor
+    why: settings_json() and posture_flags() carry the supervisor grant; allow_rules()
+      and ALLOW_PREFIXES define what is pre-approved; SUPERVISOR_STUB is what a supervisor
       is told to do.
+  - path: tasks/agentjobs/task-081-task-selection-ranking.yaml
+    why: Log entry 23 has the verbatim park tail; entry 20's ball_prompt is the supervisor
+      brief whose merge-posture wording the classifier declined. The run's own JSONL
+      transcript, named in entry 11, lives outside the repository and so cannot be
+      listed here.
   - path: tasks/agentjobs/task-164-epic-orchestration-rule.yaml
-    why: Log entry 7 records that a supervisor shells out to launch children rather
-      than dispatching them, and why. That mechanism is the leading suspect.
+    why: 'Log entry 7 records that a supervisor shells out to launch children rather
+      than dispatching them. Investigated and cleared as a cause: run_d5ab5caf never
+      reached a spawn.'
+  - path: docs/agent-workflow.md
+    why: The parent protocol, which now carries the deny-and-continue rule and the
+      do-not-reword-a-refusal rule this task established.
 acceptance:
 - id: ac-1
   text: The actual blocked actions from run_d5ab5caf are extracted from its transcript
@@ -762,3 +755,15 @@ log:
     outcome: completed
     duration_seconds: 712.286639
     log_path: C:\Users\jpose\.agentjobs\runs\run_86e4afff
+- id: 16
+  ts: '2026-08-21T07:38:42.773510Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: e5a81c02-7b36-4d49-c8f0-2094dab50220
+      kind: update_content
+      fingerprint: 2abb2e1f47e8848f596908e22b11240f
