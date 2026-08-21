@@ -3,7 +3,7 @@ id: task-220
 title: A dispatched run parks on every MCP tool it uses, so no unattended run can
   finish
 created: '2026-08-21T05:35:56.284351Z'
-updated: '2026-08-21T05:41:13.835568Z'
+updated: '2026-08-21T05:55:39.897702Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -151,3 +151,88 @@ log:
       id: c4e18f26-7a35-4d91-b208-3f95a7c60220
       kind: update_content
       fingerprint: bd47845a2c557bf68b17eb6c699e4f7a
+- id: 3
+  ts: '2026-08-21T05:55:39.897577Z'
+  actor: claude
+  type: decision
+  body: '**The root cause is the permission mode, not the allow-list. This task''s
+    original framing treated a symptom.**
+
+
+    Established 2026-08-21 from Claude Code''s own `--help` and the published permission-mode
+    docs, after run_d5ab5caf parked.
+
+
+    `claude --help` lists six permission modes: `acceptEdits`, `auto`, `bypassPermissions`,
+    `manual`, **`dontAsk`**, `plan`. `grep dontAsk src/agentjobs/dispatch/runner.py`
+    returns nothing -- AgentJobs has never emitted it. `posture_flags()` (runner.py:377-380)
+    chooses only between `bypassPermissions`, `auto` and `acceptEdits`, and task-076''s
+    design reasoned carefully about exactly those three. A fourth mode, built for
+    precisely this case, was never in the comparison.
+
+
+    **What the modes actually do** (docs, plus GitHub issue anthropics/claude-code#52506,
+    titled in part *"--permission-mode dontAsk is the headless flag, but nothing says
+    so"*):
+
+
+    - `auto` -- a classifier reviews each call; anything it declines becomes a **prompt**.
+    Three consecutive blocks trip a circuit breaker that asks a human to review the
+    transcript.
+
+    - `bypassPermissions` -- approves everything unlisted. Already rejected by task-076,
+    and separately it shows the same confirmation dialog as `--dangerously-skip-permissions`,
+    so it is not headless either.
+
+    - `dontAsk` -- **auto-denies** every call that would otherwise prompt. Only `permissions.allow`
+    matches and read-only Bash execute. Never prompts. The docs describe it as the
+    mode for CI and restricted environments "where you pre-define exactly what Claude
+    may do."
+
+
+    **The consequence, stated plainly: `auto` cannot run unattended, by construction.**
+    Every dispatched run is `--bg`. Any action the classifier declines becomes a prompt
+    with nobody to answer it, and the run hangs indefinitely -- which is exactly what
+    run_d5ab5caf did after 316 seconds. This is not a gap in the allow-list; it is
+    the wrong mode for a headless process. The allow-list merely determines *how long*
+    a run survives before it meets its first decline.
+
+
+    **What this changes about the fix.** Two parts, and the second is not optional:
+
+
+    1. A dispatched (`--bg`) run must use `--permission-mode dontAsk`, so a decline
+    denies-and-continues instead of parking forever.
+
+    2. Under `dontAsk` the allow-list stops being an optimisation and becomes the
+    complete definition of what a run may do. Everything a legitimate run performs
+    must be on it, or the run is denied and fails. Today `ALLOW_PREFIXES` is nine
+    entries -- pytest, ruff, black, mypy, `npm run`, and `git status/diff/add/commit`
+    -- which does not cover `git worktree add`, `git rebase`, `git merge`, `git worktree
+    remove`, or `python scripts/bootstrap.py`. An epic child cannot complete without
+    those.
+
+
+    So the MCP pre-approval this task was originally about is still needed, and now
+    for a stronger reason: under `dontAsk` an un-listed MCP call is denied outright
+    rather than merely prompting. ac-5''s anti-rot requirement matters more, not less.
+
+
+    **Rejected alternative: `bypassPermissions`.** Rejected twice over -- task-076
+    rejected it for removing the gate wholesale, and the docs say it shows a confirmation
+    dialog anyway, so it does not even solve the headless problem it would be traded
+    for.
+
+
+    **A real risk to name, since it is the cost of this direction.** `dontAsk` converts
+    every allow-list omission from a pause into a silent failure. A run that meets
+    a denial does not stop; it continues and may report success having skipped something.
+    Every widening of `ALLOW_PREFIXES` is now a security decision *and* every omission
+    is a correctness one. task-076''s note that these flags "are the actual risk boundary
+    of the whole feature" is the governing sentence here, and the widening in part
+    2 needs Jeff''s explicit sign-off rather than an agent''s judgement.'
+  data:
+    operation:
+      id: d7f29a54-8c61-4e37-b195-2a48f7c50220
+      kind: log_append
+      fingerprint: 9b6529d753084b8e240514d7947a71b9
