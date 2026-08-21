@@ -3,13 +3,13 @@ id: task-022
 title: Dispatch an epic as autonomous and it finishes the whole thing, child by child,
   unattended
 created: '2026-08-19T22:29:17.039117Z'
-updated: '2026-08-21T16:58:00.318875Z'
+updated: '2026-08-21T19:55:41.738935Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 10000
+queue_position: 281
 category: architecture
 tags:
 - dispatch
@@ -146,3 +146,36 @@ log:
       id: a37d6e94-05b1-4c28-9f36-2b8e71c40da7
       kind: create
       fingerprint: b069ec35be4b48d400319c0c746b53af
+- id: 2
+  ts: '2026-08-21T19:55:41.738748Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: "Moved behind task-021 by Jeff, 2026-08-21. This is the task he actually asked\
+    \ for \u2014 \"be able to dispatch the entire epic, as autonomous or not\" \u2014\
+    \ and it was sitting at position 10000 while he was trying to do exactly this\
+    \ to task-211 and could not.\n\nIt keeps its needs dependency on task-021: the\
+    \ epic walk has no merge policy to obey until posture carries one.\n\nBinding\
+    \ input from the same conversation: epic-level approval, chosen over per-child\
+    \ gates and over leaving the gate in place. One approval at dispatch; children\
+    \ merge as they complete; the epic hands off to Jeff at the end with the whole\
+    \ program to review. He was told this means unreviewed code reaches main and chose\
+    \ it anyway, so task-021's objective floor is the only remaining safeguard and\
+    \ must not be softened.\n\nAlso in scope now: posture as a per-task decision,\
+    \ not only per project.\n\nLive context for whoever works this \u2014 task-211\
+    \ is a real epic sitting ready with six open children (task-214..219), reopened\
+    \ 2026-08-21 for exactly this purpose. It is the natural proving case, the way\
+    \ task-209 was for the queue program. Verified that dispatching it already yields\
+    \ supervisor mode: claim_task hands an epic the supervisor's seat (manager.py),\
+    \ and build_argv derives supervisor=bool(open_children) (runner.py). What does\
+    \ not exist yet is the unattended walk through the children."
+  data:
+    band: high
+    from: 10000
+    to: 281
+    placement:
+      kind: after
+      target: task-021
+    operation:
+      id: 3f1a9c22-000c-4b7e-9c31-7a5e2d8f010c
+      kind: queue_move
+      fingerprint: 86abdc0993fffa9c44aedbcdf7abb3f3

@@ -2,13 +2,13 @@ schema: 2
 id: task-018
 title: A parent can close while its children are open, and nothing can reopen it
 created: '2026-08-18T06:27:57.132450Z'
-updated: '2026-08-21T16:58:00.704263Z'
+updated: '2026-08-21T19:55:58.100387Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 6500
+queue_position: 328
 category: correctness
 tags:
 - schema
@@ -151,3 +151,40 @@ log:
     to: 50
     placement:
       kind: top
+- id: 3
+  ts: '2026-08-21T19:55:58.100244Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: "Moved up behind task-022 by Jeff, 2026-08-21, because this defect has now\
+    \ fired twice on the two largest efforts in the corpus.\n\nFiled 2026-08-18 when\
+    \ task-060 was found closed with ten open children and nothing could reopen it.\
+    \ On 2026-08-21 the identical thing happened to task-211: its design phase finished,\
+    \ the record was closed with six children still open, and Jeff could not dispatch\
+    \ it or change its state. His words: \"I still cannot dispatch it, or change it's\
+    \ status so it can be dispatched.\"\n\nConfirmed while unblocking him, and worth\
+    \ having in the record before this is worked: **there is no reopen path in any\
+    \ interface.** manager.update_task accepts a lifecycle patch and _rejoining_the_queue\
+    \ handles the re-entry, but the CLI has no command, TaskUpdateRequest deliberately\
+    \ omits lifecycle so REST cannot, and MCP has no verb. Reopening task-211 required\
+    \ calling the manager directly from Python. That is the \"nothing can reopen it\"\
+    \ in this task's title, still exactly true three days later.\n\nThe escape-hatch\
+    \ reasoning in this spec is now load-bearing rather than hypothetical: a design-phase\
+    \ task that derives children is a real and recurring shape, and closing it is\
+    \ not obviously wrong \u2014 what is wrong is that it takes the epic's container\
+    \ down with it. Whoever works this should decide whether that shape wants a distinct\
+    \ answer (the design closes, the epic survives) rather than only preventing the\
+    \ close.\n\nSequenced behind task-021 and task-022 because those are the capability\
+    \ Jeff asked for; this is the correctness fix that stops him landing here a third\
+    \ time. Reorder if the cheap fix should come first \u2014 it is estimated at half\
+    \ a day and blocks nothing."
+  data:
+    band: high
+    from: 6500
+    to: 328
+    placement:
+      kind: after
+      target: task-022
+    operation:
+      id: 3f1a9c22-000d-4b7e-9c31-7a5e2d8f010d
+      kind: queue_move
+      fingerprint: ff036cf9e7268a5e8c0b87f83c45cfac

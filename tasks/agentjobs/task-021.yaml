@@ -3,13 +3,13 @@ id: task-021
 title: Posture should decide whether a run merges and pushes, not only what it may
   execute
 created: '2026-08-19T22:28:28.717331Z'
-updated: '2026-08-21T16:58:00.328276Z'
+updated: '2026-08-21T19:55:28.420335Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 9900
+queue_position: 187
 category: architecture
 tags:
 - dispatch
@@ -154,3 +154,36 @@ log:
       id: f10a5c62-8d47-4b93-a2e1-6c084b7f9d35
       kind: create
       fingerprint: d91df474da81d99e7b0e844e2d6b2b17
+- id: 2
+  ts: '2026-08-21T19:55:28.420147Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: "Moved to the top of the high band by Jeff, 2026-08-21. He wants epics dispatchable\
+    \ as a unit, autonomous or not, and stated two requirements: postures become project-level\
+    \ AND task-level decisions, and \"we must support as fully autonomous mode as\
+    \ possible\". He also chose epic-level approval over per-child gates \u2014 one\
+    \ approval at dispatch, children merge as they go, the epic hands off at the end.\n\
+    \nThis task is the prerequisite for all of that: posture today maps only to a\
+    \ permission mode, and until it also carries merge/push policy there is nothing\
+    \ for an autonomous epic walk to obey. task-022 needs it.\n\nTwo things this task\
+    \ already got right and should not be softened when it is worked: the scripts/check.py\
+    \ exit-0 objective floor as the gate an agent cannot self-assess past, and the\
+    \ requirement to amend ENGINEERING.md and ALLAGENTS.md in the same change. With\
+    \ epic-level approval chosen, that floor stops being one of two safety nets and\
+    \ becomes the only one \u2014 unreviewed code reaches main on the strength of\
+    \ it.\n\nNew requirement from 2026-08-21, not yet in this spec: posture must be\
+    \ settable per task, not only per project. Note the tension the design has to\
+    \ resolve \u2014 project dispatch settings are machine-local (~/.agentjobs), while\
+    \ task records are git-tracked and agent-writable, so a task that can raise its\
+    \ own posture to autonomous is a privilege-escalation path. Decide whether a task\
+    \ may only narrow the project's posture, never widen it."
+  data:
+    band: high
+    from: 9900
+    to: 187
+    placement:
+      kind: top
+    operation:
+      id: 3f1a9c22-000b-4b7e-9c31-7a5e2d8f010b
+      kind: queue_move
+      fingerprint: 0b82f2373fe4b034e52aee834ecfeeca
