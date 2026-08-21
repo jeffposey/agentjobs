@@ -350,3 +350,136 @@ def test_reject_without_reason(client: TestClient, sample_task_in_review: str) -
     )
     # Should fail validation due to min_length=1
     assert response.status_code == 400
+
+
+# ----- task-231: one route per human act, and each records what its label says ------
+
+
+def test_answering_is_recorded_as_an_answer_not_a_revision(
+    client: TestClient, sample_task_in_review: str
+) -> None:
+    """The distinction task-081 entry 26 had to repair in prose, made queryable.
+
+    Nothing the agent did is being rejected here; the human is supplying what it asked
+    for. Recorded as `revise` -- the only value available before this -- a cold reader
+    could not tell the two apart without reconstructing intent from the wording.
+    """
+    answer = "Option 2, and skip the third question entirely."
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/answer",
+        json={"user": "jeff", "feedback": answer},
+    )
+
+    assert response.status_code == 200
+    task = response.json()["task"]
+    assert task["ball"] == "agent"
+    assert task["ball_reason"] == "answer"
+    # Verbatim, exactly as requested changes carries its feedback.
+    assert task["ball_prompt"] == answer
+    latest = task["log"][-1]
+    assert latest["type"] == "handoff"
+    assert answer in (latest["body"] or "")
+    assert latest["actor"] == "jeff"
+
+
+def test_redirecting_is_recorded_as_a_re_brief(
+    client: TestClient, sample_task_in_review: str
+) -> None:
+    """task-222 entry 14 had to supersede entry 13 in prose to say this."""
+    instructions = "Do the CLI half first; what you have built so far stands."
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/redirect",
+        json={"user": "jeff", "feedback": instructions},
+    )
+
+    assert response.status_code == 200
+    task = response.json()["task"]
+    assert task["ball"] == "agent"
+    assert task["ball_reason"] == "redirect"
+    assert task["ball_prompt"] == instructions
+    assert "New instructions from jeff" in (task["log"][-1]["body"] or "")
+
+
+def test_holding_stops_the_task_and_keeps_the_release_condition(
+    client: TestClient, sample_task_in_review: str
+) -> None:
+    """A hold has to be unmissable in the prompt as well as in the reason.
+
+    The reason is what a query reads and what the dispatch paths refuse on; the prefix
+    is for the agent that opens the record and skims the prompt. Both, because either
+    one alone has a plausible way to be missed.
+    """
+    condition = "Wait for the autonomous dispatch fixes to land."
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/hold",
+        json={"user": "jeff", "feedback": condition},
+    )
+
+    assert response.status_code == 200
+    task = response.json()["task"]
+    assert task["ball"] == "agent"
+    assert task["ball_reason"] == "hold"
+    assert task["ball_prompt"].startswith("ON HOLD")
+    assert condition in task["ball_prompt"]
+    assert "Put on hold by jeff" in (task["log"][-1]["body"] or "")
+    # The list has to say stopped, not "in progress" -- see models_v2.display_status.
+    assert task["display_status"] == "On hold (test-agent)"
+
+
+def test_resume_releases_a_hold_and_puts_the_task_back_to_work(
+    client: TestClient, sample_task_in_review: str
+) -> None:
+    """Without this the panel could impose a hold it could not lift.
+
+    The review panel returns null once the ball leaves the human, so a held task had no
+    control at all until Resume existed. A stop with no way out of the browser is worse
+    than the illegible record it replaced.
+    """
+    client.post(
+        f"/api/tasks/{sample_task_in_review}/hold",
+        json={"user": "jeff", "feedback": "Wait for the fixes."},
+    )
+
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/resume",
+        json={"user": "jeff", "note": "They landed this morning."},
+    )
+
+    assert response.status_code == 200
+    task = response.json()["task"]
+    assert task["ball"] == "agent"
+    assert task["ball_reason"] == "work"
+    assert "Hold released by jeff" in task["ball_prompt"]
+    assert "They landed this morning." in task["ball_prompt"]
+
+
+def test_resume_needs_no_note(client: TestClient, sample_task_in_review: str) -> None:
+    """ "Carry on" is a complete instruction; requiring a sentence to say it is what
+    pushed four intents onto one reason in the first place."""
+    client.post(
+        f"/api/tasks/{sample_task_in_review}/hold",
+        json={"user": "jeff", "feedback": "Wait for the fixes."},
+    )
+
+    response = client.post(f"/api/tasks/{sample_task_in_review}/resume", json={"user": "jeff"})
+
+    assert response.status_code == 200
+    task = response.json()["task"]
+    assert task["ball_reason"] == "work"
+    assert task["ball_prompt"] == "Hold released by jeff -- resume this task."
+
+
+@pytest.mark.parametrize("route", ["answer", "redirect", "hold"])
+def test_a_send_back_without_a_note_is_refused(
+    client: TestClient, sample_task_in_review: str, route: str
+) -> None:
+    """An answer with no answer in it, or a hold with no release condition, is the
+    exact record that cost a session its afternoon. The schema refuses it."""
+    response = client.post(
+        f"/api/tasks/{sample_task_in_review}/{route}",
+        json={"user": "jeff", "feedback": ""},
+    )
+
+    # 400 rather than 422: this app maps validation refusals itself, the same way
+    # /request-changes has always answered an empty feedback field.
+    assert response.status_code == 400

@@ -1221,6 +1221,33 @@ export type NextExplanationResponse = {
 };
 
 /**
+ * NoteActionRequest
+ *
+ * A human action carrying an optional note.
+ *
+ * Distinct from ``FeedbackActionRequest`` in exactly one way, and it is the one that
+ * matters: the text is optional. Approving, and releasing a hold, are complete acts
+ * on their own -- a required field here would make "yes, go" impossible to say
+ * without saying more, which is what pushed approvals-with-a-comment onto the
+ * request-changes path in the first place (task-228). ``None`` and ``""`` both mean
+ * no note, and the route then writes precisely what it wrote before this existed.
+ */
+export type NoteActionRequest = {
+    /**
+     * Note
+     *
+     * Optional note, recorded verbatim in the handoff prompt and the log.
+     */
+    note?: string | null;
+    /**
+     * User
+     *
+     * User performing the action
+     */
+    user: string;
+};
+
+/**
  * Outcome
  *
  * How a task ended. Set if and only if lifecycle is closed.
@@ -1932,6 +1959,39 @@ export type ScopedDependencyEdge = {
      * Target Exists
      */
     target_exists: boolean;
+};
+
+/**
+ * SendBackActionRequest
+ *
+ * Feedback whose meaning is carried by which route received it.
+ *
+ * The same shape as requesting changes, on purpose: every send-back is a note the
+ * human wrote plus the ball moving to the agent, and the only thing that differs is
+ * what the note *means*. That difference is the route and the ball_reason it writes,
+ * not a discriminator inside the payload -- one act per route is what /approve,
+ * /request-changes and /reject already do, and it is what makes a network log or a
+ * server log readable without cross-referencing a body.
+ */
+export type SendBackActionRequest = {
+    /**
+     * Attachments
+     *
+     * Images evidencing the feedback, stored as sidecar files.
+     */
+    attachments?: Array<AttachmentUpload>;
+    /**
+     * Feedback
+     *
+     * Feedback text
+     */
+    feedback: string;
+    /**
+     * User
+     *
+     * User performing the action
+     */
+    user: string;
 };
 
 /**
@@ -4250,6 +4310,40 @@ export type UpdateTaskApiProjectsProjectIdTasksTaskIdPatchResponses = {
 
 export type UpdateTaskApiProjectsProjectIdTasksTaskIdPatchResponse = UpdateTaskApiProjectsProjectIdTasksTaskIdPatchResponses[keyof UpdateTaskApiProjectsProjectIdTasksTaskIdPatchResponses];
 
+export type AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostData = {
+    body: SendBackActionRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/tasks/{task_id}/answer';
+};
+
+export type AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostError = AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostErrors[keyof AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostErrors];
+
+export type AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HumanActionResponse;
+};
+
+export type AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponse = AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponses[keyof AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponses];
+
 export type ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostData = {
     body: HumanActionRequest;
     path: {
@@ -4555,6 +4649,40 @@ export type HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostResponses = {
 
 export type HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostResponse = HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostResponses[keyof HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostResponses];
 
+export type HoldTaskApiProjectsProjectIdTasksTaskIdHoldPostData = {
+    body: SendBackActionRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/tasks/{task_id}/hold';
+};
+
+export type HoldTaskApiProjectsProjectIdTasksTaskIdHoldPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HoldTaskApiProjectsProjectIdTasksTaskIdHoldPostError = HoldTaskApiProjectsProjectIdTasksTaskIdHoldPostErrors[keyof HoldTaskApiProjectsProjectIdTasksTaskIdHoldPostErrors];
+
+export type HoldTaskApiProjectsProjectIdTasksTaskIdHoldPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HumanActionResponse;
+};
+
+export type HoldTaskApiProjectsProjectIdTasksTaskIdHoldPostResponse = HoldTaskApiProjectsProjectIdTasksTaskIdHoldPostResponses[keyof HoldTaskApiProjectsProjectIdTasksTaskIdHoldPostResponses];
+
 export type AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostData = {
     body: LogAppendRequest;
     path: {
@@ -4727,6 +4855,40 @@ export type QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostResponses =
 
 export type QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostResponse = QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostResponses[keyof QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostResponses];
 
+export type RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostData = {
+    body: SendBackActionRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/tasks/{task_id}/redirect';
+};
+
+export type RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostError = RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostErrors[keyof RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostErrors];
+
+export type RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HumanActionResponse;
+};
+
+export type RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostResponse = RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostResponses[keyof RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostResponses];
+
 export type RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostData = {
     body: RejectActionRequest;
     path: {
@@ -4880,6 +5042,40 @@ export type RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostRespo
 };
 
 export type RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostResponse = RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostResponses[keyof RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostResponses];
+
+export type ResumeTaskApiProjectsProjectIdTasksTaskIdResumePostData = {
+    body: NoteActionRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/tasks/{task_id}/resume';
+};
+
+export type ResumeTaskApiProjectsProjectIdTasksTaskIdResumePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResumeTaskApiProjectsProjectIdTasksTaskIdResumePostError = ResumeTaskApiProjectsProjectIdTasksTaskIdResumePostErrors[keyof ResumeTaskApiProjectsProjectIdTasksTaskIdResumePostErrors];
+
+export type ResumeTaskApiProjectsProjectIdTasksTaskIdResumePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HumanActionResponse;
+};
+
+export type ResumeTaskApiProjectsProjectIdTasksTaskIdResumePostResponse = ResumeTaskApiProjectsProjectIdTasksTaskIdResumePostResponses[keyof ResumeTaskApiProjectsProjectIdTasksTaskIdResumePostResponses];
 
 export type ListWebhooksApiProjectsProjectIdWebhooksGetData = {
     body?: never;
@@ -5433,6 +5629,36 @@ export type UpdateTaskApiTasksTaskIdPatchResponses = {
 
 export type UpdateTaskApiTasksTaskIdPatchResponse = UpdateTaskApiTasksTaskIdPatchResponses[keyof UpdateTaskApiTasksTaskIdPatchResponses];
 
+export type AnswerTaskApiTasksTaskIdAnswerPostData = {
+    body: SendBackActionRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/tasks/{task_id}/answer';
+};
+
+export type AnswerTaskApiTasksTaskIdAnswerPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AnswerTaskApiTasksTaskIdAnswerPostError = AnswerTaskApiTasksTaskIdAnswerPostErrors[keyof AnswerTaskApiTasksTaskIdAnswerPostErrors];
+
+export type AnswerTaskApiTasksTaskIdAnswerPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HumanActionResponse;
+};
+
+export type AnswerTaskApiTasksTaskIdAnswerPostResponse = AnswerTaskApiTasksTaskIdAnswerPostResponses[keyof AnswerTaskApiTasksTaskIdAnswerPostResponses];
+
 export type ApproveTaskApiTasksTaskIdApprovePostData = {
     body: HumanActionRequest;
     path: {
@@ -5706,6 +5932,36 @@ export type HandoffTaskApiTasksTaskIdHandoffPostResponses = {
 
 export type HandoffTaskApiTasksTaskIdHandoffPostResponse = HandoffTaskApiTasksTaskIdHandoffPostResponses[keyof HandoffTaskApiTasksTaskIdHandoffPostResponses];
 
+export type HoldTaskApiTasksTaskIdHoldPostData = {
+    body: SendBackActionRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/tasks/{task_id}/hold';
+};
+
+export type HoldTaskApiTasksTaskIdHoldPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HoldTaskApiTasksTaskIdHoldPostError = HoldTaskApiTasksTaskIdHoldPostErrors[keyof HoldTaskApiTasksTaskIdHoldPostErrors];
+
+export type HoldTaskApiTasksTaskIdHoldPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HumanActionResponse;
+};
+
+export type HoldTaskApiTasksTaskIdHoldPostResponse = HoldTaskApiTasksTaskIdHoldPostResponses[keyof HoldTaskApiTasksTaskIdHoldPostResponses];
+
 export type AppendLogEntryApiTasksTaskIdLogPostData = {
     body: LogAppendRequest;
     path: {
@@ -5862,6 +6118,36 @@ export type QueueMoveTaskApiTasksTaskIdQueueMovePostResponses = {
 
 export type QueueMoveTaskApiTasksTaskIdQueueMovePostResponse = QueueMoveTaskApiTasksTaskIdQueueMovePostResponses[keyof QueueMoveTaskApiTasksTaskIdQueueMovePostResponses];
 
+export type RedirectTaskApiTasksTaskIdRedirectPostData = {
+    body: SendBackActionRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/tasks/{task_id}/redirect';
+};
+
+export type RedirectTaskApiTasksTaskIdRedirectPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RedirectTaskApiTasksTaskIdRedirectPostError = RedirectTaskApiTasksTaskIdRedirectPostErrors[keyof RedirectTaskApiTasksTaskIdRedirectPostErrors];
+
+export type RedirectTaskApiTasksTaskIdRedirectPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HumanActionResponse;
+};
+
+export type RedirectTaskApiTasksTaskIdRedirectPostResponse = RedirectTaskApiTasksTaskIdRedirectPostResponses[keyof RedirectTaskApiTasksTaskIdRedirectPostResponses];
+
 export type RejectTaskApiTasksTaskIdRejectPostData = {
     body: RejectActionRequest;
     path: {
@@ -5999,6 +6285,36 @@ export type RequestChangesApiTasksTaskIdRequestChangesPostResponses = {
 };
 
 export type RequestChangesApiTasksTaskIdRequestChangesPostResponse = RequestChangesApiTasksTaskIdRequestChangesPostResponses[keyof RequestChangesApiTasksTaskIdRequestChangesPostResponses];
+
+export type ResumeTaskApiTasksTaskIdResumePostData = {
+    body: NoteActionRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/tasks/{task_id}/resume';
+};
+
+export type ResumeTaskApiTasksTaskIdResumePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResumeTaskApiTasksTaskIdResumePostError = ResumeTaskApiTasksTaskIdResumePostErrors[keyof ResumeTaskApiTasksTaskIdResumePostErrors];
+
+export type ResumeTaskApiTasksTaskIdResumePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HumanActionResponse;
+};
+
+export type ResumeTaskApiTasksTaskIdResumePostResponse = ResumeTaskApiTasksTaskIdResumePostResponses[keyof ResumeTaskApiTasksTaskIdResumePostResponses];
 
 export type ApiVersionApiVersionGetData = {
     body?: never;

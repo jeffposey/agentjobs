@@ -55,12 +55,19 @@ function renderDetail(value = detail, extra: { promoteError?: string | null; pro
   const actions = {
     onApprove: vi.fn(async () => undefined),
     // Typed with its parameters so a test can read back what the panel sent, not just
-    // that it was called.
-    onRequestChanges: vi.fn(
-      async (_feedback: string, _attachments: Array<AttachmentUpload>) => undefined,
+    // that it was called. `reason` is first because it is the thing worth asserting:
+    // a control whose label says "Answer Questions" and whose call says "revise" is
+    // exactly the defect this contract exists to make visible.
+    onSendBack: vi.fn(
+      async (
+        _reason: "revise" | "answer" | "redirect" | "hold",
+        _feedback: string,
+        _attachments: Array<AttachmentUpload>,
+      ) => undefined,
     ),
     onReject: vi.fn(async () => undefined),
     onPromote: vi.fn(async () => undefined),
+    onResume: vi.fn(async (_note: string | null) => undefined),
     onAddNote: vi.fn(async (_body: string) => undefined),
   };
   render(<MemoryRouter><TaskDetail detail={value} projectId="inbox" {...actions} {...extra} /></MemoryRouter>);
@@ -189,7 +196,7 @@ describe("TaskDetail resumption contract", () => {
     fireEvent.click(screen.getByRole("button", { name: /Request Changes/ }));
     fireEvent.change(screen.getByLabelText("Feedback or questions"), { target: { value: "Tighten the layout." } });
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
-    await waitFor(() => expect(actions.onRequestChanges).toHaveBeenCalledWith("Tighten the layout.", []));
+    await waitFor(() => expect(actions.onSendBack).toHaveBeenCalledWith("revise", "Tighten the layout.", []));
   });
 
   it("blocks every review action when identity is unclear", () => {
@@ -202,6 +209,7 @@ describe("TaskDetail resumption contract", () => {
     ).toBeVisible();
     expect(screen.queryByRole("button", { name: /Approve/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Request Changes/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Hold/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Reject/ })).not.toBeInTheDocument();
   });
 });
@@ -219,6 +227,10 @@ describe("TaskDetail action panel speaks the phase it is in", () => {
     // started -- there is nothing to approve and nothing to merge yet.
     expect(within(panel).queryByRole("button", { name: /Approve/ })).not.toBeInTheDocument();
     expect(within(panel).queryByText(/merge/i)).not.toBeInTheDocument();
+    // A draft has nothing running, so there is nothing to re-brief and nothing to
+    // stop. Both controls appear only once work is underway.
+    expect(within(panel).queryByRole("button", { name: /New Instructions/ })).not.toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /Hold/ })).not.toBeInTheDocument();
     // One panel, not two.
     expect(screen.getAllByRole("region", { name: /actions$/ })).toHaveLength(1);
   });
@@ -282,11 +294,12 @@ describe("TaskDetail action panel speaks the phase it is in", () => {
 
     await screen.findByRole("list", { name: "Attached images" });
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
-    await waitFor(() => expect(actions.onRequestChanges).toHaveBeenCalled());
-    const call = actions.onRequestChanges.mock.calls[0]!;
-    expect(call[0]).toBe("The badge shows the enum name.");
-    expect(call[1]).toHaveLength(1);
-    expect(call[1][0]?.label).toBe("badge.png");
+    await waitFor(() => expect(actions.onSendBack).toHaveBeenCalled());
+    const call = actions.onSendBack.mock.calls[0]!;
+    expect(call[0]).toBe("revise");
+    expect(call[1]).toBe("The badge shows the enum name.");
+    expect(call[2]).toHaveLength(1);
+    expect(call[2][0]?.label).toBe("badge.png");
   });
 
   it("shows an entry's images where the entry is read, not as bare links", () => {
@@ -328,7 +341,7 @@ describe("TaskDetail action panel speaks the phase it is in", () => {
     fireEvent.click(screen.getByRole("button", { name: /Send feedback/ }));
     fireEvent.change(screen.getByLabelText("Feedback on the spec"), { target: { value: "Acceptance is vague." } });
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
-    await waitFor(() => expect(actions.onRequestChanges).toHaveBeenCalledWith("Acceptance is vague.", []));
+    await waitFor(() => expect(actions.onSendBack).toHaveBeenCalledWith("revise", "Acceptance is vague.", []));
 
     fireEvent.click(screen.getByRole("button", { name: /Reject & Archive/ }));
     fireEvent.change(screen.getByLabelText("Reason for rejection"), { target: { value: "Superseded." } });
@@ -412,4 +425,121 @@ describe("TaskDetail offers a way to write on the record", () => {
 
     await waitFor(() => expect(actions.onAddNote).toHaveBeenCalledWith("Go ahead."));
   });
+});
+
+/**
+ * task-231 part 2: the panel offers verbs that are true of the task in front of it.
+ *
+ * Every assertion here reads the rendered button text and the argument the control
+ * actually sends, never the presence of markup. That is ENGINEERING.md's rule, and it
+ * is the rule this component has already broken once: `data-ball="Ball.HUMAN"` passed
+ * every check that asked whether an attribute existed.
+ */
+describe("TaskDetail review panel offers only verbs that are true", () => {
+  function atReason(ball_reason: string, extra: Partial<TaskRead> = {}) {
+    return {
+      ...detail,
+      task: task("task-reasoned", {
+        ball: "human",
+        ball_reason,
+        display_status: "Needs decision",
+        ball_prompt: "Four numbered questions.",
+        ...extra,
+      } as Partial<TaskRead>),
+    };
+  }
+
+  it.each(["decision", "input"])(
+    "offers no Approve on a task waiting on %s, and asks for an answer instead",
+    (reason) => {
+      renderDetail(atReason(reason));
+
+      const panel = screen.getByRole("region", { name: "Review actions" });
+      // The defect verbatim: on task-077 this button read "✓ Approve — agent may
+      // merge" over four numbered questions, and there was no branch to merge.
+      expect(within(panel).queryByRole("button", { name: /Approve/ })).not.toBeInTheDocument();
+      expect(within(panel).queryByText(/merge/i)).not.toBeInTheDocument();
+      expect(within(panel).getByRole("button", { name: "✎ Answer Questions" })).toBeVisible();
+      expect(within(panel).getByRole("button", { name: "✕ Reject & Archive" })).toBeVisible();
+    },
+  );
+
+  it("records an answer as an answer, not as a revision", async () => {
+    const actions = renderDetail(atReason("decision"));
+
+    fireEvent.click(screen.getByRole("button", { name: "✎ Answer Questions" }));
+    fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "Option 2, and skip the third." } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() =>
+      expect(actions.onSendBack).toHaveBeenCalledWith("answer", "Option 2, and skip the third.", []),
+    );
+  });
+
+  it("keeps Approve on a task at approval, where approving means something", () => {
+    renderDetail(atReason("approval", { display_status: "Needs approval" }));
+
+    const panel = screen.getByRole("region", { name: "Review actions" });
+    expect(within(panel).getByRole("button", { name: "✓ Approve — agent may merge" })).toBeVisible();
+    expect(within(panel).getByRole("button", { name: "✎ Request Changes" })).toBeVisible();
+  });
+
+  it("offers no merge verb on a spec that is past draft", () => {
+    renderDetail(atReason("spec", { lifecycle: "active", display_status: "Needs spec" }));
+
+    const panel = screen.getByRole("region", { name: "Review actions" });
+    expect(within(panel).queryByRole("button", { name: /Approve/ })).not.toBeInTheDocument();
+    expect(within(panel).queryByText(/merge/i)).not.toBeInTheDocument();
+    // Not Promote either: the task is not a draft, so there is nothing to promote.
+    expect(within(panel).queryByRole("button", { name: /Promote/ })).not.toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "✎ Send feedback" })).toBeVisible();
+  });
+
+  it("records a re-brief as a redirect, so a reader can tell it from a rejection", async () => {
+    const actions = renderDetail();
+
+    fireEvent.click(screen.getByRole("button", { name: "↪ New Instructions" }));
+    fireEvent.change(screen.getByLabelText("New instructions"), { target: { value: "Do the CLI half first." } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() =>
+      expect(actions.onSendBack).toHaveBeenCalledWith("redirect", "Do the CLI half first.", []),
+    );
+  });
+
+  it("records a hold as a hold, with the release condition as its payload", async () => {
+    const actions = renderDetail();
+
+    fireEvent.click(screen.getByRole("button", { name: "⏸ Hold" }));
+    fireEvent.change(screen.getByLabelText("Release condition"), { target: { value: "Wait for the dispatch fixes." } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() =>
+      expect(actions.onSendBack).toHaveBeenCalledWith("hold", "Wait for the dispatch fixes.", []),
+    );
+  });
+
+  it("gives a held task a way out, and offers it none of the review verbs", async () => {
+    const actions = renderDetail({
+      ...detail,
+      task: task("task-held", {
+        ball: "agent",
+        ball_reason: "hold",
+        ball_prompt: "ON HOLD -- do not resume until the dispatch fixes land.",
+        display_status: "On hold (codex)",
+      }),
+    });
+
+    // The ball is with the agent, so before this the panel returned null and a hold
+    // imposed from the browser could not be released from the browser.
+    const panel = screen.getByRole("region", { name: "Hold actions" });
+    expect(within(panel).getByText("ON HOLD -- do not resume until the dispatch fixes land.")).toBeVisible();
+    expect(within(panel).queryByRole("button", { name: /Approve/ })).not.toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /Request Changes/ })).not.toBeInTheDocument();
+
+    fireEvent.click(within(panel).getByRole("button", { name: "▶ Resume — release the hold" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    await waitFor(() => expect(actions.onResume).toHaveBeenCalledWith(null));
+  });
+
 });

@@ -1695,6 +1695,39 @@
         "title": "NextExplanationResponse",
         "type": "object"
       },
+      "NoteActionRequest": {
+        "description": "A human action carrying an optional note.\n\nDistinct from ``FeedbackActionRequest`` in exactly one way, and it is the one that\nmatters: the text is optional. Approving, and releasing a hold, are complete acts\non their own -- a required field here would make \"yes, go\" impossible to say\nwithout saying more, which is what pushed approvals-with-a-comment onto the\nrequest-changes path in the first place (task-228). ``None`` and ``\"\"`` both mean\nno note, and the route then writes precisely what it wrote before this existed.",
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional note, recorded verbatim in the handoff prompt and the log.",
+            "examples": [
+              "Fold the naming nit in before you merge."
+            ],
+            "title": "Note"
+          },
+          "user": {
+            "description": "User performing the action",
+            "examples": [
+              "jeff"
+            ],
+            "title": "User",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "title": "NoteActionRequest",
+        "type": "object"
+      },
       "Outcome": {
         "description": "How a task ended. Set if and only if lifecycle is closed.",
         "enum": [
@@ -2722,6 +2755,42 @@
           "target_contained"
         ],
         "title": "ScopedDependencyEdge",
+        "type": "object"
+      },
+      "SendBackActionRequest": {
+        "description": "Feedback whose meaning is carried by which route received it.\n\nThe same shape as requesting changes, on purpose: every send-back is a note the\nhuman wrote plus the ball moving to the agent, and the only thing that differs is\nwhat the note *means*. That difference is the route and the ball_reason it writes,\nnot a discriminator inside the payload -- one act per route is what /approve,\n/request-changes and /reject already do, and it is what makes a network log or a\nserver log readable without cross-referencing a body.",
+        "properties": {
+          "attachments": {
+            "description": "Images evidencing the feedback, stored as sidecar files.",
+            "items": {
+              "$ref": "#/components/schemas/AttachmentUpload"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "feedback": {
+            "description": "Feedback text",
+            "examples": [
+              "Please add error handling"
+            ],
+            "minLength": 1,
+            "title": "Feedback",
+            "type": "string"
+          },
+          "user": {
+            "description": "User performing the action",
+            "examples": [
+              "jeff"
+            ],
+            "title": "User",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user",
+          "feedback"
+        ],
+        "title": "SendBackActionRequest",
         "type": "object"
       },
       "SkippedTaskRead": {
@@ -5960,6 +6029,68 @@
         ]
       }
     },
+    "/api/projects/{project_id}/tasks/{task_id}/answer": {
+      "post": {
+        "description": "Supply what the agent was waiting for and hand the ball back (agent/answer).\n\nNot a revision: nothing the agent did was wrong, and a record that says otherwise\nmakes the next reader reconstruct which it was. The answer rides in the ball_prompt\nand the log verbatim, exactly as requested changes do.",
+        "operationId": "answer_task_api_projects__project_id__tasks__task_id__answer_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendBackActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Answer Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
     "/api/projects/{project_id}/tasks/{task_id}/approve": {
       "post": {
         "description": "Record human approval and hand the ball back to the agent (agent/work).\n\nNothing here merges anything. The GUI cannot run git, and a button that implied\notherwise would lie. It records the approval in the task record -- which is the\npoint, since approvals used to live only in chat -- and moves the ball: the agent\nmust now rebase, merge --no-ff, mark the branch merged, and close the task\n(ENGINEERING.md, \"The Merge Gate\").",
@@ -6502,6 +6633,68 @@
         ]
       }
     },
+    "/api/projects/{project_id}/tasks/{task_id}/hold": {
+      "post": {
+        "description": "Stop the task, with the release condition on the record (agent/hold).\n\nThe condition is prefixed rather than left bare, because this is the one send-back\nwhose prompt must not read as work: an agent that skims it and carries on has done\nthe opposite of what it was told. `hold` is also the one agent-side reason no\ndispatch path will act on, so a held task cannot be started by clicking Dispatch\nbeside the Hold button that stopped it.",
+        "operationId": "hold_task_api_projects__project_id__tasks__task_id__hold_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendBackActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Hold Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
     "/api/projects/{project_id}/tasks/{task_id}/log": {
       "post": {
         "description": "Append a note/progress/decision/question/answer/instruction entry.",
@@ -6830,6 +7023,68 @@
         ]
       }
     },
+    "/api/projects/{project_id}/tasks/{task_id}/redirect": {
+      "post": {
+        "description": "Re-brief the agent and hand the ball back (agent/redirect).\n\nThe instructions changed; the work done so far stands. Recorded apart from `revise`\nbecause a reader who cannot tell a re-brief from a rejection has to reconstruct\nwhich it was from prose -- task-222 entry 14 had to supersede entry 13 to say\nexactly that.",
+        "operationId": "redirect_task_api_projects__project_id__tasks__task_id__redirect_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendBackActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Redirect Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
     "/api/projects/{project_id}/tasks/{task_id}/reject": {
       "post": {
         "description": "Reject a task: closed as cancelled, archived, reason on the record.",
@@ -7113,6 +7368,68 @@
           }
         },
         "summary": "Request Changes",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}/resume": {
+      "post": {
+        "description": "Release a hold and put the task back to work (agent/work).\n\nThe counterpart to /hold, and the reason a hold is not a dead end. The note is\noptional because \"carry on\" is a complete instruction on its own; demanding a\nsentence to say it would push the human back onto the send-back controls, which is\nhow one reason came to carry four intents in the first place.",
+        "operationId": "resume_task_api_projects__project_id__tasks__task_id__resume_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resume Task",
         "tags": [
           "tasks"
         ]
@@ -8038,6 +8355,59 @@
         ]
       }
     },
+    "/api/tasks/{task_id}/answer": {
+      "post": {
+        "description": "Supply what the agent was waiting for and hand the ball back (agent/answer).\n\nNot a revision: nothing the agent did was wrong, and a record that says otherwise\nmakes the next reader reconstruct which it was. The answer rides in the ball_prompt\nand the log verbatim, exactly as requested changes do.",
+        "operationId": "answer_task_api_tasks__task_id__answer_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendBackActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Answer Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
     "/api/tasks/{task_id}/approve": {
       "post": {
         "description": "Record human approval and hand the ball back to the agent (agent/work).\n\nNothing here merges anything. The GUI cannot run git, and a button that implied\notherwise would lie. It records the approval in the task record -- which is the\npoint, since approvals used to live only in chat -- and moves the ball: the agent\nmust now rebase, merge --no-ff, mark the branch merged, and close the task\n(ENGINEERING.md, \"The Merge Gate\").",
@@ -8508,6 +8878,59 @@
         ]
       }
     },
+    "/api/tasks/{task_id}/hold": {
+      "post": {
+        "description": "Stop the task, with the release condition on the record (agent/hold).\n\nThe condition is prefixed rather than left bare, because this is the one send-back\nwhose prompt must not read as work: an agent that skims it and carries on has done\nthe opposite of what it was told. `hold` is also the one agent-side reason no\ndispatch path will act on, so a held task cannot be started by clicking Dispatch\nbeside the Hold button that stopped it.",
+        "operationId": "hold_task_api_tasks__task_id__hold_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendBackActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Hold Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
     "/api/tasks/{task_id}/log": {
       "post": {
         "description": "Append a note/progress/decision/question/answer/instruction entry.",
@@ -8800,6 +9223,59 @@
         ]
       }
     },
+    "/api/tasks/{task_id}/redirect": {
+      "post": {
+        "description": "Re-brief the agent and hand the ball back (agent/redirect).\n\nThe instructions changed; the work done so far stands. Recorded apart from `revise`\nbecause a reader who cannot tell a re-brief from a rejection has to reconstruct\nwhich it was from prose -- task-222 entry 14 had to supersede entry 13 to say\nexactly that.",
+        "operationId": "redirect_task_api_tasks__task_id__redirect_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendBackActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Redirect Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
     "/api/tasks/{task_id}/reject": {
       "post": {
         "description": "Reject a task: closed as cancelled, archived, reason on the record.",
@@ -9047,6 +9523,59 @@
           }
         },
         "summary": "Request Changes",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/resume": {
+      "post": {
+        "description": "Release a hold and put the task back to work (agent/work).\n\nThe counterpart to /hold, and the reason a hold is not a dead end. The note is\noptional because \"carry on\" is a complete instruction on its own; demanding a\nsentence to say it would push the human back onto the send-back controls, which is\nhow one reason came to carry four intents in the first place.",
+        "operationId": "resume_task_api_tasks__task_id__resume_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resume Task",
         "tags": [
           "tasks"
         ]

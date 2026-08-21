@@ -502,6 +502,13 @@ async def mark_deliverable(
 
 # Human action endpoints for the review loop
 
+NL2 = "\n\n"
+"""A blank line between a sentence AgentJobs wrote and one a human did.
+
+Every prompt in this module separates the two the same way, so an agent reading
+one can tell at a glance where the fixed part stops and the human's words start.
+"""
+
 
 class HumanActionRequest(BaseModel):
     """Base request for human actions."""
@@ -521,6 +528,36 @@ class FeedbackActionRequest(HumanActionRequest):
     attachments: List[AttachmentUpload] = Field(
         default_factory=list,
         description="Images evidencing the feedback, stored as sidecar files.",
+    )
+
+
+class SendBackActionRequest(FeedbackActionRequest):
+    """Feedback whose meaning is carried by which route received it.
+
+    The same shape as requesting changes, on purpose: every send-back is a note the
+    human wrote plus the ball moving to the agent, and the only thing that differs is
+    what the note *means*. That difference is the route and the ball_reason it writes,
+    not a discriminator inside the payload -- one act per route is what /approve,
+    /request-changes and /reject already do, and it is what makes a network log or a
+    server log readable without cross-referencing a body.
+    """
+
+
+class NoteActionRequest(HumanActionRequest):
+    """A human action carrying an optional note.
+
+    Distinct from ``FeedbackActionRequest`` in exactly one way, and it is the one that
+    matters: the text is optional. Approving, and releasing a hold, are complete acts
+    on their own -- a required field here would make "yes, go" impossible to say
+    without saying more, which is what pushed approvals-with-a-comment onto the
+    request-changes path in the first place (task-228). ``None`` and ``""`` both mean
+    no note, and the route then writes precisely what it wrote before this existed.
+    """
+
+    note: Optional[str] = Field(
+        None,
+        description="Optional note, recorded verbatim in the handoff prompt and the log.",
+        examples=["Fold the naming nit in before you merge."],
     )
 
 
@@ -635,6 +672,179 @@ async def request_changes(
         return HumanActionResponse(task=after_human_handoff(manager, project, task, request))
     except AttachmentError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+def _send_back(
+    *,
+    task_id: str,
+    request: Request,
+    payload: SendBackActionRequest,
+    manager: TaskManager,
+    project: Any,
+    user: str,
+    ball_reason: BallReason,
+    prompt: str,
+    body: str,
+    dispatchable: bool = True,
+) -> HumanActionResponse:
+    """The shared body of every send-it-back-to-the-agent route.
+
+    Four human acts differ only in the reason they record and the sentence they write
+    around the note. Everything else -- decoding attachments, the 400 and 404 mappings,
+    and whether an agent may start on the result -- is the same code, and writing it
+    four times is how three of them drift.
+
+    ``dispatchable`` is False only for a hold, and it is belt to `maybe_auto_dispatch`'s
+    braces: that function refuses `agent/hold` on its own, and this route does not ask
+    it in the first place. Starting a run off the click that said stop is the failure
+    worth two independent guards.
+    """
+    attachments = decoded_attachments(payload.attachments)
+    try:
+        task = manager.handoff(
+            task_id,
+            actor=user,
+            ball=Ball.AGENT,
+            ball_reason=ball_reason,
+            ball_prompt=prompt,
+            body=body,
+            attachments=attachments,
+        )
+    except AttachmentError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if not dispatchable:
+        return HumanActionResponse(task=task)
+    return HumanActionResponse(task=after_human_handoff(manager, project, task, request))
+
+
+@router.post("/{task_id}/answer", response_model=HumanActionResponse)
+async def answer_task(
+    task_id: str,
+    request: Request,
+    payload: SendBackActionRequest,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Any = Depends(get_project),
+) -> HumanActionResponse:
+    """Supply what the agent was waiting for and hand the ball back (agent/answer).
+
+    Not a revision: nothing the agent did was wrong, and a record that says otherwise
+    makes the next reader reconstruct which it was. The answer rides in the ball_prompt
+    and the log verbatim, exactly as requested changes do.
+    """
+    user = acting_user(project, payload.user)
+    return _send_back(
+        task_id=task_id,
+        request=request,
+        payload=payload,
+        manager=manager,
+        project=project,
+        user=user,
+        ball_reason=BallReason.ANSWER,
+        prompt=payload.feedback,
+        body=f"Answered by {user}:" + NL2 + payload.feedback,
+    )
+
+
+@router.post("/{task_id}/redirect", response_model=HumanActionResponse)
+async def redirect_task(
+    task_id: str,
+    request: Request,
+    payload: SendBackActionRequest,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Any = Depends(get_project),
+) -> HumanActionResponse:
+    """Re-brief the agent and hand the ball back (agent/redirect).
+
+    The instructions changed; the work done so far stands. Recorded apart from `revise`
+    because a reader who cannot tell a re-brief from a rejection has to reconstruct
+    which it was from prose -- task-222 entry 14 had to supersede entry 13 to say
+    exactly that.
+    """
+    user = acting_user(project, payload.user)
+    return _send_back(
+        task_id=task_id,
+        request=request,
+        payload=payload,
+        manager=manager,
+        project=project,
+        user=user,
+        ball_reason=BallReason.REDIRECT,
+        prompt=payload.feedback,
+        body=f"New instructions from {user}:" + NL2 + payload.feedback,
+    )
+
+
+@router.post("/{task_id}/hold", response_model=HumanActionResponse)
+async def hold_task(
+    task_id: str,
+    request: Request,
+    payload: SendBackActionRequest,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Any = Depends(get_project),
+) -> HumanActionResponse:
+    """Stop the task, with the release condition on the record (agent/hold).
+
+    The condition is prefixed rather than left bare, because this is the one send-back
+    whose prompt must not read as work: an agent that skims it and carries on has done
+    the opposite of what it was told. `hold` is also the one agent-side reason no
+    dispatch path will act on, so a held task cannot be started by clicking Dispatch
+    beside the Hold button that stopped it.
+    """
+    user = acting_user(project, payload.user)
+    return _send_back(
+        task_id=task_id,
+        request=request,
+        payload=payload,
+        manager=manager,
+        project=project,
+        user=user,
+        ball_reason=BallReason.HOLD,
+        prompt=(
+            "ON HOLD -- do not resume this task until the condition below is met and a "
+            "human has released it." + NL2 + payload.feedback
+        ),
+        body=f"Put on hold by {user}:" + NL2 + payload.feedback,
+        dispatchable=False,
+    )
+
+
+@router.post("/{task_id}/resume", response_model=HumanActionResponse)
+async def resume_task(
+    task_id: str,
+    request: Request,
+    payload: NoteActionRequest,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Any = Depends(get_project),
+) -> HumanActionResponse:
+    """Release a hold and put the task back to work (agent/work).
+
+    The counterpart to /hold, and the reason a hold is not a dead end. The note is
+    optional because "carry on" is a complete instruction on its own; demanding a
+    sentence to say it would push the human back onto the send-back controls, which is
+    how one reason came to carry four intents in the first place.
+    """
+    user = acting_user(project, payload.user)
+    note = (payload.note or "").strip()
+    released = f"Hold released by {user} -- resume this task."
+    try:
+        task = manager.handoff(
+            task_id,
+            actor=user,
+            ball=Ball.AGENT,
+            ball_reason=BallReason.WORK,
+            ball_prompt=(released + NL2 + note if note else released),
+            body=(
+                f"Hold released by {user}:" + NL2 + note if note else f"Hold released by {user}."
+            ),
+        )
+        return HumanActionResponse(task=after_human_handoff(manager, project, task, request))
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

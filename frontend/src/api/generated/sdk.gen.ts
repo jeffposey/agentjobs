@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ApiHealthCheckApiHealthGetData, ApiHealthCheckApiHealthGetResponses, ApiVersionApiVersionGetData, ApiVersionApiVersionGetResponses, AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostData, AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostErrors, AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostResponses, AppendLogEntryApiTasksTaskIdLogPostData, AppendLogEntryApiTasksTaskIdLogPostErrors, AppendLogEntryApiTasksTaskIdLogPostResponses, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostData, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostErrors, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponses, ApproveTaskApiTasksTaskIdApprovePostData, ApproveTaskApiTasksTaskIdApprovePostErrors, ApproveTaskApiTasksTaskIdApprovePostResponses, ArchiveTaskApiProjectsProjectIdTasksTaskIdDeleteData, ArchiveTaskApiProjectsProjectIdTasksTaskIdDeleteErrors, ArchiveTaskApiProjectsProjectIdTasksTaskIdDeleteResponses, ArchiveTaskApiTasksTaskIdDeleteData, ArchiveTaskApiTasksTaskIdDeleteErrors, ArchiveTaskApiTasksTaskIdDeleteResponses, CancelDispatchRunApiDispatchRunsRunIdCancelPostData, CancelDispatchRunApiDispatchRunsRunIdCancelPostErrors, CancelDispatchRunApiDispatchRunsRunIdCancelPostResponses, CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostData, CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostErrors, CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostResponses, ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostData, ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostErrors, ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostResponses, ClaimTaskApiTasksTaskIdClaimPostData, ClaimTaskApiTasksTaskIdClaimPostErrors, ClaimTaskApiTasksTaskIdClaimPostResponses, CloseTaskApiProjectsProjectIdTasksTaskIdClosePostData, CloseTaskApiProjectsProjectIdTasksTaskIdClosePostErrors, CloseTaskApiProjectsProjectIdTasksTaskIdClosePostResponses, CloseTaskApiTasksTaskIdClosePostData, CloseTaskApiTasksTaskIdClosePostErrors, CloseTaskApiTasksTaskIdClosePostResponses, CompactQueueApiProjectsProjectIdQueueCompactPostData, CompactQueueApiProjectsProjectIdQueueCompactPostErrors, CompactQueueApiProjectsProjectIdQueueCompactPostResponses, CompactQueueApiQueueCompactPostData, CompactQueueApiQueueCompactPostErrors, CompactQueueApiQueueCompactPostResponses, CreateTaskApiProjectsProjectIdTasksPostData, CreateTaskApiProjectsProjectIdTasksPostErrors, CreateTaskApiProjectsProjectIdTasksPostResponses, CreateTaskApiTasksPostData, CreateTaskApiTasksPostErrors, CreateTaskApiTasksPostResponses, CreateWebhookApiProjectsProjectIdWebhooksPostData, CreateWebhookApiProjectsProjectIdWebhooksPostErrors, CreateWebhookApiProjectsProjectIdWebhooksPostResponses, CreateWebhookApiWebhooksPostData, CreateWebhookApiWebhooksPostErrors, CreateWebhookApiWebhooksPostResponses, DeleteWebhookApiProjectsProjectIdWebhooksWebhookIdDeleteData, DeleteWebhookApiProjectsProjectIdWebhooksWebhookIdDeleteErrors, DeleteWebhookApiProjectsProjectIdWebhooksWebhookIdDeleteResponses, DeleteWebhookApiWebhooksWebhookIdDeleteData, DeleteWebhookApiWebhooksWebhookIdDeleteErrors, DeleteWebhookApiWebhooksWebhookIdDeleteResponses, DisableDispatchApiDispatchDisablePostData, DisableDispatchApiDispatchDisablePostResponses, DisableDispatchApiProjectsProjectIdDispatchDisablePostData, DisableDispatchApiProjectsProjectIdDispatchDisablePostErrors, DisableDispatchApiProjectsProjectIdDispatchDisablePostResponses, DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostData, DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostErrors, DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostResponses, DispatchTaskEndpointApiTasksTaskIdDispatchPostData, DispatchTaskEndpointApiTasksTaskIdDispatchPostErrors, DispatchTaskEndpointApiTasksTaskIdDispatchPostResponses, EnableDispatchApiDispatchEnablePostData, EnableDispatchApiDispatchEnablePostErrors, EnableDispatchApiDispatchEnablePostResponses, EnableDispatchApiProjectsProjectIdDispatchEnablePostData, EnableDispatchApiProjectsProjectIdDispatchEnablePostErrors, EnableDispatchApiProjectsProjectIdDispatchEnablePostResponses, ExplainNextTaskApiProjectsProjectIdTasksNextExplainGetData, ExplainNextTaskApiProjectsProjectIdTasksNextExplainGetErrors, ExplainNextTaskApiProjectsProjectIdTasksNextExplainGetResponses, ExplainNextTaskApiTasksNextExplainGetData, ExplainNextTaskApiTasksNextExplainGetErrors, ExplainNextTaskApiTasksNextExplainGetResponses, GetAllTasksApiAllTasksGetData, GetAllTasksApiAllTasksGetErrors, GetAllTasksApiAllTasksGetResponses, GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetData, GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetErrors, GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetResponses, GetAttachmentApiTasksTaskIdAttachmentsFilenameGetData, GetAttachmentApiTasksTaskIdAttachmentsFilenameGetErrors, GetAttachmentApiTasksTaskIdAttachmentsFilenameGetResponses, GetDashboardApiDashboardGetData, GetDashboardApiDashboardGetResponses, GetDashboardApiProjectsProjectIdDashboardGetData, GetDashboardApiProjectsProjectIdDashboardGetErrors, GetDashboardApiProjectsProjectIdDashboardGetResponses, GetDispatchStateApiDispatchGetData, GetDispatchStateApiDispatchGetResponses, GetDispatchStateApiProjectsProjectIdDispatchGetData, GetDispatchStateApiProjectsProjectIdDispatchGetErrors, GetDispatchStateApiProjectsProjectIdDispatchGetResponses, GetNextTaskApiProjectsProjectIdTasksNextGetData, GetNextTaskApiProjectsProjectIdTasksNextGetErrors, GetNextTaskApiProjectsProjectIdTasksNextGetResponses, GetNextTaskApiTasksNextGetData, GetNextTaskApiTasksNextGetErrors, GetNextTaskApiTasksNextGetResponses, GetProjectRevisionApiProjectsProjectIdRevisionGetData, GetProjectRevisionApiProjectsProjectIdRevisionGetErrors, GetProjectRevisionApiProjectsProjectIdRevisionGetResponses, GetProjectRevisionApiRevisionGetData, GetProjectRevisionApiRevisionGetResponses, GetProjectsApiProjectsGetData, GetProjectsApiProjectsGetResponses, GetQueueApiProjectsProjectIdQueueGetData, GetQueueApiProjectsProjectIdQueueGetErrors, GetQueueApiProjectsProjectIdQueueGetResponses, GetQueueApiQueueGetData, GetQueueApiQueueGetErrors, GetQueueApiQueueGetResponses, GetTaskApiProjectsProjectIdTasksTaskIdGetData, GetTaskApiProjectsProjectIdTasksTaskIdGetErrors, GetTaskApiProjectsProjectIdTasksTaskIdGetResponses, GetTaskApiTasksTaskIdGetData, GetTaskApiTasksTaskIdGetErrors, GetTaskApiTasksTaskIdGetResponses, GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetData, GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetErrors, GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetResponses, GetTaskDetailApiTasksTaskIdDetailGetData, GetTaskDetailApiTasksTaskIdDetailGetErrors, GetTaskDetailApiTasksTaskIdDetailGetResponses, GetWebhookApiProjectsProjectIdWebhooksWebhookIdGetData, GetWebhookApiProjectsProjectIdWebhooksWebhookIdGetErrors, GetWebhookApiProjectsProjectIdWebhooksWebhookIdGetResponses, GetWebhookApiWebhooksWebhookIdGetData, GetWebhookApiWebhooksWebhookIdGetErrors, GetWebhookApiWebhooksWebhookIdGetResponses, HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostData, HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostErrors, HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostResponses, HandoffTaskApiTasksTaskIdHandoffPostData, HandoffTaskApiTasksTaskIdHandoffPostErrors, HandoffTaskApiTasksTaskIdHandoffPostResponses, InitializeAndRegisterProjectApiProjectsInitPostData, InitializeAndRegisterProjectApiProjectsInitPostErrors, InitializeAndRegisterProjectApiProjectsInitPostResponses, InspectProjectPathApiProjectsInspectPostData, InspectProjectPathApiProjectsInspectPostErrors, InspectProjectPathApiProjectsInspectPostResponses, ListBrokenTasksApiProjectsProjectIdTasksBrokenGetData, ListBrokenTasksApiProjectsProjectIdTasksBrokenGetErrors, ListBrokenTasksApiProjectsProjectIdTasksBrokenGetResponses, ListBrokenTasksApiTasksBrokenGetData, ListBrokenTasksApiTasksBrokenGetResponses, ListDispatchRunsApiDispatchRunsGetData, ListDispatchRunsApiDispatchRunsGetErrors, ListDispatchRunsApiDispatchRunsGetResponses, ListDispatchRunsApiProjectsProjectIdDispatchRunsGetData, ListDispatchRunsApiProjectsProjectIdDispatchRunsGetErrors, ListDispatchRunsApiProjectsProjectIdDispatchRunsGetResponses, ListTasksApiProjectsProjectIdTasksGetData, ListTasksApiProjectsProjectIdTasksGetErrors, ListTasksApiProjectsProjectIdTasksGetResponses, ListTasksApiTasksGetData, ListTasksApiTasksGetErrors, ListTasksApiTasksGetResponses, ListWebhooksApiProjectsProjectIdWebhooksGetData, ListWebhooksApiProjectsProjectIdWebhooksGetErrors, ListWebhooksApiProjectsProjectIdWebhooksGetResponses, ListWebhooksApiWebhooksGetData, ListWebhooksApiWebhooksGetResponses, MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchData, MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchErrors, MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchResponses, MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchData, MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchErrors, MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchResponses, PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostData, PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostErrors, PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostResponses, PostProgressUpdateApiTasksTaskIdProgressPostData, PostProgressUpdateApiTasksTaskIdProgressPostErrors, PostProgressUpdateApiTasksTaskIdProgressPostResponses, PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostData, PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostErrors, PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponses, PromoteTaskApiTasksTaskIdPromotePostData, PromoteTaskApiTasksTaskIdPromotePostErrors, PromoteTaskApiTasksTaskIdPromotePostResponses, QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostData, QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostErrors, QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostResponses, QueueMoveTaskApiTasksTaskIdQueueMovePostData, QueueMoveTaskApiTasksTaskIdQueueMovePostErrors, QueueMoveTaskApiTasksTaskIdQueueMovePostResponses, ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetData, ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetErrors, ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetResponses, ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetData, ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetErrors, ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetResponses, ReadDispatchRunTailApiDispatchRunsRunIdTailGetData, ReadDispatchRunTailApiDispatchRunsRunIdTailGetErrors, ReadDispatchRunTailApiDispatchRunsRunIdTailGetResponses, ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetData, ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetErrors, ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetResponses, RegisterProjectApiProjectsPostData, RegisterProjectApiProjectsPostErrors, RegisterProjectApiProjectsPostResponses, RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostData, RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostErrors, RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostResponses, RejectTaskApiTasksTaskIdRejectPostData, RejectTaskApiTasksTaskIdRejectPostErrors, RejectTaskApiTasksTaskIdRejectPostResponses, ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostData, ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostErrors, ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostResponses, ReleaseTaskApiTasksTaskIdReleasePostData, ReleaseTaskApiTasksTaskIdReleasePostErrors, ReleaseTaskApiTasksTaskIdReleasePostResponses, RepairQueueApiProjectsProjectIdQueueRepairPostData, RepairQueueApiProjectsProjectIdQueueRepairPostErrors, RepairQueueApiProjectsProjectIdQueueRepairPostResponses, RepairQueueApiQueueRepairPostData, RepairQueueApiQueueRepairPostErrors, RepairQueueApiQueueRepairPostResponses, ReprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostData, ReprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostErrors, ReprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostResponses, ReprioritizeTaskApiTasksTaskIdReprioritizePostData, ReprioritizeTaskApiTasksTaskIdReprioritizePostErrors, ReprioritizeTaskApiTasksTaskIdReprioritizePostResponses, RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostData, RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostErrors, RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostResponses, RequestChangesApiTasksTaskIdRequestChangesPostData, RequestChangesApiTasksTaskIdRequestChangesPostErrors, RequestChangesApiTasksTaskIdRequestChangesPostResponses, SearchTasksApiProjectsProjectIdSearchGetData, SearchTasksApiProjectsProjectIdSearchGetErrors, SearchTasksApiProjectsProjectIdSearchGetResponses, SearchTasksApiSearchGetData, SearchTasksApiSearchGetErrors, SearchTasksApiSearchGetResponses, TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostData, TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostErrors, TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponses, TestWebhookApiWebhooksWebhookIdTestPostData, TestWebhookApiWebhooksWebhookIdTestPostErrors, TestWebhookApiWebhooksWebhookIdTestPostResponses, UpdateTaskApiProjectsProjectIdTasksTaskIdPatchData, UpdateTaskApiProjectsProjectIdTasksTaskIdPatchErrors, UpdateTaskApiProjectsProjectIdTasksTaskIdPatchResponses, UpdateTaskApiTasksTaskIdPatchData, UpdateTaskApiTasksTaskIdPatchErrors, UpdateTaskApiTasksTaskIdPatchResponses } from './types.gen';
+import type { AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostData, AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostErrors, AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponses, AnswerTaskApiTasksTaskIdAnswerPostData, AnswerTaskApiTasksTaskIdAnswerPostErrors, AnswerTaskApiTasksTaskIdAnswerPostResponses, ApiHealthCheckApiHealthGetData, ApiHealthCheckApiHealthGetResponses, ApiVersionApiVersionGetData, ApiVersionApiVersionGetResponses, AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostData, AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostErrors, AppendLogEntryApiProjectsProjectIdTasksTaskIdLogPostResponses, AppendLogEntryApiTasksTaskIdLogPostData, AppendLogEntryApiTasksTaskIdLogPostErrors, AppendLogEntryApiTasksTaskIdLogPostResponses, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostData, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostErrors, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponses, ApproveTaskApiTasksTaskIdApprovePostData, ApproveTaskApiTasksTaskIdApprovePostErrors, ApproveTaskApiTasksTaskIdApprovePostResponses, ArchiveTaskApiProjectsProjectIdTasksTaskIdDeleteData, ArchiveTaskApiProjectsProjectIdTasksTaskIdDeleteErrors, ArchiveTaskApiProjectsProjectIdTasksTaskIdDeleteResponses, ArchiveTaskApiTasksTaskIdDeleteData, ArchiveTaskApiTasksTaskIdDeleteErrors, ArchiveTaskApiTasksTaskIdDeleteResponses, CancelDispatchRunApiDispatchRunsRunIdCancelPostData, CancelDispatchRunApiDispatchRunsRunIdCancelPostErrors, CancelDispatchRunApiDispatchRunsRunIdCancelPostResponses, CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostData, CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostErrors, CancelDispatchRunApiProjectsProjectIdDispatchRunsRunIdCancelPostResponses, ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostData, ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostErrors, ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostResponses, ClaimTaskApiTasksTaskIdClaimPostData, ClaimTaskApiTasksTaskIdClaimPostErrors, ClaimTaskApiTasksTaskIdClaimPostResponses, CloseTaskApiProjectsProjectIdTasksTaskIdClosePostData, CloseTaskApiProjectsProjectIdTasksTaskIdClosePostErrors, CloseTaskApiProjectsProjectIdTasksTaskIdClosePostResponses, CloseTaskApiTasksTaskIdClosePostData, CloseTaskApiTasksTaskIdClosePostErrors, CloseTaskApiTasksTaskIdClosePostResponses, CompactQueueApiProjectsProjectIdQueueCompactPostData, CompactQueueApiProjectsProjectIdQueueCompactPostErrors, CompactQueueApiProjectsProjectIdQueueCompactPostResponses, CompactQueueApiQueueCompactPostData, CompactQueueApiQueueCompactPostErrors, CompactQueueApiQueueCompactPostResponses, CreateTaskApiProjectsProjectIdTasksPostData, CreateTaskApiProjectsProjectIdTasksPostErrors, CreateTaskApiProjectsProjectIdTasksPostResponses, CreateTaskApiTasksPostData, CreateTaskApiTasksPostErrors, CreateTaskApiTasksPostResponses, CreateWebhookApiProjectsProjectIdWebhooksPostData, CreateWebhookApiProjectsProjectIdWebhooksPostErrors, CreateWebhookApiProjectsProjectIdWebhooksPostResponses, CreateWebhookApiWebhooksPostData, CreateWebhookApiWebhooksPostErrors, CreateWebhookApiWebhooksPostResponses, DeleteWebhookApiProjectsProjectIdWebhooksWebhookIdDeleteData, DeleteWebhookApiProjectsProjectIdWebhooksWebhookIdDeleteErrors, DeleteWebhookApiProjectsProjectIdWebhooksWebhookIdDeleteResponses, DeleteWebhookApiWebhooksWebhookIdDeleteData, DeleteWebhookApiWebhooksWebhookIdDeleteErrors, DeleteWebhookApiWebhooksWebhookIdDeleteResponses, DisableDispatchApiDispatchDisablePostData, DisableDispatchApiDispatchDisablePostResponses, DisableDispatchApiProjectsProjectIdDispatchDisablePostData, DisableDispatchApiProjectsProjectIdDispatchDisablePostErrors, DisableDispatchApiProjectsProjectIdDispatchDisablePostResponses, DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostData, DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostErrors, DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostResponses, DispatchTaskEndpointApiTasksTaskIdDispatchPostData, DispatchTaskEndpointApiTasksTaskIdDispatchPostErrors, DispatchTaskEndpointApiTasksTaskIdDispatchPostResponses, EnableDispatchApiDispatchEnablePostData, EnableDispatchApiDispatchEnablePostErrors, EnableDispatchApiDispatchEnablePostResponses, EnableDispatchApiProjectsProjectIdDispatchEnablePostData, EnableDispatchApiProjectsProjectIdDispatchEnablePostErrors, EnableDispatchApiProjectsProjectIdDispatchEnablePostResponses, ExplainNextTaskApiProjectsProjectIdTasksNextExplainGetData, ExplainNextTaskApiProjectsProjectIdTasksNextExplainGetErrors, ExplainNextTaskApiProjectsProjectIdTasksNextExplainGetResponses, ExplainNextTaskApiTasksNextExplainGetData, ExplainNextTaskApiTasksNextExplainGetErrors, ExplainNextTaskApiTasksNextExplainGetResponses, GetAllTasksApiAllTasksGetData, GetAllTasksApiAllTasksGetErrors, GetAllTasksApiAllTasksGetResponses, GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetData, GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetErrors, GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetResponses, GetAttachmentApiTasksTaskIdAttachmentsFilenameGetData, GetAttachmentApiTasksTaskIdAttachmentsFilenameGetErrors, GetAttachmentApiTasksTaskIdAttachmentsFilenameGetResponses, GetDashboardApiDashboardGetData, GetDashboardApiDashboardGetResponses, GetDashboardApiProjectsProjectIdDashboardGetData, GetDashboardApiProjectsProjectIdDashboardGetErrors, GetDashboardApiProjectsProjectIdDashboardGetResponses, GetDispatchStateApiDispatchGetData, GetDispatchStateApiDispatchGetResponses, GetDispatchStateApiProjectsProjectIdDispatchGetData, GetDispatchStateApiProjectsProjectIdDispatchGetErrors, GetDispatchStateApiProjectsProjectIdDispatchGetResponses, GetNextTaskApiProjectsProjectIdTasksNextGetData, GetNextTaskApiProjectsProjectIdTasksNextGetErrors, GetNextTaskApiProjectsProjectIdTasksNextGetResponses, GetNextTaskApiTasksNextGetData, GetNextTaskApiTasksNextGetErrors, GetNextTaskApiTasksNextGetResponses, GetProjectRevisionApiProjectsProjectIdRevisionGetData, GetProjectRevisionApiProjectsProjectIdRevisionGetErrors, GetProjectRevisionApiProjectsProjectIdRevisionGetResponses, GetProjectRevisionApiRevisionGetData, GetProjectRevisionApiRevisionGetResponses, GetProjectsApiProjectsGetData, GetProjectsApiProjectsGetResponses, GetQueueApiProjectsProjectIdQueueGetData, GetQueueApiProjectsProjectIdQueueGetErrors, GetQueueApiProjectsProjectIdQueueGetResponses, GetQueueApiQueueGetData, GetQueueApiQueueGetErrors, GetQueueApiQueueGetResponses, GetTaskApiProjectsProjectIdTasksTaskIdGetData, GetTaskApiProjectsProjectIdTasksTaskIdGetErrors, GetTaskApiProjectsProjectIdTasksTaskIdGetResponses, GetTaskApiTasksTaskIdGetData, GetTaskApiTasksTaskIdGetErrors, GetTaskApiTasksTaskIdGetResponses, GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetData, GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetErrors, GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetResponses, GetTaskDetailApiTasksTaskIdDetailGetData, GetTaskDetailApiTasksTaskIdDetailGetErrors, GetTaskDetailApiTasksTaskIdDetailGetResponses, GetWebhookApiProjectsProjectIdWebhooksWebhookIdGetData, GetWebhookApiProjectsProjectIdWebhooksWebhookIdGetErrors, GetWebhookApiProjectsProjectIdWebhooksWebhookIdGetResponses, GetWebhookApiWebhooksWebhookIdGetData, GetWebhookApiWebhooksWebhookIdGetErrors, GetWebhookApiWebhooksWebhookIdGetResponses, HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostData, HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostErrors, HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostResponses, HandoffTaskApiTasksTaskIdHandoffPostData, HandoffTaskApiTasksTaskIdHandoffPostErrors, HandoffTaskApiTasksTaskIdHandoffPostResponses, HoldTaskApiProjectsProjectIdTasksTaskIdHoldPostData, HoldTaskApiProjectsProjectIdTasksTaskIdHoldPostErrors, HoldTaskApiProjectsProjectIdTasksTaskIdHoldPostResponses, HoldTaskApiTasksTaskIdHoldPostData, HoldTaskApiTasksTaskIdHoldPostErrors, HoldTaskApiTasksTaskIdHoldPostResponses, InitializeAndRegisterProjectApiProjectsInitPostData, InitializeAndRegisterProjectApiProjectsInitPostErrors, InitializeAndRegisterProjectApiProjectsInitPostResponses, InspectProjectPathApiProjectsInspectPostData, InspectProjectPathApiProjectsInspectPostErrors, InspectProjectPathApiProjectsInspectPostResponses, ListBrokenTasksApiProjectsProjectIdTasksBrokenGetData, ListBrokenTasksApiProjectsProjectIdTasksBrokenGetErrors, ListBrokenTasksApiProjectsProjectIdTasksBrokenGetResponses, ListBrokenTasksApiTasksBrokenGetData, ListBrokenTasksApiTasksBrokenGetResponses, ListDispatchRunsApiDispatchRunsGetData, ListDispatchRunsApiDispatchRunsGetErrors, ListDispatchRunsApiDispatchRunsGetResponses, ListDispatchRunsApiProjectsProjectIdDispatchRunsGetData, ListDispatchRunsApiProjectsProjectIdDispatchRunsGetErrors, ListDispatchRunsApiProjectsProjectIdDispatchRunsGetResponses, ListTasksApiProjectsProjectIdTasksGetData, ListTasksApiProjectsProjectIdTasksGetErrors, ListTasksApiProjectsProjectIdTasksGetResponses, ListTasksApiTasksGetData, ListTasksApiTasksGetErrors, ListTasksApiTasksGetResponses, ListWebhooksApiProjectsProjectIdWebhooksGetData, ListWebhooksApiProjectsProjectIdWebhooksGetErrors, ListWebhooksApiProjectsProjectIdWebhooksGetResponses, ListWebhooksApiWebhooksGetData, ListWebhooksApiWebhooksGetResponses, MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchData, MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchErrors, MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchResponses, MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchData, MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchErrors, MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchResponses, PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostData, PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostErrors, PostProgressUpdateApiProjectsProjectIdTasksTaskIdProgressPostResponses, PostProgressUpdateApiTasksTaskIdProgressPostData, PostProgressUpdateApiTasksTaskIdProgressPostErrors, PostProgressUpdateApiTasksTaskIdProgressPostResponses, PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostData, PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostErrors, PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponses, PromoteTaskApiTasksTaskIdPromotePostData, PromoteTaskApiTasksTaskIdPromotePostErrors, PromoteTaskApiTasksTaskIdPromotePostResponses, QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostData, QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostErrors, QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostResponses, QueueMoveTaskApiTasksTaskIdQueueMovePostData, QueueMoveTaskApiTasksTaskIdQueueMovePostErrors, QueueMoveTaskApiTasksTaskIdQueueMovePostResponses, ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetData, ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetErrors, ReadDispatchRunOutputApiDispatchRunsRunIdOutputGetResponses, ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetData, ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetErrors, ReadDispatchRunOutputApiProjectsProjectIdDispatchRunsRunIdOutputGetResponses, ReadDispatchRunTailApiDispatchRunsRunIdTailGetData, ReadDispatchRunTailApiDispatchRunsRunIdTailGetErrors, ReadDispatchRunTailApiDispatchRunsRunIdTailGetResponses, ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetData, ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetErrors, ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetResponses, RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostData, RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostErrors, RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostResponses, RedirectTaskApiTasksTaskIdRedirectPostData, RedirectTaskApiTasksTaskIdRedirectPostErrors, RedirectTaskApiTasksTaskIdRedirectPostResponses, RegisterProjectApiProjectsPostData, RegisterProjectApiProjectsPostErrors, RegisterProjectApiProjectsPostResponses, RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostData, RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostErrors, RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostResponses, RejectTaskApiTasksTaskIdRejectPostData, RejectTaskApiTasksTaskIdRejectPostErrors, RejectTaskApiTasksTaskIdRejectPostResponses, ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostData, ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostErrors, ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostResponses, ReleaseTaskApiTasksTaskIdReleasePostData, ReleaseTaskApiTasksTaskIdReleasePostErrors, ReleaseTaskApiTasksTaskIdReleasePostResponses, RepairQueueApiProjectsProjectIdQueueRepairPostData, RepairQueueApiProjectsProjectIdQueueRepairPostErrors, RepairQueueApiProjectsProjectIdQueueRepairPostResponses, RepairQueueApiQueueRepairPostData, RepairQueueApiQueueRepairPostErrors, RepairQueueApiQueueRepairPostResponses, ReprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostData, ReprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostErrors, ReprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostResponses, ReprioritizeTaskApiTasksTaskIdReprioritizePostData, ReprioritizeTaskApiTasksTaskIdReprioritizePostErrors, ReprioritizeTaskApiTasksTaskIdReprioritizePostResponses, RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostData, RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostErrors, RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostResponses, RequestChangesApiTasksTaskIdRequestChangesPostData, RequestChangesApiTasksTaskIdRequestChangesPostErrors, RequestChangesApiTasksTaskIdRequestChangesPostResponses, ResumeTaskApiProjectsProjectIdTasksTaskIdResumePostData, ResumeTaskApiProjectsProjectIdTasksTaskIdResumePostErrors, ResumeTaskApiProjectsProjectIdTasksTaskIdResumePostResponses, ResumeTaskApiTasksTaskIdResumePostData, ResumeTaskApiTasksTaskIdResumePostErrors, ResumeTaskApiTasksTaskIdResumePostResponses, SearchTasksApiProjectsProjectIdSearchGetData, SearchTasksApiProjectsProjectIdSearchGetErrors, SearchTasksApiProjectsProjectIdSearchGetResponses, SearchTasksApiSearchGetData, SearchTasksApiSearchGetErrors, SearchTasksApiSearchGetResponses, TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostData, TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostErrors, TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponses, TestWebhookApiWebhooksWebhookIdTestPostData, TestWebhookApiWebhooksWebhookIdTestPostErrors, TestWebhookApiWebhooksWebhookIdTestPostResponses, UpdateTaskApiProjectsProjectIdTasksTaskIdPatchData, UpdateTaskApiProjectsProjectIdTasksTaskIdPatchErrors, UpdateTaskApiProjectsProjectIdTasksTaskIdPatchResponses, UpdateTaskApiTasksTaskIdPatchData, UpdateTaskApiTasksTaskIdPatchErrors, UpdateTaskApiTasksTaskIdPatchResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -428,6 +428,24 @@ export const updateTaskApiProjectsProjectIdTasksTaskIdPatch = <ThrowOnError exte
 });
 
 /**
+ * Answer Task
+ *
+ * Supply what the agent was waiting for and hand the ball back (agent/answer).
+ *
+ * Not a revision: nothing the agent did was wrong, and a record that says otherwise
+ * makes the next reader reconstruct which it was. The answer rides in the ball_prompt
+ * and the log verbatim, exactly as requested changes do.
+ */
+export const answerTaskApiProjectsProjectIdTasksTaskIdAnswerPost = <ThrowOnError extends boolean = false>(options: Options<AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostData, ThrowOnError>) => (options.client ?? client).post<AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponses, AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostErrors, ThrowOnError>({
+    url: '/api/projects/{project_id}/tasks/{task_id}/answer',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Approve Task
  *
  * Record human approval and hand the ball back to the agent (agent/work).
@@ -557,6 +575,26 @@ export const handoffTaskApiProjectsProjectIdTasksTaskIdHandoffPost = <ThrowOnErr
 });
 
 /**
+ * Hold Task
+ *
+ * Stop the task, with the release condition on the record (agent/hold).
+ *
+ * The condition is prefixed rather than left bare, because this is the one send-back
+ * whose prompt must not read as work: an agent that skims it and carries on has done
+ * the opposite of what it was told. `hold` is also the one agent-side reason no
+ * dispatch path will act on, so a held task cannot be started by clicking Dispatch
+ * beside the Hold button that stopped it.
+ */
+export const holdTaskApiProjectsProjectIdTasksTaskIdHoldPost = <ThrowOnError extends boolean = false>(options: Options<HoldTaskApiProjectsProjectIdTasksTaskIdHoldPostData, ThrowOnError>) => (options.client ?? client).post<HoldTaskApiProjectsProjectIdTasksTaskIdHoldPostResponses, HoldTaskApiProjectsProjectIdTasksTaskIdHoldPostErrors, ThrowOnError>({
+    url: '/api/projects/{project_id}/tasks/{task_id}/hold',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Append Log Entry
  *
  * Append a note/progress/decision/question/answer/instruction entry.
@@ -611,6 +649,25 @@ export const promoteTaskApiProjectsProjectIdTasksTaskIdPromotePost = <ThrowOnErr
  */
 export const queueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePost = <ThrowOnError extends boolean = false>(options: Options<QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostData, ThrowOnError>) => (options.client ?? client).post<QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostResponses, QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostErrors, ThrowOnError>({
     url: '/api/projects/{project_id}/tasks/{task_id}/queue-move',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Redirect Task
+ *
+ * Re-brief the agent and hand the ball back (agent/redirect).
+ *
+ * The instructions changed; the work done so far stands. Recorded apart from `revise`
+ * because a reader who cannot tell a re-brief from a rejection has to reconstruct
+ * which it was from prose -- task-222 entry 14 had to supersede entry 13 to say
+ * exactly that.
+ */
+export const redirectTaskApiProjectsProjectIdTasksTaskIdRedirectPost = <ThrowOnError extends boolean = false>(options: Options<RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostData, ThrowOnError>) => (options.client ?? client).post<RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostResponses, RedirectTaskApiProjectsProjectIdTasksTaskIdRedirectPostErrors, ThrowOnError>({
+    url: '/api/projects/{project_id}/tasks/{task_id}/redirect',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -676,6 +733,25 @@ export const reprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePost = <
  */
 export const requestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPost = <ThrowOnError extends boolean = false>(options: Options<RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostData, ThrowOnError>) => (options.client ?? client).post<RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostResponses, RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostErrors, ThrowOnError>({
     url: '/api/projects/{project_id}/tasks/{task_id}/request-changes',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Resume Task
+ *
+ * Release a hold and put the task back to work (agent/work).
+ *
+ * The counterpart to /hold, and the reason a hold is not a dead end. The note is
+ * optional because "carry on" is a complete instruction on its own; demanding a
+ * sentence to say it would push the human back onto the send-back controls, which is
+ * how one reason came to carry four intents in the first place.
+ */
+export const resumeTaskApiProjectsProjectIdTasksTaskIdResumePost = <ThrowOnError extends boolean = false>(options: Options<ResumeTaskApiProjectsProjectIdTasksTaskIdResumePostData, ThrowOnError>) => (options.client ?? client).post<ResumeTaskApiProjectsProjectIdTasksTaskIdResumePostResponses, ResumeTaskApiProjectsProjectIdTasksTaskIdResumePostErrors, ThrowOnError>({
+    url: '/api/projects/{project_id}/tasks/{task_id}/resume',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -893,6 +969,24 @@ export const updateTaskApiTasksTaskIdPatch = <ThrowOnError extends boolean = fal
 });
 
 /**
+ * Answer Task
+ *
+ * Supply what the agent was waiting for and hand the ball back (agent/answer).
+ *
+ * Not a revision: nothing the agent did was wrong, and a record that says otherwise
+ * makes the next reader reconstruct which it was. The answer rides in the ball_prompt
+ * and the log verbatim, exactly as requested changes do.
+ */
+export const answerTaskApiTasksTaskIdAnswerPost = <ThrowOnError extends boolean = false>(options: Options<AnswerTaskApiTasksTaskIdAnswerPostData, ThrowOnError>) => (options.client ?? client).post<AnswerTaskApiTasksTaskIdAnswerPostResponses, AnswerTaskApiTasksTaskIdAnswerPostErrors, ThrowOnError>({
+    url: '/api/tasks/{task_id}/answer',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Approve Task
  *
  * Record human approval and hand the ball back to the agent (agent/work).
@@ -1022,6 +1116,26 @@ export const handoffTaskApiTasksTaskIdHandoffPost = <ThrowOnError extends boolea
 });
 
 /**
+ * Hold Task
+ *
+ * Stop the task, with the release condition on the record (agent/hold).
+ *
+ * The condition is prefixed rather than left bare, because this is the one send-back
+ * whose prompt must not read as work: an agent that skims it and carries on has done
+ * the opposite of what it was told. `hold` is also the one agent-side reason no
+ * dispatch path will act on, so a held task cannot be started by clicking Dispatch
+ * beside the Hold button that stopped it.
+ */
+export const holdTaskApiTasksTaskIdHoldPost = <ThrowOnError extends boolean = false>(options: Options<HoldTaskApiTasksTaskIdHoldPostData, ThrowOnError>) => (options.client ?? client).post<HoldTaskApiTasksTaskIdHoldPostResponses, HoldTaskApiTasksTaskIdHoldPostErrors, ThrowOnError>({
+    url: '/api/tasks/{task_id}/hold',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Append Log Entry
  *
  * Append a note/progress/decision/question/answer/instruction entry.
@@ -1076,6 +1190,25 @@ export const promoteTaskApiTasksTaskIdPromotePost = <ThrowOnError extends boolea
  */
 export const queueMoveTaskApiTasksTaskIdQueueMovePost = <ThrowOnError extends boolean = false>(options: Options<QueueMoveTaskApiTasksTaskIdQueueMovePostData, ThrowOnError>) => (options.client ?? client).post<QueueMoveTaskApiTasksTaskIdQueueMovePostResponses, QueueMoveTaskApiTasksTaskIdQueueMovePostErrors, ThrowOnError>({
     url: '/api/tasks/{task_id}/queue-move',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Redirect Task
+ *
+ * Re-brief the agent and hand the ball back (agent/redirect).
+ *
+ * The instructions changed; the work done so far stands. Recorded apart from `revise`
+ * because a reader who cannot tell a re-brief from a rejection has to reconstruct
+ * which it was from prose -- task-222 entry 14 had to supersede entry 13 to say
+ * exactly that.
+ */
+export const redirectTaskApiTasksTaskIdRedirectPost = <ThrowOnError extends boolean = false>(options: Options<RedirectTaskApiTasksTaskIdRedirectPostData, ThrowOnError>) => (options.client ?? client).post<RedirectTaskApiTasksTaskIdRedirectPostResponses, RedirectTaskApiTasksTaskIdRedirectPostErrors, ThrowOnError>({
+    url: '/api/tasks/{task_id}/redirect',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -1141,6 +1274,25 @@ export const reprioritizeTaskApiTasksTaskIdReprioritizePost = <ThrowOnError exte
  */
 export const requestChangesApiTasksTaskIdRequestChangesPost = <ThrowOnError extends boolean = false>(options: Options<RequestChangesApiTasksTaskIdRequestChangesPostData, ThrowOnError>) => (options.client ?? client).post<RequestChangesApiTasksTaskIdRequestChangesPostResponses, RequestChangesApiTasksTaskIdRequestChangesPostErrors, ThrowOnError>({
     url: '/api/tasks/{task_id}/request-changes',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Resume Task
+ *
+ * Release a hold and put the task back to work (agent/work).
+ *
+ * The counterpart to /hold, and the reason a hold is not a dead end. The note is
+ * optional because "carry on" is a complete instruction on its own; demanding a
+ * sentence to say it would push the human back onto the send-back controls, which is
+ * how one reason came to carry four intents in the first place.
+ */
+export const resumeTaskApiTasksTaskIdResumePost = <ThrowOnError extends boolean = false>(options: Options<ResumeTaskApiTasksTaskIdResumePostData, ThrowOnError>) => (options.client ?? client).post<ResumeTaskApiTasksTaskIdResumePostResponses, ResumeTaskApiTasksTaskIdResumePostErrors, ThrowOnError>({
+    url: '/api/tasks/{task_id}/resume',
     ...options,
     headers: {
         'Content-Type': 'application/json',
