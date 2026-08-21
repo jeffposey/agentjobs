@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T15:46:53.787396Z'
+updated: '2026-08-21T15:49:40.091564Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1807,3 +1807,83 @@ log:
       id: bb9b9273-0081-4a00-9e00-000000000005
       kind: log_append
       fingerprint: 661d310d99d5b169d8f90bb4fc52b0de
+- id: 45
+  ts: '2026-08-21T15:49:40.091186Z'
+  actor: claude
+  type: progress
+  body: 'Child 5 (task-208) is finished and parked on human/review. IT IS NOT MINE
+    TO RELEASE and I have not touched it. Jeff needs to answer it; push notification
+    sent 15:53Z.
+
+
+    WHY THIS IS A REVIEW PARK RATHER THAN A MERGE THE POSTURE WOULD HAVE COVERED.
+    task-208 was dispatched by Jeff from the task page with the ordinary worker prompt,
+    not started by me with the supervisor brief that points a child at this task''s
+    ball_prompt. So it followed the default merge gate in ENGINEERING.md rather than
+    this epic''s waiver, which is the correct thing for a child that was not told
+    about the waiver. I am not going to tell it to merge on that basis: its handoff
+    is not "please rubber-stamp this", it asks a real design question and flags something
+    it built that the spec did not ask for. Answering those on Jeff''s behalf is the
+    one thing the protocol exists to prevent.
+
+
+    WHAT IT IS ASKING, so the notification has somewhere to land:
+
+    1. `task_queue_move` takes `placement` as a discriminated union ({where: before|after,
+    neighbour} or {where: top|bottom}) where REST, the CLI and the Python client all
+    use four flat flags. The union makes `before`+`top` fail validation instead of
+    silently picking one, and matches the handoff-target union already in that module.
+    Cost is one more shape for the same verb across surfaces. It says mirroring the
+    flags instead is a small change.
+
+    2. Whether the section 11 rule, as written into ALLAGENTS.md and docs/agent-workflow.md,
+    reads like a rule he would actually follow.
+
+    3. A new `queue_broken` error code, which is the one thing here the spec did not
+    ask for. Its reasoning and both rejected alternatives are in its log entry 9.
+
+
+    WHAT I VERIFIED, from durable evidence only -- record, branch and main''s log.
+    I did not read its diff beyond the stat and did not re-run anything.
+
+    - sc-1 through sc-4 all `met`.
+
+    - Two commits on feat/task-208-queue-mcp-and-rules, f218874 and 92ad88b, on top
+    of 17c7145. branches[] marks it `active`, correctly -- nothing is merged.
+
+    - It claims 18 files, +725/-39, and a ten-stage `scripts/check.py` green with
+    no arguments, 490s, 15 new tests. `git diff --stat 17c7145..feat/task-208-queue-mcp-and-rules`
+    is exactly 18 files, +725/-39. Worth stating because the naive check disagrees:
+    `git diff --stat main..` reads 22 files -969 today, since main has taken twelve
+    task-record commits since the branch base and the diff reverts them. Diff against
+    the base, not against a moved main, before accusing a child of misreporting.
+
+    - It states honestly that it has NOT exercised the tool from a live MCP client;
+    the packaged-protocol test drives `agentjobs mcp` as a real subprocess and asserts
+    the fifteen-tool inventory, but a real session calling task_queue_move is human
+    verification, same as task-116.
+
+
+    209 STAYS UNSTARTED. Nothing depends on 208, so this is not a dependency block
+    -- it is the protocol''s rule that a supervisor stops starting children while
+    one is parked, and 209 is the child that reads the whole backlog and writes an
+    order. Starting it now would build an ordering pass on top of an unanswered question
+    about the verb it uses to write that order.
+
+
+    SEPARATELY, task-222 hit its own wall and it is the interesting one. It parked
+    blocked: the classifier refuses to let a dispatched run widen ALLOW_PREFIXES from
+    inside a dispatched run, which is not a wording problem and not a coin flip --
+    it is unreachable from where it was standing. So the merge-decline instruction
+    in my ball_prompt stays exactly as written. It is the recovery path, not a stopgap
+    waiting for 222.
+
+
+    STATE at 15:53Z: task-207 still active and working, seven-plus commits, its record
+    showing two defects found in a real browser and fixed. task-208 human/review.
+    task-222 parked (not a child of this epic).'
+  data:
+    operation:
+      id: bb9b9273-0081-4a00-9e00-000000000006
+      kind: log_append
+      fingerprint: ad0649b64b737403bfd15d0dd3c70bdb
