@@ -3,40 +3,11 @@ id: task-229
 title: Drag-to-reorder does not scroll the page, so you can only move a task as far
   as the viewport
 created: '2026-08-21T20:09:48.827525Z'
-updated: '2026-08-21T20:38:44.194146Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Drag now scrolls the page at the window edges. Everything is verified\
-  \ except the one thing no instrument can verify \u2014 that a hand on a real mouse\
-  \ can reach an off-screen row \u2014 and that is what this asks of you.\n\n**The\
-  \ sandbox is running: http://127.0.0.1:8899/app/p/sandbox-tall/tasks** \u2014 72\
-  \ rows, four or five screens, its own port and its own throwaway data in a temp\
-  \ directory. Nothing there is real; click anything. The 8876 dashboard is untouched\
-  \ and is still on `main`, so it does not have this change.\n\nWhat to try, in the\
-  \ `high` band (the long run of \"Backlog filler\" rows):\n1. Grab the \u283F grip\
-  \ of a row near the bottom, drag to the top edge of the window and **hold still**.\
-  \ The page should scroll up, slowly at the edge of the zone and fast in the last\
-  \ few pixels. Drop it on a row near the top.\n2. The same downward: grab something\
-  \ near the top, hold at the bottom edge.\n3. Start a drag and press Escape, or let\
-  \ go over the filter panel. The page must stop moving immediately.\n4. Drag a row\
-  \ out of the browser window if you want to check the minor half: the ghost still\
-  \ leaves the window (that is the OS drag loop and HTML5 drag has no say in it),\
-  \ but it now carries a private MIME type instead of plain text, so it can no longer\
-  \ deposit a task id into another application. See the decision entry.\n\nThe panel\
-  \ in the bottom-right records every gesture, including how far the page scrolled,\
-  \ and posts it to the server \u2014 so you do not have to screenshot anything, and\
-  \ I can read what happened at http://127.0.0.1:8899/review/traces.\n\n**To stop\
-  \ it:** kill the python process running `scripts/review_queue_sandbox.py` (Ctrl-C\
-  \ in its window, or `Get-Process python | Where-Object { $_.CommandLine -like '*review_queue_sandbox*'\
-  \ } | Stop-Process`). Its temp directory deletes itself. I will stop it myself once\
-  \ you are done if you would rather leave it.\n\nBranch `fix/task-229-drag-autoscroll`\
-  \ in `C:/projects/worktrees/aj-229`, two commits, full `scripts/check.py` green\
-  \ (all ten stages, 490.9s). Not merged, not pushed. If the by-hand check passes,\
-  \ say so and I will merge, close, rebuild and restart 8876."
+updated: '2026-08-21T21:10:31.754948Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 736
 category: ux
 tags:
 - queue-order
@@ -46,7 +17,6 @@ tags:
 effort: "small-to-medium \u2014 an edge-autoscroll loop is contained; replacing the\
   \ transport with pointer events is a rewrite of the gesture and larger"
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "Dragging a task's grip in the React task list never scrolls the window,\
@@ -151,9 +121,10 @@ acceptance:
   text: A task at the bottom of a list several screens tall can be dragged to a target
     at the top of its band in one uninterrupted gesture, verified by a person with
     a real mouse in a seeded sandbox.
-  verify: By hand at http://127.0.0.1:8899/app/p/sandbox-tall/tasks -- no automated
-    instrument can answer this one.
-  status: pending
+  verify: Jeff, by hand, in the sandbox-tall project; twelve gestures recorded by
+    the trace panel and copied into log entry 11. Single held drags scrolled 1400px,
+    1800px, 1507px and 846px.
+  status: met
 - id: a3
   text: The scroll loop is torn down on drop, on dragend, and on a cancelled drag;
     no rAF loop survives the gesture.
@@ -169,14 +140,27 @@ acceptance:
 - id: a5
   text: Keyboard reorder and the cross-band confirmation are unchanged; scripts/check.py
     green.
-  verify: scripts/check.py, all ten stages, 490.9s, 2026-08-21
+  verify: scripts/check.py, all ten stages, 2026-08-21. Jeff's cross-band drops in
+    the sandbox raised the confirmation and changed nothing, which is the same claim
+    from the other side.
   status: met
-deliverables: []
+deliverables:
+- path: frontend/src/components/dragAutoScroll.ts
+  note: 'The edge-autoscroll loop: velocity ramp, elapsed-time movement, and self-teardown
+    on drop/dragend.'
+  status: done
+- path: frontend/src/components/dragAutoScroll.test.ts
+  note: 15 cases over a hand-turned frame clock and a fake scroller.
+  status: done
+- path: scripts/review_queue_sandbox.py
+  note: Adds the sandbox-tall project (72 rows, several screens) that a2 needs to
+    be checkable by hand at all.
+  status: done
 dependencies: []
 links: []
 branches:
 - name: fix/task-229-drag-autoscroll
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-21T20:09:49.309018Z'
@@ -419,3 +403,114 @@ log:
       id: e4a7b5c3-2d40-4a96-8c5e-4f0d8b6a0044
       kind: handoff
       fingerprint: 3941c51515a4d11356b57298a59eca52
+- id: 10
+  ts: '2026-08-21T20:42:10.850143Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 11
+  ts: '2026-08-21T20:44:40.692427Z'
+  actor: claude
+  type: progress
+  body: "**a2 is met, by a hand on a real mouse.** Jeff worked the sandbox before\
+    \ asking me to shut it down, and the trace panel recorded twelve gestures on the\
+    \ server. Copied here verbatim, because the sandbox's temp directory is deleted\
+    \ when it stops and this is the only acceptance evidence for a2 that can exist.\n\
+    \nWindow 1270px tall. The gestures that matter:\n\n```\nPRESS  on the handle queue-grip-task-115\
+    \  (19x44 px)\nDRAGSTART  task-115\nDRAGOVER x1318  (pointer y=306 of 1270, page\
+    \ y=0, over task-001)\nDROP  task-001\n=> the page scrolled from y=1400 to y=0\
+    \ (1400px).\n=> the order did NOT change.          <- cross-band drop; the confirmation\
+    \ asked, as designed\n\nPRESS  on the handle queue-grip-task-129  (19x44 px)\n\
+    DRAGSTART  task-129\nDRAGOVER x2012  (pointer y=995 of 1270, page y=4707, over\
+    \ task-030)\nDROP  task-030\n=> the page scrolled from y=2907 to y=4707 (1800px).\n\
+    \nPRESS  on the handle queue-grip-task-123  (19x44 px)\nDRAGSTART  task-123\n\
+    DRAGOVER x109  (pointer y=465 of 1270, page y=2307, over task-122)\nDROP  task-122\n\
+    REQUEST /api/projects/sandbox-tall/tasks/task-123/queue-move\n   -> HTTP 200\n\
+    => the page scrolled from y=2361 to y=2307 (54px).\n=> the order changed.\n\n\
+    PRESS  on the handle queue-grip-task-159  (19x44 px)\nDRAGSTART  task-159\nDROP\
+    \  task-158\nREQUEST /api/projects/sandbox-tall/tasks/task-159/queue-move\n  \
+    \ -> HTTP 200\n=> the page scrolled from y=4707 to y=3861 (846px).\n=> the order\
+    \ changed.\n```\n\nSingle held gestures scrolled 1400px, 1800px, 1507px and 846px\
+    \ \u2014 several screens each \u2014 and the ones that stayed inside a band landed\
+    \ with `HTTP 200` and a changed order. A 54px scroll in the same set is the other\
+    \ half of the claim: the ramp is controllable at the top of the zone, not only\
+    \ a bolt. Cross-band drops raised the confirmation and changed nothing, which\
+    \ is the behaviour the constraints required be left alone.\n\n**One thing the\
+    \ trace got wrong, now fixed.** One record read `=> the browser never started\
+    \ a drag from the handle` about a drag that had plainly started, and another printed\
+    \ `y=undefined ... NaNpx`. Both are one bug in the sandbox instrument, not in\
+    \ the application: a `mouseup` arrived while a long autoscrolling drag was still\
+    \ in flight, so `finish()` summarised and cleared the gesture mid-way and recorded\
+    \ the remainder as a second gesture with no PRESS and no DRAGSTART. `finish()`\
+    \ now refuses to close a gesture off while a drag is in flight, and the scroll\
+    \ summary says so plainly rather than printing `NaN` if the start was never recorded.\
+    \ Left alone this instrument would have told the next session that drag was broken\
+    \ when it was not, which is exactly task-225's incident wearing a different hat.\n\
+    \nSandbox stopped, temp directory gone. Nothing merged and nothing pushed: the\
+    \ branch is still `fix/task-229-drag-autoscroll` and the ball stays with Jeff\
+    \ for the merge word."
+  data:
+    operation:
+      id: f5b8c6d4-3e51-4ba7-9d6f-5a1e9c7b0055
+      kind: log_append
+      fingerprint: 0bf945f10faa0b16824e2f62b541f15c
+- id: 12
+  ts: '2026-08-21T20:45:43.960503Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: a6c9d7e5-4f62-4cb8-8e70-6b2fad8c0066
+      kind: update_content
+      fingerprint: 700b671a18a65abe844dc7542b4efd6c
+- id: 13
+  ts: '2026-08-21T21:09:45.301635Z'
+  actor: claude
+  type: note
+  body: Updated branches, deliverables.
+  data:
+    fields:
+    - branches
+    - deliverables
+    operation:
+      id: d9fc0a18-7c95-4e0b-a163-9e4cbd0f0099
+      kind: update_content
+      fingerprint: aaf608f049634c2258c174ae5793bf6a
+- id: 14
+  ts: '2026-08-21T21:10:31.754717Z'
+  actor: claude
+  type: transition
+  body: "Merged and live. All five acceptance criteria met.\n\n`fix/task-229-drag-autoscroll`\
+    \ rebased onto main and merged `--no-ff`, three commits: the autoscroll loop and\
+    \ its tests, the taller sandbox and the trace panel's scroll reporting, and the\
+    \ trace panel's mid-drag fix found by Jeff's own review pass.\n\n**Re-gated after\
+    \ the rebase, not before.** main moved twice while this ran (task-224, task-234),\
+    \ and the gate that went green earlier was on the pre-rebase tree. The rebased\
+    \ branch was put through the full `scripts/check.py` again \u2014 all ten stages,\
+    \ 569.0s, exit 0 \u2014 and that is the run this merge stands on. A first attempt\
+    \ at that run was killed by a ten-minute command timeout while inside the e2e\
+    \ stage; it was re-run whole rather than resumed with `--from e2e`, because a\
+    \ partial run is not the gate.\n\n**Delivered, and checked rather than assumed.**\
+    \ `npm run build` in the main clone, then the 8876 server restarted through `C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -Force -NoOpen` \u2014 its own launcher, not `agentjobs restart`, which binds\
+    \ 8765 and would have left the real dashboard stale while appearing to succeed.\
+    \ Verified live: `/api/version` reports `source_root: C:\\projects\\agentjobs`,\
+    \ the shell serves `index-OxAbqEto.js`, and that bundle contains `application/x-agentjobs-task-id`.\
+    \ The change a person sees in a browser on 8876 is the merged one.\n\nSandbox\
+    \ on 8899 stopped and its temp directory removed by hand \u2014 a forced kill\
+    \ skips the script's own `finally`, so it does not clean up after itself when\
+    \ stopped that way. Worktree removed, branch deleted.\n\nNothing pushed. Approval\
+    \ to merge was not read as approval to push."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: e0ad1b29-8da6-4f1c-b274-af5dbe1a00aa
+      kind: close
+      fingerprint: a5f8b7533e699f18de4c0e8b2c431d40

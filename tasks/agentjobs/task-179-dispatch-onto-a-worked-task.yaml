@@ -3,7 +3,7 @@ id: task-179-dispatch-onto-a-worked-task
 title: Dispatch is offered on a task an agent is already working, and the guards would
   allow it
 created: '2026-08-19T19:22:34.834865Z'
-updated: '2026-08-21T16:58:00.354218Z'
+updated: '2026-08-21T20:47:56.159775Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -203,3 +203,61 @@ log:
       id: f1a7d206-58b4-4e93-b7c0-2d905e6a31c7
       kind: log_append
       fingerprint: f66d7c6b13ffbb3404b1aa33a78b3bc1
+- id: 4
+  ts: '2026-08-21T20:47:31.924912Z'
+  actor: claude
+  type: note
+  body: "Second sighting, Jeff, 2026-08-21, on task-229 \u2014 and by a different\
+    \ route than the one this task describes, which is worth writing down before someone\
+    \ fixes only the first.\n\nThe 2026-08-19 case was a session AgentJobs never started\
+    \ (spawn-session), so the record was the only signal it had. **This time the run\
+    \ was AgentJobs' own dispatch, `run_85e26f5b`, still live.** The sequence: the\
+    \ run handed off to `human`/`review`, Jeff approved through the web UI, the approval\
+    \ put the ball back to `agent`/`work` \u2014 and the task page then offered Dispatch\
+    \ on a task whose dispatched run had never exited and was about to merge it. His\
+    \ words: *\"I can click dispatch on this task even though you are still working\
+    \ it from this original dispatched session.\"*\n\nSo the ledger knew. `run_85e26f5b`\
+    \ was open, this project's run for this task, started by dispatch itself \u2014\
+    \ the exact case the \"one live run per task\" rule is supposed to cover \u2014\
+    \ and the button was offered anyway. Whatever the guard consults, it is not the\
+    \ open run, or it is consulted only at click time and not by the control. That\
+    \ makes the button question in this task's description sharper: an enabled control\
+    \ here is not merely optimistic, it is contradicted by state the server is already\
+    \ holding.\n\nAlso worth folding into the fix: approval is a moment when this\
+    \ is *especially* likely to be clicked, because the ball legitimately returns\
+    \ to the agent and the page looks like it is waiting for one. A task with a live\
+    \ run should not offer to start a second one, whoever is holding the ball.\n\n\
+    No change made here. Filed as a note rather than a new task after searching the\
+    \ backlog \u2014 this is the same defect, and it is still `ready` at queue position\
+    \ 9600 in `high`, which is a long way behind two sightings in three days."
+  data:
+    operation:
+      id: b7dae8f6-5a73-4dc9-9f81-7c3beb9d0077
+      kind: log_append
+      fingerprint: 69630efe3ebe0eafa6a42619e87fad65
+- id: 5
+  ts: '2026-08-21T20:47:56.159576Z'
+  actor: claude
+  type: note
+  body: "Correcting the entry above before it misleads someone. I wrote *\"whatever\
+    \ the guard consults, it is not the open run\"* \u2014 that was inference, not\
+    \ a reading of the code, and it is wrong.\n\n`guards.py:680-687` scans `live_runs(machine_home)`\
+    \ and raises `LiveRunExistsError` for any run whose `task_id` matches, ahead of\
+    \ the claim and the spawn. `run_85e26f5b` was in that ledger and open, so **Jeff's\
+    \ click would have been refused.** Entry 3 had already verified this half live\
+    \ against run_f27d3d88 and I should have read it as settled.\n\nSo the 2026-08-21\
+    \ sighting is the **button** half of this task only, not the guard half: an enabled,\
+    \ inviting control on a task the server would refuse to dispatch. That is still\
+    \ worth the fix \u2014 a lit button that produces an error is a worse answer than\
+    \ a control that says who holds the task \u2014 but it is a UI defect, not an\
+    \ open hole, and it does not raise this task's priority the way the entry above\
+    \ implies.\n\nWhat does still hold from that entry: approval is the moment this\
+    \ is most likely to be clicked, because the ball legitimately returns to `agent`/`work`\
+    \ and the page reads as waiting for one. A task with a live run in the ledger\
+    \ should not offer to start a second, and the ledger is right there to ask."
+  re: 4
+  data:
+    operation:
+      id: c8ebf907-6b84-4eda-8a92-8d4cfae10088
+      kind: log_append
+      fingerprint: e5451674b27164115158350032fc9084
