@@ -12,7 +12,7 @@ Mounted like every other task-facing router -- unscoped at ``/api`` and again un
 
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Dict, List, Sequence, Tuple
 
 from fastapi import APIRouter, Depends, Query
 
@@ -35,11 +35,21 @@ from ..models import (
 router = APIRouter(tags=["queue"])
 
 
-def _renumbered(band: str, moved: List[Any]) -> List[QueueAssignmentRead]:
-    """Turn the manager's ``(task_id, position)`` pairs into read models."""
+def _renumbered(band: str, moved: Sequence[Tuple[str, int]]) -> List[QueueAssignmentRead]:
+    """Where each task ended up, once, in its final order.
+
+    The manager returns the *writes*, and a renumber is planned in up to two passes --
+    tail-first upward, head-first downward -- precisely so no intermediate state ever
+    holds two tasks on one number. A task moved by both passes is therefore written
+    twice, and reporting both makes a compaction look like it put one task in two
+    places. The last write is where it is; the rest is how it got there.
+    """
+    landed: Dict[str, int] = {}
+    for task_id, position in moved:
+        landed[task_id] = position
     return [
         QueueAssignmentRead(task=task_id, band=band, position=position)
-        for task_id, position in moved
+        for task_id, position in sorted(landed.items(), key=lambda item: item[1])
     ]
 
 

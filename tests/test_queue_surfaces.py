@@ -663,6 +663,39 @@ class TestQueueMaintenanceOverHttp:
         assert order(manager) == before
         assert [position(manager, task_id) for task_id in before] == [100, 200, 300]
 
+    def test_compact_reports_where_each_task_landed_exactly_once(self, api) -> None:
+        """A renumber writes some tasks twice; only the last write is where they are.
+
+        Found on a live 218-task corpus rather than by a test, which is why this one
+        exists. ``plan_renumber`` uses up to two passes -- tail-first upward,
+        head-first downward -- so no intermediate state ever holds two tasks on one
+        number. A task moved by both passes is therefore written twice, and the
+        manager returns both writes because both happened. Reporting them straight
+        through made a compaction claim it had put one task in two places, which is
+        precisely the thing a compaction never does.
+        """
+        client, manager, _ = api
+        for name in ("task-a", "task-b", "task-c", "task-d"):
+            make(manager, name)
+        # Close the third, leaving 100, 200, 400 against targets 100, 200, 300. The
+        # ranges overlap, which is what forces the two-pass form -- and it is also
+        # the ordinary shape of a band that has had work closed out of the middle of
+        # it, which is to say the shape every real compaction meets.
+        manager.close_task("task-c", actor="bot", outcome=Outcome.COMPLETED)
+
+        moved = client.post(
+            "/api/queue/compact",
+            json={"actor": "Ada", "operation_id": "op-1", "band": "high"},
+        ).json()["moved"]
+
+        reported = [item["task"] for item in moved]
+        assert len(reported) == len(set(reported))
+        # And what it reports is the truth on disk, in the order a reader expects.
+        assert [item["position"] for item in moved] == sorted(item["position"] for item in moved)
+        assert {item["task"]: item["position"] for item in moved} == {
+            task_id: position(manager, task_id) for task_id in order(manager)
+        }
+
     def test_compacting_twice_leaves_the_same_corpus(self, api) -> None:
         """Why these two need no operation ledger: repeating them changes nothing."""
         client, manager, _ = api
@@ -1013,6 +1046,23 @@ class TestQueueMutationCommands:
 
         assert result.exit_code == 0
         assert [position(manager, task_id) for task_id in order(manager)] == [100, 200, 300]
+
+    def test_compact_names_each_task_once_on_the_command_line_too(
+        self, project, monkeypatch
+    ) -> None:
+        """Same defect, same fix, separate surface: neither reads the other's code."""
+        root, manager = project
+        for name in ("task-a", "task-b", "task-c", "task-d"):
+            make(manager, name)
+        manager.close_task("task-c", actor="bot", outcome=Outcome.COMPLETED)
+        monkeypatch.chdir(root)
+
+        result = runner.invoke(cli_app, ["queue", "compact", "high"])
+
+        assert result.exit_code == 0
+        for name in ("task-a", "task-b", "task-d"):
+            assert result.output.count(name) == 1
+        assert "Renumbered 3 task(s)" in result.output
 
     def test_compacting_an_already_compact_band_says_so(self, project, monkeypatch) -> None:
         root, manager = project

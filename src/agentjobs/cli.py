@@ -1521,9 +1521,16 @@ def queue_compact(
     if not moved:
         typer.echo(f"Band '{band.value}' is already compact.")
         return
-    for task_id, position in moved:
+    # Where each task ended up, not every write it took to get there: a renumber is
+    # planned in up to two passes so no intermediate state holds a duplicate, and a
+    # task moved by both is written twice. Printing both reads as one task in two
+    # places, which is exactly what a compaction never does.
+    landed = dict(moved)
+    for task_id, position in sorted(landed.items(), key=lambda item: item[1]):
         typer.echo(f"  {position:>5}  {task_id}")
-    typer.secho(f"\u2705 Renumbered {len(moved)} task(s) in '{band.value}'.", fg=typer.colors.GREEN)
+    typer.secho(
+        f"\u2705 Renumbered {len(landed)} task(s) in '{band.value}'.", fg=typer.colors.GREEN
+    )
 
 
 @app.command("next")
