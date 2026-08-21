@@ -269,6 +269,93 @@ class TestHumanClockedRule:
         with pytest.raises(CausingActorNotHumanError):
             run(manager, project, home, ready_task.id, caused_by=agent_entry.id)
 
+    def test_the_dispatchers_own_entry_is_refused_as_an_agents(self) -> None:
+        """task-153. `dispatcher` is reserved, not configured, and must not read unknown.
+
+        It is the id AgentJobs writes its own `dispatch` and `dispatch_result` entries
+        as, so this is the branch every *re*-dispatch takes. Reporting the most
+        predictable actor in the system as an unrecognised stranger is wrong on its own;
+        what the stranger branch then advises is why it matters.
+        """
+        with pytest.raises(CausingActorNotHumanError) as caught:
+            assert_human_clocked(PROJECT_CONFIG, _entry(actor="dispatcher"))
+
+        message = str(caught.value)
+        assert "an agent" in message
+        assert "Act on the task yourself" in message
+
+    def test_the_refusal_never_advises_configuring_the_dispatcher_as_human(self) -> None:
+        """sc-3. The stranger branch's remedy is a working recipe for disabling the rule.
+
+        Adding `dispatcher: {kind: human}` to a project's actors would clock every
+        future dispatcher-written entry as a human act, and dispatch could then drive
+        itself with no human in the loop. An unsupervised agent applies a
+        machine-readable remedy mechanically, so this text is the exposure.
+        """
+        with pytest.raises(CausingActorNotHumanError) as caught:
+            assert_human_clocked(PROJECT_CONFIG, _entry(actor="dispatcher"))
+
+        message = str(caught.value)
+        assert "kind: human" not in message
+        assert "actors:" not in message
+        assert "config.yaml" not in message
+
+    def test_a_genuinely_unknown_actor_keeps_the_advice_that_suits_one(self) -> None:
+        """sc-2. Naming an unconfigured *person* is a config problem, and says so."""
+        with pytest.raises(CausingActorNotHumanError) as caught:
+            assert_human_clocked(PROJECT_CONFIG, _entry(actor="somebody-new"))
+
+        message = str(caught.value)
+        assert "does not configure as an actor" in message
+        assert "'kind: human'" in message
+
+    def test_configuring_the_dispatcher_as_human_does_not_re_arm_the_rule(self) -> None:
+        """The docstring says "not a configuration option"; this is what makes it true.
+
+        Reserved ids are resolved before the project's vocabulary, so a project that
+        writes the recipe into its own config by hand -- or on the strength of the old
+        message -- still gets the reserved agent and is still refused.
+        """
+        config = dict(PROJECT_CONFIG)
+        config["actors"] = [
+            *PROJECT_CONFIG["actors"],  # type: ignore[misc]
+            {"name": "dispatcher", "kind": "human"},
+        ]
+
+        with pytest.raises(CausingActorNotHumanError) as caught:
+            assert_human_clocked(config, _entry(actor="dispatcher"))
+        assert "an agent" in str(caught.value)
+
+    def test_a_second_dispatch_is_refused_and_a_human_entry_re_arms_it(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """sc-5, end to end: the rule is unchanged, only which branch reports it.
+
+        Dispatch, let the run finish, dispatch again. The newest entry is by then the
+        dispatcher's own `dispatch_result`, so the second dispatch is refused -- which
+        is correct and stays. Any human-written entry re-arms it.
+        """
+        write_dispatch_config(home, fake_runner)
+        settle(run(manager, project, home, ready_task.id))
+        after_run = manager.get_task(ready_task.id)
+        assert after_run is not None
+        assert after_run.log[-1].actor == "dispatcher", "the run should have left its own entry"
+
+        with pytest.raises(CausingActorNotHumanError) as caught:
+            run(manager, project, home, ready_task.id)
+        message = str(caught.value)
+        assert "dispatcher" in message
+        assert "kind: human" not in message
+        assert live_runs(home) == []
+
+        manager.add_log_entry(
+            ready_task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go again."
+        )
+        handle = run(manager, project, home, ready_task.id)
+        settle(handle)
+
+        assert handle.run_id.startswith("run_")
+
     def test_a_task_with_no_log_cannot_be_dispatched(self, manager: TaskManager) -> None:
         task = manager.create_task(title="Bare", category="general", summary="s", description="d")
         task.log.clear()

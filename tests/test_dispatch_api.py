@@ -287,6 +287,36 @@ class TestTheNoteThatAuthorisesARun:
         assert response.status_code == 403
         assert response.json()["code"] == "not_human_clocked"
 
+    def test_the_dispatchers_own_entry_refuses_without_a_recipe_for_disabling_the_rule(
+        self, served, tmp_path: Path
+    ) -> None:
+        """task-153, sc-4: the correction reaches the surface that ships the text.
+
+        `dispatcher` is the reserved id AgentJobs writes its own `dispatch` and
+        `dispatch_result` entries as, so every re-dispatch of a task that has already
+        run meets this refusal. The React app overrides the copy for its own users
+        (`DispatchPanel.tsx`); the HTTP body is what everything else reads, including an
+        unsupervised agent that would apply `suggested_action` mechanically. Neither
+        field may contain the working recipe -- configuring `dispatcher` as a human --
+        for switching off the rule that just refused it.
+        """
+        client, root, home = served
+        enable_dispatch(home, tmp_path)
+        task_id = self.agent_filed_task(root)
+        written = self.note(client, task_id, actor="dispatcher", body="Run finished.")
+        assert written.status_code == 200, written.text
+
+        response = client.post(f"/api/projects/sandbox/tasks/{task_id}/dispatch", json={})
+
+        assert response.status_code == 403
+        body = response.json()
+        assert body["code"] == "not_human_clocked"
+        rendered = f"{body['detail']} {body.get('suggested_action') or ''}"
+        assert "kind: human" not in rendered
+        assert "config.yaml" not in rendered
+        assert "an agent" in rendered
+        assert "Act on the task yourself" in rendered
+
     def test_a_note_written_by_the_human_authorises_exactly_that_run(
         self, served, tmp_path: Path
     ) -> None:
