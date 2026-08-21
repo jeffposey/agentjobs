@@ -11,6 +11,11 @@ This installs both, makes sure the browser the end-to-end test drives is present
 and then proves the environment imports *this* checkout rather than the clone next
 door.
 
+A third untracked file matters for a different reason: `.mcp.json` is gitignored
+because it names an absolute interpreter path, so a worktree starts without it and a
+session started there gets no AgentJobs MCP tools -- it can do the work but cannot
+claim, log or hand off any of it. That one is copied across too.
+
 It also refuses to install into somebody else's environment, which is the harder half.
 Poetry prefers an **activated** virtualenv over the one it keys on the project path, so
 a shell with `VIRTUAL_ENV` pointing at the main clone -- which is what a dispatched agent
@@ -176,6 +181,43 @@ def verify_command(poetry: str, env: dict[str, str] | None) -> str:
     return f"{python} scripts/check.py"
 
 
+def copy_mcp_config() -> str | None:
+    """Give a fresh checkout the machine-local MCP config a session needs.
+
+    `.mcp.json` is gitignored on purpose -- it names an absolute interpreter path, so it
+    describes a machine rather than the repository. The consequence is that a worktree
+    starts without one, and a session started in that worktree gets no AgentJobs tools:
+    it cannot claim, log or hand off, and the task-write guard then correctly refuses
+    the direct YAML edit it falls back to. The session is left doing real work with no
+    way to record it, which reads as a mystery rather than a missing file.
+
+    Copying the main clone's file across costs nothing. It is the same class of gap as
+    the virtualenv and `node_modules` above -- untracked, required, and invisible until
+    something fails oddly.
+    """
+    local = ROOT / ".mcp.json"
+    if local.exists():
+        return None
+
+    common = subprocess.run(
+        ["git", "rev-parse", "--git-common-dir"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if common.returncode != 0:
+        return None
+
+    # Relative for a main clone, absolute for a worktree; both resolve from ROOT.
+    origin = (ROOT / common.stdout.strip()).resolve().parent
+    source = origin / ".mcp.json"
+    if origin == ROOT or not source.is_file():
+        return None
+
+    shutil.copyfile(source, local)
+    return f"Copied .mcp.json from {origin} -- this checkout's sessions get the MCP tools."
+
+
 def main() -> int:
     """Install the Python and frontend dependencies, then verify the result."""
     poetry = executable("poetry.exe", "poetry")
@@ -191,6 +233,10 @@ def main() -> int:
     assert poetry is not None and npm is not None and npx is not None
 
     started = time.monotonic()
+    copied = copy_mcp_config()
+    if copied is not None:
+        print(copied, flush=True)
+
     env, note = install_environment(poetry)
     if note is not None:
         print(f"\n{note}", flush=True)
