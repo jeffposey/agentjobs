@@ -421,6 +421,7 @@
             "enum": [
               "blocked",
               "backlog",
+              "queue_broken",
               "next_up",
               "nothing_claimable",
               "empty_project"
@@ -432,6 +433,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/TaskRead-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "queue_broken": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueueBrokenRead"
               },
               {
                 "type": "null"
@@ -2102,6 +2113,27 @@
           "band"
         ],
         "title": "QueueBandRead",
+        "type": "object"
+      },
+      "QueueBrokenRead": {
+        "description": "The queue could not be read, what is wrong with it, and what repairs it.\n\nNull on a healthy corpus. Present, the dashboard renders a banner naming the\noffending tasks instead of a next action computed from an order that does not\nexist -- design section 8's React row.",
+        "properties": {
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/QueueProblemRead"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "repair_command": {
+            "title": "Repair Command",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repair_command"
+        ],
+        "title": "QueueBrokenRead",
         "type": "object"
       },
       "QueueCompactRequest": {

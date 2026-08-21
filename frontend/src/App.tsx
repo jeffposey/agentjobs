@@ -10,6 +10,7 @@ import {
   getDashboardApiProjectsProjectIdDashboardGetOptions,
   getDispatchStateApiProjectsProjectIdDispatchGetOptions,
   getProjectsApiProjectsGetOptions,
+  getQueueApiProjectsProjectIdQueueGetOptions,
   getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetOptions,
   approveTaskApiProjectsProjectIdTasksTaskIdApprovePostMutation,
   createTaskApiProjectsProjectIdTasksPostMutation,
@@ -18,10 +19,12 @@ import {
   listDispatchRunsApiProjectsProjectIdDispatchRunsGetOptions,
   listTasksApiProjectsProjectIdTasksGetOptions,
   promoteTaskApiProjectsProjectIdTasksTaskIdPromotePostMutation,
+  queueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostMutation,
   rejectTaskApiProjectsProjectIdTasksTaskIdRejectPostMutation,
+  reprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostMutation,
   requestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostMutation,
 } from "./api/generated/@tanstack/react-query.gen";
-import type { DispatchRunView } from "./api/types";
+import type { DispatchRunView, Priority } from "./api/types";
 import { readRefusal } from "./api/mutation-error";
 import {
   requireSupportedTaskSchemas,
@@ -35,11 +38,12 @@ import {
   type DispatchRefusal,
 } from "./components/DispatchPanel";
 import { DispatchRunOutput } from "./components/DispatchOutput";
-import { TaskList } from "./components/TaskList";
+import { TaskList, type ReorderHandlers } from "./components/TaskList";
 import { TaskDetail } from "./components/TaskDetail";
 import { TaskCreate } from "./components/TaskCreate";
 import { IssueReporter } from "./components/IssueReporter";
-import { LiveUpdateStatus } from "./components/LiveUpdates";
+import { NextExplanation } from "./components/NextExplanation";
+import { invalidateProjectTaskQueries, LiveUpdateStatus } from "./components/LiveUpdates";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
 
 function ProjectRedirect() {
@@ -108,10 +112,17 @@ function DashboardPage({ projectId }: { projectId: string }) {
     return <ConnectionUnavailable offline={false} />;
   }
 
-  return <Dashboard dashboard={dashboardQuery.data} projectId={projectId} />;
+  return (
+    <Dashboard
+      dashboard={dashboardQuery.data}
+      projectId={projectId}
+      renderWhyThisOne={() => <NextExplanation projectId={projectId} />}
+    />
+  );
 }
 
 function TaskListPage({ projectId }: { projectId: string }) {
+  const queryClient = useQueryClient();
   const tasksQuery = useQuery({
     ...listTasksApiProjectsProjectIdTasksGetOptions({ path: { project_id: projectId } }),
     select: (tasks) => {
@@ -122,13 +133,85 @@ function TaskListPage({ projectId }: { projectId: string }) {
   const brokenQuery = useQuery(
     listBrokenTasksApiProjectsProjectIdTasksBrokenGetOptions({ path: { project_id: projectId } }),
   );
+  // Read for `problems` and `repair_command` alone -- the order itself comes with the
+  // tasks. This endpoint reports rather than raising, which is exactly why the banner
+  // reads it: it is the one queue surface that still answers while the queue is broken.
+  const queueQuery = useQuery(
+    getQueueApiProjectsProjectIdQueueGetOptions({ path: { project_id: projectId } }),
+  );
+  const projectsQuery = useQuery(getProjectsApiProjectsGetOptions());
+  const actor = projectsQuery.data?.find((entry) => entry.id === projectId)?.default_user ?? null;
+  const move = useMutation(queueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostMutation());
+  const reprioritize = useMutation(
+    reprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostMutation(),
+  );
 
   if (tasksQuery.error instanceof UnsupportedTaskSchemaError) {
     return <StatusCard title="Unsupported task schema"><p>{tasksQuery.error.message}</p><p className="mt-4">Upgrade the UI before viewing this project.</p></StatusCard>;
   }
   if (tasksQuery.isPending || brokenQuery.isPending) return <StatusCard title="Opening tasks...">Loading current task data.</StatusCard>;
   if (!tasksQuery.data || !brokenQuery.data) return <ConnectionUnavailable offline={false} />;
-  return <TaskList tasks={tasksQuery.data} brokenFiles={brokenQuery.data} projectId={projectId} />;
+
+  const tasks = tasksQuery.data;
+  const revisionOf = (taskId: string) => tasks.find((task) => task.id === taskId)?.updated;
+  // Every reorder is attributed and retry-safe: `actor` and `operation_id` are required
+  // on both of these routes rather than optional, unlike the older verbs.
+  const reorder: ReorderHandlers | null = actor
+    ? {
+        move: async (taskId, placement) => {
+          // No expected_revision, deliberately -- the same call the note composer makes
+          // and for the same reason. A move is not a decision taken against a snapshot:
+          // it names a neighbour by id, and the manager resolves that under the queue
+          // lock against whatever the band is at the time, so it does what was asked
+          // however much the band moved in between. `top` and `bottom` are absolute and
+          // need no snapshot at all.
+          //
+          // Sending one actively breaks the primary path. Alt+Up twice in quick
+          // succession is one gesture as far as a person is concerned, and the second
+          // keypress lands before the first move's refetch does -- so the revision on
+          // screen is one write behind, the move is refused, and the reorder they just
+          // watched happen rolls back. Nothing about that is a conflict worth reporting.
+          await move.mutateAsync({
+            path: { project_id: projectId, task_id: taskId },
+            body: { actor, operation_id: crypto.randomUUID(), ...placement },
+          });
+          await invalidateProjectTaskQueries(queryClient, projectId);
+        },
+        reprioritize: async (taskId, priority, before) => {
+          // This one keeps its revision. A band change is decided by a person reading a
+          // confirmation panel that describes specific state, one gesture at a time, so
+          // a task that moved since that panel was drawn should refuse rather than
+          // reprioritise on the strength of a screen nobody has re-read.
+          await reprioritize.mutateAsync({
+            path: { project_id: projectId, task_id: taskId },
+            body: {
+              actor,
+              operation_id: crypto.randomUUID(),
+              expected_revision: revisionOf(taskId),
+              priority: priority as Priority,
+              before,
+            },
+          });
+          await invalidateProjectTaskQueries(queryClient, projectId);
+        },
+      }
+    : null;
+
+  return (
+    <TaskList
+      tasks={tasks}
+      brokenFiles={brokenQuery.data}
+      projectId={projectId}
+      queueProblems={queueQuery.data?.problems ?? []}
+      repairCommand={queueQuery.data?.repair_command ?? "agentjobs queue repair"}
+      reorder={reorder}
+      reorderUnavailable={
+        actor
+          ? null
+          : "Reordering is off because this project configures no human actor, and every queue move is recorded against one. Add a default_user to .agentjobs/config.yaml."
+      }
+    />
+  );
 }
 
 /**
