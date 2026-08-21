@@ -316,3 +316,14 @@ review request the reviewer can actually see.
     filter silently matches nothing. Assert the value a user's browser will act on.
 -   When a check passes, ask what it would have caught. If the answer is "nothing that
     has ever gone wrong here", it is decoration.
+-   **Do not set up the state your test is meant to be checking.** task-207 added a
+    keyboard reorder to the task list and covered it in jsdom and in Playwright, both
+    green. Both focused the row's handle before every keypress -- and the defect was that
+    focus did not survive a keypress, because React reorders rows by moving their DOM
+    nodes and a browser drops focus from a node it reinserts. So the feature worked
+    exactly once per click, and the two tests written to prove it worked were the reason
+    nobody could see that. Found by pressing the key twice in a browser.
+-   **A Playwright keypress is not a person's keypress.** `page.keyboard.press` goes in
+    through CDP, below the browser's own shortcut handling and below anything a real
+    window does with focus. It is the right tool for driving a page and the wrong
+    evidence for "this key combination works" -- for that, press it yourself.
