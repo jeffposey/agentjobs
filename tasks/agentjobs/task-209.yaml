@@ -3,10 +3,55 @@ id: task-209
 title: 'Order the live backlog: put the whole open corpus in a work order Jeff has
   agreed to'
 created: '2026-08-20T23:32:09.717972Z'
-updated: '2026-08-21T09:22:53.179327Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-21T16:05:42.931056Z'
+lifecycle: active
+ball: human
+ball_reason: approval
+ball_prompt: 'Approve, amend or reject the ordering proposal in log entry 6. Nothing
+  has been applied yet -- the live corpus is still on the migration baseline, and
+  no move happens until your approval is on this record (sc-1 requires it here, not
+  in chat).
+
+
+  What you are approving, in three parts:
+
+
+  1. THE HEAD, ordered exactly. HIGH becomes 193, 196, 224, 011, 012 -- the five ways
+  dispatch and the React app misreport their own state, on the reasoning that everything
+  else in the backlog is executed through those two instruments. MEDIUM becomes 010,
+  105, 015, 053, 013, led by the corpus test that fails in every worktree while the
+  process mandates worktrees.
+
+
+  2. THE ROUGH BUCKET, not deliberated pairwise. HIGH 6-13: 198, 199, 014, 007, 120,
+  121, 100, 018. MEDIUM 6-11: 183, 197, 201, 223, 104, 106. Plus one demotion: task-063
+  from HIGH 100 to the bottom of the band, because its only open child is a MEDIUM
+  task.
+
+
+  3. THE TAIL, deliberately left unordered, keeping the migration baseline. Per log
+  entry 4 that is itself the decision, so approving it is approving not to order it.
+  It was read, not ordered: the triage scan is in entry 6 and names task-221 as the
+  one item that came close to the head and was declined.
+
+
+  The CRITICAL band (task-220 alone) and the LOW band (three tasks) are unchanged.
+
+
+  sc-4 is satisfied as proposed and as it stands today: task-120 sits at HIGH 10,
+  well ahead of task-208 and task-209 at 45 and 46.
+
+
+  Three things looked wrong and were NOT fixed, per the no-grooming constraint --
+  they are open questions in log entry 7 and none of them blocks approval: task-198
+  and task-199 look like the same defect filed twice; task-010 arguably belongs in
+  HIGH rather than MEDIUM; task-063''s band no longer matches its remaining work.
+  Answer them if you want, or leave them.
+
+
+  On approval I apply 25 `agentjobs queue move` calls -- one per move, each logged,
+  no bulk rewrite -- then re-read `agentjobs queue list` and confirm it matches this
+  list before closing.'
 archived: false
 priority: high
 queue_position: 5000
@@ -15,6 +60,7 @@ tags:
 - queue-order
 - backlog
 assignment:
+  owner: claude
   eligible: []
 parent: task-081-task-selection-ranking
 spec:
@@ -169,3 +215,249 @@ log:
       id: a1b2c3d4-000a-4a00-9e00-1a2b3c4d0209
       kind: log_append
       fingerprint: 4043a0992ba93ba72cc35f7226e6ec0d
+- id: 5
+  ts: '2026-08-21T15:59:50.001919Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 3f1c7a52-0209-4c11-9b40-000000000101
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 6
+  ts: '2026-08-21T16:05:10.555238Z'
+  actor: claude
+  type: progress
+  body: "PROPOSED ORDER, awaiting Jeff's approval. Nothing has been applied: the live\
+    \ corpus is still on the migration baseline as of this entry. This is the list\
+    \ sc-1 requires be presented and approved; sc-2 will be verified against it after\
+    \ the moves.\n\nORDERING PROPOSAL -- the whole open corpus, 92 tasks, band by\
+    \ band.\n\nEffort is graded per log entry 4: positions 1-5 in each band are deliberated\n\
+    exactly with a reason; 6-13 (HIGH) / 6-11 (MEDIUM) are placed in rough buckets\
+    \ and\nwere NOT deliberated pairwise; everything below keeps the migration baseline\
+    \ order\nuntouched and got only the triage scan reported at the end.\n\nBaseline\
+    \ captured from \"agentjobs queue list\" before any move; 92 open tasks,\nCRITICAL\
+    \ 1 / HIGH 54 / MEDIUM 34 / LOW 3.\n\n================================================================\n\
+    CRITICAL (1) -- unchanged, nothing to order\n================================================================\n\
+    \ 1  task-220  An epic supervisor parks where ordinary dispatched runs do not\
+    \   [active]\n\n================================================================\n\
+    HIGH (54)\n================================================================\n\
+    --- HEAD: ordered exactly ---------------------------------------\n 1  task-193\
+    \  Every CLI dispatch hands the agent a dead API address      (was 4100)\n 2 \
+    \ task-196  \"agentjobs restart\" adds a generation instead of replacing (was\
+    \ 4200)\n 3  task-224  Mid-run auth expiry parks runs; re-auth in the app is inert\
+    \ (was 5800)\n 4  task-011  Merging frontend code does not update the running\
+    \ server   (was  900)\n 5  task-012  Contain a render crash so one bad field cannot\
+    \ blank the app (was 1000)\n\nREASON (one decision, five tasks): every other task\
+    \ in this backlog is executed\nthrough dispatch and reviewed through the React\
+    \ app, and all five of these are\nways those two instruments LIE rather than fail.\
+    \ 193 and 224 stop a dispatched run\nfrom working at all -- a dead API address\
+    \ means the agent cannot read or write its\nown record, and an auth expiry parks\
+    \ it with no recovery from inside the app.\n196 and 011 are the same failure in\
+    \ two places: you look at a server that is not\nrunning the code you think it\
+    \ is, which has already cost this project multiple\nforensic sessions. 012 turns\
+    \ one bad field into a blank page with no message.\nFixing the instruments first\
+    \ is what makes the next forty tasks cheaper; nothing\nbelow this line is worth\
+    \ doing through a toolchain that misreports its own state.\n\n--- BUCKET 2: rough\
+    \ placement, not deliberated pairwise ----------\n 6  task-198  Enabling dispatch\
+    \ from the UI destroys every comment in dispatch.yaml (was 4300)\n 7  task-199\
+    \  Enabling a project from the browser deletes every comment there too   (was\
+    \ 4400)\n 8  task-014  Detect a bundle talking to a server it was not built against\
+    \          (was 1100)\n 9  task-007  Stop the default route delivering the legacy\
+    \ Jinja UI                 (was  800)\n10  task-120  Issue reporter: rapid screenshot-backed\
+    \ and batch task capture (epic) (was  400)\n11  task-121  Collect a review's worth\
+    \ of findings and file them in one action      (was  500)\n12  task-100  A \"\
+    needs\" cycle deadlocks silently                                    (was  300)\n\
+    13  task-018  A parent can close while its children are open, and nothing reopens\
+    \ it (was 2200)\n\nREASONS: 198/199 are unrecoverable data loss -- a machine-local\
+    \ file in no\nrepository, so there is no diff to restore from -- but they fire\
+    \ on a rare click,\nwhich is why they sit below the head rather than in it. See\
+    \ the open question:\nthey look like the same defect filed twice. 014 belongs\
+    \ with 011/012 as the third\nmember of the stale-bundle family. 007 is the front\
+    \ door still opening on the\ndeprecated UI. 120+121 kept adjacent (epic moves\
+    \ with its child) and deliberately\nstill ahead of 208/209, per sc-4. 100 and\
+    \ 018 are live corpus-integrity defects\nrather than hypotheticals -- task-060\
+    \ is closed today with ten open children.\n\n--- TAIL: migration baseline retained,\
+    \ relative order untouched ---\n14 task-081   15 task-124   16 task-126   17 task-016\
+    \   18 task-017\n19 task-137   20 task-138   21 task-140   22 task-139   23 task-144\n\
+    24 task-141   25 task-143   26 task-146   27 task-147   28 task-148\n29 task-149\
+    \   30 task-160   31 task-161   32 task-167   33 task-168\n34 task-171   35 task-169\
+    \   36 task-172   37 task-174   38 task-175\n39 task-179   40 task-181   41 task-184\
+    \   42 task-021   43 task-022\n44 task-023   45 task-208   46 task-209   47 task-211\
+    \   48 task-214\n49 task-215   50 task-216   51 task-217   52 task-221   53 task-222\n\
+    \n--- ONE DEMOTION -------------------------------------------------\n54  task-063\
+    \  Schema v2: finish the dedicated CLI state verbs  (was HIGH 100 -> bottom)\n\
+    \nREASON: position 100 of the top band is the single most valuable slot in the\n\
+    corpus and nothing can claim this one -- it is an umbrella with one open child.\n\
+    That child is task-053, which sits in MEDIUM. An epic held at the head of HIGH\n\
+    while its only remaining work is a medium task states a priority the corpus does\n\
+    not actually hold. It closes the moment 053 does, and 053 is promoted to MEDIUM\
+    \ 4.\n\n================================================================\nMEDIUM\
+    \ (34)\n================================================================\n---\
+    \ HEAD: ordered exactly ---------------------------------------\n 1  task-010\
+    \  A corpus test can only pass on one machine, fails in every worktree (was 1300)\n\
+    \ 2  task-105  Generate the next task number from all slugged task IDs       \
+    \      (was  700)\n 3  task-015  Stop one long ball_prompt from swallowing a task\
+    \ list row           (was 1600)\n 4  task-053  Schema v2: CLI mirrors -- inbox,\
+    \ next, claim, handoff, log, close   (was  100)\n 5  task-013  Ship sourcemaps\
+    \ so a production stack trace names a source line     (was 1500)\n\nREASONS, per\
+    \ move:\n 010 -- ALLAGENTS.md now REQUIRES every agent to take a worktree, and\
+    \ ENGINEERING.md\n       requires \"scripts/check.py\" before every commit. This\
+    \ test fails in every\n       worktree by construction, so the mandatory gate\
+    \ fails for every agent that\n       follows the mandatory process. Strongest\
+    \ item in the band. See open question:\n       it arguably belongs in HIGH, which\
+    \ is a reprioritize and out of scope here.\n 105 -- reproduced in production 2026-08-17:\
+    \ MCP task_create_ready returned task-002\n       against a corpus whose high-water\
+    \ mark was task-123. A generated id that\n       collides with an existing record\
+    \ is corpus corruption, not an annoyance.\n 015 -- the task list is the exact\
+    \ surface this whole ordering program exists to make\n       readable. A several-hundred-word\
+    \ cell in it is self-defeating.\n 053 -- the one thing standing between task-063\
+    \ and closing; kept high deliberately\n       so the demotion above resolves rather\
+    \ than just sinks.\n 013 -- pairs with HIGH 5 (task-012). An error boundary that\
+    \ reports a column offset\n       into one minified line is half a diagnosis.\n\
+    \n--- BUCKET 2: rough placement, not deliberated pairwise ----------\n 6  task-183\
+    \  A CLI batch run always ends interrupted, however well it went  (was 2700)\n\
+    \ 7  task-197  The session poller resolves the wrong runner for group dispatches\
+    \ (was 2800)\n 8  task-201  Make supervision posture an explicit choice, not the\
+    \ guess     (was 2900)\n 9  task-223  The rule that serializes every epic has\
+    \ no stated reason       (was 3400)\n10  task-104  Stage and capture polished\
+    \ React screenshots for README        (was  600)\n11  task-106  Verify the React\
+    \ PWA on a physical phone and tablet            (was  800)\n\nREASONS: 183/197/201\
+    \ continue the dispatch-reliability theme one band down; 223\nis next to them\
+    \ because it governs how an epic supervisor is allowed to run and\nwould unlock\
+    \ parallel children. 104/106 held near the head only because they were\nalready\
+    \ there and are cheap; they were not argued for against the others.\n\n--- TAIL:\
+    \ migration baseline retained, relative order untouched ---\n12 task-066   13\
+    \ task-092   14 task-001   15 task-101   16 task-125\n17 task-127   18 task-128\
+    \   19 task-129   20 task-123   21 task-142\n22 task-145   23 task-150   24 task-151\
+    \   25 task-152   26 task-156\n27 task-162   28 task-163   29 task-170   30 task-176\
+    \   31 task-212\n32 task-213   33 task-218   34 task-219\n\nNote: 066 / 092 /\
+    \ 001 / 101 are drafts held by human for spec. They occupied\nMEDIUM 200-500 in\
+    \ the baseline -- four of the top five slots in the band held by\nthings no agent\
+    \ can claim. The promotions above displace them without touching\nthem; they are\
+    \ not being reprioritized or groomed.\n\n================================================================\n\
+    LOW (3) -- unchanged, nothing worth ordering in a three-task band\n================================================================\n\
+    \ 1  task-173  A transcription path for browsers with no speech API\n 2  task-178\
+    \  Authoring runners and groups from the browser\n 3  task-195  A dispatch refusal\
+    \ outlives the state that produced it\n\n================================================================\n\
+    TAIL TRIAGE SCAN -- the one question: does anything down there belong at the head?\n\
+    ================================================================\nEvery tail task\
+    \ was read. Four were considered and three declined:\n- task-221 (the gate has\
+    \ no answer for \"does this run need to happen at all\") --\n  real recurring\
+    \ cost, ~6 minutes per gate paid by every agent before every commit\n  and worse\
+    \ under concurrency. Declined for the head because the gate WORKS; this\n  is\
+    \ efficiency, and the head is reserved for things that misreport their state.\n\
+    \  Best candidate for promotion in the next reorder pass.\n- task-223 -- promoted\
+    \ into MEDIUM bucket 2 rather than the head, because its\n  payoff depends on\
+    \ task-022 existing first.\n- task-018 -- promoted into HIGH bucket 2; it is a\
+    \ defect visible in the corpus now.\n- Nothing else is being forgotten. The embed\
+    \ epic (137 + 7), the menu epic\n  (167 + 7), the acceptance-check chain (147-149)\
+    \ and dispatch phase two (160 + 6)\n  are large deliberate programs, correctly\
+    \ parked; the playbook children (214-219)\n  are drafts awaiting spec approval\
+    \ on task-211.\n\n================================================================\n\
+    WHAT THIS COSTS TO APPLY: 25 \"agentjobs queue move\" calls\n================================================================\n\
+    HIGH  14 moves (13 promotions + task-063 to bottom)\nMEDIUM 11 moves\nLOW    \
+    \ 0\nNo \"needs\" dependency is added. No task file is hand-edited. No task is\
+    \ closed,\nreprioritized or rewritten -- the three things that looked wrong are\
+    \ open\nquestions on this record, not fixes.\n"
+  data:
+    operation:
+      id: b7e41a90-0209-4c11-9b40-000000000102
+      kind: log_append
+      fingerprint: aa6283a738ac9f800668ea505f2c97c4
+- id: 7
+  ts: '2026-08-21T16:05:28.546064Z'
+  actor: claude
+  type: question
+  body: "Three things looked wrong while reading the corpus for the ordering pass.\
+    \ Per this\ntask's constraints (\"Ordering the backlog is not grooming it... raise\
+    \ anything that\nlooks wrong as a question instead\") none of them were fixed.\
+    \ They are not blockers\nfor approving the order.\n\nQ1. task-198 and task-199\
+    \ appear to be the same defect filed twice.\n    Both: ~/.agentjobs/dispatch.yaml\
+    \ round-tripped through yaml.safe_load /\n    yaml.safe_dump by the enable path,\
+    \ destroying every comment. 198 names\n    set_project_enabled at src/agentjobs/dispatch/config.py:1034;\
+    \ 199 names\n    config.py:1102. Both observed live on 2026-08-20 against the\
+    \ job-hunting\n    project; 199 counts 38 comment lines lost, 198 says the file\
+    \ went from\n    annotated to 69 bare lines. 199 additionally notes the CLI path\n\
+    \    (agentjobs dispatch enable) has the same problem, so it is the broader of\n\
+    \    the two. If they are one defect, one should close as duplicate and the other\n\
+    \    absorb its detail -- that is a grooming call, not an ordering one. Both are\n\
+    \    placed adjacent (HIGH 6 and 7) in the proposal so the decision is easy to\n\
+    \    make later and costs nothing if it is never made.\n\nQ2. task-010 is in MEDIUM\
+    \ and the argument for HIGH is strong.\n    tests/test_task_corpus.py asserts\
+    \ a context path that exists only in Jeff's\n    clone, so it fails in every worktree.\
+    \ ALLAGENTS.md now requires every agent\n    to take a worktree, and ENGINEERING.md\
+    \ requires scripts/check.py before every\n    commit. The mandatory gate therefore\
+    \ fails for every agent that follows the\n    mandatory process. It is proposed\
+    \ at MEDIUM 1 -- the top of its band -- but\n    changing its band is `reprioritize`,\
+    \ which this task is not authorised to do.\n    Worth a call.\n\nQ3. task-063\
+    \ holds HIGH position 100 while its only open child is in MEDIUM.\n    The proposal\
+    \ demotes it to the bottom of HIGH and promotes that child\n    (task-053) to\
+    \ MEDIUM 4, which resolves the symptom. The underlying oddity --\n    an umbrella\
+    \ whose band no longer matches its remaining work -- is a\n    reprioritize, not\
+    \ a move, so it is left alone.\n"
+  data:
+    operation:
+      id: c8f52ba1-0209-4c11-9b40-000000000103
+      kind: log_append
+      fingerprint: 69124c0854378ee98eaf76549db69fb7
+- id: 8
+  ts: '2026-08-21T16:05:42.930871Z'
+  actor: claude
+  type: handoff
+  body: 'Approve, amend or reject the ordering proposal in log entry 6. Nothing has
+    been applied yet -- the live corpus is still on the migration baseline, and no
+    move happens until your approval is on this record (sc-1 requires it here, not
+    in chat).
+
+
+    What you are approving, in three parts:
+
+
+    1. THE HEAD, ordered exactly. HIGH becomes 193, 196, 224, 011, 012 -- the five
+    ways dispatch and the React app misreport their own state, on the reasoning that
+    everything else in the backlog is executed through those two instruments. MEDIUM
+    becomes 010, 105, 015, 053, 013, led by the corpus test that fails in every worktree
+    while the process mandates worktrees.
+
+
+    2. THE ROUGH BUCKET, not deliberated pairwise. HIGH 6-13: 198, 199, 014, 007,
+    120, 121, 100, 018. MEDIUM 6-11: 183, 197, 201, 223, 104, 106. Plus one demotion:
+    task-063 from HIGH 100 to the bottom of the band, because its only open child
+    is a MEDIUM task.
+
+
+    3. THE TAIL, deliberately left unordered, keeping the migration baseline. Per
+    log entry 4 that is itself the decision, so approving it is approving not to order
+    it. It was read, not ordered: the triage scan is in entry 6 and names task-221
+    as the one item that came close to the head and was declined.
+
+
+    The CRITICAL band (task-220 alone) and the LOW band (three tasks) are unchanged.
+
+
+    sc-4 is satisfied as proposed and as it stands today: task-120 sits at HIGH 10,
+    well ahead of task-208 and task-209 at 45 and 46.
+
+
+    Three things looked wrong and were NOT fixed, per the no-grooming constraint --
+    they are open questions in log entry 7 and none of them blocks approval: task-198
+    and task-199 look like the same defect filed twice; task-010 arguably belongs
+    in HIGH rather than MEDIUM; task-063''s band no longer matches its remaining work.
+    Answer them if you want, or leave them.
+
+
+    On approval I apply 25 `agentjobs queue move` calls -- one per move, each logged,
+    no bulk rewrite -- then re-read `agentjobs queue list` and confirm it matches
+    this list before closing.'
+  data:
+    ball: human
+    ball_reason: approval
+    operation:
+      id: d9061cb2-0209-4c11-9b40-000000000104
+      kind: handoff
+      fingerprint: 6dbd08ea224c5c241f1c361f406fc703
