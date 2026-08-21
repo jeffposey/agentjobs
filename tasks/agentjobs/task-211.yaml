@@ -1,13 +1,15 @@
 schema: 2
 id: task-211
-title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
-  reorder, and flesh-out'
+title: 'Playbooks: named, reusable briefs for AI-judgment work like groom, reorder
+  and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T19:39:37.385931Z'
-lifecycle: closed
-outcome: completed
+updated: '2026-08-21T19:50:03.720952Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: high
+queue_position: 11400
 category: architecture
 tags:
 - design
@@ -18,111 +20,87 @@ tags:
 assignment:
   eligible: []
 spec:
-  summary: 'Design a first-class "playbook" concept: a versioned brief stored in the
-    repo (groom, reorder, flesh-out, ...) that dispatch can instantiate as a task
-    against a project or a single task. Deterministic verbs stay the rails; a playbook
-    is the reusable judgment work that rides them. Design pass only -- it derives
-    implementation children, in the shape task-081 set.'
+  summary: The playbooks epic. Its design phase is finished and merged (docs/playbooks-design.md);
+    this record is now the umbrella that carries the six implementation children task-214
+    through task-219 to completion. Dispatching it starts a supervisor run, not a
+    worker.
   intent: AI-judgment work over the backlog (grooming, ordering, spec-writing) currently
     depends on one-off prompts that die with their session. A written-once, versioned
     brief makes that work repeatable, auditable, and improvable -- and gives the product
     a vocabulary for the layer between deterministic verbs and ad-hoc agent chat.
-  description: 'Filed 2026-08-20 from a naming discussion with Jeff that exposed a
-    real gap in the product''s vocabulary and machinery.
+  description: '**Read docs/playbooks-design.md first. It is the specification, it
+    is merged on main, and it names what was rejected.**
 
 
-    **The three-layer picture the design must formalise:**
+    This task has had two phases.
 
 
-    1. **Deterministic verbs** (CLI, REST, MCP tools): literal Python, no model. `queue
-    move`, `close --outcome superseded`, `task_promote`. These exist and keep growing
-    (the task-081 program adds the queue verbs).
-
-    2. **Dispatched AI work**: an agent session run against a brief. Exists today
-    (dispatch, task-074, task-078), but every brief is written fresh -- "groom the
-    backlog" means someone composes a prompt or a task from scratch each time, and
-    the quality of the run depends on how good that one-off brief was.
-
-    3. **Playbooks -- the missing middle**: a named, versioned, reusable brief checked
-    into the repo, which dispatch can instantiate as a task. "Groom" written once,
-    well, with its rules and its human gates stated, then run many times. Given the
-    product is called AgentJobs, a playbook is literally a job definition an agent
-    can be given repeatedly.
+    **Phase 1 -- design (complete).** All five original acceptance criteria were met,
+    the design was approved by Jeff, and the branch merged in 25427f1. The deliverable
+    is docs/playbooks-design.md. Nothing in that phase remains to be done, and it
+    must not be relitigated -- the binding decisions are in this record''s log (entries
+    2, 3, 5, 6, 22 and 25) and in section 10 of the design.
 
 
-    **Motivating playbooks, which the design should treat as its test cases:**
+    **Phase 2 -- the epic (current).** The six implementation children were promoted
+    to ready on 2026-08-21 once the design was approved, which is the condition acceptance
+    criterion sc-5 held them for. This record was reopened at the same time so the
+    program has a container that outlives its own design phase.
 
 
-    - **groom**: find duplicate, superseded, and stale tasks; propose closures with
-    reasons; a human approves before anything closes; closures go through `close`
-    with `outcome: duplicate|superseded`. Never deletes, never rewrites specs. Distinct
-    from reorder: groom prunes the list, the queue orders what survives.
-
-    - **reorder**: the task-209 pattern generalised -- propose a band-by-band order,
-    human approves, write it through `queue move`.
-
-    - **flesh-out**: take a thin task and produce a full spec (summary/intent/description/constraints/acceptance)
-    as a draft or a proposed patch for human review.
+    **Whoever holds this task is a supervisor, not a worker.** Start one session per
+    eligible child and let that session take its own worktree, do the work, and hand
+    off. Do not work a child yourself, do not take a worktree, and check nothing out.
+    See the parent-task protocol in ALLAGENTS.md.
 
 
-    **What the design must settle** (each is an acceptance criterion below):
+    **The children and the order the dependency graph imposes:**
 
 
-    - **Storage and format**: where playbooks live (repo directory? per-project?),
-    what one contains -- the brief itself, the target shape (project vs single task),
-    the verbs it is permitted to use, its human gates, its outputs. Versioned in git
-    like everything else.
+    - **task-214** -- storage, frontmatter format, read surfaces. Claimable now; everything
+    else builds on it.
 
-    - **Instantiation**: how a playbook run becomes durable state. The strong prior
-    from this repo''s philosophy: a run IS a task (created from the playbook, logged,
-    handed off, closed), so the record survives the session and the resumption contract
-    holds. The design should defend or reject that.
+    - **task-219** -- the deterministic queue-move check. Claimable now, independent
+    of the rest; it needs no playbook machinery at all.
 
-    - **Invocation surfaces**: CLI (`agentjobs playbook run groom`?), the dispatch
-    UI, MCP -- and how a playbook interacts with dispatch''s existing runner/model
-    selection (task-080 dispatch model profiles touched adjacent ground).
+    - **task-215** -- instantiation, `playbook run` on CLI/REST/GUI. Needs task-214.
 
-    - **Guardrails**: a playbook''s proposals go through the same manager verbs as
-    everyone else -- no bulk YAML rewriting, no bypass of human gates. Groom in particular
-    must be propose-then-approve, mirroring task-209''s constraint that ordering is
-    not grooming.
+    - **task-216** -- groom, authored and proven live. Needs task-215.
 
-    - **Recurrence**: whether a playbook can be scheduled/looped (task-078 agent loops)
-    or is strictly on-demand for now. Deferring recurrence is an acceptable answer
-    if stated.
+    - **task-217** -- reorder, authored, with anchor mechanics. Needs task-215.
 
-    - **Naming**: "playbook" is the working name; the design may argue for another
-    (routine, job template). Whatever it picks becomes the user-facing term everywhere.
+    - **task-218** -- flesh-out, authored and proven. Needs task-215.
 
 
-    **Shape of the work**: this is a design pass in the task-081 mould -- produce
-    a design doc in docs/, get it reviewed and accepted by Jeff, and derive implementation
-    children held as drafts until approval. Do not implement anything in this task.
+    Each child merges on Jeff''s explicit approval of that child, never on the supervisor''s.
+    This epic closes when every child is closed and the criteria below hold.'
+  constraints: '- The design is settled and binding. Decisions P1 through P10 in docs/playbooks-design.md
+    section 10, and the decisions logged on this record, are not to be reopened by
+    a child.
 
+    - Playbooks act through existing manager verbs and respect human gates; no child
+    may introduce a bypass.
 
-    Priority note: filed as medium; where it sits relative to the queue-position program
-    is Jeff''s call, and once task-204..206 land that ordering will be expressible
-    directly.'
-  constraints: '- Design only; implementation is derived children held as drafts until
-    the design is approved.
+    - The supervisor writes no code and takes no worktree.
 
-    - Playbooks act through existing manager verbs and respect human gates; the design
-    may not introduce a bypass.
-
-    - The design must state rejected alternatives with reasons, per this repo''s design-doc
-    convention.'
-  out_of_scope: Implementing any playbook or runner machinery. Building recurrence/scheduling
-    (decide its place, do not build it). The task-209 live reorder itself, which proceeds
-    under the queue program regardless.
+    - Every child''s merge gate is independent and requires Jeff''s explicit approval
+    of that child.'
+  out_of_scope: Reopening the design. Building recurrence or scheduling (the design
+    decided its place; nothing here builds it). The task-209 live reorder itself,
+    which proceeds under the queue program regardless. Agent types, filed separately
+    as task-227.
   context:
-  - path: docs/task-selection-design.md
-    why: The accepted design whose shape (decisions, rejected alternatives, derived
-      children) this design pass follows.
-  - path: docs/agent-dispatch-design.md
-    why: How dispatch works today; playbooks instantiate through it.
+  - path: docs/playbooks-design.md
+    why: This epic's own deliverable and the specification every child implements.
+      Read it before starting any child.
   - path: ALLAGENTS.md
-    why: The workflow contract a playbook run must obey (verbs only, human gates,
-      resumption contract).
+    why: The parent-task protocol this record is worked under, and the workflow contract
+      a playbook run must obey.
+  - path: docs/agent-dispatch-design.md
+    why: How dispatch works today; playbooks instantiate through it and may not weaken
+      its gates.
+  - path: docs/task-selection-design.md
+    why: The queue program task-219 belongs to, and the design shape this one followed.
 acceptance:
 - id: sc-1
   text: The design defines what a playbook is, where it lives, and what one contains
@@ -151,9 +129,21 @@ acceptance:
 - id: sc-5
   text: Implementation children are derived and held as drafts pending Jeff's approval
     of the design, following the task-081 pattern.
-  verify: task-214..task-219 exist as drafts; task-219 retargeted in revision 2; task-227
-    filed separately for agent types
+  verify: task-214..task-219 derived as drafts; promoted to ready 2026-08-21 when
+    the design was approved and merged, which is the condition this criterion held
+    them for
   status: met
+- id: sc-6
+  text: Every implementation child (task-214 through task-219) is closed, each having
+    been merged on Jeff's own explicit approval of that child.
+  verify: the six child records
+  status: pending
+- id: sc-7
+  text: The three shipped playbooks have each been run live at least once against
+    this backlog, and the evidence is on their children's records rather than in a
+    session transcript.
+  verify: task-216 sc-2, task-217 sc-3, task-218 sc-2
+  status: pending
 deliverables:
 - path: docs/playbooks-design.md
   note: 'The playbook design: concept, storage, instantiation, groom/reorder/flesh-out
@@ -1282,3 +1272,54 @@ log:
       id: 3f1a9c22-0007-4b7e-9c31-7a5e2d8f0107
       kind: log_append
       fingerprint: fb1e01c1a3b075f4a5531c4b7d0d2a3b
+- id: 39
+  ts: '2026-08-21T19:48:13.668740Z'
+  actor: Jeff Posey
+  type: queue_move
+  body: Reopened into the bottom of the high band.
+  data:
+    band: high
+    from: null
+    to: 11400
+    placement:
+      kind: bottom
+- id: 40
+  ts: '2026-08-21T19:48:13.668767Z'
+  actor: Jeff Posey
+  type: note
+  body: Updated ball, ball_reason, lifecycle, outcome.
+  data:
+    fields:
+    - ball
+    - ball_reason
+    - lifecycle
+    - outcome
+    operation:
+      id: 3f1a9c22-0008-4b7e-9c31-7a5e2d8f0108
+      kind: update_content
+      fingerprint: 98d479fe581ec2efcb95f77b9a92598f
+- id: 41
+  ts: '2026-08-21T19:49:36.695573Z'
+  actor: Jeff Posey
+  type: note
+  body: Updated spec, title.
+  data:
+    fields:
+    - spec
+    - title
+    operation:
+      id: 3f1a9c22-0009-4b7e-9c31-7a5e2d8f0109
+      kind: update_content
+      fingerprint: c9842e9535bb7bea9fbe772b33f84e60
+- id: 42
+  ts: '2026-08-21T19:50:03.720642Z'
+  actor: Jeff Posey
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 3f1a9c22-000a-4b7e-9c31-7a5e2d8f010a
+      kind: update_content
+      fingerprint: c70c54eaee115cefb5f930dd77a081a6
