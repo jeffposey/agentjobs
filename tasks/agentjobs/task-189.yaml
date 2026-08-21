@@ -3,11 +3,70 @@ id: task-189
 title: The gate makes you pay four minutes to learn something it knew in one second,
   and there is no way to resume it
 created: '2026-08-20T06:40:10.935944Z'
-updated: '2026-08-21T04:44:40.869702Z'
+updated: '2026-08-21T04:52:19.321955Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: 'Review `chore/task-189-gate-order-and-resume` (worktree `C:/projects/worktrees/aj-189`,
+  three commits on top of `main` at 21a359c). Nothing is merged.
+
+
+  **What to look at, in the order that matters**
+
+
+  1. `scripts/check.py` -- the `stages()` table is the change. Ten named stages, cheapest
+  first. Are `api`, `icons` and `oxlint` in the right place above `pytest`, and are
+  the two dependencies I kept (`build` before `e2e`, schema before client inside `api`)
+  the only real ones?
+
+  2. `frontend/scripts/check-generated-client.mjs` -- replaces `assert-generated-clean.mjs`.
+  The decision is log entry 7: the gate runs before the commit, so *stale* fails and
+  *uncommitted* is a note. This is the judgement call in the task and the one place
+  I would most want you to disagree if you are going to.
+
+  3. `ENGINEERING.md` -- the stage table with measured costs, and the paragraph that
+  states the commit ordering. This is what a future agent reads instead of rediscovering
+  any of it.
+
+
+  **Evidence**
+
+
+  - Full gate green, all ten stages, 365.0s: black 0.5, ruff 0.1, mypy 1.5, api 4.5,
+  icons 3.2, oxlint 0.5, pytest 326.5 (2190 tests), vitest 4.7 (164 tests), build
+  3.6, e2e 20.0 (16 tests). The table in ENGINEERING.md is that run.
+
+  - The reordering still catches what it used to, verified by breaking things on purpose
+  and running the *unqualified* gate: a misformatted file failed `black` at 2.7s;
+  a hand-edited `types.gen.ts` failed `api` at 6.2s (was ~4m40s); a corrupted `icon-192.png`
+  failed `icons` at 8.9s (was ~4m40s). Same verdicts, same stages, earlier.
+
+  - Following the new stale message exactly -- review the regenerated files, commit
+  them -- passes on the next run. That was the specific dead end.
+
+  - `--from vitest` ran 3 of 10 in 28.8s and printed `PARTIAL RUN: 3 of 10 stages
+  ... This is not the gate` at the top and again at the bottom.
+
+  - 26 new tests in `tests/test_check_gate.py`, 10 in `frontend/scripts/check-generated-client.test.mjs`.
+
+
+  **Two things you should decide, neither of which I acted on**
+
+
+  - **The `oxlint` stage cannot fail** (log entry 8). oxlint reports at warning severity
+  and is run without `--deny-warnings`, so it exits 0 whatever it finds -- reproduced
+  with `debugger;` and with a `const` reassignment. This predates the task and fixing
+  it changes *what* is checked, which the constraints rule out here. Worth a follow-up
+  task? I have not filed one.
+
+  - **Uncommitted generated files no longer fail the gate.** I am confident this is
+  right and the reasoning is in log entry 7, but it is the one place where the gate
+  stops refusing something it used to refuse, so it deserves your eye rather than
+  mine.
+
+
+  Not pushed. `main` has moved since I branched (task-164, task-211); I will rebase
+  onto it at merge time, on your approval.'
 archived: false
 priority: high
 category: developer_experience
@@ -128,22 +187,27 @@ acceptance:
 - id: ac-1
   text: Every check that takes under about twenty seconds runs before the pytest stage,
     with the per-stage timings measured on this machine and recorded
-  status: pending
+  verify: scripts/check.py --list
+  status: met
 - id: ac-2
   text: A stale generated client and an uncommitted generated client produce different
     messages, each naming what it actually wants
-  status: pending
+  verify: cd frontend && npx vitest run scripts/check-generated-client.test.mjs
+  status: met
 - id: ac-3
   text: Following a gate failure message exactly does not reproduce the same failure
-  status: pending
+  verify: cd frontend && npm run check:api-client
+  status: met
 - id: ac-4
   text: The gate can be resumed from or restricted to a stage while iterating, and
     the unqualified command still runs everything
-  status: pending
+  verify: scripts/check.py --from vitest
+  status: met
 - id: ac-5
   text: ENGINEERING.md states the new order, the re-measured budget, and whether the
     gate runs before or after committing generated files
-  status: pending
+  verify: pytest tests/test_check_gate.py -k EngineeringMd
+  status: met
 deliverables: []
 dependencies:
 - task: task-187
@@ -446,3 +510,17 @@ log:
       id: 7d9badc2-f026-4b86-88c6-21591d256a7a
       kind: log_append
       fingerprint: 4929889164cb8caf11594d145905f027
+- id: 10
+  ts: '2026-08-21T04:52:19.321777Z'
+  actor: claude
+  type: handoff
+  body: Gate reordered, generated-client check split in two, resume flags added. Full
+    gate green in 365s; three deliberate failures caught in under 9s each that previously
+    cost 4m40s. Two judgement calls flagged for you.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: f76ff128-3ce2-4c6b-89e9-511ab560b334
+      kind: handoff
+      fingerprint: e7fe855f3de2216e4053d612e3a4ad8d
