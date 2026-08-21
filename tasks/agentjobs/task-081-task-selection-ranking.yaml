@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T14:31:46.834810Z'
+updated: '2026-08-21T14:33:27.719460Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1382,3 +1382,84 @@ log:
       id: bb9b9273-0081-4a00-9e00-000000000001
       kind: handoff
       fingerprint: 636f2e5813677cecc26bdcc031801715
+- id: 39
+  ts: '2026-08-21T14:33:27.718933Z'
+  actor: claude
+  type: progress
+  body: 'Child 3 of 6 confirmed done. Child 4 (task-207) started. Supervisor run run_bb9b9273.
+
+
+    TASK-206 VERIFIED from durable evidence only -- its record, main''s log, and the
+    worktree inventory. I did not read its diff and did not re-run its gate.
+
+    - lifecycle closed / outcome completed; branches[] marks feat/task-206-queue-rest-client-cli
+    merged; merge commit 7c0178b is on main, --no-ff, 16 files +5256/-294.
+
+    - Its entry 14 states the rebase moved past three commits that were task-YAML
+    only, with `git diff` between pre- and post-rebase tips showing those three files
+    and no code -- which is why the 384.1s ten-stage green from entry 9 still describes
+    the merged code. That reasoning is sound and is the one claim I checked the wording
+    of, because "the gate still applies after a rebase" is exactly the claim that
+    is sometimes wrong.
+
+    - It did the delivery half: npm run build, 8876 restarted through its own launcher
+    (correctly not `agentjobs restart`, which binds 8765), and the live API read back
+    -- GET /api/queue 200 with four bands and `problems: []`, `agentjobs next --why`
+    answering task-100 at high/300. Nothing pushed.
+
+    - `git worktree list` shows only the main clone and the unrelated agentjobs-211.
+    206''s worktree is gone.
+
+
+    HOW IT GOT UNSTUCK, because it amends the merge posture for the two children left.
+    The previous supervisor parked correctly: 206''s own session had been declined
+    on `git merge`, reworded it, and the third refusal armed the breaker. Jeff did
+    not run the merge by hand. He dispatched a FRESH run at task-206 from the task
+    page at 14:19Z with an explicit instruction, and that session merged, verified
+    and closed in 402 seconds. So the boundary the last run reported as real is not
+    categorical -- a decline is per-session and stochastic, and a fresh session clears
+    it cheaply. The hazard is the retry, exactly as entry 34 already said. I have
+    written that into this task''s ball_prompt as a standing instruction to every
+    remaining child: attempt the merge once, and if declined, hand off to human/review
+    with the branch, the gate evidence and the command, and stop. That converts the
+    failure from "the epic parks" to "one child waits for a re-dispatch".
+
+
+    STATE AT START. All three remaining children are lifecycle ready / ball agent
+    / available, and none has an unmet need -- 207 and 209 both needed 206, 208 needed
+    205, all closed. No child branches exist. The only live worktree is agentjobs-211
+    (unrelated, docs/task-211).
+
+
+    WHY 207 AND NOT 208 OR 209. The recorded order is 207/209 after 206 with 208 after
+    205, and states no order inside the set. 209 is last on its own merits rather
+    than by dependency: it orders the live backlog using the CLI and MCP surfaces
+    the other two finish, and it is the child that satisfies sc-7 and lets this task
+    close, so running it before its tools exist would mean doing it twice. Between
+    207 and 208, 207 is the screen a human reads and the one whose absence is currently
+    visible -- the React list still sorts by `updated` while the API answers by (band,
+    position), so the dashboard and the scheduler disagree in front of Jeff every
+    time he opens it. 208 is agent-facing and nothing is behind it. This is a scheduling
+    choice inside the recorded order, not a change to it.
+
+
+    STARTED task-207 -- background session 6a0beee3, model claude-opus-5, --permission-mode
+    auto, with the same worker settings blob dispatch computes for a non-supervisor
+    run (the nine allow-prefixes, enabledMcpjsonServers=[''agentjobs'']). Branch feat/task-207-queue-order-react-list,
+    worktree ../worktrees/agentjobs-207. The brief is the PROMPT_STUB shape and points
+    at this parent''s ball_prompt for the posture rather than restating it -- restating
+    it in a supervisor''s own words is the content that got run_d5ab5caf''s log write
+    declined, and the child has to read the parent anyway.
+
+
+    No permission prompt and no classifier decline on this spawn, or on either of
+    my writes to this record.
+
+
+    NEXT: poll task-207''s ball in a backgrounded wait. Not reading its diff, not
+    pre-loading 208.'
+  data:
+    operation:
+      id: bb9b9273-0081-4a00-9e00-000000000002
+      kind: log_append
+      fingerprint: 433314edb7cb1b1a5eb04899db8997b6
