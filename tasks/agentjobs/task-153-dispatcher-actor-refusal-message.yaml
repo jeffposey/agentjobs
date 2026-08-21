@@ -2,10 +2,11 @@ schema: 2
 id: task-153-dispatcher-actor-refusal-message
 title: Stop the dispatch refusal telling you to configure the dispatcher as a human
 created: '2026-08-18T21:02:17.186936Z'
-updated: '2026-08-21T01:08:26.933366Z'
-lifecycle: ready
+updated: '2026-08-21T01:32:42.873384Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 category: reliability
@@ -16,6 +17,7 @@ tags:
 - guards
 effort: small
 assignment:
+  owner: claude
   eligible: []
 parent: task-181-dispatch-phase-one-hardening
 spec:
@@ -173,7 +175,9 @@ dependencies:
   note: Closed. Established the reserved dispatcher actor whose entries trigger the
     wrong branch.
 links: []
-branches: []
+branches:
+- name: fix/task-153-dispatch-refusal-message
+  status: active
 log:
 - id: 1
   ts: '2026-08-18T21:02:17.186993Z'
@@ -235,3 +239,89 @@ log:
       id: c1a70000-1153-4a00-9e00-000000000153
       kind: log_append
       fingerprint: 51950a2d2cb822213ed69c0f2409d1be
+- id: 4
+  ts: '2026-08-21T01:18:43.736269Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: b1091315-a276-47e6-b9cc-e69d7088b838
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 5
+  ts: '2026-08-21T01:19:21.531531Z'
+  actor: system
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: ec211143-68e5-4992-9adb-ccb19eb75b85
+      kind: update_content
+      fingerprint: 1dd1cde69a02575d82703a015cb560a7
+- id: 6
+  ts: '2026-08-21T01:32:42.873228Z'
+  actor: claude
+  type: progress
+  body: "Fix implemented, gate green, committed on fix/task-153-dispatch-refusal-message\
+    \ (1431921), rebased onto main at 4e29bf5. Not merged, not pushed.\n\n## What\
+    \ changed, in one place\n\n`src/agentjobs/dispatch/guards.py` only. Two edits,\
+    \ both inside the module the spec named.\n\n1. `actor_kind()` now resolves AgentJobs'\
+    \ reserved ids (via `reserved_actors()`) **before** the project's configured vocabulary,\
+    \ and cannot be overridden by it. `load_actors` is untouched, so the fresh-init\
+    \ allowance the RESERVED docstring protects is intact. `resolve_causing_entry`\
+    \ is untouched, so a dispatcher entry is still the causing entry and the re-dispatch\
+    \ is still refused.\n2. `assert_human_clocked()` therefore reaches its **agent**\
+    \ branch for a dispatcher-written entry instead of its unknown-actor branch. That\
+    \ branch's message gains one clause when the actor is reserved -- that the entry\
+    \ is AgentJobs' own record of an earlier dispatch -- and keeps the advice it already\
+    \ had: act on the task yourself, then dispatch.\n\nThe dangerous text is gone\
+    \ from that path entirely: the words 'actors:', 'kind: human' and 'config.yaml'\
+    \ do not appear in the message a re-dispatch now produces, and tests assert their\
+    \ absence rather than assert the new wording only.\n\n## The decision inside the\
+    \ fix\n\nReserved-before-config rather than config-first. A project that writes\
+    \ `dispatcher: {kind: human}` into its own actors -- by hand, or on the strength\
+    \ of the old message before this landed -- still gets the reserved agent and is\
+    \ still refused. Config-first would have fixed the message while leaving the hole\
+    \ open one edit away, which is a worse outcome than the bug: the guard's docstring\
+    \ says 'the rule, and not a configuration option', and that is now true in fact.\n\
+    \nThis also means `assert_authorizer_is_human` (the other caller of `actor_kind`)\
+    \ stops emitting the same recipe when handed 'dispatcher' as an authorising identity.\
+    \ That is the same defect at the same lookup, not a broader copy audit, so it\
+    \ is fixed rather than left for the out-of-scope note.\n\n## Verification\n\n\
+    Full gate, this worktree's own interpreter, `VIRTUAL_ENV` unset: **exit 0** --\
+    \ Black/Ruff/MyPy clean, 2128 pytest in 5m08s, 154 Vitest across 22 files, production\
+    \ build, 16 Playwright against a live server. A second gate run is in flight after\
+    \ the rebase (main had moved by scripts/bootstrap.py from task-210); the first\
+    \ ran on identical source otherwise.\n\nSix tests added, none removed:\n\n- `tests/test_dispatch_guards.py::TestHumanClockedRule`\n\
+    \  - the dispatcher's entry is refused **as an agent's** (sc-1)\n  - the refusal\
+    \ contains no instruction to configure an actor as human (sc-3)\n  - a genuinely\
+    \ unknown actor keeps the advice that suits one (sc-2)\n  - configuring `dispatcher`\
+    \ as human does not re-arm the rule (the reserved-first ordering)\n  - **end to\
+    \ end (sc-5)**: dispatch a task with the fake runner, `settle()`, assert the newest\
+    \ entry's actor really is `dispatcher`, re-dispatch -> refused with the corrected\
+    \ text and no run started; then one human note -> dispatch succeeds. Re-arming\
+    \ is verified, not assumed.\n- `tests/test_dispatch_api.py` -- the same refusal\
+    \ over HTTP: 403, `code: not_human_clocked`, and neither `detail` nor `suggested_action`\
+    \ carries the recipe (sc-4).\n\nsc-4's other half checked by reading rather than\
+    \ by test: `cli.py` renders `str(exc)` from the same exception, so the CLI is\
+    \ corrected for free, and `frontend/src/components/DispatchPanel.tsx` is unmodified\
+    \ -- no new per-surface override exists.\n\n## What was deliberately not done\n\
+    \nNo change to `load_actors`, to `resolve_causing_entry`, to the human-clocked\
+    \ rule, or to the reserved-actor design. No frontend change. No docs change: `docs/agent-dispatch-design.md`'s\
+    \ only 'kind: human' mention is about the authorising identity in task-188's flow\
+    \ and is still accurate.\n\nNote for the record, since it cost a turn: the agentjobs\
+    \ MCP tools were not available in this session -- `.mcp.json` is untracked, so\
+    \ `git worktree add` never copied it, and the tool list is fixed at session start.\
+    \ All task mutations here went through the REST API on 8876, which is the same\
+    \ validated manager path."
+  data:
+    operation:
+      id: 4b087e19-f189-4880-b3db-b2a01004c6b8
+      kind: log_append
+      fingerprint: b048a84e919172f24c73373e971761c1
