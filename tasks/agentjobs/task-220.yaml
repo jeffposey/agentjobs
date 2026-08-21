@@ -1,9 +1,8 @@
 schema: 2
 id: task-220
-title: A dispatched run parks on every MCP tool it uses, so no unattended run can
-  finish
+title: An epic supervisor parks where ordinary dispatched runs do not
 created: '2026-08-21T05:35:56.284351Z'
-updated: '2026-08-21T06:00:37.640390Z'
+updated: '2026-08-21T06:04:56.216350Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -15,113 +14,147 @@ tags:
 - permissions
 - autonomy
 - reliability
-effort: small -- a few lines in settings_json plus the test that proves the rule form
-  matches
+effort: unknown until the cause is established -- diagnose first, then a fix that
+  is probably small
 assignment:
   eligible: []
 spec:
-  summary: A dispatched session's allow-list covers Bash and PowerShell prefixes only,
-    so under `--permission-mode auto` the classifier gates every agentjobs MCP tool
-    call and the run parks on a prompt nobody is there to answer. Pre-approve the
-    MCP tools in the same `--settings` blob that already names the servers.
-  intent: Unattended dispatch does not work at all right now, and this is the reason.
-    Answering the prompt by hand does not fix it either, because the grant lands in
-    a gitignored file that a worktree child never sees -- so every child re-parks.
-    This is the single blocker between the dispatch system as built and an overnight
-    epic run.
-  description: "Observed live on 2026-08-21, run `run_d5ab5caf`, supervising task-081.\
-    \ It parked **316 seconds in**, on its first MCP call. Verbatim from the run's\
-    \ terminal, recorded on task-081 log entry 23:\n\n```\nagentjobs \u2014 Append\
-    \ a log entry Tool: (MCP)\n  project_id: \"agentjobs\"\n  task_id: \"task-204\"\
-    \n  ...\n\u2502 Auto mode classifier requires confirmation for this tool.\n\u2502\
-    \ 3 consecutive actions were blocked. Please review the transcript before continuing.\n\
-    \u2502 Latest blocked action: Blocked by classifier\nDo you want to proceed?\n\
-    ```\n\n## Why it happens\n\n`settings_json()` (src/agentjobs/dispatch/runner.py:293)\
-    \ emits two things: `permissions.allow` from `allow_rules()`, and `enabledMcpjsonServers`.\
-    \ Those are not the same grant. `enabledMcpjsonServers` pre-approves *loading\
-    \ the server*; it does not pre-approve *calling its tools*. And `allow_rules()`\
-    \ (line 246) builds `Tool(prefix:*)` rules for `ALLOW_TOOLS = (\"Bash\", \"PowerShell\"\
-    )` only.\n\nSo under `auto`, every `task_log_append`, `task_claim`, `task_handoff`,\
-    \ `task_close` and `task_update_content` is classifier-gated. Three consecutive\
-    \ blocks and the session parks. A `--bg` run cannot answer, which is the same\
-    \ shape as task-192, arrived at through a different door.\n\n## Why answering\
-    \ the prompt is not the fix\n\nThe `ALLOW_TOOLS` docstring says the list is meant\
-    \ to be widened by a human answering a prompt with \"don't ask again\", rather\
-    \ than by an unreviewed config edit. That reasoning is sound for an interactive\
-    \ session and does not survive contact with a worktree:\n\n```\n$ git check-ignore\
-    \ -v .claude/settings.local.json\n~/.config/git/ignore:1:**/.claude/settings.local.json\n\
-    $ git ls-files .claude/\n(nothing)\n```\n\n\"Always allow\" writes to `.claude/settings.local.json`\
-    \ in the clone where it was answered. That path is globally gitignored and nothing\
-    \ under `.claude/` is tracked, so a child session in a fresh worktree does not\
-    \ have it. Answering once fixes the supervisor and none of its six children. Verified\
-    \ 2026-08-21.\n\n## The fix\n\nPre-approve the MCP tools in the `--settings` blob,\
-    \ alongside `enabledMcpjsonServers`, derived from the `mcp_servers` sequence `settings_json()`\
-    \ already receives. A rule delivered this way travels with the spawn, so it reaches\
-    \ every child regardless of what is or is not on disk in its worktree -- which\
-    \ is the property that makes it the right layer.\n\n**Heed the colon lesson recorded\
-    \ in `allow_rules()`.** A rule whose form does not match anything looks exactly\
-    \ like the feature working, right up until the session parks; that cost an hour\
-    \ on 2026-08-18 and is why a test asserts the shape rather than trusting a comment.\
-    \ Do the same here: confirm the accepted rule form for an MCP tool against Claude\
-    \ Code as installed (`claude --version` reports 2.1.237 on this machine) rather\
-    \ than assuming, and assert the emitted string in a test.\n\n## Verification that\
-    \ actually proves it\n\nA passing unit test does not show that a real session\
-    \ stops parking. Dispatch a real task under `auto` and confirm it makes MCP writes\
-    \ and reaches a terminal state with no prompt -- task-081 itself is the natural\
-    \ subject, since its supervisor is the run that failed."
-  constraints: '- Do not use `bypassPermissions`. It is already rejected in the runner''s
-    own docstring -- it removes the gate for everything to fix one prompt -- and it
-    is separately refused by the classifier.
+  summary: Six of eight dispatched runs on 2026-08-20/21 completed unattended with
+    no prompt at all. The one supervising an epic parked after 316 seconds. Find out
+    what a supervisor does that an ordinary run does not, and fix that -- without
+    loosening what every other run may do.
+  intent: Unattended dispatch already works for ordinary task work; the run ledger
+    proves it. What does not work is the supervisor role introduced by task-164, which
+    is the one thing standing between AgentJobs and an unattended epic. The prize
+    is a night that starts with one dispatch and ends with a merged epic.
+  description: '**Read log entries 3 and 4 before anything else, and read entry 4
+    second.** This task was framed three different ways in ninety minutes on 2026-08-21
+    -- MCP permissions, then the permission mode, then the supervisor role -- each
+    from whatever symptom was on screen at the time. Entry 4 is the current understanding
+    and it withdrew most of entry 3. The spec below has been rewritten to match; treat
+    the earlier framings as history, not instruction.
 
-    - `read_only` posture must not gain pre-approval for write-capable MCP tools.
-    It gets `enabledMcpjsonServers` and nothing else today, deliberately.
 
-    - The grant must ride in `--settings`, not in a file on disk. A fix that depends
-    on `.claude/settings.local.json` does not reach worktree children, which is the
-    whole defect.
+    ## What is actually known
 
-    - Assert the emitted rule form in a test. A rule that silently matches nothing
-    is the failure mode this task exists to end, and it is indistinguishable from
-    success until a run parks.'
-  out_of_scope: Widening the Bash/PowerShell prefix list (task-076 owns that). The
-    `EnterWorktree` permission-root escalation (task-192, closed). Whether agent-started
-    children should appear in the run ledger (task-164 log entry 7, open question).
+
+    Eight dispatched runs on 2026-08-20/21. **Six completed unattended, start to finish,
+    with no prompt:** run_fa103400 (task-202), run_b46b2abf and run_7b2413eb (task-164),
+    run_249c7e73 and run_4008e36b (task-189), run_8c352a34 (task-211, on the `big-dawg`
+    group). Each took a worktree, ran the full gate, merged, closed its task and removed
+    its worktree. So `--permission-mode auto` in a `--bg` session is not broken, and
+    the nine-entry `ALLOW_PREFIXES` is evidently sufficient for ordinary work.
+
+
+    **Two parked, for unrelated reasons:**
+
+
+    - `run_8a76889b` (task-202) parked on *"Confirm product-strategy file state"*
+    -- a command reaching into `C:/projects/product-strategy`, a different repository
+    outside the dispatched project root. Plausibly the classifier working as intended.
+    Out of scope here.
+
+    - `run_d5ab5caf` (task-081) parked after 316s supervising an epic, on the three-consecutive-blocks
+    circuit breaker, with an MCP `task_log_append` against task-204 shown as the last
+    blocked action. Its transcript is at `C:/Users/jpose/.agentjobs/runs/run_d5ab5caf/transcript.log`
+    and the verbatim tail is on task-081 log entry 23.
+
+
+    ## The question to answer first
+
+
+    **What did the supervisor do that ordinary runs do not?** The obvious hypothesis,
+    unproven: its job is to launch child agent sessions, and spawning an AI agent
+    subprocess is exactly the kind of unusual action a classifier declines. Ordinary
+    runs never do it.
+
+
+    The breaker fires on *three consecutive* blocks and only the third is displayed.
+    **The first two are the evidence and nobody has read them yet.** The transcript
+    is a raw terminal capture with ANSI escapes, which is why an earlier attempt to
+    mine it gave up; it is still the primary source and worth parsing properly.
+
+
+    Do not write code before this is answered. Three fixes have already been proposed
+    and withdrawn for skipping it.
+
+
+    ## Constraints on whatever the fix turns out to be
+
+
+    The supervisor needs its specific capability without widening what every other
+    dispatched run may do. Candidate shapes, none prescribed: a targeted allow rule
+    for the spawn command; a distinct posture used only for umbrella tasks; or changing
+    *how* children are launched so the unusual act stops being unusual -- note that
+    task-164 log entry 7 records that a supervisor cannot use dispatch for its children
+    (D4 requires a human-authored entry) and so shells out directly, which may be
+    the whole cause.
+
+
+    ## Verification
+
+
+    A unit test proves nothing here. The proof is `task-081` dispatched as a supervisor,
+    starting `task-204` in its own session, with no prompt and no park. That is also
+    the first live exercise of task-164''s supervisor path, which has never run end
+    to end.'
+  constraints: '- Diagnose before fixing. Establish what was actually blocked from
+    run_d5ab5caf''s transcript -- all three blocked actions, not just the displayed
+    one.
+
+    - Do not switch dispatch to `dontAsk` (withdrawn in log entry 4). It converts
+    every allow-list omission from a pause into a silent failure, and six of eight
+    runs currently succeed under `auto`.
+
+    - Do not widen `ALLOW_PREFIXES` globally on this task''s authority. Nothing in
+    the evidence shows ordinary runs need it. Any widening is Jeff''s call -- task-076
+    records that these flags are the actual risk boundary of the feature.
+
+    - Do not use `bypassPermissions`: rejected by task-076, and the docs say it shows
+    a confirmation dialog anyway, so it is not headless either.
+
+    - Whatever is granted to the supervisor must not be granted to every run.'
+  out_of_scope: The task-202 cross-repo park (different cause, arguably correct behaviour).
+    The `EnterWorktree` escalation (task-192, closed). Whether agent-started children
+    belong in the run ledger (task-164 log entry 7). Widening the Bash/PowerShell
+    prefix list for ordinary runs (task-076).
   context:
-  - path: src/agentjobs/dispatch/runner.py
-    why: settings_json() at 293 emits the blob; allow_rules() at 246 and ALLOW_TOOLS
-      at 242 are what needs to grow. The colon lesson is in allow_rules()'s docstring.
+  - path: C:/Users/jpose/.agentjobs/runs/run_d5ab5caf/transcript.log
+    why: The primary evidence. Raw terminal capture with ANSI escapes; the two blocked
+      actions before the displayed one have not been read by anyone.
   - path: tasks/agentjobs/task-081-task-selection-ranking.yaml
-    why: Log entry 23 has the verbatim park, and its supervisor run is the natural
-      subject for the live verification.
-  - path: .mcp.json
-    why: The server whose tools need pre-approving, and the names they are exposed
-      under.
+    why: Log entry 23 has the verbatim park tail. Entry 20's ball_prompt is the supervisor
+      brief the run was working from.
+  - path: src/agentjobs/dispatch/runner.py
+    why: posture_flags() at 375 chooses the mode; allow_rules() at 246 and ALLOW_PREFIXES
+      at 235 define what is pre-approved; SUPERVISOR_STUB at 151 is what a supervisor
+      is told to do.
+  - path: tasks/agentjobs/task-164-epic-orchestration-rule.yaml
+    why: Log entry 7 records that a supervisor shells out to launch children rather
+      than dispatching them, and why. That mechanism is the leading suspect.
 acceptance:
 - id: ac-1
-  text: A dispatched session under `auto` calls the agentjobs MCP mutation tools with
-    no permission prompt, shown by a real dispatch that reaches a terminal state with
-    its own MCP writes on the record -- not by a unit test alone.
+  text: The actual blocked actions from run_d5ab5caf are extracted from its transcript
+    and named -- all three, not only the one the breaker displayed -- and the difference
+    between what a supervisor does and what an ordinary run does is stated from evidence
+    rather than hypothesis.
   status: pending
 - id: ac-2
-  text: The emitted rule string is asserted by a test, and the form was confirmed
-    against Claude Code as installed rather than assumed.
+  text: A fix is implemented that grants the supervisor what it needs without changing
+    what any other dispatched posture may do, with the rejected alternatives recorded.
   status: pending
 - id: ac-3
-  text: The grant travels in --settings, demonstrated to reach a session working in
-    a fresh worktree with no .claude/settings.local.json of its own.
+  text: task-081 is dispatched as a supervisor and starts task-204 in its own session
+    with no permission prompt and no park -- the live proof, not a unit test.
   status: pending
 - id: ac-4
-  text: read_only posture still gets no write-capable MCP pre-approval, asserted by
-    a test.
+  text: 'Ordinary dispatch is demonstrably unchanged: a non-epic task still dispatches
+    and completes under the same posture and allow-list it uses today.'
   status: pending
 - id: ac-5
-  text: 'The grant does not rot when the MCP tool surface changes: adding a tool to
-    the server must not require editing a list in runner.py. Either a wildcard rule
-    form is verified to actually match, or the rules are derived at spawn time from
-    the server''s own tool surface. A hardcoded enumeration satisfies nothing here
-    -- if it is nevertheless unavoidable, a test must fail when the enumeration and
-    the server''s tool list diverge, so the drift is loud rather than discovered by
-    a parked run.'
+  text: If the fix involves any pre-approval list, it does not rot silently when the
+    underlying surface changes -- verified wildcard, derivation at spawn time, or
+    a test that fails on drift.
   status: pending
 deliverables: []
 dependencies: []
@@ -314,3 +347,18 @@ log:
       id: e8a35b71-9d42-4f68-a3c7-5b19d8e60220
       kind: log_append
       fingerprint: 62a54234ac09989ecab9fe02a2d1a9c6
+- id: 5
+  ts: '2026-08-21T06:04:56.216196Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, effort, spec, title.
+  data:
+    fields:
+    - acceptance
+    - effort
+    - spec
+    - title
+    operation:
+      id: f0b46c82-1e73-4a95-8d24-6c07e9f10220
+      kind: update_content
+      fingerprint: 7c55cb0ed2b317514eafd672d4b9e432
