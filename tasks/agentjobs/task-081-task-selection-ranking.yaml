@@ -2,71 +2,11 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T05:35:23.495096Z'
+updated: '2026-08-21T05:35:44.143708Z'
 lifecycle: active
-ball: human
-ball_reason: input
-ball_prompt: "Dispatched session `47842e84` is parked on a permission prompt and will\
-  \ wait indefinitely. Answer it at https://claude.ai/code/session_012mdjjBp4d8xbQmQxoHXkXe\
-  \ \u2014 that link works from a phone. Or attach locally with `claude attach 47842e84`.\n\
-  \nThe end of its terminal, verbatim:\n\n```\n     \u2502 Supervisor of task-081\
-  \ (run_d5ab5caf) is starting a dedicated session for this child now. It is the first\
-  \ eligible child of the epic and has no unmet dependencies.\n   About the agentjobs\
-  \ \u2014 Append a log entry Tool:\n   \u2502 Append one authored entry to the task's\
-  \ append-only log. Record progress, decisions with their rejected alternative, and\
-  \ open questions here -- the log is what lets a session with no other\n   \u2502\
-  \ context resume the work. `transition` and `handoff` are not available: the manager\
-  \ writes those itself.\n \u2502 Auto mode classifier requires confirmation for this\
-  \ tool.\n \u2502 3 consecutive actions were blocked. Please review the transcript\
-  \ before continuing.\n \u2502 Latest blocked action: Blocked by classifier\n Do\
-  \ you want to proceed?\n \u276F 1. Yes\n   2. Yes, and don't ask again for agentjobs\
-  \ \u2014 Append a log entry commands in C:\\projects\\agentjobs\n   3. No\n Esc\
-  \ to cancel \xB7 Tab to amend\n \u2590\u259B\u2588\u2588\u2588\u259B\u2588   Claude\
-  \ Code v2.1.237\n\u259D\u259C\u2588\u2588\u2588\u2588\u2588\u2588\u2580  Opus 5\
-  \ \xB7 Claude Max\n  \u259D\u259D \u259D\u259D    C:\\projects\\agentjobs\n\u276F\
-  \ You are the agent claude supervising parent task task-081-task-selection-ranking\
-  \ in project agentjobs (root: C:\\projects\\agentjobs). It has open children: task-204,\
-  \ task-205, task-206, task-207,      task-208, task-209. You are the supervisor,\
-  \ not the worker: start a separate session for one eligible child at a time and\
-  \ let that session do the child's work. Do not work a child yourself, do not   \
-  \ take a worktree, and check nothing out -- you stay in the shared working tree\
-  \ as it is, and each child session takes its own. AgentJobs is serving at http://127.0.0.1:8876.\
-  \ Read the parent record,    then follow the parent-task protocol in docs/agent-workflow.md.\
-  \ Dispatch run id: run_d5ab5caf.\n  /remote-control is active \xB7 Continue here,\
-  \ on your phone, or at https://claude.ai/code/session_012mdjjBp4d8xbQmQxoHXkXe\n\
-  \u25CF I'll start by reading the parent task record and the workflow protocol.\n\
-  \u25CF Searching for 3 patterns, reading 2 files, calling agentjobs 4 times, running\
-  \ 11 shell commands\u2026\n  \u23BF  $ poetry -P C:/projects/agentjobs run agentjobs\
-  \ --help 2>&1 | head -60\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
-  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Tool use\n   agentjobs \u2014\
-  \ Append a log entry Tool: (MCP)\n   project_id: \"agentjobs\"\n   task_id: \"task-204\"\
-  \n   actor: \"claude\"\n   operation_id: \"7c2e4b90-11d3-4a67-8f52-6b90a3d7e112\"\
-  \n   type: \"progress\"\n   body:\n     \u2502 Supervisor of task-081 (run_d5ab5caf)\
-  \ is starting a dedicated session for this child now. It is the first eligible child\
-  \ of the epic and has no unmet dependencies.\n   About the agentjobs \u2014 Append\
-  \ a log entry Tool:\n   \u2502 Append one authored entry to the task's append-only\
-  \ log. Record progress, decisions with their rejected alternative, and open questions\
-  \ here -- the log is what lets a session with no other\n   \u2502 context resume\
-  \ the work. `transition` and `handoff` are not available: the manager writes those\
-  \ itself.\n \u2502 Auto mode classifier requires confirmation for this tool.\n \u2502\
-  \ 3 consecutive actions were blocked. Please review the transcript before continuing.\n\
-  \ \u2502 Latest blocked action: Blocked by classifier\n Do you want to proceed?\n\
-  \ \u276F 1. Yes\n   2. Yes, and don't ask again for agentjobs \u2014 Append a log\
-  \ entry commands in C:\\projects\\agentjobs\n   3. No\n Esc to cancel \xB7 Tab to\
-  \ amend\n```"
+ball: agent
+ball_reason: revise
+ball_prompt: Wait for autonomous dispatch fixes before we try this again.
 archived: false
 priority: high
 category: architecture
@@ -849,3 +789,14 @@ log:
     outcome: completed
     duration_seconds: 1131.136103
     log_path: C:\Users\jpose\.agentjobs\runs\run_d5ab5caf
+- id: 25
+  ts: '2026-08-21T05:35:44.143511Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by Jeff Posey:
+
+
+    Wait for autonomous dispatch fixes before we try this again.'
+  data:
+    ball: agent
+    ball_reason: revise
