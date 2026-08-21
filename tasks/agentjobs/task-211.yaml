@@ -3,33 +3,37 @@ id: task-211
 title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
   reorder, and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T16:58:00.243007Z'
+updated: '2026-08-21T17:51:00.402459Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: "The playbook design is ready for your review: docs/playbooks-design.md\
-  \ on branch docs/task-211-playbooks-design (commit 44bcda2, worktree ../worktrees/agentjobs-211).\
-  \ Read \xA710 (Decisions P1-P10) first \u2014 it is the two-minute version; the\
-  \ argument for each is in \xA72-\xA78, rejected alternatives collected in \xA79.\n\
-  \nWhat you are approving: (1) the name 'playbook' stands; (2) storage as per-project\
-  \ playbooks/<name>.md with a YAML-frontmatter contract, reference copies shipped\
-  \ and copied in by `playbook init`, never run implicitly; (3) run-is-a-task \u2014\
-  \ project-target playbooks create a dispatched run task, task-target ones dispatch\
-  \ the target itself, and reactive checks are the argued exception (no task; they\
-  \ annotate the tasks they check); (4) groom mandatory propose-then-approve with\
-  \ closes limited to duplicate/superseded, reorder writing itself under your three\
-  \ bounds with the anchor rules from log entries 5/6 adopted (kept-over-objection\
-  \ = immovable strong anchor; anchors expire on material change), flesh-out write-then-park-at-review;\
-  \ (5) the reactive queue-check per your entry-6 interaction: 120s debounced burst,\
-  \ batch-mode with spend ceiling, one-click undo/keep, fail-open; (6) recurrence\
-  \ deferred, MCP read-only, playbooks declare difficulty and never name runners.\n\
-  \nImplementation children task-214..219 are drafts under this task, dependency-ordered,\
-  \ with task-219 (the reactive lane) carrying an explicit do-not-start gate of its\
-  \ own. Verification: full gate run on the branch \u2014 2182 passed, one failure\
-  \ that is pre-existing corpus rot unrelated to this work (task-189's context pointer,\
-  \ resolved by its merge currently in flight; reproduced identically on main without\
-  \ my diff). On approval I (or any session) rebase, merge --no-ff, promote nothing\
-  \ \u2014 the children stay drafts until you promote them, per the design's own rule."
+ball_prompt: "Read the design on your phone here:\n\nhttps://claude.ai/code/artifact/1588a618-c81b-4239-90a0-94a009c93d4a\n\
+  \nIt is docs/playbooks-design.md verbatim at commit 44bcda2 \u2014 nothing edited\
+  \ or summarised \u2014 with a section index behind the Contents button and every\
+  \ in-prose \xA7-reference turned into a tap target. Start at \xA710 Decisions; it\
+  \ is linked from the header and is the two-minute version. The page is private to\
+  \ your account unless you share it.\n\nThe review ask is unchanged from entry 12:\
+  \ approve or push back on P1-P10. Nothing else is waiting on you.\n\nTwo things\
+  \ worth knowing before you read.\n\nFirst, nothing was dispatched this run. The\
+  \ prompt came in as the supervisor variant because task-211 has six open children,\
+  \ but task-214..219 are all drafts parked at human/spec by the design's own rule\
+  \ \u2014 they stay drafts until you approve. So the children are not blocked on\
+  \ a session; they are blocked on you. On approval, a session rebases and merges\
+  \ the docs branch, and you promote the children when you want them started (task-219,\
+  \ the reactive lane, carries its own do-not-start gate on top).\n\nSecond, your\
+  \ follow-up idea \u2014 making all design artifacts remotely accessible, and being\
+  \ able to test sandbox builds from your phone \u2014 is not filed anywhere yet.\
+  \ I did not create a task for it, since you framed it as something to think about\
+  \ rather than to do, and filing work off an aside is how a backlog gets noisy. Say\
+  \ the word and I will write it up. The one-off builder behind this page is at C:/ai/inbox/agentjobs-task-211/\
+  \ with notes on the two non-obvious things it hit, so whoever generalises it does\
+  \ not rediscover them.\n\nOne caveat on this page, stated because the repo's own\
+  \ rule says to name the instrument: I verified the layout, both themes, the encoding\
+  \ and the tables by reading computed styles and screenshots, but the Contents toggle\
+  \ was only proven by calling click() in the page \u2014 the browser-automation click\
+  \ delivered focus and no click event, which is the task-225 failure mode rather\
+  \ than a page bug. If the Contents button does nothing when you actually tap it,\
+  \ that is a real defect and I want to know; everything else on the page is verified."
 archived: false
 priority: high
 queue_position: 10500
@@ -567,3 +571,137 @@ log:
     outcome: completed
     duration_seconds: 1167.673804
     log_path: C:\Users\jpose\.agentjobs\runs\run_8c352a34
+- id: 14
+  ts: '2026-08-21T17:37:01.529578Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by Jeff Posey:
+
+
+    Give me a link to open the design doc from my mobile device. Just this one for
+    now, we can think about a task for all design artifacts being remote accessible,
+    along with being able to test sandbox builds.'
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 15
+  ts: '2026-08-21T17:37:04.218827Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 16
+  ts: '2026-08-21T17:37:05.805828Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_a99eda3f
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 15
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)", "mcp__agentjobs"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` supervising parent task `task-211` in project `agentjobs`
+      (root: C:\projects\agentjobs). It has open children: task-214, task-215, task-216,
+      task-217, task-218, task-219. You are the supervisor, not the worker: start
+      a separate session for one eligible child at a time and let that session do
+      the child''s work. Do not work a child yourself, do not take a worktree, and
+      check nothing out -- you stay in the shared working tree as it is, and each
+      child session takes its own. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the parent record, then follow the parent-task protocol in docs/agent-workflow.md.
+      Dispatch run id: run_a99eda3f.'
+    cwd: C:\projects\agentjobs
+    git_head: 5311e05
+    session_id: 201445ed
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 17
+  ts: '2026-08-21T17:50:41.942371Z'
+  actor: claude
+  type: progress
+  body: "Answered the ball_prompt from entry 14 (run_a99eda3f). The design doc is\
+    \ now readable from a phone:\n\n**https://claude.ai/code/artifact/1588a618-c81b-4239-90a0-94a009c93d4a**\n\
+    \nIt is a published Claude Artifact \u2014 private to Jeff's account until he\
+    \ shares it from the page's share menu. Content is `docs/playbooks-design.md`\
+    \ verbatim at commit 44bcda2 on `docs/task-211-playbooks-design`; nothing was\
+    \ edited, added, or summarised. The doc is still unmerged, so this link is the\
+    \ only way to read it outside the branch.\n\n**What the page adds over raw markdown**,\
+    \ all navigation rather than content: a masthead stating the review status, branch,\
+    \ commit and a jump straight to \xA710 Decisions (the two-minute version the entry-12\
+    \ handoff points at); a collapsible section index behind a Contents button on\
+    \ a phone, which becomes a sticky rail on a wide screen; and all 68 in-prose `\xA7\
+    n` / `\xA7n.n` cross-references turned into tap targets, so \xA75.4 from the decisions\
+    \ list jumps to the reactive-lane section instead of being scrolled for.\n\n**Verified\
+    \ in a browser**, not just built \u2014 three real defects were found and fixed\
+    \ this way:\n- Mojibake: every em dash and `\xA7` rendered as `\xE2\u20AC\"` /\
+    \ `\xC2\xA7`. The artifact host owns `<head>`, so a `<meta charset>` in the published\
+    \ fragment arrives too late to steer the decoder. Fixed by encoding all non-ASCII\
+    \ as numeric character references, with an assert that `<style>`/`<script>` stay\
+    \ ASCII since entities do not decode inside them.\n- The masthead \"Start at \xA7\
+    10\" link rendered in the browser's default blue \u2014 unreadable on the dark\
+    \ ground \u2014 because link styling was scoped to `article`.\n- The field/meaning\
+    \ table crushed its first column, breaking `description` into `descrip`/`tion`.\n\
+    \nConfirmed on the published URL: correct dashes and \xA7-refs, index, both themes,\
+    \ code blocks scrolling in their own containers rather than the page scrolling\
+    \ sideways.\n\n**One instrument note, per the ENGINEERING.md rule.** `mcp__claude-in-chrome`'s\
+    \ `left_click` on the Contents button delivered focus but no click event \u2014\
+    \ the index did not open. That is the task-225 failure mode, not a page defect:\
+    \ `btn.click()` in the page context toggled it correctly, `aria-expanded` and\
+    \ all. The toggle is unproven by a real finger; everything else above was verified\
+    \ by reading computed styles and screenshots rather than by a gesture.\n\n**Nothing\
+    \ was committed and no worktree was taken** \u2014 this is a hosted page, not\
+    \ a repo change. The builder and its notes are kept at `C:/ai/inbox/agentjobs-task-211/`\
+    \ so the page can be regenerated and republished to the same URL after the doc\
+    \ merges or changes. Republish with the URL passed as `url`, or Jeff's link breaks.\n\
+    \n**Supervision state: there is nothing to dispatch.** The dispatch prompt for\
+    \ run_a99eda3f was the supervisor variant, because task-211 has six open children\
+    \ \u2014 but task-214 through task-219 are all `draft` / `ball: human` / `ball_reason:\
+    \ spec`, held as drafts pending Jeff's approval of this design, by the design's\
+    \ own rule (entry 11, sc-5). No child is eligible, so no child session was started.\
+    \ The gate is the design review, which is what the ball goes back for."
+  data:
+    operation:
+      id: 7c1f2a90-4e63-4b18-9a55-2d0f6b31a401
+      kind: log_append
+      fingerprint: 0ac07b65f456c822a8e339fafdbec6ea
+- id: 18
+  ts: '2026-08-21T17:51:00.402212Z'
+  actor: claude
+  type: handoff
+  body: Design doc published as a mobile-readable page; ball back for the design review
+    itself.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 7c1f2a90-4e63-4b18-9a55-2d0f6b31a402
+      kind: handoff
+      fingerprint: 98085ecbfb2096c10123b1d27d73272a
