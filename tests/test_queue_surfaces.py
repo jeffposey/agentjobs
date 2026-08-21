@@ -121,6 +121,13 @@ def position(manager: TaskManager, task_id: str) -> int:
     return task.queue_position
 
 
+def queue_moves(manager: TaskManager, task_id: str) -> List[Any]:
+    """The ``queue_move`` entries on one task -- the record of every decision made."""
+    task = manager.get_task(task_id)
+    assert task is not None
+    return [entry for entry in task.log if entry.type is LogEntryType.QUEUE_MOVE]
+
+
 def order(manager: TaskManager, priority: Priority = Priority.HIGH) -> List[str]:
     """The band as it stands on disk, in queue order."""
     return [
@@ -313,9 +320,7 @@ class TestEveryMutatingRouteIsAttributedAndRetrySafe:
         """An attribution nobody can resolve is worse than a refused request (D2)."""
         client, manager, _ = api
         make(manager, "task-a")
-        response = client.post(
-            path, json={"actor": "nobody", "operation_id": "op-1", **extra}
-        )
+        response = client.post(path, json={"actor": "nobody", "operation_id": "op-1", **extra})
         assert response.status_code == 400
         assert response.json()["code"] == "unknown_actor"
 
@@ -338,12 +343,7 @@ class TestEveryMutatingRouteIsAttributedAndRetrySafe:
         assert replayed.status_code == 200
         assert replayed.json()["replayed"] is True
         assert position(manager, first) == landed
-        moves = [
-            entry
-            for entry in (manager.get_task(first) or make and manager.get_task(first)).log
-            if entry.type is LogEntryType.QUEUE_MOVE
-        ]
-        assert len(moves) == 1
+        assert len(queue_moves(manager, first)) == 1
 
 
 class TestQueueMoveOverHttp:
@@ -375,7 +375,7 @@ class TestQueueMoveOverHttp:
         assert order(manager) == [first, third, second]
 
     def test_two_placements_are_refused_before_anything_is_written(self, api) -> None:
-        """"Before task-b and also at the top" is two answers to one question."""
+        """ "Before task-b and also at the top" is two answers to one question."""
         client, manager, _ = api
         first = make(manager, "task-a")
         second = make(manager, "task-b")
@@ -393,7 +393,7 @@ class TestQueueMoveOverHttp:
         client, manager, _ = api
         make(manager, "task-a")
         response = client.post(
-            f"/api/tasks/task-a/queue-move", json={"actor": "Ada", "operation_id": "op-1"}
+            "/api/tasks/task-a/queue-move", json={"actor": "Ada", "operation_id": "op-1"}
         )
         assert response.status_code == 400
 
