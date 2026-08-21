@@ -47,7 +47,9 @@ from ..models import (
     MutationResult,
     ProgressUpdateRequest,
     PromoteRequest,
+    QueueMoveRequest,
     ReleaseRequest,
+    ReprioritizeRequest,
     TaskRead,
 )
 
@@ -158,6 +160,25 @@ def _classify(exc: ValueError, task_id: str) -> MutationError:
     return _error(status.HTTP_409_CONFLICT, "invalid_transition", message, task_id=task_id)
 
 
+def lock_timeout_error(
+    exc: TaskLockTimeout, *, task_id: Optional[str] = None, held: str = "task"
+) -> MutationError:
+    """A contended lock is a 409 that says to try again, not a 500 that says stop.
+
+    Shared with the queue routes, which take the same locks against the same files and
+    would otherwise each spell out that a timeout is retryable. Getting that wrong in
+    one place is a caller told to give up on a wait of a few hundred milliseconds.
+    """
+    return _error(
+        status.HTTP_409_CONFLICT,
+        "lock_timeout",
+        str(exc),
+        retryable=True,
+        task_id=task_id,
+        suggested_action=f"Another writer holds the {held}. Wait briefly and retry.",
+    )
+
+
 def acting_actor(project: Project, actor: str) -> str:
     """Return the actor id to record, refused when this project does not define it.
 
@@ -219,14 +240,7 @@ def _run(
     except MutationError:
         raise
     except TaskLockTimeout as exc:
-        raise _error(
-            status.HTTP_409_CONFLICT,
-            "lock_timeout",
-            str(exc),
-            retryable=True,
-            task_id=task_id,
-            suggested_action="Another writer holds the task. Wait briefly and retry.",
-        ) from exc
+        raise lock_timeout_error(exc, task_id=task_id) from exc
     except ValueError as exc:
         raise _classify(exc, task_id) from exc
 
@@ -351,6 +365,83 @@ async def close_task(
             outcome=payload.outcome,
             body=payload.body,
             archive=payload.archive,
+            operation_id=payload.operation_id,
+            expected_revision=payload.expected_revision,
+        ),
+        task_id=task_id,
+        project=project,
+        operation_id=payload.operation_id,
+        envelope=envelope,
+    )
+
+
+@router.post(
+    "/{task_id}/queue-move", response_model=MutationResponse, status_code=status.HTTP_200_OK
+)
+async def queue_move_task(
+    task_id: str,
+    payload: QueueMoveRequest,
+    envelope: bool = ENVELOPE_QUERY,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_acting_project),
+) -> Any:
+    """Change where a task stands in its band. The only way the order changes.
+
+    A verb like every other one here, which is why it lives beside them rather than
+    with the read routes: attributed, retry-safe, refused against a stale read, and
+    logged. The route computes no position -- it names a placement and the manager
+    decides what number that is, because the arithmetic has to happen under the queue
+    lock and a route holds no locks.
+    """
+    actor = acting_actor(project, payload.actor)
+    return _run(
+        lambda: manager.move(
+            task_id,
+            before=payload.before,
+            after=payload.after,
+            top=payload.top,
+            bottom=payload.bottom,
+            with_children=payload.with_children,
+            actor=actor,
+            body=payload.body,
+            operation_id=payload.operation_id,
+            expected_revision=payload.expected_revision,
+        ),
+        task_id=task_id,
+        project=project,
+        operation_id=payload.operation_id,
+        envelope=envelope,
+    )
+
+
+@router.post(
+    "/{task_id}/reprioritize", response_model=MutationResponse, status_code=status.HTTP_200_OK
+)
+async def reprioritize_task(
+    task_id: str,
+    payload: ReprioritizeRequest,
+    envelope: bool = ENVELOPE_QUERY,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_acting_project),
+) -> Any:
+    """Change a task's band and its place in that band, in one decision.
+
+    Not a `PATCH` of `priority`, deliberately. A band change moves a task between two
+    orderings, so it has to land somewhere in the new one -- and the generic patch has
+    no way to say where, no queue lock, and no `queue_move` entry to record the
+    decision. Sending `priority` through `PATCH /tasks/{id}` still works and still
+    rejoins the band at the bottom; this is the route that lets a caller say otherwise.
+    """
+    actor = acting_actor(project, payload.actor)
+    return _run(
+        lambda: manager.reprioritize(
+            task_id,
+            payload.priority,
+            before=payload.before,
+            after=payload.after,
+            top=payload.top,
+            actor=actor,
+            body=payload.body,
             operation_id=payload.operation_id,
             expected_revision=payload.expected_revision,
         ),

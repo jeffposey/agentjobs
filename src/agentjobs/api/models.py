@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agentjobs.manager import DependencyFacts, TaskManager
 from agentjobs.models_v2 import (
@@ -171,7 +171,18 @@ class SafeMutationRequest(BaseModel):
     behaviour. A client that supplies them gets: a retry that replays instead of
     writing twice, and a refusal when it decided against a version of the task that
     has since moved on.
+
+    **Unknown fields are refused, not ignored** -- D2, the same rule every stored v2
+    model already follows through ``StrictModel``. These request models had escaped it
+    because they descend from ``BaseModel`` directly, so a mutation carrying a field
+    the server does not know was accepted, dropped, and answered ``200``. The caller
+    then has every reason to believe it worked. That is the failure the field
+    allowlists exist to prevent -- ``queue_position`` in ``TaskUpdateRequest`` most of
+    all, where a silently ignored patch would leave somebody certain they had moved a
+    task that had not moved.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     operation_id: Optional[str] = Field(
         default=None,
@@ -329,6 +340,224 @@ class TaskUpdateRequest(RevisionedRequest):
     dependencies: Optional[List[Dependency]] = None
     links: Optional[List[Link]] = None
     branches: Optional[List[Branch]] = None
+
+
+class QueueMutationRequest(RevisionedRequest):
+    """A queue mutation: attributed, retry-safe, and neither field optional.
+
+    ``operation_id`` is **required** here, unlike on the older verbs where it had to
+    stay optional so callers written before it existed kept working. Nothing was ever
+    written against these routes, so there is no such caller to protect, and a reorder
+    a timeout can silently apply twice is exactly the failure the ledger exists to
+    prevent -- a duplicated move puts a task somewhere nobody asked for and leaves two
+    ``queue_move`` entries each claiming to be the decision.
+    """
+
+    actor: str = Field(..., min_length=1, description="Actor id performing the move.")
+    operation_id: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Caller-generated UUID. Resending the same request with the same id "
+            "replays the original result instead of moving the task twice."
+        ),
+    )
+    body: Optional[str] = Field(
+        default=None,
+        description="Log body for the queue_move entry. Omit it and the manager writes its own.",
+    )
+
+
+class QueueMoveRequest(QueueMutationRequest):
+    """Where in its band a task is being put. Exactly one placement, never two.
+
+    "before task-063 and also at the top" is two answers to one question, and choosing
+    one of them on the caller's behalf is how a reorder ends up somewhere nobody asked
+    for. The manager refuses it; this refuses it a layer earlier, where the caller can
+    still see which fields it sent.
+    """
+
+    before: Optional[str] = Field(default=None, description="Place it ahead of this task.")
+    after: Optional[str] = Field(default=None, description="Place it behind this task.")
+    top: bool = Field(default=False, description="Place it first in its band.")
+    bottom: bool = Field(default=False, description="Place it last in its band.")
+    with_children: bool = Field(
+        default=False,
+        description="Carry the task's open same-band descendants with it, contiguously.",
+    )
+
+    @model_validator(mode="after")
+    def _exactly_one_placement(self) -> "QueueMoveRequest":
+        """Refuse zero placements and refuse two."""
+        chosen = [
+            name
+            for name, given in (
+                ("before", self.before is not None),
+                ("after", self.after is not None),
+                ("top", self.top),
+                ("bottom", self.bottom),
+            )
+            if given
+        ]
+        if len(chosen) != 1:
+            given = ", ".join(chosen) if chosen else "none"
+            raise ValueError(
+                "exactly one placement is required -- before, after, top or bottom "
+                f"(given: {given})"
+            )
+        return self
+
+
+class ReprioritizeRequest(QueueMutationRequest):
+    """Change a task's band, and optionally where it lands inside the new one.
+
+    The default placement is the bottom of the target band. A band change already says
+    everything about urgency; where inside the new band it goes is a separate question
+    the caller may answer, and "bottom" is the answer that assumes least.
+    """
+
+    priority: Priority = Field(..., description="The band to move the task into.")
+    before: Optional[str] = Field(default=None, description="Place it ahead of this task.")
+    after: Optional[str] = Field(default=None, description="Place it behind this task.")
+    top: bool = Field(default=False, description="Place it first in the target band.")
+
+    @model_validator(mode="after")
+    def _at_most_one_placement(self) -> "ReprioritizeRequest":
+        """Zero is the documented default; two is still two answers to one question."""
+        chosen = [
+            name
+            for name, given in (
+                ("before", self.before is not None),
+                ("after", self.after is not None),
+                ("top", self.top),
+            )
+            if given
+        ]
+        if len(chosen) > 1:
+            raise ValueError(
+                "at most one placement may be given -- before, after or top "
+                f"(given: {', '.join(chosen)})"
+            )
+        return self
+
+
+class QueueMaintenanceRequest(BaseModel):
+    """Repair or compaction: attributed, and required to say who asked.
+
+    ``operation_id`` is required for the same reason it is on a move -- a caller that
+    cannot name its attempt cannot be told apart from one retrying -- but it is not
+    replayed from a ledger, because the ledger is per-task and these two operations act
+    on a whole band or a whole corpus. They do not need one: both are idempotent by
+    construction, since repairing a repaired queue finds nothing to repair and
+    compacting a compacted band renumbers it to the numbers it already has. Running
+    twice and running once leave the same corpus, which is a stronger property than
+    replay rather than a weaker substitute for it.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    actor: str = Field(..., min_length=1, description="Actor id asking for the operation.")
+    operation_id: str = Field(
+        ..., min_length=1, description="Caller-generated UUID identifying this attempt."
+    )
+
+
+class QueueCompactRequest(QueueMaintenanceRequest):
+    """Renumber one band back to 100, 200, 300..."""
+
+    band: Priority = Field(..., description="The band to compact. One band per request.")
+
+
+class QueueEntryRead(BaseModel):
+    """One task's place in line, and whether it can be taken."""
+
+    task: str
+    title: str
+    queue_position: Optional[int] = None
+    lifecycle: str
+    ball: Optional[str] = None
+    claimable: bool
+    reason: Optional[str] = Field(
+        default=None, description="Why it is not claimable. Null when it is."
+    )
+
+
+class QueueBandRead(BaseModel):
+    """One priority band, in queue order. Listed even when empty."""
+
+    band: str
+    entries: List[QueueEntryRead] = Field(default_factory=list)
+
+
+class QueueProblemRead(BaseModel):
+    """One broken queue rule, named well enough to fix by hand."""
+
+    kind: str
+    band: str
+    tasks: List[str] = Field(default_factory=list)
+    position: Optional[int] = None
+    message: str
+
+
+class QueueResponse(BaseModel):
+    """The whole ordered backlog. This is the list a human reviews.
+
+    It renders a broken queue rather than refusing to: ``problems`` says what is wrong
+    and ``repair_command`` says what to type. That is design section 8's deliberate
+    exception -- you have to be able to see a broken queue in order to fix it.
+    """
+
+    bands: List[QueueBandRead] = Field(default_factory=list)
+    problems: List[QueueProblemRead] = Field(default_factory=list)
+    repair_command: str
+
+
+class QueueAssignmentRead(BaseModel):
+    """One position a repair or a compaction wrote."""
+
+    task: str
+    band: str
+    position: int
+
+
+class QueueRepairResponse(BaseModel):
+    """What a repair did. Everything it guessed is named, which is the point."""
+
+    assigned: List[QueueAssignmentRead] = Field(default_factory=list)
+    rebalanced: List[str] = Field(default_factory=list)
+    unrepairable: List[str] = Field(default_factory=list)
+    changed: bool
+    report: str = Field(description="The same result rendered for a terminal.")
+
+
+class QueueCompactResponse(BaseModel):
+    """The tasks a compaction renumbered, and what they were renumbered to."""
+
+    band: str
+    moved: List[QueueAssignmentRead] = Field(default_factory=list)
+
+
+class SkippedTaskRead(BaseModel):
+    """One open task the queue passed over, and the rule that did it."""
+
+    task: str
+    position: Optional[int] = None
+    reason: str
+
+
+class NextExplanationResponse(BaseModel):
+    """Why this task is next -- the answer plus the work it stands in front of.
+
+    ``task`` is null when nothing is claimable, in which case ``skipped`` lists every
+    open task with the rule that excluded it. That is the listing a reader wants
+    precisely when a tool has just told them there is nothing to do.
+    """
+
+    task: Optional[str] = None
+    band: Optional[str] = None
+    queue_position: Optional[int] = None
+    empty_bands_above: List[str] = Field(default_factory=list)
+    skipped: List[SkippedTaskRead] = Field(default_factory=list)
 
 
 class MutationResult(BaseModel):
