@@ -1,0 +1,149 @@
+schema: 2
+id: task-221
+title: The gate has no answer for "does this run need to happen at all"
+created: '2026-08-21T07:49:43.396270Z'
+updated: '2026-08-21T07:49:43.396991Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+category: developer_experience
+tags:
+- tooling
+- developer-experience
+- check-gate
+effort: small -- a rule written carefully, and possibly one flag
+assignment:
+  eligible: []
+spec:
+  summary: task-189 made the gate cheap to fail fast and cheap to resume, but never
+    asked whether a given run is needed. A rebase that brings in changes untouched
+    by your diff still costs a full six minutes, and there is no sanctioned way to
+    say so.
+  intent: 'Jeff, 2026-08-21, watching a full gate re-run after a rebase that brought
+    in one task YAML: "it just seems like when you rebase and NOTHING CHANGES FROM
+    THAT, you shouldn''t repeat the full gate" -- and then, "that should have been
+    part of the ''stop full gating a million times'' task." He is right on both counts.'
+  description: '## What happened, as the worked example
+
+
+    Working task-220 on 2026-08-21, a branch carrying changes to `src/agentjobs/dispatch/runner.py`,
+    `tests/test_dispatch_runner.py` and `docs/agent-workflow.md` was rebased onto
+    `main`. The only thing the rebase brought in was **one task YAML file** -- a record
+    correction committed to `main` minutes earlier.
+
+
+    The full gate was then started again from the top: black, ruff, mypy, api, icons,
+    oxlint, 2232 pytest tests, vitest, build, Playwright. Roughly six minutes to re-establish
+    something that could not have changed, because nothing the rebase introduced is
+    read by any stage except one.
+
+
+    That exception is the interesting part and the reason this needs thought rather
+    than a blanket rule: `tests/test_validate.py::TestRealCorpus` **does** read the
+    live corpus, so a task-record change genuinely can flip it. The right answer was
+    that single test, not the suite.
+
+
+    ## The tension this has to resolve, not ignore
+
+
+    `ENGINEERING.md` is emphatic, and correct, that the unqualified `scripts/check.py`
+    is what the commit rule means, and that `--from` and `--only` exist for the loop
+    between a late failure and its fix -- never as the gate itself. A partial run
+    prints `PARTIAL RUN` at both ends precisely so its green cannot be passed off
+    as the gate''s.
+
+
+    **Any rule added here is an exception to that, and exceptions are how a rule like
+    this erodes.** "Except after a rebase that changed nothing relevant" becomes "except
+    when I judged it unnecessary" within a month, and the judgement is made by the
+    party with an interest in saying no. Whatever this task produces has to be checkable
+    by someone other than the person invoking it, in the way "does this take a worktree?"
+    is checkable and "is this big enough to matter?" is not.
+
+
+    ## Directions, none prescribed
+
+
+    - **Say nothing and change nothing.** Defensible: six minutes occasionally wasted
+    is cheaper than a gate people learn to skip. This task may legitimately close
+    as "won''t do", but it should say so with reasons rather than by neglect.
+
+    - **A derived answer rather than a judgement.** The gate could compare what a
+    run''s diff touches against what each stage reads, and report which stages a change
+    *cannot* affect. That turns "I think this is fine" into something the tool asserts
+    -- and it is the same move task-189 made when it replaced a documented ordering
+    with a measured one.
+
+    - **A named, recorded skip.** A flag that runs the reduced set, states loudly
+    what it skipped *and why the skip was sound*, and leaves that in the output the
+    way `PARTIAL RUN` already does. The point is that a reviewer can see the claim
+    and disagree with it.
+
+
+    ## Scope note
+
+
+    This is about the gate''s *entry* condition. Ordering (task-189), concurrency
+    (task-187) and provenance (task-210) are all settled and out of scope.'
+  constraints: '- The unqualified `scripts/check.py` must remain the meaning of the
+    commit rule. Nothing here may produce a green that reads like the gate''s when
+    it is not.
+
+    - Any exception must be checkable by a third party from the record, not a judgement
+    call made by whoever wants to skip the wait. Prefer something the tool derives
+    over something an agent asserts.
+
+    - `tests/test_validate.py::TestRealCorpus` reads the live corpus, so "it was only
+    a task file" is not by itself a safe skip. Whatever rule emerges must account
+    for stages whose inputs are outside the diff.
+
+    - Closing this as "won''t do" is an acceptable outcome if argued. Silence is not.'
+  out_of_scope: Stage ordering and resumability (task-189, closed). Gate concurrency
+    across worktrees (task-187, closed). Interpreter provenance (task-210, closed).
+    Making any individual stage faster.
+  context:
+  - path: scripts/check.py
+    why: The gate, its stages, and where --from/--only already live.
+  - path: ENGINEERING.md
+    why: The commit rule and the PARTIAL RUN reasoning that any exception here has
+      to survive.
+  - path: tests/test_validate.py
+    why: TestRealCorpus reads the live corpus, which is why 'it was only a task file'
+      is not automatically safe.
+acceptance:
+- id: ac-1
+  text: The question is answered one way or the other, in ENGINEERING.md, with reasoning
+    -- including an explicit 'no rule, run it every time' if that is the conclusion.
+  status: pending
+- id: ac-2
+  text: If a skip is sanctioned, whether it applies is decidable by a third party
+    reading the record, not by the judgement of whoever wanted to skip it.
+  status: pending
+- id: ac-3
+  text: A skipped run's output states what was skipped and on what grounds, and cannot
+    be mistaken for a full green -- the PARTIAL RUN property, preserved.
+  status: pending
+- id: ac-4
+  text: Stages whose inputs lie outside the diff (TestRealCorpus over the live corpus
+    is the known case) are handled explicitly rather than by assuming a diff bounds
+    what a stage reads.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T07:49:43.396311Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: a7c04e29-5f81-4b36-9d02-83b71ce40221
+      kind: create
+      fingerprint: 6fd7420d500c04a9ee3fa1080bf8147b
