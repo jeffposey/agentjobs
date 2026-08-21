@@ -1,6 +1,8 @@
 # Queue position — design proposal
 
-**Task:** task-081. **Status:** proposed, awaiting review.
+**Task:** task-081. **Status:** accepted 2026-08-20 (Jeff), including the review-pass
+fixes: the renumber skip-if-closed rule (§6), same-band group moves (§5.2), the
+selection-time integrity-check scope (§8), and reopen in the lock table (§7).
 **Supersedes the framing in the task's original title** ("ranking signals and
 tie-breaking"). The decision recorded on 2026-08-15 is that there is no ranking
 function and no tie-breaker: there is an explicit, human-owned queue, and the
@@ -83,8 +85,8 @@ sort key = (priority_rank, queue_position)
 ```
 
 Nothing else participates. Not `updated`, not `created`, not the task id, not filesystem
-order. There is no fallback: if the queue cannot produce this key for every candidate,
-selection **fails loudly** rather than guessing (§8).
+order. There is no fallback: if the queue cannot produce this key for every task the
+answer depends on, selection **fails loudly** rather than guessing (§8).
 
 Deliberately *not* called a tie-breaker. A tie-breaker is what you reach for when the
 real key is ambiguous; this is the real key. The user-facing term is **Queue position**,
@@ -146,7 +148,7 @@ knows nothing about its siblings. It is a corpus invariant, enforced in three pl
 |---|---|
 | `validation.py` | `_check_queue` reports missing, duplicate, non-positive, or present-on-closed positions as findings. Runs in `agentjobs validate` and the pre-commit hook. |
 | `TaskManager` | Every position-assigning path holds the project queue lock (§7) and computes from a fresh read, so a duplicate cannot be created by a race. |
-| `get_next_task` | Calls `assert_queue_integrity()` on the candidate set and raises `QueueCorruptionError` rather than sorting something it does not trust (§8). |
+| `get_next_task` | Calls `assert_queue_integrity()` over the bands the answer reads (§8) and raises `QueueCorruptionError` rather than sorting something it does not trust. |
 
 ### 3.3 Uniqueness is per band, and that has a consequence
 
@@ -201,7 +203,8 @@ Every verb below is idempotent through the existing `operation_id` mechanism, ta
 A new task is assigned `max(band) + QUEUE_STEP`, or `QUEUE_STEP` if the band is empty. A
 task nobody has placed does not get to preempt an order somebody thought about.
 `create` may take an explicit placement (`--before`, `--after`, `--top`) for the case
-where the person creating it already knows.
+where the person creating it already knows; `--before`/`--after` must name a task in the
+band the new task is joining, the same rule as `move`.
 
 This is the guarantee behind "creation defaults must always produce a valid position":
 there is no path that creates an open task without one, including import, migration, and
@@ -222,6 +225,14 @@ relative order, into the slot after the moved task. Bands are flat — an epic's
 ordinary members of their own bands (§12, "hierarchical positions") — so without this verb
 an epic and its work would drift apart every time either end moved. It is one locked
 operation over N+1 files.
+
+**A group move carries only the descendants in the moved task's own band.** Contiguity is
+a within-band property — positions in different bands are never compared, so "next to its
+parent" has no meaning for a `medium` child of a `high` epic. Descendants in other bands
+keep their positions, and the log entry's `moved_with` names exactly the tasks that moved,
+so the record also shows which children stayed where they were. A caller who wants a
+child's band to change says so with `reprioritize`; the group move never changes anyone's
+priority.
 
 A move appends a `queue_move` log entry to the moved task (and, for a group move, to the
 subtree root, naming the children):
@@ -262,11 +273,13 @@ patch.
 
 `close` clears `queue_position` as part of the same write that clears `ball`. No queue lock
 is needed: removing a value cannot create a duplicate. This keeps the common, hot path
-cheap.
+cheap. (The renumbering operations, which *can* collide with an unlocked close, carry the
+burden of that collision themselves — §6.)
 
 If a closed task is ever reopened, it re-enters at the bottom of its band through the same
-assignment path as creation. It does not remember where it used to be, and should not:
-the queue moved on without it.
+assignment path as creation — which means reopening, unlike closing, holds the queue lock
+(§7). It does not remember where it used to be, and should not: the queue moved on
+without it.
 
 ### 5.5 What a caller may *not* do
 
@@ -311,6 +324,15 @@ Rebalance always takes the upward form (targets start above the current band max
 it is always a single tail-first pass. Positions therefore creep upward over the life of a
 band; compaction is the answer when that becomes ugly, and it is cosmetic.
 
+A renumber must also survive the one writer that does not take the queue lock: `close`
+(§5.4). The band snapshot is taken under the lock, but a task in it can close before its
+write arrives, and blindly applying the snapshot would put a position back onto a closed
+task — violating rule 6 in a file the renumber itself just wrote. So each per-task write
+goes through `mutate_task`, which re-reads under that task's own lock, and **a task that
+is no longer open is skipped, not written**. A skipped task leaves a wider gap, which is
+the normal state of a sparse band; the direction argument is unaffected because skipping
+a write never reorders anything.
+
 A crash mid-renumber leaves a correctly ordered band with odd numbers in it — not a
 scrambled queue. `agentjobs queue check` reports it; `agentjobs queue repair` finishes the
 job. The repair is deterministic from the band's current order, so re-running it is safe.
@@ -333,11 +355,14 @@ QUEUE_LOCK = ".queue"
 It uses the same `O_CREAT | O_EXCL` mechanism, times out with a message naming the file,
 and cannot collide with a task id (ids never start with a dot).
 
-**Held by:** create, move, reprioritize, rebalance, compaction, repair, migration.
+**Held by:** create, reopen, move, reprioritize, rebalance, compaction, repair, migration —
+every path that assigns or changes a position.
 **Not held by:** close, archive, and every read.
 
 Reads deliberately do not lock. The worst a concurrent reader sees is a queue that is one
-move out of date, which is indistinguishable from having asked a moment earlier.
+move out of date, which is indistinguishable from having asked a moment earlier. Close
+deliberately does not lock either — clearing a value cannot create a duplicate — and the
+renumbering operations absorb the resulting race by re-checking openness per task (§6).
 
 **Lock order is fixed and global**, so two writers cannot deadlock:
 
@@ -360,9 +385,20 @@ even when neither races another create.
 `QueueCorruptionError` is raised — never swallowed, never fallen back from — when
 selection is asked for an answer it cannot honestly give:
 
-- an open candidate with no `queue_position`
-- two open candidates in one band with the same position
+- an open task in a checked band with no `queue_position`
+- two open tasks in one checked band with the same position
 - a position below 1
+
+**The check covers exactly what the answer reads.** Selection walks bands top-down to the
+first band containing a claimable candidate — the winning band — and
+`assert_queue_integrity` runs over **every open task in that band and the bands above
+it**, not just the claimable candidates. It has to be wider than the candidates, because
+`explain_next()` (§9) asserts an order over the *skipped* open tasks too, and an
+explanation built on a task with a duplicated position is a lie with a straight face. It
+deliberately stops there rather than covering the whole corpus: a duplicate in the `low`
+band does not falsify the claim that a particular `high` task is next, and making every
+selection hostage to corruption in a band it never reads would punish the wrong caller.
+`validate` and `agentjobs queue check` cover every band, always.
 
 The message names the offending task ids, the band, and the repair command. `get_next_task`
 raises rather than returning; the REST endpoint answers `409 Conflict` with the same detail;
@@ -391,7 +427,7 @@ Two deliberate exceptions keep the system repairable while it is broken:
 ```python
 def get_next_task(self, priority=None, *, agent=None) -> Optional[Task]:
     candidates = [...unchanged claimability filter...]
-    self.assert_queue_integrity(candidates)
+    self.assert_queue_integrity(candidates)   # scope: winning band and above — §8
     candidates.sort(key=lambda t: (t.priority_rank(), t.queue_position))
     return candidates[0]
 ```
@@ -421,11 +457,12 @@ and every surface renders, a structure like:
 ```
 
 `skipped` lists only tasks ahead of the winner in the same band or above it, with the
-claimability rule that excluded each. It is the answer to the question a human actually
-asks when a tool hands them a task — "why not the one I was expecting?" — and it is the
-difference between a scheduler and an oracle. It also makes the queue self-teaching:
-someone who sees their favourite task skipped for "has 7 open children" has just learned
-the rule.
+claimability rule that excluded each. (This is why the §8 integrity check covers those
+tasks: the explanation asserts their order, so their positions must be trustworthy.) It is
+the answer to the question a human actually asks when a tool hands them a task — "why not
+the one I was expecting?" — and it is the difference between a scheduler and an oracle. It
+also makes the queue self-teaching: someone who sees their favourite task skipped for "has
+7 open children" has just learned the rule.
 
 ---
 
@@ -552,13 +589,16 @@ separately and their bands mean different things.
 - **D3.** Present if and only if the task is open — the same rule shape as `ball`.
 - **D4.** Sparse integers, `QUEUE_STEP = 100`, midpoint insertion, rebalance on exhaustion.
 - **D5.** Renumbering is direction-ordered (tail-first upward, head-first downward) so
-  every partial state on disk is a correctly ordered queue.
+  every partial state on disk is a correctly ordered queue, and it skips any task that
+  closed since the band snapshot rather than writing a position onto a closed task.
 - **D6.** Reorder is a managed verb with an `operation_id`, logging `queue_move`;
   rebalance and compaction log nothing on tasks.
-- **D7.** Corruption raises. No timestamp or id fallback anywhere, ever. `check`, `list`
-  and `repair` are the exceptions that keep a broken queue fixable.
+- **D7.** Corruption raises, checked over the bands the answer reads (the winning band and
+  above). No timestamp or id fallback anywhere, ever. `check`, `list` and `repair` are the
+  exceptions that keep a broken queue fixable, and they cover every band.
 - **D8.** Bands are flat; epic contiguity is served by `--with-children`, not by
-  hierarchical keys.
+  hierarchical keys. A group move carries only same-band descendants — cross-band
+  contiguity is not a representable concept, and the move never changes a priority.
 - **D9.** Reprioritising defaults to the bottom of the target band.
 - **D10.** The migration baseline is `created` ascending, then id — immutable inputs only.
 
@@ -598,7 +638,8 @@ satisfy anybody, because a mechanical seed is by definition not a considered wor
 Two moves are then recorded explicitly, as `queue_move` entries, with no dependency edges
 invented:
 
-1. `task-120-issue-reporter-workflow` (with its children) to the top of the `high` band.
+1. `task-120-issue-reporter-workflow` (with its same-band children — §5.2) to the top of
+   the `high` band.
 2. The implementation children of this design immediately after it.
 
 **Step 3 — the ordering pass, which is what actually closes this program.** The whole open
@@ -623,13 +664,15 @@ one-line sort change.
    is safe to land alone: it makes the corpus ordered without changing any behaviour.
 
 2. **task-205 — manager: assignment, the verbs, and selection.** The `.queue` lock and its ordering
-   discipline, position assignment on create, `move` (with `--with-children`),
-   `reprioritize`, the `priority`-patch interception, clearing on close, rebalance and
-   compaction with the direction rule, `assert_queue_integrity` /
-   `QueueCorruptionError` / `repair`, the `queue_move` log type, and `get_next_task`
-   switched to `(priority_rank, queue_position)` with `explain_next()`. The acceptance test
-   that matters: **rewrite `updated` on every open task in any order and prove the queue
-   does not move.**
+   discipline, position assignment on create and reopen, `move` (with `--with-children`,
+   same-band only), `reprioritize`, the `priority`-patch interception, clearing on close,
+   rebalance and compaction with the direction rule **and the skip-if-closed rule** (§6),
+   `assert_queue_integrity` / `QueueCorruptionError` / `repair`, the `queue_move` log
+   type, and `get_next_task` switched to `(priority_rank, queue_position)` with
+   `explain_next()`. Two acceptance tests that matter: **rewrite `updated` on every open
+   task in any order and prove the queue does not move**, and **close a task in a band
+   mid-rebalance and prove the rebalance neither writes to it nor disturbs the order of
+   the rest**.
 
 3. **task-206 — REST, Python client and CLI.** The endpoints in §10, the client methods, and the
    `agentjobs queue` sub-app plus `next --why`. Includes the `409` corruption path end to
