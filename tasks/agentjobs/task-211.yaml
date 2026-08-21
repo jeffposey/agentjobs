@@ -3,52 +3,13 @@ id: task-211
 title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
   reorder, and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T18:49:45.621503Z'
+updated: '2026-08-21T19:01:57.214988Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Both questions from your review are answered, revision 2 is on the branch,\
-  \ and your phone link is updated in place: https://claude.ai/code/artifact/1588a618-c81b-4239-90a0-94a009c93d4a\n\
-  \n**1. queue-check \u2014 agreed, and it is a better design, not a smaller one.**\
-  \ \xA75.4 is rewritten. The check is synchronous now: the move lands, the response\
-  \ carries warnings computed from what the queue already knows. Five of them, all\
-  \ deterministic \u2014 the task you promoted cannot be claimed (this is `--why`\
-  \ pointed at one task), you ordered something above its own prerequisite, what you\
-  \ demoted gates other work, the move is a no-op, the band is corrupt. Your entry-6\
-  \ reasoning survives intact: it fires only on a fact, it names the demoted task,\
-  \ and it runs after the move. The 120s debounce existed only to amortise a model\
-  \ call, so it bought nothing but delay. What is lost is judgement about whether\
-  \ a move is *unwise* \u2014 that belongs to `reorder`, which sees the whole band.\
-  \ Withdrawing the lane also removed the design's only exception to run-is-a-task,\
-  \ its reserved actor, its spend ceiling and its fail-open branch. Reopen condition\
-  \ is stated. task-219 is retargeted: still a draft, no longer needs task-215, and\
-  \ can ship before any playbook exists.\n\n**2. agent types \u2014 yes, worth it,\
-  \ with two conditions, and I filed it as task-227 (draft) rather than absorbing\
-  \ it here.** \xA77.3 has the argument. The strongest point in its favour is that\
-  \ you already have one, hardcoded: `supervisor` changes the prompt stub and the\
-  \ permission allow-list and touches no runner. The conditions: (a) an agent type\
-  \ must carry more than a runner group or it is an alias table \u2014 your own examples\
-  \ prove it, since Producer and senior engineer both bind to default and would be\
-  \ indistinguishable; the payload worth carrying is the role brief, a permission\
-  \ profile, a default posture. (b) Keep role and cost on separate axes. **This is\
-  \ where I would push back on lead/senior/junior as described** \u2014 mapped onto\
-  \ big-dawg/default/sonnet they are `difficulty` with job titles, and writing a spend\
-  \ decision into a repo file is the thing \xA76.3 exists to prevent. The test: if\
-  \ the three tiers differ in what they may *do* and how their work is reviewed, they\
-  \ are agent types; if they differ only in which model runs, they are difficulty\
-  \ wearing titles. I suspect you mean the first, in which case say so in the definitions\
-  \ rather than implying it through a runner choice. task-227 also raises an alternative\
-  \ worth your eye before anyone builds: the `actors:` vocabulary may already be the\
-  \ right home \u2014 it is per-project, git-tracked, and already says \"Claude (Lead\
-  \ Engineer)\".\n\nP6 is reworded so a playbook declares *what kind of agent should\
-  \ run it* rather than a named field, which lets task-227 settle either way without\
-  \ reopening this design.\n\n**What you are approving:** revision 2 of the doc, commit\
-  \ 625ee2a on `docs/task-211-playbooks-design` (docs-only diff), plus the retargeting\
-  \ of task-219 and the filing of task-227. Everything else from the first review\
-  \ stands unchanged. Full gate green on the rebased branch \u2014 2448 pytest, 195\
-  \ vitest, 21 Playwright, all ten stages.\n\nOn approval I rebase, merge --no-ff,\
-  \ close this, and remove the worktree. The children stay drafts until you promote\
-  \ them, per the design's own rule."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 10500
@@ -1130,3 +1091,70 @@ log:
     outcome: completed
     duration_seconds: 2562.51513
     log_path: C:\Users\jpose\.agentjobs\runs\run_5e030d6e
+- id: 30
+  ts: '2026-08-21T19:01:06.882242Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 31
+  ts: '2026-08-21T19:01:55.783204Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 32
+  ts: '2026-08-21T19:01:57.214666Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_dc7acb0e
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 31
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)", "mcp__agentjobs"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` supervising parent task `task-211` in project `agentjobs`
+      (root: C:\projects\agentjobs). It has open children: task-214, task-215, task-216,
+      task-217, task-218, task-219. You are the supervisor, not the worker: start
+      a separate session for one eligible child at a time and let that session do
+      the child''s work. Do not work a child yourself, do not take a worktree, and
+      check nothing out -- you stay in the shared working tree as it is, and each
+      child session takes its own. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the parent record, then follow the parent-task protocol in docs/agent-workflow.md.
+      Dispatch run id: run_dc7acb0e.'
+    cwd: C:\projects\agentjobs
+    git_head: 2c1dd6a
+    session_id: 4e3f358c
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
