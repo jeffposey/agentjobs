@@ -3,7 +3,7 @@ id: task-226
 title: '"Request changes" is four different acts wearing one button, and the record
   says "revise" for all of them'
 created: '2026-08-21T16:19:49.631386Z'
-updated: '2026-08-21T19:02:29.638792Z'
+updated: '2026-08-21T19:07:25.527193Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -135,6 +135,10 @@ dependencies:
   type: related
   note: 'The other end of the same control pair: approve takes no note, so approve-with-a-comment
     has to borrow the revise path and becomes a fifth intent recorded as revise.'
+- task: task-001
+  type: related
+  note: 'The same collapse on the approve button: one hard-coded merge-gate prompt
+    for every approval, including gates where no merge was authorized.'
 links: []
 branches: []
 log:
@@ -161,3 +165,15 @@ log:
       id: a1c4e7f2-6b30-4a58-8d19-2c7b5e04f9a3
       kind: update_content
       fingerprint: d26f8cac800236b05267310473231baf
+- id: 3
+  ts: '2026-08-21T19:07:25.527072Z'
+  actor: claude
+  type: note
+  body: Updated dependencies.
+  data:
+    fields:
+    - dependencies
+    operation:
+      id: f4b7a05e-91c8-4d63-b0ea-3e5297d1c604
+      kind: update_content
+      fingerprint: 8af429b11a3d4d75c7ddbae1a81036f7

@@ -2,7 +2,7 @@ schema: 2
 id: task-001
 title: Support design approval without merge authorization
 created: '2026-08-12T23:01:40.471419Z'
-updated: '2026-08-21T16:59:32.972731Z'
+updated: '2026-08-21T19:06:13.736338Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -22,19 +22,57 @@ spec:
     in the human action UI.
   intent: Make multi-gate tasks truthful in the UI so the human can approve a design
     without appearing to authorize code that does not exist yet.
-  description: The first external-project pilot exposed a remaining review-surface
-    mismatch. A task handed to a human for pre-implementation design approval showed
-    the same Approve wording used for final code review and implied permission to
-    merge. The durable task record had to override that wording explicitly, and the
-    agent had to repair the post-approval handoff prompt before implementation could
-    begin.`n`nAdd a human action for approving a design or plan that returns the ball
-    to the agent for implementation without implying merge or task completion. Keep
-    final code approval as a separate review action.
-  constraints: Preserve the existing final review/merge approval path. The selected
-    action must write an accurate handoff prompt and log entry without requiring a
-    manual corrective handoff.
-  out_of_scope: Changing the job-hunting project or its React dashboard.
-  context: []
+  description: "The first external-project pilot exposed a remaining review-surface\
+    \ mismatch. A task handed to a human for pre-implementation design approval showed\
+    \ the same Approve wording used for final code review and implied permission to\
+    \ merge. The durable task record had to override that wording explicitly, and\
+    \ the agent had to repair the post-approval handoff prompt before implementation\
+    \ could begin.\n\nAdd a human action for approving a design or plan that returns\
+    \ the ball to the agent for implementation without implying merge or task completion.\
+    \ Keep final code approval as a separate review action.\n\n## The shared cause:\
+    \ approve writes a constant\n\n`POST /{task_id}/approve` composes no prompt. It\
+    \ writes one fixed string \u2014 *\"Approved -- cleared to merge. Rebase onto\
+    \ main, merge --no-ff, mark the branch merged...\"* ([src/agentjobs/api/routes/tasks.py:569](src/agentjobs/api/routes/tasks.py:569))\
+    \ \u2014 for every approval there is, and the button that calls it takes no input\
+    \ at all ([frontend/src/components/TaskDetail.tsx:96](frontend/src/components/TaskDetail.tsx:96)).\
+    \ This task is what that constant costs when the gate is not a merge gate.\n\n\
+    That makes three tasks on the same control, and they should be read together:\n\
+    \n- **This task** \u2014 approval at a design gate. The prompt asserts merge clearance\
+    \ that was never granted; the human appears to authorize code that does not exist.\n\
+    - **[task-228](tasks/agentjobs/task-228.yaml)** \u2014 approval carrying a comment.\
+    \ There is nowhere to put one, so the human is pushed onto Request Changes and\
+    \ gets a review round trip they did not want.\n- **[task-226](tasks/agentjobs/task-226.yaml)**\
+    \ \u2014 the same collapse on the other button: `ball_reason: revise` is the only\
+    \ value four distinct human intents can land on.\n\n**Kept separate rather than\
+    \ merged, deliberately.** 228 is one optional field with no semantic question\
+    \ attached, and folding it in here would block it behind this task's larger design\
+    \ question \u2014 which gates exist, how the panel knows which one it is at, and\
+    \ whether that comes from `lifecycle`, from `ball_reason`, or from something new.\
+    \ That question is also why this task is still `draft`.\n\n**But the two must\
+    \ not be designed blind to each other.** Both replace the same constant, and the\
+    \ natural end state is one approve path parameterised by *what is being approved*\
+    \ and *what the human wants to say about it*. Solved independently, they arrive\
+    \ as two ad-hoc parameters bolted onto the same route. Whoever specs this one\
+    \ should settle the shape of the approve payload for both, and say so in a decision\
+    \ entry \u2014 task-228 can then fill in its half without re-opening the question."
+  constraints: "Preserve the existing final review/merge approval path. The selected\
+    \ action must write an accurate handoff prompt and log entry without requiring\
+    \ a manual corrective handoff. Settle the shape of the approve payload so task-228's\
+    \ optional note fits it rather than being bolted on separately \u2014 see the\
+    \ relationship section."
+  out_of_scope: Changing the job-hunting project or its React dashboard. The agent-side
+    reason vocabulary behind Request Changes (task-226). Adding the optional approval
+    note itself (task-228), though this task decides the payload shape it lands in.
+  context:
+  - path: src/agentjobs/api/routes/tasks.py
+    why: approve_task writes one fixed merge-gate ball_prompt for every approval.
+      That constant is this task's defect and task-228's.
+  - path: frontend/src/components/TaskDetail.tsx
+    why: 'ReviewPanel: the Approve button, its phase-dependent copy, and the promote
+      branch that already varies both wording and payload by lifecycle.'
+  - path: tasks/agentjobs/task-228.yaml
+    why: The other change to the same approve path. Its optional note should fit the
+      payload shape this task settles.
 acceptance:
 - id: ac-1
   text: A human can approve a design-stage task and return it to agent/work without
@@ -48,7 +86,33 @@ acceptance:
     without agent repair.
   status: pending
 deliverables: []
-dependencies: []
+dependencies:
+- task: task-228
+  type: related
+  note: Same route, same constant prompt. This task decides which gate an approval
+    is for; 228 adds what the human can say about it. Design the approve payload once,
+    for both.
+- task: task-226
+  type: related
+  note: 'The same collapse on the other button: one revise reason carrying four human
+    intents.'
+- task: task-016
+  type: related
+  note: "Making the panel's offered actions depend on why the ball arrived \u2014\
+    \ likely the same signal this task needs to know which gate it is at."
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-21T19:06:13.736187Z'
+  actor: claude
+  type: note
+  body: Updated dependencies, spec.
+  data:
+    fields:
+    - dependencies
+    - spec
+    operation:
+      id: c2e91b47-58d0-4f3a-a6e5-71fbc3d0e884
+      kind: update_content
+      fingerprint: c8bf95b40f968a707199c4be564c43c8

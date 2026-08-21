@@ -3,7 +3,7 @@ id: task-228
 title: Approve should take an optional note, so "proceed, and also do this" stops
   being a request-changes
 created: '2026-08-21T19:02:19.523990Z'
-updated: '2026-08-21T19:02:57.337077Z'
+updated: '2026-08-21T19:07:15.273615Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -70,17 +70,26 @@ spec:
     \ the way Promote does, and the label makes clear the note does not block the\
     \ merge.\n- Whether attachments come along with an approval note is a judgement\
     \ call worth recording either way; Request Changes has them ([AttachmentPicker](frontend/src/components/AttachmentPicker.tsx)),\
-    \ Promote does not.\n\n## Relationship to task-226\n\n**Same control pair, opposite\
-    \ ends of the problem.** task-226 is about `ball_reason: revise` being the only\
-    \ value four different human intents can land on, so the record cannot say which\
-    \ one happened. This task is about the specific intent that has *no* control at\
-    \ all: approve-with-a-comment, which today has to borrow the revise path and therefore\
-    \ lands in 226's bucket as a fifth mis-recorded case.\n\nThe two are worth reading\
-    \ together and are cheaper done together \u2014 both touch `ReviewPanel` and both\
-    \ touch the handoff each button composes \u2014 but neither blocks the other.\
-    \ If 226 concludes the agent-side vocabulary should grow, this task's note does\
-    \ not need a new reason: it stays `agent`/`work`, because approve already means\
-    \ proceed and that is the point."
+    \ Promote does not.\n\n## The neighbours: three tasks, one control\n\nEvery approval\
+    \ AgentJobs has ever recorded carries the same hard-coded sentence, because `approve_task`\
+    \ composes nothing. Three tasks are what that constant costs, and they should\
+    \ be read together:\n\n- **This task** \u2014 the constant leaves no room for\
+    \ anything the human wants to say.\n- **[task-001](tasks/agentjobs/task-001.yaml)**\
+    \ \u2014 the constant asserts merge clearance at gates where no merge was authorized,\
+    \ e.g. approving a design before the code exists.\n- **[task-226](tasks/agentjobs/task-226.yaml)**\
+    \ \u2014 the same collapse on the other button: `ball_reason: revise` is the only\
+    \ value four distinct human intents can land on, and approve-with-a-comment is\
+    \ a fifth that borrows it today.\n\n**task-001 owns the payload decision, and\
+    \ this task should not pre-empt it.** 001 has to settle which gates exist and\
+    \ how the panel knows which one it is at; the natural end state is one approve\
+    \ path parameterised by *what is being approved* and *what the human wants to\
+    \ say about it*. If this task ships first and invents its own note parameter,\
+    \ 001 arrives to find a second one bolted beside it. Read 001's decision entries\
+    \ before designing the payload here \u2014 and if it has none yet, that ordering\
+    \ is worth raising rather than guessing past.\n\nThat is a sequencing preference,\
+    \ not a dependency: 001 is still `draft` and nothing here is blocked. This stays\
+    \ `ball_reason: work` either way \u2014 approve already means proceed, and a note\
+    \ does not change that."
   constraints: "- The note is optional and stays optional. Empty means today's exact\
     \ behaviour, including the existing fixed ball_prompt and log body.\n- The note\
     \ reaches the agent verbatim in ball_prompt and the log entry, not summarised.\n\
@@ -91,11 +100,15 @@ spec:
     \ able to read an approval note as a request for another review round.\n- Whatever\
     \ the API accepts reaches REST, the generated client, MCP and the CLI, not just\
     \ the React app.\n- Do not repurpose the request-changes route with an \"approved\"\
-    \ flag. Two acts, two routes."
+    \ flag. Two acts, two routes.\n- Fit the note into the approve payload task-001\
+    \ settles rather than inventing a parallel parameter \u2014 see \"The neighbours\"\
+    \ above."
   out_of_scope: "The agent-side reason vocabulary and the request-changes label (task-226).\
-    \ Making the panel's offered actions ball_reason-aware (task-016). Structured\
-    \ questions answered in the GUI (task-017). Anything that makes the GUI run git\
-    \ \u2014 approve still records, it does not merge."
+    \ Which gates an approval can be at, and the design-approval variant itself (task-001)\
+    \ \u2014 this task adds only what an approval can carry. Making the panel's offered\
+    \ actions ball_reason-aware (task-016). Structured questions answered in the GUI\
+    \ (task-017). Anything that makes the GUI run git \u2014 approve still records,\
+    \ it does not merge."
   context:
   - path: frontend/src/components/TaskDetail.tsx
     why: "ReviewPanel \u2014 line 96 is the bare Approve click; the promote branch\
@@ -106,6 +119,9 @@ spec:
   - path: src/agentjobs/api/models.py
     why: "HumanActionRequest vs FeedbackActionRequest \u2014 which payload approve\
       \ should take."
+  - path: tasks/agentjobs/task-001.yaml
+    why: The other change to this same route, and the one that owns the payload shape.
+      Read its decisions before designing this note's.
   - path: tasks/agentjobs/task-226.yaml
     why: 'The other half: revise as the only value four human intents can land on.
       Approve-with-a-note is the fifth case that has to borrow that path today.'
@@ -133,6 +149,11 @@ acceptance:
   status: pending
 deliverables: []
 dependencies:
+- task: task-001
+  type: related
+  note: The other change to this same route. 001 decides which gate an approval is
+    for and settles the approve payload shape; this note should fit that shape rather
+    than being a second ad-hoc parameter. Read 001 before designing the payload.
 - task: task-226
   type: related
   note: Same control pair. 226 is revise carrying four intents; this is the approve-with-a-comment
@@ -173,3 +194,28 @@ log:
       id: b7d3c018-4e52-4a7f-9c66-1de8ba3f6207
       kind: queue_move
       fingerprint: 5b81371b65da36743d4fb542f77f26ac
+- id: 3
+  ts: '2026-08-21T19:06:40.817839Z'
+  actor: claude
+  type: note
+  body: Updated dependencies, spec.
+  data:
+    fields:
+    - dependencies
+    - spec
+    operation:
+      id: d5a08c93-1f76-4b21-8e40-9a2f7c61de35
+      kind: update_content
+      fingerprint: e7fec7f4e4743b2927760086eb33e8cd
+- id: 4
+  ts: '2026-08-21T19:07:15.273429Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: e81f2b60-3ca4-4d77-9b52-06f4e1c7a923
+      kind: update_content
+      fingerprint: 173f12a1c635c5feeaab6aa196ea58ab
