@@ -3,10 +3,209 @@ id: task-202
 title: Give every registered project its MCP server, so a dispatched session has the
   tools
 created: '2026-08-20T22:27:11.789778Z'
-updated: '2026-08-21T01:21:43.695527Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-21T02:37:12.914983Z'
+lifecycle: active
+ball: human
+ball_reason: input
+ball_prompt: "Dispatched session `7c962e37` is parked on a permission prompt and will\
+  \ wait indefinitely. Answer it wherever the session is open. Or attach locally with\
+  \ `claude attach 7c962e37`.\n\nThe end of its terminal, verbatim:\n\n```\n   \u2502\
+  \ git -C C:/projects/product-strategy status --porcelain; echo \"---\"; cat C:/projects/product-strategy/.mcp.json\n\
+  \   Confirm product-strategy file state\n                                      \
+  \                                                                              \
+  \                                                                              \
+  \       \u2502 Auto mode classifier requires confirmation for this command.    \
+  \                                                                              \
+  \                                                        \u2502 3 consecutive actions\
+  \ were blocked. Please review the transcript before continuing.\n \u2502 Latest\
+  \ blocked action: Blocked by classifier\n Do you want to proceed?\n \u276F 1. Yes\
+  \                                                                              \
+  \                                                                              \
+  \                                      2. Yes, and allow access to /c/projects/product-strategy\
+  \ and git -C C:/projects/product-strategy status --porcelain commands\n   3. No\n\
+  \ Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain                       \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                 \u25CF Background\
+  \ command \"Run the full repository gate\" completed (exit code 0)             \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \u25CF\
+  \ Gate failed on a typing nit in my test helper. Fixing.                       \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \           Ran 4 shell commands                                               \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                   \u25CF Now the backfill for the three remaining registered projects.\
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                           Ran 1 shell command                                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                   \u25CF Now verifying each declared command actually\
+  \ connects \u2014 the reference test from the spec.                            \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                 Ran 2 shell commands\n\u25CF Write(~\\\
+  .claude\\jobs\\7c962e37\\tmp\\mcp-commit-msg.txt)                              \
+  \                                                                              \
+  \                                       \u23BF \_Wrote 14 lines to ..\\..\\Users\\\
+  jpose\\.claude\\jobs\\7c962e37\\tmp\\mcp-commit-msg.txt                        \
+  \                                                                              \
+  \                    1 chore: declare the AgentJobs MCP server for this project\
+  \                                                                              \
+  \                                                                2             \
+  \                                                                              \
+  \                                                                              \
+  \                              3 Without this file an agent working here starts\
+  \ with no AgentJobs tools and falls                                            \
+  \                                                                          4 back\
+  \ to the CLI or the REST API. That fallback works, which is why the gap went   \
+  \                                                                              \
+  \                                      5 unnoticed -- nothing fails, the session\
+  \ is just slower and several turns more                                        \
+  \                                                                              \
+  \   6 confused. A session that cannot reach the tools also cannot record its own\
+  \ work,\n       7 because the direct-write guard correctly refuses the YAML edit\
+  \ it reaches for next.\n       8\n       9 Written by `agentjobs project mcp-setup`\
+  \ (agentjobs task-202). The console script                                     \
+  \                                                                              \
+  \ 10 rather than an interpreter path, so it survives a rebuilt virtualenv. The port\
+  \ is\n     \u2026 +4 lines\n\u25CF Running 7 shell commands\u2026\n  \u23BF  $ git\
+  \ -C C:/projects/product-strategy status --porcelain; echo \"---\"; cat C:/projects/product-strategy/.mcp.json\n\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500 Bash command\n   \u2502 git -C C:/projects/product-strategy\
+  \ status --porcelain; echo \"---\"; cat C:/projects/product-strategy/.mcp.json\n\
+  \   Confirm product-strategy file state\n                                      \
+  \                                                                              \
+  \                                                                              \
+  \       \u2502 Auto mode classifier requires confirmation for this command.    \
+  \                                                                              \
+  \                                                        \u2502 3 consecutive actions\
+  \ were blocked. Please review the transcript before continuing.\n \u2502 Latest\
+  \ blocked action: Blocked by classifier\n Do you want to proceed?\n \u276F 1. Yes\
+  \                                                                              \
+  \                                                                              \
+  \                                      2. Yes, and allow access to /c/projects/product-strategy\
+  \ and git -C C:/projects/product-strategy status --porcelain commands\n   3. No\n\
+  \ Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain                       \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                 \u25CF Background\
+  \ command \"Run the full repository gate\" completed (exit code 0)             \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \u25CF\
+  \ Gate failed on a typing nit in my test helper. Fixing.                       \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \           Ran 4 shell commands                                               \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                   \u25CF Now the backfill for the three remaining registered projects.\
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                           Ran 1 shell command                                \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                   \u25CF Now verifying each declared command actually\
+  \ connects \u2014 the reference test from the spec.                            \
+  \                                                                              \
+  \                                                                              \
+  \                                                                              \
+  \                                                 Ran 2 shell commands\n\u25CF Write(~\\\
+  .claude\\jobs\\7c962e37\\tmp\\mcp-commit-msg.txt)                              \
+  \                                                                              \
+  \                                       \u23BF \_Wrote 14 lines to ..\\..\\Users\\\
+  jpose\\.claude\\jobs\\7c962e37\\tmp\\mcp-commit-msg.txt                        \
+  \                                                                              \
+  \                    1 chore: declare the AgentJobs MCP server for this project\
+  \                                                                              \
+  \                                                                2             \
+  \                                                                              \
+  \                                                                              \
+  \                              3 Without this file an agent working here starts\
+  \ with no AgentJobs tools and falls                                            \
+  \                                                                          4 back\
+  \ to the CLI or the REST API. That fallback works, which is why the gap went   \
+  \                                                                              \
+  \                                      5 unnoticed -- nothing fails, the session\
+  \ is just slower and several turns more                                        \
+  \                                                                              \
+  \   6 confused. A session that cannot reach the tools also cannot record its own\
+  \ work,\n       7 because the direct-write guard correctly refuses the YAML edit\
+  \ it reaches for next.\n       8\n       9 Written by `agentjobs project mcp-setup`\
+  \ (agentjobs task-202). The console script                                     \
+  \                                                                              \
+  \ 10 rather than an interpreter path, so it survives a rebuilt virtualenv. The port\
+  \ is\n     \u2026 +4 lines\n\u25CF Running 7 shell commands\u2026\n  \u23BF  $ git\
+  \ -C C:/projects/product-strategy status --porcelain; echo \"---\"; cat C:/projects/product-strategy/.mcp.json\n\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+  \u2500\u2500\u2500\u2500 Bash command\n   \u2502 git -C C:/projects/product-strategy\
+  \ status --porcelain; echo \"---\"; cat C:/projects/product-strategy/.mcp.json\n\
+  \   Confirm product-strategy file state\n                                      \
+  \                                                                              \
+  \                                                                              \
+  \       \u2502 Auto mode classifier requires confirmation for this command.    \
+  \                                                                              \
+  \                                                        \u2502 3 consecutive actions\
+  \ were blocked. Please review the transcript before continuing.\n \u2502 Latest\
+  \ blocked action: Blocked by classifier\n Do you want to proceed?\n \u276F 1. Yes\
+  \                                                                              \
+  \                                                                              \
+  \                                      2. Yes, and allow access to /c/projects/product-strategy\
+  \ and git -C C:/projects/product-strategy status --porcelain commands\n   3. No\n\
+  \ Esc to cancel \xB7 Tab to amend \xB7 ctrl+e to explain\n```"
 archived: false
 priority: high
 category: developer_experience
@@ -16,6 +215,7 @@ tags:
 - init
 - from-live-session-2026-08-20
 assignment:
+  owner: claude
   eligible:
   - claude
   - codex
@@ -169,3 +369,282 @@ log:
       id: c1a70000-1202-4a00-9e00-000000000202
       kind: log_append
       fingerprint: 7c13e0d19a1ced062cca83299456a5d0
+- id: 3
+  ts: '2026-08-21T02:13:19.785734Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 4
+  ts: '2026-08-21T02:13:20.066867Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 5
+  ts: '2026-08-21T02:13:20.924046Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_8a76889b
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 3
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-202` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-202-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_8a76889b.'
+    cwd: C:\projects\agentjobs
+    git_head: 3e1882a
+    session_id: 7c962e37
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 6
+  ts: '2026-08-21T02:37:12.914842Z'
+  actor: dispatcher
+  type: handoff
+  body: "Dispatched session `7c962e37` is parked on a permission prompt and will wait\
+    \ indefinitely. Answer it wherever the session is open. Or attach locally with\
+    \ `claude attach 7c962e37`.\n\nThe end of its terminal, verbatim:\n\n```\n   \u2502\
+    \ git -C C:/projects/product-strategy status --porcelain; echo \"---\"; cat C:/projects/product-strategy/.mcp.json\n\
+    \   Confirm product-strategy file state\n                                    \
+    \                                                                            \
+    \                                                                            \
+    \             \u2502 Auto mode classifier requires confirmation for this command.\
+    \                                                                            \
+    \                                                              \u2502 3 consecutive\
+    \ actions were blocked. Please review the transcript before continuing.\n \u2502\
+    \ Latest blocked action: Blocked by classifier\n Do you want to proceed?\n \u276F\
+    \ 1. Yes                                                                     \
+    \                                                                            \
+    \                                                 2. Yes, and allow access to\
+    \ /c/projects/product-strategy and git -C C:/projects/product-strategy status\
+    \ --porcelain commands\n   3. No\n Esc to cancel \xB7 Tab to amend \xB7 ctrl+e\
+    \ to explain                                                                 \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                               \u25CF Background command \"Run the full repository\
+    \ gate\" completed (exit code 0)                                             \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                    \u25CF Gate failed on a typing\
+    \ nit in my test helper. Fixing.                                             \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                         Ran\
+    \ 4 shell commands                                                           \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \               \u25CF Now the backfill for the three remaining registered projects.\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                   Ran 1 shell command                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                     \u25CF Now verifying each\
+    \ declared command actually connects \u2014 the reference test from the spec.\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \       Ran 2 shell commands\n\u25CF Write(~\\.claude\\jobs\\7c962e37\\tmp\\mcp-commit-msg.txt)\
+    \                                                                            \
+    \                                                                       \u23BF\
+    \ \_Wrote 14 lines to ..\\..\\Users\\jpose\\.claude\\jobs\\7c962e37\\tmp\\mcp-commit-msg.txt\
+    \                                                                            \
+    \                                              1 chore: declare the AgentJobs\
+    \ MCP server for this project                                                \
+    \                                                                            \
+    \                  2                                                         \
+    \                                                                            \
+    \                                                                  3 Without this\
+    \ file an agent working here starts with no AgentJobs tools and falls        \
+    \                                                                            \
+    \                                  4 back to the CLI or the REST API. That fallback\
+    \ works, which is why the gap went                                           \
+    \                                                                            5\
+    \ unnoticed -- nothing fails, the session is just slower and several turns more\
+    \                                                                            \
+    \                                             6 confused. A session that cannot\
+    \ reach the tools also cannot record its own work,\n       7 because the direct-write\
+    \ guard correctly refuses the YAML edit it reaches for next.\n       8\n     \
+    \  9 Written by `agentjobs project mcp-setup` (agentjobs task-202). The console\
+    \ script                                                                     \
+    \                                               10 rather than an interpreter\
+    \ path, so it survives a rebuilt virtualenv. The port is\n     \u2026 +4 lines\n\
+    \u25CF Running 7 shell commands\u2026\n  \u23BF  $ git -C C:/projects/product-strategy\
+    \ status --porcelain; echo \"---\"; cat C:/projects/product-strategy/.mcp.json\n\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500 Bash command\n   \u2502 git -C C:/projects/product-strategy\
+    \ status --porcelain; echo \"---\"; cat C:/projects/product-strategy/.mcp.json\n\
+    \   Confirm product-strategy file state\n                                    \
+    \                                                                            \
+    \                                                                            \
+    \             \u2502 Auto mode classifier requires confirmation for this command.\
+    \                                                                            \
+    \                                                              \u2502 3 consecutive\
+    \ actions were blocked. Please review the transcript before continuing.\n \u2502\
+    \ Latest blocked action: Blocked by classifier\n Do you want to proceed?\n \u276F\
+    \ 1. Yes                                                                     \
+    \                                                                            \
+    \                                                 2. Yes, and allow access to\
+    \ /c/projects/product-strategy and git -C C:/projects/product-strategy status\
+    \ --porcelain commands\n   3. No\n Esc to cancel \xB7 Tab to amend \xB7 ctrl+e\
+    \ to explain                                                                 \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                               \u25CF Background command \"Run the full repository\
+    \ gate\" completed (exit code 0)                                             \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                    \u25CF Gate failed on a typing\
+    \ nit in my test helper. Fixing.                                             \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                         Ran\
+    \ 4 shell commands                                                           \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \               \u25CF Now the backfill for the three remaining registered projects.\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                   Ran 1 shell command                      \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                     \u25CF Now verifying each\
+    \ declared command actually connects \u2014 the reference test from the spec.\
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \                                                                            \
+    \       Ran 2 shell commands\n\u25CF Write(~\\.claude\\jobs\\7c962e37\\tmp\\mcp-commit-msg.txt)\
+    \                                                                            \
+    \                                                                       \u23BF\
+    \ \_Wrote 14 lines to ..\\..\\Users\\jpose\\.claude\\jobs\\7c962e37\\tmp\\mcp-commit-msg.txt\
+    \                                                                            \
+    \                                              1 chore: declare the AgentJobs\
+    \ MCP server for this project                                                \
+    \                                                                            \
+    \                  2                                                         \
+    \                                                                            \
+    \                                                                  3 Without this\
+    \ file an agent working here starts with no AgentJobs tools and falls        \
+    \                                                                            \
+    \                                  4 back to the CLI or the REST API. That fallback\
+    \ works, which is why the gap went                                           \
+    \                                                                            5\
+    \ unnoticed -- nothing fails, the session is just slower and several turns more\
+    \                                                                            \
+    \                                             6 confused. A session that cannot\
+    \ reach the tools also cannot record its own work,\n       7 because the direct-write\
+    \ guard correctly refuses the YAML edit it reaches for next.\n       8\n     \
+    \  9 Written by `agentjobs project mcp-setup` (agentjobs task-202). The console\
+    \ script                                                                     \
+    \                                               10 rather than an interpreter\
+    \ path, so it survives a rebuilt virtualenv. The port is\n     \u2026 +4 lines\n\
+    \u25CF Running 7 shell commands\u2026\n  \u23BF  $ git -C C:/projects/product-strategy\
+    \ status --porcelain; echo \"---\"; cat C:/projects/product-strategy/.mcp.json\n\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500 Bash command\n   \u2502 git -C C:/projects/product-strategy\
+    \ status --porcelain; echo \"---\"; cat C:/projects/product-strategy/.mcp.json\n\
+    \   Confirm product-strategy file state\n                                    \
+    \                                                                            \
+    \                                                                            \
+    \             \u2502 Auto mode classifier requires confirmation for this command.\
+    \                                                                            \
+    \                                                              \u2502 3 consecutive\
+    \ actions were blocked. Please review the transcript before continuing.\n \u2502\
+    \ Latest blocked action: Blocked by classifier\n Do you want to proceed?\n \u276F\
+    \ 1. Yes                                                                     \
+    \                                                                            \
+    \                                                 2. Yes, and allow access to\
+    \ /c/projects/product-strategy and git -C C:/projects/product-strategy status\
+    \ --porcelain commands\n   3. No\n Esc to cancel \xB7 Tab to amend \xB7 ctrl+e\
+    \ to explain\n```"
+  data:
+    ball: human
+    ball_reason: input
