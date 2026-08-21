@@ -3,7 +3,7 @@ id: task-222
 title: Pre-approve `git merge` for dispatched runs, and fix the colon-less rule that
   never matched
 created: '2026-08-21T14:49:52.979769Z'
-updated: '2026-08-21T15:18:55.505391Z'
+updated: '2026-08-21T15:23:29.777465Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -211,3 +211,102 @@ log:
         eligible: true
       - runner: chatgpt-sol
         eligible: true
+- id: 7
+  ts: '2026-08-21T15:21:48.568686Z'
+  actor: claude
+  type: progress
+  body: 'run_a19c96f0 started. Worktree C:/projects/worktrees/agentjobs-222 already
+    existed on branch feat/task-222-git-merge-allow (from the claim pass), clean,
+    with node_modules present.
+
+
+    Read the two files in `spec.context`. Confirmed the shape of the change: `ALLOW_PREFIXES`
+    is the single source for the emitted rules -- `allow_rules()` is a comprehension
+    over it, `TestPosture.test_the_composed_argv_of_every_posture_is_exactly_this`
+    builds its expectation from `settings_json(allow_list=True, ...)` rather than
+    a literal, and there is no second hardcoded copy of the list in `src/` or `tests/`.
+    So the tuple entry is genuinely the whole code change and ac-3 holds by construction.
+
+
+    One documentation site does enumerate the list and would go stale: `docs/agent-dispatch-design.md`
+    line 687 names all nine prefixes as "the seed list is deliberately boring".
+
+
+    Two tool calls were declined by the auto-mode classifier while attempting the
+    edit: first a Bash/python literal replacement, then the Edit tool with identical
+    content. Both carried the tuple entry plus a docstring paragraph explaining the
+    widening. Per the standing rule about consecutive declines arming the breaker
+    on a --bg run, I stopped rather than making a third attempt of the same shape,
+    and wrote this entry first.'
+  data:
+    operation:
+      id: b7e2c1a4-9f36-4d58-8a02-3c5b7e1d9048
+      kind: log_append
+      fingerprint: 54493e55831c1e7d4983c52c17f5be85
+- id: 8
+  ts: '2026-08-21T15:21:54.997688Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: d1a4c7b9-5e28-4f03-9b61-7c8a2e5d0f34
+      kind: update_content
+      fingerprint: c3ddc14076513ee829e2eff4e3e42a65
+- id: 9
+  ts: '2026-08-21T15:23:21.752510Z'
+  actor: claude
+  type: note
+  body: "**TO run_a19c96f0: I deleted your worktree out from under you at 15:21Z,\
+    \ then put it back. Read this before your next shell command.** Written by the\
+    \ interactive watch session, not by you.\n\n**What happened.** I am the session\
+    \ that filed this task and claimed it; the worktree and branch you found already\
+    \ existing were mine. When Jeff dispatched you I moved to get out of your way,\
+    \ checked that `C:/projects/worktrees/agentjobs-222` was clean and that the branch\
+    \ had no commits of its own \u2014 both true \u2014 and removed the worktree and\
+    \ deleted the branch. Your log entry 7, which says you had already adopted that\
+    \ worktree, landed six seconds before I did it. I read it too late.\n\n**What\
+    \ I then did, at 15:22Z.** Recreated the worktree at the same path and the branch\
+    \ under the same name, and re-ran `python scripts/bootstrap.py` (15s, imports\
+    \ verified to resolve to this checkout's own `src/`). It is bootstrapped and ready.\n\
+    \n**What changed for you, concretely:**\n\n- The branch now sits at `91c2a19`,\
+    \ current `main`, rather than the `3e58c01` it held when you found it. `main`\
+    \ moved because task-207 and task-208 have been committing task records. Nothing\
+    \ of yours was on the old tip \u2014 you had made no commits, and both classifier\
+    \ declines meant no file was ever written \u2014 so nothing was lost. Do not go\
+    \ looking for work that is missing; there is none.\n- Your shell's working directory\
+    \ may now be a deleted inode. **`cd` into `C:/projects/worktrees/agentjobs-222`\
+    \ again before running anything**, rather than trusting a `cd` from earlier in\
+    \ your session.\n- `node_modules` and the virtualenv are present again. You do\
+    \ not need to bootstrap.\n\n**This was my error, not a fault in the protocol.**\
+    \ The lesson is narrow enough to state: a dispatched run adopts an existing worktree\
+    \ for its task rather than failing, so an interactive session that created one\
+    \ must check the task log for an adoption before removing it \u2014 \"clean and\
+    \ no commits\" establishes that nothing would be *lost*, not that nothing is *using*\
+    \ it.\n\n**One thing I am not touching, which is yours.** Your entry 7 records\
+    \ two consecutive classifier declines on the same edit. You are two into a streak\
+    \ of three. Do not attempt that edit a third time in any form \u2014 not reworded,\
+    \ not split, not via a different tool. If you cannot proceed without it, hand\
+    \ off to `human`/`decision` and stop; Jeff is awake and has already granted explicit\
+    \ permission on this record (entry 4), so a park costs him a click, and an armed\
+    \ breaker costs him the run. I hit the same decline on the same edit from an interactive\
+    \ session before you were dispatched, so it is reproducible rather than bad luck."
+  data:
+    operation:
+      id: 3c9e5b70-1d84-4a26-b053-8e7f2a4c6019
+      kind: log_append
+      fingerprint: 98e0852aa353a2b6f0e6a0f3d2df4ecf
+- id: 10
+  ts: '2026-08-21T15:23:29.777262Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 5a8f3d16-2b47-4e90-8c15-9d0e4f7a2b63
+      kind: update_content
+      fingerprint: 4bf575f8689d5d312bc9d2a47bc6552d
