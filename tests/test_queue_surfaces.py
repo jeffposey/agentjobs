@@ -814,8 +814,8 @@ class TestPythonClientQueueSurface:
         stamp = revision(manager, "task-b")
         kwargs = dict(actor="Ada", operation_id="op-1", expected_revision=stamp, top=True)
 
-        client.operations.queue_move("task-b", **kwargs)  # type: ignore[arg-type]
-        again = client.operations.queue_move("task-b", **kwargs)  # type: ignore[arg-type]
+        client.operations.queue_move("task-b", **kwargs)
+        again = client.operations.queue_move("task-b", **kwargs)
 
         assert again.replayed is True
 

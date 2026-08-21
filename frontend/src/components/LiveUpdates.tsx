@@ -23,6 +23,10 @@ export const PROJECT_TASK_QUERY_IDS = new Set([
   "listTasksApiProjectsProjectIdTasksGet",
   "listBrokenTasksApiProjectsProjectIdTasksBrokenGet",
   "getNextTaskApiProjectsProjectIdTasksNextGet",
+  // Both read the queue, and the queue is task files: a move, a reprioritize, a close
+  // or a create all change what these answer, and all of them move the revision.
+  "explainNextTaskApiProjectsProjectIdTasksNextExplainGet",
+  "getQueueApiProjectsProjectIdQueueGet",
   "getTaskApiProjectsProjectIdTasksTaskIdGet",
   "getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGet",
   // A dispatch and its result are log entries, so starting and finishing a run both
