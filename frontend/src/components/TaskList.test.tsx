@@ -215,6 +215,37 @@ function accepting(): ReorderHandlers & { moves: Array<[string, QueueMove]> } {
   };
 }
 
+/**
+ * Take over the frame clock and the scroller, so an autoscroll can be asserted rather
+ * than waited for. Every spy is undone by `restore`.
+ */
+function frameHarness() {
+  const frames: Array<(time: number) => void> = [];
+  let scrolled = 0;
+  let now = 0;
+  vi.spyOn(window, "scrollBy").mockImplementation(((_x: number, y: number) => {
+    scrolled += y;
+  }) as typeof window.scrollBy);
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => frames.push(callback));
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+  return {
+    /** Everything currently scheduled, `ms` later. The loop reschedules as it runs. */
+    run: (ms = 16) => {
+      now += ms;
+      for (const callback of frames.splice(0, frames.length)) callback(now);
+    },
+    get scrolled() {
+      return scrolled;
+    },
+    restore: () => vi.restoreAllMocks(),
+  };
+}
+
+/** A drag hovering at `clientY`, as the browser reports it to the document. */
+function dragOverAt(clientY: number) {
+  document.dispatchEvent(new MouseEvent("dragover", { bubbles: true, clientY }));
+}
+
 describe("TaskList queue order", () => {
   it("names the handle for what it holds, and announces the keys as keys", () => {
     // The name is what a screen reader reads on every row a person tabs through, so it
@@ -387,6 +418,99 @@ describe("TaskList queue order", () => {
 
     await waitFor(() => expect(handlers.moves).toHaveLength(1));
     expect(handlers.moves[0]).toEqual(["task-a", { after: "task-c" }]);
+  });
+
+  it("scrolls the page while a drag is held at the bottom edge, and stops on the drop", async () => {
+    // The defect this covers: a list taller than the window could only be dropped on
+    // rows that were already on screen, because nothing scrolled. What is asserted here
+    // is the *mechanism* -- that the loop runs and is torn down. Whether a person can
+    // actually reach an off-screen row is not a thing jsdom can answer, and the task
+    // record carries a by-hand check for it instead.
+    const harness = frameHarness();
+    try {
+      const handlers = accepting();
+      renderQueue([queued("task-a", 100), queued("task-c", 300)], { reorder: handlers });
+
+      fireEvent.dragStart(grip("task-a"));
+      dragOverAt(window.innerHeight);
+      harness.run();
+      harness.run();
+      expect(harness.scrolled).toBeGreaterThan(0);
+
+      const before = harness.scrolled;
+      fireEvent.drop(rowFor("task-c"));
+      harness.run();
+      harness.run();
+      expect(harness.scrolled).toBe(before);
+      await waitFor(() => expect(handlers.moves).toHaveLength(1));
+    } finally {
+      harness.restore();
+    }
+  });
+
+  it("scrolls the other way at the top edge", () => {
+    const harness = frameHarness();
+    try {
+      renderQueue([queued("task-a", 100), queued("task-b", 200)], { reorder: accepting() });
+      fireEvent.dragStart(grip("task-a"));
+      dragOverAt(0);
+      harness.run();
+      harness.run();
+      expect(harness.scrolled).toBeLessThan(0);
+      fireEvent.dragEnd(grip("task-a"));
+    } finally {
+      harness.restore();
+    }
+  });
+
+  it("does not scroll for a drag this list did not start", () => {
+    // A link, or a file dragged in from the desktop, crosses this page too. The loop
+    // exists only between a grip's dragstart and the end of that gesture.
+    const harness = frameHarness();
+    try {
+      renderQueue([queued("task-a", 100), queued("task-b", 200)], { reorder: accepting() });
+      dragOverAt(window.innerHeight);
+      harness.run();
+      harness.run();
+      expect(harness.scrolled).toBe(0);
+    } finally {
+      harness.restore();
+    }
+  });
+
+  it("stops scrolling when a drag is cancelled rather than dropped", () => {
+    // Escape, or letting go over something that is not a row: `dragend` and nothing
+    // else. A loop that survived it would scroll the page under a person who is no
+    // longer dragging anything.
+    const harness = frameHarness();
+    try {
+      renderQueue([queued("task-a", 100), queued("task-b", 200)], { reorder: accepting() });
+      fireEvent.dragStart(grip("task-a"));
+      dragOverAt(window.innerHeight);
+      harness.run();
+      harness.run();
+      expect(harness.scrolled).toBeGreaterThan(0);
+
+      const before = harness.scrolled;
+      fireEvent.dragEnd(grip("task-a"));
+      dragOverAt(window.innerHeight);
+      harness.run();
+      harness.run();
+      expect(harness.scrolled).toBe(before);
+    } finally {
+      harness.restore();
+    }
+  });
+
+  it("carries the dragged id under a private type, so it cannot be dropped into another application", () => {
+    renderQueue([queued("task-a", 100), queued("task-b", 200)], { reorder: accepting() });
+    const dataTransfer = { effectAllowed: "", setData: vi.fn() };
+
+    fireEvent.dragStart(grip("task-a"), { dataTransfer });
+
+    expect(dataTransfer.effectAllowed).toBe("move");
+    expect(dataTransfer.setData).toHaveBeenCalledWith("application/x-agentjobs-task-id", "task-a");
+    expect(dataTransfer.setData).not.toHaveBeenCalledWith("text/plain", expect.anything());
   });
 
   it("names the broken queue and refuses to offer an order it cannot justify", () => {
