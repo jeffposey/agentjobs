@@ -3,7 +3,7 @@ id: task-234
 title: Merging after approval costs a whole second agent session, about eleven minutes,
   on every task
 created: '2026-08-21T20:43:16.534300Z'
-updated: '2026-08-21T20:43:17.063822Z'
+updated: '2026-08-21T20:52:34.707263Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -160,3 +160,66 @@ log:
       id: c4e81a37-9d52-4b60-8f13-2a7e05b9d303
       kind: create
       fingerprint: 8b5b9abd2141175a76ee7108c27127fc
+- id: 2
+  ts: '2026-08-21T20:52:34.707130Z'
+  actor: claude
+  type: progress
+  body: "**The one-session shape already happened, by accident, on task-229 \u2014\
+    \ and the mechanism that normally prevents it is not what anyone assumed.** Investigated\
+    \ 2026-08-21 after Jeff reported it. Three findings, all verified in code or in\
+    \ the run records rather than inferred.\n\n## 1. The worked example: one session\
+    \ spanning the review\n\n`run_85e26f5b`, task-229, `mode: session`, dispatched\
+    \ 20:18:21. Its task log:\n\n| Time | Entry |\n|---|---|\n| 20:38:44 | `handoff`\
+    \ \u2014 work done, handed to human for review |\n| **20:42:10** | `handoff` \u2014\
+    \ **\"Approved by Jeff Posey through the web UI\"** |\n| 20:44:40 | `progress`\
+    \ \u2014 acceptance verified, work continuing |\n\nThe run's `meta.yaml` at the\
+    \ time of writing: `status: running`, `finished_at: None`, `reaped: None`. **One\
+    \ session covered the work, the handoff, the human approval and the follow-on\
+    \ \u2014 no second dispatch.** Whole task, review included, in about half an hour,\
+    \ against a corpus mean of two runs and ~11 minutes of pure post-approval ceremony.\n\
+    \n## 2. AgentJobs never killed the session in the first place\n\nJeff's model\
+    \ was \"it auto archives the first bg session and then we create a new one when\
+    \ dispatching after approval\". The archiving is real but it is a **consequence**,\
+    \ not a cause:\n\n- `DispatchLedger.reap_finished()` ([ledger.py:856](src/agentjobs/dispatch/ledger.py:856))\
+    \ explicitly skips any run where `record.is_live` \u2014 `if not record.is_session\
+    \ or record.is_live: continue`. It only touches runs that have **already reached\
+    \ a terminal state**.\n- `reap()` ([ledger.py:840](src/agentjobs/dispatch/ledger.py:840))\
+    \ then runs `claude rm <session_id>`, which frees the pid the finished session\
+    \ still holds in Claude Code's ledger.\n\nSo nothing stops the session. **The\
+    \ session ends because the agent ends its turn**, and the reaper tidies up afterwards.\
+    \ task-229's session survived the review for the simplest possible reason: that\
+    \ agent did not end its turn.\n\n**This makes option A far cheaper than the spec\
+    \ assumed.** It is reachable by prompt \u2014 tell a working session to wait for\
+    \ the ball to come back instead of exiting \u2014 with no dispatch code change\
+    \ at all. Its costs are unchanged and still real: a held session occupies a `max_concurrent_runs`\
+    \ slot for as long as the human takes (hours, on this corpus), and a long-lived\
+    \ session is *more* exposed to the mid-run auth expiry of task-224, not less.\
+    \ Whether a waiting agent burns tokens polling needs measuring.\n\n## 3. Resuming\
+    \ a session by id is an existing capability, not a hypothesis\n\nThe auth-stall\
+    \ path already tells a human to `attach <session_id>` and says \"It resumes in\
+    \ ...\" ([runner.py:1461](src/agentjobs/dispatch/runner.py:1461)), and [auth.py:150](src/agentjobs/dispatch/auth.py:150)\
+    \ records that \"a session id can be resumed, and a transcript outlives\" the\
+    \ run. So a fourth option exists that the spec did not list:\n\n**D \u2014 let\
+    \ the session end normally, and *resume* it on approval instead of dispatching\
+    \ a cold one.** The expensive part of the eleven minutes is not spawning a process,\
+    \ it is a cold agent rebuilding context the first session already had. Resuming\
+    \ keeps that context and holds no slot while the human deliberates.\n\n**The obstacle\
+    \ is the reaper, and it is precise:** `reap()` destroys the session, and [runner.py:1320](src/agentjobs/dispatch/runner.py:1320)\
+    \ states outright that \"a finished session's transcript does not survive being\
+    \ reaped.\" So reaping a run whose task is sitting at `human`/`review` is exactly\
+    \ what forecloses resuming it. **Deferring the reap while a task awaits approval\
+    \ is a small, targeted change** \u2014 the reaper already has the task id and\
+    \ could ask whether the ball is still with a human.\n\n## What this changes about\
+    \ the decision\n\nThe three shapes in the spec become four, and the ranking shifts.\
+    \ A is cheaper to reach than assumed; D may dominate it by keeping the context\
+    \ without holding a slot; B (fully scripted merge, no model) remains the fastest\
+    \ and the least tolerant of a conflicting rebase. **Measure A and D against each\
+    \ other before choosing** \u2014 both are now small changes, so the question is\
+    \ which failure mode is preferable, not which is easier to build.\n\nNothing here\
+    \ was changed. Two runs were live during this investigation (`run_85e26f5b` on\
+    \ task-229, `run_a3c689a8` on task-231) and were deliberately left alone."
+  data:
+    operation:
+      id: c4e81a37-9d52-4b60-8f13-2a7e05b9d304
+      kind: log_append
+      fingerprint: ddc58a359d7fda95e63ad6064bea5b7d
