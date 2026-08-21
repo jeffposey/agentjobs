@@ -1,0 +1,153 @@
+schema: 2
+id: task-220
+title: A dispatched run parks on every MCP tool it uses, so no unattended run can
+  finish
+created: '2026-08-21T05:35:56.284351Z'
+updated: '2026-08-21T05:41:13.835568Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+category: infrastructure
+tags:
+- dispatch
+- permissions
+- autonomy
+- reliability
+effort: small -- a few lines in settings_json plus the test that proves the rule form
+  matches
+assignment:
+  eligible: []
+spec:
+  summary: A dispatched session's allow-list covers Bash and PowerShell prefixes only,
+    so under `--permission-mode auto` the classifier gates every agentjobs MCP tool
+    call and the run parks on a prompt nobody is there to answer. Pre-approve the
+    MCP tools in the same `--settings` blob that already names the servers.
+  intent: Unattended dispatch does not work at all right now, and this is the reason.
+    Answering the prompt by hand does not fix it either, because the grant lands in
+    a gitignored file that a worktree child never sees -- so every child re-parks.
+    This is the single blocker between the dispatch system as built and an overnight
+    epic run.
+  description: "Observed live on 2026-08-21, run `run_d5ab5caf`, supervising task-081.\
+    \ It parked **316 seconds in**, on its first MCP call. Verbatim from the run's\
+    \ terminal, recorded on task-081 log entry 23:\n\n```\nagentjobs \u2014 Append\
+    \ a log entry Tool: (MCP)\n  project_id: \"agentjobs\"\n  task_id: \"task-204\"\
+    \n  ...\n\u2502 Auto mode classifier requires confirmation for this tool.\n\u2502\
+    \ 3 consecutive actions were blocked. Please review the transcript before continuing.\n\
+    \u2502 Latest blocked action: Blocked by classifier\nDo you want to proceed?\n\
+    ```\n\n## Why it happens\n\n`settings_json()` (src/agentjobs/dispatch/runner.py:293)\
+    \ emits two things: `permissions.allow` from `allow_rules()`, and `enabledMcpjsonServers`.\
+    \ Those are not the same grant. `enabledMcpjsonServers` pre-approves *loading\
+    \ the server*; it does not pre-approve *calling its tools*. And `allow_rules()`\
+    \ (line 246) builds `Tool(prefix:*)` rules for `ALLOW_TOOLS = (\"Bash\", \"PowerShell\"\
+    )` only.\n\nSo under `auto`, every `task_log_append`, `task_claim`, `task_handoff`,\
+    \ `task_close` and `task_update_content` is classifier-gated. Three consecutive\
+    \ blocks and the session parks. A `--bg` run cannot answer, which is the same\
+    \ shape as task-192, arrived at through a different door.\n\n## Why answering\
+    \ the prompt is not the fix\n\nThe `ALLOW_TOOLS` docstring says the list is meant\
+    \ to be widened by a human answering a prompt with \"don't ask again\", rather\
+    \ than by an unreviewed config edit. That reasoning is sound for an interactive\
+    \ session and does not survive contact with a worktree:\n\n```\n$ git check-ignore\
+    \ -v .claude/settings.local.json\n~/.config/git/ignore:1:**/.claude/settings.local.json\n\
+    $ git ls-files .claude/\n(nothing)\n```\n\n\"Always allow\" writes to `.claude/settings.local.json`\
+    \ in the clone where it was answered. That path is globally gitignored and nothing\
+    \ under `.claude/` is tracked, so a child session in a fresh worktree does not\
+    \ have it. Answering once fixes the supervisor and none of its six children. Verified\
+    \ 2026-08-21.\n\n## The fix\n\nPre-approve the MCP tools in the `--settings` blob,\
+    \ alongside `enabledMcpjsonServers`, derived from the `mcp_servers` sequence `settings_json()`\
+    \ already receives. A rule delivered this way travels with the spawn, so it reaches\
+    \ every child regardless of what is or is not on disk in its worktree -- which\
+    \ is the property that makes it the right layer.\n\n**Heed the colon lesson recorded\
+    \ in `allow_rules()`.** A rule whose form does not match anything looks exactly\
+    \ like the feature working, right up until the session parks; that cost an hour\
+    \ on 2026-08-18 and is why a test asserts the shape rather than trusting a comment.\
+    \ Do the same here: confirm the accepted rule form for an MCP tool against Claude\
+    \ Code as installed (`claude --version` reports 2.1.237 on this machine) rather\
+    \ than assuming, and assert the emitted string in a test.\n\n## Verification that\
+    \ actually proves it\n\nA passing unit test does not show that a real session\
+    \ stops parking. Dispatch a real task under `auto` and confirm it makes MCP writes\
+    \ and reaches a terminal state with no prompt -- task-081 itself is the natural\
+    \ subject, since its supervisor is the run that failed."
+  constraints: '- Do not use `bypassPermissions`. It is already rejected in the runner''s
+    own docstring -- it removes the gate for everything to fix one prompt -- and it
+    is separately refused by the classifier.
+
+    - `read_only` posture must not gain pre-approval for write-capable MCP tools.
+    It gets `enabledMcpjsonServers` and nothing else today, deliberately.
+
+    - The grant must ride in `--settings`, not in a file on disk. A fix that depends
+    on `.claude/settings.local.json` does not reach worktree children, which is the
+    whole defect.
+
+    - Assert the emitted rule form in a test. A rule that silently matches nothing
+    is the failure mode this task exists to end, and it is indistinguishable from
+    success until a run parks.'
+  out_of_scope: Widening the Bash/PowerShell prefix list (task-076 owns that). The
+    `EnterWorktree` permission-root escalation (task-192, closed). Whether agent-started
+    children should appear in the run ledger (task-164 log entry 7, open question).
+  context:
+  - path: src/agentjobs/dispatch/runner.py
+    why: settings_json() at 293 emits the blob; allow_rules() at 246 and ALLOW_TOOLS
+      at 242 are what needs to grow. The colon lesson is in allow_rules()'s docstring.
+  - path: tasks/agentjobs/task-081-task-selection-ranking.yaml
+    why: Log entry 23 has the verbatim park, and its supervisor run is the natural
+      subject for the live verification.
+  - path: .mcp.json
+    why: The server whose tools need pre-approving, and the names they are exposed
+      under.
+acceptance:
+- id: ac-1
+  text: A dispatched session under `auto` calls the agentjobs MCP mutation tools with
+    no permission prompt, shown by a real dispatch that reaches a terminal state with
+    its own MCP writes on the record -- not by a unit test alone.
+  status: pending
+- id: ac-2
+  text: The emitted rule string is asserted by a test, and the form was confirmed
+    against Claude Code as installed rather than assumed.
+  status: pending
+- id: ac-3
+  text: The grant travels in --settings, demonstrated to reach a session working in
+    a fresh worktree with no .claude/settings.local.json of its own.
+  status: pending
+- id: ac-4
+  text: read_only posture still gets no write-capable MCP pre-approval, asserted by
+    a test.
+  status: pending
+- id: ac-5
+  text: 'The grant does not rot when the MCP tool surface changes: adding a tool to
+    the server must not require editing a list in runner.py. Either a wildcard rule
+    form is verified to actually match, or the rules are derived at spawn time from
+    the server''s own tool surface. A hardcoded enumeration satisfies nothing here
+    -- if it is nevertheless unavoidable, a test must fail when the enumeration and
+    the server''s tool list diverge, so the drift is loud rather than discovered by
+    a parked run.'
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T05:35:56.284392Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: b2f47c93-6d18-4e52-9a30-71c6d8e40214
+      kind: create
+      fingerprint: c14ade3774a93fbf4d1821a3207753a7
+- id: 2
+  ts: '2026-08-21T05:41:13.835393Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: c4e18f26-7a35-4d91-b208-3f95a7c60220
+      kind: update_content
+      fingerprint: bd47845a2c557bf68b17eb6c699e4f7a
