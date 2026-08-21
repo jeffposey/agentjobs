@@ -450,6 +450,11 @@ def test_every_check_the_gate_runs_gets_the_scrubbed_environment(
     monkeypatch.setattr(check.subprocess, "run", record)
     monkeypatch.setattr(check, "setup_problems", lambda root, origin: [])
     monkeypatch.setattr(check.shutil, "which", lambda name: "npm.cmd")
+    # A green run ends by asking git which commit it just attested to (task-233), and
+    # that call would arrive here too -- `check.subprocess` and `gate_scope.subprocess`
+    # are one module object. Saying "no commit" skips it. It is not a stage, and the
+    # count below is about stages.
+    monkeypatch.setattr(check.gate_scope, "head_commit", lambda root: None)
 
     assert check.main([]) == 0
 

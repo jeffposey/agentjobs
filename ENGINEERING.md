@@ -40,30 +40,67 @@ source rather than a neighbouring one's.
 
     | # | Stage | What it checks | Cost |
     |---|---|---|---|
-    | 1 | `black` | Python formatting | 0.5s |
+    | 1 | `black` | Python formatting | 0.6s |
     | 2 | `ruff` | Python lint | 0.1s |
     | 3 | `mypy` | Python types | 1.5s |
-    | 4 | `api` | `openapi.json` and the generated client both match the app | 4.5s |
-    | 5 | `icons` | the committed PWA icons match `assets/app-icon.svg` | 3.2s |
-    | 6 | `oxlint` | frontend lint | 0.5s |
-    | 7 | `pytest` | 2190 Python tests | 326.5s |
-    | 8 | `vitest` | 164 jsdom component tests across 23 files | 4.7s |
-    | 9 | `build` | `tsc --noEmit` and the production bundle | 3.6s |
-    | 10 | `e2e` | 16 Playwright tests against a live server | 20.0s |
-    | | | | **365.0s** |
+    | 4 | `api` | `openapi.json` and the generated client both match the app | 4.2s |
+    | 5 | `icons` | the committed PWA icons match `assets/app-icon.svg` | 2.8s |
+    | 6 | `oxlint` | frontend lint | 0.6s |
+    | 7 | `pytest` | 2608 Python tests, across every core | 52.1s |
+    | 8 | `vitest` | 228 jsdom component tests | 5.2s |
+    | 9 | `build` | `tsc --noEmit` and the production bundle | 3.7s |
+    | 10 | `e2e` | 26 Playwright tests against a live server | 25.0s |
+    | | | | **95.8s** |
 
-    MyPy is the one stage whose cost moves: 1.5s against a warm cache, about nineteen
-    seconds on the first run after a checkout. Nothing else in the cheap block varies
-    enough to notice.
+    MyPy is the one stage whose cost moves: under two seconds against a warm cache, about
+    nineteen seconds on the first run after a checkout. Nothing else in the cheap block
+    varies enough to notice.
+
+    **That pytest figure was 326.5s until task-233, and the gate's total was 365s.** Two
+    changes account for the difference, both of them arrangements of how pytest is
+    invoked rather than reductions in what it checks -- the same 2608 tests run, and the
+    pass/fail counts were compared on the same commit before and after:
+
+    | Configuration | Wall clock | Result |
+    |---|---|---|
+    | serial, with coverage -- what the gate ran until task-233 | 540.1s | 2538 passed |
+    | serial, no coverage | 342.6s | 2538 passed |
+    | `-n auto` across 32 cores, no coverage | **42.5s / 45.7s / 43.6s** | 2538 passed |
+    | `-n auto --dist loadfile` | 54.9s | 2538 passed |
+
+    Three consecutive `-n auto` runs are quoted because one green parallel run proves
+    nothing about a suite's parallel-safety. The suite is safe because `tests/conftest.py`
+    already gives every test its own project registry and its own Claude home and stubs
+    the reachability probe, and because nothing in it binds a fixed port -- the four
+    places that open a socket ask the kernel for port 0. One thing had to be fixed: a
+    `parametrize` whose cases came out of a `frozenset`, which each xdist worker iterated
+    in its own hash order, so the workers disagreed about what the test IDs were and the
+    run aborted during collection.
+
+    Coverage is off by default and available on request. It cost between 60 and 200
+    seconds depending on what else the machine was doing, and wrote an HTML report that
+    nothing reads before a commit.
+
+    ```bash
+    poetry run python scripts/check.py --coverage   # the gate, plus coverage and htmlcov/
+    poetry run python scripts/check.py --serial     # one process, for readable output
+    ```
 
     Use focused pytest or npm commands while iterating, but do not substitute them for
-    the gate.
--   **Anything that can answer in seconds runs before anything that takes minutes.**
-    Format, lint and types catch what pytest never will, and there is no reason to spend
-    five minutes finding a misformatted file. Task-189 carried the same reasoning through
-    stages 4 to 6, which used to run *after* pytest: together they cost 8.2 seconds, and
-    a session working task-188 paid four and a half minutes twice to reach one of them.
-    Everything above the pytest line now costs 10.3 seconds together.
+    the gate. A hand-run `pytest` is serial and measures no coverage: `addopts` is now
+    empty, and `-n auto` is passed by the gate rather than configured globally, because
+    xdist costs more than it saves on a small selection and its interleaved output is the
+    wrong trade when you are reading one failure.
+-   **The cheapest stage runs first, whatever the slowest one currently costs.**
+    Format, lint and types catch what pytest never will, and there is no reason to wait
+    on the test suite to be told about a misformatted file. Task-189 carried the same
+    reasoning through stages 4 to 6, which used to run *after* pytest: together they cost
+    8.2 seconds, and a session working task-188 paid four and a half minutes twice to
+    reach one of them. Everything above the pytest line now costs 9.8 seconds together.
+
+    The argument used to be stated as "seconds before minutes", and task-233 took the
+    minutes away -- pytest is now under a minute. The ordering stays regardless: it costs
+    nothing, and the gap it exploits reappears the moment a slow stage is added.
 -   The checks are *in* the gate rather than only in the pre-commit list below because a
     list nothing enforces is a statement of intent. Task-166 found `poetry run mypy .`
     had been aborting on a module-name collision before it checked a single file, and a
@@ -84,6 +121,46 @@ source rather than a neighbouring one's.
     fix. A partial run prints `PARTIAL RUN`, names every stage it skipped, and repeats
     both at the end — so a green from `--from e2e` cannot be reported as a green from the
     gate.
+-   **`--since-gate` is the one sanctioned exception to the sentence above, and its
+    boundary is narrow.** It answers "does this run need to happen at all" — the question
+    task-221 asked after a rebase brought in a single task YAML and cost a full six-minute
+    gate to re-establish something that could not have changed.
+
+    ```bash
+    poetry run python scripts/check.py --since-gate
+    ```
+
+    Four properties make it an exception a third party can check rather than a judgement
+    call by whoever wants to skip the wait. Do not weaken any of them:
+
+    1.  **It rests on a receipt the gate itself wrote, not on your assessment.** A green
+        unqualified run on a clean tree records the commit it verified, in this
+        checkout's git directory. `--since-gate` diffs the working tree against that
+        commit. With no receipt it narrows nothing and runs every stage, saying so.
+    2.  **The classification table is default-deny.** Exactly two families of path map to
+        a reduced set of stages — task records under `tasks/`, and prose. Everything else,
+        including anything nobody has classified yet, selects all ten. An incomplete table
+        therefore costs time, never coverage. The table lives in `scripts/gate_scope.py`
+        and each entry has to name what reads those paths.
+    3.  **A stage whose inputs are not bounded by the diff still runs.** "It was only a
+        task file" is not a safe skip: `tests/test_validate.py::TestRealCorpus` loads this
+        repository's own records, so a task YAML genuinely can turn the suite red. That is
+        why `tasks/` maps to `pytest` rather than to nothing.
+    4.  **The output is the claim, in full.** A reduced run prints `NECESSITY RUN`, the
+        commit it is diffing against, every changed path with the rule that matched it,
+        and every stage it skipped. It never prints "Ran every stage". An unchanged tree
+        prints `NOTHING CHANGED` and runs nothing.
+
+    A `--since-gate` run that goes green on a clean tree issues its own receipt, recording
+    which receipt it derived from, so a chain of them is auditable. `--only` and `--from`
+    never issue one — a partial green is not the gate's green, which is the same rule
+    `PARTIAL RUN` states.
+
+    **This is worth much less than it was when task-221 was written, and it is kept
+    anyway.** The full gate is now about a minute rather than six, so the rebase case
+    saves under a minute. It stays because the reasoning is the durable part: the gate
+    should be able to say what a change cannot reach, and once `pytest` is cheap the same
+    machinery is what makes it safe to add an expensive stage later.
 -   **The gate runs before the commit, so no stage of it may require one.** The two
     generated checks — `openapi.json` and `src/api/generated/` — compare against **the
     working tree**, never `HEAD`: they ask whether the files on disk match what the
@@ -94,25 +171,52 @@ source rather than a neighbouring one's.
     the gate, then commit.** The `api` stage names `frontend/src/api/generated` when those
     files are uncommitted, and does not fail — `git add` takes explicit paths here, and
     generated output is what that habit forgets.
--   Budget **about six minutes when you have the machine to yourself** — 365s for the
-    table above, of which pytest is 326s. The other nine stages come to 38s between
-    them, so the gate's wall clock is the Python suite and almost nothing else.
+-   Budget **about a minute and a half when you have the machine to yourself** —
+    95.8s for the table above. It was six minutes until task-233, and the gate is
+    no longer the thing to plan a working session around.
 -   **Budget longer when you do not, and do not read slow as hung.** Several agents work
     this repository at once and this machine now allows three dispatched runs, so gates
-    overlapping is the normal case rather than an unusual one. Measured the same day, on
-    the same machine, all green: **two simultaneous gates 388s (+9%), four 411s (+16%),
-    six 444s (+25%)** — worst case per run, against the 355s above. The degradation is
-    gradual and there is no cliff, so **a gate that has been quiet for eight minutes is
-    working, not stuck.** This paragraph exists because the previous figure said five
-    minutes flat, and an agent that believes five minutes is the whole story kills a run
-    that was about to pass. Concurrent gates are only safe at all because each checkout
-    derives its own Playwright and benchmark ports from its own path (task-187); if you
-    see a port collision, that is a bug and not a reason to serialise.
+    overlapping is the normal case rather than an unusual one.
+
+    The scaling figures previously recorded here — two simultaneous gates 388s, four
+    411s, six 444s — were measured against the **serial** suite and are kept only as
+    history. They do not describe the gate as it now runs, and **nobody has yet measured
+    concurrent parallel gates**: `-n auto` asks for every core, so two of them are
+    competing for the same 32 rather than each taking a core, and the honest statement is
+    that the contended figure is unknown. Measure it before quoting one. What has not
+    changed is the advice: degradation here has always been gradual with no cliff, so a
+    gate that is taking longer than you expected is working, not stuck.
+
+    Concurrent gates are only safe at all because each checkout derives its own
+    Playwright and benchmark ports from its own path (task-187); if you see a port
+    collision, that is a bug and not a reason to serialise.
 -   Ensure high test coverage for core logic (`manager.py`, `storage.py`).
 
 ### Measuring performance
 -   `scripts/bench.py` times the API, the CLI and the browser's open-a-task
     interaction. See [docs/performance.md](docs/performance.md).
+-   `scripts/run_report.py` answers the other question: **where dispatched agent time
+    goes.** It reads the run ledger in `~/.agentjobs/runs/` and prints total time, runs
+    per task, the length distribution, and — for runs dispatched since task-233 — how
+    much of each run was the gate and how much of that was gate runs that failed.
+
+    ```bash
+    poetry run python scripts/run_report.py --per-task     # every task, worst first
+    poetry run python scripts/run_report.py --since 7      # the last week
+    poetry run python scripts/run_report.py --task task-233
+    ```
+
+    The gate reports itself: `scripts/check.py` appends a `gate_started` and a
+    `gate_finished` record to `phases.jsonl` in the run directory whenever it runs inside
+    a dispatched run, and writes nothing at all when it does not. Dispatch puts
+    `AGENTJOBS_RUN_ID` and `AGENTJOBS_RUN_DIR` in the session's environment, so anything
+    downstream of the agent inherits them and can add a phase with
+    `agentjobs.dispatch.phases.record_phase_from_env`.
+
+    **Do not measure a run by grepping `transcript.log`.** It is a raw TTY capture, so a
+    line appears in it as many times as the terminal repainted it and every count derived
+    from it is an artefact of that. Task-233 is the incident; phase records exist so the
+    question does not have to be asked that way again.
 -   Every API response carries `X-Response-Time-Ms` and `X-Task-Parses`, so a slow
     request can be attributed without a profiler.
 -   A change that claims to be faster states a before/after pair from that tool.

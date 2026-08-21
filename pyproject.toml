@@ -42,6 +42,12 @@ mcp = "^1.29"
 pytest = "^7.4"
 pytest-cov = "^4.1"
 pytest-asyncio = "^0.23"
+# The Python suite is 89% of scripts/check.py and 2538 tests. xdist runs it across every
+# core: 431s serial, 43s at `-n auto` on a 32-core machine, same tests, same result
+# (task-233). The gate passes `-n auto`; a hand-run pytest stays serial, because xdist
+# costs more than it saves on a small selection and its interleaved output is worse to
+# read when you are debugging one test.
+pytest-xdist = "^3.8"
 black = "^23.12"
 ruff = "^0.1"
 mypy = "^1.8"
@@ -63,7 +69,16 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-addopts = "--cov=src/agentjobs --cov-report=term-missing --cov-report=html"
+# No addopts. Coverage used to live here, which meant every invocation of pytest --
+# the gate, one file, a -k selection -- instrumented the whole package and wrote an HTML
+# report nobody opens before a commit. Measured cost on the full suite: 63 seconds, 13%
+# of the pytest stage (task-233). Ask for it when you want it:
+#
+#     scripts/check.py --coverage        # the gate, with coverage
+#     pytest --cov=src/agentjobs         # directly
+#
+# Parallelism is deliberately not here either; scripts/check.py passes `-n auto` so the
+# gate is parallel and a hand-run pytest is not. See PARALLEL_ARGS in that file.
 filterwarnings = [
     "ignore:Unclosed <MemoryObjectReceiveStream>:ResourceWarning"
 ]

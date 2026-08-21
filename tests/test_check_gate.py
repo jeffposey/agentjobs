@@ -44,6 +44,36 @@ def names(stages: list[object]) -> list[str]:
     return [stage.name for stage in stages]  # type: ignore[attr-defined]
 
 
+@pytest.fixture(autouse=True)
+def no_receipt_from_a_simulated_gate(monkeypatch: pytest.MonkeyPatch) -> list[object]:
+    """Stop the tests below issuing a gate receipt for this repository.
+
+    Several of them call ``check.main([])`` with ``subprocess.run`` stubbed, so a full
+    green run is reported having executed nothing. Left alone, that would write a
+    receipt attesting that this checkout's gate passed at HEAD, and a later
+    ``--since-gate`` run would trust it -- a soundness hole dug by the test suite, in
+    the one feature whose whole point is that its evidence is real.
+
+    Autouse rather than opt-in, for the reason autouse fixtures usually are: forgetting
+    it produces no failure, only a false receipt in a directory nobody looks at.
+
+    It also stands in for the two git queries a receipt needs. Those go through the same
+    ``subprocess.run`` the tests stub to record stage commands -- ``check.subprocess``
+    and ``gate_scope.subprocess`` are one module object -- so leaving them real would put
+    ``git rev-parse`` into the list of stages a test is counting.
+    """
+    written: list[object] = []
+
+    def record(root: object, commit: str, *, basis: object) -> object:
+        written.append((commit, basis))
+        return Path("receipt")
+
+    monkeypatch.setattr(check.gate_scope, "write_receipt", record)
+    monkeypatch.setattr(check.gate_scope, "head_commit", lambda root: "b" * 40)
+    monkeypatch.setattr(check.gate_scope, "tree_is_clean", lambda root: True)
+    return written
+
+
 # --- the order ----------------------------------------------------------------------
 
 
@@ -177,6 +207,254 @@ class TestTheUnqualifiedGate:
         from_table = [stage.args[-1] for stage in check.stages() if stage.cwd == ROOT / "frontend"]
 
         assert sorted(scripted) == sorted(from_table)
+
+
+# --- the pytest stage's two options -------------------------------------------------
+
+
+class TestPytestOptions:
+    """Coverage and parallelism, both moved out of ``addopts`` by task-233.
+
+    The suite is 89% of the gate. Serial with coverage it was 540s on this machine;
+    serial without, 343s; at ``-n auto``, 43s -- same commit, same 2538 passing. The
+    numbers are in ENGINEERING.md; what is guarded here is that the flags still mean
+    what those numbers were measured under.
+    """
+
+    @staticmethod
+    def pytest_args(**options: bool) -> list[str]:
+        stage = next(s for s in check.stages(**options) if s.name == "pytest")
+        return [str(arg) for arg in stage.args]
+
+    def test_the_gate_runs_the_suite_in_parallel_by_default(self) -> None:
+        assert "-n" in self.pytest_args()
+
+    def test_the_gate_does_not_measure_coverage_by_default(self) -> None:
+        """It cost minutes per run and wrote a report nobody opens before a commit."""
+        assert not any(arg.startswith("--cov") for arg in self.pytest_args())
+
+    def test_coverage_is_available_on_request(self) -> None:
+        args = self.pytest_args(coverage=True)
+
+        assert "--cov=src/agentjobs" in args
+
+    def test_serial_is_available_for_reading_a_failure(self) -> None:
+        """xdist interleaves output, which is the wrong trade while debugging one test."""
+        assert "-n" not in self.pytest_args(parallel=False)
+
+    def test_the_options_touch_no_other_stage(self) -> None:
+        plain = {s.name: s.args for s in check.stages()}
+        loud = {s.name: s.args for s in check.stages(coverage=True, parallel=False)}
+
+        assert [name for name in plain if plain[name] != loud[name]] == ["pytest"]
+
+    def test_addopts_no_longer_forces_coverage_on_every_pytest_invocation(self) -> None:
+        """The config change is the saving; the flag above is only how you opt back in."""
+        config = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        directives = [
+            line for line in config.splitlines() if line.startswith("addopts") and "--cov" in line
+        ]
+
+        assert directives == []
+
+    def test_xdist_is_a_declared_dependency_rather_than_something_installed_by_hand(
+        self,
+    ) -> None:
+        config = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+        assert "pytest-xdist" in config
+
+
+# --- the necessity rule -------------------------------------------------------------
+
+
+class TestSinceGate:
+    """``--since-gate`` is an exception to the commit rule, so it is fenced in code too.
+
+    The derivation itself is tested in ``tests/test_gate_scope.py``. What matters here
+    is that the exception cannot be smuggled into the other flags, and that a run using
+    it is still unmistakably not the gate.
+    """
+
+    def test_it_cannot_be_combined_with_a_manual_selection(self) -> None:
+        """Otherwise 'derived' and 'asserted' would be mixable in one invocation."""
+        with pytest.raises(SystemExit):
+            check.parse_args(["--since-gate", "--only", "pytest"])
+
+    def test_it_cannot_be_combined_with_from(self) -> None:
+        with pytest.raises(SystemExit):
+            check.parse_args(["--since-gate", "--from", "pytest"])
+
+    def test_without_a_receipt_it_runs_every_stage(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Refusing to narrow is the safe direction, and it says why."""
+        commands = TestTheUnqualifiedGate.record_runs(monkeypatch)
+        monkeypatch.setattr(check.gate_scope, "read_receipt", lambda root: None)
+
+        assert check.main(["--since-gate"]) == 0
+        assert len(commands) == len(check.stages())
+        assert "FULL GATE" in capsys.readouterr().out
+
+    def test_a_narrowed_run_runs_only_those_stages_and_says_so(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        commands = TestTheUnqualifiedGate.record_runs(monkeypatch)
+        monkeypatch.setattr(check.gate_scope, "read_receipt", lambda root: {"commit": "a" * 40})
+        monkeypatch.setattr(
+            check.gate_scope, "changed_since", lambda root, commit: ["tasks/p/task-1.yaml"]
+        )
+
+        assert check.main(["--since-gate"]) == 0
+        assert len(commands) == 1
+        out = capsys.readouterr().out
+        assert "NECESSITY RUN" in out
+        assert "Ran every stage" not in out
+
+    def test_an_unchanged_tree_runs_nothing_and_claims_nothing(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        commands = TestTheUnqualifiedGate.record_runs(monkeypatch)
+        monkeypatch.setattr(check.gate_scope, "read_receipt", lambda root: {"commit": "a" * 40})
+        monkeypatch.setattr(check.gate_scope, "changed_since", lambda root, commit: [])
+
+        assert check.main(["--since-gate"]) == 0
+        assert commands == []
+        assert "NOTHING CHANGED" in capsys.readouterr().out
+
+
+# --- receipts -----------------------------------------------------------------------
+
+
+class TestReceiptsAreEarned:
+    """Only a run that skipped nothing it was not entitled to skip may issue one."""
+
+    def test_a_full_green_run_issues_one(
+        self, monkeypatch: pytest.MonkeyPatch, no_receipt_from_a_simulated_gate: list[object]
+    ) -> None:
+        TestTheUnqualifiedGate.record_runs(monkeypatch)
+
+        assert check.main([]) == 0
+        assert no_receipt_from_a_simulated_gate == [("b" * 40, None)]
+
+    def test_a_selection_never_issues_one(
+        self, monkeypatch: pytest.MonkeyPatch, no_receipt_from_a_simulated_gate: list[object]
+    ) -> None:
+        """The same rule PARTIAL RUN states: a partial green is not the gate's green."""
+        TestTheUnqualifiedGate.record_runs(monkeypatch)
+
+        assert check.main(["--only", "black"]) == 0
+        assert no_receipt_from_a_simulated_gate == []
+
+    def test_a_narrowed_run_issues_one_that_records_what_it_derived_from(
+        self, monkeypatch: pytest.MonkeyPatch, no_receipt_from_a_simulated_gate: list[object]
+    ) -> None:
+        TestTheUnqualifiedGate.record_runs(monkeypatch)
+        monkeypatch.setattr(check.gate_scope, "read_receipt", lambda root: {"commit": "a" * 40})
+        monkeypatch.setattr(
+            check.gate_scope, "changed_since", lambda root, commit: ["tasks/p/task-1.yaml"]
+        )
+
+        assert check.main(["--since-gate"]) == 0
+        assert no_receipt_from_a_simulated_gate == [("b" * 40, "a" * 40)]
+
+    def test_a_dirty_tree_earns_nothing(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        no_receipt_from_a_simulated_gate: list[object],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A receipt names a commit, and a dirty tree is not one."""
+        TestTheUnqualifiedGate.record_runs(monkeypatch)
+        monkeypatch.setattr(check.gate_scope, "tree_is_clean", lambda root: False)
+
+        assert check.main([]) == 0
+        assert no_receipt_from_a_simulated_gate == []
+        assert "working tree is dirty" in capsys.readouterr().out
+
+    def test_a_failing_run_earns_nothing(
+        self, monkeypatch: pytest.MonkeyPatch, no_receipt_from_a_simulated_gate: list[object]
+    ) -> None:
+        TestReporting.fail_at(monkeypatch, "mypy")
+
+        assert check.main([]) != 0
+        assert no_receipt_from_a_simulated_gate == []
+
+
+# --- phase records ------------------------------------------------------------------
+
+
+class TestPhaseRecords:
+    """The gate is the largest phase of a dispatched run, and the one that can time itself.
+
+    Before task-233 a run's only durable artefacts were a start time, a finish time and a
+    TTY capture from which no phase attribution survives. These records are what
+    ``scripts/run_report.py`` reads.
+    """
+
+    @staticmethod
+    def in_a_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        from agentjobs.dispatch.phases import RUN_DIR_ENV, RUN_ID_ENV
+
+        monkeypatch.setenv(RUN_DIR_ENV, str(tmp_path))
+        monkeypatch.setenv(RUN_ID_ENV, "run_test")
+        return tmp_path
+
+    def test_a_green_run_records_a_start_and_a_finish(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from agentjobs.dispatch.phases import read_phases
+
+        TestTheUnqualifiedGate.record_runs(monkeypatch)
+        directory = self.in_a_run(tmp_path, monkeypatch)
+
+        assert check.main([]) == 0
+
+        kinds = [record["kind"] for record in read_phases(directory)]
+        assert kinds == ["gate_started", "gate_finished"]
+
+    def test_the_finish_says_whether_it_passed_and_what_it_cost(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from agentjobs.dispatch.phases import read_phases
+
+        TestTheUnqualifiedGate.record_runs(monkeypatch)
+        directory = self.in_a_run(tmp_path, monkeypatch)
+
+        check.main([])
+
+        finished = read_phases(directory)[-1]
+        assert finished["passed"] is True
+        assert finished["scope"] == "full"
+        assert finished["stages_run"] == len(check.stages())
+        assert isinstance(finished["seconds"], (int, float))
+
+    def test_a_failed_gate_names_the_stage_that_failed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A run that pays for four failed gates should be visible as exactly that."""
+        from agentjobs.dispatch.phases import read_phases
+
+        TestReporting.fail_at(monkeypatch, "mypy")
+        directory = self.in_a_run(tmp_path, monkeypatch)
+
+        assert check.main([]) != 0
+
+        finished = read_phases(directory)[-1]
+        assert finished["passed"] is False
+        assert finished["failed_stage"] == "mypy"
+
+    def test_outside_a_run_nothing_is_written(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A developer running the gate by hand is not being measured."""
+        from agentjobs.dispatch.phases import PHASES_FILENAME, RUN_DIR_ENV
+
+        TestTheUnqualifiedGate.record_runs(monkeypatch)
+        monkeypatch.delenv(RUN_DIR_ENV, raising=False)
+
+        assert check.main([]) == 0
+        assert not (tmp_path / PHASES_FILENAME).exists()
 
 
 # --- reporting ----------------------------------------------------------------------
