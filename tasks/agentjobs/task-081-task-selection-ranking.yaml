@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T06:23:30.562765Z'
+updated: '2026-08-21T08:04:39.328154Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -886,3 +886,109 @@ log:
       id: c9f2a615-7b38-4e40-9d61-3a04e8c50081
       kind: handoff
       fingerprint: f32be62df693413187583b2396196213
+- id: 27
+  ts: '2026-08-21T08:00:14.674709Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 28
+  ts: '2026-08-21T08:00:15.841778Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_c0f71d70
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 27
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` supervising parent task `task-081-task-selection-ranking`
+      in project `agentjobs` (root: C:\projects\agentjobs). It has open children:
+      task-204, task-205, task-206, task-207, task-208, task-209. You are the supervisor,
+      not the worker: start a separate session for one eligible child at a time and
+      let that session do the child''s work. Do not work a child yourself, do not
+      take a worktree, and check nothing out -- you stay in the shared working tree
+      as it is, and each child session takes its own. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the parent record, then follow the parent-task protocol in docs/agent-workflow.md.
+      Dispatch run id: run_c0f71d70.'
+    cwd: C:\projects\agentjobs
+    git_head: 9cd19e5
+    session_id: 5c05a5a0
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 29
+  ts: '2026-08-21T08:04:39.327904Z'
+  actor: claude
+  type: progress
+  body: 'Supervisor run run_c0f71d70 started. Entry condition checked as the ball_prompt
+    requires: task-220 is open with ac-3 pending, ac-3 names this exact dispatch as
+    its live proof, and git log shows its fix already merged (6fe932f / 0b06279) with
+    the task deliberately held open for that proof. So this run IS the authorised
+    verification and proceeds rather than parking.
+
+
+    State at start: no child branches exist, and the only live worktree is agentjobs-211
+    (unrelated, docs/task-211). All six children are lifecycle ready / ball agent
+    / available. Eligible set by the recorded order is task-204 alone.
+
+
+    Started task-204 in its own session -- Claude Code background session 8c7d3704,
+    model claude-opus-5, --permission-mode auto, with the worker settings blob computed
+    from this repo''s own dispatch code (posture_flags(AUTO, [''agentjobs''], supervisor=False))
+    so the child gets the nine-prefix allow-list and enabledMcpjsonServers=[''agentjobs''].
+    The prompt is the PROMPT_STUB shape: worktree ../worktrees/agentjobs-204 on branch
+    feat/task-204-queue-position-schema via `git worktree add` (explicitly not a built-in
+    worktree tool), bootstrap, read the record, follow docs/agent-workflow.md.
+
+
+    One deliberate choice about the brief, given task-220''s diagnosis. The brief
+    does NOT restate the merge posture in my own words. It points the child at this
+    parent''s ball_prompt and tells it to follow the posture stated there. Writing
+    "you may merge without human review" into a child''s brief is precisely the content
+    that got run_d5ab5caf''s task_log_append declined; the authorisation lives on
+    this record, so the brief cites the record instead of paraphrasing it. Costs nothing
+    -- the child has to read the parent anyway.
+
+
+    Result so far, which is what task-220 ac-3 asks for: the spawn returned `backgrounded
+    8c7d3704` immediately. No permission prompt, no park, no classifier decline on
+    either the spawn or this log write. The supervisor MCP grant is doing its job
+    -- this entry is the first write that the old posture would have had to gamble
+    on.
+
+
+    Next: poll task-204''s ball in a backgrounded wait. Not reading its diff, not
+    pre-loading task-205.'
+  data:
+    operation:
+      id: 3f1c8e02-5a4b-4d19-9c7e-1a2b3c4d5e6f
+      kind: log_append
+      fingerprint: 21f04bac9f8fde07fb4fba852b1330b8
