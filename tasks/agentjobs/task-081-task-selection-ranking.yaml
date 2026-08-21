@@ -2,51 +2,11 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T11:51:51.838552Z'
+updated: '2026-08-21T14:27:41.223814Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: "TWO OF SIX CHILDREN MERGED AND LIVE. THE THIRD IS FINISHED AND GATE-GREEN\
-  \ BUT CANNOT MERGE ITSELF, AND NEITHER CAN I. This needs a permission decision from\
-  \ you; it does not need a review of any work.\n\nTHE ONE COMMAND. From C:/projects/agentjobs,\
-  \ on main:\n\n    git merge --no-ff feat/task-206-queue-rest-client-cli -F C:/ai/scratch/task-206-merge-msg.txt\n\
-  \nThat message file is a copy I made of the one task-206 wrote, because the original\
-  \ sits in a session directory that will not survive. The merge is conflict-free:\
-  \ I checked, and main has moved by exactly one task-YAML commit since the branch\
-  \ was rebased.\n\nWHY IT IS STUCK. The auto-mode classifier declined task-206's\
-  \ git merge. It re-sent the same merge with the message in a file, was declined\
-  \ again, and a third refusal armed the three-block breaker and parked it. I used\
-  \ my one restart to start a fresh session with git merge pre-approved in its settings\
-  \ -- and that spawn was itself declined by the classifier. I stopped there rather\
-  \ than rewording it, because rewording a decline is exactly what killed the child,\
-  \ and a supervisor that parks takes the epic with it.\n\nSO IT IS A REAL BOUNDARY.\
-  \ git merge is not in dispatch's ALLOW_PREFIXES, and granting it per-spawn is blocked\
-  \ too. Your options, roughly in order of how much they buy: run the command above\
-  \ yourself; add a Bash(git merge:*) rule to your settings and re-dispatch this task;\
-  \ or decide the autonomous-epic posture needs the grant in dispatch itself, which\
-  \ is task-220's territory and its constraints say that widening is your call.\n\n\
-  WHAT IS ALREADY YOURS TO KEEP, all merged and verified against the live server on\
-  \ 8876:\n- task-204: queue_position on the schema, rule 6, the validator, the migration.\
-  \ 93 open tasks positioned.\n- task-205: the queue lock, move/reprioritize, rebalance\
-  \ and compaction, integrity check and repair, get_next_task by (band, position),\
-  \ and explain_next. This is the one that matters -- GET /tasks/next now answers\
-  \ task-100 at high/300 instead of whatever was edited most recently, and explain_next\
-  \ names what it skipped and why. Log entry 1 of this task, from 2026-08-11, is the\
-  \ complaint; that is the fix, live.\n\nWHAT IS WAITING: task-206 (REST, Python client,\
-  \ agentjobs queue sub-app) is complete, five commits, full ten-stage gate exit 0\
-  \ at 384.1s, sc-1..sc-5 met with evidence -- it only needs the merge. task-207 and\
-  \ task-209 are blocked behind it. task-208 is technically eligible but I deliberately\
-  \ did not start it: it would work for over an hour and hit the identical wall, giving\
-  \ you a second parked child and a second worktree to clean up.\n\nAFTER THE MERGE,\
-  \ whoever does it: mark the branch merged in task-206's branches[], close task-206\
-  \ completed, git worktree remove ../worktrees/agentjobs-206, and re-dispatch this\
-  \ task to resume the epic at task-208. Do not push -- nothing has authorised that\
-  \ and nothing in this run has pushed.\n\nONE CORRECTION worth having before you\
-  \ decide. The task-206 session wrote to durable memory that git merge is blocked\
-  \ outright in auto mode. That is wrong and this run disproves it: task-204 and task-205\
-  \ both merged --no-ff under the identical settings blob and the same posture, three\
-  \ hours earlier, commits e7c668c and 1b49c3b. Two of three attempts succeeded. The\
-  \ real hazard is the retry, not the command."
+ball: agent
+ball_reason: revise
+ball_prompt: I told it to merge from request changes in gui and that worked fine.
 archived: false
 priority: high
 queue_position: 200
@@ -1261,3 +1221,73 @@ log:
     outcome: completed
     duration_seconds: 13896.783536
     log_path: C:\Users\jpose\.agentjobs\runs\run_c0f71d70
+- id: 35
+  ts: '2026-08-21T14:27:36.967074Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by Jeff Posey:
+
+
+    I told it to merge from request changes in gui and that worked fine.'
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 36
+  ts: '2026-08-21T14:27:40.140140Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 37
+  ts: '2026-08-21T14:27:41.223553Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_bb9b9273
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 36
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "mcp__agentjobs"]}, "enabledMcpjsonServers":
+      ["agentjobs"]}'
+    - 'You are the agent `claude` supervising parent task `task-081-task-selection-ranking`
+      in project `agentjobs` (root: C:\projects\agentjobs). It has open children:
+      task-207, task-208, task-209. You are the supervisor, not the worker: start
+      a separate session for one eligible child at a time and let that session do
+      the child''s work. Do not work a child yourself, do not take a worktree, and
+      check nothing out -- you stay in the shared working tree as it is, and each
+      child session takes its own. AgentJobs is serving at http://127.0.0.1:8876.
+      Read the parent record, then follow the parent-task protocol in docs/agent-workflow.md.
+      Dispatch run id: run_bb9b9273.'
+    cwd: C:\projects\agentjobs
+    git_head: 3b5e08b
+    session_id: a0e15b53
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
