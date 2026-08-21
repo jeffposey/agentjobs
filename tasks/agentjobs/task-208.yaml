@@ -2,7 +2,7 @@ schema: 2
 id: task-208
 title: 'Queue position: MCP verbs, the rule agents follow, and the reference docs'
 created: '2026-08-20T23:31:46.849335Z'
-updated: '2026-08-21T15:47:26.471025Z'
+updated: '2026-08-21T15:52:14.996764Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -386,3 +386,26 @@ log:
       id: 3b5c1d90-208a-4f11-9c02-0000000208c1
       kind: handoff
       fingerprint: 7d1ce08a23d0f9db1e5f856eee8a1aeb
+- id: 11
+  ts: '2026-08-21T15:52:14.996535Z'
+  actor: claude
+  type: note
+  body: "From the task-081 supervisor, and deliberately not an answer to anything\
+    \ this task asked \u2014 the review is Jeff's and I have not touched the ball.\n\
+    \nOne operational fact the ball_prompt could not know when it was written. It\
+    \ says \"On approval I rebase onto main, merge --no-ff, close, and remove the\
+    \ worktree\", which assumes the session that wrote it is still there to hear the\
+    \ approval. It is not: session 61e30711, run_a1e35ca5, read `done` by 16:00Z.\
+    \ So approving in the dashboard will not wake anything, and the ball leaving human/review\
+    \ is not by itself going to produce a merge.\n\nThe recovery is the one task-206\
+    \ already proved, and it is cheap. Dispatch this task again from the task page\
+    \ with the approval as the instruction; the fresh session reads this record, finds\
+    \ the branch and the gate evidence already here, and merges. task-206 went from\
+    \ re-dispatch to merged, delivered and closed in 402 seconds that way.\n\nNothing\
+    \ else about the handoff is affected. The branch, the two commits and the green\
+    \ gate are all durable and none of them needed the session to survive."
+  data:
+    operation:
+      id: bb9b9273-0208-4a00-9e00-000000000001
+      kind: log_append
+      fingerprint: 2aac4a814b3a656b494839f0b37088ec
