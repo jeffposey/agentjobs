@@ -3,7 +3,7 @@ id: task-207
 title: 'Queue position: the React list shows the real order, and you can change it
   without a mouse'
 created: '2026-08-20T23:31:25.501669Z'
-updated: '2026-08-21T15:08:43.848669Z'
+updated: '2026-08-21T15:25:58.461609Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -312,3 +312,68 @@ log:
       id: 3f2b1a90-0207-4c11-9a01-000000000020
       kind: log_append
       fingerprint: dcd168454f53726fb3ab96db4e89f1f1
+- id: 9
+  ts: '2026-08-21T15:25:58.461454Z'
+  actor: claude
+  type: progress
+  body: 'Built and verified. Branch `feat/task-207-queue-order-react-list`, four commits.
+
+
+    **Server** (`b24d7a2`). `queue.listing_key` and `manager.list_tasks` now settle
+    the order; `dashboard.build_dashboard_snapshot` catches `QueueCorruptionError`
+    and carries a `queue_broken` block instead of 500-ing; `DashboardResponse` gains
+    `queue_broken` and a `queue_broken` value in `next_action`; `queue.problem_dicts`
+    factored out so the listing and the dashboard render one finding one way. `openapi.json`
+    and the TypeScript client regenerated. New `tests/test_queue_react_surface.py`,
+    9 tests.
+
+
+    **React** (`199b2f4`). `buildTaskRows` no longer sorts. New `Queue` column, a
+    per-row reorder handle, `queueOrder.ts` holding the pure step/predict/describe
+    arithmetic, `QueueBroken.tsx` shared by the list and the dashboard, `NextExplanation.tsx`
+    for the "why this one" disclosure. `TaskListPage` reads `/queue` for the banner
+    and wires `queue-move` and `reprioritize`. 32 new frontend tests (queueOrder 8,
+    TaskList 12, NextExplanation 4, Dashboard 5, plus e2e).
+
+
+    **Two defects found and fixed after the first build, both by exercising the real
+    path.**
+
+
+    `15459ba` -- the reorder lock was corpus-wide, so one duplicate in `critical`
+    disabled reordering in every band. Scoped to the offending bands, following the
+    same reasoning selection uses for how wide its integrity check reaches.
+
+
+    `051266e` -- **the keyboard path worked exactly once per click.** React reorders
+    rows by moving their DOM nodes and a browser drops focus from a node that is detached
+    and reinserted, so the second `Alt+Up` either did nothing or moved whichever task
+    had slid into the vacated row. Neither the jsdom test nor the Playwright test
+    could see it: both focused the handle before every press, which is the one step
+    a person does not do. Found by pressing the key twice in Chrome against the sandbox.
+    Focus is now restored to the moved task in a layout effect; the e2e test presses
+    a second time without focusing anything.
+
+
+    That second one is the one worth remembering. `page.keyboard.press` goes in below
+    the browser''s own handling, and a test that sets up the state it is meant to
+    be checking will pass through the bug underneath it.
+
+
+    **Verified in Chrome against the sandbox**, not only in tests: three `Alt+Up`
+    presses after a single click walked one task up three places and the server kept
+    all three; `Alt+Home` and `Alt+ArrowDown` likewise; the broken project shows the
+    banner with grips gone from `critical` only and present everywhere else; its dashboard
+    renders "the queue cannot say what is next" where it used to answer 500; the healthy
+    dashboard''s disclosure lists both skipped tasks with the exact rule that excluded
+    each.
+
+
+    Acceptance: sc-1 to sc-4 met (`tests/test_queue_react_surface.py::TestListingArrivesInQueueOrder`,
+    `frontend/e2e/queue-order.spec.ts`, `TaskList.test.tsx` rollback and banner cases,
+    `TestDashboardSurvivesABrokenQueue`). sc-5 is the review, below.'
+  data:
+    operation:
+      id: 3f2b1a90-0207-4c11-9a01-000000000021
+      kind: log_append
+      fingerprint: 05451252a5a5c67a45f26e60502d1a9d
