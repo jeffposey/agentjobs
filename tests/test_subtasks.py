@@ -1,9 +1,10 @@
-"""Sub-task behaviour: children, umbrella non-claimability, ?parent=, and the page.
+"""Sub-task behaviour: children, what claiming an umbrella means, ?parent=, and the page.
 
 The `parent` field has existed since schema v2 (task-050) without anything reading it.
 These tests cover what it now *does*: children can be listed, a task with open children
-is not claimable, the API can filter by parent and refuses a parent that does not exist
-or that closes a loop, and the detail page shows the hierarchy in both directions.
+is never offered by `/next` but hands over supervision when claimed by name (task-164),
+the API can filter by parent and refuses a parent that does not exist or that closes a
+loop, and the detail page shows the hierarchy in both directions.
 
 Rendering assertions check the values a browser acts on, not the presence of markup --
 `data-child-status="Ready"`, not `data-child-status=`. A template that emitted
@@ -77,7 +78,7 @@ class TestGetSubtasks:
         assert manager.get_subtasks(UNRELATED) == []
 
     def test_closed_children_are_still_children(self, tmp_path: Path) -> None:
-        """Non-claimability keys on *open* children; the listing keys on all of them."""
+        """The supervision ask keys on *open* children; the listing keys on all of them."""
         manager = _manager(tmp_path)
         _hierarchy(manager)
         manager.claim_task(CHILD_A, agent="codex")
@@ -94,11 +95,15 @@ class TestGetSubtasks:
 
 
 # ----------------------------------------------------------------------------------
-# Manager: an umbrella is not work
+# Manager: an umbrella is never offered, and claiming one is claiming supervision
+#
+# Renamed from "an umbrella is not work" by task-164. It is work -- supervising the
+# children is a described job with a session per child -- but it is still never handed
+# to an agent that merely asked what was next.
 # ----------------------------------------------------------------------------------
 
 
-class TestUmbrellaIsNotClaimable:
+class TestUmbrellaIsNeverOffered:
     def test_next_task_skips_an_umbrella_with_open_children(self, tmp_path: Path) -> None:
         """The umbrella is critical priority, so it would be first if it were eligible."""
         manager = _manager(tmp_path)
@@ -110,19 +115,26 @@ class TestUmbrellaIsNotClaimable:
         assert offered.id != UMBRELLA
         assert offered.id in {CHILD_A, CHILD_B, UNRELATED}
 
-    def test_claim_is_refused_and_names_the_open_children(self, tmp_path: Path) -> None:
+    def test_claiming_it_hands_over_supervision_and_names_the_children(
+        self, tmp_path: Path
+    ) -> None:
+        """task-164. The claim used to be refused; it now hands over the other seat.
+
+        Naming the open children was the useful half of the old refusal and is kept:
+        the supervisor's first act is to pick one of them.
+        """
         manager = _manager(tmp_path)
         _hierarchy(manager)
 
-        with pytest.raises(ValueError, match="umbrella") as excinfo:
-            manager.claim_task(UMBRELLA, agent="claude")
+        claimed = manager.claim_task(UMBRELLA, agent="claude")
 
-        message = str(excinfo.value)
-        assert CHILD_A in message and CHILD_B in message
-        umbrella = manager.get_task(UMBRELLA)
-        assert umbrella is not None and umbrella.lifecycle is Lifecycle.READY
+        assert claimed.lifecycle is Lifecycle.ACTIVE
+        assert claimed.assignment.owner == "claude"
+        prompt = claimed.ball_prompt or ""
+        assert "Supervise this epic" in prompt
+        assert CHILD_A in prompt and CHILD_B in prompt
 
-    def test_it_becomes_claimable_once_every_child_is_closed(self, tmp_path: Path) -> None:
+    def test_it_becomes_ordinary_work_once_every_child_is_closed(self, tmp_path: Path) -> None:
         manager = _manager(tmp_path)
         _hierarchy(manager)
         for child in (CHILD_A, CHILD_B):
@@ -131,19 +143,25 @@ class TestUmbrellaIsNotClaimable:
 
         next_task = manager.get_next_task()
         assert next_task is not None and next_task.id == UMBRELLA
-        assert manager.claim_task(UMBRELLA, agent="claude").lifecycle is Lifecycle.ACTIVE
+        claimed = manager.claim_task(UMBRELLA, agent="claude")
+        assert claimed.lifecycle is Lifecycle.ACTIVE
+        assert claimed.ball_prompt == "Execute the spec; log progress and hand off when done."
 
-    def test_one_open_child_is_enough_to_block_it(self, tmp_path: Path) -> None:
+    def test_one_open_child_is_enough_to_make_it_supervision(self, tmp_path: Path) -> None:
         manager = _manager(tmp_path)
         _hierarchy(manager)
         manager.claim_task(CHILD_A, agent="codex")
         manager.close_task(CHILD_A, actor="codex", outcome=Outcome.COMPLETED)
 
-        with pytest.raises(ValueError, match=CHILD_B):
-            manager.claim_task(UMBRELLA, agent="claude")
+        claimed = manager.claim_task(UMBRELLA, agent="claude")
+
+        prompt = claimed.ball_prompt or ""
+        assert "Supervise this epic" in prompt
+        # The closed one is not something to supervise.
+        assert CHILD_B in prompt and CHILD_A not in prompt
 
     def test_a_child_of_its_own_is_unaffected(self, tmp_path: Path) -> None:
-        """Only the parent is blocked. A child with no children of its own is work."""
+        """Only the parent gets the other ask. A childless task is ordinary work."""
         manager = _manager(tmp_path)
         _hierarchy(manager)
 
@@ -316,13 +334,19 @@ class TestParentOverTheApi:
 
         assert client.get("/api/tasks/next").json()["id"] != UMBRELLA
 
-    def test_claiming_the_umbrella_is_refused(self, api_client) -> None:
+    def test_claiming_the_umbrella_over_the_api_returns_the_supervision_ask(
+        self, api_client
+    ) -> None:
+        """task-164: 200 with the other ask, where it used to be a 409."""
         client, _ = api_client
 
         response = client.post(f"/api/tasks/{UMBRELLA}/claim", json={"agent": "claude"})
 
-        assert response.status_code == 409
-        assert CHILD_A in response.json()["detail"]
+        assert response.status_code == 200
+        body = response.json()
+        assert body["lifecycle"] == "active"
+        assert "Supervise this epic" in body["ball_prompt"]
+        assert CHILD_A in body["ball_prompt"]
 
 
 # ----------------------------------------------------------------------------------

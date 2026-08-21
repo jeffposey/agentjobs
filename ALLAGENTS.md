@@ -13,14 +13,17 @@ handoff rules already stored in task records and these process files.
 
 1.  Read the parent completely, then inspect its open descendants and their
     `dependencies[]`, logs, decisions, acceptance criteria, and current ball state.
-2.  Work exactly one eligible child at a time. Dependencies determine eligibility and
+2.  Pick exactly one eligible child at a time. Dependencies determine eligibility and
     ordering. If a required order is not represented durably, record it as task
     dependencies or a task decision instead of relying on chat or a long launcher.
-3.  Follow the normal task lifecycle below. When a child reaches human review, hand it
-    off and stop. Never merge without explicit approval for that child.
-4.  Approval releases that checkpoint; it does not end the parent loop. Preserve the
-    recorded approval, merge and close the child, clean up its worktree, then continue
-    automatically with the next eligible child.
+3.  **Start a separate session for that child and supervise it. Do not work it
+    yourself** — see [You do not work the children](#you-do-not-work-the-children)
+    below. The child follows the normal task lifecycle in its own session: it takes its
+    own worktree, and when it reaches human review it hands off and stops. Never merge
+    without explicit approval for that child.
+4.  Approval releases that checkpoint; it does not end the parent loop. The child's own
+    session preserves the recorded approval, merges, closes itself and removes its
+    worktree. You then continue automatically with the next eligible child.
 5.  When no unfinished child remains, evaluate the parent's acceptance criteria against
     durable child evidence, perform any parent-level verification, and close the parent
     when supported.
@@ -31,7 +34,67 @@ The task graph defines scope. Do not absorb unrelated follow-ups merely because 
 were mentioned during the loop; create or update a separate durable task only when the
 user authorizes it.
 
+### You do not work the children
+
+**Whoever holds a parent task starts a separate session per child and stays running as
+the supervisor.** This binds whether you are an interactive session someone told to
+"work task-160" or a dispatched run — a dispatched run is told so in its prompt, because
+dispatch reads it off the record: a task with an open child gets the supervisor prompt
+and every other task gets the ordinary one.
+
+**The threshold is: anything that takes a worktree gets its own session.** A child that
+edits files, runs `scripts/check.py`, or produces a branch is a session. A child that is
+a decision to record, a question to answer or a task to file is not — it takes no
+worktree, and a session for it costs more than it saves.
+
+That threshold rather than a size estimate, for two reasons. It is checkable: "does this
+write code?" has an answer, where "is this big enough to be worth a session?" is a
+judgement made by the party with an interest in saying no. And the worktree boundary is
+already a session boundary in all but name — [a worktree exists](#why-you-get-your-own-worktree)
+because this clone has one `HEAD`, and one session moving between two of them is exactly
+the interleaving that isolation is for.
+
+The reason is context, not parallelism; the loop is still one child at a time. A session
+that works four children carries four children's worth of exploration by the fourth, and
+the transcript a handoff should have replaced is precisely what the next session cannot
+read. Task-060's own log says it outright: *"the previous conversation was very long and
+is not available."*
+
+**The supervisor is thin, and meant to be.** You read the child's record, its acceptance
+statuses, its branch and its diff — not its transcript. You are checking that the child
+reported and verified its work, not re-verifying it. A supervisor that re-derives each
+child's context is a second agent doing the work, at the context cost this rule exists to
+avoid.
+
+Two things do not change because a child is a session. Its **task records still go to
+`main` in this clone**, never to its branch — see
+[Task files live on `main`](ENGINEERING.md#task-files-live-on-main-always). And its
+**merge gate is untouched**: a child merges on explicit human approval of that child, and
+never on yours.
+
+One thing does change, and it is what would otherwise sink the rule: a fresh worktree has
+no virtualenv and no `node_modules`, so a child session **cannot run `scripts/check.py`
+until it bootstraps** — `python scripts/bootstrap.py`, about 30 seconds, see
+[Bootstrapping a worktree](#bootstrapping-a-worktree). A parent working children inline
+paid this once for itself; a rule that gives every child a worktree pays it per child, so
+it belongs in the child's first three commands rather than in a workaround the supervisor
+performs by hand. A child that skips it either cannot verify its own work or borrows the
+main clone's environment and tests the wrong source.
+
+The full protocol — how to start a child, and what to do when one finishes, parks, dies,
+or leaves you waiting — is in
+[the workflow guide](docs/agent-workflow.md#working-a-parent-task-you-supervise-the-children-you-do-not-work-them).
+Two rules from it are worth repeating here because both have already been got wrong:
+**watching is a mechanism, not an intention** — a supervisor that ends its turn promising
+to check back is asleep — and **the signal is the task record, not the process**, because
+a child parked on review has a live process and is the one state that needs you.
+
 ### Task Lifecycle
+
+This is the lifecycle for the task you are *working*. If your task has an open child you
+are not working it — you are supervising, you take no worktree, and
+[the section above](#you-do-not-work-the-children) is your lifecycle instead.
+
 1.  **Read**: Read the task YAML (e.g., `tasks/agentjobs/task-042-*.yaml`) — its `spec`
     (`summary` → `intent` → `description` → `constraints` → `out_of_scope` → `context`)
     is the specification, `ball_prompt` is what is needed *right now*, and `acceptance[]`

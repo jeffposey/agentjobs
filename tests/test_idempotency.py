@@ -566,25 +566,30 @@ class TestServiceContract:
         assert caught.value.code == "task_not_found"
 
     def test_a_blocked_claim_reports_dependency_blocked(self, service):
+        """An unmet `needs` -- which since task-164 is the only thing that blocks a claim.
+
+        This was written with an umbrella and its open child. That is no longer a
+        refusal at all: an epic is claimable, and the claim hands over supervision.
+        """
         client, manager = service
-        parent = manager.create_task(
-            id="task-900-umbrella",
-            title="Umbrella",
+        blocker = manager.create_task(
+            id="task-900-blocker",
+            title="Blocker",
             description="d",
             category="general",
             lifecycle=Lifecycle.READY,
         )
-        manager.create_task(
-            id="task-901-child",
-            title="Child",
+        dependent = manager.create_task(
+            id="task-901-dependent",
+            title="Dependent",
             description="d",
             category="general",
             lifecycle=Lifecycle.READY,
-            parent=parent.id,
+            dependencies=[{"task": blocker.id, "type": "needs"}],
         )
 
         with pytest.raises(TaskClientError) as caught:
-            client.operations.claim(parent.id, actor="bot", operation_id=OP_A)
+            client.operations.claim(dependent.id, actor="bot", operation_id=OP_A)
 
         assert caught.value.code == "dependency_blocked"
 

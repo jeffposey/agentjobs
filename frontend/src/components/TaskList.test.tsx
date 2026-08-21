@@ -138,13 +138,16 @@ describe("TaskList filtering", () => {
     expect(within(rows).getByText("Waiting for task-prerequisite (still open)")).toBeVisible();
   });
 
-  it("explains why an umbrella is not actionable", () => {
+  it("says what claiming an umbrella would get you", () => {
     renderList([task("task-umbrella", {
       actionable: false,
       open_children_count: 2,
     })]);
 
     expect(screen.getByText("Waiting on sub-tasks")).toBeVisible();
-    expect(screen.getByText("2 open sub-tasks must finish first.")).toBeVisible();
+    // task-164: an epic is claimable now, and the claim is for supervision. The old
+    // copy said the children "must finish first", which the claim no longer requires.
+    expect(screen.getByText(/2 open sub-tasks to finish\./)).toBeVisible();
+    expect(screen.getByText(/Claim it to supervise them/)).toBeVisible();
   });
 });

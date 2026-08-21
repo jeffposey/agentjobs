@@ -15,8 +15,8 @@ the same validated, locked, logged write path. A direct edit skips all three.
   Python-only runtime contract for release wheels.
 - [Quick start](quickstart.md) — initialize a project, open the React application,
   create a task, and exercise the canonical handoff loop.
-- [Agent workflow](agent-workflow.md) — resume work from a task record and use the
-  schema-v2 state verbs.
+- [Agent workflow](agent-workflow.md) — resume work from a task record, use the
+  schema-v2 state verbs, and supervise an epic's children as separate sessions.
 - [The MCP server](mcp.md) — the managed interface agents should use for every task
   read and write, and exactly what each layer does and does not prevent.
 - [Connecting a client](mcp-clients.md) — Codex, Claude, Gemini, and any other MCP

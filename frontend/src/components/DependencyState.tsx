@@ -62,7 +62,12 @@ export function dependencyState(task: TaskRead) {
     return {
       kind: "waiting" as const,
       label: "Waiting on sub-tasks",
-      reasons: [`${count} open sub-task${count === 1 ? "" : "s"} must finish first.`],
+      // Not "must finish first": since task-164 an epic can be claimed, and what that
+      // hands you is the supervisor's seat rather than the children's work.
+      reasons: [
+        `${count} open sub-task${count === 1 ? "" : "s"} to finish. ` +
+          "Claim it to supervise them — a session per child, not the work itself.",
+      ],
     };
   }
   if (task.actionable) {

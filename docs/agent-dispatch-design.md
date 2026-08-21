@@ -446,6 +446,47 @@ it cannot drift out of sync with the task record, and it is small enough to read
 `dispatch` log entry. Composing a richer prompt would duplicate the resumption contract
 in a second place and guarantee the two disagree eventually — rejected in §10.
 
+### A parent task gets the other stub (task-164, 2026-08-21)
+
+There are two stubs, and the record picks which one a run gets: **a task with an open
+child is an epic, and the agent sent at an epic is told to supervise rather than to
+work.** It starts one session per child, one at a time, and does not work a child itself.
+
+That condition is the whole mechanism. It needs no new field, no label anyone has to
+remember to set, and no judgement at spawn time — `manager.get_subtasks()` already
+answers it, and `get_next_task()` already refuses to hand out a parent with open
+children, so the two agree about what an epic is. Jeff's formulation was *"anything that
+is starting with a new worktree should be in a new session"*; "has an open child" is that
+sentence made checkable.
+
+The second stub is a second string rather than an extra sentence on the first because it
+**inverts** the first's load-bearing instruction. `PROMPT_STUB` opens by ordering a
+worktree before anything else is written; a supervisor writes no code, needs no
+isolation, and must not check anything out in the shared clone — doing so is the exact
+collision the worktree rule prevents, and it would then commit the parent's task records
+somewhere the dashboard cannot see them. By task-192's argument, an instruction that has
+to precede reading the guide cannot be deferred to the guide; that applies to "do not
+take a worktree" as much as it applied to "take one".
+
+**A supervisor cannot dispatch its children, and that is D4 working, not a bug.** A
+dispatch must be caused by a stored log entry written by a configured human (§2), which
+is what makes agent-starts-agent structurally impossible rather than merely capped.
+Nothing a supervisor writes satisfies it, so it starts its children with the runner CLI
+directly, as its own subprocesses. The consequence is worth stating plainly rather than
+discovering: **those children are not AgentJobs runs.** No run directory, no ledger row,
+no `dispatch_result`, no reaping by the poller, and they do not count against
+`max_concurrent_runs` — while the supervisor itself does hold a slot for the whole epic.
+What supervises them instead is the task record, which is the signal the protocol tells a
+supervisor to watch anyway. Whether the ledger should learn about agent-started children
+is open, and is the kind of question §7's caps exist to make safe to defer.
+
+The protocol the supervisor prompt points at — start a child, and what to do when one
+finishes, parks, dies, or leaves the parent waiting — is in
+[the workflow guide](agent-workflow.md#working-a-parent-task-you-supervise-the-children-you-do-not-work-them).
+Driving that loop to completion *unattended*, including merging each clean child, is not
+this: it is task-022, which depends on this and on the posture/merge decision in
+task-021.
+
 ### The mechanism is a config template, and here is the argument
 
 The obvious answer is `claude -p`. Three candidates were compared:

@@ -63,7 +63,7 @@ are not representable:
 | `category`, `tags` | str, list | Project taxonomy. Validated against config by the manager, not the model. |
 | `effort` | str | Free text. An estimate, not a contract. |
 | `assignment` | object | `owner` (live, one actor id) and `eligible` (authoring-time list; empty means anyone). |
-| `parent` | str | Task id of an umbrella task. It must exist; a task may not be its own parent, nor be parented into a cycle. A task with an **open** child is not claimable and is never offered by `/next` — an umbrella is finished by its children. `GET /api/tasks?parent=<id>` lists one umbrella's children. |
+| `parent` | str | Task id of an umbrella task. It must exist; a task may not be its own parent, nor be parented into a cycle. A task with an **open** child is never offered by `/next`, but a caller that names it can claim it: what that hands over is the supervisor's seat, and the `ball_prompt` written on the claim says so — a session per child, not the children's work. See [the parent-task protocol](agent-workflow.md#working-a-parent-task-you-supervise-the-children-you-do-not-work-them). `GET /api/tasks?parent=<id>` lists one umbrella's children. |
 | `spec` | object | `summary` and `description` are **required**; `intent`, `constraints`, `out_of_scope`, `context[]` are optional. See the example below. |
 | `acceptance[]` | list | `id`, `text`, optional `verify`, `status`: `pending` · `met` · `failed` · `dropped`. |
 | `deliverables[]` | list | `path`, `note`, `status`: `pending` · `done` · `dropped`. |

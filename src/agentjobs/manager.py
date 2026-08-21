@@ -62,6 +62,36 @@ class DependencyFacts:
     open_children_count: int
 
 
+WORK_PROMPT = "Execute the spec; log progress and hand off when done."
+"""The ask a claim writes for an ordinary task."""
+
+SUPERVISION_PROMPT = (
+    "Supervise this epic: start a separate session for one eligible child at a time, "
+    "watch its record, and do not work a child yourself. Open now: {children}."
+)
+"""The ask a claim writes for a task that has open children (task-164).
+
+Stated at the moment of the claim rather than left to a process document, because the
+claim is the only point at which the difference is unmissable: an agent that reads
+"execute the spec" on an epic has been told, by the tool, to do the thing the tool's own
+workflow forbids.
+"""
+
+CHILDREN_IN_PROMPT = 8
+"""How many child ids the supervision prompt names before it counts the rest."""
+
+
+def supervision_prompt(children: Sequence[str]) -> str:
+    """The supervision ask, naming the open children a claim found."""
+    ids = list(children)
+    listed = (
+        ", ".join(ids)
+        if len(ids) <= CHILDREN_IN_PROMPT
+        else ", ".join(ids[:CHILDREN_IN_PROMPT]) + f" and {len(ids) - CHILDREN_IN_PROMPT} more"
+    )
+    return SUPERVISION_PROMPT.format(children=listed)
+
+
 class TaskNotFoundError(ValueError):
     """The addressed task does not exist.
 
@@ -693,7 +723,24 @@ class TaskManager:
         agent: str,
         operation_id: Optional[str] = None,
     ) -> Task:
-        """Take ownership of a ready task, or refuse because someone else already did."""
+        """Take ownership of a ready task, or refuse because someone else already did.
+
+        **A task with open children can be claimed, and what it hands you is the
+        supervisor's seat** (task-164). It used to be refused outright, on the reasoning
+        that "an umbrella is finished by its children, so there is no work to take here".
+        That reasoning stopped being true when driving an epic became a described job:
+        picking the eligible child, starting a session for it, watching the record, and
+        judging the parent's own acceptance criteria at the end is work, it belongs to
+        one agent for the length of the epic, and refusing the claim left the only agent
+        doing it with no way to say so on the record.
+
+        What survives the change is the distinction between *naming* a task and *being
+        handed* one. ``get_next_task`` still skips umbrellas, so nothing is ever given an
+        epic by asking what is next; only a caller that named this id gets one. The
+        ``ball_prompt`` written here says which seat was taken, so an agent that claimed
+        an epic without meaning to is told at the moment it claims rather than four
+        commits into working a child itself.
+        """
         states = self._dependency_states()
         open_children = self._open_children()
         operation = self._operation(operation_id, "claim", agent, {})
@@ -718,22 +765,20 @@ class TaskManager:
             if unmet:
                 raise ValueError(f"Task '{task_id}' has unmet dependencies: {', '.join(unmet)}")
             children = open_children.get(task_id)
-            if children:
-                raise ValueError(
-                    f"Task '{task_id}' is an umbrella task: it has open sub-tasks "
-                    f"({', '.join(children)}). Claim one of those instead -- an umbrella "
-                    "is finished by its children, so there is no work to take here."
-                )
             task.lifecycle = Lifecycle.ACTIVE
             task.assignment.owner = agent
             task.ball = Ball.AGENT
             task.ball_reason = BallReason.WORK
-            task.ball_prompt = "Execute the spec; log progress and hand off when done."
+            task.ball_prompt = supervision_prompt(children) if children else WORK_PROMPT
             self._append_entry(
                 task,
                 actor=agent,
                 type=LogEntryType.TRANSITION,
-                body=f"Claimed by {agent}.",
+                body=(
+                    f"Claimed by {agent} to supervise {len(children)} open sub-task(s)."
+                    if children
+                    else f"Claimed by {agent}."
+                ),
                 data={"lifecycle": "active", "ball": "agent", "ball_reason": "work"},
                 operation=operation,
             )

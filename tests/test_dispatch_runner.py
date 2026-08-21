@@ -40,7 +40,9 @@ from agentjobs.dispatch.config import (
     SkipReason,
 )
 from agentjobs.dispatch.runner import (
+    CHILDREN_NAMED,
     GUIDE_PATH,
+    PROMPT_STUB,
     REMOTE_CONTROL_URL,
     TRANSCRIPT_FILENAME,
     DispatchRunner,
@@ -49,6 +51,7 @@ from agentjobs.dispatch.runner import (
     allow_rules,
     classify_session,
     compose_argv,
+    describe_children,
     drop_repainted_lines,
     mcpjson_server_names,
     posture_flags,
@@ -60,7 +63,14 @@ from agentjobs.dispatch.runner import (
     working_tree_clean,
 )
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Ball, BallReason, DispatchOutcome, Lifecycle, LogEntryType
+from agentjobs.models_v2 import (
+    Ball,
+    BallReason,
+    DispatchOutcome,
+    Lifecycle,
+    LogEntryType,
+    Outcome,
+)
 from agentjobs.storage import TaskStorage
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -580,6 +590,166 @@ class TestPromptStub:
         # the pointer instead of the stub still parks.
         assert "EnterWorktree" in text
         assert "permission root" in text
+
+
+# ----- the supervisor stub ----------------------------------------------------
+
+
+PARENT_PROTOCOL_HEADING = (
+    "## Working a parent task: you supervise the children, you do not work them"
+)
+
+
+@pytest.fixture
+def epic(manager: TaskManager):
+    """A parent with two open children and one closed one, then claimed.
+
+    Three children rather than two because the interesting boundary is *open*: a parent
+    whose children are all closed is an ordinary task again, and a fixture with only
+    open children cannot tell "lists its open children" from "lists everything below it".
+    """
+    parent = manager.create_task(
+        title="An epic",
+        category="infrastructure",
+        summary="A parent to supervise.",
+        description="Drive the children.",
+        lifecycle=Lifecycle.READY,
+    )
+    for title in ("First child", "Second child"):
+        manager.create_task(
+            title=title,
+            category="infrastructure",
+            summary="A child.",
+            description="Do the child's thing.",
+            lifecycle=Lifecycle.READY,
+            parent=parent.id,
+        )
+    done = manager.create_task(
+        title="Third child",
+        category="infrastructure",
+        summary="A finished child.",
+        description="Already done.",
+        lifecycle=Lifecycle.READY,
+        parent=parent.id,
+    )
+    manager.close_task(done.id, actor="claude", outcome=Outcome.COMPLETED)
+    return manager.claim_task(parent.id, agent="claude")
+
+
+class TestDescribeChildren:
+    def test_no_children_reads_as_none_rather_than_empty(self) -> None:
+        """So a caller from anywhere else cannot render "open children: ."."""
+        assert describe_children([]) == "none"
+
+    def test_a_short_list_is_named_in_full(self) -> None:
+        assert describe_children(["task-001", "task-002"]) == "task-001, task-002"
+
+    def test_a_long_list_is_capped_and_the_rest_counted(self) -> None:
+        ids = [f"task-{n:03d}" for n in range(1, CHILDREN_NAMED + 4)]
+
+        described = describe_children(ids)
+
+        assert described.startswith("task-001, task-002")
+        assert described.endswith(" and 3 more")
+        assert ids[CHILDREN_NAMED] not in described
+
+
+class TestSupervisorStub:
+    def test_a_task_with_open_children_is_told_to_supervise(
+        self, workspace: Path, manager: TaskManager, epic
+    ) -> None:
+        """task-164. The record picks the stub: an open child means an epic."""
+        runner = build(workspace, manager, make_resolution(["fake"]))
+
+        prompt = runner.build_prompt(epic.id, "run_abcd1234")
+
+        assert "supervising parent task" in prompt
+        assert "supervisor, not the worker" in prompt
+        assert "separate session for one eligible child" in prompt
+        for child in manager.get_subtasks(epic.id):
+            assert (child.id in prompt) is child.is_open
+
+    def test_the_supervisor_is_told_not_to_take_a_worktree(
+        self, workspace: Path, manager: TaskManager, epic
+    ) -> None:
+        """The inversion that makes this a second stub rather than a longer one.
+
+        A supervisor that obeyed ``PROMPT_STUB`` would check out a branch in the shared
+        clone -- the collision the worktree rule exists to prevent -- and would then
+        commit the parent's records where the dashboard cannot see them.
+        """
+        prompt = build(workspace, manager, make_resolution(["fake"])).build_prompt(
+            epic.id, "run_abcd1234"
+        )
+
+        assert "do not take a worktree" in prompt
+        assert "check nothing out" in prompt
+        assert "git worktree add" not in prompt
+
+    def test_a_parent_whose_children_all_closed_gets_the_worker_stub(
+        self, workspace: Path, manager: TaskManager, epic
+    ) -> None:
+        """Nothing is left to supervise, so it is an ordinary task again."""
+        for child in manager.get_subtasks(epic.id):
+            if child.is_open:
+                manager.close_task(child.id, actor="claude", outcome=Outcome.COMPLETED)
+        runner = build(workspace, manager, make_resolution(["fake"]))
+
+        prompt = runner.build_prompt(epic.id, "run_abcd1234")
+
+        assert "supervising parent task" not in prompt
+        assert "git worktree add ../worktrees/" in prompt
+
+    def test_a_leaf_task_is_unaffected(self, workspace: Path, manager: TaskManager, task) -> None:
+        """The regression that matters: an ordinary dispatch gets the stub it always had."""
+        runner = build(workspace, manager, make_resolution(["fake"]))
+
+        assert runner.build_prompt(task.id, "run_abcd1234") == PROMPT_STUB.format(
+            agent=runner.runner.actor_id,
+            task_id=task.id,
+            project_id="sandbox",
+            project_root=workspace / "project",
+            api_base="http://localhost:8899",
+            run_id="run_abcd1234",
+            children="none",
+        )
+
+    def test_the_supervisor_stub_is_still_a_pointer(
+        self, workspace: Path, manager: TaskManager, epic
+    ) -> None:
+        runner = build(workspace, manager, make_resolution(["fake"]))
+
+        prompt = runner.build_prompt(epic.id, "run_abcd1234")
+
+        assert GUIDE_PATH in prompt
+        assert "run_abcd1234" in prompt
+        assert epic.spec.description not in prompt
+        assert len(prompt) < 900
+
+    def test_open_child_ids_survives_a_task_it_cannot_resolve(
+        self, workspace: Path, manager: TaskManager
+    ) -> None:
+        """Decorating a prompt must never be able to refuse a dispatch."""
+        runner = build(workspace, manager, make_resolution(["fake"]))
+
+        assert runner.open_child_ids("task-999-not-a-task") == []
+
+    def test_the_guide_states_the_parent_protocol(self) -> None:
+        """The stub is one clause; the four supervision states live in the guide.
+
+        Pinned because the stub's whole value is the pointer being good: an agent told
+        to "follow the parent-task protocol" at a guide with no such section is worse
+        off than one told nothing.
+        """
+        text = (REPO_ROOT / GUIDE_PATH).read_text(encoding="utf-8")
+
+        assert PARENT_PROTOCOL_HEADING in text
+        protocol = text.split(PARENT_PROTOCOL_HEADING, 1)[1]
+        for state in ("Child finished", "Child parked", "Child died", "Parent idle"):
+            assert f"**{state}.**" in protocol, state
+        # The two rules 2026-08-19 established the hard way.
+        assert "mechanism, not an intention" in protocol
+        assert "not the process" in protocol
 
 
 # ----- batch mode -------------------------------------------------------------
