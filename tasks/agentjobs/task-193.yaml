@@ -2,7 +2,7 @@ schema: 2
 id: task-193
 title: Every CLI dispatch on this machine hands the agent a dead API address
 created: '2026-08-20T08:07:00.622137Z'
-updated: '2026-08-21T19:58:04.635964Z'
+updated: '2026-08-21T19:58:29.632904Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -487,3 +487,13 @@ log:
       id: b8d5f271-4e30-49ac-8a12-6cf0e91d34b7
       kind: close
       fingerprint: b94de5ece2ab795546a9cb2d135471de
+- id: 18
+  ts: '2026-08-21T19:58:29.632741Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 14
+  data:
+    run_id: run_5f1abc0a
+    outcome: completed
+    duration_seconds: 752.750879
+    log_path: C:\Users\jpose\.agentjobs\runs\run_5f1abc0a
