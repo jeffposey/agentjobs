@@ -11,6 +11,7 @@ from typing import Optional
 import typer
 import yaml
 
+from .dispatch.address import configured_api_base
 from .dispatch.config import (
     DispatchConfig,
     DispatchError,
@@ -31,7 +32,13 @@ from .mcp.config import TIMEOUT_ENV as MCP_TIMEOUT_ENV
 from .migration import migrate_tasks
 from .migration.reporter import MigrationReporter
 from .models_v2 import Ball, Lifecycle, Outcome, Priority
-from .project_setup import DEFAULT_CONFIG, build_project_config, initialize_project
+from .project_setup import (
+    DEFAULT_CONFIG,
+    MCP_CONFIG_FILENAME,
+    build_project_config,
+    ensure_mcp_server_entry,
+    initialize_project,
+)
 from .projects import ProjectError, ProjectRegistry, default_home
 from .storage import TaskStorage, corpus_snapshot
 
@@ -133,6 +140,54 @@ def _build_manager(base_dir: Path) -> TaskManager:
     return TaskManager(storage)
 
 
+def _mcp_base_url(port: int) -> tuple[str, bool]:
+    """Where a project's MCP server should be told AgentJobs is listening.
+
+    Two sources, and the order matters. First the machine's standing answer --
+    ``AGENTJOBS_API_BASE``, then ``api_base:`` in ``~/.agentjobs/dispatch.yaml`` -- which
+    is the same value dispatch already resolves for the address it hands an agent, so a
+    machine that serves on a non-default port states that once and both stop being
+    wrong. Otherwise loopback on the port this project was just configured for, which is
+    what a single-project machine running the defaults is actually serving.
+
+    The second element is True when the machine had nothing to say, so a caller can
+    point at ``api_base`` instead of leaving someone to discover a dead port from a
+    session that silently has no tools.
+    """
+    configured = configured_api_base()
+    if configured:
+        return configured, False
+    return f"http://127.0.0.1:{port}", True
+
+
+def _write_mcp_entry(base_dir: Path, port: int) -> None:
+    """Give a freshly initialized project its MCP server entry, but never fail over it.
+
+    A project is initialized and usable whether or not this file lands, exactly as it is
+    whether or not registration succeeds -- so a malformed ``.mcp.json`` someone else
+    owns is reported and stepped over rather than aborting the command.
+    """
+    base_url, guessed = _mcp_base_url(port)
+    try:
+        written = ensure_mcp_server_entry(base_dir, base_url)
+    except ProjectError as exc:
+        typer.echo(f"⚠️  No MCP server entry written: {exc}")
+        return
+    if written is None:
+        typer.echo(
+            f"   {MCP_CONFIG_FILENAME} already declares an 'agentjobs' server; left as it is."
+        )
+        return
+    typer.echo(
+        f"   Wrote {MCP_CONFIG_FILENAME} pointing at {base_url} — MCP tools for agents here."
+    )
+    if guessed:
+        typer.echo(
+            "   If AgentJobs serves on another port, set 'api_base' in "
+            f"{default_home() / 'dispatch.yaml'} and rerun 'agentjobs project mcp-setup'."
+        )
+
+
 @app.command()
 def init(
     project_name: Optional[str] = typer.Option(None, help="Project display name."),
@@ -174,6 +229,7 @@ def init(
         raise typer.Exit(code=1) from exc
     _ensure_gitignore(base_dir)
     typer.echo("✅ AgentJobs initialized successfully!")
+    _write_mcp_entry(base_dir, port)
 
     # Register on the machine so one server can serve this project alongside others.
     # A registration failure must not fail init -- the project is initialized either
@@ -810,6 +866,58 @@ def project_remove(
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
     typer.echo(f"✅ Unregistered '{project_id}'. No files were deleted.")
+
+
+@project_app.command("mcp-setup")
+def project_mcp_setup(
+    path: str = typer.Argument(".", help="Project directory to wire up."),
+    url: Optional[str] = typer.Option(
+        None, "--url", help="Where AgentJobs is listening. Defaults to this machine's answer."
+    ),
+) -> None:
+    """Declare the AgentJobs MCP server in a project's own `.mcp.json`.
+
+    `agentjobs init` does this for a new project. This command exists for the ones
+    registered before it did, for a checkout that never had the file, and for a project
+    whose recorded address stopped being true -- all of which present the same way: an
+    agent working there comes up with no AgentJobs tools and quietly falls back to the
+    CLI.
+
+    An existing `agentjobs` entry is reported and left alone; correcting one means
+    deleting it first, deliberately, rather than having a command overwrite a pinned
+    interpreter or port on your behalf.
+    """
+    root = Path(path).expanduser().resolve()
+    if not root.is_dir():
+        typer.secho(f"Not a directory: {root}", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    if url:
+        base_url, guessed = url.strip().rstrip("/"), False
+    else:
+        config = _load_config(root)
+        port = int(config.get("gui", {}).get("port") or 8765)
+        base_url, guessed = _mcp_base_url(port)
+
+    try:
+        written = ensure_mcp_server_entry(root, base_url)
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    if written is None:
+        typer.echo(
+            f"ℹ️  {root / MCP_CONFIG_FILENAME} already declares an 'agentjobs' "
+            "server; nothing was changed."
+        )
+        return
+    typer.echo(f"✅ Wrote {written}, pointing at {base_url}.")
+    typer.echo("   Start a new agent session there; MCP servers are resolved at session start.")
+    if guessed:
+        typer.echo(
+            "   That port is a guess from the project's own config. If AgentJobs serves "
+            f"elsewhere, set 'api_base' in {default_home() / 'dispatch.yaml'} or pass --url."
+        )
 
 
 dispatch_app = typer.Typer(

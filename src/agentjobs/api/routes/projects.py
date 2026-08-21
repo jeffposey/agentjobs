@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
 import yaml
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel, Field
 
 from agentjobs.actors import default_user, load_actors
+from agentjobs.dispatch.address import api_base_from_server, configured_api_base
 from agentjobs.models_v2 import Ball, Lifecycle, Task
-from agentjobs.project_setup import build_project_config, initialize_project
+from agentjobs.project_setup import (
+    build_project_config,
+    ensure_mcp_server_entry,
+    initialize_project,
+)
 from agentjobs.projects import (
     ProjectError,
     ProjectRegistry,
@@ -23,6 +29,8 @@ from agentjobs.projects import (
 from ..dependencies import get_registry, list_projects, project_config, storage_for
 
 router = APIRouter(prefix="/api", tags=["projects"])
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectRegistrationRequest(BaseModel):
@@ -139,6 +147,28 @@ def _actor_vocabulary(project: Any) -> tuple[List[ProjectActor], Optional[str]]:
     return vocabulary, default_user(config)
 
 
+def _declare_mcp_server(request: Request, root: Path, port: int) -> None:
+    """Give a project created from the web UI the same MCP wiring `init` writes.
+
+    The address is taken from the socket this request arrived on before anything
+    configured, for the reason `dispatch/address.py` sets out at length: an observed
+    address cannot be stale, and this server *is* the one the new project's agents will
+    be talking to. The declared answer and the project's own port follow, in that order.
+
+    Registration is not failed over this. A project with no `.mcp.json` is the state
+    every project was in before task-202 -- agents there fall back to the CLI, which
+    works -- so a directory holding a malformed file of someone else's is logged and
+    left alone rather than turned into a 500 on an otherwise successful init.
+    """
+    server = request.scope.get("server")
+    observed = api_base_from_server(server[0], server[1]) if server else None
+    base_url = observed or configured_api_base() or f"http://127.0.0.1:{port}"
+    try:
+        ensure_mcp_server_entry(root, base_url)
+    except ProjectError as exc:
+        logger.warning("No MCP server entry written for %s: %s", root, exc)
+
+
 def _describe(project: Any, task_count: Optional[int]) -> ProjectResponse:
     """Render a project as an API payload."""
     actors, human = _actor_vocabulary(project)
@@ -194,6 +224,7 @@ async def register_project(
     status_code=status.HTTP_201_CREATED,
 )
 async def initialize_and_register_project(
+    request: Request,
     payload: ProjectInitializationRequest,
     registry: ProjectRegistry = Depends(get_registry),
 ) -> ProjectResponse:
@@ -210,6 +241,7 @@ async def initialize_and_register_project(
         user=payload.user,
     )
     initialize_project(root, config, contain_directories=True)
+    _declare_mcp_server(request, root, payload.port)
     project = registry.add(root, project_id=identifier, name=project_name)
     return _describe(project, 0)
 
