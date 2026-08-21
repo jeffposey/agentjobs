@@ -2,14 +2,10 @@ schema: 2
 id: task-204
 title: 'Queue position: the schema field, its validation, and the migration baseline'
 created: '2026-08-20T23:30:08.075135Z'
-updated: '2026-08-20T23:32:24.517589Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Nothing needs writing here -- the spec is complete. This is child 1 of
-  6 derived from the queue-position design in docs/task-selection-design.md (task-081),
-  and it is a draft only because that design has not been approved yet. Approve the
-  design and promote this to ready; it is the first thing to build.
+updated: '2026-08-21T00:35:20.927215Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: high
 category: infrastructure
@@ -152,3 +148,17 @@ log:
       id: 7d2e1b5f-2c3e-4a42-8b21-000000000001
       kind: handoff
       fingerprint: 23abb0c3a633d24e44d169b8fee6a388
+- id: 3
+  ts: '2026-08-21T00:35:20.927095Z'
+  actor: claude
+  type: transition
+  body: Design approved by Jeff 2026-08-20 (including the Fable 5 review-pass fixes);
+    promoting per the approval recorded on task-081.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: a1b2c3d4-0002-4a00-9e00-1a2b3c4d0204
+      kind: promote
+      fingerprint: 3adc6946efc3dc79125f49cd49be17a3

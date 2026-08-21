@@ -2,55 +2,16 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-20T23:43:10.002125Z'
+updated: '2026-08-21T00:36:01.358644Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review the queue-position design and decide whether to accept it. Read
-  `docs/task-selection-design.md` on branch `design/task-081-queue-position` (worktree
-  C:/projects/worktrees/agentjobs-081, commit 4de5fb7); it is not on main yet. Section
-  13 is the decision list if you want the short version, section 12 the rejected alternatives,
-  and the appendix maps every acceptance criterion here to a section.
-
-
-  Approving it means two things: merge the doc branch (--no-ff), and promote task-204
-  through task-209 from draft to ready. They are the implementation program, specified
-  and dependency-ordered, held as drafts precisely because they implement a design
-  you had not seen.
-
-
-  The four calls worth arguing with, because each rejected a real alternative:
-
-
-  1. The position lives on the task, not in a project-level queue file. A queue file
-  would make uniqueness structural and a reorder a single-file diff -- genuinely attractive
-  -- but a task could then no longer tell you where it sits, and it becomes a merge
-  hotspot for concurrent agents.
-
-  2. Sparse integers (100, 200, 300, midpoint insertion) rather than dense 1..N or
-  a LexoRank-style key. This is what makes a move write exactly one task file. Dense
-  numbering would rewrite the band on every move; lexicographic keys never need a
-  rebalance but put `0|hzzzzz:` in your YAML.
-
-  3. A corrupt queue refuses to answer instead of falling back to a timestamp. If
-  you would rather it answered and warned, say so -- it is a one-line change in the
-  design but it changes the character of the thing.
-
-  4. Bands are flat, so an epic and its children are ordinary members of their bands,
-  kept together by a --with-children group move rather than by hierarchical keys.
-  Given how many epics your backlog has, this is the one I am least certain about.
-
-
-  What this task does NOT do, deliberately: sc-7 -- the live backlog is still ordered
-  by nothing. The corpus cannot carry a queue position until the field exists, so
-  the ordering pass is task-209 and this task stays open until that closes. When it
-  comes, you will be handed the whole open backlog band by band and asked to agree
-  with it; roughly eighty tasks, 47 of them in the high band.
-
-
-  Also waiting on you, separately and much smaller: log entry 8, a real gap in ALLAGENTS.md''s
-  VIRTUAL_ENV guidance that costs any dispatched agent a full six-minute gate before
-  it shows itself. Say the word and I will file it as a task.'
+ball: external
+ball_reason: dependency
+ball_prompt: 'Design approved (log entry 13) and the branch is being merged to main.
+  This task now waits on its implementation children: task-204 -> 205 -> 206, then
+  207/209, with 208 after 205 -- all promoted to ready. Nothing to do here until task-209
+  (the human ordering pass, sc-7) closes; then verify sc-1..sc-6 against the merged
+  design doc, mark the branch merged, and close this task as completed. The open VIRTUAL_ENV
+  question (log entry 8) still awaits Jeff''s say-so to file as its own task.'
 archived: false
 priority: high
 category: architecture
@@ -503,3 +464,56 @@ log:
       id: 9f4a3d71-4e50-4c64-ad43-000000000003
       kind: handoff
       fingerprint: d6f90e057328aee733894f724d6ec9a8
+- id: 12
+  ts: '2026-08-20T23:44:14.130988Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 6
+  data:
+    run_id: run_995feaf6
+    outcome: completed
+    duration_seconds: 1604.363299
+    log_path: C:\Users\jpose\.agentjobs\runs\run_995feaf6
+- id: 13
+  ts: '2026-08-21T00:35:52.295402Z'
+  actor: claude
+  type: decision
+  body: "Jeff approved the queue-position design on 2026-08-20 (in session, reviewing\
+    \ the Fable 5 review copy). The approval covers the design as handed off plus\
+    \ four review-pass fixes, which are folded into docs/task-selection-design.md\
+    \ on the branch as commit bb84860: (1) a renumber skips tasks that closed since\
+    \ the band snapshot -- close takes no queue lock, so v1's mechanics could have\
+    \ written a position onto a closed task; (2) a --with-children group move carries\
+    \ only same-band open descendants, since positions in different bands are never\
+    \ compared; (3) the selection-time integrity check covers every open task in the\
+    \ winning band and above (what explain_next reads), not just the claimable candidates\
+    \ and not the whole corpus; (4) reopen joins the queue-lock holder list. No \xA7\
+    13 decision changed. Rejected alternative for (3): checking the whole corpus at\
+    \ selection time -- rejected because a duplicate in the low band does not falsify\
+    \ a high answer, and validate/queue check still cover every band. Consequences\
+    \ executed with the approval: task-205's spec and acceptance updated with the\
+    \ fixes (new sc-7: the concurrent-close rebalance test), and task-204 through\
+    \ task-209 promoted from draft to ready."
+  data:
+    operation:
+      id: a1b2c3d4-0003-4a00-9e00-1a2b3c4d0081
+      kind: log_append
+      fingerprint: 03b33d4d595d0d28a7f0e361bb62b835
+- id: 14
+  ts: '2026-08-21T00:36:01.358389Z'
+  actor: claude
+  type: handoff
+  body: 'Design approved (log entry 13) and the branch is being merged to main. This
+    task now waits on its implementation children: task-204 -> 205 -> 206, then 207/209,
+    with 208 after 205 -- all promoted to ready. Nothing to do here until task-209
+    (the human ordering pass, sc-7) closes; then verify sc-1..sc-6 against the merged
+    design doc, mark the branch merged, and close this task as completed. The open
+    VIRTUAL_ENV question (log entry 8) still awaits Jeff''s say-so to file as its
+    own task.'
+  data:
+    ball: external
+    ball_reason: dependency
+    operation:
+      id: a1b2c3d4-0004-4a00-9e00-1a2b3c4d0081
+      kind: handoff
+      fingerprint: 11feb1311402433d4ea39b645727afcb

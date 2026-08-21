@@ -3,14 +3,10 @@ id: task-205
 title: 'Queue position: assignment, the reorder verbs, and selection that ignores
   timestamps'
 created: '2026-08-20T23:30:38.205143Z'
-updated: '2026-08-20T23:32:31.867374Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Nothing needs writing here -- the spec is complete. Child 2 of 6 from
-  the queue-position design (task-081, docs/task-selection-design.md), held as a draft
-  only until that design is approved. Approve the design and promote it; it needs
-  task-204 first.
+updated: '2026-08-21T00:35:24.146129Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: high
 category: infrastructure
@@ -31,7 +27,9 @@ spec:
     this task, the order is whatever a human wrote down, and the only way to change
     it is to say so.
   description: 'Implements sections 5 to 9 of `docs/task-selection-design.md`. Read
-    that document first; it is the specification.
+    that document first; it is the specification, including the review-pass fixes
+    accepted 2026-08-20 (renumber skip-if-closed, same-band group moves, integrity-check
+    scope).
 
 
 
@@ -47,15 +45,19 @@ spec:
 
     2. Assignment on create: bottom of the band, or an explicit placement. Every path
     that can produce an open task -- create, import, `load_test_data`, promote out
-    of draft, any reopen -- ends with a valid position.
+    of draft, any reopen -- ends with a valid position, and every one of them (reopen
+    included) holds the queue lock while assigning.
 
 
 
     3. `move(task_id, before=|after=|top=|bottom=, with_children=False)` and `reprioritize(task_id,
-    priority, placement)`. Both append a `queue_move` log entry, which is added to
-    `LogEntryType` and to `MANAGER_WRITTEN_LOG_TYPES`. A `priority` change arriving
-    through the generic `update_task` patch is intercepted and routed through `reprioritize`,
-    so no existing caller can break the invariant.
+    priority, placement)`. `with_children` carries only the open descendants in the
+    moved task''s own band (design section 5.2): positions in different bands are
+    never compared, descendants in other bands keep their places, and the `moved_with`
+    log data names exactly who moved. Both verbs append a `queue_move` log entry,
+    which is added to `LogEntryType` and to `MANAGER_WRITTEN_LOG_TYPES`. A `priority`
+    change arriving through the generic `update_task` patch is intercepted and routed
+    through `reprioritize`, so no existing caller can break the invariant.
 
 
 
@@ -68,12 +70,18 @@ spec:
     the direction rule in design section 6: tail-first when renumbering upward, head-first
     when renumbering downward, two passes otherwise. The property to test is that
     every partial application read back from disk is a correctly ordered queue with
-    no duplicates.
+    no duplicates. Because `close` takes no queue lock, a task in the renumber''s
+    snapshot can close before its write arrives: each per-task write goes through
+    `mutate_task`, re-checks openness under that task''s own lock, and skips a task
+    that is no longer open rather than writing a position onto it.
 
 
 
-    6. `assert_queue_integrity()`, `QueueCorruptionError`, and `repair()`. Selection
-    raises; check, list and repair do not.
+    6. `assert_queue_integrity()`, `QueueCorruptionError`, and `repair()`. The selection-time
+    check covers every open task in the winning band and the bands above it -- the
+    set the answer and its explanation actually read -- not just the claimable candidates,
+    and not the whole corpus (design section 8). Selection raises; check, list and
+    repair do not.
 
 
 
@@ -126,6 +134,12 @@ acceptance:
   text: '`explain_next()` names the winner''s band and position and lists what was
     skipped ahead of it, with the claimability rule that excluded each.'
   status: pending
+- id: sc-7
+  text: 'A task that closes after a rebalance''s band snapshot but before its write
+    is skipped: the rebalance writes nothing to the closed task, the closed task ends
+    with no position, and the rest of the band keeps its order. This is the concurrent-close
+    rule from design section 6.'
+  status: pending
 deliverables:
 - path: src/agentjobs/manager.py
   note: assignment, move, reprioritize, rebalance, integrity, selection, explain
@@ -164,3 +178,31 @@ log:
       id: 7d2e1b5f-2c3e-4a42-8b21-000000000002
       kind: handoff
       fingerprint: b8bc4a2eb7c5ee03dda25e775697ac46
+- id: 3
+  ts: '2026-08-21T00:35:01.826989Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, spec.
+  data:
+    fields:
+    - acceptance
+    - spec
+    operation:
+      id: a1b2c3d4-0001-4a00-9e00-1a2b3c4d0001
+      kind: update_content
+      fingerprint: a9d245e6e9692faff72ccb01c33e395f
+- id: 4
+  ts: '2026-08-21T00:35:24.145965Z'
+  actor: claude
+  type: transition
+  body: Design approved by Jeff 2026-08-20; spec updated first with the accepted review-pass
+    fixes (same-band group moves, renumber skip-if-closed with acceptance test sc-7,
+    integrity-check scope, reopen under the queue lock).
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: a1b2c3d4-0002-4a00-9e00-1a2b3c4d0205
+      kind: promote
+      fingerprint: ddca3982ff6bee777af865e07aac3341

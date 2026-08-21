@@ -3,14 +3,10 @@ id: task-209
 title: 'Order the live backlog: put the whole open corpus in a work order Jeff has
   agreed to'
 created: '2026-08-20T23:32:09.717972Z'
-updated: '2026-08-20T23:32:57.365667Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: 'Nothing needs writing here -- the spec is complete. Child 6 of 6 from
-  the queue-position design (task-081, docs/task-selection-design.md), and the one
-  that closes the program: it is where you read the whole backlog in order and say
-  yes. Held as a draft until the design is approved; it needs task-206 first.'
+updated: '2026-08-21T00:35:32.022254Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: high
 category: meta
@@ -128,3 +124,18 @@ log:
       id: 7d2e1b5f-2c3e-4a42-8b21-000000000006
       kind: handoff
       fingerprint: 909f1b92908c2c7e1bd8216c0151bd43
+- id: 3
+  ts: '2026-08-21T00:35:32.022071Z'
+  actor: claude
+  type: transition
+  body: Design approved by Jeff 2026-08-20 (including the Fable 5 review-pass fixes);
+    promoting per the approval recorded on task-081. This child closes the program
+    (task-081 sc-7).
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: a1b2c3d4-0002-4a00-9e00-1a2b3c4d0209
+      kind: promote
+      fingerprint: a4ef18b3022b7bc4e761f9a28b056ae3

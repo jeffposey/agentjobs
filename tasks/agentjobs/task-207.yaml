@@ -3,13 +3,10 @@ id: task-207
 title: 'Queue position: the React list shows the real order, and you can change it
   without a mouse'
 created: '2026-08-20T23:31:25.501669Z'
-updated: '2026-08-20T23:32:44.048169Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Nothing needs writing here -- the spec is complete. Child 4 of 6 from
-  the queue-position design (task-081, docs/task-selection-design.md), held as a draft
-  only until that design is approved. Needs task-206 first.
+updated: '2026-08-21T00:35:28.074239Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: high
 category: ux
@@ -139,3 +136,17 @@ log:
       id: 7d2e1b5f-2c3e-4a42-8b21-000000000004
       kind: handoff
       fingerprint: 1893293f5f923dd9cd2bda33ad5f5713
+- id: 3
+  ts: '2026-08-21T00:35:28.074072Z'
+  actor: claude
+  type: transition
+  body: Design approved by Jeff 2026-08-20 (including the Fable 5 review-pass fixes);
+    promoting per the approval recorded on task-081.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: a1b2c3d4-0002-4a00-9e00-1a2b3c4d0207
+      kind: promote
+      fingerprint: 3adc6946efc3dc79125f49cd49be17a3
