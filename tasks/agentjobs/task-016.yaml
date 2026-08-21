@@ -2,12 +2,13 @@ schema: 2
 id: task-016
 title: Make the review panel ball_reason-aware so it stops offering Approve on a question
 created: '2026-08-18T05:34:58.400603Z'
-updated: '2026-08-18T05:36:23.250617Z'
+updated: '2026-08-21T09:22:52.897494Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 1200
 category: ux
 tags:
 - frontend

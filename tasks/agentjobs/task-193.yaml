@@ -2,12 +2,13 @@ schema: 2
 id: task-193
 title: Every CLI dispatch on this machine hands the agent a dead API address
 created: '2026-08-20T08:07:00.622137Z'
-updated: '2026-08-21T03:17:33.800565Z'
+updated: '2026-08-21T09:22:53.111440Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 4100
 category: reliability
 tags:
 - dispatch

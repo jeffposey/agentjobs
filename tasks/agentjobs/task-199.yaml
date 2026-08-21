@@ -2,12 +2,13 @@ schema: 2
 id: task-199
 title: Enabling a project from the browser deletes every comment in dispatch.yaml
 created: '2026-08-20T20:45:14.268669Z'
-updated: '2026-08-20T20:45:14.269705Z'
+updated: '2026-08-21T09:22:53.131628Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 4400
 category: bug
 tags:
 - dispatch

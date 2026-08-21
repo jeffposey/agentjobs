@@ -2,12 +2,13 @@ schema: 2
 id: task-151-loop-driver
 title: 'The loop driver: iterate, evaluate, and stop loudly'
 created: '2026-08-18T11:38:57.682731Z'
-updated: '2026-08-18T11:38:57.683471Z'
+updated: '2026-08-21T09:22:53.406693Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 2000
 category: infrastructure
 tags:
 - agent-loops

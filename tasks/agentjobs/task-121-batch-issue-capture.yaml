@@ -2,12 +2,13 @@ schema: 2
 id: task-121-batch-issue-capture
 title: Collect a review's worth of findings and file them in one action
 created: '2026-08-15T22:29:34.692845Z'
-updated: '2026-08-18T04:35:49.613641Z'
+updated: '2026-08-21T09:22:52.841606Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 500
 category: developer_experience
 tags:
 - issue-reporter

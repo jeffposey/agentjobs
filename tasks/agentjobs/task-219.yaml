@@ -2,13 +2,14 @@ schema: 2
 id: task-219
 title: "Playbooks 6: the reactive lane \u2014 queue-check on human reorder bursts"
 created: '2026-08-21T04:57:23.007031Z'
-updated: '2026-08-21T04:57:23.007785Z'
+updated: '2026-08-21T09:22:53.494721Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
 ball_prompt: Finish specifying this task.
 archived: false
 priority: medium
+queue_position: 3300
 category: architecture
 tags:
 - playbooks

@@ -2,12 +2,13 @@ schema: 2
 id: task-100-dependency-cycle-deadlock
 title: A `needs` cycle deadlocks silently
 created: '2026-08-13T02:35:21.254172Z'
-updated: '2026-08-15T22:34:23.851684Z'
+updated: '2026-08-21T09:22:52.829198Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 300
 category: correctness
 tags:
 - schema

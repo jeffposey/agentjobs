@@ -3,12 +3,13 @@ id: task-197
 title: The session poller resolves the project's default runner, so a run dispatched
   from a group is polled with the wrong executable
 created: '2026-08-20T17:56:56.232826Z'
-updated: '2026-08-21T03:17:46.732946Z'
+updated: '2026-08-21T09:22:53.460779Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 2800
 category: infrastructure
 tags:
 - dispatch

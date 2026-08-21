@@ -2,12 +2,13 @@ schema: 2
 id: task-208
 title: 'Queue position: MCP verbs, the rule agents follow, and the reference docs'
 created: '2026-08-20T23:31:46.849335Z'
-updated: '2026-08-21T00:35:30.010660Z'
+updated: '2026-08-21T09:22:53.172622Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 4900
 category: documentation
 tags:
 - queue-order

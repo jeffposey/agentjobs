@@ -3,12 +3,13 @@ id: task-160-dispatch-phase-two
 title: 'Dispatch phase two: who can cause one, what it can be told, and what it does
   with an epic'
 created: '2026-08-19T16:42:02.307827Z'
-updated: '2026-08-19T19:26:20.590362Z'
+updated: '2026-08-21T09:22:52.992101Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 2600
 category: architecture
 tags:
 - dispatch

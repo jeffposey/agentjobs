@@ -2,11 +2,13 @@ schema: 2
 id: task-004
 title: Migrate to PostgreSQL 16
 created: '2025-10-21T17:44:03Z'
-updated: '2025-10-26T17:44:03Z'
+updated: '2026-08-21T09:22:53.507905Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
+archived: false
 priority: high
+queue_position: 100
 category: infrastructure
 tags:
 - test
@@ -27,14 +29,17 @@ spec:
     \ environment migrated successfully\n- \u274C Production instances not yet provisioned\n\
     \n---\n\n## Starter prompt (migrated from schema v1)\n\nPlan and execute migration\
     \ to PostgreSQL 16."
+  context: []
+acceptance: []
+deliverables: []
+dependencies: []
+links: []
+branches: []
 log:
 - id: 1
   ts: '2025-10-26T17:44:03Z'
   actor: system
   type: note
-  data:
-    v1_status: blocked
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
@@ -48,3 +53,6 @@ log:
     - status: was ''blocked'' but unclaimed with no dependencies, so the blocker was
     not recorded anywhere; mapped to ready and the original status preserved in the
     log'
+  data:
+    v1_status: blocked
+    migrated_to_schema: 2

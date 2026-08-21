@@ -2,12 +2,13 @@ schema: 2
 id: task-176-dispatch-on-create
 title: Start an agent on the task you just created, off by default
 created: '2026-08-19T17:39:38.488193Z'
-updated: '2026-08-19T17:39:38.489099Z'
+updated: '2026-08-21T09:22:53.448815Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 2600
 category: ux
 tags:
 - dispatch

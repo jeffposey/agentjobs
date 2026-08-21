@@ -2,12 +2,13 @@ schema: 2
 id: task-124-codex-plugin-install-and-verification
 title: Finish and verify the Codex plugin install the way task-122 did for Claude
 created: '2026-08-17T20:33:40.478661Z'
-updated: '2026-08-17T20:33:40.479631Z'
+updated: '2026-08-21T09:22:52.849019Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 600
 category: developer_experience
 tags:
 - mcp

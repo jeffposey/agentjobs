@@ -2,12 +2,13 @@ schema: 2
 id: task-053-schema-v2-cli
 title: 'Schema v2: CLI mirrors -- inbox, next, claim, handoff, log, close'
 created: '2026-07-29T20:45:00Z'
-updated: '2026-08-11T05:55:51.934709Z'
+updated: '2026-08-21T09:22:53.259969Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 100
 category: developer_experience
 tags:
 - schema-design

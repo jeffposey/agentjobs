@@ -3,12 +3,13 @@ id: task-184-groups-in-the-dispatch-ui
 title: The Dispatch page does not know groups exist, and says "no runner chosen" when
   one is in use
 created: '2026-08-19T21:10:06.422156Z'
-updated: '2026-08-19T21:10:06.422912Z'
+updated: '2026-08-21T09:22:53.080116Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 3700
 category: ux
 tags:
 - dispatch

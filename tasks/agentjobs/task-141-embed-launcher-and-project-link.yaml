@@ -2,12 +2,13 @@ schema: 2
 id: task-141-embed-launcher-and-project-link
 title: 'The launcher: open this project''s backlog, or report what you just saw'
 created: '2026-08-18T05:54:07.296935Z'
-updated: '2026-08-18T05:54:07.297636Z'
+updated: '2026-08-21T09:22:52.946259Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 1900
 category: developer_experience
 tags:
 - embedding

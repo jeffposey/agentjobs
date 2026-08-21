@@ -2,12 +2,13 @@ schema: 2
 id: task-145-embed-zero-config-wiring
 title: 'One dependency and one component: make the widget wire itself up'
 created: '2026-08-18T05:55:19.053134Z'
-updated: '2026-08-18T05:55:19.053798Z'
+updated: '2026-08-21T09:22:53.394291Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 1800
 category: developer_experience
 tags:
 - embedding

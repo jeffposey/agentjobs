@@ -2,12 +2,13 @@ schema: 2
 id: task-170-dispatch-in-the-menu
 title: 'Dispatch from the menu: start a run, and reach its settings'
 created: '2026-08-19T17:36:45.040978Z'
-updated: '2026-08-19T17:42:18.208219Z'
+updated: '2026-08-21T09:22:53.439892Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 2500
 category: ux
 tags:
 - menu

@@ -3,12 +3,13 @@ id: task-179-dispatch-onto-a-worked-task
 title: Dispatch is offered on a task an agent is already working, and the guards would
   allow it
 created: '2026-08-19T19:22:34.834865Z'
-updated: '2026-08-20T06:02:20.557904Z'
+updated: '2026-08-21T09:22:53.064125Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 3500
 category: reliability
 tags:
 - dispatch

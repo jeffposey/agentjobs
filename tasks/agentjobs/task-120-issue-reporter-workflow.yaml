@@ -2,12 +2,13 @@ schema: 2
 id: task-120-issue-reporter-workflow
 title: 'Issue reporter: rapid screenshot-backed and batch task capture'
 created: '2026-08-15T22:29:32.639551Z'
-updated: '2026-08-18T04:00:44.845287Z'
+updated: '2026-08-21T09:22:52.835009Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 400
 category: developer_experience
 tags:
 - issue-reporter

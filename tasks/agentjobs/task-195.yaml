@@ -3,12 +3,13 @@ id: task-195
 title: A dispatch refusal outlives the state that produced it, and reads as an answer
   to a click nobody made
 created: '2026-08-20T08:33:21.783342Z'
-updated: '2026-08-20T08:33:21.784053Z'
+updated: '2026-08-21T09:22:53.253507Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: low
+queue_position: 300
 category: ux
 tags:
 - dispatch

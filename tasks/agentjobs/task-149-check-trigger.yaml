@@ -2,12 +2,13 @@ schema: 2
 id: task-149-check-trigger
 title: Evaluate a task's checks on demand, from the CLI and the API
 created: '2026-08-18T11:38:03.788302Z'
-updated: '2026-08-18T11:38:03.789089Z'
+updated: '2026-08-21T09:22:52.986004Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 2500
 category: developer_experience
 tags:
 - agent-loops

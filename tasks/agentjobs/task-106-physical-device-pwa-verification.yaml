@@ -2,12 +2,13 @@ schema: 2
 id: task-106-physical-device-pwa-verification
 title: Verify the React PWA on a physical phone and tablet
 created: '2026-08-13T22:09:14.672822Z'
-updated: '2026-08-13T22:09:14.673530Z'
+updated: '2026-08-21T09:22:53.303966Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 800
 category: testing
 tags:
 - react-frontend

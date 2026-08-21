@@ -3,12 +3,13 @@ id: task-163-role-dispatch
 title: One agent's handoff starting a different agent, when a human configured it
   to
 created: '2026-08-19T16:43:37.673031Z'
-updated: '2026-08-19T16:43:37.673838Z'
+updated: '2026-08-21T09:22:53.432870Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 2400
 category: architecture
 tags:
 - dispatch

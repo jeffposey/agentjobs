@@ -2,12 +2,13 @@ schema: 2
 id: task-129-guard-silent-noop-on-empty-registry
 title: Stop the write guard from silently protecting nothing
 created: '2026-08-17T20:50:05.641263Z'
-updated: '2026-08-17T20:51:04.173336Z'
+updated: '2026-08-21T09:22:53.334259Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 1200
 category: correctness
 tags:
 - hooks

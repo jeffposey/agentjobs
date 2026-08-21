@@ -2,13 +2,14 @@ schema: 2
 id: task-216
 title: 'Playbooks 3: groom, authored and proven live'
 created: '2026-08-21T04:56:17.617014Z'
-updated: '2026-08-21T04:56:17.617899Z'
+updated: '2026-08-21T09:22:53.219944Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
 ball_prompt: Finish specifying this task.
 archived: false
 priority: high
+queue_position: 5400
 category: meta
 tags:
 - playbooks

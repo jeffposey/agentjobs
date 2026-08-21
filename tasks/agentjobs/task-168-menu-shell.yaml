@@ -3,12 +3,13 @@ id: task-168-menu-shell
 title: 'Retire the floating button: a burger menu in the top-right that Report issue
   lives inside'
 created: '2026-08-19T17:34:59.227729Z'
-updated: '2026-08-19T17:44:39.102886Z'
+updated: '2026-08-21T09:22:53.016341Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 2900
 category: ux
 tags:
 - menu

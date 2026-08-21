@@ -3,12 +3,13 @@ id: task-207
 title: 'Queue position: the React list shows the real order, and you can change it
   without a mouse'
 created: '2026-08-20T23:31:25.501669Z'
-updated: '2026-08-21T03:33:54.986810Z'
+updated: '2026-08-21T09:22:53.165133Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 4800
 category: ux
 tags:
 - queue-order

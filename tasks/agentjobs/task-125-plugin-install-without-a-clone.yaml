@@ -2,12 +2,13 @@ schema: 2
 id: task-125-plugin-install-without-a-clone
 title: Make the AgentJobs plugin work for someone who only installs it
 created: '2026-08-17T20:46:19.909573Z'
-updated: '2026-08-17T20:46:47.734675Z'
+updated: '2026-08-21T09:22:53.310327Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 900
 category: architecture
 tags:
 - mcp

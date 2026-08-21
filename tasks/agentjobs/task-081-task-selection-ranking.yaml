@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T08:04:39.328154Z'
+updated: '2026-08-21T09:22:52.798578Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -78,6 +78,7 @@ ball_prompt: 'You are the SUPERVISOR of this epic. Do not work the children your
   including anything the protocol did not anticipate.'
 archived: false
 priority: high
+queue_position: 200
 category: architecture
 tags:
 - agent-dx

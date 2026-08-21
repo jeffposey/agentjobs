@@ -3,12 +3,13 @@ id: task-173-transcription-fallback
 title: "A transcription path for browsers with no speech API \u2014 build it or close\
   \ it"
 created: '2026-08-19T17:37:53.991715Z'
-updated: '2026-08-19T17:37:53.992428Z'
+updated: '2026-08-21T09:22:53.238694Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: low
+queue_position: 100
 category: infrastructure
 tags:
 - voice-input

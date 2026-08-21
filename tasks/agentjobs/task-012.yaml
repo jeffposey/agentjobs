@@ -2,12 +2,13 @@ schema: 2
 id: task-012
 title: Contain a render crash so one bad field cannot blank the whole app
 created: '2026-08-18T05:04:35.886899Z'
-updated: '2026-08-18T05:04:35.887838Z'
+updated: '2026-08-21T09:22:52.881608Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 1000
 category: reliability
 tags:
 - frontend

@@ -2,12 +2,13 @@ schema: 2
 id: task-175-flesh-out-with-ai
 title: Flesh out the task with AI before it is created, on by default
 created: '2026-08-19T17:39:11.691344Z'
-updated: '2026-08-19T17:39:11.692132Z'
+updated: '2026-08-21T09:22:53.056592Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 3400
 category: ux
 tags:
 - ai-assist

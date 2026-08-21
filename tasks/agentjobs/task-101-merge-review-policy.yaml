@@ -2,7 +2,7 @@ schema: 2
 id: task-101-merge-review-policy
 title: 'Merge review as a policy: an admin default plus a per-task override'
 created: '2026-08-13T03:06:00.470908Z'
-updated: '2026-08-13T03:06:00.471667Z'
+updated: '2026-08-21T09:22:53.285250Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -14,6 +14,7 @@ ball_prompt: 'Decide the shape before anyone builds it: whether this is one sett
   in the description.'
 archived: false
 priority: medium
+queue_position: 500
 category: workflow
 tags:
 - workflow

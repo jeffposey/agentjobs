@@ -2,12 +2,13 @@ schema: 2
 id: task-127-publish-and-invoke-without-a-venv
 title: Publish the package and invoke it without a clone or a virtualenv
 created: '2026-08-17T20:48:41.056258Z'
-updated: '2026-08-17T20:50:29.065317Z'
+updated: '2026-08-21T09:22:53.317728Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 1000
 category: infrastructure
 tags:
 - packaging

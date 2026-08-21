@@ -3,12 +3,13 @@ id: task-167-agentjobs-menu
 title: 'The AgentJobs menu: one reusable control for every frontend, and forms fast
   enough to fill on a phone'
 created: '2026-08-19T17:34:04.201284Z'
-updated: '2026-08-19T17:43:05.423308Z'
+updated: '2026-08-21T09:22:53.005455Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 2800
 category: ux
 tags:
 - menu

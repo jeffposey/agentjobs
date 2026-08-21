@@ -3,12 +3,13 @@ id: task-209
 title: 'Order the live backlog: put the whole open corpus in a work order Jeff has
   agreed to'
 created: '2026-08-20T23:32:09.717972Z'
-updated: '2026-08-21T01:13:05.550643Z'
+updated: '2026-08-21T09:22:53.179327Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 5000
 category: meta
 tags:
 - queue-order

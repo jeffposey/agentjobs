@@ -2,12 +2,13 @@ schema: 2
 id: task-198
 title: Enabling dispatch from the UI destroys every comment in dispatch.yaml
 created: '2026-08-20T20:33:06.424323Z'
-updated: '2026-08-20T20:33:06.425105Z'
+updated: '2026-08-21T09:22:53.124430Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 4300
 category: infrastructure
 tags:
 - dispatch

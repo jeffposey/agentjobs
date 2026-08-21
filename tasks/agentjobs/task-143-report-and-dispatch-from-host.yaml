@@ -2,12 +2,13 @@ schema: 2
 id: task-143-report-and-dispatch-from-host
 title: Start an agent on it without leaving the app you are building
 created: '2026-08-18T05:54:55.902846Z'
-updated: '2026-08-18T05:54:55.903705Z'
+updated: '2026-08-21T09:22:52.952634Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 2000
 category: developer_experience
 tags:
 - embedding

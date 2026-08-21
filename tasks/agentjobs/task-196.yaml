@@ -3,12 +3,13 @@ id: task-196
 title: '`agentjobs restart` can add a server generation instead of replacing one,
   and nothing says so'
 created: '2026-08-20T17:56:56.218922Z'
-updated: '2026-08-20T21:05:17.922525Z'
+updated: '2026-08-21T09:22:53.117261Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 4200
 category: infrastructure
 tags:
 - dispatch

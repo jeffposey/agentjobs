@@ -2,7 +2,7 @@ schema: 2
 id: task-220
 title: An epic supervisor parks where ordinary dispatched runs do not
 created: '2026-08-21T05:35:56.284351Z'
-updated: '2026-08-21T07:53:56.296412Z'
+updated: '2026-08-21T09:22:52.764000Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -11,6 +11,7 @@ ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mar
   yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
+queue_position: 100
 category: infrastructure
 tags:
 - dispatch

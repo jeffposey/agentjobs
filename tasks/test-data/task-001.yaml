@@ -2,12 +2,14 @@ schema: 2
 id: task-001
 title: Design Database Schema for User Authentication
 created: '2025-10-24T17:44:03Z'
-updated: '2025-10-26T17:44:03Z'
+updated: '2026-08-21T09:22:53.511640Z'
 lifecycle: active
 ball: human
 ball_reason: decision
 ball_prompt: Schema design complete, awaiting approval.
+archived: false
 priority: high
+queue_position: 200
 category: architecture
 tags:
 - test
@@ -18,6 +20,7 @@ tags:
 effort: 2-3 days
 assignment:
   owner: codex
+  eligible: []
 spec:
   summary: Review and approve the proposed PostgreSQL schema for user authentication,
     including multi-provider OAuth2 support and security policies.
@@ -47,38 +50,41 @@ spec:
     \ for review. Awaiting feedback on multi-account support and audit logging requirements.\n\
     - **Implementation** (`phase-3`, draft)\n  - Create migration scripts and ORM\
     \ models after approval."
+  context: []
+acceptance: []
 deliverables:
 - path: docs/schema/auth_schema.sql
-  status: done
   note: PostgreSQL schema DDL
-- path: docs/schema/auth_erd.png
   status: done
+- path: docs/schema/auth_erd.png
   note: Entity relationship diagram
+  status: done
+dependencies: []
+links: []
+branches: []
 log:
 - id: 1
   ts: '2025-10-25T17:44:03Z'
   actor: Codex
   type: transition
-  data:
-    v1_status: waiting_for_human
   body: 'Schema design complete, awaiting approval
 
 
     Designed 3-table schema with security best practices. Need human input on multi-account
     support and audit logging.'
+  data:
+    v1_status: waiting_for_human
 - id: 2
   ts: '2025-10-25T17:44:03Z'
   actor: Codex
   type: instruction
   body: Schema design complete. Added encryption for tokens and session management.
     Ready for human review.
+  data: {}
 - id: 3
   ts: '2025-10-26T17:44:03Z'
   actor: system
   type: note
-  data:
-    v1_status: waiting_for_human
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
@@ -90,3 +96,6 @@ log:
     - prompts.starter preserved in spec.description.
 
     - 1 followup prompt(s) became instruction entries.'
+  data:
+    v1_status: waiting_for_human
+    migrated_to_schema: 2

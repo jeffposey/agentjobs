@@ -2,12 +2,13 @@ schema: 2
 id: task-104-react-readme-screenshots
 title: Stage and capture polished React screenshots for README
 created: '2026-08-13T22:01:57.804546Z'
-updated: '2026-08-13T22:02:15.442127Z'
+updated: '2026-08-21T09:22:53.292251Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 600
 category: documentation
 tags:
 - react-frontend

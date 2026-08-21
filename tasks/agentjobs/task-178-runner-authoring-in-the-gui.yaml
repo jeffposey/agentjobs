@@ -2,12 +2,13 @@ schema: 2
 id: task-178-runner-authoring-in-the-gui
 title: Authoring runners and groups from the browser, without reopening gate 3
 created: '2026-08-19T19:13:24.181646Z'
-updated: '2026-08-19T19:13:24.182385Z'
+updated: '2026-08-21T09:22:53.246291Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: low
+queue_position: 200
 category: ux
 tags:
 - dispatch

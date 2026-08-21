@@ -2,12 +2,14 @@ schema: 2
 id: task-002
 title: Implement Rate Limiting for Public API
 created: '2025-10-24T17:44:03Z'
-updated: '2025-10-26T17:44:03Z'
+updated: '2026-08-21T09:22:53.503284Z'
 lifecycle: active
 ball: human
 ball_reason: review
 ball_prompt: Rate limiting design ready, need policy decisions.
+archived: false
 priority: critical
+queue_position: 100
 category: infrastructure
 tags:
 - test
@@ -18,6 +20,7 @@ tags:
 effort: 1 week
 assignment:
   owner: codex
+  eligible: []
 spec:
   summary: 'Approve rate limiting strategy: 100 req/min for free tier, 1000 req/min
     for paid tier. Decide penalty box duration to unblock engineering.'
@@ -46,25 +49,28 @@ spec:
     \ GitHub, Twilio). Designed sliding window algorithm with Redis.\n  - completed\
     \ 2025-10-25T17:44:03.663057Z\n- **Policy Approval** (`phase-2`, waiting_for_human)\n\
     \  - Need human decision on penalty box strategy and per-endpoint limit strategy."
+  context: []
+acceptance: []
+deliverables: []
+dependencies: []
+links: []
+branches: []
 log:
 - id: 1
   ts: '2025-10-26T13:44:03Z'
   actor: Codex
   type: transition
-  data:
-    v1_status: waiting_for_human
   body: 'Rate limiting design ready, need policy decisions
 
 
     Technical design is complete. Need human input on penalty box duration and per-endpoint
     limit strategy.'
+  data:
+    v1_status: waiting_for_human
 - id: 2
   ts: '2025-10-26T17:44:03Z'
   actor: system
   type: note
-  data:
-    v1_status: waiting_for_human
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
@@ -74,3 +80,6 @@ log:
     - 2 phase(s) folded into spec.description as an appendix.
 
     - prompts.starter preserved in spec.description.'
+  data:
+    v1_status: waiting_for_human
+    migrated_to_schema: 2

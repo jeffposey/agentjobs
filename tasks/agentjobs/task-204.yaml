@@ -2,13 +2,14 @@ schema: 2
 id: task-204
 title: 'Queue position: the schema field, its validation, and the migration baseline'
 created: '2026-08-20T23:30:08.075135Z'
-updated: '2026-08-21T09:21:09.884467Z'
+updated: '2026-08-21T09:22:53.138779Z'
 lifecycle: active
 ball: agent
 ball_reason: work
 ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
+queue_position: 4500
 category: infrastructure
 tags:
 - queue-order

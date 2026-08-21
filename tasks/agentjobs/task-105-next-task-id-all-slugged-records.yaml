@@ -2,12 +2,13 @@ schema: 2
 id: task-105-next-task-id-all-slugged-records
 title: Generate the next task number from all slugged task IDs
 created: '2026-08-13T22:03:07.061022Z'
-updated: '2026-08-17T20:34:03.611678Z'
+updated: '2026-08-21T09:22:53.297813Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 700
 category: bug
 tags:
 - task-ids

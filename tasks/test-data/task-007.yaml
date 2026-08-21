@@ -2,11 +2,13 @@ schema: 2
 id: task-007
 title: Implement GraphQL Pagination with Cursor Strategy
 created: '2025-10-26T05:44:03Z'
-updated: '2025-10-26T17:44:03Z'
+updated: '2026-08-21T09:22:53.525730Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
+archived: false
 priority: medium
+queue_position: 200
 category: feature
 tags:
 - test
@@ -15,6 +17,8 @@ tags:
 - api
 - performance
 effort: 1 week
+assignment:
+  eligible: []
 spec:
   summary: Plan and implement cursor-based pagination for the GraphQL API to replace
     offset pagination.
@@ -50,17 +54,23 @@ spec:
 
 
     Design and implement cursor-based pagination for GraphQL API.'
+  context: []
+acceptance: []
+deliverables: []
+dependencies: []
+links: []
+branches: []
 log:
 - id: 1
   ts: '2025-10-26T17:44:03Z'
   actor: system
   type: note
-  data:
-    v1_status: ready
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
     - v1 `status: ready` became lifecycle: ready / ball: agent / ball_reason: available.
 
     - prompts.starter preserved in spec.description.'
+  data:
+    v1_status: ready
+    migrated_to_schema: 2

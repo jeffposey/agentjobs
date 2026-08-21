@@ -2,12 +2,13 @@ schema: 2
 id: task-140-embed-server-surface
 title: Make the server callable from another app's origin, in one bootstrap request
 created: '2026-08-18T05:52:46.781447Z'
-updated: '2026-08-18T05:52:46.782419Z'
+updated: '2026-08-21T09:22:52.928132Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 1600
 category: developer_experience
 tags:
 - embedding

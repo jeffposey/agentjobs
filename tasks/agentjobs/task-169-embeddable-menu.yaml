@@ -2,12 +2,13 @@ schema: 2
 id: task-169-embeddable-menu
 title: The same menu, in somebody else's React app, in one import
 created: '2026-08-19T17:36:17.527963Z'
-updated: '2026-08-19T17:43:43.336897Z'
+updated: '2026-08-21T09:22:53.033092Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 3100
 category: developer_experience
 tags:
 - menu

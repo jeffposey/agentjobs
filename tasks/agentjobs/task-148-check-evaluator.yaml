@@ -2,12 +2,13 @@ schema: 2
 id: task-148-check-evaluator
 title: 'The check evaluator: run a task''s acceptance checks and report the vector'
 created: '2026-08-18T11:37:41.869021Z'
-updated: '2026-08-18T11:37:41.870649Z'
+updated: '2026-08-21T09:22:52.979922Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 2400
 category: infrastructure
 tags:
 - agent-loops

@@ -2,12 +2,13 @@ schema: 2
 id: task-128-onboarding-from-inside-a-session
 title: Let a new user create and register their first project from the agent session
 created: '2026-08-17T20:49:21.864907Z'
-updated: '2026-08-17T20:50:42.388694Z'
+updated: '2026-08-21T09:22:53.325699Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 1100
 category: developer_experience
 tags:
 - mcp

@@ -2,12 +2,13 @@ schema: 2
 id: task-152-loops-gui
 title: Check results and chains in the web UI
 created: '2026-08-18T11:39:21.120131Z'
-updated: '2026-08-18T11:39:21.120891Z'
+updated: '2026-08-21T09:22:53.413195Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 2100
 category: ux
 tags:
 - agent-loops

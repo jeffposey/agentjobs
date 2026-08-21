@@ -2,12 +2,13 @@ schema: 2
 id: task-007
 title: Stop the default route delivering the legacy Jinja UI
 created: '2026-08-17T21:49:53.889432Z'
-updated: '2026-08-17T21:49:53.890280Z'
+updated: '2026-08-21T09:22:52.866327Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
+queue_position: 800
 category: ux
 tags:
 - gui

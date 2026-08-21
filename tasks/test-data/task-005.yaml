@@ -2,12 +2,14 @@ schema: 2
 id: task-005
 title: Enable CloudWatch Advanced Monitoring
 created: '2025-10-23T17:44:03Z'
-updated: '2025-10-26T17:44:03Z'
+updated: '2026-08-21T09:22:53.516786Z'
 lifecycle: active
 ball: human
 ball_reason: review
 ball_prompt: 'NEEDS REVIEW: state what this task is waiting on.'
+archived: false
 priority: low
+queue_position: 100
 category: infrastructure
 tags:
 - test
@@ -18,6 +20,7 @@ tags:
 effort: 1 hour to enable
 assignment:
   owner: codex
+  eligible: []
 spec:
   summary: Request approval for $150/month CloudWatch advanced monitoring to unlock
     1-second RDS metrics.
@@ -32,14 +35,17 @@ spec:
     \ on investment.\n\n**Awaiting approval from Engineering Manager or CTO.**\n\n\
     ---\n\n## Starter prompt (migrated from schema v1)\n\nResearch and propose CloudWatch\
     \ enhanced monitoring for RDS instances."
+  context: []
+acceptance: []
+deliverables: []
+dependencies: []
+links: []
+branches: []
 log:
 - id: 1
   ts: '2025-10-26T17:44:03Z'
   actor: system
   type: note
-  data:
-    v1_status: waiting_for_human
-    migrated_to_schema: 2
   body: 'Migrated from schema v1 to v2 by `agentjobs migrate-schema`.
 
 
@@ -52,3 +58,6 @@ log:
     Needs human review:
 
     - ball_prompt: no status update to derive an ask from'
+  data:
+    v1_status: waiting_for_human
+    migrated_to_schema: 2

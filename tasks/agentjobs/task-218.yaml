@@ -2,13 +2,14 @@ schema: 2
 id: task-218
 title: 'Playbooks 5: flesh-out, authored and proven'
 created: '2026-08-21T04:56:57.789106Z'
-updated: '2026-08-21T04:56:57.789899Z'
+updated: '2026-08-21T09:22:53.489265Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
 ball_prompt: Finish specifying this task.
 archived: false
 priority: medium
+queue_position: 3200
 category: meta
 tags:
 - playbooks

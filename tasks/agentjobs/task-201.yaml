@@ -2,12 +2,13 @@ schema: 2
 id: task-201
 title: Make supervision posture an explicit choice, not the supervisor's guess
 created: '2026-08-20T22:20:13.137743Z'
-updated: '2026-08-20T22:20:13.138440Z'
+updated: '2026-08-21T09:22:53.468067Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 2900
 category: product
 tags:
 - supervision

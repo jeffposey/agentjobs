@@ -2,12 +2,13 @@ schema: 2
 id: task-013
 title: Ship sourcemaps so a production stack trace names a source line
 created: '2026-08-18T05:08:09.391408Z'
-updated: '2026-08-18T05:08:09.392342Z'
+updated: '2026-08-21T09:22:53.358542Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 1500
 category: developer_experience
 tags:
 - frontend

@@ -2,12 +2,13 @@ schema: 2
 id: task-156-task-difficulty-field
 title: Add a difficulty field to the task schema, with list filtering
 created: '2026-08-18T21:49:01.024256Z'
-updated: '2026-08-18T21:49:01.024981Z'
+updated: '2026-08-21T09:22:53.418950Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 2200
 category: architecture
 tags:
 - schema

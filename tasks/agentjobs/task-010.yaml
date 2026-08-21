@@ -2,12 +2,13 @@ schema: 2
 id: task-010
 title: A corpus test can only pass on one machine, and fails in every worktree
 created: '2026-08-17T22:48:19.433930Z'
-updated: '2026-08-20T21:03:46.133827Z'
+updated: '2026-08-21T09:22:53.342455Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
+queue_position: 1300
 category: testing
 tags:
 - testing

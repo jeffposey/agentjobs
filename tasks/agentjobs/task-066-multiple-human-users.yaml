@@ -2,7 +2,7 @@ schema: 2
 id: task-066-multiple-human-users
 title: Support more than one human user (account management)
 created: '2026-08-10T23:20:39.069637Z'
-updated: '2026-08-13T22:10:49.272189Z'
+updated: '2026-08-21T09:22:53.266148Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -11,6 +11,7 @@ ball_prompt: Choose the identity model before any code is written -- session-les
   the choice with its reasoning. The rest of the task is mechanical once that is settled.
 archived: false
 priority: medium
+queue_position: 200
 category: architecture
 tags:
 - gui
