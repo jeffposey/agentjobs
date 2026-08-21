@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T15:20:11.212394Z'
+updated: '2026-08-21T15:46:53.787396Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1742,3 +1742,68 @@ log:
       id: bb9b9273-0081-4a00-9e00-000000000004
       kind: log_append
       fingerprint: 51d576158e552445cb7d6eab83cb653a
+- id: 44
+  ts: '2026-08-21T15:46:53.786943Z'
+  actor: claude
+  type: progress
+  body: 'A gap in the supervision protocol, found the way these are always found:
+    Jeff found it first.
+
+
+    WHAT HAPPENED. Both children stopped, some time before 15:45Z, because Claude
+    logged him out. He logged back in and told both to continue. Neither child was
+    in trouble and neither had failed -- they were stopped on an authentication prompt
+    with nobody to answer it. Both are working again and both have advanced: task-207
+    five commits on feat/task-207-queue-order-react-list, task-208 its first commit
+    on feat/task-208-queue-mcp-and-rules.
+
+
+    WHY MY POLL LOOP COULD NOT SEE IT, which is the part worth keeping. The protocol
+    says poll the task record, not the process, and that is right for the four states
+    docs/agent-workflow.md enumerates -- working, parked, closed, died. A session
+    halted on an auth prompt is a fifth state and it is invisible on the record: the
+    child holds the ball, ball_reason is still `work`, lifecycle is still `active`,
+    and every field reads exactly as it does while the child is mid-gate. Nothing
+    changes, and "nothing changes" is also what a healthy seven-minute pytest stage
+    looks like. A supervisor watching only the record cannot distinguish them, so
+    it waits, which is the correct action for four of the five states and useless
+    for the fifth.
+
+
+    The signal does exist, just not on the record: `claude agents --json` carries
+    a `state` per session, and a halted session reads `blocked` rather than `working`.
+    The record stays authoritative for what the child has DONE; the session list is
+    the only thing that says whether it is still doing anything.
+
+
+    WHAT I CHANGED. Both poll loops replaced with a version that keeps the record
+    as the exit condition and adds one alarm: if the session reads `blocked` for three
+    consecutive minutes while the record still says ball agent/work, it says so and
+    keeps polling. It does not exit on it and does not try to fix it -- an auth prompt
+    needs the human either way, so the value is entirely in Jeff not being the detector.
+    Three minutes rather than one because `blocked` is also what a legitimate permission
+    prompt looks like in the second before it resolves.
+
+
+    Not generalised into the docs from one incident. If it fires usefully once, the
+    fifth state belongs in the supervision table in docs/agent-workflow.md alongside
+    the other four, and that is a task rather than something to slip into this epic.
+
+
+    ONE UNCERTAINTY, recorded rather than hidden: task-207 is my own subprocess so
+    its session id (6a0beee3) is known exactly. task-208 was dispatched by Jeff, so
+    I do not own its handle -- I matched session 61e30711 to it by start time (15:06:38Z
+    against the dispatch''s 15:06:37Z) and it is the only background session that
+    appeared in that window. If that inference is wrong the only cost is a spurious
+    or missing blocked-alarm on 208; the record-based exit conditions do not depend
+    on it.
+
+
+    STATE at 15:47Z: 207 and 208 both active, ball agent/work, both advancing. task-222
+    (not a child of this epic) has moved to ball agent/revise with no commits on its
+    branch.'
+  data:
+    operation:
+      id: bb9b9273-0081-4a00-9e00-000000000005
+      kind: log_append
+      fingerprint: 661d310d99d5b169d8f90bb4fc52b0de
