@@ -2,11 +2,35 @@ schema: 2
 id: task-208
 title: 'Queue position: MCP verbs, the rule agents follow, and the reference docs'
 created: '2026-08-20T23:31:46.849335Z'
-updated: '2026-08-21T15:06:37.468522Z'
+updated: '2026-08-21T15:47:26.471025Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Review branch `feat/task-208-queue-mcp-and-rules` (two commits, f218874\
+  \ and 92ad88b, on top of 17c7145). Nothing is merged. `git diff main..feat/task-208-queue-mcp-and-rules`\
+  \ is the whole of it: 18 files, +725/-39.\n\nWhat to look at, in the order I would:\n\
+  \n1. **The `task_queue_move` schema** in `src/agentjobs/mcp/mutation_tools.py` \u2014\
+  \ this is the one call worth arguing about. It takes `placement` as a discriminated\
+  \ union (`{where: before|after, neighbour: <id>}` or `{where: top|bottom}`) rather\
+  \ than the four flat before/after/top/bottom flags that REST, the CLI and the Python\
+  \ client all use. The union makes `before` plus `top` fail validation instead of\
+  \ silently picking one, and it matches the handoff-target union already in that\
+  \ module. The cost is one more shape for the same verb across surfaces. If you would\
+  \ rather it mirrored the flags, say so and it is a small change.\n2. **The section\
+  \ 11 rule** in `ALLAGENTS.md` (first subsection of Task Management) and `docs/agent-workflow.md`\
+  \ (just before the canonical agent loop). Both put the move first and the three\
+  \ prohibitions after, per the spec's constraint. Read whether it lands as a rule\
+  \ you would actually follow.\n3. **The new `queue_broken` error code** \u2014 log\
+  \ entry 9 has the reasoning and both rejected alternatives. This is the one thing\
+  \ here the spec did not ask for.\n\nVerification: `scripts/check.py` with no arguments,\
+  \ all ten stages green, 490s. 15 new tests. I have not exercised the tool from a\
+  \ live MCP client \u2014 the packaged-protocol test drives `agentjobs mcp` as a\
+  \ real subprocess over the wire and asserts the fifteen-tool inventory, but a real\
+  \ Claude Code or Codex session calling `task_queue_move` is human verification,\
+  \ same as task-116.\n\nNo UI change, so no review server: the whole surface is a\
+  \ tool schema, a doc and a log entry.\n\nApprove the merge or name what to change.\
+  \ On approval I rebase onto main, merge --no-ff, close, and remove the worktree\
+  \ at C:/projects/worktrees/agentjobs-208."
 archived: false
 priority: high
 queue_position: 4900
@@ -76,36 +100,60 @@ acceptance:
 - id: sc-1
   text: '`task_next` returns the winner with its band, position and the list of what
     was skipped ahead of it and why.'
-  status: pending
+  verify: tests/test_mcp_read_tools.py::TestTaskNext -- test_the_winner_carries_its_band_and_its_place_in_it,
+    test_it_names_what_was_skipped_and_the_rule_that_skipped_it, test_a_list_row_carries_the_position_too.
+  status: met
 - id: sc-2
   text: '`task_queue_move` exists, requires actor and operation_id, replays on a repeated
     operation_id, and is named by the MCP guide (the existing contract test enforces
     the naming).'
-  status: pending
+  verify: tests/test_mcp_mutation_tools.py::TestQueueMove (10 tests) plus the inventory
+    assertions in TestPublishedSurface; naming enforced by tests/test_documentation_contract.py::test_the_mcp_guide_names_every_published_tool.
+  status: met
 - id: sc-3
   text: ALLAGENTS.md and docs/agent-workflow.md state the queue rule, including the
     dependency prohibition and the move that replaces it.
-  status: pending
+  verify: ALLAGENTS.md 'Work what the queue says is next'; docs/agent-workflow.md
+    'Work What the Queue Says Is Next'. Each states the move first and then the three
+    prohibitions.
+  status: met
 - id: sc-4
   text: docs/task-schema.md documents queue_position, the open-if-and-only-if invariant,
     and how the order is changed.
-  status: pending
+  verify: 'docs/task-schema.md: the field row (invariant), the queue_move log-entry
+    section, the manager verb table, and a new paragraph naming every surface that
+    changes the order and stating that a needs dependency is not one.'
+  status: met
 deliverables:
 - path: src/agentjobs/mcp/mutation_tools.py
-  note: task_queue_move
-  status: pending
+  note: task_queue_move, with the placement union and no position number
+  status: done
+- path: src/agentjobs/mcp/read_tools.py
+  note: task_next carries the section 9 explanation; 409 becomes queue_broken
+  status: done
+- path: src/agentjobs/mcp/summaries.py
+  note: queue_position on every task summary row
+  status: done
 - path: ALLAGENTS.md
   note: the queue rule agents follow
-  status: pending
+  status: done
+- path: docs/agent-workflow.md
+  note: the same rule, with the client and CLI calls
+  status: done
 - path: docs/task-schema.md
   note: reference documentation for the field
-  status: pending
+  status: done
+- path: docs/mcp.md
+  note: names task_queue_move and the queue_broken code
+  status: done
 dependencies:
 - task: task-205
   type: needs
   note: The manager verbs must exist before a tool can call one.
 links: []
-branches: []
+branches:
+- name: feat/task-208-queue-mcp-and-rules
+  status: active
 log:
 - id: 1
   ts: '2026-08-20T23:31:46.849380Z'
@@ -211,3 +259,130 @@ log:
         eligible: true
       - runner: chatgpt-sol
         eligible: true
+- id: 7
+  ts: '2026-08-21T15:46:41.873496Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 3b5c1d90-208a-4f11-9c02-0000000208a2
+      kind: update_content
+      fingerprint: 81ba6f342d51923ec379d44b1639507b
+- id: 8
+  ts: '2026-08-21T15:47:01.188129Z'
+  actor: claude
+  type: progress
+  body: "Implemented on feat/task-208-queue-mcp-and-rules (two commits: f218874 the\
+    \ MCP surface, 92ad88b the rules and reference docs). Nothing is merged.\n\nMCP\
+    \ (`src/agentjobs/mcp/`):\n- `summaries.py` \u2014 `queue_position` on every task\
+    \ summary row, so `tasks_list`, `task_next` and `task_get`'s children all carry\
+    \ it. Band was already there as `priority`.\n- `read_tools.py` \u2014 `task_next`\
+    \ now also calls `explain_next_task()` and returns the section 9 structure as\
+    \ a `queue` field: the winner's band and position, the empty bands checked above\
+    \ it, and every open task passed over with the rule that excluded it. The prose\
+    \ `explanation` gained the same in one sentence plus the section 11 instruction,\
+    \ for clients that do not read structured results.\n- `mutation_tools.py` \u2014\
+    \ `task_queue_move`, the tenth mutation tool. Takes `actor`, `operation_id` and\
+    \ `expected_revision` like the other content verbs, and a `placement` discriminated\
+    \ union: `{where: before|after, neighbour: <id>}` or `{where: top|bottom}`. No\
+    \ position number anywhere in the schema.\n- `instructions.py` \u2014 the server\
+    \ instructions now say there is no position setter either, and add a paragraph\
+    \ telling a client to call `task_next` before choosing work and `task_queue_move`\
+    \ if it disagrees.\n- `errors.py` \u2014 new `queue_broken` code (see the decision\
+    \ entry below).\n\nRules and docs: the section 11 rule is in ALLAGENTS.md (`###\
+    \ Work what the queue says is next`, first subsection of Task Management) and\
+    \ docs/agent-workflow.md (`## Work What the Queue Says Is Next`, immediately before\
+    \ the canonical agent loop, since that loop opens with `get_next_task`). docs/task-schema.md\
+    \ gains a paragraph naming every surface that changes the order and stating that\
+    \ a `needs` dependency is not one of them; it already carried the field row, the\
+    \ invariant and the manager verb table from task-205. docs/mcp.md names the tool,\
+    \ describes the placement contract and adds the `queue_broken` row; the tool count\
+    \ moves from fourteen to fifteen across docs/mcp.md and docs/mcp-clients.md. The\
+    \ plugin SKILL.md and the write guard's refusal message name the tool too \u2014\
+    \ those are the text an agent reads when it is hunting for the verb it needs.\n\
+    \nVerified: `scripts/check.py` with no arguments, all ten stages, green in 490s\
+    \ (Black 0.6s, Ruff 0.2s, MyPy 17.4s, api 6.8s, icons 3.0s, oxlint 0.6s, pytest\
+    \ 406.5s, Vitest 33.4s, build 4.3s, e2e 17.9s). 15 new tests: `TestQueueMove`\
+    \ (10) in tests/test_mcp_mutation_tools.py and 5 in tests/test_mcp_read_tools.py.\
+    \ The ones that would actually catch a regression are `test_there_is_no_way_to_write_a_position_number`\
+    \ (asserts against the published input schema, which is what the SDK enforces\
+    \ and what an agent reads, not against the handler), `test_repeating_the_operation_id_replays_instead_of_moving_twice`\
+    \ (a retry after a timeout must not walk the task two places up the band), and\
+    \ `test_a_broken_queue_is_reported_as_broken_rather_than_answered`.\n\nNot done,\
+    \ deliberately: the ordering of the live backlog, which the spec puts out of scope\
+    \ as child 6."
+  data:
+    operation:
+      id: 3b5c1d90-208a-4f11-9c02-0000000208b1
+      kind: log_append
+      fingerprint: e7f6a9a9ca18f11ef40bcfde1eaf8089
+- id: 9
+  ts: '2026-08-21T15:47:11.626700Z'
+  actor: claude
+  type: decision
+  body: "Added a `queue_broken` error code to the MCP vocabulary, which the spec did\
+    \ not ask for.\n\nDesign section 8 names the surfaces that report a corrupt queue\
+    \ \u2014 REST 409, the CLI's non-zero exit, the React panel \u2014 and does not\
+    \ name MCP. But `errors.py` maps an unclassified 409 from a read route to `internal_error`,\
+    \ and the only read route that answers 409 is the one this task just made the\
+    \ primary way an agent chooses work. So `task_next` over a corrupt queue would\
+    \ have said \"AgentJobs is broken\" when the truth is \"your corpus is, and here\
+    \ is `agentjobs queue repair`\". The gap predates this task; making the queue\
+    \ the thing agents read through MCP is what makes it matter.\n\nRejected: mapping\
+    \ 409 to the existing `broken_task`. That code means a file will not parse, and\
+    \ the repair is different \u2014 a corrupt queue's files are all perfectly valid,\
+    \ which is exactly why the failure is hard to see. Reusing the code would have\
+    \ sent a reader to look at a file that is fine.\n\nAlso rejected: leaving it as\
+    \ `internal_error` and noting the limitation in the docs. The whole argument of\
+    \ section 8 is that a queue which quietly misreports trains everyone to ignore\
+    \ corruption, and the failure it produces \u2014 silently working the wrong task\
+    \ \u2014 is invisible. A code an agent can branch on is what makes the refusal\
+    \ actionable rather than decorative. It is non-retryable, and its `suggested_action`\
+    \ says not to pick a task by hand instead, since the order is precisely what is\
+    \ in doubt."
+  data:
+    operation:
+      id: 3b5c1d90-208a-4f11-9c02-0000000208b2
+      kind: log_append
+      fingerprint: afc41e326082342b3d7f2bb3c2d696a5
+- id: 10
+  ts: '2026-08-21T15:47:26.470810Z'
+  actor: claude
+  type: handoff
+  body: "Review branch `feat/task-208-queue-mcp-and-rules` (two commits, f218874 and\
+    \ 92ad88b, on top of 17c7145). Nothing is merged. `git diff main..feat/task-208-queue-mcp-and-rules`\
+    \ is the whole of it: 18 files, +725/-39.\n\nWhat to look at, in the order I would:\n\
+    \n1. **The `task_queue_move` schema** in `src/agentjobs/mcp/mutation_tools.py`\
+    \ \u2014 this is the one call worth arguing about. It takes `placement` as a discriminated\
+    \ union (`{where: before|after, neighbour: <id>}` or `{where: top|bottom}`) rather\
+    \ than the four flat before/after/top/bottom flags that REST, the CLI and the\
+    \ Python client all use. The union makes `before` plus `top` fail validation instead\
+    \ of silently picking one, and it matches the handoff-target union already in\
+    \ that module. The cost is one more shape for the same verb across surfaces. If\
+    \ you would rather it mirrored the flags, say so and it is a small change.\n2.\
+    \ **The section 11 rule** in `ALLAGENTS.md` (first subsection of Task Management)\
+    \ and `docs/agent-workflow.md` (just before the canonical agent loop). Both put\
+    \ the move first and the three prohibitions after, per the spec's constraint.\
+    \ Read whether it lands as a rule you would actually follow.\n3. **The new `queue_broken`\
+    \ error code** \u2014 log entry 9 has the reasoning and both rejected alternatives.\
+    \ This is the one thing here the spec did not ask for.\n\nVerification: `scripts/check.py`\
+    \ with no arguments, all ten stages green, 490s. 15 new tests. I have not exercised\
+    \ the tool from a live MCP client \u2014 the packaged-protocol test drives `agentjobs\
+    \ mcp` as a real subprocess over the wire and asserts the fifteen-tool inventory,\
+    \ but a real Claude Code or Codex session calling `task_queue_move` is human verification,\
+    \ same as task-116.\n\nNo UI change, so no review server: the whole surface is\
+    \ a tool schema, a doc and a log entry.\n\nApprove the merge or name what to change.\
+    \ On approval I rebase onto main, merge --no-ff, close, and remove the worktree\
+    \ at C:/projects/worktrees/agentjobs-208."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 3b5c1d90-208a-4f11-9c02-0000000208c1
+      kind: handoff
+      fingerprint: 7d1ce08a23d0f9db1e5f856eee8a1aeb
