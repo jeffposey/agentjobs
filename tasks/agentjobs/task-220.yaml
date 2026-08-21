@@ -2,16 +2,11 @@ schema: 2
 id: task-220
 title: An epic supervisor parks where ordinary dispatched runs do not
 created: '2026-08-21T05:35:56.284351Z'
-updated: '2026-08-21T09:22:52.764000Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-21T17:27:31.659813Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 100
 category: infrastructure
 tags:
 - dispatch
@@ -21,7 +16,6 @@ tags:
 effort: unknown until the cause is established -- diagnose first, then a fix that
   is probably small
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: Six of eight dispatched runs on 2026-08-20/21 completed unattended with
@@ -142,9 +136,14 @@ acceptance:
     what any other dispatched posture may do, with the rejected alternatives recorded.
   status: met
 - id: ac-3
-  text: task-081 is dispatched as a supervisor and starts task-204 in its own session
-    with no permission prompt and no park -- the live proof, not a unit test.
-  status: pending
+  text: 'task-081 is dispatched as a supervisor and starts a child in its own session
+    with no permission prompt and no park -- the live proof, not a unit test. Met
+    by run_bb9b9273 (log entry 20), the first dispatch whose argv actually carried
+    the grant: it supervised task-207, task-209 and task-225 to completion, never
+    parked, and task-081 closed completed with all seven criteria met. The criterion
+    originally named task-204; that run (run_c0f71d70) matched the wording but launched
+    from a stale server without the grant, so it proved nothing about the fix.'
+  status: met
 - id: ac-4
   text: 'Ordinary dispatch is demonstrably unchanged: a non-epic task still dispatches
     and completes under the same posture and allow-list it uses today.'
@@ -847,3 +846,85 @@ log:
       id: b8d15f30-6c94-4a27-b158-92e07df40220
       kind: update_content
       fingerprint: ca79736db370f31659b744c654b35fd1
+- id: 20
+  ts: '2026-08-21T17:27:15.892921Z'
+  actor: claude
+  type: progress
+  body: "**ac-3 is met, by `run_bb9b9273` \u2014 not by the run that literally matched\
+    \ its wording. Both facts belong on the record.**\n\nObserved by the interactive\
+    \ watch session, 2026-08-21, polling task records rather than processes.\n\n##\
+    \ The run that satisfied ac-3's letter did not carry the fix\n\n`run_c0f71d70`\
+    \ was dispatched at 08:00:15Z and started task-204 in its own session at 08:04Z\
+    \ with no prompt and no park. That is ac-3's literal wording, and log entry 32\
+    \ on task-081 accordingly reported \"the supervisor grant works and is proven.\"\
+    \n\n**It is not proven by that run.** Its `--settings` blob, recorded verbatim\
+    \ in task-081 log entry 28, carries the nine ordinary `ALLOW_PREFIXES` rules and\
+    \ no `mcp__agentjobs` rule at all \u2014 byte-identical in that respect to `run_d5ab5caf`,\
+    \ the run that parked. The cause: the 8876 server holds imported code in memory\
+    \ and had been running since 04:41:01Z, while the task-220 merge landed at 07:52:55Z.\
+    \ Dispatch therefore composed that argv from pre-merge `runner.py`. The supervisor\
+    \ *stub* was correct because it predates this fix; only the grant was missing.\n\
+    \nSo run_c0f71d70's clean start is evidence that a supervisor **sometimes** survives\
+    \ without the grant \u2014 consistent with entry 11's finding that declines are\
+    \ stochastic \u2014 and is not evidence about the fix.\n\n## The run that did\
+    \ prove it\n\nThe 8876 server was restarted at 14:23:03Z. `run_bb9b9273` was dispatched\
+    \ at 14:27:41Z, and its argv (task-081 log entry 37) carries `\"mcp__agentjobs\"\
+    ` as the last entry of `permissions.allow`. That is the first dispatch in this\
+    \ project's history to do so.\n\nUnder that grant, from 14:27Z to 17:25Z:\n\n\
+    - It wrote its own supervisor brief and children's briefs through `task_log_append`\
+    \ repeatedly, including the merge-posture content whose earlier equivalent was\
+    \ declined twice and parked `run_d5ab5caf` before it launched anything.\n- It\
+    \ launched child sessions for **task-207**, **task-209** and **task-225**, one\
+    \ at a time, each in its own worktree.\n- It supervised task-208 without acting\
+    \ on it, after that child was dispatched separately outside its loop.\n- All seven\
+    \ children of task-081 closed `completed`. task-081 itself closed `completed`\
+    \ at 17:25:57Z with sc-1 through sc-7 all `met`.\n- **It never parked.** Its `ball`\
+    \ was polled on a sixty-second interval throughout and read `agent`/`work` continuously\
+    \ from 14:31Z until the task closed. It reached no permission prompt and armed\
+    \ no breaker.\n\nThat is the live proof ac-3 asked for: a supervisor that writes\
+    \ children's briefs through MCP without refusal, launches children, and completes\
+    \ an epic unattended. The wording named task-204 because task-204 was first when\
+    \ the criterion was written; the substance is a supervisor surviving the coordination\
+    \ writes that killed `run_d5ab5caf`, and that is what happened.\n\n## What this\
+    \ does not establish, stated so nobody over-reads it\n\nThe grant covers the project's\
+    \ own MCP servers for the supervisor role. It says nothing about `git merge`,\
+    \ which was refused from task-206's child session the same day and produced a\
+    \ separate park \u2014 the reason task-222 exists. And tonight established that\
+    \ an allow-rule match does **not** unconditionally skip the classifier: an allow-listed\
+    \ bare `git add` was declined when its arguments named `runner.py`. Entry 12's\
+    \ supporting claim, taken from the permission docs, is therefore true in the common\
+    \ case and false as an absolute. The supervisor grant works; the mechanism by\
+    \ which it works is less categorical than this task assumed."
+  data:
+    operation:
+      id: f3a86d52-9c17-4e04-b8d3-2a5f7e1c9046
+      kind: log_append
+      fingerprint: 23bb7f959a077e2238fdfb5e667e1668
+- id: 21
+  ts: '2026-08-21T17:27:25.645434Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 1d5e8c37-4a92-4b60-9f18-7c03e6a2b845
+      kind: update_content
+      fingerprint: a2eef73563b8d3f000307b118411c669
+- id: 22
+  ts: '2026-08-21T17:27:31.659511Z'
+  actor: claude
+  type: transition
+  body: "All five criteria met. The branch merged at 07:52:55Z (0b06279); ac-3's live\
+    \ proof is log entry 20 \u2014 run_bb9b9273 supervised task-081 from 14:27Z to\
+    \ 17:25Z, launched three child sessions, never parked, and the epic closed completed\
+    \ with all seven of its own criteria met. Closing per the standing ball_prompt,\
+    \ which authorised exactly this once merged."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: a6b40f81-2c93-4d57-8e16-9b7d3f5a0e24
+      kind: close
+      fingerprint: 40295c56892acbf87fa66ef5b0f26efa
