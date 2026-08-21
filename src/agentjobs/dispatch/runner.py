@@ -58,6 +58,7 @@ from agentjobs.dispatch.config import (
     sentinel_active,
     substitute_argv,
 )
+from agentjobs.dispatch.record_commit import CommitOutcome, commit_task_record
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     Ball,
@@ -877,6 +878,25 @@ class DispatchRunner:
         """
         return working_tree_clean(self.project_root, ignore=[self.manager.storage.tasks_dir])
 
+    def _commit_record(
+        self, task_id: str, subject: str, *, directory: Optional[RunDirectory] = None
+    ) -> CommitOutcome:
+        """Commit the task record this dispatcher just wrote, and say so in the run's meta.
+
+        Called at the end of each terminal write rather than after each individual
+        manager call, so a settle that writes a ``dispatch_result`` and then hands the
+        ball to a human produces one commit describing one event, not two.
+
+        The outcome is recorded rather than acted on. There is no logger in this
+        subsystem and a run directory is meant to be a complete account of its own run,
+        so ``record_commit`` in ``meta.yaml`` is where a later reader finds out that git
+        refused -- which is the only way that fact would otherwise be invisible.
+        """
+        outcome = commit_task_record(self.manager, task_id, subject=subject)
+        if directory is not None:
+            directory.update_meta(record_commit=outcome.detail)
+        return outcome
+
     def _git_head(self) -> str:
         """The commit the working tree is on, so a run's diff stays attributable."""
         return git_head(self.project_root)
@@ -1249,6 +1269,13 @@ class DispatchRunner:
             ),
         )
         handle.directory.update_meta(status="parked")
+        # A parked session is alive but will not act again until a human answers its
+        # prompt, so it is not going to commit this handoff on its way past.
+        self._commit_record(
+            handle.task_id,
+            f"park run {handle.run_id} on a permission prompt",
+            directory=handle.directory,
+        )
 
     def _settle_finished_session(self, handle: RunHandle) -> None:
         """Decide whether a finished session concluded or merely stopped.
@@ -1356,6 +1383,14 @@ class DispatchRunner:
                     ball_prompt=hand_to_human,
                 )
 
+        # Last, so one commit covers the result entry and any handoff that followed it.
+        # The session has exited by now; nobody else is coming back for this file.
+        self._commit_record(
+            handle.task_id,
+            f"record run {handle.run_id} as {outcome.value}",
+            directory=handle.directory,
+        )
+
     # ----- batch mode --------------------------------------------------------
 
     def _start_batch(
@@ -1429,6 +1464,12 @@ class DispatchRunner:
                 re=entry_id,
                 log_path=str(directory.path),
                 body=f"The run never started: {exc}",
+            )
+            # No session ever existed here, so this commit also carries the dispatch
+            # entry written moments earlier -- the one case where that entry has no
+            # session to sweep it up.
+            self._commit_record(
+                task.id, f"record run {run_id} as crashed before it started", directory=directory
             )
             raise DispatchRunError(f"Could not start a batch run for {task.id}: {exc}") from exc
 
@@ -1587,21 +1628,29 @@ class DispatchRunner:
             body=body,
         )
 
-        if outcome is DispatchOutcome.COMPLETED:
-            return
-        task = self.manager.get_task(handle.task_id)
-        if task is not None and task.is_open and task.ball is not Ball.HUMAN:
-            self.manager.handoff(
-                handle.task_id,
-                actor="dispatcher",
-                ball=Ball.HUMAN,
-                ball_reason=BallReason.DECISION,
-                ball_prompt=(
-                    f"A dispatched batch run ended `{outcome.value}` and nobody was told "
-                    "what the task needs. The run's last output is in the "
-                    "dispatch_result entry; decide whether to re-dispatch or take it on."
-                ),
-            )
+        if outcome is not DispatchOutcome.COMPLETED:
+            task = self.manager.get_task(handle.task_id)
+            if task is not None and task.is_open and task.ball is not Ball.HUMAN:
+                self.manager.handoff(
+                    handle.task_id,
+                    actor="dispatcher",
+                    ball=Ball.HUMAN,
+                    ball_reason=BallReason.DECISION,
+                    ball_prompt=(
+                        f"A dispatched batch run ended `{outcome.value}` and nobody was "
+                        "told what the task needs. The run's last output is in the "
+                        "dispatch_result entry; decide whether to re-dispatch or take "
+                        "it on."
+                    ),
+                )
+
+        # Both outcomes, and after the handoff rather than before it: the process is
+        # gone on either path and its last commit is already behind us.
+        self._commit_record(
+            handle.task_id,
+            f"record run {handle.run_id} as {outcome.value}",
+            directory=handle.directory,
+        )
 
     def terminate_group(self, process: "subprocess.Popen[bytes]") -> None:
         """Signal the whole process tree, then kill what is left.

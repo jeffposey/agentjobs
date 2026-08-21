@@ -38,6 +38,7 @@ from typing import Dict, List, Optional
 import yaml
 
 from agentjobs.dispatch.config import sentinel_path
+from agentjobs.dispatch.record_commit import commit_task_record
 from agentjobs.dispatch.runner import (
     META_FILENAME,
     TERMINAL_STATUSES,
@@ -926,6 +927,17 @@ class DispatchLedger:
                     "dispatch again or take it on yourself."
                 ),
             )
+
+        # This sweep runs precisely because no session is left to speak for the run, so
+        # there is certainly none left to commit what the sweep wrote (task-203).
+        write_status(
+            record,
+            record_commit=commit_task_record(
+                manager,
+                record.task_id,
+                subject=f"record swept run {record.run_id} as {outcome.value}",
+            ).detail,
+        )
 
 
 def _dispatch_entry_id(task: object, run_id: str) -> Optional[int]:

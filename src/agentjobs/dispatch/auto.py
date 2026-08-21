@@ -37,6 +37,7 @@ from agentjobs.dispatch.config import (
     assert_dispatch_permitted,
 )
 from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
+from agentjobs.dispatch.record_commit import commit_task_record
 from agentjobs.dispatch.runner import DispatchRunError
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
@@ -249,21 +250,29 @@ def _record_cap_refusal(manager: TaskManager, task: Task, refusal: CapRefusal) -
         body=f"Auto-dispatch refused by the `{refusal.limit}` budget cap.\n\n{refusal.message}",
         data={"auto_dispatch_refused": refusal.limit, "dispatch_count": task.dispatch_count},
     )
-    if not refusal.parks_task:
-        return
     current = manager.get_task(task.id)
-    if current is None or not current.is_open or current.ball is Ball.HUMAN:
-        return
-    manager.handoff(
-        task.id,
-        actor=DISPATCHER_ACTOR,
-        ball=Ball.HUMAN,
-        ball_reason=BallReason.DECISION,
-        ball_prompt=(
-            f"Auto-dispatch has stopped starting runs for this task: it hit the "
-            f"`{refusal.limit}` cap after {current.dispatch_count} dispatches without "
-            "reaching a conclusion. Read the dispatch_result entries and decide what is "
-            "actually wrong — the spec, the runner, or the task itself. Manual dispatch "
-            "still works and is not capped."
-        ),
+    if (
+        refusal.parks_task
+        and current is not None
+        and current.is_open
+        and current.ball is not Ball.HUMAN
+    ):
+        manager.handoff(
+            task.id,
+            actor=DISPATCHER_ACTOR,
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.DECISION,
+            ball_prompt=(
+                f"Auto-dispatch has stopped starting runs for this task: it hit the "
+                f"`{refusal.limit}` cap after {current.dispatch_count} dispatches "
+                "without reaching a conclusion. Read the dispatch_result entries and "
+                "decide what is actually wrong — the spec, the runner, or the task "
+                "itself. Manual dispatch still works and is not capped."
+            ),
+        )
+
+    # No run was started, so there is no session and no run directory: this write has
+    # nobody at all behind it, which makes it the most dangling of the lot (task-203).
+    commit_task_record(
+        manager, task.id, subject=f"record the `{refusal.limit}` auto-dispatch cap refusal"
     )
