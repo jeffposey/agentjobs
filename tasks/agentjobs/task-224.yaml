@@ -3,47 +3,48 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-21T19:43:19.347655Z'
+updated: '2026-08-21T20:36:56.361572Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: "Research is complete; all four acceptance criteria are met. No code\
-  \ was written and no branch exists \u2014 the deliverable is log entries 6, 7 and\
-  \ 8 on this record. Nothing was posted upstream and nothing was built.\n\n**The\
-  \ answer: your remote-control hypothesis is wrong, and the real cause is in a log\
-  \ nobody had opened \u2014 `~/.claude/daemon.log`.** Claude Code runs a background\
-  \ auth daemon that owns OAuth refresh for every `--bg` session. At 15:33:40 UTC\
-  \ its scheduled refresh fired on time and failed four times over 3m19s. It then\
-  \ gave up and discarded the token \u2014 a token its own log line calls `(token\
-  \ still valid)`, 40 seconds before that token would have expired anyway. Every `bg`\
-  \ session went dead; the desktop app, on the same account and machine, kept working\
-  \ throughout, including one call 91ms after the first failure.\n\nThat also explains\
-  \ the part that made you swear: **answering the prompt could not have worked.**\
-  \ Your message at 15:43:38 arrived fine and failed 9ms later, because it was retried\
-  \ against a credential the daemon had already thrown away. Only `claude auth login`\
-  \ clears it. It happened on 2026-08-20 too, and that time it healed itself in two\
-  \ minutes with nobody logging in \u2014 which is what rules out any deliberate logout.\n\
-  \n**Three decisions for you:**\n\n1. **The build recommendation** (entry 8). A narrow\
-  \ detector in the dispatch poller: tail a quiet session's JSONL for `\"error\":\
-  \ \"authentication_failed\"`, and on a hit hand the ball to you saying \"this run\
-  \ needs `claude auth login`\". Right now dispatch is blind to this \u2014 run_a1e35ca5\
-  \ is recorded `outcome: completed` despite having died and needed rescuing. Recovery\
-  \ is verified to work in place, with no restart, so the fix is cheap and the failure\
-  \ it removes is a whole night's unattended work. **Want me to file this as a follow-up\
-  \ task?** I have not created one.\n2. **The upstream report.** anthropics/claude-code#79685\
-  \ is the same bug, open since 2026-07-21 with no maintainer response, and it asks\
-  \ for exactly the machine-readable signal AgentJobs needs. I have three findings\
-  \ to add that the issue does not have (the still-valid token being discarded, `daemon-auth-status.json`\
-  \ latching at `auth_required` and never clearing, and the self-healing occurrence).\
-  \ **Posting is your call \u2014 say the word and I will draft it for your approval\
-  \ rather than sending anything.**\n3. **Anything to correct.** Entry 7 drops four\
-  \ candidate explanations including yours, and is deliberate about the one thing\
-  \ the evidence does *not* settle: why the refresh calls failed. The daemon logs\
-  \ no HTTP status, so \"the OAuth endpoint was unhealthy\" and \"this machine's refresh\
-  \ token was rejected\" cannot be told apart from anything on disk. I did not pick\
-  \ one.\n\nOne live nuisance worth knowing: `~/.claude/daemon-auth-status.json` still\
-  \ reads `auth_required` right now, hours after the successful re-auth, while everything\
-  \ works. It is a stale latch \u2014 do not trust it if you ever go looking."
+ball_prompt: "Built. Branch `feat/task-224-auth-park-detector`, one commit `c7cf92a`,\
+  \ worktree `../worktrees/aj-224`. Full `scripts/check.py` green \u2014 10 of 10\
+  \ stages, 627.8s, no partial run. Not merged, not pushed.\n\n**What changed.** The\
+  \ dispatch poller now reads a live session's own JSONL transcript on each poll and\
+  \ asks one question: is this session sitting dead on an expired login? On a hit\
+  \ it parks the run and hands you the ball with a prompt saying `claude auth login`\
+  \ \u2014 the only thing that fixes it. Before this, an auth-killed session reported\
+  \ `idle`/`done` and got settled as an ordinary finished run, which is how run_a1e35ca5\
+  \ came to be in the ledger as `outcome: completed` after dying.\n\n**The decision\
+  \ worth your eye** (entry 16): the run is **parked, not finished, and the session\
+  \ is not reaped** \u2014 because recovery is in place and reaping would destroy\
+  \ it. Consequence: a stalled run keeps its lock, so the task cannot be re-dispatched\
+  \ until you act. I think that is right (a fresh dispatch dies in the same second\
+  \ on the same dead credential) and Cancel already exists if you disagree in the\
+  \ moment. Say so if you would rather it finished the run.\n\n**Verified against\
+  \ the incident itself, not just fixtures.** Truncating the two genuine transcripts\
+  \ at each of the three real failure lines reports STALLED at every one; both files\
+  \ as they stand today report nothing, because they recovered. Then the false-positive\
+  \ question asked of the whole corpus: **318 session transcripts on this machine,\
+  \ exactly 1 flagged** \u2014 the 2026-08-20 child that never ran a turn, which is\
+  \ correct. This session's own transcript, which contains the string `authentication_failed`\
+  \ several times over from reading this very task, is not flagged. That is what the\
+  \ JSON-field match buys over a grep.\n\n**One thing beyond the literal ask**, because\
+  \ you said poller**s**: `agentjobs dispatch auth-check [SESSION_ID]`, exiting 1.\
+  \ An agent supervisor's children are its own subprocesses with no ledger row, so\
+  \ the dispatch poller cannot see them \u2014 and `docs/agent-workflow.md` currently\
+  \ tells such a supervisor that a child which stops has *died* and to spend its one\
+  \ restart. For this failure that restart is guaranteed to fail. The guide now has\
+  \ a fifth child state that branches on the exit code. Cut it if you think it is\
+  \ scope creep; it is self-contained.\n\n**Two things deliberately not built**, both\
+  \ in entry 16: no auto-nudge (AgentJobs has no trustworthy signal that auth is back\
+  \ \u2014 `daemon-auth-status.json` is the stale latch from entry 8), and batch runs\
+  \ are not covered.\n\n**Still outstanding from the first pass, untouched and still\
+  \ your call:** the upstream comment on anthropics/claude-code#79685. I have not\
+  \ posted anything.\n\nOn approval I rebase, merge `--no-ff`, close, and remove the\
+  \ worktree. Nothing here touches the frontend, so no rebuild is needed \u2014 but\
+  \ the running server on 8876 holds this code in memory, so it will want a restart\
+  \ to start doing the check."
 archived: false
 priority: high
 queue_position: 1500
@@ -157,27 +158,57 @@ acceptance:
     8h token clock scheduled hours earlier.'
   status: met
 - id: ac-3
-  text: "The question of whether an auth park is distinguishable from a permission\
-    \ park \u2014 from the ledger or transcript, outside the process \u2014 is answered\
-    \ yes or no."
-  verify: "Log entry 8: YES from the session JSONL ('error': 'authentication_failed',\
-    \ zero false positives across every session log on this machine), NO from the\
-    \ run ledger \u2014 the affected run is recorded outcome: completed. An auth failure\
-    \ ends the turn rather than leaving a pending prompt, so dispatch's park detection\
-    \ never fires."
+  text: The question of whether an auth park is distinguishable from a permission
+    park - from the ledger or transcript, outside the process - is answered yes or
+    no.
+  verify: 'Log entry 8: YES from the session JSONL (''error'': ''authentication_failed'',
+    zero false positives across every session log on this machine), NO from the run
+    ledger - the affected run is recorded outcome: completed. An auth failure ends
+    the turn rather than leaving a pending prompt, so dispatch''s park detection never
+    fires.'
   status: met
 - id: ac-4
   text: 'A recommendation is recorded: build something, report upstream, or nothing
     to do. "Nothing to do" with reasoning is an acceptable outcome and closes the
     task.'
-  verify: 'Log entry 8: build one narrow detector in the dispatch poller (follow-up
-    task); comment on the existing open upstream issue anthropics/claude-code#79685
-    rather than filing a new one; and four named things not to build.'
+  verify: 'Log entry 8: build one narrow detector in the dispatch poller; comment
+    on the existing open upstream issue anthropics/claude-code#79685 rather than filing
+    a new one; and four named things not to build.'
+  status: met
+- id: ac-5
+  text: 'Recommendation 1 is built: a session stalled on an expired login is detected
+    by the dispatch poller and turned into a handoff to a human naming `claude auth
+    login`, rather than being settled as a finished run.'
+  verify: Commit c7cf92a on feat/task-224-auth-park-detector. src/agentjobs/dispatch/auth.py
+    detects it from the session JSONL; DispatchRunner.poll_session parks the run before
+    its phase branches and hands the ball to human/input. Covered by TestASessionKilledByAnExpiredLogin
+    in tests/test_dispatch_poller.py (8 tests), including that the run is NOT recorded
+    as a success and the session is NOT reaped. Full scripts/check.py green, 10 of
+    10 stages, 627.8s.
+  status: met
+- id: ac-6
+  text: The detector does not fire on a session that merely mentions the failure,
+    and does not fire on a session that recovered. Established against the real transcripts
+    on this machine, not only against fixtures.
+  verify: Log entry 15. Truncating the two genuine transcripts at each of the three
+    real authentication_failed lines reports STALLED at each; both files as they stand
+    today report nothing. A sweep of all 318 session transcripts on this machine reports
+    exactly 1 - the 2026-08-20 child that never ran a turn, which is correct. This
+    session's own transcript, which contains the string repeatedly, is not flagged.
+  status: met
+- id: ac-7
+  text: An agent supervisor, whose children appear in no run ledger, has an executable
+    way to tell 'logged out' from 'died' before it spends its one restart.
+  verify: '`agentjobs dispatch auth-check [SESSION_ID]` exits 1 when a session is
+    stalled; docs/agent-workflow.md gains a fifth child state that branches on it.
+    Covered by TestAuthCheckCommand in tests/test_dispatch_cli.py (4 tests).'
   status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-224-auth-park-detector
+  status: active
 log:
 - id: 1
   ts: '2026-08-21T15:51:07.589440Z'
@@ -563,3 +594,258 @@ log:
     outcome: completed
     duration_seconds: 1076.769327
     log_path: C:\Users\jpose\.agentjobs\runs\run_677c3ef2
+- id: 12
+  ts: '2026-08-21T20:03:11.777931Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by Jeff Posey:
+
+
+    Treat this as a "Approved and with notes", don''t worry, we have a task for that
+    already. Just do 1, make our supervisor pollers check for the auth failure.'
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 13
+  ts: '2026-08-21T20:03:17.928357Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 14
+  ts: '2026-08-21T20:03:19.115796Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_03cf63fc
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 13
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-224` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-224-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_03cf63fc.'
+    cwd: C:\projects\agentjobs
+    git_head: 6b60cba
+    session_id: 1b7682c9
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 15
+  ts: '2026-08-21T20:35:06.071684Z'
+  actor: claude
+  type: progress
+  body: "## Built recommendation 1: the poller now recognises an expired login, and\
+    \ says the one thing that fixes it.\n\nBranch `feat/task-224-auth-park-detector`,\
+    \ worktree `../worktrees/aj-224`. Nothing about credentials, tokens or the refresh\
+    \ flow is touched \u2014 the change only makes an already-visible failure legible\
+    \ in the tracker.\n\n### What was added\n\n**`src/agentjobs/dispatch/auth.py`**\
+    \ \u2014 locate a session's JSONL transcript from the short id the run ledger\
+    \ holds, and answer one question: *is this session sitting dead on an expired\
+    \ login right now?*\n\n- **Parsed as JSON, matched on the top-level `error` field.\
+    \ Never grepped.** This is not fussiness: the literal string `authentication_failed`\
+    \ is in the transcript of any session that has *read about* this bug \u2014 this\
+    \ task record, that module, its tests. A substring detector reports every session\
+    \ investigating the failure as suffering from it.\n- **The line's own `sessionId`\
+    \ is checked** against the run's, so a prefix-matched filename cannot mislead\
+    \ it.\n- **It clears itself.** The dead line stays in the transcript forever;\
+    \ a real model reply *underneath* it is what makes it history. A human's message\
+    \ does not clear it \u2014 verified in entry 6, the 15:43:38 nudge failed 9ms\
+    \ after arriving.\n- **Only the last 256 KB is read**, per poll, per live run.\
+    \ Cheap, and the right semantics: a failure buried under newer work is a session\
+    \ that carried on.\n- **`None` for every runner that is not Claude Code**, because\
+    \ no other runner writes any of this. No runner names are sniffed at anywhere.\n\
+    \n**`DispatchRunner.poll_session`** checks it *before* the phase branches, because\
+    \ it contradicts them. `_park_auth_stall` hands the ball to `human`/`input` with\
+    \ a prompt naming `claude auth login`, marks the run `parked` with the failure's\
+    \ timestamp as the idempotency key, and commits the record itself.\n\n**Parked,\
+    \ not finished, and not reaped** \u2014 the decision that matters most; reasoning\
+    \ in the decision entry that follows.\n\n**`agentjobs dispatch auth-check [SESSION_ID]`**\
+    \ \u2014 the same check for a human or an agent supervisor, exiting 1 when a session\
+    \ is stalled. Supervisor-started children are that supervisor's own subprocesses\
+    \ and appear in no ledger, so the poller cannot see them at all.\n\n**Docs.**\
+    \ `docs/agent-dispatch-design.md` gains a section beside \"A parked session is\
+    \ a handoff, not a stall\", and amends \xA79's \"`failed` and `crashed` have no\
+    \ representation at all\". `docs/agent-workflow.md` gains a fifth child state\
+    \ \u2014 *logged out* \u2014 because it is indistinguishable from *died* by looking,\
+    \ and the table's advice for *died* is one restart, which is the one response\
+    \ guaranteed to fail.\n\n### Verified against the real incident, not only against\
+    \ fixtures\n\nTruncating the genuine transcripts at each of the three real `authentication_failed`\
+    \ lines and asking the detector what it would have said at that moment:\n\n```\n\
+    61e30711: truncated at the 15:38:21.136 failure -> STALLED, 'Login expired \xB7\
+    \ Please run /login'\n61e30711: truncated at the 15:43:38.025 failure -> STALLED\n\
+    6a0beee3: truncated at the 15:36:45.777 failure -> STALLED\nboth files as they\
+    \ stand today                  -> None   (they recovered)\n```\n\nThen the false-positive\
+    \ question, asked of the whole corpus rather than argued: **318 session transcripts\
+    \ on this machine scanned, exactly 1 reported stalled** \u2014 `7ceaaaab`, the\
+    \ 2026-08-20 child that died 394 ms into its first request and never ran a turn,\
+    \ so nothing real follows its failure line. That one is correct. Notably *not*\
+    \ flagged: this session's own transcript, which contains the string several times\
+    \ over from reading this task.\n\n### Tests\n\n`tests/test_dispatch_auth.py` (17)\
+    \ for the detector, including the substring false positive, a failure attributed\
+    \ to another session, recovery, a nudge that is not a recovery, a stall after\
+    \ a recovery, the `since` filter, non-JSON lines, and both tail-window edges.\
+    \ `TestASessionKilledByAnExpiredLogin` in `tests/test_dispatch_poller.py` (8)\
+    \ for the poller: the handoff and its prompt, the run *not* being recorded as\
+    \ a success, the session not being reaped, idempotency across two polls, normal\
+    \ settlement after recovery, and a non-Claude runner polling exactly as before.\
+    \ `TestAuthCheckCommand` in `tests/test_dispatch_cli.py` (4).\n\n`tests/conftest.py`\
+    \ gains an autouse fixture pointing the check at an empty temp directory, alongside\
+    \ the two already there. Without it the suite would ask the developer's machine\
+    \ whether *its* sessions had died.\n\nFull gate still running; this entry will\
+    \ be followed by its result.\n"
+  data:
+    operation:
+      id: 2c7f4a19-8b3d-4e52-9a61-0d7c5e83b410
+      kind: log_append
+      fingerprint: 7fe6a222c0ce08a9c8b67a2de1376d49
+- id: 16
+  ts: '2026-08-21T20:35:30.787050Z'
+  actor: claude
+  type: decision
+  body: "## An auth-stalled run is parked, not finished \u2014 and the session is\
+    \ not reaped.\n\nThe alternative, and the obvious one, was to give the run a terminal\
+    \ `dispatch_result` with `outcome: failed`. \xA79 of the design doc even licenses\
+    \ it: it says `failed` and `crashed` have no representation in session mode *because*\
+    \ a session that errors reports `idle`/`done`, and this task is precisely the\
+    \ discovery that one such error can be named after all.\n\n**Rejected, because\
+    \ finishing reaps.** `_finish_session` reaps the session by default, and entry\
+    \ 8 established that recovery is *in place*: run_a1e35ca5 was already running\
+    \ when it died, and after the re-auth it picked up on the same session with no\
+    \ restart and no re-dispatch, then completed normally. Reaping would destroy the\
+    \ cheapest recovery available and convert a six-minute outage into a lost night\
+    \ \u2014 the exact failure this task exists to remove.\n\nThree consequences,\
+    \ each deliberate:\n\n- **The run keeps its lock**, so the task cannot be re-dispatched\
+    \ while it is stalled. That is right rather than merely tolerable: a fresh dispatch\
+    \ would die in the same second, on the same dead credential. A human who would\
+    \ rather start over can cancel the run from the dashboard, which is one click\
+    \ and already exists.\n- **A stalled run stays live indefinitely** if nobody ever\
+    \ acts. It is not silent \u2014 the ball is with a human, carrying a prompt naming\
+    \ the fix \u2014 so this is a visible open item rather than a lost one, which\
+    \ is the whole difference from today.\n- **No `dispatch_result` is written**,\
+    \ so the run's record stays honest: it has not concluded, because it has not.\n\
+    \n## Two things deliberately not built\n\n**No auto-nudge.** Entry 8 offered it\
+    \ as optional: once auth is restored, poke the parked session so it resumes itself.\
+    \ It is left out because AgentJobs has no trustworthy way to know auth is restored.\
+    \ The one machine-readable signal \u2014 `daemon-auth-status.json` \u2014 is a\
+    \ proven-stale latch (entry 8, signal 3), and polling the transcript cannot distinguish\
+    \ \"auth is back\" from \"nothing has happened yet\". A nudge sent too early is\
+    \ worse than none: it fails in 9 ms and consumes a turn. The human is already\
+    \ being told to send that message, and they are the one party who knows they have\
+    \ just logged in.\n\n**Batch runs are not covered.** `_classify_batch_exit` reads\
+    \ a process exit code and would report a generic `failed`. Dispatch's session\
+    \ mode is the unattended surface these two incidents happened on, and a batch\
+    \ run at least ends loudly with output rather than being recorded as a success.\
+    \ Naming it here so a later reader knows it was considered rather than missed.\n\
+    \n## One thing added beyond the ask, and why\n\nJeff's note said \"make our supervisor\
+    \ **pollers**\" \u2014 plural. The dispatch poller is one. The other is the agent\
+    \ supervisor described in `docs/agent-workflow.md`, whose children are its own\
+    \ subprocesses with no run directory and no ledger row, so the dispatch poller\
+    \ cannot see them at all. That guide's table tells a supervisor that a child which\
+    \ simply stops has *died*, and prescribes one restart \u2014 which, for this failure,\
+    \ is guaranteed to die identically and to be the last useful thing that supervisor\
+    \ does before it burns its budget proving so.\n\n`agentjobs dispatch auth-check\
+    \ [SESSION_ID]` exists so that instruction is executable rather than prose: exit\
+    \ 1 means logged out, and the guide now carries a fifth child state that branches\
+    \ on it. The alternative \u2014 telling an agent to run a Python one-liner against\
+    \ an internal module \u2014 is worse than a command.\n"
+  data:
+    operation:
+      id: 6d1a8f27-4c93-4b05-8e71-3f2a90d6c5e8
+      kind: log_append
+      fingerprint: 16161732f18725ee9fa0546381cb3a8b
+- id: 17
+  ts: '2026-08-21T20:36:37.194101Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 9e4b2d75-1c68-4f30-b7a9-5d81e6c04f23
+      kind: update_content
+      fingerprint: 0ea18de7360f9ddb5468c1588381b8ab
+- id: 18
+  ts: '2026-08-21T20:36:56.361309Z'
+  actor: claude
+  type: handoff
+  body: "Built. Branch `feat/task-224-auth-park-detector`, one commit `c7cf92a`, worktree\
+    \ `../worktrees/aj-224`. Full `scripts/check.py` green \u2014 10 of 10 stages,\
+    \ 627.8s, no partial run. Not merged, not pushed.\n\n**What changed.** The dispatch\
+    \ poller now reads a live session's own JSONL transcript on each poll and asks\
+    \ one question: is this session sitting dead on an expired login? On a hit it\
+    \ parks the run and hands you the ball with a prompt saying `claude auth login`\
+    \ \u2014 the only thing that fixes it. Before this, an auth-killed session reported\
+    \ `idle`/`done` and got settled as an ordinary finished run, which is how run_a1e35ca5\
+    \ came to be in the ledger as `outcome: completed` after dying.\n\n**The decision\
+    \ worth your eye** (entry 16): the run is **parked, not finished, and the session\
+    \ is not reaped** \u2014 because recovery is in place and reaping would destroy\
+    \ it. Consequence: a stalled run keeps its lock, so the task cannot be re-dispatched\
+    \ until you act. I think that is right (a fresh dispatch dies in the same second\
+    \ on the same dead credential) and Cancel already exists if you disagree in the\
+    \ moment. Say so if you would rather it finished the run.\n\n**Verified against\
+    \ the incident itself, not just fixtures.** Truncating the two genuine transcripts\
+    \ at each of the three real failure lines reports STALLED at every one; both files\
+    \ as they stand today report nothing, because they recovered. Then the false-positive\
+    \ question asked of the whole corpus: **318 session transcripts on this machine,\
+    \ exactly 1 flagged** \u2014 the 2026-08-20 child that never ran a turn, which\
+    \ is correct. This session's own transcript, which contains the string `authentication_failed`\
+    \ several times over from reading this very task, is not flagged. That is what\
+    \ the JSON-field match buys over a grep.\n\n**One thing beyond the literal ask**,\
+    \ because you said poller**s**: `agentjobs dispatch auth-check [SESSION_ID]`,\
+    \ exiting 1. An agent supervisor's children are its own subprocesses with no ledger\
+    \ row, so the dispatch poller cannot see them \u2014 and `docs/agent-workflow.md`\
+    \ currently tells such a supervisor that a child which stops has *died* and to\
+    \ spend its one restart. For this failure that restart is guaranteed to fail.\
+    \ The guide now has a fifth child state that branches on the exit code. Cut it\
+    \ if you think it is scope creep; it is self-contained.\n\n**Two things deliberately\
+    \ not built**, both in entry 16: no auto-nudge (AgentJobs has no trustworthy signal\
+    \ that auth is back \u2014 `daemon-auth-status.json` is the stale latch from entry\
+    \ 8), and batch runs are not covered.\n\n**Still outstanding from the first pass,\
+    \ untouched and still your call:** the upstream comment on anthropics/claude-code#79685.\
+    \ I have not posted anything.\n\nOn approval I rebase, merge `--no-ff`, close,\
+    \ and remove the worktree. Nothing here touches the frontend, so no rebuild is\
+    \ needed \u2014 but the running server on 8876 holds this code in memory, so it\
+    \ will want a restart to start doing the check."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 4f8c1e63-7a25-49d0-b8e4-2c6f9a15d370
+      kind: handoff
+      fingerprint: a6673c1af2030df095ade06ada7d2a65
