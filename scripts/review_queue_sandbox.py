@@ -11,6 +11,10 @@ constructing any of them by hand. Switch between them with the project picker.
     sandbox-blocked   the same breakage with work also stopped on a human, which is the
                       case where the banner has to sit above a more urgent panel rather
                       than replace it
+    sandbox-tall      the healthy queue with sixty more tasks in the high band, so the
+                      list is several screens deep -- the only fixture in which "drag
+                      a task from the bottom to the top of its band" is a gesture that
+                      has to leave the viewport at all (task-229)
 
 Nothing here touches the live corpus. Everything lives under a temporary directory
 that is deleted when this process stops, including its own AGENTJOBS_HOME registry,
@@ -52,7 +56,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 DEFAULT_PORT = 8899
 
 
-def seed(manager, *, corrupt: bool, human_rungs: bool) -> None:
+def seed(manager, *, corrupt: bool, human_rungs: bool, filler: int = 0) -> None:
     """A backlog with something in every band and every claimability state."""
     from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Outcome, Priority
 
@@ -118,6 +122,12 @@ def seed(manager, *, corrupt: bool, human_rungs: bool) -> None:
             ball_reason=BallReason.SPEC,
             ball_prompt="Decide whether this is worth doing at all.",
         )
+
+    # A backlog deeper than a window. Drag could only ever reach rows that were already
+    # on screen, so until task-229 this was the fixture that could not be worked at all
+    # -- and a fixture of fourteen tasks was why nobody noticed.
+    for index in range(filler):
+        make(f"task-1{index:02d}", f"Backlog filler {index + 1}", Priority.HIGH)
 
     # Closed work, to show it sorting behind the whole live queue rather than by band.
     make("task-070", "Migrate the corpus to schema v2", Priority.CRITICAL)
@@ -207,7 +217,9 @@ def add_trace_routes(app: Any) -> None:
         return TRACES
 
 
-def build(root: Path, *, project_id: str, name: str, corrupt: bool, human_rungs: bool) -> Path:
+def build(
+    root: Path, *, project_id: str, name: str, corrupt: bool, human_rungs: bool, filler: int
+) -> Path:
     from agentjobs.manager import TaskManager
     from agentjobs.project_setup import build_project_config
     from agentjobs.storage import TaskStorage
@@ -218,7 +230,12 @@ def build(root: Path, *, project_id: str, name: str, corrupt: bool, human_rungs:
         yaml.safe_dump(build_project_config(project_name=name, user="Jeff Posey"), sort_keys=False),
         encoding="utf-8",
     )
-    seed(TaskManager(TaskStorage(project_root / "tasks")), corrupt=corrupt, human_rungs=human_rungs)
+    seed(
+        TaskManager(TaskStorage(project_root / "tasks")),
+        corrupt=corrupt,
+        human_rungs=human_rungs,
+        filler=filler,
+    )
     return project_root
 
 
@@ -235,13 +252,21 @@ def main() -> None:
 
     registry = ProjectRegistry(home)
     projects = [
-        ("sandbox-healthy", "Sandbox: healthy queue", False, False),
-        ("sandbox-broken", "Sandbox: broken queue", True, False),
-        ("sandbox-blocked", "Sandbox: broken and blocked", True, True),
+        ("sandbox-healthy", "Sandbox: healthy queue", False, False, 0),
+        ("sandbox-broken", "Sandbox: broken queue", True, False, 0),
+        ("sandbox-blocked", "Sandbox: broken and blocked", True, True, 0),
+        ("sandbox-tall", "Sandbox: a backlog several screens deep", False, False, 60),
     ]
-    for project_id, name, corrupt, human_rungs in projects:
+    for project_id, name, corrupt, human_rungs, filler in projects:
         registry.add(
-            build(root, project_id=project_id, name=name, corrupt=corrupt, human_rungs=human_rungs),
+            build(
+                root,
+                project_id=project_id,
+                name=name,
+                corrupt=corrupt,
+                human_rungs=human_rungs,
+                filler=filler,
+            ),
             project_id=project_id,
             name=name,
         )
@@ -255,7 +280,7 @@ def main() -> None:
         add_trace_routes(app)
 
     print(f"[review] queue sandbox at http://127.0.0.1:{port}/app/", flush=True)
-    for project_id, _, _, _ in projects:
+    for project_id, *_ in projects:
         print(f"[review]   http://127.0.0.1:{port}/app/p/{project_id}/tasks", flush=True)
     print(f"[review] drag trace panel: {'on' if trace else 'off (--no-trace)'}", flush=True)
     if trace:

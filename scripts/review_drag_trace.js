@@ -32,6 +32,7 @@
     body.textContent = blocks.length
       ? blocks.join("\n\n")
       : "No gesture yet. Grab a ⠿ handle and drag it onto another row.\n" +
+        "Hold it near the top or bottom edge and the page should scroll.\n" +
         "Everything you do here is recorded on the server, so there is nothing to copy.";
   }
 
@@ -70,14 +71,42 @@
       push("PRESS  NOT on a handle -- landed on " + describe(event.target));
     }
     lines.orderBefore = order().join(",");
+    lines.scrollBefore = Math.round(window.scrollY);
+    overs = 0;
   }, true);
 
-  ["dragstart", "dragover", "drop", "dragend"].forEach(function (type) {
+  ["dragstart", "drop", "dragend"].forEach(function (type) {
     document.addEventListener(type, function (event) {
       var row = event.target.closest && event.target.closest("[data-task]");
       push(type.toUpperCase() + (row ? "  " + row.getAttribute("data-task") : ""));
     }, true);
   });
+
+  /**
+   * `dragover` is collapsed into one line rather than pushed like the others.
+   *
+   * A drag that crosses a screen fires hundreds of them, and one line each would push
+   * the PRESS and DRAGSTART lines out of the panel's 24-line window -- which is the
+   * half of the trace anybody reads. The line carries the count and where the pointer
+   * currently is, because how close to the edge it is being held is the question
+   * task-229's autoscroll is answered by.
+   */
+  var overs = 0;
+  document.addEventListener("dragover", function (event) {
+    overs += 1;
+    var row = event.target.closest && event.target.closest("[data-task]");
+    var line = "DRAGOVER x" + overs +
+      "  (pointer y=" + Math.round(event.clientY) +
+      " of " + window.innerHeight +
+      ", page y=" + Math.round(window.scrollY) +
+      (row ? ", over " + row.getAttribute("data-task") : "") + ")";
+    if (lines.length && lines[lines.length - 1].indexOf("DRAGOVER") === 0) {
+      lines[lines.length - 1] = line;
+      render();
+    } else {
+      push(line);
+    }
+  }, true);
 
   var pending = null;
 
@@ -94,6 +123,7 @@
   function finish() {
     if (pending) clearTimeout(pending);
     var before = lines.orderBefore;
+    var scrolledFrom = lines.scrollBefore;
     // Long enough for the optimistic reorder to land and the request to answer, so the
     // trace says whether the row moved rather than only what was attempted.
     pending = setTimeout(function () {
@@ -105,6 +135,14 @@
       } else if (!started) {
         push("=> the browser never started a drag from the handle.");
       }
+      // task-229: whether the page moved under the drag is as much of the answer as
+      // whether the row did, because a drag that cannot leave the viewport can only
+      // ever reach the rows that were already on it.
+      var scrolledTo = Math.round(window.scrollY);
+      push(scrolledFrom === scrolledTo
+        ? "=> the page did NOT scroll (page y stayed at " + scrolledTo + ")."
+        : "=> the page scrolled from y=" + scrolledFrom + " to y=" + scrolledTo +
+          " (" + Math.abs(scrolledTo - scrolledFrom) + "px).");
       push(before === order().join(",")
         ? "=> the order did NOT change."
         : "=> the order changed.");
