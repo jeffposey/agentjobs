@@ -2,16 +2,75 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T03:19:24.526466Z'
+updated: '2026-08-21T05:05:59.308754Z'
 lifecycle: active
-ball: external
-ball_reason: dependency
-ball_prompt: 'Design approved (log entry 13) and the branch is being merged to main.
-  This task now waits on its implementation children: task-204 -> 205 -> 206, then
-  207/209, with 208 after 205 -- all promoted to ready. Nothing to do here until task-209
-  (the human ordering pass, sc-7) closes; then verify sc-1..sc-6 against the merged
-  design doc, mark the branch merged, and close this task as completed. The open VIRTUAL_ENV
-  question (log entry 8) still awaits Jeff''s say-so to file as its own task.'
+ball: agent
+ball_reason: work
+ball_prompt: 'You are the SUPERVISOR of this epic. Do not work the children yourself
+  -- spawn a session per child and supervise it. task-164 (merged 2026-08-21) is the
+  rule; docs/agent-workflow.md carries the protocol.
+
+
+  CHILDREN AND ORDER. task-204 -> task-205 -> {task-206, task-208} -> {task-207, task-209}.
+  204 has no dependencies and is first. 208 needs 205. 206 needs 205. 207 and 209
+  need 206. Work what is eligible, one at a time; do not start a child whose needs
+  are unmet.
+
+
+  MERGE POSTURE -- READ THIS, IT IS THE PART THAT DIFFERS FROM THE DEFAULT. Jeff explicitly
+  authorised an autonomous run on 2026-08-20/21, in session, having been told plainly
+  that this waives the per-child human review gate for this run only. Each child therefore:
+  takes its own worktree, bootstraps it (python scripts/bootstrap.py), does the work,
+  runs the FULL gate with the interpreter the bootstrap prints, and on a fully green
+  gate rebases onto main, merges --no-ff, marks the branch merged, closes the task
+  completed, and removes its worktree. A green gate is the gate that replaces Jeff''s
+  approval here, so it is not optional, not partial, and not a subset run -- if task-189''s
+  --from/--only has landed by the time you read this, a resumed run does not count
+  as the gate for a merge.
+
+
+  DO NOT PUSH. Pushing is a separate act from merging in this repository and nothing
+  here authorises it.
+
+
+  TASK RECORDS GO TO MAIN, from the main clone at C:/projects/agentjobs, never to
+  a child''s branch. This holds for your writes and every child''s.
+
+
+  STOP AND PARK ON human/decision, leaving the epic in a resumable state, if any of
+  these happen -- do not improvise past them: a child''s gate fails in a way you cannot
+  fix without a judgement call; a child raises a question that needs Jeff; a child
+  dies twice (one restart with a re-brief naming what is already committed is the
+  limit); an acceptance criterion cannot be met as written; or a child''s work would
+  change a decision already recorded on this task or on the child. Binding decisions
+  on this task include log entry 13 (the approved design plus four review fixes),
+  entry 18 (an agent may reorder the queue autonomously, with three bounds), and entry
+  19. Do not relitigate them.
+
+
+  WATCHING IS A MECHANISM, NOT AN INTENTION. Poll the child''s task record, not its
+  process: ball agent means keep waiting, ball human means act now, closed with an
+  outcome means verify from durable evidence (record, branch, diff) and move on. A
+  parent that ends its turn is asleep, not supervising. While waiting, spend no context
+  on anything but the poll and your own record.
+
+
+  KNOWN GAP, so it does not read as a fault: children you start are your own subprocesses,
+  not dispatches -- they have no run directory, no dispatch_result, are not reaped
+  by the poller and do not count against max_concurrent_runs. Only your own run appears
+  in the ledger. This follows from D4 (a dispatch must be caused by a human-authored
+  entry) and is expected.
+
+
+  WHEN NO CHILD REMAINS OPEN: verify sc-1..sc-6 against the merged docs/task-selection-design.md,
+  confirm sc-7 via task-209''s outcome, mark the design branch merged if it is not
+  already, and close this task completed. If sc-7''s ordering pass needs Jeff, park
+  on human/review rather than closing.
+
+
+  This supervisor path has never been run live -- task-164 log entry 8 says so. You
+  are its first real execution. Log what actually happens, including anything the
+  protocol did not anticipate.'
 archived: false
 priority: high
 category: architecture
@@ -639,3 +698,20 @@ log:
       id: b4d06f83-1e54-4f97-a0b9-8476f9e40081
       kind: log_append
       fingerprint: 776f45999f07607080378615a6df916b
+- id: 20
+  ts: '2026-08-21T05:05:59.308538Z'
+  actor: claude
+  type: handoff
+  body: Ball moved from external/dependency to agent/work. The old prompt said "nothing
+    to do here until task-209 closes" -- true when written, false since task-164 merged
+    on 2026-08-21, which made driving an epic a described job and made an umbrella
+    claimable. This task is not waiting on anything; it is the supervisor's seat,
+    and it was empty only because the record had not caught up. Jeff asked for an
+    autonomous full run of this epic.
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: a9d51e08-3b47-4c26-9f81-0e73b6d40081
+      kind: handoff
+      fingerprint: 9f3e301e2c3fbe79a4b7a68d4d6a0fbb
