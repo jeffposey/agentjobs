@@ -3,10 +3,18 @@ id: task-234
 title: Merging after approval costs a whole second agent session, about eleven minutes,
   on every task
 created: '2026-08-21T20:43:16.534300Z'
-updated: '2026-08-21T21:01:09.814311Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-21T23:40:06.148407Z'
+lifecycle: active
+ball: human
+ball_reason: input
+ball_prompt: "Dispatched session `0fa21703` stopped on an expired login at 2026-08-21T23:39:59.562000+00:00\
+  \ and will not resume by itself. It said: \"Login expired \xB7 Please run /login\"\
+  .\n\n**Run `claude auth login` in a terminal on that machine.** Answering inside\
+  \ the session cannot work: Claude Code's background auth daemon has already discarded\
+  \ the credential, so anything sent to the session is retried against a token that\
+  \ no longer exists and fails instantly.\n\nThen send the session a message to wake\
+  \ it, or attach with `claude attach 0fa21703`. It resumes in place -- nothing is\
+  \ lost and this task does not need re-dispatching."
 archived: false
 priority: critical
 queue_position: 200
@@ -19,6 +27,7 @@ tags:
 effort: a design decision about run lifecycle first; the mechanism is small either
   way
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: "Measured across the run corpus: nearly every task runs twice \u2014 a\
@@ -393,3 +402,85 @@ log:
       id: c4e81a37-9d52-4b60-8f13-2a7e05b9d308
       kind: log_append
       fingerprint: 796f2eb81c3bc978bed09a87572da110
+- id: 6
+  ts: '2026-08-21T23:39:56.094282Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 7
+  ts: '2026-08-21T23:39:56.578247Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 8
+  ts: '2026-08-21T23:39:57.806828Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_92d3e98c
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 6
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-234` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-234-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_92d3e98c.'
+    cwd: C:\projects\agentjobs
+    git_head: 245065a
+    session_id: 0fa21703
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 9
+  ts: '2026-08-21T23:40:06.148214Z'
+  actor: dispatcher
+  type: handoff
+  body: "Dispatched session `0fa21703` stopped on an expired login at 2026-08-21T23:39:59.562000+00:00\
+    \ and will not resume by itself. It said: \"Login expired \xB7 Please run /login\"\
+    .\n\n**Run `claude auth login` in a terminal on that machine.** Answering inside\
+    \ the session cannot work: Claude Code's background auth daemon has already discarded\
+    \ the credential, so anything sent to the session is retried against a token that\
+    \ no longer exists and fails instantly.\n\nThen send the session a message to\
+    \ wake it, or attach with `claude attach 0fa21703`. It resumes in place -- nothing\
+    \ is lost and this task does not need re-dispatching."
+  data:
+    ball: human
+    ball_reason: input
