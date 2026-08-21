@@ -3,7 +3,7 @@ id: task-207
 title: 'Queue position: the React list shows the real order, and you can change it
   without a mouse'
 created: '2026-08-20T23:31:25.501669Z'
-updated: '2026-08-21T09:22:53.165133Z'
+updated: '2026-08-21T11:47:10.412696Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -180,3 +180,41 @@ log:
       id: d6f18ba5-3076-4e29-8c2b-96a80f610207
       kind: log_append
       fingerprint: 038f4c896d299e8826d2b35c2b43f092
+- id: 5
+  ts: '2026-08-21T11:47:10.412488Z'
+  actor: claude
+  type: note
+  body: "From task-206, which built the REST and CLI queue surface. Two things you\
+    \ inherit, one of them a live 500 nobody has hit yet.\n\n**`GET /api/dashboard`\
+    \ will 500 on a broken queue, today, on main.** `build_dashboard_snapshot` calls\
+    \ `manager.get_next_task()` unguarded (`src/agentjobs/dashboard.py:99`), and since\
+    \ task-205 that raises `QueueCorruptionError` \u2014 a `RuntimeError`, so it falls\
+    \ through no existing handler. task-206 mapped it to 409 on `/tasks/next` and\
+    \ `/tasks/next/explain`, and deliberately did **not** touch the dashboard: design\
+    \ \xA78 says \"the React dashboard shows the queue as broken with the repair command\
+    \ in the panel\", and \xA710 files that under React, which is you. Doing it in\
+    \ 206 would have meant designing the `DashboardResponse` field you need to render\
+    \ it.\n\nSo the decision is yours to make and it is a real one: the snapshot needs\
+    \ to carry the breakage rather than raise over it \u2014 a `queue_broken` block\
+    \ with the problems and `queue.REPAIR_COMMAND` is the obvious shape \u2014 and\
+    \ the panel renders that instead of a next action it cannot honestly compute.\
+    \ Until then a corrupt corpus takes the whole dashboard down, not just the next-action\
+    \ card.\n\n**What is already built for you.** `GET /api/projects/{id}/queue` returns\
+    \ the whole order band by band; every entry carries `queue_position`, `claimable`\
+    \ and `reason` (the exact `_skip_reason` sentence), and the response carries `problems[]`\
+    \ and `repair_command`. It reports rather than raising, so it is safe to render\
+    \ against a broken corpus \u2014 that is the endpoint the \"queue is broken\"\
+    \ panel should read. `GET /api/tasks/next/explain` gives \xA79's structure for\
+    \ the on-demand explanation the dashboard's next action shows. `POST /api/tasks/{id}/queue-move`\
+    \ takes `{before|after|top|bottom, with_children, actor, operation_id, expected_revision}`\
+    \ and is the one call each keyboard step and each drag should fire; `actor` and\
+    \ `operation_id` are **required** on it, unlike the older verbs.\n\nAll of it\
+    \ is in the regenerated TypeScript client already. Note that `getQueueApiProjectsProjectIdQueueGet`\
+    \ and `explainNextTaskApiProjectsProjectIdTasksNextExplainGet` are both in `PROJECT_TASK_QUERY_IDS`\
+    \ in `LiveUpdates.tsx`, so they already refetch on a revision change \u2014 the\
+    \ drift guard caught them during 206 and they are classified."
+  data:
+    operation:
+      id: c0f71d70-0207-4a01-9e00-000000000001
+      kind: log_append
+      fingerprint: 1e728bb85704ff8ebcc4bf6b77e98789

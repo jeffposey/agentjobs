@@ -2,11 +2,33 @@ schema: 2
 id: task-206
 title: 'Queue position: REST, the Python client, and an `agentjobs queue` sub-app'
 created: '2026-08-20T23:31:01.562704Z'
-updated: '2026-08-21T11:42:56.259452Z'
+updated: '2026-08-21T11:46:53.878177Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: decision
+ball_prompt: "THE WORK IS DONE AND VERIFIED. ONE COMMAND IS LEFT AND THE HARNESS WILL\
+  \ NOT LET ME RUN IT.\n\nRun this from C:/projects/agentjobs, on main:\n\n    git\
+  \ merge --no-ff feat/task-206-queue-rest-client-cli -F C:/Users/jpose/.claude/jobs/39a62dc4/tmp/merge-msg.txt\n\
+  \nThen mark the branch merged in branches[], close this task completed, and `git\
+  \ worktree remove ../worktrees/agentjobs-206`. Do not push -- nothing authorises\
+  \ it.\n\nWHY IT IS PARKED. Claude Code's auto-mode classifier refused `git merge`\
+  \ three times, including a read-only `git status` that merely mentioned MERGE_HEAD.\
+  \ This is a permission decision only you can make -- grant a Bash rule for `git\
+  \ merge` in settings, or run the command yourself. It is not about the work: nothing\
+  \ failed, and nothing is half-applied. `.git/MERGE_HEAD` and `.git/MERGE_MSG` do\
+  \ not exist, so no merge ever started; the tree is clean and main is exactly where\
+  \ it was.\n\nSTATE, so a fresh session needs nothing else. Branch feat/task-206-queue-rest-client-cli,\
+  \ worktree C:/projects/worktrees/agentjobs-206, already rebased onto main (a clean\
+  \ rebase over three task-YAML-only commits; verified it changed no source). Five\
+  \ commits: 57b93c4 the feature, 7abdb02 the docs and regenerated client, 5340987\
+  \ formatting, 79fa7da the LiveUpdates fix, ba858c2 the compact-reporting fix --\
+  \ rebased, so the hashes have moved but the sequence has not.\n\nTHE GATE. `scripts/check.py`\
+  \ with no arguments, from the worktree, with the interpreter the bootstrap printed:\
+  \ green, all ten stages, exit 0, 384.1s, \"Ran every stage (10 of 10)\". 2410 pytest,\
+  \ 164 vitest, 16 Playwright. Not a --from or --only run. Under task-081's autonomous\
+  \ posture that green is the merge authorisation, so this needs no review of the\
+  \ work itself -- only the permission.\n\nsc-1 to sc-5 are all marked met with a\
+  \ verify command on each. Evidence is in the progress entry below."
 archived: false
 priority: high
 queue_position: 4700
@@ -282,3 +304,113 @@ log:
       id: c0f71d70-0206-4a01-9e00-000000000005
       kind: update_content
       fingerprint: caad5d1fe5da787cbeae88da05cf9e9f
+- id: 8
+  ts: '2026-08-21T11:46:17.764438Z'
+  actor: claude
+  type: handoff
+  body: Parked on a harness permission, not on the work. See the ball_prompt for the
+    single command left.
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: c0f71d70-0206-4a01-9e00-000000000006
+      kind: handoff
+      fingerprint: 73ad8ffebbd95e6f86ffa115aa03b804
+- id: 9
+  ts: '2026-08-21T11:46:53.877909Z'
+  actor: claude
+  type: progress
+  body: "Implemented on feat/task-206-queue-rest-client-cli, worktree C:/projects/worktrees/agentjobs-206.\
+    \ Five commits, rebased onto main and ready; the merge itself is what this task\
+    \ is parked on (handoff above).\n\nWHAT IS THERE.\n\n**REST.** `GET /tasks/next/explain`\
+    \ transcribes design \xA79 from `explain_next().as_dict()`. `POST /tasks/{id}/queue-move`\
+    \ and `POST /tasks/{id}/reprioritize` are in `status.py` beside claim/handoff/release/close,\
+    \ because they behave identically and that module holds `_run`, `_classify` and\
+    \ the `MutationError` handler. A new `routes/queue.py` carries `GET /queue`, `POST\
+    \ /queue/repair` and `POST /queue/compact`, and is in `PROJECT_SCOPED_ROUTERS`\
+    \ \u2014 so `/api/projects/{id}/queue` (what the spec asks for) and `/api/queue`\
+    \ are one handler. A test asserts the two URLs return byte-identical bodies. Route\
+    \ placement and its rejected alternatives are decision entry 6.\n\n**The 409.**\
+    \ `QueueCorruptionError` is a `RuntimeError`, so it fell through none of the existing\
+    \ ValueError mapping \u2014 task-205 flagged this to me specifically, and it was\
+    \ right: without an explicit mapping this surfaces as a 500, which reads as \"\
+    the server is broken\" when the truth is \"your corpus is, and here is the command\"\
+    . `queue_broken()` in `tasks.py` renders it 409 with the message verbatim, because\
+    \ everything \xA78 asks for \u2014 every offending id, its band, and `queue.REPAIR_COMMAND`\
+    \ \u2014 is already in it.\n\n**Manager.** One addition: `queue_listing(agent=None)`\
+    \ returning `QueueListing`/`QueueBand`/`QueueEntry`. Every band including the\
+    \ empty ones; every open task with `claimable` and the sentence `_skip_reason`\
+    \ produces. It **reports rather than raises** \u2014 \xA78's other deliberate\
+    \ exception \u2014 and sorts a position-less task last rather than guessing it\
+    \ into a place. Both REST and the CLI read it, so a listing and an explanation\
+    \ cannot disagree about why a task was skipped; a test asserts they don't.\n\n\
+    **Python client.** `queue()`, `explain_next_task()`, and `operations.queue_move`\
+    \ / `reprioritize` / `repair_queue` / `compact_queue`. A test asserts no method\
+    \ anywhere on `TaskClient` or `TaskOperations` has \"position\" in its name \u2014\
+    \ the absence is the point, since a client that could write a number would let\
+    \ a caller choose a place without knowing what else is in the band.\n\n**CLI.**\
+    \ `queue list|move|reprioritize|check|repair|compact`, plus a new `agentjobs next\
+    \ [--why]` (there was no `next` command at all). `queue list` is the artefact\
+    \ task-209 reviews, so it is written for 80 columns: band heading with open/claimable\
+    \ counts, then two lines per task (position + id, then title), with `!` and a\
+    \ third `not claimable: <rule>` line on anything blocked. `next` exits non-zero\
+    \ on a broken queue; `list` and `check` render it.\n\nTHREE THINGS FOUND, none\
+    \ of which the spec anticipated.\n\n1. **`PATCH /tasks/{id}` with `queue_position:\
+    \ 50` was accepted, dropped, and answered 200.** sc-4 says a test must assert\
+    \ `TaskUpdateRequest` *rejects* it \u2014 it did not. `SafeMutationRequest` descends\
+    \ from `BaseModel` directly and so escaped D2, which every stored model gets through\
+    \ `StrictModel`. The allowlist made the field unreachable by ignoring it, and\
+    \ a caller who patched it had every reason to believe it worked \u2014 the exact\
+    \ silent-failure class this design exists to kill. `model_config = ConfigDict(extra=\"\
+    forbid\")` on `SafeMutationRequest` and `QueueMaintenanceRequest`. Nothing in\
+    \ the 2410-test suite depended on the old silence. Live: `400 queue_position:\
+    \ Extra inputs are not permitted`.\n\n2. **`queue compact` reported three tasks\
+    \ six times.** Found on a copy of the live corpus, not by the suite. `plan_renumber`\
+    \ uses up to two passes so no intermediate state holds a duplicate \u2014 correct,\
+    \ and unchanged \u2014 which means a task moved by both is written twice, and\
+    \ `compact_band` returns the writes because writes are what happened. Rendering\
+    \ them straight through made a compaction claim it had put one task in two places.\
+    \ The route and the CLI now report the last write per task, in final order; the\
+    \ manager is untouched. Both tests fail against the old code (6 reported for 3\
+    \ tasks; a name printed twice) \u2014 verified by reverting the fix and re-running.\
+    \ My first fixture missed it because repeated `--top` leaves all targets above\
+    \ all current numbers, which is the one-pass form; the fixture now closes a task\
+    \ out of the middle of the band, which is the shape a real band has.\n\n3. **The\
+    \ frontend drift guard refused two unclassified queries.** `/queue` and `/tasks/next/explain`\
+    \ were project-scoped reads absent from both `PROJECT_TASK_QUERY_IDS` and `NON_TASK_PROJECT_QUERY_IDS`.\
+    \ Left there they would have polled successfully forever and quietly stopped updating\
+    \ \u2014 which is precisely what that guard exists to make loud. Both added as\
+    \ task data.\n\nVERIFICATION.\n\n`scripts/check.py`, no arguments, from the worktree,\
+    \ with the interpreter the bootstrap printed: **green, all ten stages, exit 0,\
+    \ 384.1s, \"Ran every stage (10 of 10)\"**. black 0.5 / ruff 0.1 / mypy 1.5 /\
+    \ api 4.3 / icons 2.8 / oxlint 0.5 / pytest 349.5 / vitest 4.5 / build 3.4 / e2e\
+    \ 16.9. 2410 pytest, 164 vitest, 16 Playwright. Not a `--from` or `--only` run.\n\
+    \n**Through the real path**, against a copy of the live 218-task corpus on a sandbox\
+    \ server at 127.0.0.1:8899 (its own port, its own data, never Jeff's 8876 \u2014\
+    \ confirmed still serving 200 afterwards; the sandbox process was stopped).\n\n\
+    - `GET /api/queue`: critical 1/0 claimable, high 54/28, medium 33/15, low 3/2,\
+    \ zero problems.\n- `GET /api/tasks/next/explain`: task-100 at high/300, with\
+    \ task-220, task-063 and task-081 named ahead of it and the rule that excluded\
+    \ each.\n- `queue-move task-195 --top`: 500 \u2192 50, and a file-by-file comparison\
+    \ against the live corpus shows **exactly one file changed**. That is what sparse\
+    \ numbering buys.\n- The same `operation_id` resent: `replayed = true`, position\
+    \ unchanged at 50.\n- Refusals: no actor \u2192 400, no operation_id \u2192 400,\
+    \ unknown actor \u2192 400 `unknown_actor`, two placements \u2192 400.\n- **Corruption\
+    \ end to end.** Forced a duplicate at high/300 (task-100 and task-121) by hand\
+    \ \u2014 every verb in the system refuses to produce that state, which is the\
+    \ point. `/api/tasks/next` \u2192 409 naming both ids and `agentjobs queue repair`.\
+    \ `/tasks/next/explain` \u2192 409. `/api/queue` \u2192 200 with the problem listed.\
+    \ `agentjobs next` \u2192 exit 1, same sentence. `queue check` \u2192 exit 0,\
+    \ reports it. `queue list` \u2192 exit 0, renders the band. `queue repair` \u2192\
+    \ fixed it, naming the one task it guessed. Then `check` clean, `next` answering,\
+    \ and the **live HTTP process answering again with no restart**.\n- `POST /queue/repair`\
+    \ on the sound queue: `changed = false`, `assigned = []`.\n- `queue list` over\
+    \ the whole 91-open-task backlog: 239 lines, widest **80 characters** (84 bytes\
+    \ \u2014 the difference is UTF-8, and the test asserts characters).\n\nNOT DONE,\
+    \ and out of scope by the spec: React (task-207) and MCP (task-208)."
+  data:
+    operation:
+      id: c0f71d70-0206-4a01-9e00-000000000007
+      kind: log_append
+      fingerprint: e0a18a6a688bbedf5210cb1bf1e74068
