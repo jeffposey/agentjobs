@@ -1182,6 +1182,59 @@ be read before every change to this subsystem.
     before, and that is where an agent's code commits land.
 - **The causing actor must be human** (§2).
 
+### The dispatcher commits what it writes
+
+Every write to a task record has a committer except one. A human's goes through their own
+git; an agent's goes through the task lifecycle it is required to follow. The
+dispatcher's terminal `dispatch_result` has neither: `outcome` and `duration_seconds` are
+only knowable once the run process has exited, which is *by definition* after the
+session's last commit, so the entry lands in a working tree nobody is coming back to.
+Observed twice in one evening on job-hunting task-016 (task-203) — every dispatched run
+left the shared clone dirty, and the person who found it was always the human.
+
+The write is correctly timed. What was missing is that whoever performs it commits it.
+`dispatch/record_commit.py` does exactly that, at every point where the dispatcher writes
+to a record outside a session's lifetime: the session and batch settles, a batch run that
+never started, the ledger's sweep of an abandoned run, a parked session's handoff, and an
+auto-dispatch cap refusal — that last one being the most orphaned of all, since no run
+ever existed.
+
+Three properties, and they matter more than the mechanism:
+
+- **Only the one file.** `git commit --only -- <path>` commits that path from the working
+  tree and ignores the index, so a colleague's `git add`-ed but uncommitted work in the
+  same clone is still staged and still theirs afterwards. Never `-A`; never a bare
+  `git commit` that would take whatever the index holds. The clone is worked by people
+  and other agents at once, and a broad commit here would turn a dirty file into
+  somebody's lost afternoon.
+- **It never pushes.** A commit is local, reversible, and repairs exactly the problem in
+  hand. A push publishes to a shared remote, can be rejected non-fast-forward, can want
+  credentials a background process should not be taught to supply, and can start CI.
+  AgentJobs also cannot know a remote is safe to push to — projects exist whose standing
+  rule is that they must never acquire one. Handling a rejected push means fetching,
+  rebasing or forcing, unattended, in a clone somebody else is working, which is how
+  automation destroys work rather than tidying it. If unpushed dispatcher commits are
+  ever seen piling up across days, the answer is a per-project opt-in, not a changed
+  default.
+- **It never raises.** This runs on the terminal path of a finished run. No repository,
+  no git on PATH, a pre-commit hook that refuses, a contended `index.lock` — each is
+  recorded as `record_commit` in the run's `meta.yaml` and leaves the run reported
+  exactly as it would have been. A git problem must not turn a completed run into a
+  crashed one.
+
+The alternative — the session commits a placeholder and the dispatcher amends it — was
+priced and rejected. Amending rewrites a commit the session may already have pushed,
+which would then need a force-push; the amend races anything else that committed in the
+clone after the session exited, so it would rewrite the wrong commit; it couples every
+dispatched session's prompt to dispatcher internals; and it does nothing at all for the
+sites where no session ever existed. A fresh commit is simpler and has no rewrite hazard.
+
+The pre-spawn `dispatch` entry is deliberately **not** committed here. It is the one
+dispatcher write that is reliably swept up, by the session it starts, and committing it
+would move `HEAD` past the `git_head` that same entry just recorded — making the run's
+own diff include the dispatcher's commit. The one case where no session follows is a
+spawn that failed, and there the immediate `dispatch_result` commit carries both entries.
+
 ### Does dispatch ever run with no human present?
 
 Two different questions, answered differently:
