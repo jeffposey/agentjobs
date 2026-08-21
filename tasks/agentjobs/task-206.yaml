@@ -2,7 +2,7 @@ schema: 2
 id: task-206
 title: 'Queue position: REST, the Python client, and an `agentjobs queue` sub-app'
 created: '2026-08-20T23:31:01.562704Z'
-updated: '2026-08-21T10:45:31.537224Z'
+updated: '2026-08-21T11:34:33.971905Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -190,3 +190,58 @@ log:
       id: c0f71d70-0206-4a01-9e00-000000000002
       kind: update_content
       fingerprint: f031849eed8299f693ed96104946701a
+- id: 6
+  ts: '2026-08-21T11:34:33.971716Z'
+  actor: claude
+  type: decision
+  body: "Three placement decisions, recorded because the spec named different files\
+    \ and a later reader will otherwise read the difference as drift.\n\n**1. The\
+    \ routes are split three ways, not two.** The spec says \"in `src/agentjobs/api/routes/tasks.py`\
+    \ and `projects.py`\". They are instead in three places, each being where that\
+    \ *kind* of thing already lives in this codebase:\n\n- `tasks.py` \u2014 `/tasks/next`\
+    \ (the 409 mapping) and the new `/tasks/next/explain`. Both are reads, and `tasks.py`\
+    \ already owns `/tasks/next`.\n- `status.py` \u2014 `/tasks/{id}/queue-move` and\
+    \ `/tasks/{id}/reprioritize`. These are domain verbs behaving exactly like claim/handoff/release/close:\
+    \ actor-validated, retry-safe, refused against a stale read, logged, envelope\
+    \ on request. `status.py` holds `_run`, `_classify` and the `MutationError` handler\
+    \ that give all of that for free. Putting them in `tasks.py` would have meant\
+    \ importing that machinery across modules or writing a second copy of it.\n- new\
+    \ `routes/queue.py` \u2014 `/queue`, `/queue/repair`, `/queue/compact`, added\
+    \ to `PROJECT_SCOPED_ROUTERS`.\n\nREJECTED: putting the project-level routes in\
+    \ `projects.py`, which the spec names. `projects.py` is the registry router, mounted\
+    \ once at `/api` and *not* project-scoped \u2014 it serves `/api/projects`, the\
+    \ list of projects. Declaring `/projects/{project_id}/queue` there would have\
+    \ produced the scoped URL the spec asks for and no unscoped one, and would have\
+    \ been the only project-scoped route in the codebase not mounted through the twice-mounted\
+    \ mechanism. Being in `PROJECT_SCOPED_ROUTERS` gives `/api/projects/{id}/queue`\
+    \ (what the spec asks for) and `/api/queue` from one handler, which is the codebase's\
+    \ own answer to scoped/unscoped drift. A test asserts the two URLs return identical\
+    \ bodies.\n\n**2. `actor` and `operation_id` are REQUIRED on all four mutations.**\
+    \ They are optional everywhere else in this API, deliberately, so callers written\
+    \ before those fields existed keep working. Nothing was ever written against these\
+    \ four routes, so there is no such caller to protect, and a reorder that a timeout\
+    \ can silently apply twice is exactly what the operation ledger exists to prevent\
+    \ \u2014 it puts a task somewhere nobody asked for and leaves two `queue_move`\
+    \ entries each claiming to be the decision.\n\nRepair and compact take both and\
+    \ replay from no ledger. The ledger is per-task (`replay_or_conflict` reads the\
+    \ operation off the task's own log) and these two act on a band or a corpus, so\
+    \ there is nowhere to keep one. They do not need one: both are idempotent by construction\
+    \ \u2014 repairing a repaired queue finds nothing to repair, compacting a compacted\
+    \ band renumbers it to the numbers it already has. Running twice and running once\
+    \ leave the same corpus, which is a stronger property than replay, not a weaker\
+    \ substitute. Two tests assert it. REJECTED: inventing a corpus-wide operation\
+    \ ledger for these two, which is real machinery for a property they already have.\n\
+    \n**3. `agentjobs queue check` exits 0 on findings; `--strict` exits 1.** sc-2\
+    \ requires that `check` \"still succeed\" against a corrupt queue, and design\
+    \ \xA78 lists it as one of the two deliberate exceptions to refusing. It is the\
+    \ command you run *to look at* a broken queue, and a checker that fails the shell\
+    \ you are debugging in is one people stop running. `--strict` is the CI form,\
+    \ and `agentjobs validate` already covers the same four rules and already exits\
+    \ non-zero on findings. REJECTED: exiting non-zero by default, which would have\
+    \ blurred the contrast sc-2 draws between `check` and `next` and made the criterion\
+    \ ambiguous."
+  data:
+    operation:
+      id: c0f71d70-0206-4a01-9e00-000000000003
+      kind: log_append
+      fingerprint: ce96a2670f57a291623b0aec814fbbdd
