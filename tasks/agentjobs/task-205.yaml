@@ -3,7 +3,7 @@ id: task-205
 title: 'Queue position: assignment, the reorder verbs, and selection that ignores
   timestamps'
 created: '2026-08-20T23:30:38.205143Z'
-updated: '2026-08-21T09:30:40.542534Z'
+updated: '2026-08-21T10:35:16.207091Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -114,42 +114,88 @@ acceptance:
   text: A test rewrites `updated` on every open task, in an order chosen to invert
     the old ranking, and proves `get_next_task()` returns the same task before and
     after. This is the test the whole program exists for.
-  status: pending
+  verify: 'pytest tests/test_queue_verbs.py::TestTimestampsNoLongerDecide -- two tests,
+    because one alone would not be evidence: the first restamps every open task so
+    the one LAST in line is newest and proves selection does not move; the second
+    re-runs the OLD sort over the same corpus and asserts it would now pick task-003
+    where selection picks task-001. Also done on the live corpus: all 92 open tasks
+    restamped, old sort picks task-220, get_next_task still returns task-100.'
+  status: met
 - id: sc-2
   text: Concurrent creates and moves in one band never produce a duplicate position;
     a test exercises the race through the real lock rather than by mocking it.
-  status: pending
+  verify: pytest tests/test_queue_verbs.py::TestTheQueueLockHolds -- eight real threads
+    on a Barrier (four creates, four moves into one band) against real files and the
+    real O_CREAT|O_EXCL lock; nothing mocked. Asserts eight distinct positions and
+    check_queue() == []. A second test isolates one create against one move, the race
+    the creation lock alone never covered.
+  status: met
 - id: sc-3
   text: Every intermediate state of an interrupted rebalance is a valid, identically
     ordered queue -- proven by applying the renumber one file at a time and asserting
     the order after each write.
-  status: pending
+  verify: 'pytest tests/test_queue_verbs.py::TestARenumberIsSafeToInterrupt -- applies
+    the plan one file at a time through manager.apply_position and after EACH write
+    re-reads the band off disk, asserting no duplicates and the identical order. Both
+    forms: the single tail-first pass of a rebalance, and the two-pass up-then-down
+    of a mixed compaction.'
+  status: met
 - id: sc-4
   text: A duplicate or missing position makes `get_next_task()` raise QueueCorruptionError
     naming the tasks and the repair command; `queue check` and `repair` still work
     on the same corpus.
-  status: pending
+  verify: 'pytest tests/test_queue_verbs.py::TestABrokenQueueRefusesToAnswer -- duplicate,
+    missing and below-one all raise with the offending ids and `agentjobs queue repair`
+    in the message; check_queue() and repair_queue() then work on that same corpus
+    and selection answers again. Scope asserted too: a duplicate in `low` does not
+    stop a `high` winner, though check still reports it. On the live corpus a forced
+    duplicate at high/50 raised naming both tasks and repair fixed it.'
+  status: met
 - id: sc-5
   text: '`move`, `reprioritize` and create-with-placement each write one `queue_move`-bearing
     record, replay correctly on a repeated operation_id, and leave the band valid.'
-  status: pending
+  verify: 'pytest tests/test_queue_verbs.py::TestTheReorderVerbs -- 20 tests. One
+    entry each with band/from/to/placement asserted; a repeated operation_id returns
+    the same position and leaves ONE entry. The one-file constraint is asserted by
+    byte-comparing every file in the corpus before and after a move; on the live corpus
+    that was task-120-issue-reporter-workflow.yaml and nothing else. Also: a default
+    create writes NO entry, rebalance and compaction write none, and add_log_entry
+    refuses a forged queue_move.'
+  status: met
 - id: sc-6
   text: '`explain_next()` names the winner''s band and position and lists what was
     skipped ahead of it, with the claimability rule that excluded each.'
-  status: pending
+  verify: 'pytest tests/test_queue_verbs.py::TestTheQueueExplainsItself -- band, position,
+    empty_bands_above, each of the four skip reasons, the as_dict() shape against
+    design section 9, and the nothing-claimable case that lists every open task. On
+    the live corpus: task-100 at high/300 with task-220, task-063 and task-081 skipped,
+    each carrying its rule.'
+  status: met
 - id: sc-7
   text: 'A task that closes after a rebalance''s band snapshot but before its write
     is skipped: the rebalance writes nothing to the closed task, the closed task ends
     with no position, and the rest of the band keeps its order. This is the concurrent-close
     rule from design section 6.'
-  status: pending
+  verify: pytest tests/test_queue_verbs.py -k test_a_task_that_closes_mid_renumber
+    -- takes the plan, closes task-002 after the snapshot, applies the plan, then
+    asserts the closed task ends with queue_position None, the number planned for
+    it appears nowhere in the band, the surviving three keep their order, and check_queue()
+    is clean. The mechanism is manager.apply_position going through mutate_task, which
+    re-reads under that task's own lock.
+  status: met
 deliverables:
 - path: src/agentjobs/manager.py
   note: assignment, move, reprioritize, rebalance, integrity, selection, explain
-  status: pending
+  status: done
 - path: src/agentjobs/storage.py
-  note: the project queue lock
-  status: pending
+  note: the project queue lock, and the uncached reads a lock holder takes
+  status: done
+- path: src/agentjobs/queue.py
+  note: 'the pure arithmetic: placement, insertion, the direction rule, integrity'
+  status: done
+- path: tests/test_queue_verbs.py
+  note: 54 tests covering sc-1 to sc-7
+  status: done
 dependencies:
 - task: task-204
   type: needs
@@ -236,3 +282,178 @@ log:
       id: 5a1c2e30-0205-4b11-9c30-000000000002
       kind: update_content
       fingerprint: abbda6f8ed28da98567327875a93dbbf
+- id: 7
+  ts: '2026-08-21T10:34:04.486812Z'
+  actor: claude
+  type: progress
+  body: 'Implemented on feat/task-205-queue-verbs-selection, worktree C:/projects/worktrees/agentjobs-205.
+    Two commits: 6ab7dd0 feat(queue) and e33076e chore(schema).
+
+
+    WHAT IS THERE.
+
+
+    1. `TaskStorage.QUEUE_LOCK = ".queue"` and `queue_lock()`, plus `list_tasks_uncached()`
+    and `load_task_uncached()` -- the reads a lock holder takes. `_load_all_uncached(fresh=True)`
+    bypasses the per-task snapshot as well as the corpus one, which the old method
+    did not: it read through `load_task`, so a scope that had already read a file
+    would have served the band from a snapshot taken before the lock was acquired.
+
+
+    2. Creation holds `.creation` then `.queue`, always, not only when an operation_id
+    was supplied. Section 7''s reasoning, verified: a create racing a *move* can duplicate
+    a position while racing no other create, and the creation lock never covered that.
+    `create_task(placement=...)` takes an explicit placement and writes a `queue_move`
+    entry; the default bottom-of-band writes none, because it is not a decision.
+
+
+    3. `move()` and `reprioritize()` in the manager; the arithmetic (`plan_insertion`,
+    `plan_rebalance`, `plan_compaction`, `plan_renumber`, `Placement`, `BandEntry`)
+    is pure and lives in `queue.py`, which writes nothing and knows nothing about
+    locks. `_place()` rebalances and retries once when a gap is exhausted, then reports
+    rather than retrying again -- a freshly rebalanced band is spaced QUEUE_STEP apart,
+    so a second failure is not a gap problem.
+
+
+    4. `update_task` intercepts two patches through `_rejoining_the_queue`: a band
+    change on an open task, and a reopen. Both take the queue lock and land at the
+    bottom of the band being joined. **There is no `reopen` verb**, so the generic
+    patch is the only path that can produce one -- adding a verb would have needed
+    REST/CLI/MCP surfaces that are children 3 to 5. Recorded as a decision below.
+
+
+    5. Rebalance and compaction go through `apply_position`, which re-checks openness
+    under the task''s own lock and skips a task that closed since the snapshot. `plan_renumber`
+    orders the writes tail-first upward, head-first downward, two passes otherwise.
+
+
+    6. `assert_queue_integrity(bands)`, `QueueCorruptionError`, `check_queue()`, `repair_queue()`.
+    Integrity reads `_queue_places()`: loaded tasks for free, plus a raw read of each
+    file that failed to load. That raw fallback is load-bearing -- the commonest corruption,
+    an open task with no position, is rejected by rule 6 at load time and is invisible
+    to a check built on loaded tasks alone. The cost is bounded by how broken the
+    corpus is, not how big it is, so a healthy corpus pays nothing beyond the listing
+    every caller already does. This is why `/tasks/next` still parses each file once
+    and the task-132 performance budget still passes.
+
+
+    7. `get_next_task()` sorts by `order_key` = (priority_rank, queue_position). `explain_next()`
+    returns the section 9 structure via `NextExplanation.as_dict()`.
+
+
+    ALSO TOUCHED, because "every path that can produce an open task" is the requirement
+    and these are paths: `migrate_queue_positions` now takes the plan *inside* the
+    queue lock (taking it before would let a create take a number the plan is about
+    to hand out), and `migration.migrate_tasks` holds it across the whole import,
+    since its band cursor is computed once and stepped. `_claim_next_position` reads
+    uncached for the same reason as everything else under the lock. `promote_task`
+    needed nothing: a draft is already open and therefore already has a position.
+    `migrate_schema.migrate_corpus` was left alone deliberately -- it converts a v1
+    corpus that no v2 process can read at all, writes raw files without a TaskStorage,
+    and has no concurrent writer to lose to.
+
+
+    VERIFICATION. `scripts/check.py` with no arguments, from the worktree, using the
+    interpreter the bootstrap printed: **green, all ten stages, exit 0**, 363s. black
+    0.5 / ruff 0.1 / mypy 1.5 / api 4.2 / icons 2.5 / oxlint 0.5 / pytest 330.0 /
+    vitest 4.3 / build 3.2 / e2e 16.3. Not a `--from` or `--only` run. Run twice:
+    once before the docs and migration-lock changes (390s) and once after.
+
+
+    VERIFIED THROUGH THE REAL PATH, against a scratch copy of the live 218-task corpus
+    rather than fixtures:
+
+    - `check_queue()`: 0 problems across all four bands.
+
+    - `explain_next()` on the real backlog returns task-100 at high/300, with task-220
+    (critical/100, "not ready (active, held by agent)"), task-063 ("has 1 open child")
+    and task-081 ("not ready (active, held by agent)") listed as skipped ahead of
+    it.
+
+    - Rewrote `updated` on all 92 open tasks to invert the old ranking. The old sort
+    would now pick task-220; `get_next_task()` still returns task-100. That is sc-1
+    on real data.
+
+    - `move(task-120, top=True)`: 400 -> 50, and `git`-level byte comparison shows
+    **exactly one file changed**.
+
+    - `reprioritize(task-173, critical)`: low/100 -> critical/200, one queue_move
+    entry carrying `from_band: low`.
+
+    - Forced a duplicate at high/50: `get_next_task()` raised QueueCorruptionError
+    naming both tasks and `agentjobs queue repair`. `repair_queue()` then fixed it,
+    named the one task it guessed at, rebalanced only the band that was broken, and
+    selection answered again.
+
+
+    TWO FIXTURE FILES CHANGED, and it is worth knowing why rather than reading it
+    as unrelated churn. `tests/test_attention_tiers.py` and `tests/test_mcp_read_tools.py`
+    gave every open task `queue_position: 100`. Task-204 wrote them that way because
+    nothing checked uniqueness then; now that is precisely the corruption selection
+    refuses to answer over, so those fixtures were describing a queue that cannot
+    exist. Both now derive the position from the task id.
+
+
+    NOT DONE, and out of scope by the spec: REST, CLI, React and MCP surfaces are
+    children 3 to 5. `QueueCorruptionError.message` already names `agentjobs queue
+    repair`, which is the command child 4 will build; `check_queue`, `repair_queue`,
+    `rebalance_band` and `compact_band` are the manager methods those surfaces will
+    wrap.'
+  data:
+    operation:
+      id: 5a1c2e30-0205-4b11-9c30-000000000003
+      kind: log_append
+      fingerprint: 027897880908062f21f477e2bcb993ae
+- id: 8
+  ts: '2026-08-21T10:34:15.663750Z'
+  actor: claude
+  type: decision
+  body: 'No `reopen` verb. The generic patch is the reopen path, and it is where the
+    lock went.
+
+
+    Design section 5.4 says a reopened task re-enters at the bottom of its band under
+    the queue lock, and the spec repeats it. The obvious reading is a `reopen_task()`
+    domain verb beside claim/handoff/release/close.
+
+
+    REJECTED, because a new domain verb is not a manager change -- it is a REST route,
+    a CLI command, an MCP tool and a React control, all of which this task''s `out_of_scope`
+    assigns to children 3, 4 and 5. Shipping the manager half alone would leave a
+    verb nothing can call, and shipping all of it would take scope those children
+    own.
+
+
+    CHOSEN instead: `update_task` intercepts a patch that moves a closed task back
+    to an open lifecycle and assigns it a bottom-of-band place under the queue lock,
+    in `_rejoining_the_queue`, alongside the band-change interception section 5.3
+    asks for. That covers the requirement completely, because `update_task` is the
+    *only* path in the codebase today that can reopen a task at all -- nothing else
+    writes `lifecycle`.
+
+
+    Worth knowing for whoever adds the verb later: the interception is keyed on the
+    patch, not on the caller, so a future `reopen_task()` that goes through `update_task`
+    inherits it for free, and one that writes the axes directly must call `_rejoining_the_queue`
+    itself. Before this change the same patch produced a task that would not validate
+    -- rule 6 rejects an open task with no position -- so the failure was loud rather
+    than silent, which is why nothing had noticed.'
+  data:
+    operation:
+      id: 5a1c2e30-0205-4b11-9c30-000000000004
+      kind: log_append
+      fingerprint: 8a1e3d36b62ca05560b9d875187ae157
+- id: 9
+  ts: '2026-08-21T10:35:16.206700Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 5a1c2e30-0205-4b11-9c30-000000000006
+      kind: update_content
+      fingerprint: f138c61fdb09d94d1c8c364e65d27fe7
