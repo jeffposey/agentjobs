@@ -254,7 +254,17 @@ class TestRuleOneBallAndClosure:
 class TestRuleTwoBallReasonScoping:
     @pytest.mark.parametrize(
         ("ball", "reason"),
-        [(ball, reason) for ball, reasons in BALL_REASONS.items() for reason in reasons],
+        # Sorted because `reasons` is a frozenset and Python randomises its hash seed per
+        # process. Under xdist each worker collects in its own process, so an unsorted
+        # source hands every worker a different case order and the whole run aborts with
+        # "Different tests were collected between workers" -- before a single test runs.
+        # The frozenset is right for the model; the sort belongs here, at the point where
+        # an iteration order is being turned into test identities.
+        [
+            (ball, reason)
+            for ball, reasons in BALL_REASONS.items()
+            for reason in sorted(reasons, key=lambda item: item.value)
+        ],
     )
     def test_every_reason_is_accepted_for_its_own_holder(
         self, ball: Ball, reason: BallReason
