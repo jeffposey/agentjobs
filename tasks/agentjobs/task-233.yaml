@@ -3,36 +3,34 @@ id: task-233
 title: 'Cycle time: 21 hours of dispatched runs over 23 tasks, and nothing measures
   where it goes'
 created: '2026-08-21T20:42:00.402460Z'
-updated: '2026-08-21T23:10:41.515931Z'
+updated: '2026-08-21T23:24:52.652771Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Review `perf/task-233-cycle-time` (4 commits, worktree ../worktrees/agentjobs-233).\
-  \ **The gate is 365s -> 94.5s**, same 2608 tests, pass/fail counts compared on the\
-  \ same commit; final gate green at 103.6s on the tip.\n\nThree things I want a decision\
-  \ on, not just approval:\n\n1. **`--since-gate` (part 2, from task-221) may not\
-  \ be worth keeping.** It was specced when a wasted gate cost six minutes; it now\
-  \ saves under a minute. I built it because the acceptance asked for it and because\
-  \ the reasoning is durable, but if you want it dropped the argument for dropping\
-  \ it is sound and I would not fight it. Dropping it means reverting parts of `scripts/check.py`\
-  \ and deleting `scripts/gate_scope.py`, `tests/test_gate_scope.py` and one ENGINEERING.md\
-  \ section \u2014 the other three commits are independent.\n\n2. **Acceptance t6\
-  \ is marked pending, deliberately.** The end-to-end per-run figure needs runs dispatched\
-  \ under the new configuration and none exist yet. I have the measured gate before/after\
-  \ and this session's own 10.0min-vs-42.6min accounting, and I declined to invent\
-  \ the \"gate runs per session\" multiplier that a full estimate needs \u2014 that\
-  \ unknown was finding 4 of this task. Either accept t6 as satisfied by the measured\
-  \ half, or leave it open until `run_report.py --since 7` can answer it a few runs\
-  \ from now. Your call.\n\n3. **The ranked list (log entry 7) says task-234 is now\
-  \ the biggest remaining lever** \u2014 a whole extra dispatched session per task,\
-  \ ~11 minutes, against a gate that is now 94.5s. If one thing is worked next, that\
-  \ is my recommendation.\n\nNothing needs looking at in a browser: no UI changed.\
-  \ To see it yourself, from the worktree: `poetry run python scripts/check.py` (~95s),\
-  \ then `--since-gate` again immediately, which should say NOTHING CHANGED and run\
-  \ nothing. `poetry run python scripts/run_report.py --per-task` prints the baseline\
-  \ table straight off the ledger.\n\nOn approval I rebase onto main, merge --no-ff,\
-  \ mark the branch merged, close the task and remove the worktree. No frontend rebuild\
-  \ needed."
+ball: agent
+ball_reason: hold
+ball_prompt: "**Merged and parked. Do not work this task until the sample exists \u2014\
+  \ there is nothing to do before then.**\n\nMerged to main as `a8686df` (--no-ff),\
+  \ gate green on the rebased tip at 91.5s, ten of ten stages, 2608 tests. Branch\
+  \ marked merged; worktree removed. Five of six acceptance criteria are met.\n\n\
+  The one open criterion is **t6**, the end-to-end before/after, and it is open on\
+  \ purpose \u2014 see the decision entry above. Finishing it needs no code, only\
+  \ data that ordinary backlog work produces by itself.\n\n**Before it can accumulate\
+  \ at all: the server on 8876 must have been restarted since 2026-08-21T23:24Z.**\
+  \ `src/agentjobs/dispatch/runner.py` is what puts AGENTJOBS_RUN_ID/AGENTJOBS_RUN_DIR\
+  \ into a spawned session's environment, and a running server holds pre-merge code\
+  \ in memory. Until that restart, dispatched runs write no phases.jsonl and the sample\
+  \ stays empty while looking like one still filling up. It is not the CLI's to restart\
+  \ \u2014 that server was started by C:/ai/shared/launchers/open-agentjobs.ps1 with\
+  \ a tsnet proxy beside it, so `agentjobs restart` would bind the default 8765 and\
+  \ leave the real dashboard untouched. Ask Jeff, or check the launcher.\n\n**When\
+  \ roughly five tasks have been dispatched and worked since that restart:**\n\n```bash\n\
+  poetry run python scripts/run_report.py --since 7\n```\n\nCompare its table against\
+  \ the baseline in this task's spec (21.1h over 23 tasks, 2.13 runs per task, p50\
+  \ 15.6m). The gate lines underneath are new and are the real payoff: gate runs per\
+  \ session, what they cost, how much went on gate runs that failed. Write the comparison\
+  \ into the log as a progress entry, mark t6, close completed.\n\nIf the report shows\
+  \ **no gate lines at all**, that is the restart, not a defect in the instrumentation\
+  \ \u2014 check `~/.agentjobs/runs/<newest>/phases.jsonl` exists before concluding\
+  \ anything else."
 archived: false
 priority: critical
 queue_position: 100
@@ -211,7 +209,7 @@ dependencies: []
 links: []
 branches:
 - name: perf/task-233-cycle-time
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-21T20:42:00.989172Z'
@@ -655,3 +653,79 @@ log:
     outcome: finished_without_handoff
     duration_seconds: 3772.497869
     log_path: C:\Users\jpose\.agentjobs\runs\run_9f5385a4
+- id: 12
+  ts: '2026-08-21T23:13:17.531438Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 13
+  ts: '2026-08-21T23:22:02.331227Z'
+  actor: claude
+  type: decision
+  body: "**Jeff's answers to the two open questions, recorded before the merge. Both\
+    \ are binding.**\n\n**1. `--since-gate` stays.** His words: *\"might as well keep\
+    \ since-gate cuz why not, but you don't have to use it right now if you don't\
+    \ think we should.\"* So it is kept as built, and **it is not the default anything**\
+    \ \u2014 the unqualified `scripts/check.py` remains what the commit rule means,\
+    \ exactly as ENGINEERING.md says. `--since-gate` is available to whoever wants\
+    \ it and nothing in the workflow tells anyone to reach for it. That is the right\
+    \ resting place for a feature whose measured saving is now under a minute: present,\
+    \ documented, honest about its own value, and not pushed on anybody.\n\n**2. Acceptance\
+    \ t6 stays open, and the task stays open with it.** His words: *\"yeah it should\
+    \ really be tested... do I like leaving it open while we have to keep finding\
+    \ other tasks or epics to test it successfully with? no, but that's probably the\
+    \ right move.\"*\n\nHe is right and he is right about disliking it. The alternative\
+    \ \u2014 closing on the gate-component measurement and calling it done \u2014\
+    \ would mean this task's own headline claim was never checked against the thing\
+    \ it is a claim about. So the code merges now and **the record stays open until\
+    \ the ledger can answer the question with real runs**, not estimates.\n\nConcretely,\
+    \ the remaining work is one command and a judgement:\n\n```bash\npoetry run python\
+    \ scripts/run_report.py --since 7\n```\n\nOnce **five or so tasks** have been\
+    \ dispatched and worked under the merged configuration, that prints the baseline\
+    \ table for the new period plus the gate lines \u2014 gate runs per session, what\
+    \ they cost, how much was thrown away on gate runs that failed. Compare against\
+    \ the table in this task's spec, write the comparison into the log, mark t6, close.\n\
+    \nFive is a floor rather than a target: fewer than that and the median is one\
+    \ unusual session. There is no need to *find* tasks for it \u2014 ordinary backlog\
+    \ work produces the sample as a side effect, which is the whole point of the instrumentation\
+    \ being automatic.\n\n**A precondition that is easy to miss and would silently\
+    \ produce nothing:** the running server on 8876 has to be restarted before any\
+    \ of this accumulates. `src/agentjobs/dispatch/runner.py` is what puts `AGENTJOBS_RUN_ID`/`AGENTJOBS_RUN_DIR`\
+    \ into a spawned session's environment, and a running server holds the pre-merge\
+    \ code in memory. Until it restarts, every dispatched run writes no `phases.jsonl`\
+    \ at all, and the sample is empty while looking exactly like a sample that is\
+    \ still filling up.\n"
+  data:
+    operation:
+      id: c5e93a17-4d60-4b28-8e7f-1a2b3c4d5e6f
+      kind: log_append
+      fingerprint: f17fe793dadbe0054169a434e1e478d1
+- id: 14
+  ts: '2026-08-21T23:24:37.171954Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: f2b8c451-9e3d-4a76-b105-7c8d9e0f1a2b
+      kind: update_content
+      fingerprint: f377bfd4e0ade32ec771083ac9d1a52c
+- id: 15
+  ts: '2026-08-21T23:24:52.652548Z'
+  actor: claude
+  type: handoff
+  body: 'Merged to main as a8686df. Parked on hold rather than closed: t6 needs post-merge
+    dispatched runs to exist, and estimating it would be the guess this task''s instrumentation
+    exists to end.'
+  data:
+    ball: agent
+    ball_reason: hold
+    operation:
+      id: 6e1a9b74-0c25-4f38-92d7-4a5b6c7d8e9f
+      kind: handoff
+      fingerprint: b052e6bf57b9aab4cff4fda38c7ad8e1
