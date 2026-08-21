@@ -2,10 +2,54 @@ schema: 2
 id: task-193
 title: Every CLI dispatch on this machine hands the agent a dead API address
 created: '2026-08-20T08:07:00.622137Z'
-updated: '2026-08-21T16:58:08.762027Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-21T19:43:22.407075Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: 'Review branch `fix/task-193-dispatch-address-probe` (one commit, ea6f5cc,
+  worktree ../worktrees/aj-193) and say merge or not.
+
+
+  **ac-1 was already fixed before I started, and I did not touch your file.** `~/.agentjobs/dispatch.yaml`
+  has carried `api_base: http://127.0.0.1:8876` since 2026-08-20 23:26 -- after this
+  task was filed the same morning. I verified it live rather than assuming: `agentjobs
+  dispatch config` now reports that address, sourced from that file, with `AgentJobs
+  answered (schema v2)`. Nothing on this machine still resolves to 8765.
+
+
+  **ac-2 is the branch.** A dispatch whose caller observed no address -- the CLI --
+  now probes the resolved address before spawning and refuses with `api_base_unreachable`
+  if nothing answers there. It sits last among the checks that write nothing, so a
+  refusal leaves the task unclaimed. A dispatch from the browser is never probed:
+  its address came off the socket answering that very request. And `agentjobs dispatch
+  config` now prints the address, the source that produced it, and what answered there
+  -- it printed the address nowhere at all before, so the only place it was ever shown
+  was `dispatch run`, one line after the money was spent.
+
+
+  **Two judgement calls worth your eye, both argued in the decision entry (log 8).**
+  I made the gate a hard refusal with no `--allow-unreachable` escape, on the reasoning
+  that the probe runs on the same machine that spawns the agent, so there is no case
+  I can construct where the check is wrong and the dispatch is right. And I rejected
+  the third candidate from your spec -- the scaffold writing `api_base` from an observed
+  server -- because it would write a durable declaration from a transient observation,
+  into the one file whose value is that nothing writes it but you. Say so if you want
+  either decided the other way.
+
+
+  **Verification:** full `scripts/check.py`, 10 of 10 stages, exit 0, 496.8s -- no
+  PARTIAL RUN. 22 new tests, the probe ones driven against a real `http.server` rather
+  than a mocked `urlopen`. Hand-exercised in both directions: against this machine,
+  and under an `AGENTJOBS_HOME` that declares nothing, where the gate refuses and
+  names the address, the source and the fix.
+
+
+  Nothing here is visible in the React app, so there is no sandbox to stand up --
+  the surfaces that changed are `agentjobs dispatch config` and the refusal from `agentjobs
+  dispatch run`. `DEFAULT_API_BASE` is untouched, per your constraint.
+
+
+  On approval I will rebase, merge `--no-ff`, close, and remove the worktree.'
 archived: false
 priority: high
 queue_position: 375
@@ -15,6 +59,7 @@ tags:
 - config
 effort: small
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: A dispatch started from the CLI tells the agent AgentJobs is at http://localhost:8765.
@@ -54,15 +99,17 @@ spec:
 acceptance:
 - id: ac-1
   text: A CLI dispatch on this machine tells the agent an address that answers
-  status: pending
+  status: met
 - id: ac-2
   text: A machine that has not declared an address cannot silently spawn a run against
     a dead one
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: fix/task-193-dispatch-address-probe
+  status: active
 log:
 - id: 1
   ts: '2026-08-20T08:07:00.622243Z'
@@ -95,3 +142,254 @@ log:
     to: 375
     placement:
       kind: top
+- id: 4
+  ts: '2026-08-21T19:11:09.254695Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 5
+  ts: '2026-08-21T19:11:09.667438Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 6
+  ts: '2026-08-21T19:11:11.216880Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_23897f13
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 4
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-193` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-193-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_23897f13.'
+    cwd: C:\projects\agentjobs
+    git_head: e50e438
+    session_id: 2c909580
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 7
+  ts: '2026-08-21T19:42:31.163795Z'
+  actor: claude
+  type: progress
+  body: "Worked on branch fix/task-193-dispatch-address-probe, worktree ../worktrees/aj-193.\n\
+    \n**ac-1 was already satisfied when I picked this up, by someone else's hand,\
+    \ and I verified it rather than making the edit.** `~/.agentjobs/dispatch.yaml`\
+    \ now carries `api_base: http://127.0.0.1:8876` as its second line, mtime 2026-08-20\
+    \ 23:26:27 -- after this task was filed at 08:07 the same day. Verified live from\
+    \ the worktree:\n\n    $ agentjobs dispatch config\n    Agent address:  http://127.0.0.1:8876\
+    \  (api_base: in C:\\Users\\jpose\\.agentjobs\\dispatch.yaml)\n              \
+    \      AgentJobs answered (schema v2)\n\nand `resolve_api_base()` with no explicit\
+    \ argument -- which is exactly what the CLI path does -- returns `http://127.0.0.1:8876`.\
+    \ `curl http://127.0.0.1:8765/api/version` still fails to connect, so the address\
+    \ the three observed runs were given remains dead; nothing serves it.\n\n**ac-2\
+    \ is what this branch builds.** Three parts, one commit (ea6f5cc):\n\n1. `probe_api_base()`\
+    \ in dispatch/address.py asks `/api/version` and reports three states rather than\
+    \ two -- AgentJobs answered, something answered but not as AgentJobs, nothing\
+    \ answered. Proxies are bypassed, because a machine with HTTP_PROXY set would\
+    \ otherwise be asking a proxy about *its* 127.0.0.1.\n2. `resolve_api_base_detail()`\
+    \ returns the value *and* the source (observed / environment / config / fallback),\
+    \ so a refusal can distinguish \"the line you wrote is stale\" from \"nobody wrote\
+    \ a line\". `resolve_api_base()` is now the value half of it; every existing caller\
+    \ is unchanged.\n3. `dispatch_task()` refuses with `api_base_unreachable` when\
+    \ the caller observed no address and nothing answers at the resolved one. It sits\
+    \ last among the checks that write nothing, so a refusal leaves the task unclaimed\
+    \ with no authorising entry behind it.\n\nPlus the discoverability half: `agentjobs\
+    \ dispatch config` now prints the address, its source, and what answered there.\
+    \ It printed the address nowhere at all before, so the only place it was ever\
+    \ shown was `dispatch run`, one line after the money was spent.\n\n**Verification.**\
+    \ Full `scripts/check.py`, 10 of 10 stages, exit 0, 496.8s -- no PARTIAL RUN.\
+    \ 22 new tests. The probe tests drive a real `http.server` on an ephemeral port\
+    \ rather than a mocked `urlopen`, because what is under test is which of three\
+    \ answers each real-world shape produces, and a stub returning the shape under\
+    \ test proves only that the assertion got written down twice. Exercised by hand\
+    \ both ways: against this machine (above), and under an `AGENTJOBS_HOME` that\
+    \ declares nothing, where `dispatch config` reports the fallback and the gate\
+    \ raises\n\n    An agent dispatched from here would be told AgentJobs is at http://localhost:8765,\n\
+    \    and nothing answered (timed out). Nothing on this machine has said where\
+    \ AgentJobs\n    serves, so that address is the built-in fallback rather than\
+    \ an answer. Set\n    'api_base:' in ...\\dispatch.yaml to the address you actually\
+    \ serve on, or export\n    AGENTJOBS_API_BASE for this shell.\n\nDEFAULT_API_BASE\
+    \ is untouched, per the constraint."
+  data:
+    operation:
+      id: 3f1c9a02-6b41-4f7e-9d55-1a0e2c7b4411
+      kind: log_append
+      fingerprint: 180623747f78081b5e3bd54bf559a05b
+- id: 8
+  ts: '2026-08-21T19:42:50.424401Z'
+  actor: claude
+  type: decision
+  body: '**Two of the three candidates are built; the third is rejected.**
+
+
+    Built: `dispatch config` reports the resolved address rather than nothing, and
+    `dispatch run` refuses before spawning when nothing answers.
+
+
+    **Rejected: having the scaffold write `api_base` when it can observe a running
+    server.** scaffold.py''s whole doctrine is that AgentJobs never synthesises a
+    dispatch config, never adds an entry nobody typed, and never repairs one it does
+    not like -- because a file that appears by itself defeats the gate that makes
+    the file trustworthy. Baking an observed port into it would be writing a durable
+    declaration from a transient observation: whatever server happened to be up when
+    someone typed `dispatch example --write`. And the timing is wrong in the ordinary
+    case, where the example is written *before* there is a server to observe. What
+    the example gets instead is two sentences telling the reader that `dispatch config`
+    will check this for them and `dispatch run` will refuse if it is wrong -- the
+    same information, delivered where it cannot go stale.
+
+
+    **Rejected: warning instead of refusing.** A warning is the right shape for a
+    problem the reader will notice anyway. This is the opposite: the run starts, the
+    money is spent, the agent goes quiet, and the only artifact is a task record that
+    stopped changing. The three real runs in this task''s intent are the evidence
+    -- they were only survivable because those agents fell back to reading YAML off
+    disk, which is luck rather than design.
+
+
+    **Rejected: an `--allow-unreachable` escape hatch on `dispatch run`.** Considered
+    and left out. The address is checked from the same machine that is about to spawn
+    the agent, so "reachable from here" and "reachable from the agent" are the same
+    question; there is no legitimate case I can construct where the check is wrong
+    and the dispatch is right. A flag that lets someone past a gate they have not
+    diagnosed is how the gate stops meaning anything. If a real case turns up -- a
+    server that starts after the agent does -- it should arrive with that case attached.
+
+
+    **The probe reports three states, not two, and only one of them refuses.** An
+    address that answers HTTP but not as AgentJobs proceeds with a warning from `dispatch
+    config`, because the check cannot distinguish a stranger on a reused port from
+    an AgentJobs too old to serve `/api/version`, and only one of those is broken.
+    Refusing on a distinction the code cannot actually draw would block working setups.
+
+
+    **The gate only runs when the caller observed no address.** A dispatch from the
+    browser derives its address from the socket its own request arrived on, so probing
+    it asks a question already answered -- and every route in this API is an `async
+    def` doing blocking file reads on the event loop, so a server issuing a synchronous
+    HTTP call to itself from inside a request handler is a deadlock, not merely a
+    waste.
+
+
+    **Timeout is 5s rather than something tighter,** for the same asymmetry: refusing
+    a dispatch whose server was merely slow tells a working machine it is broken,
+    while waiting a few extra seconds before refusing is an inconvenience. A closed
+    port refuses in microseconds and never approaches the ceiling; the ceiling exists
+    for a *filtered* address, which answers nothing and would otherwise hang on a
+    TCP retry schedule measured in minutes.'
+  data:
+    operation:
+      id: 8d2b7e41-0c93-4a16-b7d2-5f60c8e1a922
+      kind: log_append
+      fingerprint: ee43ab2b3ffd4a5c75ac93b2f60600bc
+- id: 9
+  ts: '2026-08-21T19:43:05.241664Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: c4a90f18-72d5-4b3e-8e1f-2a6b930cd744
+      kind: update_content
+      fingerprint: a2793fe26844fea307ec96a8f8a56138
+- id: 10
+  ts: '2026-08-21T19:43:22.406930Z'
+  actor: claude
+  type: handoff
+  body: 'Review branch `fix/task-193-dispatch-address-probe` (one commit, ea6f5cc,
+    worktree ../worktrees/aj-193) and say merge or not.
+
+
+    **ac-1 was already fixed before I started, and I did not touch your file.** `~/.agentjobs/dispatch.yaml`
+    has carried `api_base: http://127.0.0.1:8876` since 2026-08-20 23:26 -- after
+    this task was filed the same morning. I verified it live rather than assuming:
+    `agentjobs dispatch config` now reports that address, sourced from that file,
+    with `AgentJobs answered (schema v2)`. Nothing on this machine still resolves
+    to 8765.
+
+
+    **ac-2 is the branch.** A dispatch whose caller observed no address -- the CLI
+    -- now probes the resolved address before spawning and refuses with `api_base_unreachable`
+    if nothing answers there. It sits last among the checks that write nothing, so
+    a refusal leaves the task unclaimed. A dispatch from the browser is never probed:
+    its address came off the socket answering that very request. And `agentjobs dispatch
+    config` now prints the address, the source that produced it, and what answered
+    there -- it printed the address nowhere at all before, so the only place it was
+    ever shown was `dispatch run`, one line after the money was spent.
+
+
+    **Two judgement calls worth your eye, both argued in the decision entry (log 8).**
+    I made the gate a hard refusal with no `--allow-unreachable` escape, on the reasoning
+    that the probe runs on the same machine that spawns the agent, so there is no
+    case I can construct where the check is wrong and the dispatch is right. And I
+    rejected the third candidate from your spec -- the scaffold writing `api_base`
+    from an observed server -- because it would write a durable declaration from a
+    transient observation, into the one file whose value is that nothing writes it
+    but you. Say so if you want either decided the other way.
+
+
+    **Verification:** full `scripts/check.py`, 10 of 10 stages, exit 0, 496.8s --
+    no PARTIAL RUN. 22 new tests, the probe ones driven against a real `http.server`
+    rather than a mocked `urlopen`. Hand-exercised in both directions: against this
+    machine, and under an `AGENTJOBS_HOME` that declares nothing, where the gate refuses
+    and names the address, the source and the fix.
+
+
+    Nothing here is visible in the React app, so there is no sandbox to stand up --
+    the surfaces that changed are `agentjobs dispatch config` and the refusal from
+    `agentjobs dispatch run`. `DEFAULT_API_BASE` is untouched, per your constraint.
+
+
+    On approval I will rebase, merge `--no-ff`, close, and remove the worktree.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: b19d5c60-3ae7-4a71-98a0-6d4f1e2c8a35
+      kind: handoff
+      fingerprint: d54aebeb49b2538d852b0cbdf37aa44f
