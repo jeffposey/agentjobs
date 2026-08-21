@@ -3,7 +3,7 @@ id: task-211
 title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
   reorder, and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T03:19:14.784538Z'
+updated: '2026-08-21T03:33:42.590252Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -262,3 +262,52 @@ log:
       id: a3c95e72-0d43-4e86-9fb8-7365c8d30211
       kind: update_content
       fingerprint: f817057ee5472e7cdb5f7031b314a68c
+- id: 5
+  ts: '2026-08-21T03:33:42.590116Z'
+  actor: claude
+  type: decision
+  body: "Jeff described the intended end-to-end workflow, 2026-08-20, which makes\
+    \ the \"human move is sticky\" bound from log entry 3 concrete enough to design\
+    \ against:\n\n> \"AI picks order first ... I manipulating by click and dragging\
+    \ tasks up and down in the react dashboard, and that 'sticks' somehow\"\n\n**Mechanism\
+    \ for stickiness \u2014 proposed, for the design to settle.** No new schema field\
+    \ is needed. A `queue_move` is a managed verb and its log entry already records\
+    \ the actor, so \"was this task's current position last set by a human or by a\
+    \ playbook run\" is derivable from the record as it stands. The reorder playbook\
+    \ reads that and treats a human-set position as an **anchor**: it orders around\
+    \ anchors, and overriding one requires it to say so explicitly in its output rather\
+    \ than silently re-deriving the band. Rejected alternative: a `queue_pinned` boolean\
+    \ on the task \u2014 explicit and fast to read, but it needs a clearing rule or\
+    \ every task eventually becomes pinned and the playbook has nothing left to do.\
+    \ Provenance carries the same information and cannot drift from the truth, because\
+    \ it *is* the write history.\n\n**Staleness.** An anchor should not hold forever,\
+    \ or the queue slowly freezes into whatever Jeff last touched. Candidate rule\
+    \ for the design to accept or replace: an anchor holds until the task materially\
+    \ changes \u2014 it closes, its priority band changes, or its dependencies resolve\
+    \ \u2014 at which point its position is the playbook's again. State the rule either\
+    \ way; an anchor with no expiry is a decision, not an omission.\n\n**The trap,\
+    \ and why it is the important half of this entry.** Stickiness alone re-creates\
+    \ the exact problem this whole program exists to fix, with the polarity reversed.\
+    \ Jeff's argument for autonomous ordering (entry 3) is that at 75 open tasks *he*\
+    \ is the less-informed party, because the records do not fit in his head. If his\
+    \ drag silently outranks a placement the playbook made for a reason he cannot\
+    \ see on that screen, then the uninformed move beats the informed one by construction\
+    \ \u2014 which is worse than the timestamp ordering, because it looks deliberate.\n\
+    \nSo stickiness and **reason-at-drag-time are a pair, and neither should ship\
+    \ alone.** The React reorder surface must show why a task currently sits where\
+    \ it does \u2014 the playbook's recorded reason for that position \u2014 at the\
+    \ moment someone drags it. Then his override is informed, which is what makes\
+    \ it legitimately outrank the machine. The design already has the raw material:\
+    \ `explain_next()` (task-selection-design \xA79) exists to explain the *selection*;\
+    \ this needs the same treatment for a *position*.\n\n**Consequence for task-207**,\
+    \ which builds the React list and drag/keyboard reorder: its acceptance criteria\
+    \ today cover order, keyboard access, optimistic-update rollback and corrupt-queue\
+    \ banners, but nothing about surfacing why a task holds its position. 207 is ready\
+    \ and may ship before this design exists, so a pointer note has been added there.\
+    \ Whether the reason display lands in 207 or in a child of this task is a sequencing\
+    \ call, not a question of whether it is needed."
+  data:
+    operation:
+      id: c5e07a94-2f65-4d18-b1ca-8597a0f50211
+      kind: log_append
+      fingerprint: 75cdf5050abd6e36eb49c0a3bf28ee2e

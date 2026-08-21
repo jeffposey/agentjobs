@@ -3,7 +3,7 @@ id: task-207
 title: 'Queue position: the React list shows the real order, and you can change it
   without a mouse'
 created: '2026-08-20T23:31:25.501669Z'
-updated: '2026-08-21T00:35:28.074239Z'
+updated: '2026-08-21T03:33:54.986810Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -150,3 +150,32 @@ log:
       id: a1b2c3d4-0002-4a00-9e00-1a2b3c4d0207
       kind: promote
       fingerprint: 3adc6946efc3dc79125f49cd49be17a3
+- id: 4
+  ts: '2026-08-21T03:33:54.986691Z'
+  actor: claude
+  type: note
+  body: "Pointer from task-211 log entry 5, so whoever builds this screen sees it\
+    \ before shipping.\n\nJeff's intended workflow is: a reorder playbook orders the\
+    \ backlog autonomously, and he adjusts it by dragging in this list, with his drags\
+    \ taking precedence. That makes this screen the place where two ordering authorities\
+    \ meet.\n\n**The gap:** sc-1..sc-5 cover queue order, keyboard access, optimistic\
+    \ rollback and corrupt-queue banners, but nothing surfaces *why* a task currently\
+    \ holds its position. Without that, a human drag silently outranks a placement\
+    \ the playbook made for a reason invisible on this screen \u2014 and Jeff's own\
+    \ argument for autonomous ordering (task-211 entry 3) is that at 75 open tasks\
+    \ he is the less-informed party at ordering time. An uninformed override beating\
+    \ an informed placement is worse than the `updated` ordering this task deletes,\
+    \ because it looks deliberate.\n\n**What that implies for this screen, if it ships\
+    \ before the playbook design lands:** show the recorded reason for a task's position\
+    \ at drag time. `explain_next()` (task-selection-design \xA79) does this for the\
+    \ *selection*; a position needs the same. Not being added as an acceptance criterion\
+    \ here, because the reason only exists once a playbook writes one and that design\
+    \ (task-211) is not done \u2014 so requiring it now would block this task on a\
+    \ design that has not started.\n\nIf this ships first, the reason display is a\
+    \ follow-up under task-211 rather than something forgotten. If task-211 lands\
+    \ first, fold it in here instead."
+  data:
+    operation:
+      id: d6f18ba5-3076-4e29-8c2b-96a80f610207
+      kind: log_append
+      fingerprint: 038f4c896d299e8826d2b35c2b43f092
