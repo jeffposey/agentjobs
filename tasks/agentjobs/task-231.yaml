@@ -3,16 +3,11 @@ id: task-231
 title: The review panel offers verbs that are true, and records which one the human
   meant
 created: '2026-08-21T20:18:51.832048Z'
-updated: '2026-08-21T21:44:54.280620Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-21T22:01:26.159331Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 433
 category: ux
 tags:
 - gui
@@ -22,7 +17,6 @@ tags:
 effort: "one branch, three commits, one gate, one review \u2014 the first part is\
   \ a vocabulary decision and the other two are small once it is made"
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "One task, three parts, one branch. The review panel is the single control\
@@ -259,7 +253,7 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-231-review-panel
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-21T20:18:52.254191Z'
@@ -665,3 +659,67 @@ log:
         eligible: true
       - runner: chatgpt-sol
         eligible: true
+- id: 17
+  ts: '2026-08-21T22:00:18.226412Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: c94e0f27-6a13-4b8d-a5e2-71f3c8d0b942
+      kind: update_content
+      fingerprint: 83e651781bb6e0d3ca8245e67e840393
+- id: 18
+  ts: '2026-08-21T22:01:26.158956Z'
+  actor: claude
+  type: transition
+  body: 'Merged to main as cef087d and live on 8876.
+
+
+    **The merge was not a formality.** main had moved substantially since the branch
+    was cut -- task-229''s drag autoscroll and task-224''s auth-stall detector, 24
+    files and ~3600 lines of code the branch had never been tested against. So the
+    branch was rebased (clean, four commits replayed) and `scripts/check.py` was run
+    **unqualified a third time** on the rebased tree before anything merged: 10 of
+    10 stages, 602s, green. The two greens in the handoff were against the pre-rebase
+    tree; this one is the one that justifies the merge.
+
+
+    Then `git merge --no-ff`, branch marked merged, frontend rebuilt, 8876 restarted
+    through `C:/ai/shared/launchers/open-agentjobs.ps1 -Force` -- the way it was started,
+    not `agentjobs restart`, which binds the default 8765 and would have left the
+    real dashboard stale while reporting success.
+
+
+    **Confirmed live rather than assumed**, per the merge gate''s last step:
+
+
+    - `/api/version` reports `source_root: C:\projects\agentjobs` -- the served process
+    is this checkout, not a worktree''s.
+
+    - `/app/` serves `index-CekVzuli.js`, the bundle just built. `frontend_dist/`
+    is gitignored, so this is the step that would otherwise have left Jeff on the
+    pre-merge UI.
+
+    - The live OpenAPI carries `answer`, `redirect` and `hold` as ball_reason values,
+    and `POST /api/tasks/{id}/approve` takes `{user, note}`. All three parts are reachable
+    through the running server.
+
+
+    The review sandbox on :8897 was stopped, and the worktree at C:/projects/worktrees/aj-231
+    removed along with the local branch.
+
+
+    **One thing left open deliberately, restated so it is not lost with this record:**
+    p3-2''s "MCP and the CLI" half is unmet and cannot be met by extension -- neither
+    surface has an approve action at all, and adding one to MCP would let an agent
+    approve its own work. If a CLI review surface is wanted, it is a new task.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: d5b0a316-8e42-4c77-9013-6f2a1b84e7c5
+      kind: close
+      fingerprint: ac6d7abd1e9034807e06f219a868fc35
