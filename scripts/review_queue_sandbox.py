@@ -149,112 +149,14 @@ def seed(manager, *, corrupt: bool, human_rungs: bool) -> None:
         victim_path.write_text(yaml.safe_dump(victim, sort_keys=False), encoding="utf-8")
 
 
-# The panel injected into the sandbox's HTML. Deliberately dependency-free and inline:
-# it has to work on a page served from a temporary directory, with no build step and no
-# extra request, and it has to be obviously not part of the application.
-DRAG_TRACE = r"""
-<script>
-(function () {
-  var lines = [];
-  var missed = null;
-  var panel, body;
+# The trace panel. The script itself is `review_drag_trace.js` beside this file --
+# separate because a JavaScript escape sequence inside a Python string literal is read
+# by Python first, and that silently broke the panel once already.
+TRACE_SCRIPT = Path(__file__).resolve().parent / "review_drag_trace.js"
 
-  function draw() {
-    if (!panel) return;
-    body.textContent = lines.length
-      ? lines.join("\n")
-      : "No gesture yet. Grab a \u283f handle and drag it onto another row.";
-  }
-
-  function push(line) {
-    if (lines[lines.length - 1] !== line) lines.push(line);
-    if (lines.length > 24) lines.shift();
-    draw();
-  }
-
-  function describe(node) {
-    if (!node || !node.tagName) return "nothing";
-    var name = node.tagName.toLowerCase();
-    if (node.id) name += "#" + node.id;
-    var row = node.closest && node.closest("[data-task]");
-    if (row) name += " (in " + row.getAttribute("data-task") + ")";
-    return name;
-  }
-
-  document.addEventListener("mousedown", function (event) {
-    var handle = event.target.closest && event.target.closest('[id^="queue-grip-"]');
-    lines = [];
-    if (handle) {
-      var box = handle.getBoundingClientRect();
-      missed = false;
-      push("PRESS  on the handle " + handle.id +
-           "  (" + Math.round(box.width) + "x" + Math.round(box.height) + " px)");
-    } else {
-      missed = true;
-      push("PRESS  NOT on a handle -- landed on " + describe(event.target));
-    }
-  }, true);
-
-  ["dragstart", "dragover", "drop", "dragend"].forEach(function (type) {
-    document.addEventListener(type, function (event) {
-      var row = event.target.closest && event.target.closest("[data-task]");
-      push(type.toUpperCase() + (row ? "  " + row.getAttribute("data-task") : ""));
-    }, true);
-  });
-
-  document.addEventListener("mouseup", function () {
-    setTimeout(function () {
-      if (missed) {
-        push("-> nothing happened, because the press missed the handle.");
-      } else if (lines.indexOf("DRAGSTART") === -1 &&
-                 !lines.some(function (l) { return l.indexOf("DRAGSTART") === 0; })) {
-        push("-> the browser never started a drag from the handle.");
-      }
-    }, 50);
-  }, true);
-
-  var fetched = window.fetch;
-  window.fetch = function (input, init) {
-    var url = typeof input === "string" ? input : (input && input.url) || "";
-    var watched = url.indexOf("queue-move") !== -1 || url.indexOf("reprioritize") !== -1;
-    var call = fetched.apply(this, arguments);
-    if (watched) {
-      push("REQUEST " + url.replace(/^.*\/api\//, "/api/"));
-      call.then(
-        function (response) { push("   -> HTTP " + response.status); },
-        function (error) { push("   -> failed: " + error); }
-      );
-    }
-    return call;
-  };
-
-  function build() {
-    panel = document.createElement("div");
-    panel.style.cssText = [
-      "position:fixed", "right:12px", "bottom:12px", "z-index:2147483647",
-      "width:380px", "max-height:45vh", "overflow:auto", "padding:10px 12px",
-      "background:#0b1220", "color:#cbd5e1", "border:1px solid #334155",
-      "border-radius:8px", "font:11px/1.5 ui-monospace,Consolas,monospace",
-      "box-shadow:0 8px 24px rgba(0,0,0,.5)", "white-space:pre-wrap"
-    ].join(";");
-    var head = document.createElement("div");
-    head.style.cssText = "color:#fbbf24;font-weight:700;margin-bottom:6px";
-    head.textContent = "drag trace \u2014 review sandbox only";
-    body = document.createElement("div");
-    panel.appendChild(head);
-    panel.appendChild(body);
-    document.body.appendChild(panel);
-    draw();
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", build);
-  } else {
-    build();
-  }
-})();
-</script>
-"""
+# Every gesture the panel records, newest last. In memory and thrown away with the
+# process, like everything else in this sandbox.
+TRACES: list[dict[str, Any]] = []
 
 
 class InjectDragTrace(BaseHTTPMiddleware):
@@ -270,8 +172,9 @@ class InjectDragTrace(BaseHTTPMiddleware):
             return response
         body = b"".join([chunk async for chunk in response.body_iterator])
         text = body.decode("utf-8")
+        script = f"<script>\n{TRACE_SCRIPT.read_text(encoding='utf-8')}\n</script>"
         if "</head>" in text:
-            text = text.replace("</head>", DRAG_TRACE + "</head>", 1)
+            text = text.replace("</head>", script + "</head>", 1)
         headers = dict(response.headers)
         headers.pop("content-length", None)
         # Never let a service worker or the browser hand back a shell without the panel.
@@ -282,6 +185,26 @@ class InjectDragTrace(BaseHTTPMiddleware):
             headers=headers,
             media_type="text/html",
         )
+
+
+def add_trace_routes(app: Any) -> None:
+    """Record gestures on the server, so nobody has to screenshot a panel in time.
+
+    The first person to use the panel lost the trace to their next click, which is a
+    fair description of why a review tool should not depend on a human being quick.
+    """
+
+    @app.post("/review/trace")
+    async def record_trace(payload: dict[str, Any]) -> dict[str, int]:
+        TRACES.append(payload)
+        print("[review] gesture:", flush=True)
+        for line in payload.get("lines", []):
+            print(f"[review]   {line}", flush=True)
+        return {"recorded": len(TRACES)}
+
+    @app.get("/review/traces")
+    async def read_traces() -> list[dict[str, Any]]:
+        return TRACES
 
 
 def build(root: Path, *, project_id: str, name: str, corrupt: bool, human_rungs: bool) -> Path:
@@ -329,11 +252,14 @@ def main() -> None:
 
     if trace:
         app.add_middleware(InjectDragTrace)
+        add_trace_routes(app)
 
     print(f"[review] queue sandbox at http://127.0.0.1:{port}/app/", flush=True)
     for project_id, _, _, _ in projects:
         print(f"[review]   http://127.0.0.1:{port}/app/p/{project_id}/tasks", flush=True)
     print(f"[review] drag trace panel: {'on' if trace else 'off (--no-trace)'}", flush=True)
+    if trace:
+        print(f"[review]   gestures print here and at /review/traces on :{port}", flush=True)
     print(f"[review] throwaway data under {root}", flush=True)
     try:
         uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
