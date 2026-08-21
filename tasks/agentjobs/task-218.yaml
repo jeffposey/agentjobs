@@ -1,0 +1,75 @@
+schema: 2
+id: task-218
+title: 'Playbooks 5: flesh-out, authored and proven'
+created: '2026-08-21T04:56:57.789106Z'
+updated: '2026-08-21T04:56:57.789899Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: medium
+category: meta
+tags:
+- playbooks
+- grooming
+assignment:
+  eligible: []
+parent: task-211
+spec:
+  summary: "Author playbooks/flesh-out.md \u2014 the task-targeted playbook that writes\
+    \ a full spec onto a thin task through update_content and parks it at human/review\
+    \ \u2014 and run it live once against a genuinely thin task."
+  intent: The smallest playbook and the one that proves the task-targeted shape; also
+    the one most likely to be used weekly, since thin tasks are filed constantly.
+  description: "Implements section 5.3 of docs/playbooks-design.md (the task-211 deliverable;\
+    \ add it to context[] once it merges). Flesh-out is the design's `target: task`\
+    \ case: the run is an ordinary dispatch of the target task with the playbook as\
+    \ brief \u2014 no run task exists, because the record belongs on the task being\
+    \ worked.\n\nThe brief must encode, normatively:\n\n- Read the thin record plus\
+    \ the repository context; write a full spec \u2014 summary, intent, description,\
+    \ constraints, out_of_scope, acceptance \u2014 through the managed update_content\
+    \ verb, directly onto the task.\n- Hand off ball: human / review with a ball_prompt\
+    \ naming what was written and what the run was least sure of. The parked ball\
+    \ is the gate: a wrong spec cannot be claimed or dispatched until a human releases\
+    \ it. The prior text is recoverable from git and the update's log entry.\n- Never\
+    \ change lifecycle, priority, queue position, or dependencies; anything beyond\
+    \ spec fields and acceptance criteria is raised as a question.\n\nThe live run:\
+    \ pick a genuinely thin ready/draft task, `playbook run flesh-out --task <id>`,\
+    \ verify the spec landed, the target parked at review, and nothing else moved."
+  constraints: Design decision P7's flesh-out gate (write-then-park-at-review) is
+    binding. Managed verbs only; spec fields and acceptance only.
+  out_of_scope: Batch sweeps over many thin tasks (each run targets one task). Any
+    change to state axes beyond the review handoff.
+  context:
+  - path: ALLAGENTS.md
+    why: "The resumption contract the written spec must satisfy \u2014 a fleshed-out\
+      \ task is one a zero-context session can work from."
+acceptance:
+- id: sc-1
+  text: playbooks/flesh-out.md exists, passes validation, and encodes the write-then-park
+    gate and the spec-fields-only scope.
+  status: pending
+- id: sc-2
+  text: 'One live run against a thin task: full spec written via update_content, target
+    parked at human/review, no other field or state moved.'
+  status: pending
+deliverables: []
+dependencies:
+- task: task-215
+  type: needs
+  note: playbook run --task is how this instantiates.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T04:56:57.789152Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: b7e4c1a2-5555-4a5e-9c00-1a2b3c4d0218
+      kind: create
+      fingerprint: 953a46c167b809b090e421a66983c6f0

@@ -1,0 +1,107 @@
+schema: 2
+id: task-215
+title: "Playbooks 2: instantiation \u2014 `playbook run` on CLI, REST and GUI"
+created: '2026-08-21T04:55:56.410481Z'
+updated: '2026-08-21T04:55:56.411269Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+category: architecture
+tags:
+- playbooks
+- dispatch
+- cli
+- api
+- frontend
+assignment:
+  eligible: []
+parent: task-211
+spec:
+  summary: 'Make a playbook runnable: `agentjobs playbook run` creates a run task
+    from frontmatter (target: project) or dispatches the target task with the playbook
+    as brief (target: task), pins playbook name and content hash in the dispatch entry,
+    and reuses the task-188 authorisation pattern. Every existing dispatch gate binds
+    unchanged.'
+  intent: "Instantiation is the point of the feature \u2014 a brief nobody can run\
+    \ is a document. Riding dispatch unchanged keeps the whole \xA76 safety surface\
+    \ intact for free."
+  description: "Implements section 4 and the run half of section 7 of docs/playbooks-design.md\
+    \ (the task-211 deliverable; add that file to context[] once it merges). Read\
+    \ the design first \u2014 \xA74 defends run-is-a-task and \xA76.3 states what\
+    \ a playbook may never influence.\n\nScope:\n\n- `agentjobs playbook run <name>\
+    \ [--task <id>] [--group <g>]`, `POST /api/projects/{id}/playbooks/{name}/run`\
+    \ (body: user, optional task, optional group), and a Run button in the GUI playbook\
+    \ list riding the existing dispatch dialog.\n- `target: project`: create the run\
+    \ task from the playbook's `run_task` frontmatter (title templating, category,\
+    \ priority, tags, acceptance), spec.description a short pointer to the playbook\
+    \ (never a copy of the brief \u2014 design \xA74.2), context[] naming the playbook\
+    \ path; then dispatch it.\n- `target: task`: dispatch the named task with the\
+    \ playbook pointer appended to the prompt stub as one line (path + short hash);\
+    \ refuse if the playbook's target shape and the invocation disagree.\n- The dispatch\
+    \ log entry gains `playbook` and `playbook_hash` (sha256 of file content at instantiation)\
+    \ in `data` (design \xA74.3).\n- Authorisation reuses task-188 verbatim: browser\
+    \ path writes the clicking human's authorising entry; CLI path keeps the stored-entry\
+    \ human-clocked rule; default_user is never substituted. No new authorisation\
+    \ surface.\n- Reactive (`kind: reactive`) playbooks are refused by `playbook run`\
+    \ with a message naming child 6 \u2014 they have no manual invocation in this\
+    \ design.\n\nTests that matter: a playbook run with dispatch disabled is refused;\
+    \ an agent as would-be authoriser is refused; the dispatch entry carries playbook\
+    \ + hash; a `target: task` run of a project-target playbook (and vice versa) is\
+    \ refused; the brief is not present in the prompt beyond the pointer line."
+  constraints: "Design decisions P3, P4, P6 and P10 in docs/playbooks-design.md \xA7\
+    10 are binding. A playbook never names a runner, group, or argv \u2014 difficulty\
+    \ only (task-156 is the durable path; until then --group per run). No MCP run\
+    \ tool. No recurrence, no scheduling, no event triggers."
+  out_of_scope: "The reference briefs themselves (children 3-5). The reactive lane\
+    \ (child 6). The difficulty \u2192 profile mapping (task-080's deferred table)."
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: "\xA72/\xA72a (authorisation), \xA74 (prompt stub, postures), \xA75 (what\
+      \ starts a dispatch), \xA76 (gates) \u2014 playbook run must change none of\
+      \ it."
+  - path: src/agentjobs/dispatch
+    why: The machinery playbook run composes; the task-188 authorisation path lives
+      here.
+acceptance:
+- id: sc-1
+  text: A project-target run creates a run task from frontmatter and dispatches it;
+    a task-target run dispatches the target with the one-line playbook pointer; target-shape
+    mismatches are refused.
+  status: pending
+- id: sc-2
+  text: The dispatch entry records playbook and playbook_hash; the brief is never
+    copied into prompt or spec.
+  status: pending
+- id: sc-3
+  text: 'Every dispatch gate binds: proven by tests dispatching a playbook with dispatch
+    disabled and with an agent as would-be authoriser, both refused.'
+  status: pending
+- id: sc-4
+  text: Reactive playbooks are refused by playbook run; MCP has no run tool.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-214
+  type: needs
+  note: The storage layer and frontmatter model this instantiates from.
+- task: task-156-task-difficulty-field
+  type: related
+  note: "Once difficulty exists on tasks, the run task carries the playbook's declared\
+    \ difficulty as durable data (design \xA77.2)."
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T04:55:56.410522Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: b7e4c1a2-2222-4a5e-9c00-1a2b3c4d0215
+      kind: create
+      fingerprint: dff246a4bd79c9dc53b464a0875ea3b5

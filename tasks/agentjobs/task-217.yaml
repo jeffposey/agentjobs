@@ -1,0 +1,98 @@
+schema: 2
+id: task-217
+title: 'Playbooks 4: reorder, authored, with anchor mechanics'
+created: '2026-08-21T04:56:41.043549Z'
+updated: '2026-08-21T04:56:41.044317Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+category: meta
+tags:
+- playbooks
+- queue-order
+- backlog
+assignment:
+  eligible: []
+parent: task-211
+spec:
+  summary: "Author playbooks/reorder.md \u2014 graded effort by depth, writes through\
+    \ queue move itself with a reason per move, respects human anchors derived from\
+    \ queue_move provenance \u2014 expose last-move actor in the queue listing so\
+    \ a run can derive anchors, and run it live once after task-209's manual pass."
+  intent: Reorder is the playbook with a named consumer and a stated model posture
+    (frontier runner); it is what turns \"autonomous work is the direction\" into
+    something the queue actually runs.
+  description: "Implements section 5.2 of docs/playbooks-design.md (the task-211 deliverable;\
+    \ add it to context[] once it merges). This generalises the task-209 pattern into\
+    \ the reusable brief, under the bounds Jeff set on 2026-08-20 (task-211 log entries\
+    \ 2, 3, 5 and 6 \u2014 binding).\n\nThe brief must encode, normatively:\n\n- Graded\
+    \ effort by queue depth: head of each band (~5) ordered exactly with a reason\
+    \ per move; next 5-10 in rough buckets; tail untouched except a triage scan asking\
+    \ only \\\"does anything here belong near the head?\\\".\n- The run writes through\
+    \ `queue move` itself \u2014 human review optional, not required \u2014 and every\
+    \ move's queue_move body carries the reason for the placement. Recorded reasoning\
+    \ is what makes optional review safe.\n- Triggered, not continuous: runs on explicit\
+    \ request or because new tasks arrived; never on a schedule, never per dispatch.\n\
+    - Anchors: a position whose latest queue_move actor is human is an anchor. Order\
+    \ around anchors; overriding an ordinary anchor requires an explicit statement\
+    \ naming it and the grounds; a strong anchor (kept-over-objection, child 6) is\
+    \ never moved \u2014 raise a question instead. Anchors expire on material change:\
+    \ close, band change, or a needs dependency resolving.\n- No scoring \u2014 no\
+    \ numeric ranking function over signals. The output is an argument a reader can\
+    \ disagree with (task-selection-design \xA712's scoring rejection still binds).\n\
+    \nMechanics this child builds beyond the brief: the queue listing (API/CLI) gains\
+    \ each open task's last queue_move actor so a run derives anchors without parsing\
+    \ every log itself.\n\nThe live run: after task-209's manual ordering pass has\
+    \ happened, one real `playbook run reorder`, demonstrating anchor respect (task-209's\
+    \ human-approved head positions are anchors) and recorded reasons on every move."
+  constraints: 'Design decision P7''s reorder bounds are binding, as are the decisions
+    recorded on task-211 (log entries 2, 3, 5, 6). Ordering is not grooming: the run
+    closes nothing, reprioritises nothing, rewrites nothing.'
+  out_of_scope: "The reactive queue-check (child 6) \u2014 this child only consumes\
+    \ its strong-anchor record if it exists. Any recurrence wiring. The task-209 live\
+    \ reorder itself."
+  context:
+  - path: docs/task-selection-design.md
+    why: "The queue verbs and invariants the run rides; \xA712's scoring rejection\
+      \ still binds."
+acceptance:
+- id: sc-1
+  text: playbooks/reorder.md exists, passes validation, and encodes graded effort,
+    recorded reasons, triggered-not-continuous, the anchor rules with their expiry,
+    and the scoring prohibition.
+  status: pending
+- id: sc-2
+  text: The queue listing exposes each open task's last queue_move actor, and the
+    brief's anchor derivation uses it.
+  status: pending
+- id: sc-3
+  text: 'One live run after task-209: every move is a queue_move with a substantive
+    reason; every human anchor was respected or explicitly overridden with stated
+    grounds; nothing was closed, reprioritised, or rewritten.'
+  status: pending
+deliverables: []
+dependencies:
+- task: task-215
+  type: needs
+  note: playbook run is how this instantiates.
+- task: task-209
+  type: related
+  note: The first, manual run of this policy; its human-approved positions become
+    the anchors the live run must respect.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T04:56:41.043589Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: b7e4c1a2-4444-4a5e-9c00-1a2b3c4d0217
+      kind: create
+      fingerprint: 02ccf674b7ff58096b480b2803a9e6a0

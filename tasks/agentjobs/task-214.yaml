@@ -1,0 +1,93 @@
+schema: 2
+id: task-214
+title: 'Playbooks 1: storage, frontmatter format, and read surfaces'
+created: '2026-08-21T04:55:30.551589Z'
+updated: '2026-08-21T04:55:30.552318Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+category: architecture
+tags:
+- playbooks
+- cli
+- mcp
+- schema
+assignment:
+  eligible: []
+parent: task-211
+spec:
+  summary: 'Add the playbook storage layer: a per-project playbooks/ directory configured
+    by playbooks_directory, the frontmatter contract model with validation, list/show
+    on CLI/REST/MCP (read-only), and the shipped reference playbooks with `agentjobs
+    playbook init` copy-in. Nothing executes anything.'
+  intent: The storage and contract surface is independently shippable and carries
+    no execution risk; everything else in the playbook program builds on it.
+  description: "Implements section 3 and the read half of section 7.1 of docs/playbooks-design.md\
+    \ (the task-211 deliverable; add that file to context[] once it merges \u2014\
+    \ it is on branch docs/task-211-playbooks-design until then). Read the design\
+    \ before starting; it is the specification and it names what was rejected.\n\n\
+    Scope:\n\n- `playbooks_directory` in `.agentjobs/config.yaml` (default `playbooks`),\
+    \ following the `prompts_directory` pattern in project_setup.py and the projects\
+    \ API.\n- The playbook model: markdown file with YAML frontmatter \u2014 `name`\
+    \ (must equal filename stem), `description`, `target` (project|task), `kind` (batch|reactive),\
+    \ `difficulty` (routine|standard|hard), `verbs` (list), `gates` (list of {before,\
+    \ what}), `run_task` (title/category/priority/tags/acceptance defaults). Validation\
+    \ refuses a name/filename mismatch and unknown enum values; the body is opaque\
+    \ prose.\n- `agentjobs playbook list` and `agentjobs playbook show <name>` (CLI\
+    \ sub-app in the shape of `queue` and `dispatch`), `GET /api/projects/{id}/playbooks`,\
+    \ and MCP `playbooks_list` (read-only \u2014 deliberately no run tool, design\
+    \ \xA77.1/P10).\n- Reference playbooks shipped in the package as data files (groom,\
+    \ reorder, flesh-out \u2014 briefs may be first-pass; children 3-5 finish them)\
+    \ and `agentjobs playbook init`, which copies them into the project's playbooks\
+    \ directory and refuses to overwrite existing files (design \xA73.1: never run\
+    \ implicitly, project copy is authoritative)."
+  constraints: "Design decisions P1, P2, P5 and P10 in docs/playbooks-design.md \xA7\
+    10 are binding. No execution path of any kind in this task. Reading a playbook\
+    \ must never evaluate or run anything."
+  out_of_scope: "Instantiation and dispatch (child 2). Finalising the reference briefs\
+    \ (children 3-5). Any GUI beyond nothing \u2014 the GUI list ships with the run\
+    \ button in child 2."
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: "The dispatch design playbooks ride; \xA73 for the machine-local/versioned\
+      \ split the storage decision follows."
+  - path: src/agentjobs/project_setup.py
+    why: prompts_directory is the pattern playbooks_directory follows.
+acceptance:
+- id: sc-1
+  text: A playbook file with valid frontmatter loads; name/filename mismatch and bad
+    enums are refused with findings naming the file.
+  status: pending
+- id: sc-2
+  text: playbook list/show work on CLI and REST; MCP exposes playbooks_list and no
+    mutation tool.
+  status: pending
+- id: sc-3
+  text: playbook init copies the shipped references in and refuses to overwrite an
+    existing file.
+  status: pending
+- id: sc-4
+  text: Nothing in this task executes, dispatches, or evaluates anything.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-211
+  type: related
+  note: The design pass this derives from; held draft until its design is approved.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T04:55:30.551629Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: b7e4c1a2-1111-4a5e-9c00-1a2b3c4d0214
+      kind: create
+      fingerprint: afc0df267497408d1058dc7bab01551b

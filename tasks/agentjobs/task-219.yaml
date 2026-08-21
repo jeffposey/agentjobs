@@ -1,0 +1,106 @@
+schema: 2
+id: task-219
+title: "Playbooks 6: the reactive lane \u2014 queue-check on human reorder bursts"
+created: '2026-08-21T04:57:23.007031Z'
+updated: '2026-08-21T04:57:23.007785Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: medium
+category: architecture
+tags:
+- playbooks
+- queue-order
+- frontend
+- dispatch
+assignment:
+  eligible: []
+parent: task-211
+spec:
+  summary: "Build the reactive playbook category around queue-check: a debounced,\
+    \ spend-capped, batch-mode check that fires after a human's reorder burst settles,\
+    \ records objections on the objected tasks, and surfaces a one-click undo/keep\
+    \ in the React queue \u2014 keep-over-objection becoming the strong anchor reorder\
+    \ respects. Fails open, always. Do not start without Jeff's explicit go-ahead."
+  intent: 'The most-run playbook in the product once it exists: it is what makes human
+    authority over the queue informed rather than blind, without ever blocking the
+    human''s hand.'
+  description: "Implements section 5.4 of docs/playbooks-design.md (the task-211 deliverable;\
+    \ add it to context[] once it merges), and the interaction Jeff described on 2026-08-20\
+    \ (task-211 log entry 6, binding): the drag lands immediately and is authoritative;\
+    \ a playbook then checks it and objects only on grounds.\n\nScope:\n\n- Trigger:\
+    \ a human reorder burst (consecutive human queue_moves in one project) is checked\
+    \ once, when 120s pass with no further human move. The window is machine-local\
+    \ config with that default. One model call per burst, never per drop.\n- The run:\
+    \ a batch-mode runner call (spend ceiling via --max-budget-usd, structured output)\
+    \ whose input is the burst's moves plus the queue and affected records, and whose\
+    \ output is silence or objections. Not a task, not a session \u2014 the reactive\
+    \ exception the design argues in \xA74/\xA75.4.\n- Record: each objection is appended\
+    \ to the objected task's log, referencing the queue_move entry it answers. It\
+    \ lands whether or not a browser is open.\n- Surface: a non-blocking notice in\
+    \ the React queue (task-207's list) with the objection text and one-click undo\
+    \ (inverse queue_move, human actor) / keep (appends the human's kept-over-objection\
+    \ entry, re: the objection). Keep promotes the position to a strong anchor, which\
+    \ reorder (task-217) must not move. No blocking modal.\n- Fail open, structurally:\
+    \ dispatch disabled, no runner, budget exhausted, or check error means nothing\
+    \ happens and the move stands. The check is advisory by construction.\n\nTests\
+    \ that matter: the debounce boundary (two moves 60s apart are one burst; a move\
+    \ 3 minutes later is a new one); fail-open with dispatch disabled; the objection\
+    \ entry lands and threads to the move; keep produces the strong-anchor record;\
+    \ undo is a logged human queue_move."
+  constraints: "Design decision P8 is binding. DO NOT START without Jeff's explicit\
+    \ go-ahead on building the reactive lane at all \u2014 this child spends money\
+    \ on an everyday human gesture and is the most new machinery in the program (same\
+    \ constraint shape as the loops children task-150/151). The move is never blocked\
+    \ and never awaits the model."
+  out_of_scope: Any other reactive playbook. Recurrence or scheduling. Blocking confirmation
+    UX of any kind. Reading or extending dispatch caps for the reactive lane beyond
+    the per-check spend ceiling.
+  context:
+  - path: docs/agent-dispatch-design.md
+    why: "Batch runner mode (\xA74) is the shape of the check call; the gates that\
+      \ must fail it open rather than closed."
+acceptance:
+- id: sc-1
+  text: A settled human reorder burst produces at most one check call, debounced at
+    the configured window; per-drop calls are impossible.
+  status: pending
+- id: sc-2
+  text: Objections land on the objected tasks' logs threaded to the moves they answer;
+    the React notice offers one-click undo and keep; keep records the kept-over-objection
+    entry that makes a strong anchor.
+  status: pending
+- id: sc-3
+  text: 'Fail-open demonstrated: with dispatch disabled or the check erroring, the
+    move stands and nothing blocks or retries.'
+  status: pending
+- id: sc-4
+  text: The check call runs batch mode with a spend ceiling; no session, no run task.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-215
+  type: needs
+  note: The playbook model and dispatch plumbing the check call reuses.
+- task: task-207
+  type: related
+  note: The React queue list the objection notice lands on.
+- task: task-217
+  type: related
+  note: reorder is the consumer of the strong-anchor record this produces.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T04:57:23.007070Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: b7e4c1a2-6666-4a5e-9c00-1a2b3c4d0219
+      kind: create
+      fingerprint: 3569201e9f4f8071b33ab5aa3c2faf23

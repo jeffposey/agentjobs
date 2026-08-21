@@ -3,11 +3,33 @@ id: task-211
 title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
   reorder, and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T04:44:00.727004Z'
+updated: '2026-08-21T05:02:30.716761Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "The playbook design is ready for your review: docs/playbooks-design.md\
+  \ on branch docs/task-211-playbooks-design (commit 44bcda2, worktree ../worktrees/agentjobs-211).\
+  \ Read \xA710 (Decisions P1-P10) first \u2014 it is the two-minute version; the\
+  \ argument for each is in \xA72-\xA78, rejected alternatives collected in \xA79.\n\
+  \nWhat you are approving: (1) the name 'playbook' stands; (2) storage as per-project\
+  \ playbooks/<name>.md with a YAML-frontmatter contract, reference copies shipped\
+  \ and copied in by `playbook init`, never run implicitly; (3) run-is-a-task \u2014\
+  \ project-target playbooks create a dispatched run task, task-target ones dispatch\
+  \ the target itself, and reactive checks are the argued exception (no task; they\
+  \ annotate the tasks they check); (4) groom mandatory propose-then-approve with\
+  \ closes limited to duplicate/superseded, reorder writing itself under your three\
+  \ bounds with the anchor rules from log entries 5/6 adopted (kept-over-objection\
+  \ = immovable strong anchor; anchors expire on material change), flesh-out write-then-park-at-review;\
+  \ (5) the reactive queue-check per your entry-6 interaction: 120s debounced burst,\
+  \ batch-mode with spend ceiling, one-click undo/keep, fail-open; (6) recurrence\
+  \ deferred, MCP read-only, playbooks declare difficulty and never name runners.\n\
+  \nImplementation children task-214..219 are drafts under this task, dependency-ordered,\
+  \ with task-219 (the reactive lane) carrying an explicit do-not-start gate of its\
+  \ own. Verification: full gate run on the branch \u2014 2182 passed, one failure\
+  \ that is pre-existing corpus rot unrelated to this work (task-189's context pointer,\
+  \ resolved by its merge currently in flight; reproduced identically on main without\
+  \ my diff). On approval I (or any session) rebase, merge --no-ff, promote nothing\
+  \ \u2014 the children stay drafts until you promote them, per the design's own rule."
 archived: false
 priority: high
 category: architecture
@@ -170,7 +192,9 @@ dependencies:
   type: related
   note: 'Adjacent design: how dispatch picks a runner/model for a brief.'
 links: []
-branches: []
+branches:
+- name: docs/task-211-playbooks-design
+  status: active
 log:
 - id: 1
   ts: '2026-08-21T00:56:22.635904Z'
@@ -424,3 +448,111 @@ log:
       candidates:
       - runner: claude-fable-5
         eligible: true
+- id: 10
+  ts: '2026-08-21T04:58:00.463596Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: c9d3e5f1-7777-4b6e-8d00-1a2b3c4d0211
+      kind: update_content
+      fingerprint: 51b6f2683e24bbc6e0d489e750d20ee5
+- id: 11
+  ts: '2026-08-21T04:58:39.173535Z'
+  actor: claude
+  type: progress
+  body: "Design pass executed (run_8c352a34, worktree ../worktrees/agentjobs-211,\
+    \ branch docs/task-211-playbooks-design).\n\n**Written: docs/playbooks-design.md**\
+    \ (~650 lines, on the branch \u2014 not on main until review/merge, so pointers\
+    \ to it from other records stay prose until then). Shape follows task-selection-design:\
+    \ numbered sections, decisions P1-P10, collected rejected alternatives, derived\
+    \ children, acceptance-coverage appendix. The headline decisions:\n\n- **Name\
+    \ stands: playbook** (P1). Routine (collides with Claude Code routines, implies\
+    \ schedule), job template (undersells; \"job\" overloaded), skill (Claude Code\
+    \ collision), brief (kept as the term for the body) all rejected with reasons.\n\
+    - **Storage** (P2): per-project `playbooks/<name>.md`, markdown + YAML frontmatter,\
+    \ `playbooks_directory` config following the prompts_directory pattern. AgentJobs\
+    \ ships reference playbooks and `playbook init` copies them in; nothing runs implicitly\
+    \ from the package \u2014 the project copy is authoritative and git-blameable.\n\
+    - **Run-is-a-task defended** (P3), with a two-shape split: `target: project` (groom,\
+    \ reorder) creates a run task from frontmatter and dispatches it; `target: task`\
+    \ (flesh-out) IS a dispatch of the target with the playbook as brief \u2014 no\
+    \ second record for one story. One scoped exception argued: reactive checks (below)\
+    \ create no task and record on the tasks they check.\n- **The prompt stays a stub**\
+    \ (P4): one pointer line naming the playbook path + sha256; the brief is never\
+    \ copied anywhere. The dispatch entry pins `playbook` + `playbook_hash`.\n- **Guardrails**\
+    \ (P5): verbs/gates frontmatter is a declared contract audited from the record\
+    \ \u2014 stated honestly that no per-run identity exists to enforce it mechanically;\
+    \ the mechanical parts are the managed-verb surface and the human gates. P6: a\
+    \ playbook never names runners/groups/argv (gate-2 analogue); it declares `difficulty`\
+    \ only, making playbooks named consumer #1 of the task-156 + profile-table path.\n\
+    - **Gates per playbook** (P7): groom propose-then-approve, executable set exactly\
+    \ {close duplicate, close superseded}, wont_do reserved to humans; reorder writes\
+    \ itself under the three bounds from log entry 3, with the anchor rules from entries\
+    \ 5/6 adopted (ordinary anchors overridable only with stated grounds, kept-over-objection\
+    \ strong anchors immovable, expiry on material change); flesh-out writes the spec\
+    \ then parks the target at human/review so it cannot be dispatched unreviewed.\
+    \ The groom-mandatory/reorder-optional asymmetry is argued: closes are silent\
+    \ and compounding, moves are loud and cheap.\n- **Reactive category added** (P8),\
+    \ as log entry 6 required: `queue-check` fires once per settled human reorder\
+    \ burst (120s debounce default, machine-local), batch-mode with a spend ceiling,\
+    \ objections recorded on the objected tasks, one-click undo/keep in the React\
+    \ list, keep => strong anchor, and it fails open \u2014 dispatch off or check\
+    \ error means the move simply stands.\n- **Recurrence deferred** (P9) with a stated\
+    \ reopen condition and landing zone (task-078's authorization machinery; run_task.acceptance\
+    \ in frontmatter is the prepared hook for evaluable runs). Triggering stays a\
+    \ human act; queue-check's burst trigger is a human's own moves.\n- **MCP read-only**\
+    \ (P10): playbooks_list exists, playbook_run deliberately does not \u2014 an agent-callable\
+    \ run tool would be an agent causing a dispatch.\n\n**Children derived and held\
+    \ as drafts** (sc-5): task-214 (storage/format/read surfaces) \u2192 task-215\
+    \ (instantiation, `playbook run`, related task-156) \u2192 task-216 (groom authored\
+    \ + proven live \u2014 the proving case), task-217 (reorder + anchor mechanics,\
+    \ related task-209), task-218 (flesh-out), task-219 (reactive queue-check \u2014\
+    \ carries an explicit do-not-start-without-Jeff's-go-ahead constraint, same shape\
+    \ as the loops children). Their descriptions cite the design in prose only; add\
+    \ docs/playbooks-design.md to their context[] after the doc merges, because the\
+    \ corpus test checks context paths against files on main.\n\nRemaining this session:\
+    \ full gate on the docs-only branch (running), commit, handoff for review."
+  data:
+    operation:
+      id: c9d3e5f1-8888-4b6e-8d00-1a2b3c4d0211
+      kind: log_append
+      fingerprint: 43208b8cee54d18e56cc370a76f17784
+- id: 12
+  ts: '2026-08-21T05:02:30.716555Z'
+  actor: claude
+  type: handoff
+  body: "The playbook design is ready for your review: docs/playbooks-design.md on\
+    \ branch docs/task-211-playbooks-design (commit 44bcda2, worktree ../worktrees/agentjobs-211).\
+    \ Read \xA710 (Decisions P1-P10) first \u2014 it is the two-minute version; the\
+    \ argument for each is in \xA72-\xA78, rejected alternatives collected in \xA7\
+    9.\n\nWhat you are approving: (1) the name 'playbook' stands; (2) storage as per-project\
+    \ playbooks/<name>.md with a YAML-frontmatter contract, reference copies shipped\
+    \ and copied in by `playbook init`, never run implicitly; (3) run-is-a-task \u2014\
+    \ project-target playbooks create a dispatched run task, task-target ones dispatch\
+    \ the target itself, and reactive checks are the argued exception (no task; they\
+    \ annotate the tasks they check); (4) groom mandatory propose-then-approve with\
+    \ closes limited to duplicate/superseded, reorder writing itself under your three\
+    \ bounds with the anchor rules from log entries 5/6 adopted (kept-over-objection\
+    \ = immovable strong anchor; anchors expire on material change), flesh-out write-then-park-at-review;\
+    \ (5) the reactive queue-check per your entry-6 interaction: 120s debounced burst,\
+    \ batch-mode with spend ceiling, one-click undo/keep, fail-open; (6) recurrence\
+    \ deferred, MCP read-only, playbooks declare difficulty and never name runners.\n\
+    \nImplementation children task-214..219 are drafts under this task, dependency-ordered,\
+    \ with task-219 (the reactive lane) carrying an explicit do-not-start gate of\
+    \ its own. Verification: full gate run on the branch \u2014 2182 passed, one failure\
+    \ that is pre-existing corpus rot unrelated to this work (task-189's context pointer,\
+    \ resolved by its merge currently in flight; reproduced identically on main without\
+    \ my diff). On approval I (or any session) rebase, merge --no-ff, promote nothing\
+    \ \u2014 the children stay drafts until you promote them, per the design's own\
+    \ rule."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: c9d3e5f1-9999-4b6e-8d00-1a2b3c4d0211
+      kind: handoff
+      fingerprint: 408d03d85d0d80fe7fe50b3de03586f4

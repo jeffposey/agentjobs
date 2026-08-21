@@ -1,0 +1,91 @@
+schema: 2
+id: task-216
+title: 'Playbooks 3: groom, authored and proven live'
+created: '2026-08-21T04:56:17.617014Z'
+updated: '2026-08-21T04:56:17.617899Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+category: meta
+tags:
+- playbooks
+- grooming
+- backlog
+assignment:
+  eligible: []
+parent: task-211
+spec:
+  summary: 'Author playbooks/groom.md to the design''s normative spec and run it once
+    for real against this backlog: propose closures, get Jeff''s approval on the run
+    task, execute only what was approved through close with outcome duplicate/superseded.
+    The proving case for the whole playbook concept.'
+  intent: A playbook that has never run is a document. Groom is the case whose gate
+    discipline (propose-then-approve) exercises everything the design claims about
+    run-is-a-task, and the backlog genuinely needs it.
+  description: "Implements section 5.1 of docs/playbooks-design.md (the task-211 deliverable;\
+    \ add it to context[] once it merges). Groom is the proving case task-211 named\
+    \ in its acceptance criteria, and this child is to playbooks what task-209 is\
+    \ to the queue program: the live run that shows the machinery working on the real\
+    \ corpus.\n\nThe brief must encode, normatively:\n\n- Sweep the open corpus for\
+    \ duplicates, superseded work, and stale premises.\n- Propose first, always: the\
+    \ closure proposal lands on the run task (one item per task: id, proposed outcome,\
+    \ reason, evidence), then handoff ball: human / review with the proposal as ball_prompt,\
+    \ and stop.\n- Execute only the recorded approved list, through the managed close\
+    \ verb, outcomes limited to duplicate | superseded, each close body referencing\
+    \ the run task. Partial approval is expressible; what executes is what was approved,\
+    \ nothing else.\n- Stale-but-not-duplicate/superseded tasks are surfaced as questions,\
+    \ never closed \u2014 wont_do is a human's own judgment (design \xA75.1).\n- Never\
+    \ delete a file, never rewrite a spec, never reprioritise, never reorder. Groom\
+    \ prunes the list; reorder orders what survives; they meet at the tail from different\
+    \ directions.\n\nThe live run: `agentjobs playbook run groom` against this backlog,\
+    \ the full propose \u2192 approve \u2192 execute cycle, evidence on the run task.\
+    \ The mandatory human gate is the point \u2014 demonstrate that nothing closed\
+    \ before the approval entry existed, and that the executed set equals the approved\
+    \ set."
+  constraints: "Design decision P7 (groom's mandatory gate and its executable set)\
+    \ is binding. The run acts through managed verbs only. No close outside the approved\
+    \ list, ever \u2014 this is the acceptance test of the whole design's guardrail\
+    \ story."
+  out_of_scope: Reordering anything (that is reorder's job, child 4). Closing anything
+    as wont_do. Recurrence.
+  context:
+  - path: ALLAGENTS.md
+    why: The workflow contract the run obeys; the proposal/approval mechanics are
+      ordinary handoff mechanics.
+acceptance:
+- id: sc-1
+  text: playbooks/groom.md exists in this project, passes validation, and encodes
+    the propose-then-approve gate, the duplicate|superseded-only executable set, and
+    the never-delete/rewrite/reorder rules.
+  status: pending
+- id: sc-2
+  text: 'One live run completed the full cycle: proposal recorded on the run task
+    before anything closed, Jeff''s approval recorded, executed closes exactly match
+    the approved list.'
+  status: pending
+- id: sc-3
+  text: Every closure went through the managed close verb with outcome duplicate or
+    superseded, referencing the run task; no task file was deleted or spec rewritten.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-215
+  type: needs
+  note: playbook run is how this instantiates.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T04:56:17.617059Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: b7e4c1a2-3333-4a5e-9c00-1a2b3c4d0216
+      kind: create
+      fingerprint: 721de4744e3dfe22bba3b7f577d8df39
