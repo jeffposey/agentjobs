@@ -3,7 +3,7 @@ id: task-227
 title: 'Design agent types: a role layer above runner groups that carries prompt,
   permissions and posture'
 created: '2026-08-21T18:16:01.269884Z'
-updated: '2026-08-21T18:16:01.566886Z'
+updated: '2026-08-21T18:38:25.932877Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -35,11 +35,11 @@ spec:
     \ bound to the default runner; playbooks pointing at agent types rather than runner\
     \ groups; and `lead engineer` / `senior engineer` / `junior engineer` bound to\
     \ `big-dawg` / `default` / the Sonnet runner.\n\nThe task-211 answer (its \xA7\
-    7.4 and log entry 26) is *yes, worth it, and not task-211's to build* \u2014 it\
-    \ is dispatch-layer work with consumers beyond playbooks, since every ordinary\
-    \ dispatch has an agent type too. This is that design task. The findings task-211\
-    \ already established, which this design inherits rather than re-derives:\n\n\
-    **1. The layer exists today, hardcoded, with one member called `supervisor`.**\
+    7.3, and log entry 26 on that task) is *yes, worth it, and not task-211's to build*\
+    \ \u2014 it is dispatch-layer work with consumers beyond playbooks, since every\
+    \ ordinary dispatch has an agent type too. This is that design task. The findings\
+    \ task-211 already established, which this design inherits rather than re-derives:\n\
+    \n**1. The layer exists today, hardcoded, with one member called `supervisor`.**\
     \ `posture_flags(..., supervisor=True)` widens the permission allow-list with\
     \ `supervisor_allow_rules()`, and `compose_argv` selects `SUPERVISOR_STUB` over\
     \ `PROMPT_STUB` \u2014 both derived from the record (the task has an open child),\
@@ -153,8 +153,8 @@ deliverables: []
 dependencies:
 - task: task-211
   type: related
-  note: "Raised on its review; task-211 \xA77.4 records the findings this inherits."
-- task: task-156
+  note: "Raised on its review; task-211 \xA77.3 records the findings this inherits."
+- task: task-156-task-difficulty-field
   type: related
   note: The difficulty axis this must stay separate from.
 links: []
@@ -171,3 +171,27 @@ log:
       id: 3f1c9a20-7b44-4e19-9d31-5c0a1e7b2201
       kind: create
       fingerprint: 9d43b5ab98fdaea715d2d4f372583a1d
+- id: 2
+  ts: '2026-08-21T18:37:01.062745Z'
+  actor: claude
+  type: note
+  body: Updated dependencies.
+  data:
+    fields:
+    - dependencies
+    operation:
+      id: 3f1c9a20-7b44-4e19-9d31-5c0a1e7b2206
+      kind: update_content
+      fingerprint: d23d7d136203372efa2f1fb03fdde924
+- id: 3
+  ts: '2026-08-21T18:38:25.932720Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 3f1c9a20-7b44-4e19-9d31-5c0a1e7b2207
+      kind: update_content
+      fingerprint: 5cf00f630d160267c18172ee1626b485

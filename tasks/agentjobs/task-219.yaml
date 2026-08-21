@@ -2,7 +2,7 @@ schema: 2
 id: task-219
 title: 'The queue-move check: deterministic warnings when a human reorders'
 created: '2026-08-21T04:57:23.007031Z'
-updated: '2026-08-21T18:21:34.745480Z'
+updated: '2026-08-21T18:36:53.686333Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -152,7 +152,7 @@ dependencies:
 - task: task-217
   type: related
   note: reorder is the consumer of the strong-anchor record this produces.
-- task: task-081
+- task: task-081-task-selection-ranking
   type: related
   note: The queue program this belongs to; it needs no playbook machinery.
 links: []
@@ -186,3 +186,15 @@ log:
       id: 3f1c9a20-7b44-4e19-9d31-5c0a1e7b2202
       kind: update_content
       fingerprint: 81736b0f44aae890ef439118562c3410
+- id: 3
+  ts: '2026-08-21T18:36:53.686146Z'
+  actor: claude
+  type: note
+  body: Updated dependencies.
+  data:
+    fields:
+    - dependencies
+    operation:
+      id: 3f1c9a20-7b44-4e19-9d31-5c0a1e7b2205
+      kind: update_content
+      fingerprint: 4a2aa5b7a6a129cf88dd2000132af70e
