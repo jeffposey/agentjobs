@@ -3,13 +3,13 @@ id: task-017
 title: Let an agent ask structured multiple-choice questions the human answers in
   the GUI
 created: '2026-08-18T05:35:45.027948Z'
-updated: '2026-08-21T16:58:00.542996Z'
+updated: '2026-08-21T21:48:32.167684Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 7500
+queue_position: 171
 category: ux
 tags:
 - frontend
@@ -158,3 +158,68 @@ log:
       id: 36663c2b-3355-4d54-9b70-07497a4a8487
       kind: update_content
       fingerprint: 716c7e8032ccb011de8ee26dcb820788
+- id: 3
+  ts: '2026-08-21T21:48:20.053963Z'
+  actor: claude
+  type: note
+  body: 'Jeff re-raised this on 2026-08-21, mid-session, while task-231 was being
+    merged: "File a task to improve the ''answer these questions'' GUI, so it has
+    the options for each question to click, like claude interactive sessions do."
+
+
+    That is this task, asked for a second time and in almost the same words as the
+    first ("I''m guessing we need the same list of multiple choice questions GUI that
+    claude code has", 2026-08-18). No new task was filed -- filing one would have
+    split the spec, the constraints and the rejected alternatives across two records.
+    Nothing in the request adds a requirement this record does not already carry;
+    the only new information is that he wants it sooner, so it was moved up the HIGH
+    band rather than rewritten.
+
+
+    One thing worth carrying forward from the second asking: the named reference point
+    is Claude Code''s own `AskUserQuestion` control -- a list of questions, each with
+    clickable options, "Other" always present as a free-text escape, and multi-select
+    where it applies. That matches this task''s constraints exactly, including the
+    free-text rule, so it is a good fidelity target for whoever builds it.
+
+
+    Also relevant now: task-231 shipped the panel that will host this. `ReviewPanel`
+    branches on `ball_reason` as of that merge, and a task at `human`/`input` or `human`/`decision`
+    no longer offers Approve. That is the surface these questions render into, so
+    build against the merged component rather than the one described in task-016.'
+  data:
+    operation:
+      id: 3f0a91c4-7b2e-4d15-9c88-0e6b4a2f7d31
+      kind: log_append
+      fingerprint: 73e1ef4a3946c3acc030dc45569761fd
+- id: 4
+  ts: '2026-08-21T21:48:32.167538Z'
+  actor: claude
+  type: queue_move
+  body: 'Jeff asked for this a second time on 2026-08-21, in nearly the same words
+    as the first asking three days earlier. It was sitting at 7500 in a 49-task HIGH
+    band -- far enough back that asking for it again was the only way it was going
+    to happen, which is the signal the queue is meant to absorb.
+
+
+    Placed immediately ahead of task-021, not at the top of the band. The four tasks
+    above it are the playbooks chain (task-211 and its children), which is an epic
+    already in flight with a dependency order of its own; jumping this over mid-flight
+    work would strand it rather than accelerate anything. Ahead of task-021 makes
+    it the first unstarted independent task in the band.
+
+
+    Also newly true: task-231 merged today, so the panel this renders into now branches
+    on `ball_reason` and a task at `human`/`input` no longer mislabels its verbs.
+    The dependency this task carried on that work is satisfied.'
+  data:
+    band: high
+    from: 7500
+    to: 171
+    placement:
+      kind: before
+      target: task-021
+    operation:
+      id: b1d7e582-3c04-4a9e-8f61-2d95c7a30bb8
+      kind: queue_move
+      fingerprint: 23a68eca4908fee1276c085013b2c286
