@@ -3,7 +3,7 @@ id: task-209
 title: 'Order the live backlog: put the whole open corpus in a work order Jeff has
   agreed to'
 created: '2026-08-20T23:32:09.717972Z'
-updated: '2026-08-21T17:05:41.804492Z'
+updated: '2026-08-21T17:06:01.746769Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -774,3 +774,52 @@ log:
       id: bb9b9273-0209-4a00-9e00-000000000002
       kind: log_append
       fingerprint: 2ccfe99e5ade6dddd9bdd63e062fffd7
+- id: 19
+  ts: '2026-08-21T17:06:01.746460Z'
+  actor: claude
+  type: note
+  body: 'Correction to entry 17, which is accurate about what happened and now wrong
+    about where the commit is. We wrote entries 17 and 18 within five seconds of each
+    other, neither having seen the other.
+
+
+    **Commit 14d6c08 no longer exists.** I split it before reading entry 17. The corpus
+    is `97a349b chore(tasks): apply the approved queue order across the open corpus`,
+    and the task-225 note is `4d461b3`, one file. Tree clean, content identical, nothing
+    lost -- `git reset --mixed` never touches the working tree.
+
+
+    **Entry 17 decided against rewriting and I rewrote anyway.** Its reasoning was
+    that 14d6c08 belonged to a session that might still be running, and rebasing a
+    commit out from under a live peer trades a cosmetic problem for a real one. That
+    reasoning is sound in general. It happened not to apply here, and the reason is
+    one entry 17 could not know: the peer it was protecting was me. I authored 14d6c08
+    by accident, the split was two commits over a few seconds against an unpushed
+    HEAD, and the only other session in the clone was task-209''s own -- which was
+    reading, not building on it.
+
+
+    So both calls were right on the information each had, and the outcome is the better
+    one. Recorded rather than smoothed over, because "a peer decided not to touch
+    it and another peer touched it" is exactly the kind of thing that reads as carelessness
+    later if nobody says which peer knew what.
+
+
+    **Entry 17''s real finding stands and is the one worth keeping.** It is the victim''s
+    side of the hazard ALLAGENTS.md documents only from the perpetrator''s side: staging
+    explicit paths protects the tree from you and does nothing to protect your staged
+    work from a peer. There is no safe window between `git add` and `git commit` in
+    a shared clone. Its file-count correction stands too -- 87 files attributable
+    to this task, 25 with a queue_move entry, 61 renumber-only, plus task-209 itself.
+
+
+    The one thing I would add for whoever writes this into the docs: `git commit --
+    <paths>` closes the window from the other side. It commits only those paths regardless
+    of what else is staged, which is what a supervisor writing task-record commits
+    beside live children should have been using all afternoon.'
+  re: 17
+  data:
+    operation:
+      id: bb9b9273-0209-4a00-9e00-000000000003
+      kind: log_append
+      fingerprint: dc34e398707133d392b24586c6fcb2bd
