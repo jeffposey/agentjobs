@@ -2,10 +2,11 @@ schema: 2
 id: task-206
 title: 'Queue position: REST, the Python client, and an `agentjobs queue` sub-app'
 created: '2026-08-20T23:31:01.562704Z'
-updated: '2026-08-21T09:22:53.158213Z'
-lifecycle: ready
+updated: '2026-08-21T10:45:31.537224Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 queue_position: 4700
@@ -15,6 +16,7 @@ tags:
 - api
 - cli
 assignment:
+  owner: claude
   eligible: []
 parent: task-081-task-selection-ranking
 spec:
@@ -121,7 +123,9 @@ dependencies:
   type: needs
   note: There is nothing to expose until the manager owns the verbs.
 links: []
-branches: []
+branches:
+- name: feat/task-206-queue-rest-client-cli
+  status: active
 log:
 - id: 1
   ts: '2026-08-20T23:31:01.562754Z'
@@ -161,3 +165,28 @@ log:
       id: a1b2c3d4-0002-4a00-9e00-1a2b3c4d0206
       kind: promote
       fingerprint: 3adc6946efc3dc79125f49cd49be17a3
+- id: 4
+  ts: '2026-08-21T10:45:28.115571Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: c0f71d70-0206-4a01-9e00-000000000001
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 5
+  ts: '2026-08-21T10:45:31.537099Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: c0f71d70-0206-4a01-9e00-000000000002
+      kind: update_content
+      fingerprint: f031849eed8299f693ed96104946701a
