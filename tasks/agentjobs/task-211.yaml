@@ -3,7 +3,7 @@ id: task-211
 title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
   reorder, and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T17:51:00.402459Z'
+updated: '2026-08-21T17:57:28.160316Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -13,27 +13,32 @@ ball_prompt: "Read the design on your phone here:\n\nhttps://claude.ai/code/arti
   \ in-prose \xA7-reference turned into a tap target. Start at \xA710 Decisions; it\
   \ is linked from the header and is the two-minute version. The page is private to\
   \ your account unless you share it.\n\nThe review ask is unchanged from entry 12:\
-  \ approve or push back on P1-P10. Nothing else is waiting on you.\n\nTwo things\
-  \ worth knowing before you read.\n\nFirst, nothing was dispatched this run. The\
-  \ prompt came in as the supervisor variant because task-211 has six open children,\
-  \ but task-214..219 are all drafts parked at human/spec by the design's own rule\
-  \ \u2014 they stay drafts until you approve. So the children are not blocked on\
-  \ a session; they are blocked on you. On approval, a session rebases and merges\
-  \ the docs branch, and you promote the children when you want them started (task-219,\
-  \ the reactive lane, carries its own do-not-start gate on top).\n\nSecond, your\
-  \ follow-up idea \u2014 making all design artifacts remotely accessible, and being\
-  \ able to test sandbox builds from your phone \u2014 is not filed anywhere yet.\
-  \ I did not create a task for it, since you framed it as something to think about\
-  \ rather than to do, and filing work off an aside is how a backlog gets noisy. Say\
-  \ the word and I will write it up. The one-off builder behind this page is at C:/ai/inbox/agentjobs-task-211/\
-  \ with notes on the two non-obvious things it hit, so whoever generalises it does\
-  \ not rediscover them.\n\nOne caveat on this page, stated because the repo's own\
-  \ rule says to name the instrument: I verified the layout, both themes, the encoding\
-  \ and the tables by reading computed styles and screenshots, but the Contents toggle\
-  \ was only proven by calling click() in the page \u2014 the browser-automation click\
-  \ delivered focus and no click event, which is the task-225 failure mode rather\
-  \ than a page bug. If the Contents button does nothing when you actually tap it,\
-  \ that is a real defect and I want to know; everything else on the page is verified."
+  \ approve or push back on P1-P10. Nothing else is waiting on you.\n\nThree things\
+  \ worth knowing.\n\nFirst, nothing was dispatched this run. The prompt came in as\
+  \ the supervisor variant because task-211 has six open children, but task-214..219\
+  \ are all drafts parked at human/spec by the design's own rule \u2014 they stay\
+  \ drafts until you approve. The children are not blocked on a session; they are\
+  \ blocked on you. On approval, a session rebases and merges the docs branch, and\
+  \ you promote the children when you want them started (task-219, the reactive lane,\
+  \ carries its own do-not-start gate on top).\n\nSecond, the repeat guide you asked\
+  \ for is at C:/ai/shared/doc-artifacts/ \u2014 publish_doc.py and README.md. It\
+  \ supersedes the C:/ai/inbox/ path named in the earlier prompt, which has been deleted\
+  \ so there is one copy rather than two that drift. It is in ai/shared rather than\
+  \ the agentjobs repo because it works on any repo's markdown, not just this product's.\
+  \ Doing the same page again is now one command plus a publish. Entry 19 has the\
+  \ exact invocation for this doc and the evidence that the generalised tool renders\
+  \ it identically to what you are already reading.\n\nThird, your idea about all\
+  \ design artifacts being remotely accessible is still not filed. The guide names\
+  \ it as the thing this prototype is standing in for, and says the real version is\
+  \ AgentJobs serving rendered docs over the tailnet you already have \u2014 which\
+  \ drops the publish step, the stale-link hazard, and reading docs out of a branch\
+  \ by hand. Say the word and I will write the task.\n\nOne caveat on the page itself,\
+  \ stated because the repo's own rule says to name the instrument: layout, both themes,\
+  \ the encoding and the tables were verified by reading computed styles, but the\
+  \ Contents toggle was only proven by calling click() in the page \u2014 the browser-automation\
+  \ click delivered focus and no click event, which is the task-225 failure mode rather\
+  \ than a page bug. If tapping Contents does nothing for you, that is real and I\
+  \ want to know."
 archived: false
 priority: high
 queue_position: 10500
@@ -705,3 +710,62 @@ log:
       id: 7c1f2a90-4e63-4b18-9a55-2d0f6b31a402
       kind: handoff
       fingerprint: 98085ecbfb2096c10123b1d27d73272a
+- id: 19
+  ts: '2026-08-21T17:57:04.245065Z'
+  actor: claude
+  type: progress
+  body: "Corrects the pointer in entry 17. The one-off builder is gone; the process\
+    \ is now a reusable tool plus a guide, at **`C:/ai/shared/doc-artifacts/`** \u2014\
+    \ `publish_doc.py` and `README.md`. `C:/ai/inbox/agentjobs-task-211/` has been\
+    \ removed, so there is one copy rather than two that can drift.\n\nJeff asked\
+    \ for this on seeing how much work the first page took: capture the process so\
+    \ repeating it is cheap. It lives in `C:/ai/shared/` rather than this repo because\
+    \ it is cross-project \u2014 any repo markdown doc, not an agentjobs feature \u2014\
+    \ and because putting it here would need a branch and a merge for something with\
+    \ no bearing on the product.\n\n**To regenerate this page** after the doc merges\
+    \ or changes, and republish to the same URL (a fresh publish creates a second\
+    \ artifact and leaves Jeff's link on the stale one):\n\n```\ngit show docs/task-211-playbooks-design:docs/playbooks-design.md\
+    \ > <tmp>/doc.md\npython C:/ai/shared/doc-artifacts/publish_doc.py <tmp>/doc.md\
+    \ --out <tmp>/doc.html \\\n  --page-title \"Playbooks Design\" --heading \"Playbooks\"\
+    \ --subtitle \"design proposal\" \\\n  --eyebrow \"task-211 . agentjobs . design\
+    \ pass\" \\\n  --meta \"Status=...\" --meta \"Branch=...\" --meta \"Commit=...\"\
+    \ --start-at 10\n```\n\n**Verified rather than assumed:** the generalised tool\
+    \ was run against this same doc and diffed against the page already published.\
+    \ The rendered `<article>` body is byte-identical; the stylesheet differs only\
+    \ in whitespace, comments, and three custom properties nothing referenced (`--surface-2`,\
+    \ `--accent-wash`, `--shadow` \u2014 confirmed zero `var()` uses in the original).\
+    \ No declaration changed, so the published artifact does not need republishing\
+    \ and Jeff's link is untouched. The guide's own commands were then run end to\
+    \ end from a clean directory, including `--preview`, which was confirmed to serve\
+    \ a doctype-wrapped copy.\n\n**What the guide carries that a rerun would otherwise\
+    \ rediscover**, all of it found in a browser rather than in the build: encode\
+    \ non-ASCII as numeric references because the artifact host owns `<head>` and\
+    \ a `<meta charset>` in the fragment lands too late; scope link colours beyond\
+    \ `article`; preview with a doctype, because `<table>` does not inherit `color`\
+    \ in quirks mode and the absence sends you hunting a theme bug that does not exist\
+    \ in production; and do not read an automated click that appears to do nothing\
+    \ as a defect (the task-225 rule, which this session hit again).\n\nThe guide\
+    \ also states plainly that it is a prototype for Jeff's still-unfiled idea of\
+    \ making all design artifacts remotely accessible \u2014 the real version is AgentJobs\
+    \ serving rendered docs over the existing tailnet, which removes the publish step,\
+    \ the stale-URL hazard, and reading the doc out of a branch by hand. Nothing was\
+    \ filed; that remains his call.\n\nNone of this changes the review ask. The ball\
+    \ stays with Jeff on the design itself."
+  data:
+    operation:
+      id: 7c1f2a90-4e63-4b18-9a55-2d0f6b31a403
+      kind: log_append
+      fingerprint: 97adce9910909c1b7ffa8de48cb5661c
+- id: 20
+  ts: '2026-08-21T17:57:28.160029Z'
+  actor: claude
+  type: handoff
+  body: 'Correcting the guide''s location in the prompt: it is C:/ai/shared/doc-artifacts/,
+    not the inbox path.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 7c1f2a90-4e63-4b18-9a55-2d0f6b31a404
+      kind: handoff
+      fingerprint: 9fb1f26074d053ec10056237bd9e427e
