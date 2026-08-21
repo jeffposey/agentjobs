@@ -184,14 +184,22 @@ export function TaskList({
     return flattened || row.ancestors.every((ancestor) => expanded.has(ancestor));
   });
 
-  // A queue with two tasks on one number is not an order, so the list stops offering
-  // to change it. Every gesture below places a task relative to a neighbour, and a
+  // A band with two tasks on one number is not an order, so the list stops offering to
+  // change *that* band: every gesture places a task relative to a neighbour, and a
   // neighbour's position is exactly what corruption makes untrustworthy.
-  const queueIsBroken = queueProblems.length > 0;
-  const handlers = queueIsBroken ? null : reorder;
-  // Nothing is said twice: when the queue is broken the banner above has already said
+  //
+  // Scoped per band rather than corpus-wide, following the same reasoning selection
+  // uses (design section 8): a duplicate in `low` does not falsify anything about the
+  // `high` order, and taking the whole screen's reordering away over it would punish
+  // the wrong band. The banner is corpus-wide because seeing the damage is the point.
+  const brokenBands = useMemo(
+    () => new Set(queueProblems.map((problem) => problem.band)),
+    [queueProblems],
+  );
+  const handlers = reorder;
+  // Nothing is said twice: where the queue is broken the banner above has already said
   // it at more length than a footnote could.
-  const unavailableReason = queueIsBroken ? null : reorderUnavailable;
+  const unavailableReason = brokenBands.size > 0 ? null : reorderUnavailable;
 
   const updateParam = (key: string, value: string, fallback: string) => {
     const next = new URLSearchParams(params);
@@ -249,9 +257,13 @@ export function TaskList({
     }
   };
 
+  /** Whether this row's place in line is a thing anybody may change right now. */
+  const movableRow = (task: TaskRead) =>
+    Boolean(handlers) && isInQueue(task) && !brokenBands.has(bandOf(task));
+
   const onRowKeyDown = (event: React.KeyboardEvent<HTMLTableRowElement>, task: TaskRead) => {
     const direction = STEP_KEYS[event.key];
-    if (!event.altKey || !direction || !handlers || !isInQueue(task)) return;
+    if (!event.altKey || !direction || !movableRow(task)) return;
     // Alt+Home and Alt+End would otherwise scroll the page away from the row that just
     // moved, and Alt+Arrow is back/forward in some browsers.
     event.preventDefault();
@@ -261,9 +273,9 @@ export function TaskList({
   const onRowDrop = (task: TaskRead) => {
     const sourceId = dragging;
     setDragging(null);
-    if (!handlers || !sourceId || sourceId === task.id || !isInQueue(task)) return;
+    if (!handlers || !sourceId || sourceId === task.id || !movableRow(task)) return;
     const source = ordered.find((candidate) => candidate.id === sourceId);
-    if (!source || !isInQueue(source)) return;
+    if (!source || !movableRow(source)) return;
     if (bandOf(source) !== bandOf(task)) {
       // Two decisions in one gesture -- where it stands, and how urgent it is. The
       // second is asked out loud rather than inferred from where a finger let go.
@@ -365,7 +377,7 @@ export function TaskList({
           <thead><tr><th scope="col">Queue</th><th scope="col">Task</th><th scope="col">Status</th><th scope="col">Priority</th><th scope="col">Assigned</th><th scope="col">Updated</th></tr></thead>
           <tbody>
             {visibleRows.map((row) => {
-              const movable = Boolean(handlers) && isInQueue(row.task);
+              const movable = movableRow(row.task);
               return (
                 <ResponsiveTableRow
                   key={row.task.id}

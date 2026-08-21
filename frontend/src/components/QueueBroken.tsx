@@ -32,8 +32,10 @@ export function QueueBroken({
         The queue is broken, so nothing here claims to know what comes next
       </h2>
       <p className="mt-1 text-xs text-dark-muted">
-        Two tasks claim one place in line, or an open task has none. Until it is repaired,
-        reordering is disabled and the position column is not an order anybody can act on.
+        Two tasks claim one place in line, or an open task has none. Reordering is off in the
+        bands named below until it is repaired -- a place in line can only be described
+        relative to a neighbour, and these are the neighbours that cannot be trusted. Every
+        other band still works.
       </p>
       <ul className="mt-3 space-y-1 text-xs text-red-200">
         {problems.map((problem) => (

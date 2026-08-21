@@ -154,25 +154,34 @@ function TaskListPage({ projectId }: { projectId: string }) {
 
   const tasks = tasksQuery.data;
   const revisionOf = (taskId: string) => tasks.find((task) => task.id === taskId)?.updated;
-  // Every reorder is attributed and retry-safe, like every other mutation here, and
-  // both fields are required on these two routes rather than optional. The revision is
-  // the page's own last read, so a queue somebody else has moved since refuses this
-  // move instead of overwriting their decision with one made from a stale screen.
+  // Every reorder is attributed and retry-safe: `actor` and `operation_id` are required
+  // on both of these routes rather than optional, unlike the older verbs.
   const reorder: ReorderHandlers | null = actor
     ? {
         move: async (taskId, placement) => {
+          // No expected_revision, deliberately -- the same call the note composer makes
+          // and for the same reason. A move is not a decision taken against a snapshot:
+          // it names a neighbour by id, and the manager resolves that under the queue
+          // lock against whatever the band is at the time, so it does what was asked
+          // however much the band moved in between. `top` and `bottom` are absolute and
+          // need no snapshot at all.
+          //
+          // Sending one actively breaks the primary path. Alt+Up twice in quick
+          // succession is one gesture as far as a person is concerned, and the second
+          // keypress lands before the first move's refetch does -- so the revision on
+          // screen is one write behind, the move is refused, and the reorder they just
+          // watched happen rolls back. Nothing about that is a conflict worth reporting.
           await move.mutateAsync({
             path: { project_id: projectId, task_id: taskId },
-            body: {
-              actor,
-              operation_id: crypto.randomUUID(),
-              expected_revision: revisionOf(taskId),
-              ...placement,
-            },
+            body: { actor, operation_id: crypto.randomUUID(), ...placement },
           });
           await invalidateProjectTaskQueries(queryClient, projectId);
         },
         reprioritize: async (taskId, priority, before) => {
+          // This one keeps its revision. A band change is decided by a person reading a
+          // confirmation panel that describes specific state, one gesture at a time, so
+          // a task that moved since that panel was drawn should refuse rather than
+          // reprioritise on the strength of a screen nobody has re-read.
           await reprioritize.mutateAsync({
             path: { project_id: projectId, task_id: taskId },
             body: {

@@ -363,6 +363,26 @@ describe("TaskList queue order", () => {
     expect(screen.queryByRole("button", { name: /^Reorder task-a,/ })).not.toBeInTheDocument();
   });
 
+  it("takes reordering away from the broken band only, not from the whole screen", () => {
+    // The same scoping selection uses: a duplicate in one band falsifies nothing about
+    // another, and disabling every band over it would punish the wrong one.
+    renderQueue([queued("task-a", 100), queued("task-b", 100), queued("task-m", 100, "medium")], {
+      reorder: accepting(),
+      problems: [
+        {
+          kind: "duplicate",
+          band: "high",
+          tasks: ["task-a", "task-b"],
+          position: 100,
+          message: "band 'high' position 100 is claimed by task-a, task-b",
+        },
+      ],
+    });
+
+    expect(screen.queryByRole("button", { name: /^Reorder task-a,/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Reorder task-m,/ })).toBeVisible();
+  });
+
   it("says why reordering is off when the project names nobody to attribute it to", () => {
     renderQueue([queued("task-a", 100)], {
       reorder: null,
