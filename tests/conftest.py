@@ -8,6 +8,7 @@ from typing import Iterator
 
 from agentjobs.api.dependencies import reset_dependency_cache
 from agentjobs.dispatch.address import ApiBaseProbe
+from agentjobs.dispatch.auth import CLAUDE_HOME_ENV
 from agentjobs.projects import HOME_ENV
 
 # The shared write-guard matrix holds assertions but is imported by the two hook test
@@ -34,6 +35,22 @@ def isolate_project_registry(tmp_path_factory, monkeypatch) -> Iterator[None]:
     reset_dependency_cache()
     yield
     reset_dependency_cache()
+
+
+@pytest.fixture(autouse=True)
+def isolate_claude_home(tmp_path_factory, monkeypatch) -> None:
+    """Point the expired-login check at an empty directory for every test.
+
+    dispatch.auth reads Claude Code's own home -- ~/.claude -- to find a
+    session transcript. Left alone, the poller tests would ask the developer machine
+    whether *its* sessions had died, which is both a read outside the repository and a
+    suite whose result depends on whose laptop it runs on. Autouse for the same reason
+    the two fixtures around it are.
+
+    A test that wants a transcript writes one and re-points this; the later setenv
+    wins.
+    """
+    monkeypatch.setenv(CLAUDE_HOME_ENV, str(tmp_path_factory.mktemp("claude-home")))
 
 
 PROBE_CALL_SITES = (

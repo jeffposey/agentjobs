@@ -49,6 +49,7 @@ from typing import IO, Callable, Dict, List, Optional, Sequence
 import yaml
 
 from agentjobs.dispatch.address import resolve_api_base
+from agentjobs.dispatch.auth import AuthStall, read_auth_stall
 from agentjobs.dispatch.config import (
     DispatchResolution,
     DispatchRunner as RunnerConfig,
@@ -757,10 +758,17 @@ class RunDirectory:
 
 
 class SessionPhase(Enum):
-    """What the ledger says about a session, reduced to what dispatch acts on."""
+    """What a poll concluded about a session, reduced to what dispatch acts on.
+
+    All but one of these come from the ledger. ``AUTH_STALLED`` does not, and cannot:
+    a session killed by an expired login reports ``idle``/``done`` like any session that
+    finished its work, so the ledger cannot name it and the transcript has to. See
+    ``dispatch.auth``.
+    """
 
     RUNNING = "running"
     PARKED = "parked"
+    AUTH_STALLED = "auth_stalled"
     FINISHED = "finished"
     STOPPED = "stopped"
     GONE = "gone"
@@ -890,6 +898,7 @@ class DispatchRunner:
         api_base: Optional[str] = None,
         grace_seconds: float = GRACE_SECONDS,
         clock: Callable[[], datetime] = utcnow,
+        claude_home: Optional[Path] = None,
     ) -> None:
         self.manager = manager
         self.resolution = resolution
@@ -906,6 +915,14 @@ class DispatchRunner:
         """
         self.grace_seconds = grace_seconds
         self.clock = clock
+        self.claude_home = claude_home
+        """Where to look for session transcripts when checking for an expired login.
+
+        ``None`` means "wherever Claude Code keeps them", which is what every caller
+        outside a test wants -- see ``dispatch.auth.claude_home``. It is a parameter at
+        all so a test can point the check at a directory it wrote itself, rather than at
+        the machine's real session history.
+        """
 
     # ----- shared ------------------------------------------------------------
 
@@ -1372,6 +1389,16 @@ class DispatchRunner:
         # session has no transcript left to read.
         self.capture_transcript(handle)
 
+        # Before the phase branches, because it *contradicts* them. A session killed by
+        # an expired login reads `idle`/`done`, so `_settle_finished_session` would write
+        # a terminal entry for a run that did not finish -- `completed` when the ball had
+        # moved earlier in the run, which is precisely how run_a1e35ca5 came to be
+        # recorded as a success after dying (task-224).
+        stall = self.auth_stall(handle)
+        if stall is not None:
+            self._park_auth_stall(handle, stall)
+            return SessionPhase.AUTH_STALLED
+
         if phase is SessionPhase.PARKED:
             self._park_session(handle)
         elif phase is SessionPhase.STOPPED:
@@ -1379,6 +1406,71 @@ class DispatchRunner:
         elif phase is SessionPhase.FINISHED:
             self._settle_finished_session(handle)
         return phase
+
+    def auth_stall(self, handle: RunHandle) -> Optional[AuthStall]:
+        """Whether this run's session is sitting dead on an expired login.
+
+        ``None`` for every ordinary state, and ``None`` for every runner that is not
+        Claude Code, which is what makes this safe to call on every poll of every run.
+        Errors are swallowed rather than raised: a transcript that cannot be read right
+        now is not evidence of anything, and a poll that throws stops the run being
+        followed at all.
+        """
+        if not handle.session_id:
+            return None
+        try:
+            return read_auth_stall(
+                handle.session_id,
+                home=self.claude_home,
+                since=self._started_at(handle),
+            )
+        except OSError:  # pragma: no cover - the Claude home went away underneath us
+            return None
+
+    def _park_auth_stall(self, handle: RunHandle, stall: AuthStall) -> None:
+        """Turn a dead credential into the one instruction that fixes it.
+
+        The run is **parked, not finished**. Recovery is in place and verified: after a
+        re-auth the already-running session picks up where it stopped, with no restart
+        and no re-dispatch, so reaping it here would destroy the cheap recovery and turn
+        six lost minutes into a lost night. Parking also keeps the run's lock, which is
+        the correct posture while auth is down -- a fresh dispatch at the same task would
+        die exactly as this one did.
+
+        Keyed on the failure's own timestamp rather than on a flag, so a session that
+        recovers and later stalls again is reported again rather than silently the once.
+        """
+        if handle.directory.read_meta().get("auth_stalled_at") == stall.at.isoformat():
+            return
+        if self.manager.get_task(handle.task_id) is None:  # pragma: no cover - deleted
+            return
+        said = f' It said: "{stall.message}".' if stall.message else ""
+        self.manager.handoff(
+            handle.task_id,
+            actor="dispatcher",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.INPUT,
+            ball_prompt=(
+                f"Dispatched session `{handle.session_id}` stopped on an expired login "
+                f"at {stall.at.isoformat()} and will not resume by itself.{said}\n\n"
+                "**Run `claude auth login` in a terminal on that machine.** Answering "
+                "inside the session cannot work: Claude Code's background auth daemon "
+                "has already discarded the credential, so anything sent to the session "
+                "is retried against a token that no longer exists and fails instantly.\n\n"
+                "Then send the session a message to wake it, or attach with "
+                f"`{self.display_command()} attach {handle.session_id}`. It resumes in "
+                "place -- nothing is lost and this task does not need re-dispatching."
+            ),
+        )
+        handle.directory.update_meta(status="parked", auth_stalled_at=stall.at.isoformat())
+        # The session is dead until someone logs in, so it will not be committing this
+        # handoff on its way past -- and a handoff nobody commits is a handoff the
+        # dashboard never shows.
+        self._commit_record(
+            handle.task_id,
+            f"park run {handle.run_id} on an expired login",
+            directory=handle.directory,
+        )
 
     def _park_session(self, handle: RunHandle) -> None:
         """Turn a parked session into a question a human can answer from anywhere.

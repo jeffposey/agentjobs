@@ -169,6 +169,7 @@ signal: a child parked on review has a live process and is the one state that ne
 | `ball: human` | Parked | Act now — see below |
 | `lifecycle: closed` + `outcome` | Finished | Verify, then next child |
 | `ball: agent`, process gone, no new log entries | Died | Recover — see below |
+| The same, and `dispatch auth-check` exits 1 | Logged out | **Do not restart it** — see below |
 
 **Child finished.** The child closed itself with an outcome — which, where a merge gate
 applies, means its work was approved and merged by the session that did it. Verify from
@@ -205,13 +206,41 @@ Clean up only what is safe to clean: never force-remove a worktree holding uncom
 work. Commit it to the child's own branch first so the next session can see it, or leave
 it and say so in the handoff.
 
+**Child logged out.** Before you spend that one restart, rule this out — because it is
+indistinguishable from a death by looking, and restarting is the one response that cannot
+help:
+
+```bash
+agentjobs dispatch auth-check <the child's session id>   # exits 1 when it is this
+```
+
+Claude Code refreshes its credential in a shared background daemon, not per session.
+When that refresh fails the daemon discards the token and **every** `--bg` session on the
+machine dies mid-turn, having emitted one line saying `Login expired · Please run /login`.
+Two of them happened in two days of heavy use on 2026-08-21 (task-224). A child killed
+this way has a live-looking record that simply stops, so a supervisor working from the
+table above spends its one restart on a session that dies the same way within a second.
+
+What to do instead, in order:
+
+1. **Do not restart, and do not start the next child.** Every child you start now dies
+   identically.
+2. **Hand the parent off** to `human`/`input`, saying that a login expired and naming
+   `claude auth login` as the fix. That is the whole recovery and the human cannot guess
+   it — answering inside the session does not work, because the credential is already
+   gone and anything sent to it is retried against nothing.
+3. **Nothing is lost.** After the re-auth, a message to the stalled child wakes it and it
+   resumes in place. Children that AgentJobs dispatched are handed back automatically by
+   the poller; the ones you started yourself are yours to nudge.
+
 **Parent idle.** While a child runs, do nothing that costs context. That is not idleness
 for its own sake — your context is the resource this rule protects, and spending it while
 waiting is the same failure as working the children yourself, arrived at politely.
 
-Permitted: the poll itself, and writing progress to the parent record. Not permitted:
-starting a second child, reading the running child's diff "to be ready", or pre-loading
-the next child's context. Read the next child's record when it is the next child.
+Permitted: the poll itself, `dispatch auth-check`, and writing progress to the parent
+record. Not permitted: starting a second child, reading the running child's diff "to be
+ready", or pre-loading the next child's context. Read the next child's record when it is
+the next child.
 
 ### Closing the parent
 
