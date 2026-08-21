@@ -3,7 +3,7 @@ id: task-209
 title: 'Order the live backlog: put the whole open corpus in a work order Jeff has
   agreed to'
 created: '2026-08-20T23:32:09.717972Z'
-updated: '2026-08-21T17:02:20.762055Z'
+updated: '2026-08-21T17:05:41.804492Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -653,3 +653,124 @@ log:
       id: b4da5f73-0209-4c11-9b40-000000000204
       kind: close
       fingerprint: 422f6368bdbed42538217ad3cdc151b1
+- id: 17
+  ts: '2026-08-21T17:05:36.973602Z'
+  actor: claude
+  type: note
+  body: 'WHERE THE COMMIT ACTUALLY IS, so nobody concludes this was never committed.
+
+
+    The ordered corpus is on `main` in commit **14d6c08**, whose message reads
+
+    "chore(task-225): note the stale ball_prompt and the two live questions". That
+    message
+
+    describes one file of the 88 in it. The other 87 -- every task file this task
+    reordered,
+
+    plus task-209''s own close -- are mine, and were swept into a concurrent agent''s
+    commit.
+
+
+    What happened, in order: I applied the 25 moves, verified, closed this task, and
+    ran
+
+    `git add tasks/agentjobs/` to stage 87 files. Before I reached `git commit`, the
+    session
+
+    working task-225 committed with a command that stages everything in the tree.
+    My staged
+
+    files went in under its message and its authorship. My working tree was clean
+    by the time
+
+    I looked, and `git status` gave me no hint that anything had gone wrong -- the
+    only visible
+
+    symptom was a file count two lower than I had measured minutes earlier.
+
+
+    Nothing is lost or wrong in the content. `agentjobs queue check` is green after
+    the fact,
+
+    the HIGH and MEDIUM heads still read exactly as approved, and `git show HEAD:task-209.yaml`
+
+    confirms lifecycle closed / outcome completed. Verified after the sweep, not before
+    it.
+
+
+    The history was NOT rewritten to fix the attribution. 14d6c08 belongs to a session
+    that may
+
+    still be running against this clone, and rebasing a commit out from under a live
+    peer trades
+
+    a cosmetic problem for a real one. The commit had not been pushed at the time
+    of writing;
+
+    whoever pushes next carries it as is.
+
+
+    This is exactly the hazard ALLAGENTS.md documents under "Why you get your own
+    worktree" --
+
+    failure 1, an agent running `git add -A` and committing a peer''s files. The doc
+    records it
+
+    from the perpetrator''s side. This is the victim''s side, and it is worth adding:
+    staging
+
+    explicit paths protects the tree from *you*, and does nothing to protect *your*
+    staged work
+
+    from a peer. There is no safe window between `git add` and `git commit` in a shared
+    clone.
+
+    Stage and commit in one step, or accept that someone else may commit your work
+    for you.
+
+
+    Log entry 13 says "88 changed task files ... 25 carrying a queue_move entry, 63
+    renumbered".
+
+    That count was taken before this task''s own close was written, so the correct
+    split is 87
+
+    files in 14d6c08 attributable to this task: 25 queue_move entries, 61 renumber-only,
+    and
+
+    task-209 itself.'
+  data:
+    operation:
+      id: c5eb6084-0209-4c11-9b40-000000000205
+      kind: log_append
+      fingerprint: 87a35b6012003a4331b29165546225fd
+- id: 18
+  ts: '2026-08-21T17:05:41.804153Z'
+  actor: claude
+  type: note
+  body: "From the task-081 supervisor, addressed to run_bff7e030 if it is still running:\
+    \ **your 87 staged corpus files are committed. Do not stage or commit them again,\
+    \ and do not go looking for what happened to them.**\n\nThey are `97a349b chore(tasks):\
+    \ apply the approved queue order across the open corpus`, and the working tree\
+    \ is clean.\n\nWhat happened, because it was my error and the record should carry\
+    \ it rather than leave a confusing gap. You staged the 87 files and had not yet\
+    \ committed. I committed an unrelated one-file note on task-225 with `git add\
+    \ <that file>` followed by `git commit` \u2014 and `git commit` commits the whole\
+    \ index, not the paths I named. So your 87 files went into a commit labelled for\
+    \ task-225. I split it back apart with `git reset --mixed HEAD~1` and two clean\
+    \ commits; nothing was lost at any point, because a soft/mixed reset never touches\
+    \ the working tree.\n\nThe lesson is the one ALLAGENTS.md already gives and I\
+    \ did not apply to myself: **in a shared checkout, staging explicit paths is not\
+    \ enough \u2014 the index is shared too.** `git add <path>` scopes what I add;\
+    \ it does not scope what `git commit` takes. `git commit -- <path>` or `git commit\
+    \ --only <path>` is what actually scopes a commit, and that is what a supervisor\
+    \ writing task-record commits alongside live children has to use. The repository's\
+    \ rule says \"stage explicit paths\"; the failure mode it is guarding against\
+    \ survives that rule intact.\n\nYour work is unaffected: sc-1 through sc-4 all\
+    \ `met`, the task is closed `completed`, and the ordered corpus is on main."
+  data:
+    operation:
+      id: bb9b9273-0209-4a00-9e00-000000000002
+      kind: log_append
+      fingerprint: 2ccfe99e5ade6dddd9bdd63e062fffd7
