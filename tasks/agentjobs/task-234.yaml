@@ -3,7 +3,7 @@ id: task-234
 title: Merging after approval costs a whole second agent session, about eleven minutes,
   on every task
 created: '2026-08-21T20:43:16.534300Z'
-updated: '2026-08-21T20:55:24.696765Z'
+updated: '2026-08-21T21:01:09.814311Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -295,3 +295,101 @@ log:
       id: c4e81a37-9d52-4b60-8f13-2a7e05b9d305
       kind: log_append
       fingerprint: a866b18fd6acd6c8bfcad5fb54f61c01
+- id: 4
+  ts: '2026-08-21T20:59:27.038427Z'
+  actor: Jeff Posey
+  type: instruction
+  body: "**Jeff's call on the shape, 2026-08-21, given conditionally.** Verbatim:\n\
+    \n> \"honestly I'm okay with your suggestion if that will work which was to ...\
+    \ archive it when the ball moves and then when we are like approving then if it\
+    \ wakes it back up and then gives it the prompt that's fine with me\"\n\nThat\
+    \ is **option D** from the entries above, and it is now the intended design rather\
+    \ than one of four candidates:\n\n1. The session works the task and hands off.\
+    \ When the ball moves to `human`, the session is **stopped, not deleted** \u2014\
+    \ `claude stop <id>`, which the CLI documents as keeping the conversation. It\
+    \ holds no concurrency slot while the human deliberates.\n2. When the human approves\
+    \ or requests changes in the GUI, that action **wakes the same session and arrives\
+    \ as its next prompt**, carrying the approval or the feedback text.\n3. The woken\
+    \ session still has its own context \u2014 the branch, the worktree, what it built,\
+    \ what it verified \u2014 so it merges and closes without re-deriving any of it.\n\
+    \n**The conditionality is part of the instruction and must not be dropped: \"\
+    if that will work.\"** He is endorsing the shape, not asserting the mechanism.\
+    \ Two things have to hold, and the second is unproven at the time of writing:\n\
+    \n- A stopped background session's conversation survives and is addressable by\
+    \ its session id. The CLI says so explicitly, and the id is a full conversation\
+    \ UUID \u2014 `claude agents --json --all` returns e.g. `\"id\": \"dcca0a1f\"\
+    ` with `\"sessionId\": \"dcca0a1f-103d-44b5-8339-fb44d5bf1e5f\"`.\n- **A stopped\
+    \ session can be resumed non-interactively with a new prompt**, i.e. `claude -r\
+    \ <uuid> -p \"<the approval>\"` returns the woken agent's work rather than an\
+    \ error. `-r/--resume` and `-p/--print` both exist. Whether they compose over\
+    \ a *background* session's id is being tested; the result is the next entry.\n\
+    \n**If the second does not hold, this instruction does not authorise a substitute.**\
+    \ Come back with what does work and let him choose again \u2014 the whole value\
+    \ of the shape is that the context survives, and a fallback that reboots a cold\
+    \ agent is the thing being replaced, not a smaller version of it.\n\nAlso worth\
+    \ carrying into the design: **request-changes wakes the session the same way approval\
+    \ does.** He named both. So the trigger is the ball moving back to the agent,\
+    \ not the approve route specifically \u2014 which is a cleaner place to hook it\
+    \ and covers the revise loop as well as the merge."
+  data:
+    operation:
+      id: c4e81a37-9d52-4b60-8f13-2a7e05b9d307
+      kind: log_append
+      fingerprint: 528a306067193179450a3278f928b048
+- id: 5
+  ts: '2026-08-21T21:01:09.814175Z'
+  actor: claude
+  type: progress
+  body: "**The mechanism Jeff's instruction was conditional on is verified. Stop-then-wake-with-a-prompt\
+    \ works, and the woken session keeps its context.** Tested 2026-08-21 on a throwaway\
+    \ session, not on a real run.\n\n## The experiment\n\nA background session was\
+    \ started in a scratch directory, allowed to complete one turn, stopped, and then\
+    \ resumed headlessly with a *different* prompt that could only be answered from\
+    \ its prior conversation.\n\n```\n1. claude --bg \"Reply with exactly ALPHA-SENTINEL-77\
+    \ and nothing else. Do not use any tools.\"\n   -> backgrounded, id aa31bb7a\n\
+    \   -> ran the prompt; its output shows ALPHA-SENTINEL-77\n\n2. claude agents\
+    \ --json --all\n   -> \"id\": \"aa31bb7a\", \"sessionId\": \"aa31bb7a-7224-41d3-a6b4-068f68ce5ed0\"\
+    \n      (the short id is the UUID's first field, not a separate namespace)\n\n\
+    3. claude stop aa31bb7a\n   -> stopped aa31bb7a\n\n4. claude -r aa31bb7a-7224-41d3-a6b4-068f68ce5ed0\
+    \ -p \"What sentinel string did you just reply with? Answer in one line.\"\n \
+    \  -> ALPHA-SENTINEL-77\n```\n\nStep 4 is the result that matters. The session\
+    \ was **stopped**, and it answered from the conversation it had before being stopped.\
+    \ A cold agent could not have answered that question at all.\n\nSo the full shape\
+    \ Jeff described is available with the tools already on this machine:\n\n- **Ball\
+    \ moves to human** \u2192 `claude stop <session_id>`. The ledger already has the\
+    \ code for this: `DispatchLedger._stop_session` ([ledger.py:686](src/agentjobs/dispatch/ledger.py:686))\
+    \ calls exactly this command, and its docstring already states the reason \u2014\
+    \ going around the session manager with a pid \"would lose the conversation that\
+    \ `stop` preserves.\"\n- **Human approves or requests changes** \u2192 `claude\
+    \ -r <sessionId> -p \"<the approval or the feedback>\"`, which wakes the same\
+    \ agent with its own context and hands it the next instruction.\n\n## Three practical\
+    \ notes for whoever builds it\n\n1. **Use the full UUID, not the short id.** `-r\
+    \ aa31bb7a` was not tried; `agents --json --all` gives `sessionId` and that is\
+    \ what worked.\n2. **Redirect stdin.** Step 4 printed `Warning: no stdin data\
+    \ received in 3s, proceeding without it.` and stalled three seconds before running.\
+    \ A server calling this must pass `< /dev/null` (or the subprocess equivalent,\
+    \ `stdin=DEVNULL`) or every wake-up costs a needless three seconds and risks blocking\
+    \ on a pipe that never closes.\n3. **The reaper is the thing that would break\
+    \ this.** `reap()` calls `claude rm`, which deletes the conversation \u2014 an\
+    \ earlier entry has the detail. A run whose task is sitting at `human` must not\
+    \ be reaped, or there is nothing left to wake. That is the one change without\
+    \ which the rest cannot work.\n\n## A false negative, recorded so nobody repeats\
+    \ it\n\nThe first attempt reported `No conversation found with session ID`, which\
+    \ looks like a refutation and is not. That session had been started with `--remote-control`\
+    \ and came up **idle** \u2014 the CLI printed `idle \u2014 send a prompt to start`\
+    \ and the positional prompt was never delivered, so the session had no conversation\
+    \ to resume. Resume was correctly reporting an empty session.\n\n**This matters\
+    \ beyond the test, because dispatch always passes `--remote-control`.** Whether\
+    \ a `--remote-control` session reliably receives its positional prompt, or whether\
+    \ that first observation was a timing artefact, is unresolved \u2014 the second\
+    \ run omitted the flag and the prompt was delivered immediately. Dispatched runs\
+    \ plainly do work today, so the flag cannot be swallowing prompts in general,\
+    \ but **the interaction between `--remote-control` and the initial prompt should\
+    \ be checked before this design is wired to the real dispatch path.**\n\n## Housekeeping\n\
+    \nBoth throwaway sessions (`aa31bb7a`, `dcca0a1f`) were removed with `claude rm`\
+    \ after the test. No real run was touched at any point."
+  data:
+    operation:
+      id: c4e81a37-9d52-4b60-8f13-2a7e05b9d308
+      kind: log_append
+      fingerprint: 796f2eb81c3bc978bed09a87572da110
