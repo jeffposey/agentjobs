@@ -3,13 +3,9 @@ id: task-202
 title: Give every registered project its MCP server, so a dispatched session has the
   tools
 created: '2026-08-20T22:27:11.789778Z'
-updated: '2026-08-21T02:47:04.540736Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-21T02:58:09.719134Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
 category: developer_experience
@@ -19,7 +15,6 @@ tags:
 - init
 - from-live-session-2026-08-20
 assignment:
-  owner: claude
   eligible:
   - claude
   - codex
@@ -86,25 +81,25 @@ acceptance:
 - id: ac-1
   text: '`agentjobs init` leaves the project with a working `.mcp.json` entry for
     the agentjobs server, merging rather than overwriting an existing file.'
-  status: pending
+  status: met
 - id: ac-2
   text: A session dispatched into a freshly registered project reports the AgentJobs
     MCP tools rather than falling back to the CLI.
-  status: pending
+  status: met
 - id: ac-3
   text: fantasy-football, mastercalls and product-strategy are backfilled and verified
     the same way.
-  status: pending
+  status: met
 - id: ac-4
   text: The port and command shown in docs/mcp.md agree with what init writes and
     with what the bundled plugin ships.
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
 branches:
 - name: feat/task-202-init-writes-mcp-json
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-20T22:27:11.789814Z'
@@ -722,3 +717,87 @@ log:
         eligible: true
       - runner: chatgpt-sol
         eligible: true
+- id: 17
+  ts: '2026-08-21T02:55:16.821892Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 3f9c1a44-7b0e-4d21-9e6a-8c5f2d7b1a03
+      kind: update_content
+      fingerprint: 039081cf270037349fd566f7d0d1d2ab
+- id: 18
+  ts: '2026-08-21T02:57:33.144134Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: a71e3d55-2c48-4b19-8f03-9d6e4c2a7b18
+      kind: update_content
+      fingerprint: 48aee01ae59545379eccc734f8564606
+- id: 19
+  ts: '2026-08-21T02:58:02.572596Z'
+  actor: claude
+  type: progress
+  body: "Merged. Dispatch run_fa103400 picked this up on the approval in entry 14\
+    \ and did only the merge-and-close half; no code was changed.\n\nWhat was done,\
+    \ in order:\n1. Committed the approval handoff to `main` (3869a2b) \u2014 it was\
+    \ sitting uncommitted in the shared working tree, so the record and the tree agreed\
+    \ before anything else moved.\n2. Rebased `feat/task-202-init-writes-mcp-json`\
+    \ onto `main` in worktree C:/projects/worktrees/aj-202. Clean; `main` had only\
+    \ moved by task-YAML commits, so the code is unchanged from what was reviewed\
+    \ (953cfa1/71ef010 became e20b293/ef054dd).\n3. Re-ran the full gate in the rebased\
+    \ worktree with that checkout's own interpreter: **exit 0**. Black, Ruff, MyPy,\
+    \ pytest, frontend client check, Vitest, production build, 16 Playwright tests\
+    \ against a live server on 127.0.0.1:23548.\n4. Merged `--no-ff` into `main` as\
+    \ **4261db2**. 7 files, +509/-9. No frontend files in the diff, so no `npm run\
+    \ build` was needed.\n5. Finished the one piece of backfill left over from the\
+    \ parked run: `C:/projects/product-strategy/.mcp.json` committed as f675ab4. That\
+    \ repository has no remote and nothing was pushed. All five registered projects\
+    \ now carry the file.\n6. Removed the worktree and deleted the merged local branch.\
+    \ `git worktree list` shows only the main clone.\n7. Restarted the server the\
+    \ way it was started \u2014 `C:/ai/shared/launchers/open-agentjobs.ps1 -NoOpen\
+    \ -Force`, not `agentjobs restart`, which would have bound the wrong port and\
+    \ left 8876 stale. `/api/version` answers 0.1.0, schema v2, `source_root: C:\\\
+    projects\\agentjobs`. The tailnet Service came up with it.\n\nVerified live against\
+    \ the merged code, not the branch: `agentjobs project mcp-setup <scratch dir>`\
+    \ from the main clone wrote a correct `.mcp.json` pointing at http://127.0.0.1:8876\
+    \ and printed the \"start a new agent session there\" line. Scratch directory\
+    \ deleted afterwards.\n\nNothing has been pushed to any remote. `main` is 3 commits\
+    \ ahead of origin (the merge and two task-record commits) and is Jeff's to push.\n\
+    \nOn ac-2, so the \"met\" mark is not read as more than it is. What is directly\
+    \ demonstrated: this dispatched session (run_fa103400) came up **with** the AgentJobs\
+    \ MCP tools and used them for every write on this record, in a project whose `.mcp.json`\
+    \ declares the server \u2014 the mechanism the task is about, working end to end\
+    \ in a background run with no terminal. What is still inferred rather than observed:\
+    \ that a project registered by the *merged* `init` behaves identically. That link\
+    \ is covered by a test asserting `mcpjson_server_names()` returns `[\"agentjobs\"\
+    ]` for an init-written file, and by step-7 verification that the file the merged\
+    \ code writes is the same shape. One real dispatch into a newly registered project\
+    \ would close the gap; downgrade this criterion if that matters more than it seems\
+    \ to."
+  data:
+    operation:
+      id: c8b4f210-6d37-4a95-b1c2-0e7a35d9f461
+      kind: log_append
+      fingerprint: 4a00783998a8231793318e366781a836
+- id: 20
+  ts: '2026-08-21T02:58:09.718952Z'
+  actor: claude
+  type: transition
+  body: Merged as 4261db2 on `main`, branch marked merged, worktree removed, server
+    restarted on 8876 and the merged code verified live. All four acceptance criteria
+    met; the evidence and the one inference behind ac-2 are in entry 19.
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: f2064a8e-9c71-4d3b-a5e0-1b8d47c96032
+      kind: close
+      fingerprint: 62e8861ab88f6604ff3a2117a18d70a0
