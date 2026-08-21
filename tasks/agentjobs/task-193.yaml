@@ -2,23 +2,17 @@ schema: 2
 id: task-193
 title: Every CLI dispatch on this machine hands the agent a dead API address
 created: '2026-08-20T08:07:00.622137Z'
-updated: '2026-08-21T19:45:57.683797Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-21T19:58:04.635964Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 375
 category: reliability
 tags:
 - dispatch
 - config
 effort: small
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: A dispatch started from the CLI tells the agent AgentJobs is at http://localhost:8765.
@@ -68,7 +62,7 @@ dependencies: []
 links: []
 branches:
 - name: fix/task-193-dispatch-address-probe
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-20T08:07:00.622243Z'
@@ -428,3 +422,68 @@ log:
         eligible: true
       - runner: chatgpt-sol
         eligible: true
+- id: 15
+  ts: '2026-08-21T19:56:26.507472Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 3f4a1c22-8b0e-4d51-9a67-1c2e5f7b3a90
+      kind: update_content
+      fingerprint: aa705dc1173f84a55d258b3559af3b8d
+- id: 16
+  ts: '2026-08-21T19:57:55.924648Z'
+  actor: claude
+  type: progress
+  body: "Merged on Jeff's approval (log 12) and delivered.\n\n**Merge.** Rebased `fix/task-193-dispatch-address-probe`\
+    \ onto `main` (one commit, ea6f5cc -> 75b024c) and merged `--no-ff` as **70301a9**.\
+    \ The rebase was trivial and I checked why before trusting it: everything `main`\
+    \ gained since the branch point (e50e438) was task YAML plus one new `docs/playbooks-design.md`,\
+    \ so nothing on `main` touched a file this branch changes. No conflicts, no fixups.\n\
+    \n**Gate re-run after the rebase, not reused from before it.** Full `scripts/check.py`\
+    \ in the worktree, run with the worktree's own interpreter (`agentjobs-mJhaNDnf-py3.13`)\
+    \ rather than `poetry run`, so it could not resolve to the main clone's environment:\
+    \ **10 of 10 stages, exit 0, 429.7s** -- black 0.6s, ruff 0.1s, mypy 1.6s, api\
+    \ 4.8s, icons 3.0s, oxlint 0.5s, pytest 387.4s, vitest 5.0s, build 3.7s, e2e 23.1s.\
+    \ \"Ran every stage (10 of 10)\"; no PARTIAL RUN.\n\n**Delivered, verified live.**\
+    \ The change is backend Python under `src/agentjobs/dispatch/`, so the server\
+    \ on 8876 was holding the pre-merge code. It is not the CLI's to restart -- it\
+    \ runs on a non-default port behind the Tailscale Service proxy -- so I restarted\
+    \ it the way it is started, `C:/ai/shared/launchers/open-agentjobs.ps1 -NoOpen`,\
+    \ whose own staleness check picks up exactly this case (a file under `src/` newer\
+    \ than the process). New listener PID 310820, started 2026-08-21 14:57:15, `/api/version`\
+    \ reporting `source_root: C:\\projects\\agentjobs`. No frontend rebuild: nothing\
+    \ under `frontend/` changed.\n\nThen confirmed the merged code is what actually\
+    \ runs, from the main clone:\n\n    $ agentjobs dispatch config\n    Agent address:\
+    \  http://127.0.0.1:8876  (api_base: in C:\\Users\\jpose\\.agentjobs\\dispatch.yaml)\n\
+    \                    AgentJobs answered (schema v2)\n\nThose two lines are the\
+    \ merge: before it, `dispatch config` printed no address at all.\n\n**Cleanup.**\
+    \ Worktree `../worktrees/aj-193` removed, local branch deleted, `branches[]` marked\
+    \ merged. `git worktree list` is back to the clone alone and `git branch` to `main`\
+    \ alone.\n\nNot pushed -- approval to merge is not approval to push, and `main`\
+    \ is ahead of `origin/main` by unrelated commits as well as this one."
+  data:
+    operation:
+      id: 7c1e9b40-2d68-4f3a-b5c1-9e04a7d62f18
+      kind: log_append
+      fingerprint: 6b6e753bbdb18270b589326362625eba
+- id: 17
+  ts: '2026-08-21T19:58:04.635757Z'
+  actor: claude
+  type: transition
+  body: 'Both acceptance criteria met and merged as 70301a9. ac-1: this machine declares
+    `api_base: http://127.0.0.1:8876` and a CLI dispatch is now told an address that
+    answers. ac-2: `dispatch run` probes the resolved address when no caller observed
+    one and refuses with `api_base_unreachable` before spawning, and `dispatch config`
+    shows the address, its source and what answered there. Gate green 10/10 post-rebase,
+    server restarted, change confirmed live. Worktree and branch removed.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: b8d5f271-4e30-49ac-8a12-6cf0e91d34b7
+      kind: close
+      fingerprint: b94de5ece2ab795546a9cb2d135471de
