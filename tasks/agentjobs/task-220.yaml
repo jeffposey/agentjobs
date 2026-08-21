@@ -2,7 +2,7 @@ schema: 2
 id: task-220
 title: An epic supervisor parks where ordinary dispatched runs do not
 created: '2026-08-21T05:35:56.284351Z'
-updated: '2026-08-21T06:28:06.935204Z'
+updated: '2026-08-21T06:28:56.417696Z'
 lifecycle: active
 ball: human
 ball_reason: decision
@@ -752,3 +752,13 @@ log:
       id: d9b31e64-7f28-4a05-b1c9-2e74f0da0220
       kind: handoff
       fingerprint: 5d2c2b9fd2bbdb3efdd0e1de9348b30c
+- id: 15
+  ts: '2026-08-21T06:28:56.417564Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 10
+  data:
+    run_id: run_86e4afff
+    outcome: completed
+    duration_seconds: 712.286639
+    log_path: C:\Users\jpose\.agentjobs\runs\run_86e4afff
