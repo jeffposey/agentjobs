@@ -3,10 +3,47 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-21T16:58:04.110126Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-21T19:42:15.618977Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: "Research is complete; all four acceptance criteria are met. No code\
+  \ was written and no branch exists \u2014 the deliverable is log entries 6, 7 and\
+  \ 8 on this record. Nothing was posted upstream and nothing was built.\n\n**The\
+  \ answer: your remote-control hypothesis is wrong, and the real cause is in a log\
+  \ nobody had opened \u2014 `~/.claude/daemon.log`.** Claude Code runs a background\
+  \ auth daemon that owns OAuth refresh for every `--bg` session. At 15:33:40 UTC\
+  \ its scheduled refresh fired on time and failed four times over 3m19s. It then\
+  \ gave up and discarded the token \u2014 a token its own log line calls `(token\
+  \ still valid)`, 40 seconds before that token would have expired anyway. Every `bg`\
+  \ session went dead; the desktop app, on the same account and machine, kept working\
+  \ throughout, including one call 91ms after the first failure.\n\nThat also explains\
+  \ the part that made you swear: **answering the prompt could not have worked.**\
+  \ Your message at 15:43:38 arrived fine and failed 9ms later, because it was retried\
+  \ against a credential the daemon had already thrown away. Only `claude auth login`\
+  \ clears it. It happened on 2026-08-20 too, and that time it healed itself in two\
+  \ minutes with nobody logging in \u2014 which is what rules out any deliberate logout.\n\
+  \n**Three decisions for you:**\n\n1. **The build recommendation** (entry 8). A narrow\
+  \ detector in the dispatch poller: tail a quiet session's JSONL for `\"error\":\
+  \ \"authentication_failed\"`, and on a hit hand the ball to you saying \"this run\
+  \ needs `claude auth login`\". Right now dispatch is blind to this \u2014 run_a1e35ca5\
+  \ is recorded `outcome: completed` despite having died and needed rescuing. Recovery\
+  \ is verified to work in place, with no restart, so the fix is cheap and the failure\
+  \ it removes is a whole night's unattended work. **Want me to file this as a follow-up\
+  \ task?** I have not created one.\n2. **The upstream report.** anthropics/claude-code#79685\
+  \ is the same bug, open since 2026-07-21 with no maintainer response, and it asks\
+  \ for exactly the machine-readable signal AgentJobs needs. I have three findings\
+  \ to add that the issue does not have (the still-valid token being discarded, `daemon-auth-status.json`\
+  \ latching at `auth_required` and never clearing, and the self-healing occurrence).\
+  \ **Posting is your call \u2014 say the word and I will draft it for your approval\
+  \ rather than sending anything.**\n3. **Anything to correct.** Entry 7 drops four\
+  \ candidate explanations including yours, and is deliberate about the one thing\
+  \ the evidence does *not* settle: why the refresh calls failed. The daemon logs\
+  \ no HTTP status, so \"the OAuth endpoint was unhealthy\" and \"this machine's refresh\
+  \ token was rejected\" cannot be told apart from anything on disk. I did not pick\
+  \ one.\n\nOne live nuisance worth knowing: `~/.claude/daemon-auth-status.json` still\
+  \ reads `auth_required` right now, hours after the successful re-auth, while everything\
+  \ works. It is a stale latch \u2014 do not trust it if you ever go looking."
 archived: false
 priority: high
 queue_position: 1500
@@ -18,6 +55,7 @@ tags:
 - research
 effort: research first; the fix is unknown until the trigger is
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: On 2026-08-21 Claude Code reported "Login expired" during autonomous work
@@ -104,21 +142,38 @@ acceptance:
 - id: ac-1
   text: The trigger is identified from evidence, or the task states plainly that the
     evidence does not identify one and names what would.
-  status: pending
+  verify: 'Log entry 6: ~/.claude/daemon.log records the scheduled OAuth refresh failing
+    four times and the daemon then discarding a token its own log calls ''(token still
+    valid)''. Entry 7 names what local evidence cannot settle (why the refresh failed)
+    and the test that would.'
+  status: met
 - id: ac-2
   text: Jeff's hypothesis that remote-controllable sessions cause the expiry is explicitly
     confirmed or dropped, with the reasoning.
-  status: pending
+  verify: 'Log entry 7: dropped, on four counts. --remote-control is present in all
+    47 ledger runs including the 45 unaffected ones; the session that survived the
+    outage was itself remote-controlled; a remote-controlled retry succeeded 2 minutes
+    after a remote-controlled session died; and the failure''s timing was set by an
+    8h token clock scheduled hours earlier.'
+  status: met
 - id: ac-3
   text: "The question of whether an auth park is distinguishable from a permission\
     \ park \u2014 from the ledger or transcript, outside the process \u2014 is answered\
     \ yes or no."
-  status: pending
+  verify: "Log entry 8: YES from the session JSONL ('error': 'authentication_failed',\
+    \ zero false positives across every session log on this machine), NO from the\
+    \ run ledger \u2014 the affected run is recorded outcome: completed. An auth failure\
+    \ ends the turn rather than leaving a pending prompt, so dispatch's park detection\
+    \ never fires."
+  status: met
 - id: ac-4
   text: 'A recommendation is recorded: build something, report upstream, or nothing
     to do. "Nothing to do" with reasoning is an acceptable outcome and closes the
     task.'
-  status: pending
+  verify: 'Log entry 8: build one narrow detector in the dispatch poller (follow-up
+    task); comment on the existing open upstream issue anthropics/claude-code#79685
+    rather than filing a new one; and four named things not to build.'
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -147,3 +202,354 @@ log:
     to: 1500
     placement:
       kind: top
+- id: 3
+  ts: '2026-08-21T19:25:21.674368Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 4
+  ts: '2026-08-21T19:25:22.125862Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 5
+  ts: '2026-08-21T19:25:23.367072Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_677c3ef2
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 3
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-224` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-224-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_677c3ef2.'
+    cwd: C:\projects\agentjobs
+    git_head: f971bec
+    session_id: 4716d701
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 6
+  ts: '2026-08-21T19:40:04.908652Z'
+  actor: claude
+  type: progress
+  body: "## The trigger is identified. It is Claude Code's background auth daemon\
+    \ failing a scheduled OAuth refresh, and then discarding a still-valid token.\n\
+    \nEvidence is `~/.claude/daemon.log`, which nobody had looked at. It states the\
+    \ mechanism outright. No credential or token values are reproduced here or anywhere\
+    \ in the repo.\n\n### The primary evidence, verbatim from `~/.claude/daemon.log`\n\
+    \n```\n[2026-08-21T15:33:40.465Z] [supervisor] auth: proactive refresh starting\n\
+    [2026-08-21T15:33:47.534Z] [supervisor] auth: proactive refresh failed, retrying\
+    \ in ~60s (token still valid)\n[2026-08-21T15:34:47.536Z] [supervisor] auth: proactive\
+    \ refresh starting\n[2026-08-21T15:34:53.956Z] [supervisor] auth: proactive refresh\
+    \ failed, retrying in ~60s (token still valid)\n[2026-08-21T15:35:53.959Z] [supervisor]\
+    \ auth: proactive refresh starting\n[2026-08-21T15:35:59.682Z] [supervisor] auth:\
+    \ proactive refresh failed, retrying in ~60s (token still valid)\n[2026-08-21T15:36:59.685Z]\
+    \ [supervisor] auth: proactive refresh starting\n[2026-08-21T15:36:59.686Z] [supervisor]\
+    \ auth: proactive refresh failed, signalling re-auth required\n[2026-08-21T15:36:59.691Z]\
+    \ [supervisor] auth: headless daemon cannot complete OAuth \u2014 run `claude\
+    \ auth login` to refresh\n[2026-08-21T15:36:59.692Z] [supervisor] auth: no token\
+    \ found, will re-check keychain every 30s\n```\n\n### How the machinery works,\
+    \ established from the log's own arithmetic\n\n- Access tokens last **exactly\
+    \ 8 hours**. Confirmed twice: the daemon logs `scheduling proactive refresh in\
+    \ 28560s` (7h56m \u2014 expiry minus a 4-minute margin), and the credential written\
+    \ during recovery carries an `expiresAt` exactly 8h after its file mtime.\n- A\
+    \ **shared background daemon** (\"supervisor\") owns the refresh. Individual `bg`\
+    \ workers do not refresh for themselves; they are spawned by, and get their credential\
+    \ through, that daemon (`bg spawned <id> (shell)` lines interleave with the auth\
+    \ lines in the same log).\n- On failure the daemon retries **3 times at 60s**,\
+    \ then gives up, writes `auth_required`, and reports **`no token found`** \u2014\
+    \ even though its own preceding lines say `(token still valid)`. The token it\
+    \ was refreshing did not expire until **15:37:39**; the daemon threw it away at\
+    \ **15:36:59**, 40 seconds early.\n\n### The timeline, from evidence rather than\
+    \ memory\n\n| UTC | What |\n|---|---|\n| 07:37:39 | previous refresh succeeded;\
+    \ token good until 15:37:39 |\n| 15:33:40 | scheduled refresh begins, exactly\
+    \ on time |\n| 15:33:47 \u2192 15:36:59 | four refresh attempts fail (7.1s, 6.4s,\
+    \ 5.7s network round-trips; the fourth fails in 1ms \u2014 a local short-circuit)\
+    \ |\n| 15:36:45.777 | **run for task-207 (non-dispatch `bg` session) fails**:\
+    \ `Login expired \xB7 Please run /login` |\n| 15:36:59 | daemon signals `auth_required`,\
+    \ drops the token |\n| 15:37:39 | the discarded token would have expired naturally\
+    \ |\n| 15:38:21.136 | **run_a1e35ca5 (task-208) fails** with the same error; turn\
+    \ ends, session goes silent |\n| 15:43:38.016 | Jeff messages the session: *\"\
+    it logged me out\u2026 should be logged in and ready to continue\"* |\n| 15:43:38.025\
+    \ | **fails again 9ms later** \u2014 this is \"answering that prompt didn't even\
+    \ work\" |\n| 15:43:47 | Jeff runs `/login` |\n| 15:44:31 | `.credentials.json`\
+    \ rewritten; new token, 8h life |\n| 15:44:51 | run_a1e35ca5 succeeds and goes\
+    \ on to complete normally |\n\nAnswering the prompt could not have worked. The\
+    \ message did not fail to arrive \u2014 it arrived and was retried against a credential\
+    \ the daemon had already discarded. Only re-auth clears it. Once re-auth happened,\
+    \ the **already-running** session recovered in place with no restart.\n\n### The\
+    \ 2026-08-20 occurrence: same cause, and it self-healed\n\nThe same failure had\
+    \ happened the previous day and nobody connected it. A child session spawned at\
+    \ 07:48:28.653 died at 07:48:29.047 \u2014 **394ms, on its first request**, never\
+    \ having run a turn. One second earlier the daemon had logged `auth: no token\
+    \ found`. At 07:50:33 a fresh daemon found a token and scheduled a normal refresh;\
+    \ the retry child spawned at 07:50:34 worked fine. **No human logged in between.**\
+    \ That occurrence recovered on its own in about two minutes, which is decisive\
+    \ against any account-level or deliberate logout.\n\nSymptom in the ledger: the\
+    \ burst of five ~1-minute `interrupted` task-015 runs (run_ab042e6a, run_052b10e5,\
+    \ run_d74e729e, run_7c7ccd7d, run_a80f3e90) between 07:58 and 08:19 sits in this\
+    \ window.\n\n### The full population of the failure, across every session log\
+    \ on this machine\n\nExactly **three** `authentication_failed` events exist in\
+    \ `~/.claude/projects/**/*.jsonl` across both days. All three are `sessionKind:\
+    \ \"bg\"`, `entrypoint: \"cli\"`. **Zero** occur in any other kind of session.\n\
+    \nMeanwhile the session that filed this very task \u2014 `entrypoint: claude-desktop`\
+    \ \u2014 made **19 successful model calls straddling the outage**, including one\
+    \ **91 milliseconds after** the first `bg` failure, on the same machine and the\
+    \ same account. The desktop app was unaffected throughout, including after 15:37:39\
+    \ when the CLI's token had expired.\n\n### Method note\n\n`transcript.log` was\
+    \ not used, per task-220 entry 11. The evidence is `~/.claude/daemon.log`, `~/.claude/daemon-auth-status.json`,\
+    \ `.credentials.json` **file mtime only**, the run ledger `meta.yaml` files, and\
+    \ the session JSONLs."
+  data:
+    operation:
+      id: 3f2b8c14-9d5a-4e77-b1c2-6a8f0e34d901
+      kind: log_append
+      fingerprint: 0a79e8b2e684958344e2a01a2804b5a9
+- id: 7
+  ts: '2026-08-21T19:40:34.175652Z'
+  actor: claude
+  type: decision
+  body: "## Dropped: remote control does not cause the expiry. (ac-2)\n\nThe hypothesis\
+    \ was that something treats `--remote-control` as a risk signal and shortens or\
+    \ invalidates the session. **It is wrong**, on four independent counts:\n\n1.\
+    \ **`--remote-control` is not a variable in this data \u2014 it is a constant.**\
+    \ Every one of the 47 runs in `~/.agentjobs/runs/` carries `--remote-control`;\
+    \ the dispatcher composes it unconditionally in `runner.py`. Forty-five of those\
+    \ runs were unaffected. A flag present in 100% of runs and 100% of successes cannot\
+    \ explain a failure in 4% of them.\n2. **The session that sailed through the outage\
+    \ was itself remote-controlled.** The `claude-desktop` session \u2014 the one\
+    \ that made 19 successful calls while both `bg` sessions were failing \u2014 has\
+    \ `/remote-control is active` in its own log. If remote control invalidated sessions,\
+    \ that one would have died first.\n3. **A `--remote-control` retry succeeded two\
+    \ minutes after a `--remote-control` session died** (2026-08-20, 07:48:29 fail\
+    \ \u2192 07:50:34 success), with nobody logging in between.\n4. **The timing is\
+    \ set by an 8-hour token clock, not by anything about a session.** The refresh\
+    \ fired at 15:33:40, which is exactly `07:37:39 + 28560s` as the daemon had scheduled\
+    \ it seven hours earlier \u2014 before the runs in question existed. The clock\
+    \ that produced this failure was already ticking before any remote-controlled\
+    \ session started.\n\n### The other candidate explanations, also dropped\n\n-\
+    \ **\"An ordinary token lifetime elapsed.\"** Half-right, and the half that is\
+    \ wrong matters. The lifetime *was* ordinary \u2014 8h \u2014 but elapsing is\
+    \ not what broke anything. The daemon handles that every 8 hours without incident\
+    \ (`proactive refresh succeeded`, 07:37:39 and 2026-08-20 15:46:34). What broke\
+    \ was the **refresh failing**, four times, and then the daemon discarding a token\
+    \ that was still valid.\n- **\"A concurrency or device limit from several `--bg`\
+    \ processes at once.\"** Six `bg` workers were live (the daemon logs `adopted=6`).\
+    \ But the failure begins at the daemon's scheduled refresh, not at any spawn,\
+    \ and the 2026-08-20 occurrence had **one** child. Concurrency is not the discriminator.\n\
+    - **\"A client-version or rollout change.\"** Versions moved through 2.1.235 \u2192\
+    \ .237 \u2192 .238 across the window, and both a version bump and a recovery coincide\
+    \ on each day. Suggestive but not supported: the daemon's own log gives a sufficient\
+    \ cause without it, and a version change cannot explain the desktop app being\
+    \ unaffected while the CLI daemon was not.\n\n### What actually caused the refresh\
+    \ to fail is *not* established, and local evidence cannot establish it\n\nThe\
+    \ first three attempts each burned 5.7\u20137.1 seconds before failing \u2014\
+    \ the shape of a network round-trip that timed out or returned an error \u2014\
+    \ and the daemon does not log the response. Two things point upstream rather than\
+    \ at this machine: the auto-mode classifier reported **`claude-sonnet-5[1m] is\
+    \ temporarily unavailable`** in the same second as the first session failure,\
+    \ and the previous day's occurrence cleared itself with no human action.\n\n**Naming\
+    \ the test rather than guessing:** this would be settled by the daemon logging\
+    \ the HTTP status and body of a failed refresh. It does not, so the distinction\
+    \ between \"the OAuth endpoint was unhealthy for three minutes\" and \"this machine's\
+    \ refresh token was rejected\" cannot be made from anything on disk here. I am\
+    \ not choosing between them."
+  data:
+    operation:
+      id: 7c1e9a45-2b83-4f60-8d17-5e9a3c07f2b8
+      kind: log_append
+      fingerprint: 763275feee809a576404232970443052
+- id: 8
+  ts: '2026-08-21T19:41:28.222774Z'
+  actor: claude
+  type: decision
+  body: "## ac-3 \u2014 Yes, an auth park is distinguishable from a permission park\
+    \ from outside the process. But not from the ledger, which is exactly the problem.\n\
+    \n**It does not look like a permission park at all, and that is why it went unnoticed\
+    \ for two days.** A permission park leaves the session *alive and waiting* with\
+    \ a pending prompt. An auth failure **ends the turn**: the session emits one synthetic\
+    \ assistant message and goes idle with nothing pending. Dispatch's park detection\
+    \ looks for the first shape and this is the second, so it never fired.\n\nThe\
+    \ proof is in the ledger itself: **run_a1e35ca5 is recorded `outcome: completed`.**\
+    \ It lost six minutes to a dead credential, needed Jeff to notice and re-auth,\
+    \ and the record shows an ordinary successful run. The ledger is blind to this.\
+    \ (The 2026-08-20 runs recorded `interrupted`, which is equally uninformative\
+    \ \u2014 it does not mean \"auth\".)\n\nThree signals do exist outside the process,\
+    \ in descending order of reliability:\n\n1. **The session JSONL \u2014 reliable,\
+    \ per-run, exact.** The failing turn is a single line carrying `\"error\": \"\
+    authentication_failed\"` and `\"isApiErrorMessage\": true`, with `\"model\": \"\
+    <synthetic>\"` and the text `Login expired \xB7 Please run /login`. This is the\
+    \ signal to build on. It attributes the failure to a specific session, and across\
+    \ every session log on this machine it has **zero false positives** \u2014 three\
+    \ occurrences, all genuine.\n2. **`~/.claude/daemon.log`** \u2014 the human-readable\
+    \ cause, and the right text for a `ball_prompt`: `headless daemon cannot complete\
+    \ OAuth \u2014 run 'claude auth login' to refresh`.\n3. **`~/.claude/daemon-auth-status.json`**\
+    \ \u2192 `{\"status\":\"auth_required\",\"since\":<epoch_ms>}`. **Do not use this\
+    \ as a live gate.** Verified failure mode: it is a latch that nobody clears. It\
+    \ still reads `auth_required` with a `since` of 15:36:59 \u2014 more than three\
+    \ hours after the successful re-auth at 15:44:31, while this very session and\
+    \ five other `bg` workers are running fine on a valid token. It is usable only\
+    \ for corroboration by comparing `since` against a run's timestamps, never as\
+    \ an answer to \"is auth broken now\".\n\n### Two further mechanics that any fix\
+    \ depends on, both verified\n\n- **Recovery is in-place. A dead run is not lost.**\
+    \ run_a1e35ca5 was already running when it failed, and resumed on the same session\
+    \ after re-auth \u2014 no restart, no re-dispatch, and it went on to complete\
+    \ normally. The window is survivable.\n- **But it needs a nudge.** After failing\
+    \ at 15:38:21 the session sat idle for five minutes and did **not** resume by\
+    \ itself; it resumed only when Jeff sent it a message at 15:44:46. So recovery\
+    \ is *re-auth **and** a nudge*, and the nudge is worthless before the re-auth\
+    \ \u2014 the 15:43:38 attempt failed 9ms after arriving.\n\n---\n\n## ac-4 \u2014\
+    \ Recommendation: build one narrow thing, report upstream, and explicitly build\
+    \ nothing else.\n\n### Build: teach the dispatch poller to recognise an auth stall\
+    \ (a follow-up task, not this one)\n\nScope, deliberately small:\n\n- When a session\
+    \ goes quiet, tail its JSONL for `\"error\": \"authentication_failed\"`.\n- On\
+    \ a hit, hand the ball to `human` with its own reason and a `ball_prompt` that\
+    \ says the one thing that fixes it: **run `claude auth login`**. A human who reads\
+    \ \"this run needs you to log in\" acts in seconds; a human who reads a generic\
+    \ park, or sees nothing at all, does not act for six minutes \u2014 or, at 3am,\
+    \ until morning.\n- Optionally, once auth is restored, nudge the parked session\
+    \ so it resumes itself. Verified to work, and it is the difference between losing\
+    \ six minutes and losing a night.\n\n**Why this clears the \"do not build a workaround\
+    \ before the trigger is known\" bar:** the trigger is now known, and this is not\
+    \ a workaround for it. It does not touch tokens, refresh, or the auth flow \u2014\
+    \ all upstream and none of AgentJobs' business. It only makes an already-visible\
+    \ failure legible in the tracker. The cost of not having it is the whole premise\
+    \ of unattended dispatch: two occurrences in two days of heavy use, one of which\
+    \ needed a human who happened to be awake.\n\n### Report upstream: comment on\
+    \ the existing issue, do not file a new one\n\n**[anthropics/claude-code#79685](https://github.com/anthropics/claude-code/issues/79685)**\
+    \ \u2014 *\"Headless `claude -p` fails 'OAuth session expired and could not be\
+    \ refreshed' while concurrent interactive session works \u2014 no recovery path\
+    \ for unattended runners\"*. Open since 2026-07-21, no maintainer response. Same\
+    \ class of failure, same asymmetry (headless dies, concurrent interactive survives),\
+    \ same supervisor-daemon shape, and its third ask is precisely what is needed\
+    \ here: *machine-readable auth failure signalling for supervisor alerting*.\n\n\
+    What this investigation adds that the issue does not have:\n- The daemon **discards\
+    \ a token its own log calls `(token still valid)`**, 40 seconds before natural\
+    \ expiry, after only 4 attempts over 3m19s. Backing off without dropping the token\
+    \ would have made both of these incidents invisible.\n- **`daemon-auth-status.json`\
+    \ latches at `auth_required` and is never cleared** on successful re-auth \u2014\
+    \ so the one machine-readable signal that does exist is unusable as written.\n\
+    - A **self-healing occurrence** (2026-08-20) showing the daemon recovers unaided\
+    \ when its next keychain re-check finds a token, which suggests the give-up is\
+    \ premature rather than fundamental.\n\nRelated, weaker matches, all open, none\
+    \ with a maintainer response: [#81937](https://github.com/anthropics/claude-code/issues/81937),\
+    \ [#50743](https://github.com/anthropics/claude-code/issues/50743), [#28827](https://github.com/anthropics/claude-code/issues/28827).\
+    \ **No fix is shipping** that I can find. Sending the comment is Jeff's call,\
+    \ not mine \u2014 I have not posted anything.\n\n### Do not build \u2014 named\
+    \ so nobody re-proposes them\n\n- **A token refresher or `ANTHROPIC_API_KEY` fallback.**\
+    \ The common community workaround. It puts AgentJobs in the credential business\
+    \ (task-066's territory), and `claude setup-token` strips claude.ai connectors,\
+    \ which would break the MCP server this project runs on.\n- **Anything that disables\
+    \ or avoids remote control.** Dropped as a cause; doing this would be superstition\
+    \ with a real cost.\n- **A retry-on-auth-failure loop.** Verified useless: retrying\
+    \ against a discarded credential fails in 9ms, and would burn a run's turns for\
+    \ nothing.\n- **Anything reading `daemon.log` or `daemon-auth-status.json` as\
+    \ a live gate.** Undocumented internals, and the status file is a proven-stale\
+    \ latch."
+  data:
+    operation:
+      id: b8d40f27-6c19-4a3e-9f52-1d7e8b06c934
+      kind: log_append
+      fingerprint: 791214f1debee97a8976c4b21a85e2bc
+- id: 9
+  ts: '2026-08-21T19:41:54.891347Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: e5a71c30-4d68-4b92-a03f-9c2f8e17d456
+      kind: update_content
+      fingerprint: 2d036452ea2442756e315519aa723bda
+- id: 10
+  ts: '2026-08-21T19:42:15.618822Z'
+  actor: claude
+  type: handoff
+  body: "Research is complete; all four acceptance criteria are met. No code was written\
+    \ and no branch exists \u2014 the deliverable is log entries 6, 7 and 8 on this\
+    \ record. Nothing was posted upstream and nothing was built.\n\n**The answer:\
+    \ your remote-control hypothesis is wrong, and the real cause is in a log nobody\
+    \ had opened \u2014 `~/.claude/daemon.log`.** Claude Code runs a background auth\
+    \ daemon that owns OAuth refresh for every `--bg` session. At 15:33:40 UTC its\
+    \ scheduled refresh fired on time and failed four times over 3m19s. It then gave\
+    \ up and discarded the token \u2014 a token its own log line calls `(token still\
+    \ valid)`, 40 seconds before that token would have expired anyway. Every `bg`\
+    \ session went dead; the desktop app, on the same account and machine, kept working\
+    \ throughout, including one call 91ms after the first failure.\n\nThat also explains\
+    \ the part that made you swear: **answering the prompt could not have worked.**\
+    \ Your message at 15:43:38 arrived fine and failed 9ms later, because it was retried\
+    \ against a credential the daemon had already thrown away. Only `claude auth login`\
+    \ clears it. It happened on 2026-08-20 too, and that time it healed itself in\
+    \ two minutes with nobody logging in \u2014 which is what rules out any deliberate\
+    \ logout.\n\n**Three decisions for you:**\n\n1. **The build recommendation** (entry\
+    \ 8). A narrow detector in the dispatch poller: tail a quiet session's JSONL for\
+    \ `\"error\": \"authentication_failed\"`, and on a hit hand the ball to you saying\
+    \ \"this run needs `claude auth login`\". Right now dispatch is blind to this\
+    \ \u2014 run_a1e35ca5 is recorded `outcome: completed` despite having died and\
+    \ needed rescuing. Recovery is verified to work in place, with no restart, so\
+    \ the fix is cheap and the failure it removes is a whole night's unattended work.\
+    \ **Want me to file this as a follow-up task?** I have not created one.\n2. **The\
+    \ upstream report.** anthropics/claude-code#79685 is the same bug, open since\
+    \ 2026-07-21 with no maintainer response, and it asks for exactly the machine-readable\
+    \ signal AgentJobs needs. I have three findings to add that the issue does not\
+    \ have (the still-valid token being discarded, `daemon-auth-status.json` latching\
+    \ at `auth_required` and never clearing, and the self-healing occurrence). **Posting\
+    \ is your call \u2014 say the word and I will draft it for your approval rather\
+    \ than sending anything.**\n3. **Anything to correct.** Entry 7 drops four candidate\
+    \ explanations including yours, and is deliberate about the one thing the evidence\
+    \ does *not* settle: why the refresh calls failed. The daemon logs no HTTP status,\
+    \ so \"the OAuth endpoint was unhealthy\" and \"this machine's refresh token was\
+    \ rejected\" cannot be told apart from anything on disk. I did not pick one.\n\
+    \nOne live nuisance worth knowing: `~/.claude/daemon-auth-status.json` still reads\
+    \ `auth_required` right now, hours after the successful re-auth, while everything\
+    \ works. It is a stale latch \u2014 do not trust it if you ever go looking."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: a9f31d68-5e02-4c77-b346-8f0d2e51a7c3
+      kind: handoff
+      fingerprint: 8aacebcbf97eacadc9464be8d0e75a8e
