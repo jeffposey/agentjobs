@@ -59,6 +59,7 @@ from agentjobs.dispatch.runner import (
     resolve_executable,
     settings_json,
     strip_ansi,
+    supervisor_allow_rules,
     uncommitted_paths,
     working_tree_clean,
 )
@@ -1609,3 +1610,124 @@ class TestSelectionIsRecorded:
         entry = [e for e in after.log if e.type is LogEntryType.DISPATCH][0]
         assert "selection" not in entry.data
         assert handle.group is None
+
+
+# ----- the supervisor's MCP grant (task-220) ----------------------------------
+
+
+class TestSupervisorMcpGrant:
+    """run_d5ab5caf parked before it launched anything, on its own log writes.
+
+    Two of the three classifier blocks that armed the breaker were the same
+    ``task_log_append``: the supervisor writing a child's brief, which said the child
+    could merge without human review. That is what a supervisor does and an ordinary run
+    never does, so the grant is scoped to that role and nothing else.
+    """
+
+    def write_mcp_json(self, project_root: Path, *names: str) -> None:
+        payload = {"mcpServers": {name: {"command": "noop"} for name in names}}
+        (project_root / ".mcp.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    def test_the_rule_is_server_level_so_it_cannot_go_stale(self) -> None:
+        """ac-5. A bare ``mcp__<server>`` matches every tool, including future ones.
+
+        Asserted as a literal rather than derived from the same expression the source
+        uses, because the whole failure class here is a rule whose *form* matches
+        nothing -- and a test written as ``f"mcp__{name}"`` on both sides would pass
+        against any form at all. Compare ``allow_rules()``'s colon.
+        """
+        assert supervisor_allow_rules(["agentjobs"]) == ["mcp__agentjobs"]
+        assert supervisor_allow_rules(["a", "b"]) == ["mcp__a", "mcp__b"]
+
+    def test_no_servers_means_no_rules(self) -> None:
+        assert supervisor_allow_rules([]) == []
+
+    def test_a_supervisor_gets_the_grant_appended_to_the_ordinary_rules(self) -> None:
+        """The base list is unchanged and the grant is additive, in that order."""
+        blob = json.loads(
+            settings_json(allow_list=True, mcp_servers=["agentjobs"], supervisor=True)
+        )
+
+        assert blob["permissions"]["allow"] == allow_rules() + ["mcp__agentjobs"]
+
+    def test_a_leaf_task_blob_is_byte_identical_to_before(self) -> None:
+        """ac-4 at the JSON level. Ordinary dispatch must not move at all."""
+        assert settings_json(allow_list=True, mcp_servers=["agentjobs"]) == json.dumps(
+            {
+                "permissions": {"allow": allow_rules()},
+                "enabledMcpjsonServers": ["agentjobs"],
+            }
+        )
+
+    def test_a_supervisor_of_a_project_with_no_mcp_json_is_unchanged(self) -> None:
+        """Nothing to name, so nothing is added -- not an empty list, no key churn."""
+        assert settings_json(allow_list=True, mcp_servers=[], supervisor=True) == settings_json(
+            allow_list=True, mcp_servers=[]
+        )
+
+    def test_read_only_never_reaches_the_grant(self) -> None:
+        """The placement inside the allow-list branch is the safety property."""
+        flags = posture_flags(Posture.READ_ONLY, ["agentjobs"], supervisor=True)
+
+        blob = json.loads(flags[flags.index("--settings") + 1])
+        assert "permissions" not in blob
+
+    def test_autonomous_never_reaches_the_grant(self) -> None:
+        assert posture_flags(Posture.AUTONOMOUS, ["agentjobs"], supervisor=True) == [
+            "--permission-mode",
+            "bypassPermissions",
+        ]
+
+    def test_an_epic_dispatch_carries_the_grant_end_to_end(
+        self, workspace: Path, manager: TaskManager, epic
+    ) -> None:
+        """ac-2 through the real path: the record's open children reach the argv."""
+        self.write_mcp_json(workspace / "project", "agentjobs")
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTO),
+        )
+
+        argv = runner.build_argv(epic.id, "run_abcd1234")
+
+        settings = json.loads(argv[argv.index("--settings") + 1])
+        assert settings["permissions"]["allow"] == allow_rules() + ["mcp__agentjobs"]
+
+    def test_a_leaf_dispatch_carries_no_grant_end_to_end(
+        self, workspace: Path, manager: TaskManager
+    ) -> None:
+        """ac-4 through the real path, against the same project and .mcp.json."""
+        self.write_mcp_json(workspace / "project", "agentjobs")
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTO),
+        )
+
+        argv = runner.build_argv("task-019-example", "run_abcd1234")
+
+        settings = json.loads(argv[argv.index("--settings") + 1])
+        assert settings["permissions"]["allow"] == allow_rules()
+
+    def test_the_prompt_and_the_grant_cannot_disagree(
+        self, workspace: Path, manager: TaskManager, epic
+    ) -> None:
+        """One read of the record decides both, so a supervisor prompt implies the grant.
+
+        This is the pairing that broke: a session told to supervise, with a worker's
+        permissions. Asserting them together is what makes a future refactor that splits
+        the two reads fail here rather than in a parked run at 3am.
+        """
+        self.write_mcp_json(workspace / "project", "agentjobs")
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTO),
+        )
+
+        argv = runner.build_argv(epic.id, "run_abcd1234")
+
+        settings = json.loads(argv[argv.index("--settings") + 1])
+        assert any("supervisor, not the worker" in arg for arg in argv)
+        assert "mcp__agentjobs" in settings["permissions"]["allow"]

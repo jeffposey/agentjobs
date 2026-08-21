@@ -66,6 +66,33 @@ Your prompt says which of these you are, because dispatch reads it off the recor
 with open children gets the supervisor prompt, and every other task gets the ordinary
 one. There is no flag to set and no judgement call at spawn time.
 
+### A refusal is not a wall — but three in a row is
+
+Under `auto`, a refused tool call is **deny-and-continue**: you get an error and you keep
+going. One refusal costs you nothing but that call.
+
+**Three consecutive refusals arm a breaker**, and the next call after that becomes an
+interactive prompt. A `--bg` run has nobody to answer it, so it stops there until a human
+finds it — indefinitely.
+
+The trap is the obvious reaction to a refusal: **rewording the same call and sending it
+again.** That is how one refusal becomes two. On 2026-08-21 `run_d5ab5caf` was refused
+while writing a child's brief, reworded it, was refused again, and parked — before it had
+launched anything at all. A benign help command in between supplied the third.
+
+So when a call is refused: **do something else, or say why you are stuck.** Do not re-send
+it with softer wording. If the capability is genuinely required, stop and put the problem
+on the record where a human can see it — that is what the ball is for.
+
+Two things worth knowing about the refusals themselves. They are partly **stochastic**:
+that same help command was approved twenty-five seconds before an identical one was
+refused, so a refusal is not a stable property of a command. And they are about
+**content** — an agent writing an instruction that tells another agent to skip human
+review and merge to `main` gets declined, because the authorisation for that lives on the
+task record, where the classifier cannot see it. A supervisor's log writes look exactly
+like that, which is why dispatch pre-approves the project's own MCP servers for supervisor
+runs, and only for those (task-220).
+
 ### Why a session, and where the line is
 
 The reason is context, not parallelism — the loop is still one child at a time.
