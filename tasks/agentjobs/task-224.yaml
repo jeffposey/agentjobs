@@ -3,51 +3,11 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-21T20:37:48.578282Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Built. Branch `feat/task-224-auth-park-detector`, one commit `c7cf92a`,\
-  \ worktree `../worktrees/aj-224`. Full `scripts/check.py` green \u2014 10 of 10\
-  \ stages, 627.8s, no partial run. Not merged, not pushed.\n\n**What changed.** The\
-  \ dispatch poller now reads a live session's own JSONL transcript on each poll and\
-  \ asks one question: is this session sitting dead on an expired login? On a hit\
-  \ it parks the run and hands you the ball with a prompt saying `claude auth login`\
-  \ \u2014 the only thing that fixes it. Before this, an auth-killed session reported\
-  \ `idle`/`done` and got settled as an ordinary finished run, which is how run_a1e35ca5\
-  \ came to be in the ledger as `outcome: completed` after dying.\n\n**The decision\
-  \ worth your eye** (entry 16): the run is **parked, not finished, and the session\
-  \ is not reaped** \u2014 because recovery is in place and reaping would destroy\
-  \ it. Consequence: a stalled run keeps its lock, so the task cannot be re-dispatched\
-  \ until you act. I think that is right (a fresh dispatch dies in the same second\
-  \ on the same dead credential) and Cancel already exists if you disagree in the\
-  \ moment. Say so if you would rather it finished the run.\n\n**Verified against\
-  \ the incident itself, not just fixtures.** Truncating the two genuine transcripts\
-  \ at each of the three real failure lines reports STALLED at every one; both files\
-  \ as they stand today report nothing, because they recovered. Then the false-positive\
-  \ question asked of the whole corpus: **318 session transcripts on this machine,\
-  \ exactly 1 flagged** \u2014 the 2026-08-20 child that never ran a turn, which is\
-  \ correct. This session's own transcript, which contains the string `authentication_failed`\
-  \ several times over from reading this very task, is not flagged. That is what the\
-  \ JSON-field match buys over a grep.\n\n**One thing beyond the literal ask**, because\
-  \ you said poller**s**: `agentjobs dispatch auth-check [SESSION_ID]`, exiting 1.\
-  \ An agent supervisor's children are its own subprocesses with no ledger row, so\
-  \ the dispatch poller cannot see them \u2014 and `docs/agent-workflow.md` currently\
-  \ tells such a supervisor that a child which stops has *died* and to spend its one\
-  \ restart. For this failure that restart is guaranteed to fail. The guide now has\
-  \ a fifth child state that branches on the exit code. Cut it if you think it is\
-  \ scope creep; it is self-contained.\n\n**Two things deliberately not built**, both\
-  \ in entry 16: no auto-nudge (AgentJobs has no trustworthy signal that auth is back\
-  \ \u2014 `daemon-auth-status.json` is the stale latch from entry 8), and batch runs\
-  \ are not covered.\n\n**Still outstanding from the first pass, untouched and still\
-  \ your call:** the upstream comment on anthropics/claude-code#79685. I have not\
-  \ posted anything.\n\nOn approval I rebase, merge `--no-ff`, close, and remove the\
-  \ worktree. Nothing here touches the frontend, so no rebuild is needed \u2014 but\
-  \ the running server on 8876 holds this code in memory, so it will want a restart\
-  \ to start doing the check."
+updated: '2026-08-21T20:44:06.754179Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 1500
 category: reliability
 tags:
 - dispatch
@@ -56,7 +16,6 @@ tags:
 - research
 effort: research first; the fix is unknown until the trigger is
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: On 2026-08-21 Claude Code reported "Login expired" during autonomous work
@@ -208,7 +167,7 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-224-auth-park-detector
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-21T15:51:07.589440Z'
@@ -859,3 +818,141 @@ log:
     outcome: completed
     duration_seconds: 2070.164399
     log_path: C:\Users\jpose\.agentjobs\runs\run_03cf63fc
+- id: 20
+  ts: '2026-08-21T20:39:14.860878Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 21
+  ts: '2026-08-21T20:39:18.235783Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 22
+  ts: '2026-08-21T20:39:19.822821Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_48f5e182
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 21
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-224` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-224-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_48f5e182.'
+    cwd: C:\projects\agentjobs
+    git_head: 2226df7
+    session_id: 729dbf1f
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 23
+  ts: '2026-08-21T20:41:45.916017Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 5b2a1f4c-9d3e-4a71-8c62-1e0f7b95d3a2
+      kind: update_content
+      fingerprint: 28c442ba9e38ea464fe6522d1a69660b
+- id: 24
+  ts: '2026-08-21T20:43:58.891319Z'
+  actor: claude
+  type: progress
+  body: "Merged and delivered.\n\n**Merge.** `feat/task-224-auth-park-detector` rebased\
+    \ onto `main` (one commit, `c7cf92a` -> `1754df9`, clean \u2014 the four `main`\
+    \ commits it rebased over touch only `tasks/`, so the merged code is byte-identical\
+    \ to what the green gate ran against and no re-run was warranted). Merged `--no-ff`\
+    \ as `ab36a79`. Branch marked `merged` in `branches[]`, local branch deleted,\
+    \ worktree `../worktrees/aj-224` removed. Nothing pushed \u2014 pushing is a separate\
+    \ act from merging and was not authorised here.\n\n**Verified on `main` after\
+    \ the merge, not only on the branch.** The three test files the work added run\
+    \ green against the merged tree: 74 passed in 27.9s (`tests/test_dispatch_auth.py`,\
+    \ `tests/test_dispatch_cli.py`, `tests/test_dispatch_poller.py`).\n\n**Exercised\
+    \ the real path.** `poetry run agentjobs dispatch auth-check` from the merged\
+    \ clone reports on the three sessions live on this machine right now and exits\
+    \ 0:\n\n```\n\u2705 729dbf1f: no expired login in its transcript.\n\u2705 f10a7e8b:\
+    \ no expired login in its transcript.\n\u2705 b8b1b87a: no expired login in its\
+    \ transcript.\n```\n\n`729dbf1f` is this session, whose transcript contains `authentication_failed`\
+    \ many times over from reading this very task. It is not flagged. That is the\
+    \ JSON-field match doing what ac-6 says it does, observed live rather than in\
+    \ a fixture.\n\n**Server restarted, so the poller is now running this code.**\
+    \ The 8876 server was not started by the CLI, so `agentjobs restart` was not the\
+    \ right command; restarted the way it was started, `C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -Force -NoOpen`, which also re-checks the tsnet proxy that serves the tailnet\
+    \ URL. Old pid 310820 (started 14:57:15), new pid 130820 (started 15:43:17, twelve\
+    \ seconds before the check). `/api/version` answers with `source_root: C:\\projects\\\
+    agentjobs`.\n\n**The restart cost nothing, and proving that also proves the new\
+    \ poller is live.** `/api/dispatch/runs` after the restart shows all three in-flight\
+    \ runs \u2014 this one, task-231's and task-229's \u2014 still `status: running`,\
+    \ `live: true`. The poller rebuilt their handles from `~/.agentjobs/runs/` exactly\
+    \ as `_handle_from` is written to, so the code now watching every live session\
+    \ for an expired login is the merged code.\n\n**Still outstanding and still Jeff's\
+    \ call, unchanged by this merge:** the comment on the open upstream issue anthropics/claude-code#79685.\
+    \ Nothing has been posted. That is a message to a public tracker and is not an\
+    \ agent's to send."
+  data:
+    operation:
+      id: c41d8e07-6b52-4f19-9a3d-2f7e8c40b1d5
+      kind: log_append
+      fingerprint: ea2da2e25ba6905eb9b01aa8c4ada0f7
+- id: 25
+  ts: '2026-08-21T20:44:06.753915Z'
+  actor: claude
+  type: transition
+  body: "Closed completed on Jeff's approval (entry 20). All seven acceptance criteria\
+    \ met: the trigger identified from the daemon log, the remote-control hypothesis\
+    \ dropped with reasoning, an auth park shown distinguishable from the session\
+    \ JSONL and not from the run ledger, a recommendation recorded, and the detector,\
+    \ its false-positive verification against all 318 transcripts on this machine,\
+    \ and the `dispatch auth-check` command for supervisors all built. Merged as ab36a79,\
+    \ server restarted, poller live \u2014 entry 22 has the evidence. The upstream\
+    \ comment on anthropics/claude-code#79685 stays unsent; it is Jeff's to post."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 9e6f3b28-4c15-4d7a-b0e3-7a951c6df84b
+      kind: close
+      fingerprint: ec909bd99d854e980e6f18a49d2d851f
