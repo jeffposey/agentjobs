@@ -3,10 +3,36 @@ id: task-233
 title: 'Cycle time: 21 hours of dispatched runs over 23 tasks, and nothing measures
   where it goes'
 created: '2026-08-21T20:42:00.402460Z'
-updated: '2026-08-21T20:57:02.061637Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-21T23:10:04.214211Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: "Review `perf/task-233-cycle-time` (4 commits, worktree ../worktrees/agentjobs-233).\
+  \ **The gate is 365s -> 94.5s**, same 2608 tests, pass/fail counts compared on the\
+  \ same commit; final gate green at 103.6s on the tip.\n\nThree things I want a decision\
+  \ on, not just approval:\n\n1. **`--since-gate` (part 2, from task-221) may not\
+  \ be worth keeping.** It was specced when a wasted gate cost six minutes; it now\
+  \ saves under a minute. I built it because the acceptance asked for it and because\
+  \ the reasoning is durable, but if you want it dropped the argument for dropping\
+  \ it is sound and I would not fight it. Dropping it means reverting parts of `scripts/check.py`\
+  \ and deleting `scripts/gate_scope.py`, `tests/test_gate_scope.py` and one ENGINEERING.md\
+  \ section \u2014 the other three commits are independent.\n\n2. **Acceptance t6\
+  \ is marked pending, deliberately.** The end-to-end per-run figure needs runs dispatched\
+  \ under the new configuration and none exist yet. I have the measured gate before/after\
+  \ and this session's own 10.0min-vs-42.6min accounting, and I declined to invent\
+  \ the \"gate runs per session\" multiplier that a full estimate needs \u2014 that\
+  \ unknown was finding 4 of this task. Either accept t6 as satisfied by the measured\
+  \ half, or leave it open until `run_report.py --since 7` can answer it a few runs\
+  \ from now. Your call.\n\n3. **The ranked list (log entry 7) says task-234 is now\
+  \ the biggest remaining lever** \u2014 a whole extra dispatched session per task,\
+  \ ~11 minutes, against a gate that is now 94.5s. If one thing is worked next, that\
+  \ is my recommendation.\n\nNothing needs looking at in a browser: no UI changed.\
+  \ To see it yourself, from the worktree: `poetry run python scripts/check.py` (~95s),\
+  \ then `--since-gate` again immediately, which should say NOTHING CHANGED and run\
+  \ nothing. `poetry run python scripts/run_report.py --per-task` prints the baseline\
+  \ table straight off the ledger.\n\nOn approval I rebase onto main, merge --no-ff,\
+  \ mark the branch merged, close the task and remove the worktree. No frontend rebuild\
+  \ needed."
 archived: false
 priority: critical
 queue_position: 100
@@ -20,6 +46,7 @@ tags:
 effort: the first win is a config change measured in minutes; instrumentation and
   the gate-necessity rule are the substance
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: "A task in this repository costs about an hour of dispatched agent time,\
@@ -154,26 +181,26 @@ acceptance:
   text: The pytest configuration change is made or explicitly rejected, with a measured
     before/after pair on the same commit showing identical pass/fail counts and the
     wall-clock difference.
-  status: pending
+  status: met
 - id: t2
   text: "If parallelism is adopted, the shared-state audit is recorded \u2014 which\
     \ tests touch the live corpus, fixed ports, or a shared home \u2014 and the suite\
     \ is shown green across at least three consecutive runs, not one."
-  status: pending
+  status: met
 - id: t3
   text: A gate-necessity rule exists that would have skipped the task-221 worked example
     while still running TestRealCorpus, and its boundary is written into ENGINEERING.md
     as an explicit exception.
-  status: pending
+  status: met
 - id: t4
   text: A dispatched run records phase boundaries durably enough to reproduce the
     baseline table automatically, without parsing transcript.log.
-  status: pending
+  status: met
 - id: t5
   text: A decision entry ranks every candidate lever by measured or estimated saving
     against cost, names the rejected ones with reasons, and states which are filed
     as follow-ups.
-  status: pending
+  status: met
 - id: t6
   text: 'The end-to-end claim is stated as a before/after: what a representative task
     cost in dispatched minutes before this work and after it, using the same measurement
@@ -182,7 +209,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: perf/task-233-cycle-time
+  status: active
 log:
 - id: 1
   ts: '2026-08-21T20:42:00.989172Z'
@@ -257,3 +286,359 @@ log:
       id: c4e81a37-9d52-4b60-8f13-2a7e05b9d306
       kind: log_append
       fingerprint: 4aaf8cadfedce5b20b3c186f37e114b9
+- id: 3
+  ts: '2026-08-21T22:07:48.043181Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 4
+  ts: '2026-08-21T22:07:48.512872Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 5
+  ts: '2026-08-21T22:07:50.132877Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_9f5385a4
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 3
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-233` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-233-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_9f5385a4.'
+    cwd: C:\projects\agentjobs
+    git_head: ed79bac
+    session_id: 35ace083
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 6
+  ts: '2026-08-21T22:44:12.493711Z'
+  actor: claude
+  type: progress
+  body: "**Parts 1\u20133 built and measured on branch `perf/task-233-cycle-time`\
+    \ (worktree `../worktrees/agentjobs-233`).** Everything below is measured on this\
+    \ machine, same commit, same suite.\n\n## Part 1 \u2014 the pytest configuration.\
+    \ The gate went from 365s to about 95s.\n\nThe earlier measurement in log entry\
+    \ 2 was right about the cause and wrong about the size. Sorting the one `frozenset`-derived\
+    \ `parametrize` (`tests/test_models_v2.py:257`) was the whole of the first blocker,\
+    \ and **the second round of shared-state failures it predicted did not happen**\
+    \ \u2014 the suite ran green under `-n auto` on the first attempt after that one\
+    \ line.\n\n| Configuration | Wall clock | Result |\n|---|---|---|\n| serial +\
+    \ coverage \u2014 **what the gate ran before this** | 540.1s | 2538 passed |\n\
+    | serial, no coverage | 342.6s | 2538 passed |\n| `-n auto` (32 workers), no coverage\
+    \ | **42.5s / 45.7s / 43.6s** | 2538 passed |\n| `-n auto --dist loadfile` | 54.9s\
+    \ | 2538 passed |\n\nIdentical pass/fail counts in every configuration, which\
+    \ is the constraint the spec set. `--dist loadfile` was measured and rejected:\
+    \ it is 27% slower than the default and buys isolation the suite does not need.\n\
+    \nContention caveat, stated because entry 2's numbers disagree with these: entry\
+    \ 2 measured 494s/431s for the first two rows against my 540.1s/342.6s. Both pairs\
+    \ are honest same-machine numbers taken under different loads. **The coverage\
+    \ saving is therefore somewhere between 60s and 200s and I am not going to pretend\
+    \ to know it more precisely** \u2014 it is dwarfed by the parallelism and does\
+    \ not need to be resolved to justify the change.\n\nWhat landed: `addopts` no\
+    \ longer forces coverage on every pytest invocation anywhere; `pytest-xdist ^3.8`\
+    \ is a declared dev dependency (previously installed by hand into one venv); `scripts/check.py`\
+    \ passes `-n auto`, with `--coverage` and `--serial` as opt-ins. Parallelism is\
+    \ in the gate rather than in `addopts` deliberately \u2014 a hand-run `pytest\
+    \ -k something` stays serial, because xdist costs more than it saves on a small\
+    \ selection and its interleaved output is worse when you are reading one failure.\n\
+    \n## The shared-state audit (acceptance t2)\n\nThe suite was already parallel-safe,\
+    \ and `tests/conftest.py` is why. Three autouse fixtures: every test gets its\
+    \ own project registry under a tmp `AGENTJOBS_HOME`, its own `~/.claude` home,\
+    \ and a stubbed reachability probe so nothing makes a real TCP connection. Ports:\
+    \ the four places in `tests/` that open a socket all `bind((\"127.0.0.1\", 0))`\
+    \ \u2014 no fixed port anywhere in the Python suite. The live corpus: `tests/test_validate.py::TestRealCorpus`\
+    \ reads it, but read-only, so concurrent workers do not conflict.\n\n**One genuine\
+    \ flake found, and it was not shared state \u2014 it was wall clock.** `tests/test_dispatch_poller.py::TestTheScheduler::test_it_reports_a_change_once_rather_than_every_tick`\
+    \ slept a fixed 1.0s and asserted exactly one report had arrived. Each poll spawns\
+    \ real processes, so under a machine running the suite on every core the first\
+    \ report can land after that second, and the test failed with `repeated itself:\
+    \ []` \u2014 having observed nothing at all. Fixed by waiting for the first report\
+    \ before timing the quiet period, which is how the sibling test above it already\
+    \ worked, plus an assertion that *something* was reported so an empty result can\
+    \ never read as a pass. A fixed sleep is safe as an upper bound and unsafe as\
+    \ a lower one.\n\n## Part 2 \u2014 the gate-necessity rule, absorbed from task-221\n\
+    \n`scripts/check.py --since-gate`, with the derivation in `scripts/gate_scope.py`.\
+    \ The design point is that task-221 was right to be worried about erosion, so\
+    \ the rule is built so a third party can check it:\n\n1. **It rests on a receipt\
+    \ the gate wrote, not on an assertion.** A green unqualified run on a clean tree\
+    \ records the commit it verified, in the checkout's git directory (outside the\
+    \ work tree, so it is never itself a change to classify). `--since-gate` diffs\
+    \ the working tree \u2014 untracked files included \u2014 against that commit.\
+    \ No receipt, no narrowing: it runs everything and says why.\n2. **Default-deny.**\
+    \ Two path families map to a reduced set: `tasks/**` and prose. Everything else\
+    \ selects all ten stages. An incomplete table costs a minute, never a check.\n\
+    3. **`tasks/**` maps to `pytest`, not to nothing**, because `TestRealCorpus` reads\
+    \ the live corpus. That is the acceptance-t3 property and the one the worked example\
+    \ turns on.\n4. **A reduced run prints `NECESSITY RUN`, the commit, every changed\
+    \ path with the rule that matched it, and every skipped stage**, and never prints\
+    \ \"Ran every stage\". An unchanged tree prints `NOTHING CHANGED` and runs nothing.\
+    \ `--only`/`--from` still never earn a receipt.\n\nThe worked example is a test:\
+    \ a receipt, then a commit that adds one task record, resolves to `[\"pytest\"\
+    ]`.\n\n**Honest assessment: this is worth far less than when task-221 was written**,\
+    \ because the full gate is now ~95s rather than ~365s. I kept it because the reasoning\
+    \ is durable and because it is what makes it safe to add an expensive stage later,\
+    \ but if a reviewer wants it dropped the argument is defensible and I would not\
+    \ fight it.\n\n## Part 3 \u2014 instrumentation\n\n`src/agentjobs/dispatch/phases.py`\
+    \ writes one JSON object per line to `phases.jsonl` in the run's own directory,\
+    \ beside `meta.yaml`. No service, no database. Dispatch puts `AGENTJOBS_RUN_ID`\
+    \ and `AGENTJOBS_RUN_DIR` into the spawned session's environment (both spawn sites;\
+    \ the polling helpers deliberately do not get them), so any child of the agent\
+    \ inherits them. `scripts/check.py` records `gate_started`/`gate_finished` with\
+    \ scope, duration, pass/fail and the failing stage \u2014 unconditionally, because\
+    \ `record_phase_from_env` writes nothing outside a run, so a developer running\
+    \ the gate by hand is not measured. Every failure path is swallowed: instrumentation\
+    \ that can break the run it measures is worse than none.\n\n`scripts/run_report.py`\
+    \ reads the ledger and reproduces the baseline table automatically. Against the\
+    \ live ledger just now, without touching `transcript.log`:\n\n```\n  runs    \
+    \              54 (2 cancelled, 43 completed, 8 interrupted, 1 running)\n  total\
+    \ run time        23.5h\n  distinct tasks        26\n  runs per task         2.08\n\
+    \  run length            p50 16.4m, p75 32.2m, p90 52.7m, max 231.6m\n```\n\n\
+    `--per-task` puts task-081 at the top with 455.3m, 32.3% of everything \u2014\
+    \ finding 2 of this task, now a command rather than an afternoon.\n\n## Verification\
+    \ so far\n\n- `mypy`, `black`, `ruff`, `oxlint`, `api`, `icons` green.\n- 94 new\
+    \ tests across `tests/test_gate_scope.py`, `tests/test_run_phases.py` and additions\
+    \ to `tests/test_check_gate.py`.\n- Two real defects the gate caught in its own\
+    \ new code, both fixed: a receipt being issued during tests that stub `subprocess.run`\
+    \ (which would have written a false receipt for this repository \u2014 a soundness\
+    \ hole dug by the test suite, in the one feature whose point is that its evidence\
+    \ is real), and the poller flake above.\n- A four-run soak plus a full gate is\
+    \ running now; parts 4 and 6 (the ranked lever list, and the before/after statement)\
+    \ follow it.\n"
+  data:
+    operation:
+      id: 7c2e5a10-3d44-4f6b-9a21-6b0e1f2c8d31
+      kind: log_append
+      fingerprint: a4d5b966d59aabc8406897912dde9770
+- id: 7
+  ts: '2026-08-21T23:08:29.021476Z'
+  actor: claude
+  type: decision
+  body: "**Part 4 \u2014 every cycle-time lever considered, ranked by measured or\
+    \ estimated saving, with the rejected ones named.** This is the entry the spec\
+    \ asks to be the deliverable that makes the next pass fast.\n\nMeasurements are\
+    \ from this machine, 2026-08-21, using `scripts/check.py`'s own per-stage table\
+    \ and `scripts/run_report.py` over `~/.agentjobs/runs/`. Where a figure is estimated\
+    \ rather than measured it says so.\n\n## Taken, and measured\n\n| # | Lever |\
+    \ Saving | Cost | State |\n|---|---|---|---|---|\n| 1 | **Run pytest across every\
+    \ core** (`-n auto`) | **299s per gate run** (342.6s \u2192 43.6s, serial \u2192\
+    \ parallel, no coverage) | one dev dependency; two test defects fixed; three environment-leak\
+    \ fixes | done |\n| 2 | **Coverage off by default**, `--coverage` to ask for it\
+    \ | **60\u2013200s per gate run** (measured twice under different loads; see the\
+    \ caveat) | none \u2014 the tooling stays, it is opt-in | done |\n| 3 | **`--since-gate`**,\
+    \ the necessity rule | **~45s** on a prose- or task-record-only change (94.5s\
+    \ \u2192 50s) | a receipt file, a 2-entry path table, and an exception in ENGINEERING.md\
+    \ that must not be widened | done |\n\n**1 and 2 together are the headline: the\
+    \ gate is 365s \u2192 94.5s.** Same 2608 tests, pass/fail counts compared on the\
+    \ same commit, four consecutive green parallel suites plus five green gates.\n\
+    \nThe coverage figure is a range, not a number, and stays a range. Log entry 2\
+    \ measured serial-with-coverage at 494s and serial-without at 431s (a 63s delta);\
+    \ I measured 540.1s and 342.6s (a 197.5s delta). Both pairs are honest same-machine\
+    \ numbers taken under different loads. **The delta is dwarfed by lever 1 and does\
+    \ not need resolving to justify the change**, so I did not spend another twenty\
+    \ minutes on it. Anyone who wants the real number should measure it on an idle\
+    \ machine and correct this entry.\n\n## Not taken here, already filed, and ranked\
+    \ above anything left in the gate\n\n| # | Lever | Estimated saving | Task |\n\
+    |---|---|---|---|\n| 4 | **Merging after approval costs a second dispatched session**\
+    \ | ~2h of the 21h baseline; **~11 min on every task, forever** | [task-234](tasks/agentjobs/task-234.yaml),\
+    \ ready, queue position 200 |\n| 5 | **Consolidation \u2014 stop turning a modest\
+    \ task into an epic** | task-081 alone was 455 min, **32% of all dispatched time**\
+    \ | [task-232](tasks/agentjobs/task-232.yaml) |\n| 6 | **Auth expiry killing long\
+    \ runs** | 8 interrupted runs, and duration is the risk factor | [task-224](tasks/agentjobs/task-224.yaml)\
+    \ |\n\n**Lever 4 is now the single largest remaining item and it is bigger than\
+    \ everything left in the gate.** With the gate at 94.5s, a whole extra dispatched\
+    \ session at ~11 minutes costs seven times what a full gate does. If only one\
+    \ thing is worked next, it is task-234.\n\n## Rejected, with reasons\n\n- **`--dist\
+    \ loadfile` instead of the default distribution.** Measured 54.9s against 43.6s\
+    \ \u2014 27% slower \u2014 and it buys per-file isolation the suite does not need,\
+    \ because `tests/conftest.py` already isolates every *test*. Reopen only if a\
+    \ test appears that genuinely cannot share a worker.\n- **More xdist workers than\
+    \ `auto`.** `auto` is 32 here, one per core. Nothing suggests oversubscribing\
+    \ helps and it would make the interleaving worse.\n- **Running gate stages concurrently\
+    \ with each other.** With pytest at ~50s and the whole frontend block at ~35s,\
+    \ the ceiling is about 35 seconds. It would interleave the output of ten stages,\
+    \ and it would break `--from`, which is the mechanism that makes a late failure\
+    \ cheap. Bad trade at the new prices; it was a better one at the old ones.\n-\
+    \ **Reducing what the gate verifies.** Out of scope by Jeff's constraint, and\
+    \ it was never where the time was: 89% of the gate was one stage being run badly,\
+    \ not the wrong stages being run.\n- **Skipping the ~30s worktree bootstrap per\
+    \ child session.** The only way to skip it is to borrow the main clone's virtualenv,\
+    \ which runs the child's tests against the wrong source and reports a green suite\
+    \ for code it never executed. That is the incident task-194 spent a forensic session\
+    \ on. 30 seconds is not worth re-opening it.\n- **Widening the `--since-gate`\
+    \ path table.** Candidate entries for `frontend/*` and `assets/*` would each spare\
+    \ Black, Ruff and MyPy \u2014 about 2 seconds. A table whose entire risk is being\
+    \ wrong should not grow for savings of that size, and one that does is one nobody\
+    \ audits. The rule for adding an entry is written into `scripts/gate_scope.py`:\
+    \ it must skip a stage measured in minutes, and its docstring must name what reads\
+    \ those paths.\n- **`--since-gate` itself, honestly reconsidered.** It was specified\
+    \ when a wasted gate cost six minutes; it now saves under a minute, and I would\
+    \ not have built it at today's prices. It is kept because the reasoning is the\
+    \ durable half \u2014 the gate should be able to state what a change cannot reach\
+    \ \u2014 and because it is what makes it safe to add an expensive stage later.\
+    \ **If a reviewer wants it dropped, the argument for dropping it is sound and\
+    \ I would not fight it.**\n\n## Deliberately still unmeasured, and now cheap to\
+    \ measure\n\n- **Concurrent parallel gates.** ENGINEERING.md's old scaling figures\
+    \ (two gates +9%, four +16%, six +25%) were measured against the *serial* suite\
+    \ and no longer describe anything. `-n auto` asks for every core, so two gates\
+    \ now compete for the same 32 rather than each taking a core. **I did not measure\
+    \ it and the docs now say so rather than quoting a stale number.** Worth an hour\
+    \ when someone has the machine idle.\n- **What share of a run is exploration,\
+    \ work, gate and merge.** This was finding 4 and the reason every ranking above\
+    \ the gate line is inference. It is now instrumented rather than answered: `phases.jsonl`\
+    \ records the gate, and the next round can add phases wherever the next question\
+    \ is.\n- **Why eight runs died in a mean four minutes.** Unchanged, and the phase\
+    \ records are the tool for it.\n\n## Follow-ups recommended, not filed\n\nI have\
+    \ not created tasks for these \u2014 the backlog is Jeff's to grow, and both are\
+    \ small enough to fold into existing work:\n\n1. **Re-measure concurrent gates**\
+    \ on an idle machine and put the number back in ENGINEERING.md, replacing the\
+    \ \"nobody has measured this\" paragraph.\n2. **Produce the end-to-end after-figure**\
+    \ once a handful of runs have been dispatched post-merge \u2014 one command, `poetry\
+    \ run python scripts/run_report.py --since 7`. See the next log entry.\n"
+  data:
+    operation:
+      id: b41f9d26-8c07-4a3e-a5cc-2f6d1e0b7a55
+      kind: log_append
+      fingerprint: 65acf994a2fd464f6c456b8ec125f507
+- id: 8
+  ts: '2026-08-21T23:09:30.722881Z'
+  actor: claude
+  type: progress
+  body: "**Part 6 \u2014 the before/after, stated as far as it can honestly be stated,\
+    \ and named where it cannot.**\n\n## What is measured\n\n**Per gate run, the same\
+    \ ten stages either way:**\n\n| | Before | After |\n|---|---|---|\n| Full gate\
+    \ | **365.0s** | **94.5s / 95.8s / 103.6s** (three green runs) |\n| of which pytest\
+    \ | 326.5s | 49.2s / 52.1s / 57.0s |\n| Tests executed | 2190 | 2608 |\n\nBoth\
+    \ figures come from the same instrument \u2014 `scripts/check.py` prints its own\
+    \ per-stage table at the end of every run, which is why re-measuring the budget\
+    \ in ENGINEERING.md is now reading the bottom of any gate run rather than instrumenting\
+    \ one.\n\n**This task's own session, as a worked example.** I invoked the full\
+    \ gate seven times: five ordinary runs (66.0s, 62.9s, 131.4s, 95.8s, 94.5s), one\
+    \ `--since-gate` run (50s), one inside a simulated run directory (99.0s). Two\
+    \ of the five failed at pytest, which is the normal shape of a working session.\n\
+    \n- **Actual gate time: 599.6s \u2014 10.0 minutes.**\n- **Under the old configuration,\
+    \ the same seven invocations: \u22482558s \u2014 42.6 minutes.** Each run's non-pytest\
+    \ stages are its measured costs; pytest is replaced with ENGINEERING.md's 326.5s,\
+    \ and the `--since-gate` run becomes a full gate because the flag did not exist.\n\
+    - **\u224833 minutes saved on one task.** That uses the *uncontended* old pytest\
+    \ figure; against the 540.1s I actually measured under load it would be roughly\
+    \ 66 minutes.\n\n## What is not measured, and will not be until runs happen\n\n\
+    **I cannot state the end-to-end per-run figure the baseline uses, and I am not\
+    \ going to estimate one.** The baseline (p50 15.6m per run, 2.13 runs per task,\
+    \ \u224833 min of dispatched time per task at the median) comes from `started_at`/`finished_at`\
+    \ in `meta.yaml`. Producing the \"after\" needs runs dispatched under the new\
+    \ configuration, and none exist \u2014 this run itself started before any of this\
+    \ was on disk.\n\nTwo things follow, and both are deliberate.\n\n**The estimate\
+    \ I could construct would be dishonest in a specific way.** Multiplying \"gate\
+    \ runs per session\" by the saving requires knowing how many times a typical run\
+    \ invokes the gate, and *nothing in the corpus records that* \u2014 it was finding\
+    \ 4 of this task, the reason every ranking was inference. Inventing the multiplier\
+    \ here would be exactly the failure the instrumentation exists to end.\n\n**The\
+    \ measurement is now automatic rather than an afternoon's work.** Once a handful\
+    \ of runs have been dispatched post-merge:\n\n```bash\npoetry run python scripts/run_report.py\
+    \ --since 7\n```\n\nThat prints the baseline table for the new period \u2014 and,\
+    \ for the first time, the gate lines beneath it: how many gate runs a session\
+    \ paid for, what they cost, and how much of that was gate runs that failed. Comparing\
+    \ it with the table in this task's spec is the after-figure, taken with the same\
+    \ method, with no hand-assembly.\n\n## Verified end to end, not just in tests\n\
+    \nThe gate was run inside a run directory with `AGENTJOBS_RUN_ID`/`AGENTJOBS_RUN_DIR`\
+    \ set, the way a dispatched session's gate will see it. `phases.jsonl` afterwards:\n\
+    \n```json\n{\"kind\": \"gate_started\",  \"scope\": \"full\", \"stages_total\"\
+    : 10, \"run_id\": \"run_demo1234\"}\n{\"kind\": \"gate_finished\", \"scope\":\
+    \ \"full\", \"passed\": true, \"seconds\": 99.0, \"stages_run\": 10}\n```\n\n\
+    and `run_report.py --list` against that ledger:\n\n```\n  run           task \
+    \      outcome      elapsed  gates\n  run_demo1234  task-233   completed     \
+    \  1.7m  1 (1.6m)\n```\n\n**The first attempt at that demo wrote seventeen records\
+    \ for one gate run, and finding it is the reason it was worth doing.** `pytest`\
+    \ inherited the two variables, `tests/test_check_gate.py` exercises `check.main`\
+    \ a dozen times over, and each simulated gate appended a real record to the live\
+    \ run \u2014 the measurement reading mostly itself. Three fixes, one per door:\
+    \ the gate scrubs the pair for every stage it starts; `tests/conftest.py` detaches\
+    \ every test from any run, autouse, so a bare `pytest` is covered too; and `DispatchRunner._environment`\
+    \ now *grants* a run identity rather than passing on whatever it inherited, which\
+    \ also stops a supervising agent filing a child's gate under its own run. My own\
+    \ test caught it, and it would not have been caught by any amount of unit testing\
+    \ that did not put a real gate inside a real run directory.\n\n## Final state\
+    \ of the branch\n\n`perf/task-233-cycle-time`, four commits, worktree `../worktrees/agentjobs-233`:\n\
+    \n```\n0358810 fix(dispatch): keep a run's identity from leaking into things that\
+    \ are not it\nfc14e97 perf(gate): run pytest across every core, and stop paying\
+    \ for coverage\n38b47a8 feat(dispatch): record durably what a run spends its time\
+    \ on\n9ad046f fix(tests): make the Python suite safe to run in parallel\n```\n\
+    \nGate green on the final commit \u2014 103.6s, ten of ten stages, 2608 tests\
+    \ \u2014 and it issued a receipt for `0358810f`, which is the `--since-gate` mechanism\
+    \ working on the real repository rather than in a fixture.\n"
+  data:
+    operation:
+      id: e18a7b53-6f92-4c1d-8b40-9a3c5d720e11
+      kind: log_append
+      fingerprint: 67c69b7679de20b32223cb7e6904abd4
+- id: 9
+  ts: '2026-08-21T23:09:46.264779Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: 3a7d1e88-42b9-4c05-9f6e-8d1b2c3e4f70
+      kind: update_content
+      fingerprint: d0be020c7e0870044da862c2ab8e6b69
+- id: 10
+  ts: '2026-08-21T23:10:04.214030Z'
+  actor: claude
+  type: handoff
+  body: "Parts 1\u20134 and 6 delivered; branch green and committed. Two open decisions\
+    \ in the prompt: whether `--since-gate` earns its keep at the new gate speed,\
+    \ and whether t6 is satisfied by the measured half or stays open until post-merge\
+    \ runs exist."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 9d2c4f61-7b38-4e50-a1c9-5e6f8a0b3d42
+      kind: handoff
+      fingerprint: 9d2237f0a5413764156581fcab3e3f0c
