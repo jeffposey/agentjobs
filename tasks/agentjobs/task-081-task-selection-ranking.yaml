@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T00:36:01.358644Z'
+updated: '2026-08-21T00:44:29.590370Z'
 lifecycle: active
 ball: external
 ball_reason: dependency
@@ -157,7 +157,7 @@ dependencies:
 links: []
 branches:
 - name: design/task-081-queue-position
-  status: active
+  status: merged
 log:
 - id: 1
   ts: '2026-08-11T06:05:20.474281Z'
@@ -517,3 +517,34 @@ log:
       id: a1b2c3d4-0004-4a00-9e00-1a2b3c4d0081
       kind: handoff
       fingerprint: 11feb1311402433d4ea39b645727afcb
+- id: 15
+  ts: '2026-08-21T00:44:20.503759Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: a1b2c3d4-0005-4a00-9e00-1a2b3c4d0081
+      kind: update_content
+      fingerprint: 0273ab820ce55f6e2112df56e3cbeef7
+- id: 16
+  ts: '2026-08-21T00:44:29.590168Z'
+  actor: claude
+  type: progress
+  body: 'Merged. `design/task-081-queue-position` rebased onto main and merged --no-ff
+    as 53b4363; branch deleted, worktree C:/projects/worktrees/agentjobs-081 removed.
+    The merged doc includes the review-pass fixes from log entry 13, with its status
+    line reading accepted 2026-08-20. Gate re-run green after the fold-in (VIRTUAL_ENV
+    unset per log entry 8): Black/Ruff/MyPy clean over 153 files, 2106 pytest passed,
+    154 Vitest, production build, 16 Playwright passed in 16.8s. Not pushed -- pushing
+    remains a separate act nothing here authorises. No frontend rebuild or server
+    restart needed: the change is a docs page plus task YAML, and the server reads
+    task files per request. The task stays open on external/dependency per log entry
+    14, waiting on task-204..209.'
+  data:
+    operation:
+      id: a1b2c3d4-0006-4a00-9e00-1a2b3c4d0081
+      kind: log_append
+      fingerprint: 83e77a7ce675ee3465e305d6cf9470a7
