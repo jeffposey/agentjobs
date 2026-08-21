@@ -3,10 +3,11 @@ id: task-205
 title: 'Queue position: assignment, the reorder verbs, and selection that ignores
   timestamps'
 created: '2026-08-20T23:30:38.205143Z'
-updated: '2026-08-21T09:22:53.150074Z'
-lifecycle: ready
+updated: '2026-08-21T09:30:40.542534Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 queue_position: 4600
@@ -16,6 +17,7 @@ tags:
 - scheduling
 - concurrency
 assignment:
+  owner: claude
   eligible: []
 parent: task-081-task-selection-ranking
 spec:
@@ -153,7 +155,9 @@ dependencies:
   type: needs
   note: The field and its invariant must exist before anything assigns or reads it.
 links: []
-branches: []
+branches:
+- name: feat/task-205-queue-verbs-selection
+  status: active
 log:
 - id: 1
   ts: '2026-08-20T23:30:38.205199Z'
@@ -207,3 +211,28 @@ log:
       id: a1b2c3d4-0002-4a00-9e00-1a2b3c4d0205
       kind: promote
       fingerprint: ddca3982ff6bee777af865e07aac3341
+- id: 5
+  ts: '2026-08-21T09:30:33.429592Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 5a1c2e30-0205-4b11-9c30-000000000001
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 6
+  ts: '2026-08-21T09:30:40.542329Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 5a1c2e30-0205-4b11-9c30-000000000002
+      kind: update_content
+      fingerprint: abbda6f8ed28da98567327875a93dbbf
