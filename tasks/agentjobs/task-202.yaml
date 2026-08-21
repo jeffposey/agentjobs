@@ -3,7 +3,7 @@ id: task-202
 title: Give every registered project its MCP server, so a dispatched session has the
   tools
 created: '2026-08-20T22:27:11.789778Z'
-updated: '2026-08-20T22:27:11.790485Z'
+updated: '2026-08-21T01:21:43.695527Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -111,3 +111,61 @@ log:
       id: f47b1c92-58ad-4e63-9d20-6c1a03b8e775
       kind: create
       fingerprint: c639a1185f60665c1c96aea309e32e4f
+- id: 2
+  ts: '2026-08-21T01:21:43.695386Z'
+  actor: claude
+  type: progress
+  body: 'A second, distinct instance of this problem was found and fixed on 2026-08-21.
+    Recording it so whoever works this task does not re-solve the worktree half, and
+    knows what is still open.
+
+
+    What happened. Three sessions were started in fresh worktrees under C:/projects/worktrees/
+    to work tasks 203, 210 and 153. All three came up with no AgentJobs MCP tools
+    and had to fall back to the REST API to claim, log and hand off. They were right
+    to fall back and the work was unharmed -- the same outcome this task records for
+    the job-hunting dispatch on 2026-08-20.
+
+
+    Different cause from the one in the spec, though. This project HAS a .mcp.json;
+    it is `.gitignore`d at line 74, deliberately, because it names an absolute interpreter
+    path and so describes a machine rather than the repository. `git worktree add`
+    copies tracked files only, so every worktree starts without it. The project-scoped
+    server the spec assumes is present is present in the main clone and nowhere else.
+
+
+    Fixed in 2dd22bb: scripts/bootstrap.py now copies .mcp.json from the main clone
+    into a fresh checkout, alongside the virtualenv and node_modules it already installs.
+    It no-ops in the main clone and when the file already exists. Verified in a throwaway
+    worktree -- copied on first call, None on the second, None when ROOT is the main
+    clone. Black, Ruff and MyPy clean. No test was added; that was Jeff''s explicit
+    call at the time.
+
+
+    What this does NOT solve, and what is still this task''s job:
+
+    - `agentjobs init` still writes no .mcp.json, so a newly registered project has
+    nothing for bootstrap to copy. job-hunting is the example in the spec and is still
+    in that state.
+
+    - Existing registered projects still need the backfill the spec describes.
+
+    - Tracking the file is not an available fix and should not be proposed. It is
+    machine-local by design; docs/mcp-clients.md carries the invocations and .gitignore
+    line 73 states the reasoning.
+
+    - A session already running when the file appears does not gain the tools -- MCP
+    servers are resolved at session start. The fix only helps sessions started after
+    the bootstrap.
+
+
+    Practical consequence worth keeping: a toolless session is not merely inconvenienced.
+    It can do the engineering and then cannot record any of it, because the task-write
+    guard correctly refuses the direct YAML edit it reaches for next. The failure
+    presents as a tooling mystery rather than as a missing file, and costs the session
+    several turns before it finds the REST fallback on its own.'
+  data:
+    operation:
+      id: c1a70000-1202-4a00-9e00-000000000202
+      kind: log_append
+      fingerprint: 7c13e0d19a1ced062cca83299456a5d0
