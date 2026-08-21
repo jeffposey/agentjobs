@@ -2,7 +2,7 @@ schema: 2
 id: task-208
 title: 'Queue position: MCP verbs, the rule agents follow, and the reference docs'
 created: '2026-08-20T23:31:46.849335Z'
-updated: '2026-08-21T16:09:01.866353Z'
+updated: '2026-08-21T16:09:31.181557Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -541,3 +541,13 @@ log:
       id: 7c1d2e30-2081-4f00-9a11-00000000020b
       kind: close
       fingerprint: 2944572d40ca11680bf839c09f65d9c2
+- id: 20
+  ts: '2026-08-21T16:09:31.181381Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 15
+  data:
+    run_id: run_8580351c
+    outcome: completed
+    duration_seconds: 728.439467
+    log_path: C:\Users\jpose\.agentjobs\runs\run_8580351c
