@@ -1,0 +1,162 @@
+schema: 2
+id: task-234
+title: Merging after approval costs a whole second agent session, about eleven minutes,
+  on every task
+created: '2026-08-21T20:43:16.534300Z'
+updated: '2026-08-21T20:43:17.063822Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 200
+category: dispatch
+tags:
+- cycle-time
+- dispatch
+- workflow
+- agent-dx
+effort: a design decision about run lifecycle first; the mechanism is small either
+  way
+assignment:
+  eligible: []
+spec:
+  summary: "Measured across the run corpus: nearly every task runs twice \u2014 a\
+    \ long working run that ends at the review handoff, and a second dispatched session,\
+    \ mean about eleven minutes, whose entire job is to rebase, merge --no-ff, close\
+    \ the task, rebuild the frontend and restart the server. That second session boots\
+    \ a fresh agent, re-reads the record and re-establishes context to run five commands\
+    \ that were already known before the human clicked Approve. Find the cheaper shape\
+    \ without removing the human gate."
+  intent: "This is the largest single repeated cost the run corpus shows, and unlike\
+    \ the gate it buys nothing \u2014 the work was already verified, the human already\
+    \ approved, and the commands are fixed. Roughly two of the twenty-one measured\
+    \ hours went into it, and it recurs on every task forever. It is also a reliability\
+    \ cost: a second session is a second chance to hit an auth expiry, a permission\
+    \ park or a classifier refusal, each of which leaves a merged-or-not-merged task\
+    \ in an ambiguous state."
+  description: "## The measurement\n\nFrom `~/.agentjobs/runs/*/meta.yaml`, 49 runs\
+    \ with durations across 23 tasks. Runs per task: **2.13**. The second run is short\
+    \ and carries the `handoff` and `dispatch_result` log entries \u2014 it is the\
+    \ post-approval session:\n\n| Task | Working run | Post-approval run |\n|---|---|---|\n\
+    | task-188 | 56.8m | **6.1m** |\n| task-164 | 59.9m | **12.0m** |\n| task-208\
+    \ | 49.3m | **12.1m** |\n| task-189 | 41.2m | **10.2m** |\n| task-194 | 35.7m\
+    \ | **10.7m** |\n| task-193 | 32.9m | **12.5m** |\n| task-202 | 32.2m | **11.6m**\
+    \ |\n| task-180 | 28.4m | **17.2m** |\n| task-016-sup | 23.0m | **8.3m** |\n|\
+    \ task-155 | 17.1m | **16.4m** |\n| task-015-fix | 14.9m | **4.1m** |\n\nMean\
+    \ about eleven minutes. What that session actually does is fixed and known in\
+    \ advance \u2014 ALLAGENTS.md step 6 and 7: rebase onto `main`, `git merge --no-ff`,\
+    \ mark the branch merged, close the task with `outcome: completed`, `git worktree\
+    \ remove`, rebuild the frontend if it was touched, restart the server, confirm\
+    \ the change is live.\n\nMost of the eleven minutes is not those commands. It\
+    \ is a cold agent booting, reading the task record, working out which branch and\
+    \ worktree it owns, and re-establishing enough context to act \u2014 all of which\
+    \ the *first* session already had in memory when it handed off.\n\n## What to\
+    \ weigh\n\nThree shapes, none prescribed. The decision entry matters more than\
+    \ which one wins.\n\n**A \u2014 the run survives the review.** The working session\
+    \ parks after handoff and resumes when approval arrives, instead of exiting. Cheapest\
+    \ in wall clock, and it changes what a \"run\" is: a held session costs a concurrency\
+    \ slot for as long as the human takes, which on this corpus is sometimes hours.\
+    \ Interacts directly with `max_concurrent_runs` and with the auth expiry of task-224\
+    \ \u2014 a session held for six hours is *more* exposed, not less.\n\n**B \u2014\
+    \ approval triggers a scripted merge, not an agent.** The steps are deterministic.\
+    \ A `finish` command \u2014 invoked by the approval path or run by the dispatcher\
+    \ \u2014 could rebase, merge, close and restart without a model in the loop at\
+    \ all, falling back to a dispatched session only when the rebase conflicts or\
+    \ the gate needs re-running. This is the shape that could take eleven minutes\
+    \ to under one. The risk is that merge conflicts and post-merge verification are\
+    \ exactly where judgement is needed, so the fallback path has to be real rather\
+    \ than theoretical.\n\n**C \u2014 the handoff carries a merge plan the second\
+    \ session executes without re-deriving it.** Keeps an agent in the loop but removes\
+    \ the re-exploration: the working session writes the branch, the worktree path,\
+    \ whether the frontend needs rebuilding and how the server is started, and the\
+    \ post-approval prompt names them. Smallest change, smallest saving.\n\n**The\
+    \ human gate is not what is being removed.** Approval still comes from a person,\
+    \ in the GUI, per task. This is only about what happens in the ninety seconds\
+    \ *after* they click it.\n\n## Watch for\n\n- **Which server to restart.** ENGINEERING.md\
+    \ is explicit that `agentjobs restart` is wrong when something else started the\
+    \ server \u2014 the live one here is on 8876 behind a tsnet proxy, started by\
+    \ a launcher script. Any automated finish path must not bind the default 8765\
+    \ and report success.\n- **The frontend rebuild.** `frontend_dist/` is gitignored,\
+    \ so a merged React change is invisible until `npm run build` runs in the serving\
+    \ clone. This is the step most likely to be silently skipped by automation, and\
+    \ its failure mode is that the human sees the version they just approved you to\
+    \ replace.\n- **Verification is part of finishing.** The current rule ends with\
+    \ \"confirm the change is actually live\". Automation that merges but does not\
+    \ verify has moved the failure, not removed it."
+  constraints: '- The human approval gate is untouched: a person still approves each
+    task in the GUI before anything merges.
+
+    - Whatever runs the merge must handle a conflicting rebase by escalating to a
+    session or to the human, never by forcing or by guessing.
+
+    - The frontend rebuild and the server restart stay part of finishing, and the
+    restart must respect how the server was actually started rather than assuming
+    the default port.
+
+    - Task records still go to `main` in the shared clone.
+
+    - Any held-session design must state its interaction with max_concurrent_runs
+    and with mid-run auth expiry (task-224) rather than leaving it to be discovered.'
+  out_of_scope: "The gate's own cost (task-233). The consolidation capability (task-232),\
+    \ which reduces how many merges there are rather than what each costs. Auto-approval\
+    \ or any reduction in human review. Changing the merge policy itself \u2014 --no-ff\
+    \ and the merge commit as the reviewable unit both stay."
+  context:
+  - path: tasks/agentjobs/task-233.yaml
+    why: The cycle-time baseline this finding came out of; its table is the evidence
+      for the eleven minutes.
+  - path: ALLAGENTS.md
+    why: "Steps 6 and 7 of the task lifecycle \u2014 the exact fixed sequence the\
+      \ post-approval session performs."
+  - path: ENGINEERING.md
+    why: The Merge Gate section, including which server is yours to restart and why
+      the frontend rebuild is not optional.
+  - path: src/agentjobs/dispatch/runner.py
+    why: Where a run's lifecycle ends today, and where a held or scripted finish would
+      attach.
+  - path: src/agentjobs/api/routes/tasks.py
+    why: "The approve route \u2014 the natural trigger for a scripted finish."
+  - path: tasks/agentjobs/task-224.yaml
+    why: 'Mid-run auth expiry: the failure a long-held session is more exposed to,
+      which option A has to answer for.'
+acceptance:
+- id: m1
+  text: A decision entry chooses among the held-session, scripted-finish and carried-plan
+    shapes, with the rejected alternatives and their reasoning.
+  status: pending
+- id: m2
+  text: The post-approval path completes in materially less time than the measured
+    eleven-minute mean, stated as a before/after pair from the same run-record method
+    as the baseline.
+  status: pending
+- id: m3
+  text: "A rebase conflict, a failing post-merge check, and an unavailable server\
+    \ are each handled by escalation with the task left in an unambiguous state \u2014\
+    \ demonstrated, not asserted."
+  status: pending
+- id: m4
+  text: The frontend rebuild and the correct server restart still happen, and the
+    finished task is verified live; a run that merges without them is treated as a
+    failure.
+  status: pending
+- id: m5
+  text: A person still approves every task in the GUI before any merge occurs, unchanged
+    from today.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T20:43:17.063037Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c4e81a37-9d52-4b60-8f13-2a7e05b9d303
+      kind: create
+      fingerprint: 8b5b9abd2141175a76ee7108c27127fc

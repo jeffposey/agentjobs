@@ -2,13 +2,11 @@ schema: 2
 id: task-221
 title: The gate has no answer for "does this run need to happen at all"
 created: '2026-08-21T07:49:43.396270Z'
-updated: '2026-08-21T16:58:00.199238Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-21T20:42:18.764117Z'
+lifecycle: closed
+outcome: superseded
 archived: false
 priority: high
-queue_position: 11000
 category: developer_experience
 tags:
 - tooling
@@ -148,3 +146,29 @@ log:
       id: a7c04e29-5f81-4b36-9d02-83b71ce40221
       kind: create
       fingerprint: 6fd7420d500c04a9ee3fa1080bf8147b
+- id: 2
+  ts: '2026-08-21T20:42:18.763960Z'
+  actor: claude
+  type: transition
+  body: "Superseded by task-233 \u2014 the cycle-time task Jeff made his highest priority\
+    \ on 2026-08-21 \u2014 which absorbs this as **part 2** and works it on one branch\
+    \ with the rest of the gate work. He asked explicitly that this task be involved\
+    \ in that effort.\n\nNothing here is withdrawn, and this record stays the working\
+    \ spec for that part: the worked example (a rebase that brought in one task YAML,\
+    \ followed by a full six-minute gate), the observation that `tests/test_validate.py::TestRealCorpus`\
+    \ genuinely reads the live corpus and so is the one stage such a change can flip,\
+    \ and \u2014 most importantly \u2014 the careful statement of the tension with\
+    \ ENGINEERING.md's rule that the unqualified `scripts/check.py` is what the commit\
+    \ rule means. That tension is the hard part of this work and must not be lost\
+    \ in the consolidation; task-233 repeats it as a constraint and names this file\
+    \ in `context[]`.\n\nClosed rather than made a child because an open child changes\
+    \ how dispatch prompts a run against its parent (src/agentjobs/dispatch/runner.py:953),\
+    \ producing the session-per-child split that is one of the costs task-233 exists\
+    \ to reduce. See task-231's decision entry for that mechanism."
+  data:
+    lifecycle: closed
+    outcome: superseded
+    operation:
+      id: c4e81a37-9d52-4b60-8f13-2a7e05b9d302
+      kind: close
+      fingerprint: f4969199733b64b28fc6c9ca2e5e0275

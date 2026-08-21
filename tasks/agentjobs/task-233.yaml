@@ -1,0 +1,197 @@
+schema: 2
+id: task-233
+title: 'Cycle time: 21 hours of dispatched runs over 23 tasks, and nothing measures
+  where it goes'
+created: '2026-08-21T20:42:00.402460Z'
+updated: '2026-08-21T20:42:00.990141Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 100
+category: developer_experience
+tags:
+- cycle-time
+- check-gate
+- dispatch
+- tooling
+- measurement
+effort: the first win is a config change measured in minutes; instrumentation and
+  the gate-necessity rule are the substance
+assignment:
+  eligible: []
+spec:
+  summary: "A task in this repository costs about an hour of dispatched agent time,\
+    \ and long runs are what break \u2014 auth expiry, permission parks, classifier\
+    \ refusals all scale with duration. This task establishes where that hour actually\
+    \ goes, then takes the biggest wins. A first measurement pass is already in the\
+    \ log: 52 runs, 21.1 hours, 2.13 runs per task, one epic consuming 36% of the\
+    \ total, and no instrumentation at all inside a run. Absorbs task-221 as the gate-necessity\
+    \ part."
+  intent: 'Jeff, 2026-08-21, naming this his highest priority: *"This is WAY, WAY
+    too slow... We are wasting the opportunity of a single developer, working locally,
+    on a project by themselves, using advanced AI tools and agent orchestration. We''re
+    turning a modest task into an epic with 8 children, where each child takes an
+    hour, and then takes so long that eventually stuff breaks."* Duration is not only
+    a cost, it is a failure mode: the auth expiry of task-224, the classifier parks,
+    and the permission prompts all get more likely the longer a run lasts. Time saved
+    here compounds across every task in the backlog, which is why it goes to the front.'
+  description: "## The baseline, measured 2026-08-21\n\nFrom the 52 run records in\
+    \ `~/.agentjobs/runs/*/meta.yaml` \u2014 `started_at`, `finished_at`, `task_id`,\
+    \ `outcome` \u2014 covering the corpus to date:\n\n| | |\n|---|---|\n| Runs with\
+    \ durations | 49 (39 completed, 8 interrupted, 2 cancelled) |\n| Total dispatched\
+    \ run time | **21.1 hours** |\n| Distinct tasks | 23 |\n| **Runs per task** |\
+    \ **2.13** |\n| Run length | p50 **15.6m**, p75 28.4m, p90 **49.3m**, max **231.6m**\
+    \ |\n\nFour findings fall straight out of it, and they rank the work:\n\n### 1.\
+    \ Nearly every task pays a second dispatched session just to merge\n\nThe pattern\
+    \ is a long first run and a short second one, and the second carries the `handoff`\
+    \ and `dispatch_result` entries \u2014 it is the post-approval merge-and-close\
+    \ session. Observed on task-015-fix (14.9m \u2192 4.1m), task-016-sup (23.0 \u2192\
+    \ 8.3), task-155 (17.1 \u2192 16.4), task-164 (59.9 \u2192 12.0), task-180 (28.4\
+    \ \u2192 17.2), task-188 (56.8 \u2192 6.1), task-189 (41.2 \u2192 10.2), task-193\
+    \ (32.9 \u2192 12.5), task-194 (35.7 \u2192 10.7), task-202 (32.2 \u2192 11.6),\
+    \ task-208 (49.3 \u2192 12.1).\n\n**Roughly two hours of the twenty-one went into\
+    \ booting a fresh agent session to run `git rebase`, `git merge --no-ff`, close\
+    \ the task, rebuild the frontend and restart the server.** Mean about eleven minutes,\
+    \ on every task, forever.\n\n### 2. One epic consumed 36% of all dispatched time\n\
+    \ntask-081: four runs, **7.6 hours**, including single runs of **178** and **231**\
+    \ minutes. Exclude it and the remaining 22 tasks average 37 minutes each. This\
+    \ is Jeff's \"epic with 8 children\" complaint, quantified \u2014 and both giant\
+    \ runs are exactly the duration band where auth expiry and permission parks appear.\n\
+    \n### 3. Eight runs died early, mean four minutes\n\n`interrupted` runs waste\
+    \ their own time and force a re-dispatch, which is part of why runs-per-task is\
+    \ 2.13 rather than closer to 1.\n\n### 4. Nothing measures inside a run\n\n`meta.yaml`\
+    \ records when a run started and stopped. `transcript.log` is a raw TTY capture\
+    \ \u2014 ANSI escapes and screen redraws \u2014 so the same line appears many\
+    \ times and **no phase attribution can be recovered from it**. Grepping it for\
+    \ gate invocations returns numbers that are artefacts of terminal repainting,\
+    \ not counts. So today it is impossible to say what share of a run is exploration,\
+    \ the gate, the work, or the merge. Every ranking below this line is inference\
+    \ until that is fixed.\n\n## The gate, separately\n\n`ENGINEERING.md` measures\
+    \ the gate at **365s, of which pytest is 326s \u2014 89%**. Two things about how\
+    \ pytest is invoked, both visible in `pyproject.toml` and neither yet justified\
+    \ anywhere:\n\n- **`addopts` forces coverage on every run**: `--cov=src/agentjobs\
+    \ --cov-report=term-missing --cov-report=html`. Every gate run pays coverage instrumentation\
+    \ and writes an HTML report that nobody opens before a commit.\n- **The suite\
+    \ runs serially on a 32-core machine.** `pytest-xdist` is not a dependency.\n\n\
+    A measurement of coverage-on/off \xD7 serial/parallel was started while writing\
+    \ this task; the numbers go in the log as a `progress` entry. **Do not act on\
+    \ this section without reading that entry** \u2014 if the suite turns out to be\
+    \ dominated by something that does not parallelise, the conclusion changes.\n\n\
+    ## The parts\n\n**Part 1 \u2014 the gate's pytest configuration.** Whatever the\
+    \ measurement supports: coverage off by default with a `--coverage` opt-in, parallelism\
+    \ if it is safe. The constraint is absolute: **the same tests must run and the\
+    \ same failures must be caught.** This is not \"toss check.py aside\", it is the\
+    \ identical suite executed sensibly. Prove it by running both ways and comparing\
+    \ pass/fail counts, and check for tests that share temp dirs, ports or the live\
+    \ corpus before parallelising anything.\n\n**Part 2 \u2014 does this run need\
+    \ to happen at all.** Absorbs [task-221](tasks/agentjobs/task-221.yaml), which\
+    \ is closed as superseded and remains the working spec for this part. Its worked\
+    \ example: a rebase that brought in one task YAML re-ran the entire six-minute\
+    \ gate, when the only stage that could have been affected was `tests/test_validate.py::TestRealCorpus`.\
+    \ Its central tension is preserved and must be respected \u2014 `ENGINEERING.md`\
+    \ is emphatic that the unqualified `scripts/check.py` is what the commit rule\
+    \ means, and any rule added here is an exception to that.\n\n**Part 3 \u2014 instrument\
+    \ a run so the next round is evidence-based.** Dispatch should record phase boundaries\
+    \ durably, not in a TTY capture: when the worktree was created, when the gate\
+    \ started and finished and with what result, when the handoff happened. Enough\
+    \ to produce the table at the top of this task automatically instead of by hand.\
+    \ Keep it cheap \u2014 appending structured lines to a per-run file, not a telemetry\
+    \ system.\n\n**Part 4 \u2014 publish the ranked list.** A `decision` entry naming\
+    \ every candidate lever with its measured or estimated saving, what it would cost,\
+    \ and which ones were rejected. That entry is the deliverable that makes the next\
+    \ pass fast; the follow-ups get filed from it.\n\n## Explicitly not the plan\n\
+    \nJeff's constraint, verbatim: *\"without just tossing check.py aside, or never\
+    \ having me review or answer questions.\"* So: no reducing what the gate verifies,\
+    \ no skipping human review, no auto-merge. The savings must come from doing the\
+    \ same verification faster, doing it only when it can change the answer, and paying\
+    \ the ceremony fewer times per unit of work."
+  constraints: "- The gate must keep catching what it catches today. Any change to\
+    \ how pytest runs is proved by a before/after comparison of pass/fail counts on\
+    \ the same commit, not by a green run alone.\n- Before parallelising, audit for\
+    \ tests that share state \u2014 temp directories, fixed ports, the live task corpus\
+    \ (`TestRealCorpus` reads it), or the `~/.agentjobs` home. A flaky suite costs\
+    \ more time than a slow one.\n- The human review gate is untouched. Nothing here\
+    \ merges without explicit approval.\n- Part 2 is an exception to an emphatic rule\
+    \ in ENGINEERING.md. Write it as an exception, with its boundary stated, or do\
+    \ not write it.\n- Prefer changes that need no new infrastructure. A per-run text\
+    \ file beats a metrics service.\n- Measure with the tools in `scripts/`, and state\
+    \ before/after pairs the way `docs/performance.md` requires."
+  out_of_scope: "Removing or weakening any check. Auto-merge, or any reduction in\
+    \ what a human is asked to approve. The auth-expiry failure mode (task-224) and\
+    \ the consolidation capability (task-232), both of which reduce cycle time and\
+    \ are already filed \u2014 reference them from the ranked list rather than absorbing\
+    \ them. Redesigning dispatch so a run survives review, which is filed separately\
+    \ as the post-approval-session task."
+  context:
+  - path: tasks/agentjobs/task-221.yaml
+    why: "Part 2's full spec \u2014 closed as superseded by this task. Its worked\
+      \ example and its careful statement of the tension with ENGINEERING.md are the\
+      \ specification."
+  - path: scripts/check.py
+    why: 'The gate: its stage list, ordering rationale, and the --from/--only machinery
+      a necessity rule would build on.'
+  - path: pyproject.toml
+    why: The pytest addopts that force coverage on every run, and the dev dependency
+      set that has no xdist.
+  - path: ENGINEERING.md
+    why: The measured stage table, and the commit rule that part 2 must carve an exception
+      out of rather than contradict.
+  - path: src/agentjobs/dispatch/ledger.py
+    why: Where run records are written; part 3's phase instrumentation belongs beside
+      meta.yaml.
+  - path: docs/performance.md
+    why: The house standard for how a speed claim is stated.
+  - path: tasks/agentjobs/task-232.yaml
+    why: "The consolidation capability \u2014 the lever aimed at finding 2, the epic\
+      \ that ate a third of all run time."
+  - path: tasks/agentjobs/task-224.yaml
+    why: "The auth expiry that kills long runs \u2014 why duration is a failure mode\
+      \ and not only a cost."
+acceptance:
+- id: t1
+  text: The pytest configuration change is made or explicitly rejected, with a measured
+    before/after pair on the same commit showing identical pass/fail counts and the
+    wall-clock difference.
+  status: pending
+- id: t2
+  text: "If parallelism is adopted, the shared-state audit is recorded \u2014 which\
+    \ tests touch the live corpus, fixed ports, or a shared home \u2014 and the suite\
+    \ is shown green across at least three consecutive runs, not one."
+  status: pending
+- id: t3
+  text: A gate-necessity rule exists that would have skipped the task-221 worked example
+    while still running TestRealCorpus, and its boundary is written into ENGINEERING.md
+    as an explicit exception.
+  status: pending
+- id: t4
+  text: A dispatched run records phase boundaries durably enough to reproduce the
+    baseline table automatically, without parsing transcript.log.
+  status: pending
+- id: t5
+  text: A decision entry ranks every candidate lever by measured or estimated saving
+    against cost, names the rejected ones with reasons, and states which are filed
+    as follow-ups.
+  status: pending
+- id: t6
+  text: 'The end-to-end claim is stated as a before/after: what a representative task
+    cost in dispatched minutes before this work and after it, using the same measurement
+    method as the baseline.'
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T20:42:00.989172Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c4e81a37-9d52-4b60-8f13-2a7e05b9d301
+      kind: create
+      fingerprint: c704dd054376399e3dc2e671837fb540
