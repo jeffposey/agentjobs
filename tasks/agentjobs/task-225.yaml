@@ -1,0 +1,154 @@
+schema: 2
+id: task-225
+title: Drag to reorder the backlog actually starts a drag, and a test drives a real
+  mouse
+created: '2026-08-21T16:06:58.493311Z'
+updated: '2026-08-21T16:06:58.826098Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 5900
+category: ux
+tags:
+- queue-order
+- frontend
+- accessibility
+- regression
+assignment:
+  eligible: []
+parent: task-081-task-selection-ranking
+spec:
+  summary: Dragging a task's grip in the React list does nothing on the merged code.
+    Make the drag gesture work in a real browser, and cover it with a test that moves
+    a real mouse rather than firing a synthetic dragstart.
+  intent: task-207 shipped drag-and-drop reordering with three tests over it, all
+    green, none of which could see that the browser never starts a drag at all. Jeff
+    found it in the first minute of looking at the sandbox. The keyboard path is the
+    primary one and it works; drag is the accelerator that was reported as delivered
+    and is not.
+  description: '## What is broken
+
+
+    On `main` today, dragging a row''s reorder grip onto another row leaves the queue
+    untouched. Reproduced in Chrome against the task-207 review sandbox. The keyboard
+    path (`Alt+Up`/`Down`/`Home`/`End`) works and is unaffected.
+
+
+    ## The suspected cause, to confirm first
+
+
+    The handle is a `<button draggable>` in `TaskList.tsx`. Chrome does not initiate
+    a native HTML5 drag from a `<button>` -- the element''s activation behaviour consumes
+    the mousedown gesture -- so `dragstart` never fires and nothing downstream runs.
+    That fits what is observed exactly: clicking the grip focuses it and the keyboard
+    steps work, dragging it does nothing at all.
+
+
+    **Confirm this before changing anything.** If it is right, the fix is to move
+    `draggable` onto a non-button element. If it is not, the real cause is somewhere
+    in `onDragStart` / `onDragOver` / `onDrop` and the fix is different.
+
+
+    ## What the fix has to preserve
+
+
+    The grip is doing two jobs and both have to survive:
+
+
+    - it is the **focusable element** a keyboard user lands on to reach a row''s Alt-key
+    steps, and `gripId(taskId)` is what the focus-restore layout effect refocuses
+    after a move;
+
+    - it is the **drag handle**.
+
+
+    A plain `<span draggable tabIndex={0}>` gets the drag working, but `role="button"`
+    on something that does nothing when activated is a lie to a screen reader. Decide
+    what the element actually is and label it accordingly -- it is a reorder handle,
+    not a button, and there may be a better ARIA answer than either (a `listbox`/`option`
+    style reorder pattern is worth considering, but do not rebuild the list to get
+    there).
+
+
+    ## The test that has to exist
+
+
+    **Drive a real mouse.** `page.mouse.move` / `down` / `move` / `up` in Playwright,
+    not `fireEvent.dragStart` and not `page.dragAndDrop` if that turns out to synthesise
+    the same shortcut. The test must fail against the current code -- write it first
+    and watch it fail, because a drag test that passes on today''s `main` is by construction
+    testing the wrong thing.
+
+
+    Keep the jsdom tests for the placement arithmetic once a drag has started; they
+    are not wrong, they are just not evidence about this.
+
+
+    ## Why this keeps happening
+
+
+    Three defects in task-207 shared one shape: a test that set up the state it was
+    meant to be checking. The focus bug (both tests focused the handle before every
+    press), the e2e ladder assertion (passed alone, failed in the suite), and this
+    one. `ENGINEERING.md` gained two bullets about it; this is the third instance
+    and the section should carry it too.'
+  constraints: '- Confirm the cause before changing the element; do not fix a guess.
+
+    - The keyboard path, the focus-restore behaviour and `gripId` must keep working
+    -- they are the primary path and they are what the phone and tablet cannot do
+    without.
+
+    - Whatever the handle becomes, its accessible name and role must describe what
+    it actually does.
+
+    - One move per gesture, still. The cross-band drop still asks before it reprioritizes.'
+  out_of_scope: Rebuilding the task list around a different interaction model. Touch
+    drag on a phone -- the keyboard path is what serves that today, and if pointer
+    events are wanted there they are their own task.
+  context:
+  - path: frontend/src/components/TaskList.tsx
+    why: The grip, its draggable button, the drop handlers and the focus-restore effect.
+  - path: frontend/e2e/queue-order.spec.ts
+    why: Where the real-mouse test goes, beside the keyboard one.
+  - path: tasks/agentjobs/task-207.yaml
+    why: Log entry 12 records the reproduction and why the existing tests could not
+      see it.
+acceptance:
+- id: sc-1
+  text: A Playwright test drags one task onto another using real mouse events, the
+    queue order changes, and the new order survives a reload. The test is demonstrated
+    to fail against the pre-fix code.
+  status: pending
+- id: sc-2
+  text: A cross-band drag still raises the confirmation and calls reprioritize rather
+    than move, driven the same way.
+  status: pending
+- id: sc-3
+  text: 'The keyboard path is unchanged: focus survives a step, and two presses in
+    a row move the same task.'
+  status: pending
+- id: sc-4
+  text: The drag handle's role and accessible name describe what it is, and it is
+    still reachable by keyboard.
+  status: pending
+- id: sc-5
+  text: Jeff has dragged a task in a browser and seen the order change.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-21T16:06:58.825084Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3f2b1a90-0223-4c11-9a01-000000000001
+      kind: create
+      fingerprint: e137077619cabeedbfce7c418b77b1d1
