@@ -576,13 +576,27 @@ class TestTheScheduler:
             task = asyncio.create_task(
                 poll_sessions_forever(home, interval=0.01, report=lines.append)
             )
-            await asyncio.sleep(1.0)
+            # Wait for the first report rather than for a fixed slice of wall clock. A
+            # poll spawns real processes, and since task-233 the gate runs this suite
+            # across every core -- so a whole second can pass before the first line
+            # lands, and a fixed sleep then fails the test having observed nothing at
+            # all. The sibling test above already waits this way.
+            for _ in range(400):
+                if lines:
+                    break
+                await asyncio.sleep(0.05)
+            # Then keep it ticking. The property is that the polls *after* the first
+            # report stay quiet, which is what the fixed sleep was standing in for. An
+            # upper bound on wall clock is safe here in a way a lower bound is not: a
+            # loaded machine can only make this observe fewer ticks, never more lines.
+            await asyncio.sleep(0.5)
             task.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await task
 
         asyncio.run(several_ticks())
 
+        assert lines, "nothing was reported at all, so nothing was proved about repeats"
         assert len(lines) == 1, f"repeated itself: {lines}"
 
     def test_the_interval_is_stated_and_slow_enough_to_be_free(self) -> None:

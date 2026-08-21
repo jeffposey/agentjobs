@@ -73,6 +73,7 @@ from agentjobs.models_v2 import (
     Task,
     utcnow,
 )
+from agentjobs.dispatch.phases import RUN_DIR_ENV, RUN_ID_ENV
 from agentjobs.project_setup import MCP_CONFIG_FILENAME
 
 RUNS_DIRNAME = "runs"
@@ -1007,15 +1008,32 @@ class DispatchRunner:
         argv[0] = resolve_executable(argv[0])
         return argv
 
-    def _environment(self) -> Dict[str, str]:
+    def _environment(self, run: Optional[RunDirectory] = None, run_id: str = "") -> Dict[str, str]:
         """The child's environment: ours, plus the runner's additions.
 
         Additive rather than replacing, so a runner does not have to restate PATH. Never
         logged -- this is where a runner's secrets belong, precisely because argv is
         recorded verbatim.
+
+        A spawn passes the run it is starting, which puts the run id and directory into
+        the environment. That is how anything downstream of the agent -- the gate, the
+        CLI, the MCP server, all children of the session -- can append a phase record
+        without being told which run it belongs to (``dispatch.phases``). The two
+        polling helpers that also call this do not pass a run, and must not: they are
+        asking the runner about a session, not doing work inside one.
         """
         environment = dict(os.environ)
         environment.update(self.runner.env)
+        # Granted, never inherited. A dispatcher can itself be running inside a
+        # dispatched run -- an agent supervising a child is the ordinary case -- and an
+        # inherited pair would file the child's gate under the parent's run. Popping
+        # first makes the invariant hold whatever the ambient environment says.
+        environment.pop(RUN_DIR_ENV, None)
+        environment.pop(RUN_ID_ENV, None)
+        if run is not None:
+            environment[RUN_DIR_ENV] = str(run.path)
+            if run_id:
+                environment[RUN_ID_ENV] = run_id
         return environment
 
     def _assert_spawnable(self, task: Task) -> None:
@@ -1150,7 +1168,7 @@ class DispatchRunner:
             completed = subprocess.run(
                 argv,
                 cwd=str(self.project_root),
-                env=self._environment(),
+                env=self._environment(directory, run_id),
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -1676,7 +1694,7 @@ class DispatchRunner:
                 process = subprocess.Popen(
                     argv,
                     cwd=str(self.project_root),
-                    env=self._environment(),
+                    env=self._environment(directory, run_id),
                     stdout=stdout_file,
                     stderr=stderr_file,
                     creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
@@ -1685,7 +1703,7 @@ class DispatchRunner:
                 process = subprocess.Popen(
                     argv,
                     cwd=str(self.project_root),
-                    env=self._environment(),
+                    env=self._environment(directory, run_id),
                     stdout=stdout_file,
                     stderr=stderr_file,
                     start_new_session=True,
