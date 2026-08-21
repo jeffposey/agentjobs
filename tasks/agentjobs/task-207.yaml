@@ -3,10 +3,11 @@ id: task-207
 title: 'Queue position: the React list shows the real order, and you can change it
   without a mouse'
 created: '2026-08-20T23:31:25.501669Z'
-updated: '2026-08-21T11:47:10.412696Z'
-lifecycle: ready
+updated: '2026-08-21T14:35:16.075052Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 queue_position: 4800
@@ -16,6 +17,7 @@ tags:
 - frontend
 - accessibility
 assignment:
+  owner: claude
   eligible: []
 parent: task-081-task-selection-ranking
 spec:
@@ -111,7 +113,9 @@ dependencies:
   type: needs
   note: The reorder endpoints and the generated client come from child 3.
 links: []
-branches: []
+branches:
+- name: feat/task-207-queue-order-react-list
+  status: active
 log:
 - id: 1
   ts: '2026-08-20T23:31:25.501714Z'
@@ -218,3 +222,28 @@ log:
       id: c0f71d70-0207-4a01-9e00-000000000001
       kind: log_append
       fingerprint: 1e728bb85704ff8ebcc4bf6b77e98789
+- id: 6
+  ts: '2026-08-21T14:35:11.614523Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 3f2b1a90-0207-4c11-9a01-000000000010
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 7
+  ts: '2026-08-21T14:35:16.074802Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 3f2b1a90-0207-4c11-9a01-000000000011
+      kind: update_content
+      fingerprint: 595ea1a68c009ab648f6b9f5d3922041
