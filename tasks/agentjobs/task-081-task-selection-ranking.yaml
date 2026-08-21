@@ -2,11 +2,80 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T05:35:44.143708Z'
+updated: '2026-08-21T06:23:30.562765Z'
 lifecycle: active
 ball: agent
-ball_reason: revise
-ball_prompt: Wait for autonomous dispatch fixes before we try this again.
+ball_reason: work
+ball_prompt: 'You are the SUPERVISOR of this epic. Do not work the children yourself
+  -- start a separate session per child and supervise it. task-164 (merged 2026-08-21)
+  is the rule; docs/agent-workflow.md carries the protocol.
+
+
+  WHY YOU MAY PROCEED. Jeff parked this on 2026-08-21 with "wait for autonomous dispatch
+  fixes before we try this again", after run_d5ab5caf parked on a permission prompt.
+  That condition is released by the act of you being started: task-220 is the fix,
+  and dispatching this task as a supervisor is task-220''s own ac-3 verification.
+  If you were started by anything other than that verification, and task-220 is still
+  open, log a note and park on human/decision rather than guessing.
+
+
+  CHILDREN AND ORDER. task-204 -> task-205 -> {task-206, task-208} -> {task-207, task-209}.
+  204 has no dependencies and is first. 206 and 208 need 205. 207 and 209 need 206.
+  Work what is eligible, one at a time; never start a child with unmet needs.
+
+
+  MERGE POSTURE. Jeff authorised an autonomous run on 2026-08-20/21, in session, having
+  been told plainly it waives the per-child human review gate for this run. Each child:
+  its own worktree, bootstrap it (python scripts/bootstrap.py), do the work, run the
+  FULL gate with the interpreter the bootstrap prints, and on a fully green gate rebase
+  onto main, merge --no-ff, mark the branch merged, close the task completed, remove
+  the worktree. The green gate is what replaces Jeff''s approval here, so it is not
+  optional, not partial, and not a subset run -- a resumed run via task-189''s --from/--only
+  does not qualify as the gate for a merge.
+
+
+  Jeff is awake and watching from his phone while this runs. He can stop it. That
+  is not a reason to go faster or to skip the gate.
+
+
+  DO NOT PUSH. Pushing is a separate act from merging here and nothing authorises
+  it.
+
+
+  TASK RECORDS GO TO MAIN, from the main clone at C:/projects/agentjobs, never to
+  a child''s branch. Yours and every child''s.
+
+
+  STOP AND PARK ON human/decision, leaving the epic resumable, if: a child''s gate
+  fails in a way needing a judgement call; a child raises a question for Jeff; a child
+  dies twice (one restart with a re-brief naming what is already committed is the
+  limit); an acceptance criterion cannot be met as written; or the work would contradict
+  a decision already recorded here or on the child. Binding decisions on this task:
+  entry 13 (approved design plus four review fixes), entry 18 (an agent may reorder
+  the queue autonomously, with three bounds), entry 19. Do not relitigate them.
+
+
+  WATCHING IS A MECHANISM, NOT AN INTENTION. Poll the child''s task record, not its
+  process: ball agent means keep waiting, ball human means act now, closed with an
+  outcome means verify from durable evidence (record, branch, diff) and move on. A
+  parent that ends its turn is asleep, not supervising. While waiting, spend context
+  on nothing but the poll and your own record.
+
+
+  KNOWN GAP, not a fault: children you start are your own subprocesses, not dispatches.
+  No run directory, no dispatch_result, not reaped by the poller, not counted against
+  max_concurrent_runs. Only your own run appears in the ledger. This follows from
+  D4 and is expected.
+
+
+  WHEN NO CHILD REMAINS OPEN: verify sc-1..sc-6 against the merged docs/task-selection-design.md,
+  confirm sc-7 via task-209''s outcome, mark the design branch merged if it is not,
+  and close this task completed. If sc-7''s ordering pass needs Jeff, park on human/review
+  instead.
+
+
+  This supervisor path has never completed a live run. Log what actually happens,
+  including anything the protocol did not anticipate.'
 archived: false
 priority: high
 category: architecture
@@ -800,3 +869,20 @@ log:
   data:
     ball: agent
     ball_reason: revise
+- id: 26
+  ts: '2026-08-21T06:23:30.562536Z'
+  actor: claude
+  type: handoff
+  body: 'Restoring the supervisor brief that log entry 20 carried, which a one-line
+    prompt had replaced. Jeff''s instruction was "wait for autonomous dispatch fixes
+    before we try this again" -- a condition, not a stop. The problem was that a cold
+    reader cannot evaluate it: nothing in "wait until it is fixed" tells an agent
+    whether the fix has landed. The restored prompt states the release condition in
+    a form a reader can actually check.'
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: c9f2a615-7b38-4e40-9d61-3a04e8c50081
+      kind: handoff
+      fingerprint: f32be62df693413187583b2396196213
