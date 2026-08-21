@@ -781,6 +781,43 @@ def migrate_file(path: Path) -> Tuple[FileResult, Optional[Dict[str, Any]]]:
     return result, conversion.data
 
 
+def _assign_queue_positions(records: List[Dict[str, Any]]) -> None:
+    """Give every open converted task a place in its band, in place.
+
+    Uses :func:`agentjobs.queue.plan_queue_migration`, so a corpus converted from v1
+    and a corpus migrated in place end up in the same order for the same reason:
+    ``created`` ascending, then id. Closed tasks are left alone -- they are not in
+    line (design doc section 3.2).
+    """
+    from .queue import QueueRecord, plan_queue_migration
+
+    by_id = {str(record.get("id")): record for record in records}
+    queue_records = [
+        QueueRecord(
+            task_id=str(record.get("id")),
+            created=str(record.get("created")),
+            priority=str(record.get("priority") or "medium"),
+            is_open=record.get("lifecycle") != "closed",
+            queue_position=None,
+        )
+        for record in records
+    ]
+    for assignment in plan_queue_migration(queue_records).assignments:
+        record = by_id[assignment.task_id]
+        # Rebuilt rather than appended so the key lands where the model puts it,
+        # directly after `priority`. `safe_dump(sort_keys=False)` writes insertion
+        # order, so appending would produce a file that loads perfectly and is not in
+        # canonical form -- which the validator reports as a hand-shaped file.
+        rebuilt = {}
+        for key, value in list(record.items()):
+            rebuilt[key] = value
+            if key == "priority":
+                rebuilt["queue_position"] = assignment.position
+        rebuilt.setdefault("queue_position", assignment.position)
+        record.clear()
+        record.update(rebuilt)
+
+
 def migrate_corpus(
     paths: List[Path],
     *,
@@ -799,12 +836,23 @@ def migrate_corpus(
 
     report = MigrationReport()
     pending: List[Tuple[Path, Dict[str, Any]]] = []
+    converted: List[Tuple[FileResult, Path, Dict[str, Any]]] = []
 
     for path in paths:
         result, data = migrate_file(path)
         report.results.append(result)
         if data is None:
             continue
+        converted.append((result, path, data))
+
+    # v2 requires an open task to have a queue_position (consistency rule 6), and no
+    # v1 file carries one. A converter working one file at a time cannot supply it --
+    # the number is a property of the band, which is a property of the whole corpus --
+    # so it is assigned here, across everything this run converted, by the same
+    # deterministic baseline the corpus migration uses.
+    _assign_queue_positions([data for _, _, data in converted])
+
+    for result, path, data in converted:
         # Round-trip through YAML and the model before accepting it: the data has to
         # survive serialisation, not merely exist in memory.
         try:

@@ -106,7 +106,111 @@ def validate_corpus(
         report.findings.extend(_check_canonical_form(task, filename, storage))
 
     report.findings.extend(_check_cycles(manager, loaded.tasks))
+    report.findings.extend(_check_queue(tasks_dir))
     return report
+
+
+# The four things that can be wrong with a queue, and the one rule each of them
+# breaks. Kept next to the check so the messages and the design stay in step.
+_QUEUE_RULES = "design doc section 3.2"
+
+
+def _check_queue(tasks_dir: Path) -> List[Finding]:
+    """Queue positions: present on open work, absent on closed, positive, unique.
+
+    **Reads the raw YAML rather than loaded tasks, and that is the point.** Three of
+    these four conditions are rejected by ``Task`` at load time (rule 6 and ``ge=1``),
+    so a check written against ``LoadResult.tasks`` could only ever catch duplicates;
+    the other three would be decoration. Worse, the corpus you most need this check
+    for is the one that will not load -- and a Pydantic message about field
+    ``queue_position`` on one file tells you nothing about which *other* file it
+    collides with.
+
+    So this walks the files themselves. A broken queue stays inspectable: every
+    offending id is named, with its band, whether or not the record is loadable.
+    Findings, never exceptions -- you must be able to see a broken queue in order to
+    fix it (design doc section 8).
+
+    Only the four queue rules are read out of the raw mapping. Anything else wrong
+    with the file is already reported as ``unreadable`` by the loader, and a file too
+    broken to yield an id or a lifecycle is left to that report rather than guessed at.
+    """
+    findings: List[Finding] = []
+    # band -> position -> the ids claiming it
+    bands: Dict[str, Dict[int, List[str]]] = {}
+
+    for path in sorted(tasks_dir.glob("*.yaml")):
+        filename = path.name
+        try:
+            raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue  # reported as `unreadable` by the loader; not this check's job.
+        if not isinstance(raw, dict):
+            continue
+
+        task_id = raw.get("id")
+        lifecycle = raw.get("lifecycle")
+        if not isinstance(task_id, str) or not isinstance(lifecycle, str):
+            continue
+        closed = lifecycle == "closed"
+        position = raw.get("queue_position")
+
+        if position is None:
+            if not closed:
+                findings.append(
+                    Finding(
+                        filename,
+                        "queue-missing",
+                        f"lifecycle '{lifecycle}' is open, so queue_position is "
+                        f"required ({_QUEUE_RULES})",
+                        task_id,
+                    )
+                )
+            continue
+
+        if closed:
+            findings.append(
+                Finding(
+                    filename,
+                    "queue-on-closed",
+                    f"closed task carries queue_position {position!r}; a closed task "
+                    "is not in line any more",
+                    task_id,
+                )
+            )
+            continue
+
+        # `bool` is an `int` in Python, and `queue_position: true` parses as one.
+        if not isinstance(position, int) or isinstance(position, bool) or position < 1:
+            findings.append(
+                Finding(
+                    filename,
+                    "queue-not-positive",
+                    f"queue_position {position!r} is not a positive integer",
+                    task_id,
+                )
+            )
+            continue
+
+        band = str(raw.get("priority") or "medium")
+        bands.setdefault(band, {}).setdefault(position, []).append(task_id)
+
+    for band, positions in sorted(bands.items()):
+        for position, ids in sorted(positions.items()):
+            if len(ids) < 2:
+                continue
+            shared = ", ".join(sorted(ids))
+            for task_id in sorted(ids):
+                findings.append(
+                    Finding(
+                        f"{task_id}.yaml",
+                        "queue-duplicate",
+                        f"queue_position {position} in band '{band}' is shared by "
+                        f"{shared}; positions are unique among open tasks of one band",
+                        task_id,
+                    )
+                )
+    return findings
 
 
 def _check_filename(task: Task, tasks_dir: Path) -> List[Finding]:

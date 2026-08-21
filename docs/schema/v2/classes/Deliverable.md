@@ -121,6 +121,7 @@ attributes:
     domain_of:
     - ContextPointer
     - Deliverable
+    - Attachment
     required: true
   note:
     name: note
@@ -159,6 +160,7 @@ attributes:
     domain_of:
     - ContextPointer
     - Deliverable
+    - Attachment
     range: string
     required: true
   note:

@@ -50,11 +50,18 @@ def task_data(**overrides: Any) -> Dict[str, Any]:
         "ball": "human",
         "ball_reason": "spec",
         "ball_prompt": "Finish specifying this.",
+        # Rule 6: a draft is open, so it holds a place in line like anything else.
+        "queue_position": 100,
         "category": "infrastructure",
         # summary and description are both required, matching schema/agentjobs-v2.yaml.
         "spec": {"summary": "A one-line summary.", "description": "What to do."},
     }
     base.update(overrides)
+    # Rule 6 is the same shape as rule 1: a closed task holds neither a ball nor a
+    # place in line. Dropped here rather than at every closing test, exactly as the
+    # base omits `outcome` until a test asks for one.
+    if base.get("lifecycle") == "closed" and "queue_position" not in overrides:
+        base.pop("queue_position", None)
     return base
 
 

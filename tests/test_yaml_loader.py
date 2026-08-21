@@ -144,6 +144,7 @@ def test_storage_reads_a_task_through_the_fast_loader(tmp_path: Path) -> None:
             ball=Ball.AGENT,
             ball_reason=BallReason.AVAILABLE,
             priority=Priority.MEDIUM,
+            queue_position=100,
             category="testing",
             spec=Spec(summary="Summary", description="Line one\nLine two\n\nParagraph"),
         )

@@ -22,7 +22,14 @@ from agentjobs.models_v2 import (
 
 
 def create_sample_tasks() -> List[Task]:
-    """Generate sample tasks demonstrating the v2 state axes and log."""
+    """Generate sample tasks demonstrating the v2 state axes and log.
+
+    Every open task carries a ``queue_position``: consistency rule 6 requires one, and
+    the design is explicit that no path creates an open task without one -- import,
+    migration and this loader included (design doc section 5.1). The numbers are the
+    bottom-of-band sequence each band would have got anyway; task-006 is closed and so
+    has none.
+    """
     now = datetime.now(tz=timezone.utc)
     yesterday = now - timedelta(days=1)
     two_days_ago = now - timedelta(days=2)
@@ -42,6 +49,7 @@ def create_sample_tasks() -> List[Task]:
                 "authentication events? (3) session timeout policy (currently 24h)?"
             ),
             priority=Priority.HIGH,
+            queue_position=100,
             category="architecture",
             effort="2-3 days",
             tags=["security", "database", "authentication"],
@@ -143,6 +151,7 @@ We need to implement a robust user authentication system supporting multiple OAu
                 "limits."
             ),
             priority=Priority.CRITICAL,
+            queue_position=100,
             category="infrastructure",
             effort="1 week",
             tags=["api", "security", "performance"],
@@ -225,6 +234,7 @@ When users repeatedly exceed limits:
             ball_reason=BallReason.WORK,
             ball_prompt="Execute the spec; log progress and hand off when done.",
             priority=Priority.MEDIUM,
+            queue_position=100,
             category="feature",
             effort="3 days",
             tags=["ui", "accessibility"],
@@ -273,6 +283,7 @@ When users repeatedly exceed limits:
                 "(DEVOPS-892). Resume the cutover once they exist."
             ),
             priority=Priority.HIGH,
+            queue_position=200,
             category="infrastructure",
             effort="1 day (once unblocked)",
             tags=["database", "infrastructure"],
@@ -326,6 +337,7 @@ Upgrade from PostgreSQL 14 to 16 for performance improvements and new features.
                 "across 60 RDS instances (estimated 8x ROI)."
             ),
             priority=Priority.LOW,
+            queue_position=100,
             category="infrastructure",
             effort="1 hour to enable",
             tags=["monitoring", "cost", "rds"],
@@ -450,6 +462,7 @@ WebSocket handler was leaking ~50MB/hour due to event listeners not being cleane
             ball_reason=BallReason.SPEC,
             ball_prompt="Finish specifying this task: confirm the rollout timeline and cursor format.",
             priority=Priority.MEDIUM,
+            queue_position=200,
             category="feature",
             effort="1 week",
             tags=["graphql", "api", "performance"],

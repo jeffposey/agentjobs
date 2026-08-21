@@ -41,6 +41,7 @@ def write_good_task(tasks_dir: Path, task_id: str = "task-100-good") -> Task:
             ball=Ball.AGENT,
             ball_reason=BallReason.AVAILABLE,
             priority=Priority.HIGH,
+            queue_position=100,
             category="infrastructure",
             spec=Spec(summary="Nothing wrong here.", description="Nothing wrong here."),
         )

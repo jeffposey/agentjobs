@@ -370,6 +370,7 @@ def sample_task_payload(**overrides: Any) -> Dict[str, Any]:
         "category": "general",
         "assignment": {"owner": "bot", "eligible": []},
         "spec": {"summary": "Work.", "description": "Do the thing."},
+        "queue_position": 100,
         "log": [],
     }
     payload.update(overrides)

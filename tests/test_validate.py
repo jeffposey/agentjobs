@@ -85,7 +85,12 @@ def valid_payload(task_id: str, **overrides: Any) -> Dict[str, Any]:
         "category": "general",
         "spec": {"summary": "s", "description": "d"},
     }
+    # Derived from the id rather than fixed, so a fixture project holding several of
+    # these does not trip the duplicate-position check it is not testing.
+    payload["queue_position"] = int(task_id.split("-")[1]) * 100
     payload.update(overrides)
+    if payload.get("lifecycle") == "closed":
+        payload.pop("queue_position", None)
     return payload
 
 

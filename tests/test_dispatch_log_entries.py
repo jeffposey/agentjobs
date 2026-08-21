@@ -82,6 +82,7 @@ def make_task(**overrides: object) -> Task:
         "ball": "agent",
         "ball_reason": "available",
         "ball_prompt": "Work it.",
+        "queue_position": 100,
         "spec": {"summary": "A task.", "description": "Do the thing."},
     }
     fields.update(overrides)

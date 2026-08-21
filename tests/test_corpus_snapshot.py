@@ -34,6 +34,7 @@ def _build_task(index: int, *, parent: str | None = None) -> Task:
         ball=Ball.AGENT,
         ball_reason=BallReason.AVAILABLE,
         priority=Priority.MEDIUM,
+        queue_position=index * 100,
         category="testing",
         parent=parent,
         spec=Spec(summary=f"Task {index} summary", description="Description"),

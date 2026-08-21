@@ -49,6 +49,7 @@ def build_project(root: Path, name: str) -> TaskStorage:
             ball=Ball.AGENT,
             ball_reason=BallReason.AVAILABLE,
             priority=Priority.HIGH,
+            queue_position=100,
             category="infrastructure",
             spec=Spec(summary=f"Belongs to {name}", description=f"Belongs to {name}"),
         )

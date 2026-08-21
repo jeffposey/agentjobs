@@ -170,6 +170,8 @@ URI: [aj:class/Task](https://github.com/jeffposey/agentjobs/schema/v2/class/Task
     
 
         
+      Task : queue_position
+        
       Task : schema
         
       Task : spec
@@ -220,6 +222,7 @@ URI: [aj:class/Task](https://github.com/jeffposey/agentjobs/schema/v2/class/Task
 | [outcome](../slots/outcome.md) | 0..1 <br/> [Outcome](../enums/Outcome.md) | How the task ended | direct |
 | [archived](../slots/archived.md) | 0..1 <br/> [Boolean](../types/Boolean.md) | Visibility flag, orthogonal to how the task ended | direct |
 | [priority](../slots/priority.md) | 0..1 <br/> [Priority](../enums/Priority.md) |  | direct |
+| [queue_position](../slots/queue_position.md) | 0..1 <br/> [Integer](../types/Integer.md) | Explicit order within the priority band | direct |
 | [category](../slots/category.md) | 1 <br/> [String](../types/String.md) | Validated against the project config vocabulary at save time, not enumerated ... | direct |
 | [tags](../slots/tags.md) | * <br/> [String](../types/String.md) | Also validated against the config vocabulary at save | direct |
 | [effort](../slots/effort.md) | 0..1 <br/> [String](../types/String.md) | Free text; renamed from estimated_effort | direct |
@@ -457,6 +460,18 @@ attributes:
     domain_of:
     - Task
     range: Priority
+  queue_position:
+    name: queue_position
+    description: Explicit order within the priority band. Unique among open tasks
+      of the same priority in one project. Present if and only if the task is open.
+      Assigned in sparse steps of 100 so an insertion takes a midpoint and rewrites
+      one file rather than a whole band.
+    from_schema: https://github.com/jeffposey/agentjobs/schema/v2
+    rank: 1000
+    domain_of:
+    - Task
+    range: integer
+    minimum_value: 1
   category:
     name: category
     description: Validated against the project config vocabulary at save time, not
@@ -824,6 +839,19 @@ attributes:
     domain_of:
     - Task
     range: Priority
+  queue_position:
+    name: queue_position
+    description: Explicit order within the priority band. Unique among open tasks
+      of the same priority in one project. Present if and only if the task is open.
+      Assigned in sparse steps of 100 so an insertion takes a midpoint and rewrites
+      one file rather than a whole band.
+    from_schema: https://github.com/jeffposey/agentjobs/schema/v2
+    rank: 1000
+    owner: Task
+    domain_of:
+    - Task
+    range: integer
+    minimum_value: 1
   category:
     name: category
     description: Validated against the project config vocabulary at save time, not

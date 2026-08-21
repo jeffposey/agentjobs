@@ -410,6 +410,7 @@ class Task(ConfiguredBaseModel):
     outcome: Optional[Outcome] = Field(default=None, description="""How the task ended. Set if and only if lifecycle is closed; absent or null while open.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Task']} })
     archived: Optional[bool] = Field(default=False, description="""Visibility flag, orthogonal to how the task ended. Lets an old completed task and an abandoned draft both be hidden without destroying what they were.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Task'], 'ifabsent': 'false'} })
     priority: Optional[Priority] = Field(default=Priority.medium, json_schema_extra = { "linkml_meta": {'domain_of': ['Task'], 'ifabsent': 'string(medium)'} })
+    queue_position: Optional[int] = Field(default=None, description="""Explicit order within the priority band. Unique among open tasks of the same priority in one project. Present if and only if the task is open. Assigned in sparse steps of 100 so an insertion takes a midpoint and rewrites one file rather than a whole band.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['Task']} })
     category: str = Field(default=..., description="""Validated against the project config vocabulary at save time, not enumerated in this schema -- taxonomy is project-local, semantics are not.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Task']} })
     tags: Optional[list[str]] = Field(default=None, description="""Also validated against the config vocabulary at save.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Task']} })
     effort: Optional[str] = Field(default=None, description="""Free text; renamed from estimated_effort. It is an estimate, not a contract, so it is deliberately unstructured.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Task']} })
@@ -465,7 +466,7 @@ class ContextPointer(ConfiguredBaseModel):
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://github.com/jeffposey/agentjobs/schema/v2'})
 
-    path: str = Field(default=..., description="""Repository-relative path.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ContextPointer', 'Deliverable']} })
+    path: str = Field(default=..., description="""Repository-relative path.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ContextPointer', 'Deliverable', 'Attachment']} })
     why: str = Field(default=..., description="""What the reader will find there. Required -- a pointer without a reason is the kind of context that decays into noise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ContextPointer']} })
 
 
@@ -488,7 +489,7 @@ class Deliverable(ConfiguredBaseModel):
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://github.com/jeffposey/agentjobs/schema/v2'})
 
-    path: str = Field(default=..., description="""Repository-relative path to the deliverable.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ContextPointer', 'Deliverable']} })
+    path: str = Field(default=..., description="""Repository-relative path to the deliverable.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ContextPointer', 'Deliverable', 'Attachment']} })
     note: Optional[str] = Field(default=None, description="""What it is. Renamed from v1's description, to free that word up.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Deliverable', 'Dependency']} })
     status: Optional[DeliverableStatus] = Field(default=DeliverableStatus.pending, json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriterion', 'Deliverable', 'Branch'],
          'ifabsent': 'string(pending)'} })
@@ -541,6 +542,20 @@ class LogEntry(ConfiguredBaseModel):
     re: Optional[int] = Field(default=None, description="""Optional id of an earlier entry this one responds to. How an `answer` attaches to its `question`.""", json_schema_extra = { "linkml_meta": {'domain_of': ['LogEntry']} })
     body: Optional[str] = Field(default=None, description="""The human-readable content. Markdown. For `handoff` entries this is the ask, mirroring ball_prompt; for `decision` entries it must include the rejected alternative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['LogEntry']} })
     data: Optional[Any] = Field(default=None, description="""Optional structured payload, typed per entry type. For `transition` entries it carries the state delta, e.g. {lifecycle: active, ball: agent, ball_reason: work}. Deliberately unconstrained at the schema level; the per-type shape is validated by the manager that writes it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['LogEntry']} })
+    attachments: Optional[list[Attachment]] = Field(default=None, description="""Images stored beside the tasks and referenced from this entry. The blob lives in a sidecar file; only the metadata is in the YAML, so a task file stays readable in a text editor and diffable line by line.""", json_schema_extra = { "linkml_meta": {'domain_of': ['LogEntry']} })
+
+
+class Attachment(ConfiguredBaseModel):
+    """
+    One image stored beside the tasks, referenced from the log entry it illustrates. `sha256` is both the sidecar's filename and its integrity check: a read that does not hash to this is refused rather than rendered.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://github.com/jeffposey/agentjobs/schema/v2'})
+
+    path: str = Field(default=..., description="""Sidecar path, relative to the tasks directory rather than the repo root.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ContextPointer', 'Deliverable', 'Attachment']} })
+    media_type: str = Field(default=..., description="""Image media type, derived from the bytes rather than the filename.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Attachment']} })
+    sha256: str = Field(default=..., description="""Content hash; also the sidecar's filename.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Attachment']} })
+    size_bytes: int = Field(default=..., description="""Size of the stored file.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['Attachment']} })
+    label: str = Field(default=..., description="""Accessible label; alt text wherever it renders.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Attachment']} })
 
 
 # Model rebuild
@@ -556,3 +571,4 @@ Dependency.model_rebuild()
 Link.model_rebuild()
 Branch.model_rebuild()
 LogEntry.model_rebuild()
+Attachment.model_rebuild()

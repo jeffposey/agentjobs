@@ -2378,6 +2378,19 @@
             "$ref": "#/components/schemas/Priority",
             "default": "medium"
           },
+          "queue_position": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Order within the priority band. Present if and only if the task is open.",
+            "title": "Queue Position"
+          },
           "schema": {
             "default": 2,
             "description": "Schema version stamp. Always 2 for this model (D3).",
@@ -2869,6 +2882,19 @@
             "$ref": "#/components/schemas/Priority",
             "default": "medium"
           },
+          "queue_position": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Order within the priority band. Present if and only if the task is open.",
+            "title": "Queue Position"
+          },
           "schema": {
             "default": 2,
             "description": "Schema version stamp. Always 2 for this model (D3).",
@@ -3091,6 +3117,19 @@
           "priority": {
             "$ref": "#/components/schemas/Priority",
             "default": "medium"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Order within the priority band. Present if and only if the task is open.",
+            "title": "Queue Position"
           },
           "schema": {
             "default": 2,

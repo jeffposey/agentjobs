@@ -65,6 +65,8 @@ def make_task(
         ball_prompt="Do the thing." if ball else None,
         outcome=outcome,
         priority=priority,
+        # Rule 6: open work has a place in line, closed work has none.
+        queue_position=None if lifecycle is Lifecycle.CLOSED else 100,
         category="general",
         spec=Spec(summary=f"Summary of {task_id}", description="Body."),
     )

@@ -60,6 +60,7 @@ are not representable:
 | `id`, `title`, `created`, `updated` | | Identity and timestamps. |
 | `lifecycle`, `ball`, `ball_reason`, `ball_prompt`, `outcome`, `archived` | | The state axes, above. |
 | `priority` | enum | `low` · `medium` · `high` · `critical` |
+| `queue_position` | int | Order **within** the priority band; `>= 1`, and present if and only if the task is open — the same rule shape as `ball`. Unique among open tasks of one band in one project, which the model cannot check and `agentjobs validate` does. Assigned in sparse steps of 100 so an insertion takes a midpoint and rewrites one file rather than a band. It is order and nothing else: `high/900` beats `medium/100` because of the band, not the number. |
 | `category`, `tags` | str, list | Project taxonomy. Validated against config by the manager, not the model. |
 | `effort` | str | Free text. An estimate, not a contract. |
 | `assignment` | object | `owner` (live, one actor id) and `eligible` (authoring-time list; empty means anyone). |
@@ -115,6 +116,7 @@ ball_prompt: >-            # the ask, addressed to whoever holds the ball
 archived: false
 
 priority: high             # low | medium | high | critical
+queue_position: 400        # order within the band; open tasks only
 category: developer_experience
 tags: [react-frontend, phase-0]
 effort: 15 minutes         # free text; an estimate, not a contract

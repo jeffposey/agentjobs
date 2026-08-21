@@ -292,6 +292,14 @@ classes:
       priority:
         range: Priority
         ifabsent: string(medium)
+      queue_position:
+        description: >-
+          Explicit order within the priority band. Unique among open tasks of the
+          same priority in one project. Present if and only if the task is open.
+          Assigned in sparse steps of 100 so an insertion takes a midpoint and
+          rewrites one file rather than a whole band.
+        range: integer
+        minimum_value: 1
       category:
         description: >-
           Validated against the project config vocabulary at save time, not
@@ -672,6 +680,38 @@ classes:
           per-type shape is validated by the manager that writes it.
         range: AnyValue
         inlined: true
+      attachments:
+        description: >-
+          Images stored beside the tasks and referenced from this entry. The blob
+          lives in a sidecar file; only the metadata is in the YAML, so a task file
+          stays readable in a text editor and diffable line by line.
+        range: Attachment
+        multivalued: true
+        inlined_as_list: true
+
+  Attachment:
+    description: >-
+      One image stored beside the tasks, referenced from the log entry it illustrates.
+      `sha256` is both the sidecar's filename and its integrity check: a read that does
+      not hash to this is refused rather than rendered.
+    attributes:
+      path:
+        description: Sidecar path, relative to the tasks directory rather than the repo root.
+        required: true
+      media_type:
+        description: Image media type, derived from the bytes rather than the filename.
+        required: true
+      sha256:
+        description: Content hash; also the sidecar's filename.
+        required: true
+      size_bytes:
+        description: Size of the stored file.
+        range: integer
+        minimum_value: 1
+        required: true
+      label:
+        description: Accessible label; alt text wherever it renders.
+        required: true
 
   AnyValue:
     class_uri: linkml:Any

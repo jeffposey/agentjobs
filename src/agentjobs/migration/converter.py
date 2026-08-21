@@ -18,6 +18,8 @@ from agentjobs.models_v2 import (
     Task,
 )
 
+from agentjobs.queue import QUEUE_STEP
+
 from .parser import ParsedTask
 
 
@@ -169,6 +171,11 @@ class TaskConverter:
             created=now,
             updated=now,
             priority=priority,
+            # Rule 6: an open task holds a place in its band. One conversion cannot
+            # know the band -- that is a property of the corpus it is joining -- so it
+            # produces a valid task at the top and `migrate_tasks` renumbers the batch
+            # against the target directory before saving any of it.
+            queue_position=None if state["lifecycle"] is Lifecycle.CLOSED else QUEUE_STEP,
             category=parsed.category or "general",
             effort=parsed.estimated_effort,
             spec=Spec(summary=summary, description=description),

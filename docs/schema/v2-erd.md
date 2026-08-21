@@ -28,6 +28,13 @@ in your browser. Or click the diagram below to zoom it in place.
     Assignment {
         stringList eligible  
     }
+    Attachment {
+        string label  
+        string media_type  
+        string path  
+        string sha256  
+        integer size_bytes  
+    }
     Branch {
         string name  
         datetime merged_at  
@@ -79,6 +86,7 @@ in your browser. Or click the diagram below to zoom it in place.
         Outcome outcome  
         string parent  
         Priority priority  
+        integer queue_position  
         integer schema  
         stringList tags  
         string title  
@@ -88,6 +96,7 @@ in your browser. Or click the diagram below to zoom it in place.
     Assignment ||--|o Actor : "owner"
     LogEntry ||--|o AnyValue : "data"
     LogEntry ||--|| Actor : "actor"
+    LogEntry ||--}o Attachment : "attachments"
     Spec ||--}o ContextPointer : "context"
     Task ||--|o Assignment : "assignment"
     Task ||--|| Spec : "spec"

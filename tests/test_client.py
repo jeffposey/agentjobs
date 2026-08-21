@@ -24,9 +24,13 @@ def _sample_task(**overrides: Any) -> Dict[str, Any]:
         "priority": "medium",
         "category": "ops",
         "spec": {"summary": "Sample summary", "description": "Sample description"},
+        "queue_position": 100,
         "log": [],
     }
     payload.update(overrides)
+    # Rule 6, the same shape as `ball`: a closed task holds neither.
+    if payload.get("lifecycle") == "closed":
+        payload.pop("queue_position", None)
     return payload
 
 

@@ -34,6 +34,7 @@ def ready_task(storage: TaskStorage, task_id: str = "task-100-contended") -> Tas
             ball=Ball.AGENT,
             ball_reason=BallReason.AVAILABLE,
             priority=Priority.HIGH,
+            queue_position=100,
             category="infrastructure",
             spec=Spec(
                 summary="Two agents will want this.",

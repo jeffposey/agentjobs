@@ -85,6 +85,10 @@ def _task(task_id: str, title: str, **kwargs: Any) -> Task:
         "spec": Spec(summary=f"Summary of {title}", description=f"Description of {title}"),
     }
     fields.update(kwargs)
+    # Rule 6: open work has a place in line, closed work has none. Set after the
+    # kwargs so a caller asking for a closed task still gets a valid one.
+    if fields.get("lifecycle") is not Lifecycle.CLOSED:
+        fields.setdefault("queue_position", 100)
     return Task(**fields)
 
 
