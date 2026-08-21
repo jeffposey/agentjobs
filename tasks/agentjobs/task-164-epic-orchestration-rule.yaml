@@ -3,7 +3,7 @@ id: task-164-epic-orchestration-rule
 title: An agent working an epic runs its children as separate sessions and supervises
   them
 created: '2026-08-19T16:44:19.421276Z'
-updated: '2026-08-21T04:21:14.381735Z'
+updated: '2026-08-21T04:22:02.368671Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -479,3 +479,13 @@ log:
       id: e0c15a46-9b27-4d81-a5f2-73e806b41649
       kind: log_append
       fingerprint: f9043821f4cdaecf924d4915a1e35036
+- id: 12
+  ts: '2026-08-21T04:22:02.368547Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 5
+  data:
+    run_id: run_b46b2abf
+    outcome: completed
+    duration_seconds: 3595.680855
+    log_path: C:\Users\jpose\.agentjobs\runs\run_b46b2abf
