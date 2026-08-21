@@ -2,7 +2,7 @@ schema: 2
 id: task-081-task-selection-ranking
 title: Design explicit queue positions so AgentJobs always knows what is next
 created: '2026-08-11T04:56:38.397821Z'
-updated: '2026-08-21T15:04:27.502147Z'
+updated: '2026-08-21T15:10:28.812831Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1624,3 +1624,75 @@ log:
       id: 8f5c2a41-7d09-4b36-a1e4-3b6d8e0f2c17
       kind: handoff
       fingerprint: 3edb2da72d7276192c8f90e64b2ba83f
+- id: 42
+  ts: '2026-08-21T15:10:28.812520Z'
+  actor: claude
+  type: decision
+  body: 'Two children run in parallel for the 207/208 pair, on Jeff''s instruction.
+    He dispatched task-208 himself at 15:06:37Z as run_a1e35ca5 while task-207 was
+    already working, and told me so directly: "I dispatched 208 after a note was added,
+    because it can be done in parallel with 207."
+
+
+    This overrides "one child at a time" for this pair only. The rule is mine to follow,
+    not to enforce against the person who owns the epic, and his reasoning is right
+    on the facts: 207 and 208 have disjoint dependencies (207 needed 206, 208 needed
+    205, both closed), disjoint surfaces (frontend/src + the REST list route vs src/agentjobs/mcp
+    + ALLAGENTS.md + docs), and nothing depends on either. The recorded child order
+    never put them in sequence -- it is 207/209 after 206 and 208 after 205, with
+    no order stated between them. What I was actually enforcing was the supervisor-context
+    argument from docs/agent-workflow.md, and that argument is about MY context, not
+    about theirs: each child still has its own session, its own worktree and its own
+    record, so nothing that rule protects is spent by running them at once. The cost
+    is that I hold two poll loops instead of one, which is cheap.
+
+
+    REJECTED: stopping 208 to restore the serial order. That would have thrown away
+    a running child to satisfy a rule whose purpose was already being served, and
+    it would have overruled the human on a scheduling call that is his.
+
+
+    THREE INTERACTIONS THAT ARE NOW LIVE, recorded so whoever handles the second merge
+    is not surprised by them:
+
+
+    1. Whichever child merges second ran its ten-stage gate against a main that did
+    not yet contain the other''s change. That is ordinary for parallel branches and
+    the answer is the ordinary one -- rebase onto main, and if the rebase moves past
+    real code rather than task YAML, the pre-merge green no longer describes the merged
+    tree and the gate has to be re-run. task-206''s entry 14 is the worked example
+    of checking which of those two cases you are in: diff the pre- and post-rebase
+    tips and look at whether anything but tasks/ moved.
+
+
+    2. Both may rebuild the frontend and restart 8876 through the launcher. Harmless
+    in itself, and the gate is not at risk -- since task-187 each checkout derives
+    its own Playwright and benchmark ports from its own path -- but the second restart
+    is the one that decides what Jeff sees, so the second child to finish owns the
+    delivery check.
+
+
+    3. 207 touches the generated frontend client and 208 does not touch REST at all,
+    so openapi.json should not be contested. If it is, that is a signal one of them
+    went outside its spec, not a merge to force through.
+
+
+    DIFFERENT SIGNAL FOR 208, worth stating because it changes how I watch it. 208
+    is a real AgentJobs dispatch and appears in the run ledger; it will get a dispatch_result
+    entry when it settles, and the poller reaps it. 207 is my own subprocess (session
+    6a0beee3) and has none of that. Both are polled on the task record, which is the
+    signal that holds either way.
+
+
+    STATE at 15:10Z: 207 has two commits on feat/task-207-queue-order-react-list (the
+    API list route and the React list/keyboard reorder); 208 has its worktree and
+    branch and no commits yet. Separately and not mine: task-222 (pre-approve git
+    merge for dispatched runs) is active with a worktree and an empty branch, worked
+    by an interactive session. If it lands before either child merges, the merge-decline
+    instruction in my ball_prompt becomes moot rather than wrong -- leave it there
+    either way.'
+  data:
+    operation:
+      id: bb9b9273-0081-4a00-9e00-000000000003
+      kind: log_append
+      fingerprint: ec6d769fb578959aa8525393485f5eea
