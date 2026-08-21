@@ -522,6 +522,7 @@ _DISPATCH_STATUS: dict = {
     "insufficient_record": status.HTTP_409_CONFLICT,
     "no_causing_entry": status.HTTP_409_CONFLICT,
     "task_closed": status.HTTP_409_CONFLICT,
+    "task_on_hold": status.HTTP_409_CONFLICT,
     "live_run_exists": status.HTTP_409_CONFLICT,
     "concurrency_limit": status.HTTP_409_CONFLICT,
     "dirty_tree": status.HTTP_409_CONFLICT,
@@ -551,6 +552,7 @@ _DISPATCH_ACTION: dict = {
     ),
     "no_causing_entry": "Write the note or handoff that authorises this run first.",
     "task_closed": "Reopen the task before dispatching at it.",
+    "task_on_hold": "Release the hold from the review panel, then dispatch.",
     "live_run_exists": "Wait for the run to finish, or cancel it.",
     "concurrency_limit": (
         "Cancel one of the runs named above, wait for one to finish, or raise "

@@ -81,8 +81,8 @@ a task nobody is responsible for, or a handoff with no stated ask, cannot be wri
 down. Limbo stops being representable.
 
 `ball_reason` is scoped to whoever holds the ball — an agent can be `available`,
-`work`, or `revise`; a human can be `spec`, `review`, `decision`, `approval`, or
-`input`; `external` can be `dependency` or `service`. That's the "sub-parameter for
+`work`, `revise`, `answer`, `redirect`, or `hold`; a human can be `spec`, `review`,
+`decision`, `approval`, or `input`; `external` can be `dependency` or `service`. That's the "sub-parameter for
 why" from your own first design note, made into a closed vocabulary.
 
 ---

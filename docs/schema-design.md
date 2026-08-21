@@ -252,6 +252,9 @@ responsible is not representable in v2.
 | `agent` | `available` | ready, unclaimed — "any eligible agent, take it" |
 | | `work` | claimed and executing |
 | | `revise` | review came back with changes requested |
+| | `answer` | a human supplied what the agent was waiting for; prior work stands |
+| | `redirect` | a human changed the instructions; prior work stands, the direction does not |
+| | `hold` | stopped by a human, release condition in `ball_prompt` — the one agent reason that is not workable |
 | `human` | `spec` | the spec needs human completion/refinement (typical in `draft`) |
 | | `review` | work product needs review (v1's `under_review`) |
 | | `decision` | a choice is blocking progress |

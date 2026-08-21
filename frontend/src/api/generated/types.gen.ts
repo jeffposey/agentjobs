@@ -150,7 +150,7 @@ export type Ball = 'agent' | 'human' | 'external';
  *
  * Why the ball holder holds it. Scoped to the holder -- see BALL_REASONS.
  */
-export type BallReason = 'available' | 'work' | 'revise' | 'spec' | 'review' | 'decision' | 'approval' | 'input' | 'dependency' | 'service';
+export type BallReason = 'available' | 'work' | 'revise' | 'answer' | 'redirect' | 'hold' | 'spec' | 'review' | 'decision' | 'approval' | 'input' | 'dependency' | 'service';
 
 /**
  * Branch

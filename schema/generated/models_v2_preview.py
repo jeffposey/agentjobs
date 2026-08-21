@@ -170,6 +170,18 @@ class BallReason(str, Enum):
     """
     agent: review came back with changes requested.
     """
+    answer = "answer"
+    """
+    agent: the human supplied what the agent was waiting for -- an answer, a decision, a permission, a cleared blocker. Prior work stands; resume.
+    """
+    redirect = "redirect"
+    """
+    agent: the instructions changed. Prior work stands but the direction does not; re-read the prompt before continuing.
+    """
+    hold = "hold"
+    """
+    agent: stopped by a human, with the release condition stated in ball_prompt. The only agent-side reason that is not workable -- auto-dispatch skips it.
+    """
     spec = "spec"
     """
     human: the spec needs human completion or refinement.
@@ -374,10 +386,14 @@ class Task(ConfiguredBaseModel):
                                                                                    {'equals_string': 'active'}],
                                                                         'name': 'lifecycle'}}},
                     'title': 'open_tasks_state_their_ask'},
-                   {'description': 'Rule 2, agent side: available | work | revise.',
+                   {'description': 'Rule 2, agent side: available | work | revise | '
+                                   'answer | redirect | hold.',
                     'postconditions': {'slot_conditions': {'ball_reason': {'any_of': [{'equals_string': 'available'},
                                                                                       {'equals_string': 'work'},
-                                                                                      {'equals_string': 'revise'}],
+                                                                                      {'equals_string': 'revise'},
+                                                                                      {'equals_string': 'answer'},
+                                                                                      {'equals_string': 'redirect'},
+                                                                                      {'equals_string': 'hold'}],
                                                                            'name': 'ball_reason'}}},
                     'preconditions': {'slot_conditions': {'ball': {'equals_string': 'agent',
                                                                    'name': 'ball'}}},

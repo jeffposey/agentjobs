@@ -127,6 +127,9 @@ class BallReason(ValueEnum):
     AVAILABLE = "available"
     WORK = "work"
     REVISE = "revise"
+    ANSWER = "answer"
+    REDIRECT = "redirect"
+    HOLD = "hold"
     # ball: human
     SPEC = "spec"
     REVIEW = "review"
@@ -139,7 +142,16 @@ class BallReason(ValueEnum):
 
 
 BALL_REASONS: Dict[Ball, frozenset[BallReason]] = {
-    Ball.AGENT: frozenset({BallReason.AVAILABLE, BallReason.WORK, BallReason.REVISE}),
+    Ball.AGENT: frozenset(
+        {
+            BallReason.AVAILABLE,
+            BallReason.WORK,
+            BallReason.REVISE,
+            BallReason.ANSWER,
+            BallReason.REDIRECT,
+            BallReason.HOLD,
+        }
+    ),
     Ball.HUMAN: frozenset(
         {
             BallReason.SPEC,
@@ -878,7 +890,17 @@ class Task(StrictModel):
             if self.ball_reason is BallReason.AVAILABLE:
                 return "Ready"
             owner = self.assignment.owner
-            verb = "Revising" if self.ball_reason is BallReason.REVISE else "In progress"
+            # `hold` is the one agent-side reason that does not mean "an agent is on
+            # this", so it reads as a stop rather than as a flavour of progress. The
+            # owner is still named: a held task is still somebody's, and knowing whose
+            # is the first thing a reader wants when deciding whether to release it.
+            agent_verbs: Dict[BallReason, str] = {
+                BallReason.REVISE: "Revising",
+                BallReason.ANSWER: "In progress",
+                BallReason.REDIRECT: "In progress",
+                BallReason.HOLD: "On hold",
+            }
+            verb = agent_verbs.get(self.ball_reason or BallReason.WORK, "In progress")
             return f"{verb} ({owner})" if owner else verb
         # str() because mypy types Enum.value as Any, and this returns str.
         return str(self.lifecycle.value).capitalize()

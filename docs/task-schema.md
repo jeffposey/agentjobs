@@ -48,9 +48,26 @@ are not representable:
 
 | `ball` | permitted `ball_reason` |
 |---|---|
-| `agent` | `available` · `work` · `revise` |
+| `agent` | `available` · `work` · `revise` · `answer` · `redirect` · `hold` |
 | `human` | `spec` · `review` · `decision` · `approval` · `input` |
 | `external` | `dependency` · `service` |
+
+**The agent-side reasons say what a human meant when they sent the task back**, which
+is what the axis is for and what one value could not carry (task-231):
+
+| reason | the human's act | what the agent does next |
+|---|---|---|
+| `work` | approved, or dispatched fresh | get on with it |
+| `revise` | the work needs changing | change it, then come back for another review |
+| `answer` | supplied what the agent was waiting for — an answer, a decision, a permission, a cleared blocker | resume; prior work stands |
+| `redirect` | changed the instructions | re-read `ball_prompt`; prior work stands, the direction does not |
+| `hold` | stopped it, with the release condition in `ball_prompt` | **nothing.** Wait for a human to release it |
+
+`hold` is the one agent-side reason that is not workable, so auto-dispatch skips it and
+a manual dispatch at a held task is refused (`task_on_hold`). Whether a *question* was
+answered or a *blocker* was cleared is read off the state the ball came from — the
+preceding handoff entry says `human/decision` or `external/dependency` — rather than
+from a second reason value that could disagree with it.
 
 ### Fields
 

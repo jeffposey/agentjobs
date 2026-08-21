@@ -451,10 +451,25 @@ At any human-decision point:
    signal; all substance belongs in the task record.
 5. Stop. Do not merge or make the decision on the human's behalf.
 
-The React UI can record approval or requested changes. Approval hands the ball back as
-`agent/work` with instructions to rebase, merge, update branch metadata, and close.
-Requested changes hand it back as `agent/revise`, with the feedback preserved in both
-`ball_prompt` and the handoff log.
+The React UI records what the human actually did, and each control writes the reason
+that matches its label. Approval hands the ball back as `agent/work` with instructions
+to rebase, merge, update branch metadata, and close — and it now takes an **optional
+note**, which rides verbatim in `ball_prompt` and the log *in addition to* the merge
+clearance, never instead of it. The other three send-back controls differ only in the
+reason they record, and every one of them preserves its note in both `ball_prompt` and
+the handoff log:
+
+| control | writes | read it as |
+|---|---|---|
+| Request Changes | `agent/revise` | the work needs changing; come back for another review |
+| Answer Questions | `agent/answer` | here is what you were waiting for; resume, prior work stands |
+| New Instructions | `agent/redirect` | the direction changed; re-read the prompt, prior work stands |
+| Hold | `agent/hold` | **stop.** Do not work this until the stated condition is met |
+
+The panel offers only the controls that are true of the task in front of it: a task at
+`human/decision` gets no Approve button, because there is nothing to merge. A held task
+shows a Resume control instead of the review controls, and refuses a dispatch until it
+is released.
 
 ### External Block
 

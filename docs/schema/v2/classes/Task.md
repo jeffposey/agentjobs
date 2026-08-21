@@ -274,7 +274,7 @@ URI: [aj:class/Task](https://github.com/jeffposey/agentjobs/schema/v2/class/Task
 
 | Rule Applied | Preconditions | Postconditions | Elseconditions |
 |--------------|---------------|----------------|----------------|
-| slot_conditions |```{'ball': {'equals_string': 'agent'}}``` |```{'ball_reason': {'any_of': [{'equals_string': 'available'}, {'equals_string': 'work'}, {'equals_string': 'revise'}]}}``` | |
+| slot_conditions |```{'ball': {'equals_string': 'agent'}}``` |```{'ball_reason': {'any_of': [{'equals_string': 'available'}, {'equals_string': 'work'}, {'equals_string': 'revise'}, {'equals_string': 'answer'}, {'equals_string': 'redirect'}, {'equals_string': 'hold'}]}}``` | |
 
 
 
@@ -660,7 +660,11 @@ rules:
         - equals_string: available
         - equals_string: work
         - equals_string: revise
-  description: 'Rule 2, agent side: available | work | revise.'
+        - equals_string: answer
+        - equals_string: redirect
+        - equals_string: hold
+  description: 'Rule 2, agent side: available | work | revise | answer | redirect
+    | hold.'
   title: agent_ball_reason_vocabulary
 - preconditions:
     slot_conditions:
@@ -1062,7 +1066,11 @@ rules:
         - equals_string: available
         - equals_string: work
         - equals_string: revise
-  description: 'Rule 2, agent side: available | work | revise.'
+        - equals_string: answer
+        - equals_string: redirect
+        - equals_string: hold
+  description: 'Rule 2, agent side: available | work | revise | answer | redirect
+    | hold.'
   title: agent_ball_reason_vocabulary
 - preconditions:
     slot_conditions:

@@ -120,7 +120,10 @@ HANDOFF_TARGET_SCHEMA: Dict[str, Any] = {
             "required": ["ball", "reason", "prompt"],
             "properties": {
                 "ball": {"const": "agent"},
-                "reason": {"type": "string", "enum": ["work", "revise"]},
+                "reason": {
+                    "type": "string",
+                    "enum": ["work", "revise", "answer", "redirect", "hold"],
+                },
                 "prompt": {"type": "string", "minLength": 1},
             },
         },

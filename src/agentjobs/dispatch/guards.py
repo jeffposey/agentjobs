@@ -78,7 +78,15 @@ from agentjobs.dispatch.runner import (
     uncommitted_paths,
 )
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import DispatchTrigger, Lifecycle, LogEntry, LogEntryType, Task
+from agentjobs.models_v2 import (
+    Ball,
+    BallReason,
+    DispatchTrigger,
+    Lifecycle,
+    LogEntry,
+    LogEntryType,
+    Task,
+)
 from agentjobs.projects import Project
 
 TERMINAL_RUN_STATUSES = frozenset({"finished", "cancelled", "failed"})
@@ -161,6 +169,19 @@ class TaskClosedError(DispatchRefused):
     """The task is closed. Dispatching would start work on something finished."""
 
     reason = "task_closed"
+
+
+class TaskOnHoldError(DispatchRefused):
+    """A human stopped this task and stated a release condition (task-231).
+
+    `agent/hold` is the one agent-side reason that does not mean "an agent may
+    proceed", so the ball alone no longer answers whether a dispatch is allowed. A hold
+    the manual path ignored would be a hold in name only: the human clicks Hold, the
+    Dispatch button beside it still works, and the record ends up saying stopped while
+    a run is going.
+    """
+
+    reason = "task_on_hold"
 
 
 class LiveRunExistsError(DispatchRefused):
@@ -640,6 +661,12 @@ def dispatch_task(
         raise TaskClosedError(
             f"{task.id} is closed ({(task.outcome.value if task.outcome else 'no outcome')}). "
             "Reopen it before dispatching an agent at it."
+        )
+
+    if task.ball is Ball.AGENT and task.ball_reason is BallReason.HOLD:
+        raise TaskOnHoldError(
+            f"{task.id} is on hold: {task.ball_prompt or 'no release condition recorded'}. "
+            "Release it from the review panel before dispatching an agent at it."
         )
 
     # Gate 1-4 from task-068, including the sentinel. Re-checked at spawn time by the
