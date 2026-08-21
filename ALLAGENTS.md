@@ -118,7 +118,12 @@ are not working it — you are supervising, you take no worktree, and
 3.  **Work**: Small, single-logical-change commits with tests green before each one.
     Stage explicit paths — never `git add -A`.
 4.  **Verify**: Run `poetry run pytest` and exercise the change the way a user would —
-    a passing suite is not by itself evidence the feature works.
+    a passing suite is not by itself evidence the feature works. While iterating on a
+    late gate failure, `scripts/check.py --from <stage>` picks up where it stopped
+    instead of paying for the stages that already passed; `--list` names them. **Neither
+    that nor `--only` is the gate.** A partial run prints `PARTIAL RUN` and the stages it
+    skipped, at the start and again at the end, precisely so its green cannot be reported
+    as the gate's — before a commit, run `scripts/check.py` with no arguments.
 5.  **Hand off**: `handoff` to `human`/`review` with a `ball_prompt` saying what was done
     and what needs review, and **commit that to `main`** — a handoff sitting on your
     branch is invisible in the React app, so the human you are handing to will never see
