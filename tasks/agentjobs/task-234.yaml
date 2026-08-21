@@ -3,13 +3,11 @@ id: task-234
 title: Merging after approval costs a whole second agent session, about eleven minutes,
   on every task
 created: '2026-08-21T20:43:16.534300Z'
-updated: '2026-08-21T23:41:38.701881Z'
+updated: '2026-08-21T23:58:42.258129Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: Run run_92d3e98c ended `cancelled` and nobody was told what this task
-  needs. Read the dispatch_result entry, then either dispatch again or take it on
-  yourself.
+ball: agent
+ball_reason: redirect
+ball_prompt: I logged in AGAIN today just now from claude terminal. Try again.
 archived: false
 priority: critical
 queue_position: 200
@@ -151,7 +149,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-234-wake-the-session
+  status: active
 log:
 - id: 1
   ts: '2026-08-21T20:43:17.063037Z'
@@ -507,3 +507,149 @@ log:
   data:
     ball: human
     ball_reason: decision
+- id: 13
+  ts: '2026-08-21T23:42:29.605396Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'New instructions from Jeff Posey:
+
+
+    I logged in AGAIN today just now from claude terminal. Try again.'
+  data:
+    ball: agent
+    ball_reason: redirect
+- id: 14
+  ts: '2026-08-21T23:42:33.002328Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 15
+  ts: '2026-08-21T23:42:34.121372Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_1994a874
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 14
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-234` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-234-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_1994a874.'
+    cwd: C:\projects\agentjobs
+    git_head: 2962a00
+    session_id: 795aaa29
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 16
+  ts: '2026-08-21T23:58:17.289083Z'
+  actor: claude
+  type: progress
+  body: "**The wake command is settled, and the obvious form of it is a trap.** Tested\
+    \ 2026-08-21 on five throwaway background sessions in a scratch directory; no\
+    \ real run was touched, and all five were `claude rm`'d afterwards (verified absent\
+    \ from `agents --json --all`). Claude Code 2.1.238.\n\n## The answer\n\n```\n\
+    claude --bg --remote-control -r <session_uuid>   < (the prompt on stdin)\n```\n\
+    \nThat resumes the conversation, **delivers the prompt**, and **keeps remote control**.\
+    \ All three verified in one run.\n\n## Why the positional form does not work\n\
+    \nEntry 5 left this open: it saw a resume come up idle with `--remote-control`\
+    \ and flagged it as possibly a timing artefact. It is not an artefact. It reproduces\
+    \ every time, and it is a genuine interaction between two flags:\n\n| Command\
+    \ | Conversation restored | Prompt delivered |\n|---|---|---|\n| `claude --bg\
+    \ -r <uuid> \"prompt\"` | yes | **yes** |\n| `claude --bg --remote-control -r\
+    \ <uuid> \"prompt\"` | yes | **no** |\n| `claude --bg --remote-control -r <uuid>\
+    \ < prompt` | yes | **yes** |\n\nReproduced twice for the middle row, on two different\
+    \ conversations. The resumed session comes up with its whole prior conversation\
+    \ intact \u2014 the old turns are in its transcript \u2014 and an **empty prompt\
+    \ box**. The positional argument is silently dropped.\n\n`--remote-control` alone\
+    \ is fine: dispatch passes it on every fresh run and those work. `-r` alone is\
+    \ fine, row 1. It is only the pair.\n\n## The part that makes this dangerous rather\
+    \ than merely annoying\n\nA resume that swallows its prompt does **not** look\
+    \ broken. The session settles at `status: idle`, `state: blocked` \u2014 and `classify_session`\
+    \ maps `status == \"idle\"` to `SessionPhase.FINISHED`. So dispatch would read\
+    \ a woken session that never received its instruction as a session that *finished*,\
+    \ hand it to `_settle_finished_session`, find the ball had not moved, wait out\
+    \ the staleness window and file `finished_without_handoff`. A wake that silently\
+    \ did nothing would be reported as an agent that stopped without saying what it\
+    \ needs.\n\nThere is no marker to catch it by, either. A `--bg` session started\
+    \ with *no* prompt at all prints `(idle \u2014 send a prompt to start)` on stdout;\
+    \ the swallowed-prompt resume prints the ordinary `backgrounded \xB7 <id>` and\
+    \ nothing else. The CLI believes it has a prompt to run.\n\n**So the stdin form\
+    \ is not a stylistic preference over the positional one. It is the difference\
+    \ between a wake that works and a wake that fails silently, and anyone editing\
+    \ that argv later needs to know that.**\n\n## Three other facts the implementation\
+    \ depends on\n\n1. **A resumed session gets a new id and a new `sessionId`.**\
+    \ Resuming `0b389b24-\u2026` produced a background agent `f8ceaf4c` with `sessionId:\
+    \ f8ceaf4c-\u2026`. So a run that wakes is not the old run continuing under its\
+    \ old id; the ledger has to follow the new session, and the *next* wake has to\
+    \ resume the *newest* uuid, not the original one.\n2. **`claude stop` keeps the\
+    \ row in the ledger.** After `stop`, `agents --json --all` still lists the session\
+    \ with its `sessionId`, minus `pid` and minus `status`. That is what makes the\
+    \ uuid recoverable at wake time rather than needing to have been captured at start\
+    \ time. Note the residue: `status` absent with `state: \"done\"` classifies as\
+    \ `RUNNING` through `classify_session`'s catch-all, which is harmless only because\
+    \ the poller looks at `live_runs` and a stopped run is terminal by then.\n3. **`-r`\
+    \ takes the full UUID.** Confirmed as entry 5 said; the short id was not retried\
+    \ here, so treat the short form as unsupported rather than as untested-and-probably-fine.\n\
+    \n## What this settles about the design\n\nJeff's shape (entry 4) is buildable\
+    \ exactly as he described it, with **no loss of remote control** \u2014 which\
+    \ was the trade-off I expected to have to bring back to him and do not. The woken\
+    \ merge session is reachable from his phone the same way a fresh dispatch is,\
+    \ which matters because the merge step is where a permission prompt is most likely\
+    \ (`git merge` is a classifier coin-flip, not a categorical allow).\n\nThe remaining\
+    \ work is dispatch-side and does not depend on any further CLI question: stop\
+    \ rather than destroy a session whose task has gone to a human, keep the run's\
+    \ session uuid recoverable, and make the ball-moves-back-to-agent path wake it\
+    \ instead of spawning a cold one."
+  data:
+    operation:
+      id: 7f1c2a90-4b3d-4e51-9c62-1a0b7e5d3f81
+      kind: log_append
+      fingerprint: 66b3c175f35515843bb2beacb9004274
+- id: 17
+  ts: '2026-08-21T23:58:42.257856Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 7f1c2a90-4b3d-4e51-9c62-1a0b7e5d3f82
+      kind: update_content
+      fingerprint: 181d79b7a20e6d7f41a92c8727f5672f
