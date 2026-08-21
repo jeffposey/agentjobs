@@ -2,7 +2,7 @@ schema: 2
 id: task-220
 title: An epic supervisor parks where ordinary dispatched runs do not
 created: '2026-08-21T05:35:56.284351Z'
-updated: '2026-08-21T06:08:56.744332Z'
+updated: '2026-08-21T06:14:29.314610Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -395,3 +395,63 @@ log:
       id: a1c58d93-2f64-4b07-9e35-7d18a9f20220
       kind: log_append
       fingerprint: c38a3bdfb518cf6a07883cc650125987
+- id: 7
+  ts: '2026-08-21T06:14:29.314484Z'
+  actor: claude
+  type: decision
+  body: '**Escalated by Jeff to the `big-dawg` runner (Fable 5), 2026-08-21 ~06:10,
+    using the `big-dawg` skill written minutes earlier from this task''s own failure.**
+
+
+    **Why it was escalated, recorded because the skill asks for it and it is the data
+    that makes the pattern learnable:** three framings in ninety minutes, each confident
+    and each withdrawn -- MCP tool permissions (entry 3''s original premise), then
+    the permission mode (entry 3), then the supervisor role (entry 4). Two produced
+    proposed fixes; one reached the point of a worktree and branch before being torn
+    down unbuilt. Roughly ninety minutes of Jeff''s night, at the end of which the
+    epic he wanted to run overnight had not started. The escalating session was pattern-matching
+    on whichever symptom was most recently on screen rather than reading the primary
+    evidence, and did not correct that on its own -- Jeff caught it each time.
+
+
+    **The distillation is already on this record and is not restated here.** Read
+    in this order:
+
+
+    - **Entry 4** -- current understanding, and what it withdrew from entry 3. Read
+    this before entry 3.
+
+    - **Entry 3** -- the permission-mode research. Its *facts* are good and worth
+    keeping (six modes exist, `dontAsk` is the documented headless one, `bypassPermissions`
+    shows a dialog anyway); its *conclusion* is withdrawn.
+
+    - **Entry 6** -- the discriminating test, and the cheapest thing to do first.
+
+    - **spec** -- rewritten at entry 5 to match entry 4, so it no longer instructs
+    a reader to chase the first theory.
+
+
+    **The single most useful sentence for the next agent**, repeated from the spec
+    because it is the thing nobody did: the breaker fires on **three consecutive blocks
+    and only the third is displayed**. The first two are in `C:/Users/jpose/.agentjobs/runs/run_d5ab5caf/transcript.log`
+    and **nobody has read them**. An earlier attempt gave up on the ANSI escapes and
+    substituted a hypothesis, which is the root of all three wrong framings. Parse
+    it properly.
+
+
+    **Do entry 6''s test before writing any code.** Launch a supervisor with `spawn-session`''s
+    flags (`--bg --remote-control <name> --permission-mode bypassPermissions`) against
+    the same brief. That mechanism demonstrably does not park on this machine. If
+    the supervisor survives it, the variable is the posture and not the supervisor
+    role, and this task collapses to something much smaller. If it parks anyway, ac-1''s
+    transcript work is the way in. One run either way, and it splits the two live
+    hypotheses.
+
+
+    **What not to repeat:** do not propose a fix before ac-1 is answered. Three have
+    been, and all three were wrong.'
+  data:
+    operation:
+      id: b3e69f04-4d17-4c82-a596-8e20b7d30220
+      kind: log_append
+      fingerprint: 2a2657f4bbf1164add9e16b428e54596
