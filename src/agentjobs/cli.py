@@ -6,7 +6,7 @@ import copy
 import json
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import typer
 import yaml
@@ -26,7 +26,7 @@ from .dispatch.guards import DispatchRequest, dispatch_task
 from .dispatch.ledger import DispatchLedger, LedgerError, list_runs, live_runs
 from .dispatch.runner import DispatchRunError
 from .dispatch.scaffold import EXAMPLE_CONFIG, write_example_config
-from .manager import TaskManager
+from .manager import QueueEntry, QueueListing, TaskManager
 from .mcp.config import BASE_URL_ENV as MCP_BASE_URL_ENV
 from .mcp.config import TIMEOUT_ENV as MCP_TIMEOUT_ENV
 from .migration import migrate_tasks
@@ -40,6 +40,7 @@ from .project_setup import (
     initialize_project,
 )
 from .projects import ProjectError, ProjectRegistry, default_home
+from .queue import REPAIR_COMMAND, QueueCorruptionError
 from .storage import TaskStorage, corpus_snapshot
 
 
@@ -1268,6 +1269,312 @@ def dispatch_show_config(
                             f"    skipped {candidate.runner}: "
                             f"{candidate.skipped_because.value}{detail}"
                         )
+
+
+queue_app = typer.Typer(
+    name="queue",
+    help="Read and change the order work is handed out in.",
+)
+app.add_typer(queue_app)
+
+#: The listing is written for an 80-column terminal, because that is the width a
+#: terminal is when nobody has widened it, and this list is meant to be read.
+_WIDTH = 80
+_INDENT = "        "
+
+
+def _fit(value: str, width: int) -> str:
+    """``value`` cut to ``width``, ending in an ellipsis when it had to be cut."""
+    return value if len(value) <= width else value[: width - 1] + "\u2026"
+
+
+def _band_heading(band: str, entries: List[QueueEntry]) -> str:
+    """``HIGH  (54 open, 12 claimable)``, or ``(empty)`` when the band has nobody."""
+    if not entries:
+        return f"{band.upper()}  (empty)"
+    claimable = sum(1 for entry in entries if entry.claimable)
+    return f"{band.upper()}  ({len(entries)} open, {claimable} claimable)"
+
+
+def _render_listing(
+    listing: QueueListing, *, only_band: Optional[str], claimable_only: bool
+) -> List[str]:
+    """The listing as lines, band by band.
+
+    Two lines per task -- number and id, then the title -- and a third naming the rule
+    that excluded it when it is not claimable. One line per task would have to drop
+    either the id or the title at this width, and both are the point: the id is what you
+    type next and the title is what lets you judge the order without opening anything.
+    """
+    lines: List[str] = []
+    for band in listing.bands:
+        if only_band is not None and band.band != only_band:
+            continue
+        entries = [entry for entry in band.entries if entry.claimable or not claimable_only]
+        if claimable_only and not entries:
+            continue
+        if lines:
+            lines.append("")
+        lines.append(_band_heading(band.band, entries))
+        lines.append("-" * min(_WIDTH, len(lines[-1])))
+        for entry in entries:
+            marker = " " if entry.claimable else "!"
+            position = "?" if entry.queue_position is None else str(entry.queue_position)
+            lines.append(f"{marker} {position:>5}  {_fit(entry.task, _WIDTH - 8)}")
+            lines.append(f"{_INDENT}{_fit(entry.title, _WIDTH - len(_INDENT))}")
+            if entry.reason:
+                lines.append(f"{_INDENT}{_fit('not claimable: ' + entry.reason, _WIDTH - 8)}")
+    return lines
+
+
+def _report_problems(listing: QueueListing) -> None:
+    """Print what is wrong with the queue, before anything that depends on it."""
+    if not listing.problems:
+        return
+    typer.secho(
+        f"\u26a0\ufe0f  The queue is broken in {len(listing.problems)} place(s):",
+        fg=typer.colors.RED,
+        err=True,
+    )
+    for problem in listing.problems:
+        typer.secho(f"   {problem.render()}", fg=typer.colors.RED, err=True)
+    typer.secho(f"   Repair it with: {REPAIR_COMMAND}", fg=typer.colors.RED, err=True)
+
+
+@queue_app.command("list")
+def queue_list(
+    band: Optional[Priority] = typer.Option(
+        None, "--band", help="Show only this band. Default is every band."
+    ),
+    claimable: bool = typer.Option(
+        False, "--claimable", help="Show only tasks an agent could take right now."
+    ),
+    agent: Optional[str] = typer.Option(
+        None, "--agent", help="Judge claimability for this agent, so eligibility applies."
+    ),
+) -> None:
+    """The whole backlog in the order it will be handed out. The reviewable copy.
+
+    Every band is shown, empty ones included, because "critical is empty" is a fact
+    worth stating rather than leaving to be inferred from a missing heading. Anything
+    not claimable is marked ``!`` and carries the rule that excluded it.
+
+    **This reports a broken queue rather than refusing to render one** -- you have to
+    be able to see a broken queue in order to fix it. It is ``agentjobs next`` that
+    declines to answer, because that is the one that would otherwise hand somebody the
+    wrong task.
+    """
+    manager = _build_manager(Path.cwd())
+    listing = manager.queue_listing(agent=agent)
+    _report_problems(listing)
+    lines = _render_listing(
+        listing, only_band=band.value if band else None, claimable_only=claimable
+    )
+    if not lines:
+        typer.echo("No tasks in the queue.")
+        return
+    for line in lines:
+        typer.echo(line)
+
+
+@queue_app.command("move")
+def queue_move(
+    task_id: str = typer.Argument(..., help="Task to move."),
+    before: Optional[str] = typer.Option(None, "--before", help="Put it ahead of this task."),
+    after: Optional[str] = typer.Option(None, "--after", help="Put it behind this task."),
+    top: bool = typer.Option(False, "--top", help="Put it first in its band."),
+    bottom: bool = typer.Option(False, "--bottom", help="Put it last in its band."),
+    with_children: bool = typer.Option(
+        False, "--with-children", help="Carry its open same-band descendants along."
+    ),
+    actor: Optional[str] = typer.Option(
+        None, "--actor", help="Who is moving it. Defaults to the project's default_user."
+    ),
+    note: Optional[str] = typer.Option(
+        None, "--note", help="Log body. Omit it and the manager writes its own sentence."
+    ),
+) -> None:
+    """Move a task within its band. Exactly one of --before/--after/--top/--bottom.
+
+    There is no way to type a position, here or anywhere else. A number chosen without
+    knowing what else is in the band is how two tasks end up sharing one; naming a
+    neighbour or an end cannot go wrong that way.
+    """
+    base_dir = Path.cwd()
+    config = _load_config(base_dir)
+    manager = _build_manager(base_dir)
+    resolved_actor = _resolve_actor(config, actor)
+    try:
+        task = manager.move(
+            task_id,
+            before=before,
+            after=after,
+            top=top,
+            bottom=bottom,
+            with_children=with_children,
+            actor=resolved_actor,
+            body=note,
+        )
+    except ValueError as error:
+        typer.secho(str(error), fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    typer.echo(f"\u2705 {task.id} is now {task.priority.value}/{task.queue_position}")
+
+
+@queue_app.command("reprioritize")
+def queue_reprioritize(
+    task_id: str = typer.Argument(..., help="Task to reprioritize."),
+    to: Priority = typer.Option(..., "--to", help="The band to move it into."),
+    before: Optional[str] = typer.Option(None, "--before", help="Put it ahead of this task."),
+    after: Optional[str] = typer.Option(None, "--after", help="Put it behind this task."),
+    top: bool = typer.Option(False, "--top", help="Put it first in the target band."),
+    actor: Optional[str] = typer.Option(
+        None, "--actor", help="Who is deciding. Defaults to the project's default_user."
+    ),
+    note: Optional[str] = typer.Option(None, "--note", help="Log body for the entry."),
+) -> None:
+    """Change a task's band, and where it lands inside it.
+
+    With no placement it joins the bottom of the target band. Children are not carried:
+    moving an epic to `critical` does not make each of its subtasks critical, and each
+    of those is a decision that deserves its own entry.
+    """
+    base_dir = Path.cwd()
+    config = _load_config(base_dir)
+    manager = _build_manager(base_dir)
+    resolved_actor = _resolve_actor(config, actor)
+    try:
+        task = manager.reprioritize(
+            task_id,
+            to,
+            before=before,
+            after=after,
+            top=top,
+            actor=resolved_actor,
+            body=note,
+        )
+    except ValueError as error:
+        typer.secho(str(error), fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    typer.echo(f"\u2705 {task.id} is now {task.priority.value}/{task.queue_position}")
+
+
+@queue_app.command("check")
+def queue_check(
+    strict: bool = typer.Option(
+        False, "--strict", help="Exit non-zero when problems are found, for scripts and CI."
+    ),
+) -> None:
+    """Report every queue rule broken anywhere in the corpus. Never raises.
+
+    Exits 0 even when it finds problems, because this is the command you run *to look
+    at* a broken queue, and a checker that fails the shell you are debugging in is a
+    checker you stop running. ``--strict`` is the CI form; ``agentjobs validate``
+    covers the same rules and already exits non-zero on findings.
+    """
+    manager = _build_manager(Path.cwd())
+    problems = manager.check_queue()
+    if not problems:
+        typer.secho("\u2705 The queue is sound: no problems in any band.", fg=typer.colors.GREEN)
+        return
+    typer.secho(f"{len(problems)} problem(s):", fg=typer.colors.RED)
+    for problem in problems:
+        typer.secho(f"  {problem.render()}", fg=typer.colors.RED)
+    typer.echo(f"\nRepair with: {REPAIR_COMMAND}")
+    if strict:
+        raise typer.Exit(code=1)
+
+
+@queue_app.command("repair")
+def queue_repair() -> None:
+    """Give every open task a place again, and say exactly what was guessed.
+
+    Everything it assigned is printed, because a duplicate position carries no record
+    of who was meant to be first -- so that tie-break is arbitrary by necessity, and
+    naming it is what makes the guess reviewable instead of silent. Read the ASSIGNED
+    block afterwards; those are the ones a human should agree with.
+    """
+    manager = _build_manager(Path.cwd())
+    report = manager.repair_queue()
+    typer.echo(report.render())
+    if not report.changed:
+        typer.secho("\nNothing needed repairing.", fg=typer.colors.GREEN)
+        return
+    typer.secho(
+        "\nReview the assignments above -- they were guessed, not recovered.",
+        fg=typer.colors.YELLOW,
+    )
+
+
+@queue_app.command("compact")
+def queue_compact(
+    band: Priority = typer.Argument(..., help="The band to renumber."),
+) -> None:
+    """Renumber one band back to 100, 200, 300..., changing nobody's place.
+
+    Cosmetic, and explicit only. Nothing compacts on its own: a background process
+    quietly rewriting forty task files is exactly the kind of thing somebody should
+    have to type.
+    """
+    manager = _build_manager(Path.cwd())
+    moved = manager.compact_band(band)
+    if not moved:
+        typer.echo(f"Band '{band.value}' is already compact.")
+        return
+    # Where each task ended up, not every write it took to get there: a renumber is
+    # planned in up to two passes so no intermediate state holds a duplicate, and a
+    # task moved by both is written twice. Printing both reads as one task in two
+    # places, which is exactly what a compaction never does.
+    landed = dict(moved)
+    for task_id, position in sorted(landed.items(), key=lambda item: item[1]):
+        typer.echo(f"  {position:>5}  {task_id}")
+    typer.secho(
+        f"\u2705 Renumbered {len(landed)} task(s) in '{band.value}'.", fg=typer.colors.GREEN
+    )
+
+
+@app.command("next")
+def next_task(
+    priority: Optional[Priority] = typer.Option(None, "--priority", help="Restrict to one band."),
+    agent: Optional[str] = typer.Option(None, "--agent", help="Judge eligibility for this agent."),
+    why: bool = typer.Option(
+        False, "--why", help="Also print every open task ahead of it, and why each was skipped."
+    ),
+) -> None:
+    """The task that stands first in line: which one, and on request why.
+
+    **Exits non-zero when the queue is broken**, printing the offending ids and the
+    repair command rather than answering from a field that happens to be intact. That
+    is the whole of design section 8: a queue that quietly answers while corrupt trains
+    everybody to ignore corruption, and an agent silently working the wrong task leaves
+    no trace anywhere.
+    """
+    manager = _build_manager(Path.cwd())
+    try:
+        task = manager.get_next_task(priority=priority, agent=agent)
+        explanation = manager.explain_next(priority=priority, agent=agent) if why else None
+    except QueueCorruptionError as error:
+        typer.secho(str(error), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+    if task is None:
+        typer.echo("Nothing is claimable right now.")
+    else:
+        typer.echo(f"{task.id}  [{task.priority.value}/{task.queue_position}]")
+        typer.echo(f"  {_fit(task.title, _WIDTH - 2)}")
+
+    if explanation is None:
+        return
+    if explanation.empty_bands_above:
+        typer.echo(f"\nEmpty bands above: {', '.join(explanation.empty_bands_above)}")
+    if not explanation.skipped:
+        typer.echo("\nNothing was ahead of it.")
+        return
+    typer.echo(f"\nAhead of it, and why each was skipped ({len(explanation.skipped)}):")
+    for item in explanation.skipped:
+        position = "?" if item.queue_position is None else str(item.queue_position)
+        typer.echo(f"  {position:>5}  {_fit(item.task, _WIDTH - 8)}")
+        typer.echo(f"{_INDENT}{_fit(item.reason, _WIDTH - len(_INDENT))}")
 
 
 @app.command("migrate-schema")

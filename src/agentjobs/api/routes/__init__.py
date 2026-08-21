@@ -6,6 +6,7 @@ from .health import router as health_router
 from .dashboard import router as dashboard_router
 from .dispatch import router as dispatch_router
 from .projects import router as projects_router
+from .queue import router as queue_router
 from .revision import router as revision_router
 from .search import router as search_router
 from .status import router as status_router
@@ -19,6 +20,7 @@ PROJECT_SCOPED_ROUTERS = (
     dispatch_router,
     tasks_router,
     status_router,
+    queue_router,
     search_router,
     webhooks_router,
     revision_router,
@@ -37,6 +39,7 @@ __all__ = [
     "dispatch_router",
     "health_router",
     "projects_router",
+    "queue_router",
     "revision_router",
     "search_router",
     "status_router",

@@ -1188,6 +1188,38 @@ export type MutationResultOutput = {
 };
 
 /**
+ * NextExplanationResponse
+ *
+ * Why this task is next -- the answer plus the work it stands in front of.
+ *
+ * ``task`` is null when nothing is claimable, in which case ``skipped`` lists every
+ * open task with the rule that excluded it. That is the listing a reader wants
+ * precisely when a tool has just told them there is nothing to do.
+ */
+export type NextExplanationResponse = {
+    /**
+     * Band
+     */
+    band?: string | null;
+    /**
+     * Empty Bands Above
+     */
+    empty_bands_above?: Array<string>;
+    /**
+     * Queue Position
+     */
+    queue_position?: number | null;
+    /**
+     * Skipped
+     */
+    skipped?: Array<SkippedTaskRead>;
+    /**
+     * Task
+     */
+    task?: string | null;
+};
+
+/**
  * Outcome
  *
  * How a task ended. Set if and only if lifecycle is closed.
@@ -1426,6 +1458,298 @@ export type PromoteRequest = {
 };
 
 /**
+ * QueueAssignmentRead
+ *
+ * One position a repair or a compaction wrote.
+ */
+export type QueueAssignmentRead = {
+    /**
+     * Band
+     */
+    band: string;
+    /**
+     * Position
+     */
+    position: number;
+    /**
+     * Task
+     */
+    task: string;
+};
+
+/**
+ * QueueBandRead
+ *
+ * One priority band, in queue order. Listed even when empty.
+ */
+export type QueueBandRead = {
+    /**
+     * Band
+     */
+    band: string;
+    /**
+     * Entries
+     */
+    entries?: Array<QueueEntryRead>;
+};
+
+/**
+ * QueueCompactRequest
+ *
+ * Renumber one band back to 100, 200, 300...
+ */
+export type QueueCompactRequest = {
+    /**
+     * Actor
+     *
+     * Actor id asking for the operation.
+     */
+    actor: string;
+    /**
+     * The band to compact. One band per request.
+     */
+    band: Priority;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID identifying this attempt.
+     */
+    operation_id: string;
+};
+
+/**
+ * QueueCompactResponse
+ *
+ * The tasks a compaction renumbered, and what they were renumbered to.
+ */
+export type QueueCompactResponse = {
+    /**
+     * Band
+     */
+    band: string;
+    /**
+     * Moved
+     */
+    moved?: Array<QueueAssignmentRead>;
+};
+
+/**
+ * QueueEntryRead
+ *
+ * One task's place in line, and whether it can be taken.
+ */
+export type QueueEntryRead = {
+    /**
+     * Ball
+     */
+    ball?: string | null;
+    /**
+     * Claimable
+     */
+    claimable: boolean;
+    /**
+     * Lifecycle
+     */
+    lifecycle: string;
+    /**
+     * Queue Position
+     */
+    queue_position?: number | null;
+    /**
+     * Reason
+     *
+     * Why it is not claimable. Null when it is.
+     */
+    reason?: string | null;
+    /**
+     * Task
+     */
+    task: string;
+    /**
+     * Title
+     */
+    title: string;
+};
+
+/**
+ * QueueMaintenanceRequest
+ *
+ * Repair or compaction: attributed, and required to say who asked.
+ *
+ * ``operation_id`` is required for the same reason it is on a move -- a caller that
+ * cannot name its attempt cannot be told apart from one retrying -- but it is not
+ * replayed from a ledger, because the ledger is per-task and these two operations act
+ * on a whole band or a whole corpus. They do not need one: both are idempotent by
+ * construction, since repairing a repaired queue finds nothing to repair and
+ * compacting a compacted band renumbers it to the numbers it already has. Running
+ * twice and running once leave the same corpus, which is a stronger property than
+ * replay rather than a weaker substitute for it.
+ */
+export type QueueMaintenanceRequest = {
+    /**
+     * Actor
+     *
+     * Actor id asking for the operation.
+     */
+    actor: string;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID identifying this attempt.
+     */
+    operation_id: string;
+};
+
+/**
+ * QueueMoveRequest
+ *
+ * Where in its band a task is being put. Exactly one placement, never two.
+ *
+ * "before task-063 and also at the top" is two answers to one question, and choosing
+ * one of them on the caller's behalf is how a reorder ends up somewhere nobody asked
+ * for. The manager refuses it; this refuses it a layer earlier, where the caller can
+ * still see which fields it sent.
+ */
+export type QueueMoveRequest = {
+    /**
+     * Actor
+     *
+     * Actor id performing the move.
+     */
+    actor: string;
+    /**
+     * After
+     *
+     * Place it behind this task.
+     */
+    after?: string | null;
+    /**
+     * Before
+     *
+     * Place it ahead of this task.
+     */
+    before?: string | null;
+    /**
+     * Body
+     *
+     * Log body for the queue_move entry. Omit it and the manager writes its own.
+     */
+    body?: string | null;
+    /**
+     * Bottom
+     *
+     * Place it last in its band.
+     */
+    bottom?: boolean;
+    /**
+     * Expected Revision
+     *
+     * The `updated` value from a prior read. When supplied, the request is refused if the task changed in the meantime, and the current task is returned so the caller can decide again.
+     */
+    expected_revision?: string | null;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID. Resending the same request with the same id replays the original result instead of moving the task twice.
+     */
+    operation_id: string;
+    /**
+     * Top
+     *
+     * Place it first in its band.
+     */
+    top?: boolean;
+    /**
+     * With Children
+     *
+     * Carry the task's open same-band descendants with it, contiguously.
+     */
+    with_children?: boolean;
+};
+
+/**
+ * QueueProblemRead
+ *
+ * One broken queue rule, named well enough to fix by hand.
+ */
+export type QueueProblemRead = {
+    /**
+     * Band
+     */
+    band: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Position
+     */
+    position?: number | null;
+    /**
+     * Tasks
+     */
+    tasks?: Array<string>;
+};
+
+/**
+ * QueueRepairResponse
+ *
+ * What a repair did. Everything it guessed is named, which is the point.
+ */
+export type QueueRepairResponse = {
+    /**
+     * Assigned
+     */
+    assigned?: Array<QueueAssignmentRead>;
+    /**
+     * Changed
+     */
+    changed: boolean;
+    /**
+     * Rebalanced
+     */
+    rebalanced?: Array<string>;
+    /**
+     * Report
+     *
+     * The same result rendered for a terminal.
+     */
+    report: string;
+    /**
+     * Unrepairable
+     */
+    unrepairable?: Array<string>;
+};
+
+/**
+ * QueueResponse
+ *
+ * The whole ordered backlog. This is the list a human reviews.
+ *
+ * It renders a broken queue rather than refusing to: ``problems`` says what is wrong
+ * and ``repair_command`` says what to type. That is design section 8's deliberate
+ * exception -- you have to be able to see a broken queue in order to fix it.
+ */
+export type QueueResponse = {
+    /**
+     * Bands
+     */
+    bands?: Array<QueueBandRead>;
+    /**
+     * Problems
+     */
+    problems?: Array<QueueProblemRead>;
+    /**
+     * Repair Command
+     */
+    repair_command: string;
+};
+
+/**
  * RejectActionRequest
  *
  * Reject task with reason.
@@ -1469,6 +1793,64 @@ export type ReleaseRequest = {
      * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
      */
     operation_id?: string | null;
+};
+
+/**
+ * ReprioritizeRequest
+ *
+ * Change a task's band, and optionally where it lands inside the new one.
+ *
+ * The default placement is the bottom of the target band. A band change already says
+ * everything about urgency; where inside the new band it goes is a separate question
+ * the caller may answer, and "bottom" is the answer that assumes least.
+ */
+export type ReprioritizeRequest = {
+    /**
+     * Actor
+     *
+     * Actor id performing the move.
+     */
+    actor: string;
+    /**
+     * After
+     *
+     * Place it behind this task.
+     */
+    after?: string | null;
+    /**
+     * Before
+     *
+     * Place it ahead of this task.
+     */
+    before?: string | null;
+    /**
+     * Body
+     *
+     * Log body for the queue_move entry. Omit it and the manager writes its own.
+     */
+    body?: string | null;
+    /**
+     * Expected Revision
+     *
+     * The `updated` value from a prior read. When supplied, the request is refused if the task changed in the meantime, and the current task is returned so the caller can decide again.
+     */
+    expected_revision?: string | null;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID. Resending the same request with the same id replays the original result instead of moving the task twice.
+     */
+    operation_id: string;
+    /**
+     * The band to move the task into.
+     */
+    priority: Priority;
+    /**
+     * Top
+     *
+     * Place it first in the target band.
+     */
+    top?: boolean;
 };
 
 /**
@@ -1529,6 +1911,26 @@ export type ScopedDependencyEdge = {
      * Target Exists
      */
     target_exists: boolean;
+};
+
+/**
+ * SkippedTaskRead
+ *
+ * One open task the queue passed over, and the rule that did it.
+ */
+export type SkippedTaskRead = {
+    /**
+     * Position
+     */
+    position?: number | null;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Task
+     */
+    task: string;
 };
 
 /**
@@ -3360,6 +3762,103 @@ export type ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetRespo
 
 export type ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetResponse = ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetResponses[keyof ReadDispatchRunTailApiProjectsProjectIdDispatchRunsRunIdTailGetResponses];
 
+export type GetQueueApiProjectsProjectIdQueueGetData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: {
+        /**
+         * Agent
+         *
+         * Judge claimability for this agent, so a task restricted to somebody else is marked with that as its reason. Omit it to judge for any agent.
+         */
+        agent?: string | null;
+    };
+    url: '/api/projects/{project_id}/queue';
+};
+
+export type GetQueueApiProjectsProjectIdQueueGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetQueueApiProjectsProjectIdQueueGetError = GetQueueApiProjectsProjectIdQueueGetErrors[keyof GetQueueApiProjectsProjectIdQueueGetErrors];
+
+export type GetQueueApiProjectsProjectIdQueueGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: QueueResponse;
+};
+
+export type GetQueueApiProjectsProjectIdQueueGetResponse = GetQueueApiProjectsProjectIdQueueGetResponses[keyof GetQueueApiProjectsProjectIdQueueGetResponses];
+
+export type CompactQueueApiProjectsProjectIdQueueCompactPostData = {
+    body: QueueCompactRequest;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/queue/compact';
+};
+
+export type CompactQueueApiProjectsProjectIdQueueCompactPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CompactQueueApiProjectsProjectIdQueueCompactPostError = CompactQueueApiProjectsProjectIdQueueCompactPostErrors[keyof CompactQueueApiProjectsProjectIdQueueCompactPostErrors];
+
+export type CompactQueueApiProjectsProjectIdQueueCompactPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: QueueCompactResponse;
+};
+
+export type CompactQueueApiProjectsProjectIdQueueCompactPostResponse = CompactQueueApiProjectsProjectIdQueueCompactPostResponses[keyof CompactQueueApiProjectsProjectIdQueueCompactPostResponses];
+
+export type RepairQueueApiProjectsProjectIdQueueRepairPostData = {
+    body: QueueMaintenanceRequest;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/queue/repair';
+};
+
+export type RepairQueueApiProjectsProjectIdQueueRepairPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RepairQueueApiProjectsProjectIdQueueRepairPostError = RepairQueueApiProjectsProjectIdQueueRepairPostErrors[keyof RepairQueueApiProjectsProjectIdQueueRepairPostErrors];
+
+export type RepairQueueApiProjectsProjectIdQueueRepairPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: QueueRepairResponse;
+};
+
+export type RepairQueueApiProjectsProjectIdQueueRepairPostResponse = RepairQueueApiProjectsProjectIdQueueRepairPostResponses[keyof RepairQueueApiProjectsProjectIdQueueRepairPostResponses];
+
 export type GetProjectRevisionApiProjectsProjectIdRevisionGetData = {
     body?: never;
     path: {
@@ -3580,6 +4079,45 @@ export type GetNextTaskApiProjectsProjectIdTasksNextGetResponses = {
 };
 
 export type GetNextTaskApiProjectsProjectIdTasksNextGetResponse = GetNextTaskApiProjectsProjectIdTasksNextGetResponses[keyof GetNextTaskApiProjectsProjectIdTasksNextGetResponses];
+
+export type ExplainNextTaskApiProjectsProjectIdTasksNextExplainGetData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: {
+        /**
+         * Priority
+         */
+        priority?: Priority | null;
+        /**
+         * Agent
+         */
+        agent?: string | null;
+    };
+    url: '/api/projects/{project_id}/tasks/next/explain';
+};
+
+export type ExplainNextTaskApiProjectsProjectIdTasksNextExplainGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExplainNextTaskApiProjectsProjectIdTasksNextExplainGetError = ExplainNextTaskApiProjectsProjectIdTasksNextExplainGetErrors[keyof ExplainNextTaskApiProjectsProjectIdTasksNextExplainGetErrors];
+
+export type ExplainNextTaskApiProjectsProjectIdTasksNextExplainGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: NextExplanationResponse;
+};
+
+export type ExplainNextTaskApiProjectsProjectIdTasksNextExplainGetResponse = ExplainNextTaskApiProjectsProjectIdTasksNextExplainGetResponses[keyof ExplainNextTaskApiProjectsProjectIdTasksNextExplainGetResponses];
 
 export type ArchiveTaskApiProjectsProjectIdTasksTaskIdDeleteData = {
     body?: never;
@@ -4124,6 +4662,49 @@ export type PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponses = {
 
 export type PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponse = PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponses[keyof PromoteTaskApiProjectsProjectIdTasksTaskIdPromotePostResponses];
 
+export type QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostData = {
+    body: QueueMoveRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
+    url: '/api/projects/{project_id}/tasks/{task_id}/queue-move';
+};
+
+export type QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostError = QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostErrors[keyof QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostErrors];
+
+export type QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostResponses = {
+    /**
+     * Response Queue Move Task Api Projects  Project Id  Tasks  Task Id  Queue Move Post
+     *
+     * Successful Response
+     */
+    200: MutationResultOutput | Task;
+};
+
+export type QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostResponse = QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostResponses[keyof QueueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostResponses];
+
 export type RejectTaskApiProjectsProjectIdTasksTaskIdRejectPostData = {
     body: RejectActionRequest;
     path: {
@@ -4200,6 +4781,49 @@ export type ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostResponses = {
 };
 
 export type ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostResponse = ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostResponses[keyof ReleaseTaskApiProjectsProjectIdTasksTaskIdReleasePostResponses];
+
+export type ReprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostData = {
+    body: ReprioritizeRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
+    url: '/api/projects/{project_id}/tasks/{task_id}/reprioritize';
+};
+
+export type ReprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostError = ReprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostErrors[keyof ReprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostErrors];
+
+export type ReprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostResponses = {
+    /**
+     * Response Reprioritize Task Api Projects  Project Id  Tasks  Task Id  Reprioritize Post
+     *
+     * Successful Response
+     */
+    200: MutationResultOutput | Task;
+};
+
+export type ReprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostResponse = ReprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostResponses[keyof ReprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostResponses];
 
 export type RequestChangesApiProjectsProjectIdTasksTaskIdRequestChangesPostData = {
     body: FeedbackActionRequest;
@@ -4401,6 +5025,88 @@ export type TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponses = 
 
 export type TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponse = TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponses[keyof TestWebhookApiProjectsProjectIdWebhooksWebhookIdTestPostResponses];
 
+export type GetQueueApiQueueGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Agent
+         *
+         * Judge claimability for this agent, so a task restricted to somebody else is marked with that as its reason. Omit it to judge for any agent.
+         */
+        agent?: string | null;
+    };
+    url: '/api/queue';
+};
+
+export type GetQueueApiQueueGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetQueueApiQueueGetError = GetQueueApiQueueGetErrors[keyof GetQueueApiQueueGetErrors];
+
+export type GetQueueApiQueueGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: QueueResponse;
+};
+
+export type GetQueueApiQueueGetResponse = GetQueueApiQueueGetResponses[keyof GetQueueApiQueueGetResponses];
+
+export type CompactQueueApiQueueCompactPostData = {
+    body: QueueCompactRequest;
+    path?: never;
+    query?: never;
+    url: '/api/queue/compact';
+};
+
+export type CompactQueueApiQueueCompactPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CompactQueueApiQueueCompactPostError = CompactQueueApiQueueCompactPostErrors[keyof CompactQueueApiQueueCompactPostErrors];
+
+export type CompactQueueApiQueueCompactPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: QueueCompactResponse;
+};
+
+export type CompactQueueApiQueueCompactPostResponse = CompactQueueApiQueueCompactPostResponses[keyof CompactQueueApiQueueCompactPostResponses];
+
+export type RepairQueueApiQueueRepairPostData = {
+    body: QueueMaintenanceRequest;
+    path?: never;
+    query?: never;
+    url: '/api/queue/repair';
+};
+
+export type RepairQueueApiQueueRepairPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RepairQueueApiQueueRepairPostError = RepairQueueApiQueueRepairPostErrors[keyof RepairQueueApiQueueRepairPostErrors];
+
+export type RepairQueueApiQueueRepairPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: QueueRepairResponse;
+};
+
+export type RepairQueueApiQueueRepairPostResponse = RepairQueueApiQueueRepairPostResponses[keyof RepairQueueApiQueueRepairPostResponses];
+
 export type GetProjectRevisionApiRevisionGetData = {
     body?: never;
     path?: never;
@@ -4573,6 +5279,40 @@ export type GetNextTaskApiTasksNextGetResponses = {
 };
 
 export type GetNextTaskApiTasksNextGetResponse = GetNextTaskApiTasksNextGetResponses[keyof GetNextTaskApiTasksNextGetResponses];
+
+export type ExplainNextTaskApiTasksNextExplainGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Priority
+         */
+        priority?: Priority | null;
+        /**
+         * Agent
+         */
+        agent?: string | null;
+    };
+    url: '/api/tasks/next/explain';
+};
+
+export type ExplainNextTaskApiTasksNextExplainGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExplainNextTaskApiTasksNextExplainGetError = ExplainNextTaskApiTasksNextExplainGetErrors[keyof ExplainNextTaskApiTasksNextExplainGetErrors];
+
+export type ExplainNextTaskApiTasksNextExplainGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: NextExplanationResponse;
+};
+
+export type ExplainNextTaskApiTasksNextExplainGetResponse = ExplainNextTaskApiTasksNextExplainGetResponses[keyof ExplainNextTaskApiTasksNextExplainGetResponses];
 
 export type ArchiveTaskApiTasksTaskIdDeleteData = {
     body?: never;
@@ -5061,6 +5801,45 @@ export type PromoteTaskApiTasksTaskIdPromotePostResponses = {
 
 export type PromoteTaskApiTasksTaskIdPromotePostResponse = PromoteTaskApiTasksTaskIdPromotePostResponses[keyof PromoteTaskApiTasksTaskIdPromotePostResponses];
 
+export type QueueMoveTaskApiTasksTaskIdQueueMovePostData = {
+    body: QueueMoveRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
+    url: '/api/tasks/{task_id}/queue-move';
+};
+
+export type QueueMoveTaskApiTasksTaskIdQueueMovePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type QueueMoveTaskApiTasksTaskIdQueueMovePostError = QueueMoveTaskApiTasksTaskIdQueueMovePostErrors[keyof QueueMoveTaskApiTasksTaskIdQueueMovePostErrors];
+
+export type QueueMoveTaskApiTasksTaskIdQueueMovePostResponses = {
+    /**
+     * Response Queue Move Task Api Tasks  Task Id  Queue Move Post
+     *
+     * Successful Response
+     */
+    200: MutationResultOutput | Task;
+};
+
+export type QueueMoveTaskApiTasksTaskIdQueueMovePostResponse = QueueMoveTaskApiTasksTaskIdQueueMovePostResponses[keyof QueueMoveTaskApiTasksTaskIdQueueMovePostResponses];
+
 export type RejectTaskApiTasksTaskIdRejectPostData = {
     body: RejectActionRequest;
     path: {
@@ -5129,6 +5908,45 @@ export type ReleaseTaskApiTasksTaskIdReleasePostResponses = {
 };
 
 export type ReleaseTaskApiTasksTaskIdReleasePostResponse = ReleaseTaskApiTasksTaskIdReleasePostResponses[keyof ReleaseTaskApiTasksTaskIdReleasePostResponses];
+
+export type ReprioritizeTaskApiTasksTaskIdReprioritizePostData = {
+    body: ReprioritizeRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
+    url: '/api/tasks/{task_id}/reprioritize';
+};
+
+export type ReprioritizeTaskApiTasksTaskIdReprioritizePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReprioritizeTaskApiTasksTaskIdReprioritizePostError = ReprioritizeTaskApiTasksTaskIdReprioritizePostErrors[keyof ReprioritizeTaskApiTasksTaskIdReprioritizePostErrors];
+
+export type ReprioritizeTaskApiTasksTaskIdReprioritizePostResponses = {
+    /**
+     * Response Reprioritize Task Api Tasks  Task Id  Reprioritize Post
+     *
+     * Successful Response
+     */
+    200: MutationResultOutput | Task;
+};
+
+export type ReprioritizeTaskApiTasksTaskIdReprioritizePostResponse = ReprioritizeTaskApiTasksTaskIdReprioritizePostResponses[keyof ReprioritizeTaskApiTasksTaskIdReprioritizePostResponses];
 
 export type RequestChangesApiTasksTaskIdRequestChangesPostData = {
     body: FeedbackActionRequest;

@@ -380,6 +380,42 @@ class TaskClient:
             return None
         return self._parse_task(payload)
 
+    def explain_next_task(
+        self,
+        priority: Optional[Priority | str] = None,
+        *,
+        agent: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Why the next task is next, and every open task it stands in front of.
+
+        Returned raw rather than parsed into a model. It is an explanation, not a
+        record: nothing is persisted in this shape, so a class here would be a second
+        definition of the server's response with nothing keeping the two in step.
+        """
+        params: Dict[str, str] = {}
+        if priority is not None:
+            params["priority"] = self._enum_to_str(priority)
+        if agent is not None:
+            params["agent"] = agent
+        response = self._request("GET", self._path("/tasks/next/explain"), params=params)
+        payload: Dict[str, Any] = response.json()
+        return payload
+
+    def queue(self, *, agent: Optional[str] = None) -> Dict[str, Any]:
+        """The whole ordered backlog, band by band, with claimability on every entry.
+
+        Reports a broken queue rather than raising over it -- ``problems`` and
+        ``repair_command`` come back populated and the bands still render, which is what
+        makes this the listing you can use to *fix* a queue rather than only to read a
+        healthy one.
+        """
+        params: Dict[str, str] = {}
+        if agent is not None:
+            params["agent"] = agent
+        response = self._request("GET", self._path("/queue"), params=params)
+        payload: Dict[str, Any] = response.json()
+        return payload
+
     def search_tasks(self, query: str) -> List[Task]:
         """Search for tasks by query string."""
         if not query.strip():
@@ -782,6 +818,107 @@ class TaskOperations:
             operation_id=operation_id,
             expected_revision=expected_revision,
         )
+
+    def queue_move(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        operation_id: str,
+        expected_revision: datetime | str,
+        before: Optional[str] = None,
+        after: Optional[str] = None,
+        top: bool = False,
+        bottom: bool = False,
+        with_children: bool = False,
+        body: Optional[str] = None,
+    ) -> MutationResult:
+        """Change where a task stands in its band. Exactly one placement.
+
+        There is deliberately **no position argument and no generic setter**. A caller
+        that could write a number would be choosing a place without knowing what else
+        is in the band, which is how two tasks end up sharing one -- so the caller names
+        a neighbour or an end, and the server does the arithmetic under the queue lock.
+        """
+        return self._client._mutation(
+            f"/tasks/{task_id}/queue-move",
+            {
+                "actor": actor,
+                "before": before,
+                "after": after,
+                "top": top,
+                "bottom": bottom,
+                "with_children": with_children,
+                "body": body,
+            },
+            operation_id=operation_id,
+            expected_revision=expected_revision,
+        )
+
+    def reprioritize(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        operation_id: str,
+        expected_revision: datetime | str,
+        priority: Priority | str,
+        before: Optional[str] = None,
+        after: Optional[str] = None,
+        top: bool = False,
+        body: Optional[str] = None,
+    ) -> MutationResult:
+        """Change a task's band and where it lands in it, in one decision.
+
+        With no placement the task joins the bottom of the target band, which is the
+        answer that assumes least: the band change has already said everything about
+        urgency.
+        """
+        return self._client._mutation(
+            f"/tasks/{task_id}/reprioritize",
+            {
+                "actor": actor,
+                "priority": self._client._enum_to_str(priority),
+                "before": before,
+                "after": after,
+                "top": top,
+                "body": body,
+            },
+            operation_id=operation_id,
+            expected_revision=expected_revision,
+        )
+
+    def repair_queue(self, *, actor: str, operation_id: str) -> Dict[str, Any]:
+        """Repair a broken queue, returning everything the repair guessed.
+
+        No ``expected_revision``: repair acts on whatever the corpus is at the moment
+        it takes the lock, and there is no single record for a caller to have read
+        first. It is idempotent by construction -- repairing a repaired queue finds
+        nothing to repair -- so a retry after a timeout is safe without a ledger.
+        """
+        response = self._client._request(
+            "POST",
+            self._client._path("/queue/repair"),
+            json={"actor": actor, "operation_id": operation_id},
+        )
+        payload: Dict[str, Any] = response.json()
+        return payload
+
+    def compact_queue(
+        self, *, actor: str, operation_id: str, band: Priority | str
+    ) -> Dict[str, Any]:
+        """Renumber one band back to 100, 200, 300..., changing nobody's place."""
+        response = self._client._request(
+            "POST",
+            self._client._path("/queue/compact"),
+            json={
+                "actor": actor,
+                "operation_id": operation_id,
+                "band": self._client._enum_to_str(band),
+            },
+        )
+        payload: Dict[str, Any] = response.json()
+        return payload
 
     def append_log(
         self,

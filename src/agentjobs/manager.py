@@ -59,6 +59,7 @@ from .models_v2 import (
     utcnow,
 )
 from .queue import (
+    REPAIR_COMMAND,
     QueueAssignment,
     QueueCorruptionError,
     QueuePlace,
@@ -132,6 +133,75 @@ class NextExplanation:
             "queue_position": self.queue_position,
             "empty_bands_above": list(self.empty_bands_above),
             "skipped": [item.as_dict() for item in self.skipped],
+        }
+
+
+@dataclass(frozen=True)
+class QueueEntry:
+    """One task's place in line, with whether it can be taken and why not.
+
+    ``reason`` is exactly the sentence :meth:`TaskManager._skip_reason` produces, so a
+    listing and an explanation never disagree about why a task was passed over.
+    """
+
+    task: str
+    title: str
+    queue_position: Optional[int]
+    lifecycle: str
+    ball: Optional[str]
+    claimable: bool
+    reason: Optional[str]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "task": self.task,
+            "title": self.title,
+            "queue_position": self.queue_position,
+            "lifecycle": self.lifecycle,
+            "ball": self.ball,
+            "claimable": self.claimable,
+            "reason": self.reason,
+        }
+
+
+@dataclass(frozen=True)
+class QueueBand:
+    """One priority band's open tasks, in the order the queue puts them."""
+
+    band: str
+    entries: Tuple[QueueEntry, ...]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {"band": self.band, "entries": [entry.as_dict() for entry in self.entries]}
+
+
+@dataclass(frozen=True)
+class QueueListing:
+    """The whole open backlog in queue order, band by band, plus what is broken.
+
+    **Reports rather than raising**, which makes it one of the two deliberate
+    exceptions in design section 8: you have to be able to see a broken queue in order
+    to fix it. A corrupt band still lists, with ``problems`` naming what is wrong and
+    the tasks that lack a position sorted last rather than guessed into a place.
+    """
+
+    bands: Tuple[QueueBand, ...]
+    problems: Tuple[QueueProblem, ...]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "bands": [band.as_dict() for band in self.bands],
+            "problems": [
+                {
+                    "kind": problem.kind,
+                    "band": problem.band,
+                    "tasks": list(problem.task_ids),
+                    "position": problem.position,
+                    "message": problem.render(),
+                }
+                for problem in self.problems
+            ],
+            "repair_command": REPAIR_COMMAND,
         }
 
 
@@ -580,6 +650,60 @@ class TaskManager:
             empty_bands_above=empty_above,
             skipped=skipped,
         )
+
+    def queue_listing(
+        self,
+        *,
+        agent: Optional[str] = None,
+    ) -> "QueueListing":
+        """The whole open backlog in queue order, band by band. This is the review copy.
+
+        Every band is listed, including the empty ones, because "critical is empty" is
+        a fact a reader of an ordered backlog wants stated rather than inferred from a
+        missing heading. Every open task appears with the claimability rule that would
+        exclude it, from the same ``_skip_reason`` selection uses, so the list and the
+        explanation can never disagree.
+
+        **It reports rather than raising** -- design section 8's other deliberate
+        exception, alongside ``check_queue``. A task with no position sorts last in its
+        band instead of being guessed into a place, and ``problems`` says what is wrong
+        with the corpus. A listing that refused to render a broken queue would be a
+        listing you could not use to fix one.
+        """
+        tasks = self.storage.list_tasks()
+        states = self._dependency_states()
+        open_children = self._open_children()
+
+        by_band: Dict[str, List[Task]] = {band.value: [] for band in PRIORITY_RANK}
+        for task in tasks:
+            if task.is_open:
+                by_band.setdefault(task.priority.value, []).append(task)
+
+        bands: List[QueueBand] = []
+        for band in sorted(PRIORITY_RANK, key=lambda item: PRIORITY_RANK[item]):
+            members = by_band.get(band.value, [])
+            # None last, and by id within a tie, so a corrupt band still renders in a
+            # stable order rather than one that changes between two identical runs.
+            members.sort(
+                key=lambda task: (task.queue_position is None, task.queue_position or 0, task.id)
+            )
+            entries = []
+            for task in members:
+                reason = self._skip_reason(task, None, agent, states, open_children)
+                entries.append(
+                    QueueEntry(
+                        task=task.id,
+                        title=task.title,
+                        queue_position=task.queue_position,
+                        lifecycle=task.lifecycle.value,
+                        ball=task.ball.value if task.ball else None,
+                        claimable=reason is None,
+                        reason=reason,
+                    )
+                )
+            bands.append(QueueBand(band=band.value, entries=tuple(entries)))
+
+        return QueueListing(bands=tuple(bands), problems=tuple(self.check_queue()))
 
     # ------------------------------------------------------------------
     # Creation and generic edits

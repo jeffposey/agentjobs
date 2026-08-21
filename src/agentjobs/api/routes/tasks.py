@@ -15,6 +15,7 @@ from agentjobs.attachments import AttachmentError, AttachmentPayload
 from agentjobs.dispatch.auto import maybe_auto_dispatch
 from agentjobs.operations import OperationConflictError, RevisionConflictError
 from agentjobs.projects import Project
+from agentjobs.queue import QueueCorruptionError
 from agentjobs.manager import TaskManager, TaskNotFoundError
 from agentjobs.storage import TaskStorage
 from agentjobs.models_v2 import (
@@ -40,6 +41,7 @@ from ..models import (
     BrokenTaskFile,
     DependencyRelation,
     HumanActionResponse,
+    NextExplanationResponse,
     ReviewIdentity,
     ScopedDependencyEdge,
     TaskCreateRequest,
@@ -169,14 +171,59 @@ async def list_broken_tasks(
     return [error.as_dict() for error in manager.load_errors()]
 
 
+def queue_broken(exc: QueueCorruptionError) -> HTTPException:
+    """Render a refusal to answer as 409, with the ids and the repair command intact.
+
+    ``QueueCorruptionError`` is a ``RuntimeError``, not a ``ValueError``, so it does
+    **not** fall through the ValueError handling every other route here relies on --
+    without this it would surface as a 500, which reads as "the server is broken"
+    when the truth is "your corpus is, and here is the command that fixes it". 409 is
+    the right status for the same reason it is on a refused verb: the request was
+    well-formed and the state it addressed will not permit it.
+
+    The message is passed through verbatim rather than summarised, because everything
+    a caller needs -- every offending task id, its band, and ``agentjobs queue
+    repair`` -- is already in it, and design section 8 asks for exactly that detail.
+    """
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=str(exc),
+    )
+
+
 @router.get("/next", response_model=Optional[Task])
 async def get_next_task(
     priority: Optional[Priority] = None,
     agent: Optional[str] = None,
     manager: TaskManager = Depends(get_task_manager),
 ) -> Optional[Task]:
-    """The next claimable task: ready, eligible for the agent, no unmet needs."""
-    return manager.get_next_task(priority=priority, agent=agent)
+    """The next claimable task: ready, eligible for the agent, no unmet needs.
+
+    Answers 409 rather than guessing when the queue it would have to read is broken.
+    """
+    try:
+        return manager.get_next_task(priority=priority, agent=agent)
+    except QueueCorruptionError as exc:
+        raise queue_broken(exc) from exc
+
+
+@router.get("/next/explain", response_model=NextExplanationResponse)
+async def explain_next_task(
+    priority: Optional[Priority] = None,
+    agent: Optional[str] = None,
+    manager: TaskManager = Depends(get_task_manager),
+) -> NextExplanationResponse:
+    """Why this task is next, and every open task it stands in front of.
+
+    Declared before ``/{task_id}`` so "next" is not captured as a task id, exactly as
+    ``/next`` and ``/broken`` are. The body is design section 9's structure, produced
+    by the manager rather than assembled here: the route is a transcription.
+    """
+    try:
+        explanation = manager.explain_next(priority=priority, agent=agent)
+    except QueueCorruptionError as exc:
+        raise queue_broken(exc) from exc
+    return NextExplanationResponse.model_validate(explanation.as_dict())
 
 
 @router.get("/{task_id}/detail", response_model=TaskDetailResponse)
