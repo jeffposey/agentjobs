@@ -3,13 +3,13 @@ id: task-017
 title: Let an agent ask structured multiple-choice questions the human answers in
   the GUI
 created: '2026-08-18T05:35:45.027948Z'
-updated: '2026-08-21T09:22:52.905172Z'
+updated: '2026-08-21T16:58:00.542996Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 1300
+queue_position: 7500
 category: ux
 tags:
 - frontend

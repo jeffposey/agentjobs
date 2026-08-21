@@ -2,13 +2,13 @@ schema: 2
 id: task-105-next-task-id-all-slugged-records
 title: Generate the next task number from all slugged task IDs
 created: '2026-08-13T22:03:07.061022Z'
-updated: '2026-08-21T09:22:53.297813Z'
+updated: '2026-08-21T16:59:41.169285Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
-queue_position: 700
+queue_position: 225
 category: bug
 tags:
 - task-ids
@@ -110,3 +110,15 @@ log:
       id: e5c17f04-6a28-4d39-915a-9c647e8f8a6b
       kind: log_append
       fingerprint: 5e0b3e3f2c59755bf92e35cf02d84abc
+- id: 2
+  ts: '2026-08-21T16:59:41.169089Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: applying the ordering approved by Jeff on 2026-08-21 (proposal
+    in task-209 log entry 6).'
+  data:
+    band: medium
+    from: 4700
+    to: 225
+    placement:
+      kind: top

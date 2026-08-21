@@ -3,13 +3,13 @@ id: task-161-project-level-dispatch
 title: 'Dispatch a project, not a task: one button that starts an agent on whatever
   is next'
 created: '2026-08-19T16:42:31.089654Z'
-updated: '2026-08-21T09:22:52.998585Z'
+updated: '2026-08-21T16:58:00.439109Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 2700
+queue_position: 8800
 category: developer_experience
 tags:
 - dispatch

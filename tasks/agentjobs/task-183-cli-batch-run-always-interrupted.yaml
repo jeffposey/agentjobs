@@ -2,13 +2,13 @@ schema: 2
 id: task-183-cli-batch-run-always-interrupted
 title: A batch run started from the CLI always ends interrupted, however well it went
 created: '2026-08-19T20:50:29.282313Z'
-updated: '2026-08-21T09:22:53.455460Z'
+updated: '2026-08-21T16:59:33.050819Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
-queue_position: 2700
+queue_position: 3600
 category: reliability
 tags:
 - dispatch
@@ -83,3 +83,15 @@ log:
       id: 2b3c4d5e-6f70-4b81-9c02-3d4e5f600183
       kind: create
       fingerprint: 862e88adc3bdacf936878cf588b97501
+- id: 2
+  ts: '2026-08-21T16:59:30.338935Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: applying the ordering approved by Jeff on 2026-08-21 (proposal
+    in task-209 log entry 6).'
+  data:
+    band: medium
+    from: 2700
+    to: 1
+    placement:
+      kind: top

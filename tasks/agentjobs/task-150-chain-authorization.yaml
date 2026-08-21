@@ -2,13 +2,13 @@ schema: 2
 id: task-150-chain-authorization
 title: 'Chain authorization: what a human approves before a loop may run'
 created: '2026-08-18T11:38:29.569027Z'
-updated: '2026-08-21T09:22:53.400038Z'
+updated: '2026-08-21T16:59:32.838668Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
-queue_position: 1900
+queue_position: 5800
 category: architecture
 tags:
 - agent-loops

@@ -2,13 +2,13 @@ schema: 2
 id: task-147-acceptance-check-schema
 title: 'Schema: executable acceptance checks and the check_result log entry'
 created: '2026-08-18T11:37:16.518623Z'
-updated: '2026-08-21T09:22:52.973578Z'
+updated: '2026-08-21T16:58:00.469944Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 2300
+queue_position: 8400
 category: infrastructure
 tags:
 - schema

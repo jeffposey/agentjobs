@@ -2,14 +2,14 @@ schema: 2
 id: task-215
 title: "Playbooks 2: instantiation \u2014 `playbook run` on CLI, REST and GUI"
 created: '2026-08-21T04:55:56.410481Z'
-updated: '2026-08-21T09:22:53.213421Z'
+updated: '2026-08-21T16:58:00.224637Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
 ball_prompt: Finish specifying this task.
 archived: false
 priority: high
-queue_position: 5300
+queue_position: 10700
 category: architecture
 tags:
 - playbooks

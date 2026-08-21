@@ -2,13 +2,13 @@ schema: 2
 id: task-121-batch-issue-capture
 title: Collect a review's worth of findings and file them in one action
 created: '2026-08-15T22:29:34.692845Z'
-updated: '2026-08-21T09:22:52.841606Z'
+updated: '2026-08-21T16:58:56.594136Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 500
+queue_position: 6475
 category: developer_experience
 tags:
 - issue-reporter
@@ -138,3 +138,16 @@ log:
     unsent items through reloads and preserve failed items through partial submission;
     successful retries must be idempotent.'
   data: {}
+- id: 2
+  ts: '2026-08-21T16:58:56.593999Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: applying the ordering approved by Jeff on 2026-08-21 (proposal
+    in task-209 log entry 6).'
+  data:
+    band: high
+    from: 7000
+    to: 6475
+    placement:
+      kind: after
+      target: task-120-issue-reporter-workflow

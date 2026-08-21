@@ -3,13 +3,13 @@ id: task-226
 title: '"Request changes" is four different acts wearing one button, and the record
   says "revise" for all of them'
 created: '2026-08-21T16:19:49.631386Z'
-updated: '2026-08-21T16:19:49.971977Z'
+updated: '2026-08-21T16:59:32.725842Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
-queue_position: 3500
+queue_position: 7000
 category: ux
 tags:
 - gui

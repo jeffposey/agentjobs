@@ -2,13 +2,13 @@ schema: 2
 id: task-139-reporter-host-agnostic-core
 title: Lift the issue reporter out of the AgentJobs app so a host app can render it
 created: '2026-08-18T05:53:14.442257Z'
-updated: '2026-08-21T09:22:52.934166Z'
+updated: '2026-08-21T16:58:00.510223Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 1700
+queue_position: 7900
 category: developer_experience
 tags:
 - embedding

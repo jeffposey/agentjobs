@@ -3,13 +3,13 @@ id: task-223
 title: The rule that serializes every epic has no stated reason, and the doc's own
   reasoning contradicts it
 created: '2026-08-21T15:02:48.895387Z'
-updated: '2026-08-21T15:02:49.156241Z'
+updated: '2026-08-21T16:59:33.024060Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
-queue_position: 3400
+queue_position: 3900
 category: developer_experience
 tags:
 - orchestration
@@ -135,3 +135,15 @@ log:
       id: 2e6a9f13-8b47-4c50-9d82-1a3f7e04b955
       kind: create
       fingerprint: 876692052e001f714197ece3228a0d0a
+- id: 2
+  ts: '2026-08-21T16:59:22.628189Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: applying the ordering approved by Jeff on 2026-08-21 (proposal
+    in task-209 log entry 6).'
+  data:
+    band: medium
+    from: 3400
+    to: 12
+    placement:
+      kind: top

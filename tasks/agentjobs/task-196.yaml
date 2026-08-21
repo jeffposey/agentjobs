@@ -3,13 +3,13 @@ id: task-196
 title: '`agentjobs restart` can add a server generation instead of replacing one,
   and nothing says so'
 created: '2026-08-20T17:56:56.218922Z'
-updated: '2026-08-21T09:22:53.117261Z'
+updated: '2026-08-21T16:58:06.497892Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 4200
+queue_position: 750
 category: infrastructure
 tags:
 - dispatch
@@ -133,3 +133,15 @@ log:
     \ every `agentjobs serve` process on the machine rather than reason about the\
     \ port.\n"
   data: {}
+- id: 3
+  ts: '2026-08-21T16:58:06.497773Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: applying the ordering approved by Jeff on 2026-08-21 (proposal
+    in task-209 log entry 6).'
+  data:
+    band: high
+    from: 10300
+    to: 750
+    placement:
+      kind: top

@@ -3,13 +3,13 @@ id: task-011
 title: Merging frontend code does not update the running server, and nothing says
   so
 created: '2026-08-17T23:01:49.593543Z'
-updated: '2026-08-21T09:22:52.874057Z'
+updated: '2026-08-21T16:58:01.615762Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 900
+queue_position: 3000
 category: developer_experience
 tags:
 - workflow
@@ -156,3 +156,15 @@ log:
       id: c17f6b28-9d34-4e05-8a71-3b62f094ac5d
       kind: create
       fingerprint: 7cda8dd9c188383514b582c24b80faf2
+- id: 2
+  ts: '2026-08-21T16:58:01.615682Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: applying the ordering approved by Jeff on 2026-08-21 (proposal
+    in task-209 log entry 6).'
+  data:
+    band: high
+    from: 900
+    to: 3000
+    placement:
+      kind: top

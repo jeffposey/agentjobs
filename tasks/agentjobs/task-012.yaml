@@ -2,13 +2,13 @@ schema: 2
 id: task-012
 title: Contain a render crash so one bad field cannot blank the whole app
 created: '2026-08-18T05:04:35.886899Z'
-updated: '2026-08-21T09:22:52.881608Z'
+updated: '2026-08-21T16:58:00.754072Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 1000
+queue_position: 6000
 category: reliability
 tags:
 - frontend
@@ -148,3 +148,15 @@ log:
       id: 7c3e1a94-6b2d-4f18-9a05-2e8d7b41c6f3
       kind: create
       fingerprint: 2ca12e3695db7b8c75876beb9c3f1773
+- id: 2
+  ts: '2026-08-21T16:57:57.802050Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: applying the ordering approved by Jeff on 2026-08-21 (proposal
+    in task-209 log entry 6).'
+  data:
+    band: high
+    from: 1000
+    to: 1
+    placement:
+      kind: top

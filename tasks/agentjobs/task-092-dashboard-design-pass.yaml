@@ -2,7 +2,7 @@ schema: 2
 id: task-092-dashboard-design-pass
 title: 'Rethink the next-action ladder: should the calm rungs coexist?'
 created: '2026-08-11T08:01:24.843122Z'
-updated: '2026-08-21T09:22:53.273333Z'
+updated: '2026-08-21T16:59:32.983759Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -14,7 +14,7 @@ ball_prompt: 'Deferred until the React dashboard (task-087) is at parity -- see 
   design pass.'
 archived: false
 priority: medium
-queue_position: 300
+queue_position: 4400
 category: ux
 tags:
 - gui

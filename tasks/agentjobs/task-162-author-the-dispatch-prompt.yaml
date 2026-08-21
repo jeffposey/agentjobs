@@ -2,13 +2,13 @@ schema: 2
 id: task-162-author-the-dispatch-prompt
 title: Say something to the agent you are dispatching
 created: '2026-08-19T16:43:00.485932Z'
-updated: '2026-08-21T09:22:53.425787Z'
+updated: '2026-08-21T16:59:32.802669Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
-queue_position: 2300
+queue_position: 6200
 category: developer_experience
 tags:
 - dispatch

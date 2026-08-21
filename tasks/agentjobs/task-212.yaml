@@ -3,13 +3,13 @@ id: task-212
 title: 'Analytics page: move the count tiles off the dashboard and grow them into
   trends'
 created: '2026-08-21T02:34:12.460054Z'
-updated: '2026-08-21T09:22:53.474157Z'
+updated: '2026-08-21T16:59:32.762718Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
-queue_position: 3000
+queue_position: 6600
 category: ux
 tags:
 - analytics

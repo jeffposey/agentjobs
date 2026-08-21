@@ -2,13 +2,13 @@ schema: 2
 id: task-120-issue-reporter-workflow
 title: 'Issue reporter: rapid screenshot-backed and batch task capture'
 created: '2026-08-15T22:29:32.639551Z'
-updated: '2026-08-21T09:22:52.835009Z'
+updated: '2026-08-21T16:58:54.314456Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 400
+queue_position: 6450
 category: developer_experience
 tags:
 - issue-reporter
@@ -134,3 +134,16 @@ log:
       id: 8f3c07a2-51b6-4e94-a7d8-b2c169e0d453
       kind: log_append
       fingerprint: 4aba70e764c8c35fa578a01bcfae7180
+- id: 4
+  ts: '2026-08-21T16:58:54.314324Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: applying the ordering approved by Jeff on 2026-08-21 (proposal
+    in task-209 log entry 6).'
+  data:
+    band: high
+    from: 6900
+    to: 6450
+    placement:
+      kind: after
+      target: task-007

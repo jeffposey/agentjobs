@@ -2,14 +2,14 @@ schema: 2
 id: task-001
 title: Support design approval without merge authorization
 created: '2026-08-12T23:01:40.471419Z'
-updated: '2026-08-21T09:22:53.280736Z'
+updated: '2026-08-21T16:59:32.972731Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
 ball_prompt: Finish specifying this task.
 archived: false
 priority: medium
-queue_position: 400
+queue_position: 4500
 category: product_design
 tags:
 - human-actions

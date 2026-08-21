@@ -2,13 +2,13 @@ schema: 2
 id: task-015
 title: Stop one long ball_prompt from swallowing a task list row
 created: '2026-08-18T05:11:36.255369Z'
-updated: '2026-08-21T09:22:53.368031Z'
+updated: '2026-08-21T16:59:38.768757Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
-queue_position: 1600
+queue_position: 450
 category: developer_experience
 tags:
 - reported-issue
@@ -597,3 +597,15 @@ log:
     lifecycle: ready
     ball: agent
     ball_reason: available
+- id: 19
+  ts: '2026-08-21T16:59:38.768453Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: applying the ordering approved by Jeff on 2026-08-21 (proposal
+    in task-209 log entry 6).'
+  data:
+    band: medium
+    from: 5500
+    to: 450
+    placement:
+      kind: top

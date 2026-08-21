@@ -3,13 +3,13 @@ id: task-213
 title: 'Design the analytics page: where the history comes from, and what the page
   says'
 created: '2026-08-21T02:34:52.929949Z'
-updated: '2026-08-21T09:22:53.482228Z'
+updated: '2026-08-21T16:59:32.752735Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
-queue_position: 3100
+queue_position: 6700
 category: design
 tags:
 - analytics

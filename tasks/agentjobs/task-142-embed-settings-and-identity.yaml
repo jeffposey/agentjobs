@@ -2,13 +2,13 @@ schema: 2
 id: task-142-embed-settings-and-identity
 title: Settings for the embedded widget, and who the host app says is reporting
 created: '2026-08-18T05:54:36.235002Z'
-updated: '2026-08-21T09:22:53.387679Z'
+updated: '2026-08-21T16:59:32.855153Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
-queue_position: 1700
+queue_position: 5600
 category: developer_experience
 tags:
 - embedding

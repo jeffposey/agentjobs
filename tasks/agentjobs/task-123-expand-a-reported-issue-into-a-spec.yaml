@@ -2,14 +2,14 @@ schema: 2
 id: task-123-expand-a-reported-issue-into-a-spec
 title: Expand a reported issue from a stub into a task worth claiming
 created: '2026-08-18T04:46:50.770957Z'
-updated: '2026-08-21T09:22:53.351469Z'
+updated: '2026-08-21T16:59:32.893976Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
 ball_prompt: Finish specifying this task.
 archived: false
 priority: medium
-queue_position: 1400
+queue_position: 5300
 category: architecture
 tags:
 - issue-reporter

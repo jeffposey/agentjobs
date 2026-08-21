@@ -3,22 +3,16 @@ id: task-209
 title: 'Order the live backlog: put the whole open corpus in a work order Jeff has
   agreed to'
 created: '2026-08-20T23:32:09.717972Z'
-updated: '2026-08-21T16:56:34.899695Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-21T17:02:20.762055Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 5000
 category: meta
 tags:
 - queue-order
 - backlog
 assignment:
-  owner: claude
   eligible: []
 parent: task-081-task-selection-ranking
 spec:
@@ -81,23 +75,37 @@ acceptance:
 - id: sc-1
   text: A readable band-by-band list of every open task was presented to Jeff and
     his approval is recorded on this task.
-  status: pending
+  verify: Proposal in log entry 6 (all 92 open tasks, band by band). Approval in log
+    entry 9, Jeff Posey through the web UI, 2026-08-21T16:55:14Z, on this record rather
+    than in chat.
+  status: met
 - id: sc-2
   text: The live corpus matches the approved list, verified by re-reading `agentjobs
     queue list` after the moves.
-  status: pending
+  verify: Re-read after the moves and compared position by position against entry
+    6; full result in log entry 13. HIGH 1-13 and MEDIUM 1-11 match the approved heads
+    exactly, both tails keep the baseline relative order, CRITICAL and LOW unchanged.
+    `agentjobs queue check` exits 0, queue sound in every band.
+  status: met
 - id: sc-3
   text: Every move is a logged `queue_move`; no task file was hand-edited and no dependency
     was added.
-  status: pending
+  verify: '25 moves, 25 `type: queue_move` log entries, in 25 files (`git diff --name-only
+    -G''type: queue_move''`). The other 63 changed files are the manager''s own band
+    renumber: `queue_position` and `updated` only. No `dependencies`, `lifecycle`,
+    `ball` or `priority` line changed in any file.'
+  status: met
 - id: sc-4
   text: task-120 sits ahead of the queue-ordering implementation children, or Jeff's
     decision to place them differently is recorded here.
-  status: pending
+  verify: task-120 at HIGH position 10; task-209 at HIGH 45. task-208 closed before
+    this was applied and is no longer in the band.
+  status: met
 deliverables:
 - path: tasks/agentjobs/
-  note: the ordered corpus, committed to main
-  status: pending
+  note: 'the ordered corpus, committed to main -- 88 task files: 25 carrying a queue_move
+    log entry, 63 renumbered by the manager as collateral of the band compaction'
+  status: done
 dependencies:
 - task: task-206
   type: needs
@@ -534,3 +542,114 @@ log:
       id: bb9b9273-0209-4a00-9e00-000000000001
       kind: log_append
       fingerprint: fd73144e8121e0f47cd4949a50985006
+- id: 13
+  ts: '2026-08-21T17:01:39.769566Z'
+  actor: claude
+  type: progress
+  body: "APPLIED. Jeff approved the log entry 6 proposal through the web UI (log entry\
+    \ 9,\n2026-08-21T16:55Z). The approved order is now live in the corpus.\n\nWHAT\
+    \ WAS DONE\n25 `agentjobs queue move` calls, one per move, each with `--actor\
+    \ claude` and a note\nciting this task. 14 in HIGH (13 promotions + the task-063\
+    \ demotion), 11 in MEDIUM.\nCRITICAL and LOW untouched, as proposed. No task file\
+    \ was hand-edited, no `needs`\ndependency was added, nothing was closed, reprioritized\
+    \ or rewritten.\n\nVERIFIED, by re-reading `agentjobs queue list` after the moves:\n\
+    \nHIGH head, positions 1-13 -- exactly as approved:\n  193, 196, 224, 011, 012\
+    \ | 198, 199, 014, 007, 120, 121, 100, 018\nHIGH tail 14-52 -- migration baseline\
+    \ relative order intact:\n  081, 124, 126, 016, 017, 137, 138, 140, 139, 144,\
+    \ 141, 143, 146, 147, 148, 149,\n  160, 161, 167, 168, 171, 169, 172, 174, 175,\
+    \ 179, 181, 184, 021, 022, 023, 209,\n  211, 214, 215, 216, 217, 221, 225\nHIGH\
+    \ 53: task-063 (the approved demotion).\nMEDIUM head 1-5: 010, 105, 015, 053,\
+    \ 013. Bucket 6-11: 183, 197, 201, 223, 104, 106.\nMEDIUM tail 12-35 -- baseline\
+    \ order intact: 066, 092, 001, 101, 125, 127, 128, 129,\n  123, 142, 145, 150,\
+    \ 151, 152, 156, 162, 163, 170, 176, 212, 213, 218, 219, 226.\nCRITICAL: task-220\
+    \ alone, unchanged. LOW: 173, 178, 195, unchanged.\n\n`agentjobs queue check`\
+    \ reports the queue sound in every band: no collisions, no gaps\nit objects to,\
+    \ exit 0.\n\nFOUR DELTAS between approval and application, none of which changes\
+    \ the approved list.\nThe corpus moved under the proposal in the 50 minutes between\
+    \ writing it and applying\nit, which is exactly the churn log entry 4 predicted:\n\
+    \  - task-208 and task-222 closed. Both sat in the HIGH tail (proposal positions\
+    \ 45\n    and 53), so their departure only shortens the tail. HIGH went 54 ->\
+    \ 53 open.\n  - task-225 was created into HIGH and landed at the tail end (position\
+    \ 52, ahead of\n    only the demoted task-063). Held by human, parked.\n  - task-226\
+    \ was created into MEDIUM and landed last (position 35).\nNeither new task was\
+    \ part of what Jeff approved, so neither was placed by judgment;\nboth keep the\
+    \ position the mechanical baseline gave them, which is the tail. That is\nthe\
+    \ conservative reading of the approval, not a claim that the tail is where they\n\
+    belong -- the next reorder pass should look at them properly.\n\nONE MECHANICAL\
+    \ SURPRISE, recorded because it makes the diff bigger than 25 files.\n`queue move\
+    \ --top` halves the gap below the current leader (100 -> 50 -> 25 -> 12 ->\n6\
+    \ -> 3 -> 1), and on the seventh consecutive promotion into a band there is no\
+    \ integer\nleft, so the manager renumbered the whole band and continued. The result\
+    \ is correct and\n`queue check` is green, but the working tree shows 88 changed\
+    \ task files rather than 25:\n25 carry a `queue_move` log entry, and 63 changed\
+    \ only their `queue_position` and\n`updated` fields as collateral of that renumber.\
+    \ Verified by diff: the only top-level\nkeys that changed anywhere are `queue_position`\
+    \ and `updated`, plus the 25 appended log\nentries. No `dependencies`, `lifecycle`,\
+    \ `ball` or `priority` line moved in any file.\nWorth knowing for anyone applying\
+    \ a long run of moves: expect a band-wide renumber, and\ndo not read it as a hand\
+    \ edit.\n\nThree ids in the proposal (task-100, task-120, task-121) are slugged\
+    \ records, so the\nbare number was rejected with \"not found\" and they were re-issued\
+    \ with the full id.\ntask-018 had already reached its approved slot by then, so\
+    \ 120/121/100 were placed with\n`--after` rather than `--top`; the resulting order\
+    \ is identical to the approved one.\n\nsc-4 holds as applied: task-120 sits at\
+    \ HIGH 10, ahead of task-209 at HIGH 45.\ntask-208 closed before this ran, so\
+    \ it is no longer in the band at all."
+  data:
+    operation:
+      id: e1a72c40-0209-4c11-9b40-000000000201
+      kind: log_append
+      fingerprint: c3d46bfab1f1d4f6415de40adcbb3e98
+- id: 14
+  ts: '2026-08-21T17:02:02.439776Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: f2b83d51-0209-4c11-9b40-000000000202
+      kind: update_content
+      fingerprint: 227d608ca4d6b3e664b5ea48e1c42577
+- id: 15
+  ts: '2026-08-21T17:02:10.787977Z'
+  actor: claude
+  type: note
+  body: Updated deliverables.
+  data:
+    fields:
+    - deliverables
+    operation:
+      id: a3c94e62-0209-4c11-9b40-000000000203
+      kind: update_content
+      fingerprint: 5a8e077be0f4bc93fdc6556cf4c3fbdc
+- id: 16
+  ts: '2026-08-21T17:02:20.761855Z'
+  actor: claude
+  type: transition
+  body: 'All four acceptance criteria met; evidence on each and the full application
+    report in log entry 13. The backlog''s order is now a decision Jeff agreed to
+    rather than an artifact of the migration, and the queue verbs have been road-tested
+    on 88 real task files in one pass.
+
+
+    No branch and no merge: this task changed no code, and the ordered corpus goes
+    straight to main. The approval ball_prompt asking for a rebase and `--no-ff` was
+    the dashboard''s generic template, as the supervisor noted in log entry 12; `branches`
+    stays empty.
+
+
+    Three questions raised in log entry 7 are still unanswered and were deliberately
+    not acted on, per the no-grooming constraint. They outlive this task and belong
+    to whoever grooms next: task-198/task-199 look like one defect filed twice; task-010''s
+    band is arguably wrong; task-063''s band no longer matches its remaining work.
+    The triage scan also nominated task-221 as the strongest candidate for promotion
+    in the next reorder pass, and task-225 and task-226 arrived after approval and
+    were left at the tail unexamined.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: b4da5f73-0209-4c11-9b40-000000000204
+      kind: close
+      fingerprint: 422f6368bdbed42538217ad3cdc151b1

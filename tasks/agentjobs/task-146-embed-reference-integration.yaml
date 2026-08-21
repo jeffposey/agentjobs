@@ -2,13 +2,13 @@ schema: 2
 id: task-146-embed-reference-integration
 title: Prove the loop from a real project that is not AgentJobs, then write the guide
 created: '2026-08-18T05:55:46.457033Z'
-updated: '2026-08-21T09:22:52.958782Z'
+updated: '2026-08-21T16:58:00.477448Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 2100
+queue_position: 8300
 category: developer_experience
 tags:
 - embedding

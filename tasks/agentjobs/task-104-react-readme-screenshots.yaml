@@ -2,13 +2,13 @@ schema: 2
 id: task-104-react-readme-screenshots
 title: Stage and capture polished React screenshots for README
 created: '2026-08-13T22:01:57.804546Z'
-updated: '2026-08-21T09:22:53.292251Z'
+updated: '2026-08-21T16:59:33.016539Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
-queue_position: 600
+queue_position: 4000
 category: documentation
 tags:
 - react-frontend
@@ -95,4 +95,16 @@ dependencies:
     without replacing it.
 links: []
 branches: []
-log: []
+log:
+- id: 1
+  ts: '2026-08-21T16:59:20.137020Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: applying the ordering approved by Jeff on 2026-08-21 (proposal
+    in task-209 log entry 6).'
+  data:
+    band: medium
+    from: 600
+    to: 25
+    placement:
+      kind: top

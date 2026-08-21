@@ -2,13 +2,13 @@ schema: 2
 id: task-014
 title: Detect a bundle talking to a server it was not built against
 created: '2026-08-18T05:08:57.664522Z'
-updated: '2026-08-21T09:22:52.889483Z'
+updated: '2026-08-21T16:58:00.724330Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 1100
+queue_position: 6300
 category: reliability
 tags:
 - frontend
@@ -167,3 +167,15 @@ log:
       id: e21a7f65-9d84-4b30-a6c2-1f7c58e390db
       kind: create
       fingerprint: 2d0c58c66e9e1cbc74f30ca95d5d6b11
+- id: 2
+  ts: '2026-08-21T16:57:50.471566Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: applying the ordering approved by Jeff on 2026-08-21 (proposal
+    in task-209 log entry 6).'
+  data:
+    band: high
+    from: 1100
+    to: 12
+    placement:
+      kind: top

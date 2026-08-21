@@ -2,13 +2,13 @@ schema: 2
 id: task-144-embed-security-posture
 title: Decide what an embedded surface may do, and from where
 created: '2026-08-18T05:53:36.558541Z'
-updated: '2026-08-21T09:22:52.940367Z'
+updated: '2026-08-21T16:58:00.502473Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 1800
+queue_position: 8000
 category: developer_experience
 tags:
 - embedding

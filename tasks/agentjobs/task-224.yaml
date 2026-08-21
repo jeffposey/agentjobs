@@ -3,13 +3,13 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-21T15:51:07.590452Z'
+updated: '2026-08-21T16:58:04.110126Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 5800
+queue_position: 1500
 category: reliability
 tags:
 - dispatch
@@ -135,3 +135,15 @@ log:
       id: b4c81e59-7a26-4d13-9f80-5e2c3a6d7018
       kind: create
       fingerprint: 5a1c3cb1979caffdc0cfa1a8d06646ea
+- id: 2
+  ts: '2026-08-21T16:58:04.109965Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: applying the ordering approved by Jeff on 2026-08-21 (proposal
+    in task-209 log entry 6).'
+  data:
+    band: high
+    from: 11100
+    to: 1500
+    placement:
+      kind: top

@@ -2,13 +2,13 @@ schema: 2
 id: task-138-embed-distribution-decision
 title: Decide how the embedded UI reaches someone else's React app
 created: '2026-08-18T05:52:27.037445Z'
-updated: '2026-08-21T09:22:52.921626Z'
+updated: '2026-08-21T16:58:00.525270Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 1500
+queue_position: 7700
 category: developer_experience
 tags:
 - embedding

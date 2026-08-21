@@ -2,13 +2,13 @@ schema: 2
 id: task-172-dictation-control
 title: Talk into any AgentJobs text field
 created: '2026-08-19T17:37:17.567509Z'
-updated: '2026-08-21T09:22:53.042469Z'
+updated: '2026-08-21T16:58:00.384569Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 3200
+queue_position: 9300
 category: ux
 tags:
 - voice-input

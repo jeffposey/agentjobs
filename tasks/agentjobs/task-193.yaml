@@ -2,13 +2,13 @@ schema: 2
 id: task-193
 title: Every CLI dispatch on this machine hands the agent a dead API address
 created: '2026-08-20T08:07:00.622137Z'
-updated: '2026-08-21T09:22:53.111440Z'
+updated: '2026-08-21T16:58:08.762027Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 4100
+queue_position: 375
 category: reliability
 tags:
 - dispatch
@@ -83,3 +83,15 @@ log:
       id: d9061f42-7eaa-4b53-9c85-4032e6f90193
       kind: update_content
       fingerprint: f817057ee5472e7cdb5f7031b314a68c
+- id: 3
+  ts: '2026-08-21T16:58:08.761894Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: applying the ordering approved by Jeff on 2026-08-21 (proposal
+    in task-209 log entry 6).'
+  data:
+    band: high
+    from: 10200
+    to: 375
+    placement:
+      kind: top

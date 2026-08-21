@@ -2,14 +2,14 @@ schema: 2
 id: task-214
 title: 'Playbooks 1: storage, frontmatter format, and read surfaces'
 created: '2026-08-21T04:55:30.551589Z'
-updated: '2026-08-21T09:22:53.207664Z'
+updated: '2026-08-21T16:58:00.232479Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
 ball_prompt: Finish specifying this task.
 archived: false
 priority: high
-queue_position: 5200
+queue_position: 10600
 category: architecture
 tags:
 - playbooks

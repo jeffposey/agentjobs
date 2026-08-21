@@ -2,13 +2,13 @@ schema: 2
 id: task-126-mcp-in-process-manager
 title: Let the STDIO MCP server run without a separately started service
 created: '2026-08-17T20:47:31.623715Z'
-updated: '2026-08-21T09:22:52.857082Z'
+updated: '2026-08-21T16:58:00.571416Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 700
+queue_position: 7200
 category: architecture
 tags:
 - mcp

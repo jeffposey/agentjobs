@@ -2,13 +2,13 @@ schema: 2
 id: task-063-schema-v2
 title: 'Schema v2: finish the dedicated CLI state verbs'
 created: '2026-08-11T03:17:08.422110Z'
-updated: '2026-08-21T09:22:52.789627Z'
+updated: '2026-08-21T16:59:01.499649Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 100
+queue_position: 11300
 category: infrastructure
 tags:
 - schema-v2
@@ -178,3 +178,16 @@ log:
     remaining schema-v2 child and owns dedicated CLI mirrors. Historical implementation-plan
     text remains, but its 054 row and completion status now identify the React replacement.'
   data: {}
+- id: 4
+  ts: '2026-08-21T16:59:01.499507Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: demoted to the bottom of HIGH per the approved proposal -- an umbrella
+    whose only open child (task-053) sits in MEDIUM should not hold the top slot of
+    the top band.'
+  data:
+    band: high
+    from: 6600
+    to: 11300
+    placement:
+      kind: bottom

@@ -2,13 +2,13 @@ schema: 2
 id: task-018
 title: A parent can close while its children are open, and nothing can reopen it
 created: '2026-08-18T06:27:57.132450Z'
-updated: '2026-08-21T09:22:52.966383Z'
+updated: '2026-08-21T16:58:00.704263Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 2200
+queue_position: 6500
 category: correctness
 tags:
 - schema
@@ -139,3 +139,15 @@ log:
       id: b8710e5c-4f92-4a36-b0d7-6e2915043fc8
       kind: create
       fingerprint: 5b88e0e0b7d3989bad958af7064ff7b9
+- id: 2
+  ts: '2026-08-21T16:57:39.941768Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: applying the ordering approved by Jeff on 2026-08-21 (proposal
+    in task-209 log entry 6).'
+  data:
+    band: high
+    from: 2200
+    to: 50
+    placement:
+      kind: top

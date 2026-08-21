@@ -3,13 +3,13 @@ id: task-023
 title: Dispatch output is a raw terminal dump; render the session's structured transcript
   instead
 created: '2026-08-19T22:31:46.196691Z'
-updated: '2026-08-21T09:22:53.102154Z'
+updated: '2026-08-21T16:58:00.307796Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 4000
+queue_position: 10100
 category: ux
 tags:
 - dispatch

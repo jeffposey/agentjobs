@@ -3,7 +3,7 @@ id: task-211
 title: 'Design playbooks: named, reusable briefs for AI-judgment work like groom,
   reorder, and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T09:22:53.187482Z'
+updated: '2026-08-21T16:58:00.243007Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -32,7 +32,7 @@ ball_prompt: "The playbook design is ready for your review: docs/playbooks-desig
   \ \u2014 the children stay drafts until you promote them, per the design's own rule."
 archived: false
 priority: high
-queue_position: 5100
+queue_position: 10500
 category: architecture
 tags:
 - design

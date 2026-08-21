@@ -2,13 +2,13 @@ schema: 2
 id: task-100-dependency-cycle-deadlock
 title: A `needs` cycle deadlocks silently
 created: '2026-08-13T02:35:21.254172Z'
-updated: '2026-08-21T09:22:52.829198Z'
+updated: '2026-08-21T16:58:58.983152Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 300
+queue_position: 6487
 category: correctness
 tags:
 - schema
@@ -95,3 +95,16 @@ log:
     the canonical dependency-cycle behavior. This is a real implementation prerequisite,
     not an edge invented to express backlog order.
   data: {}
+- id: 2
+  ts: '2026-08-21T16:58:58.983000Z'
+  actor: claude
+  type: queue_move
+  body: 'task-209: applying the ordering approved by Jeff on 2026-08-21 (proposal
+    in task-209 log entry 6).'
+  data:
+    band: high
+    from: 6800
+    to: 6487
+    placement:
+      kind: after
+      target: task-121-batch-issue-capture

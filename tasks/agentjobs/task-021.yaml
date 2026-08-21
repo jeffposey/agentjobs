@@ -3,13 +3,13 @@ id: task-021
 title: Posture should decide whether a run merges and pushes, not only what it may
   execute
 created: '2026-08-19T22:28:28.717331Z'
-updated: '2026-08-21T09:22:53.086389Z'
+updated: '2026-08-21T16:58:00.328276Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 3800
+queue_position: 9900
 category: architecture
 tags:
 - dispatch

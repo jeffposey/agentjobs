@@ -3,13 +3,13 @@ id: task-022
 title: Dispatch an epic as autonomous and it finishes the whole thing, child by child,
   unattended
 created: '2026-08-19T22:29:17.039117Z'
-updated: '2026-08-21T09:22:53.094635Z'
+updated: '2026-08-21T16:58:00.318875Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 3900
+queue_position: 10000
 category: architecture
 tags:
 - dispatch

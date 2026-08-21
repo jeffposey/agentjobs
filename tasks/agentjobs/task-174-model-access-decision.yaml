@@ -2,13 +2,13 @@ schema: 2
 id: task-174-model-access-decision
 title: Decide how AgentJobs is allowed to call a model at all
 created: '2026-08-19T17:38:28.122685Z'
-updated: '2026-08-21T09:22:53.049587Z'
+updated: '2026-08-21T16:58:00.375434Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 3300
+queue_position: 9400
 category: infrastructure
 tags:
 - decision

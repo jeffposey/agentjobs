@@ -2,13 +2,13 @@ schema: 2
 id: task-137-embedded-helper-ui
 title: 'Embedded AgentJobs: drop the helper UI into an app you are building'
 created: '2026-08-18T05:51:57.001478Z'
-updated: '2026-08-21T09:22:52.913347Z'
+updated: '2026-08-21T16:58:00.532955Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 1400
+queue_position: 7600
 category: developer_experience
 tags:
 - embedding
