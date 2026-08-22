@@ -1,0 +1,106 @@
+schema: 2
+id: task-263
+title: 'Enforce actor kind: agents cannot act as default_user, reserved ids are refused
+  over HTTP and MCP, PATCH/DELETE/deliverables validate their actor, the CLI requires
+  --actor'
+created: '2026-08-22T18:56:45.865997Z'
+updated: '2026-08-22T18:56:46.314912Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 13500
+category: infrastructure
+tags:
+- big-dawg-audit
+- mcp
+- api
+- cli
+- security
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P2/P3 cluster with five witnesses (auditor 8 F5, auditor\
+    \ 6 F6, auditor 12 S-10, auditor 7, auditor 4 F8). \"Never adopt default_user\"\
+    \ is requested in four places and enforced in none \u2014 task_claim with actor\
+    \ \"Jeff Posey\" passed both checks live. The CLI does the opposite by default:\
+    \ promote, queue move and reprioritize without --actor are attributed to default_user.\
+    \ Reserved ids dispatcher/finisher are accepted from any caller; PATCH passes\
+    \ actor through unvalidated; DELETE and deliverables take none and write \"system\"\
+    . The log is append-only, so every one of these is a permanent misattribution."
+  description: "## Evidence\n- MCP (auditor 8, live): `task_claim(actor=\"Jeff Posey\"\
+    , task_id=nonexistent)` returned `task_not_found` \u2014 the actor passed. `routing.require_actor`\
+    \ compares against `project.actor_ids` (`routing.py:101-102`), which includes\
+    \ humans; REST `acting_actor` documents \"an agent verb need not match default_user\"\
+    \ (`status.py:192-194`); `validate_actor` has no kind check (`actors.py:194-213`).\
+    \ The prohibition lives in `routing.py:41-42`, `read_tools.py:196`, `SKILL.md`,\
+    \ and a schema description.\n- CLI (auditor 6 F6): `_resolve_actor` (`cli.py:1739-1756`)\
+    \ falls back to `config.default_user` for `promote`, `queue move`, `queue reprioritize`.\
+    \ `project mcp-setup`'s docstring admits agents \"quietly fall back to the CLI\"\
+    .\n- REST (auditors 7, 12, 4): `PATCH /tasks/{id}?actor=` is a bare query param\
+    \ passed straight to the manager (`routes/tasks.py:439-459`), written as `actor\
+    \ or \"system\"`; `DELETE /tasks/{id}` takes no actor, archives as `\"system\"\
+    `, closes an open task as `cancelled` and fires `task.closed` with `triggered_by:\
+    \ system` (`manager.py:1445`); `PATCH .../deliverables/{path}` takes none and\
+    \ writes no log entry at all (`manager.py:1076-1094`, auditor 4 F7). `dispatcher`/`finisher`\
+    \ are accepted from any HTTP or MCP caller (`actors.py:202-203`), so a caller\
+    \ can write \"AgentJobs finisher merged \u2026\" entries; the human-clocked guard\
+    \ refuses to dispatch on them but the record lies.\n- Python client default: `add_progress_update(agent=\"\
+    \")` sends `\"author\": \"system\"`, which any project with an `actors:` block\
+    \ refuses as `unknown_actor`; `tests/test_client.py:142` pins the defect (auditor\
+    \ 7).\n\n## Fix\n- `require_actor` (MCP) and `acting_actor` (REST): refuse `kind\
+    \ == human` on the agent verbs (claim, release, handoff-from-agent, log as agent,\
+    \ task_next's eligibility actor) with `unknown_actor` plus an action naming the\
+    \ agent ids; refuse `RESERVED` ids from HTTP and MCP (dispatcher and finisher\
+    \ call the manager directly).\n- `PATCH` takes `actor` in the body and validates\
+    \ it; `DELETE` and deliverables take a body with `actor`; `mark_deliverable_complete`\
+    \ takes an actor and appends a NOTE.\n- CLI: no fallback for agents \u2014 require\
+    \ `--actor`, or fall back only when stdin is a TTY, and print who the action was\
+    \ recorded as.\n- Client: make `agent` required in `add_progress_update` or drop\
+    \ the method.\n- Rejected alternative (auditor 8): leaving it to skill text, which\
+    \ the standalone-MCP and Gemini rows never load."
+  context:
+  - path: audits/2026-08-21/08-mcp.md
+    why: F5 with the live probe and the fix
+  - path: audits/2026-08-21/06-cli.md
+    why: Finding 6 and section 8
+  - path: audits/2026-08-21/12-security.md
+    why: 'S-10: attribution unverified in three places'
+  - path: audits/2026-08-21/07-api-client-webhooks.md
+    why: The three write routes attributing to system; the client default author
+  - path: src/agentjobs/actors.py
+    why: validate_actor and RESERVED
+acceptance:
+- id: ac-1
+  text: An agent verb over MCP or REST with a human actor id is refused with unknown_actor
+    naming the agent ids (live test against a configured project).
+  status: pending
+- id: ac-2
+  text: dispatcher and finisher are refused as actors from HTTP and MCP.
+  status: pending
+- id: ac-3
+  text: No write route attributes to 'system'; PATCH, DELETE and deliverables validate
+    an explicit actor.
+  status: pending
+- id: ac-4
+  text: agentjobs promote/queue move/queue reprioritize without --actor from a non-TTY
+    exit non-zero.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:56:46.314002Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 05be528b-839b-4a27-8be2-08fe5d753566
+      kind: create
+      fingerprint: b9aee34edb7c0b02596e9e13a56d29d2

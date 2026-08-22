@@ -1,0 +1,90 @@
+schema: 2
+id: task-253
+title: "Hold the queue lock across the reopen/reband write in update_task \u2014 a\
+  \ concurrent create or move duplicates the position"
+created: '2026-08-22T18:53:05.169309Z'
+updated: '2026-08-22T18:53:05.612653Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 12600
+category: infrastructure
+tags:
+- big-dawg-audit
+- queue
+- storage
+assignment:
+  eligible: []
+spec:
+  summary: Big Dawg Audit P2 with four witnesses (auditor 2 found the doc/code contradiction,
+    auditor 4 F4 and auditor 3 constructed it, auditor 5 F1 reproduced both forms
+    deterministically). _rejoining_the_queue computes a position under queue_lock()
+    and releases it with only an integer in hand; the write happens later in _mutate
+    under the task lock only. A create, move or reprioritize landing in the window
+    takes the same number, and next/dashboard then refuse with QueueCorruptionError
+    until someone runs repair. Reachable from the tailnet via PATCH priority.
+  description: "## Evidence\n- `manager.py:1055-1056`: `with self.storage.queue_lock():\
+    \ position = self._place(...)` \u2014 the block ends there; the write is `self._mutate(task_id,\
+    \ apply)` at `:1018` under the per-task lock. Every other position-assigning verb\
+    \ writes inside `.queue` (`create_task:805`, `move:1649`, `reprioritize:1744`,\
+    \ `rebalance:1589`, `compact:1600`, `repair:1905`).\n- `docs/task-selection-design.md:150,358-359`\
+    \ and \xA77's lock table say reopen/band-change hold the lock so \"a duplicate\
+    \ cannot be created by a race\"; `storage.py:423` repeats it.\n- Auditor 5's reproduction\
+    \ (scratchpad `race_repro.py`, forcing a create between `_rejoining_the_queue`\
+    \ returning and `_mutate`): reopen \u2192 `band 'medium' position 300 is claimed\
+    \ by task-001, task-003`; reband \u2192 `band 'high' position 100 is claimed by\
+    \ task-002, task-004`; `get_next_task` then raises `QueueCorruptionError`; `repair`\
+    \ resolves it.\n- Reachability: `priority` is allow-listed on `TaskUpdateRequest`\
+    \ (`api/models.py:349-357`) and MCP `task_update_content` (`mutation_tools.py:98`),\
+    \ so `PATCH /tasks/{id}` from any caller enters this path; the browser edit task-230\
+    \ specifies will too. Locks are files, so the race is cross-process. The reopen\
+    \ form (`lifecycle` patch) is manager-only today.\n- Secondary: `_rejoining_the_queue`\
+    \ reads `existing = self.get_task(task_id)` at `:1046` before taking the lock\
+    \ and through the snapshot cache, so the band decision can be made on a stale\
+    \ priority.\n- Also (auditor 5 F8): a replayed `priority` patch computes the rejoin\
+    \ (possibly rebalancing the whole band) before discovering it is a replay; `move`/`reprioritize`\
+    \ check replay first under the lock.\n- No test races a `priority` patch against\
+    \ a create: `TestTheQueueLockHolds` covers create-vs-create and create-vs-move\
+    \ only.\n\n## Fix\nHold `queue_lock()` across the whole `update_task` when `rejoin\
+    \ is not None` (lock order `.queue \u2192 task` already permits it; `move`/`reprioritize`\
+    \ are the template), read `existing` inside it via `load_task_uncached`, and check\
+    \ replay before computing. Or route a `priority` patch through `reprioritize`\
+    \ literally, as design \xA75.3 claims it already does \u2014 that fixes the lock\
+    \ profile and the replay order at once. Add a threaded create-vs-`update_task(priority=...)`\
+    \ test. Fix the design doc's lock table and `storage.py:423`."
+  context:
+  - path: audits/2026-08-21/05-queue.md
+    why: 'F1: the reproduction, reachability, and fix; F8 on replay order'
+  - path: audits/2026-08-21/04-storage-manager.md
+    why: 'F4: the lock-scope analysis from the storage side'
+  - path: audits/2026-08-21/02-docs-vs-reality.md
+    why: The doc/code contradiction that raised the question
+  - path: src/agentjobs/manager.py
+    why: _rejoining_the_queue at 1020-1070 and update_task at 949-1018
+acceptance:
+- id: ac-1
+  text: A threaded test racing create_task against update_task(priority=...) in the
+    same band never produces a duplicate position.
+  status: pending
+- id: ac-2
+  text: A replayed priority patch performs no rebalance and writes no file.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:53:05.611793Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 3fd58084-ba10-47db-81c8-24a7086ca6bb
+      kind: create
+      fingerprint: e655c32bc2e4c65017c640b336968255

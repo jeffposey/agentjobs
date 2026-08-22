@@ -1,0 +1,92 @@
+schema: 2
+id: task-257
+title: 'Webhooks: stop returning secrets, refuse non-global targets, add a delivery
+  id, and say what the delivery guarantee is'
+created: '2026-08-22T18:54:31.595201Z'
+updated: '2026-08-22T18:54:32.217392Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 13000
+category: infrastructure
+tags:
+- big-dawg-audit
+- webhooks
+- security
+assignment:
+  eligible: []
+spec:
+  summary: Big Dawg Audit P2 (auditor 7; auditor 12 S-4/S-5 from the threat side).
+    Webhook.secret is the response_model for list/get/create and is in openapi.json,
+    so any API reader gets the HMAC key and can forge signed deliveries. url accepts
+    loopback/link-local/RFC1918; every delivery carries the whole task record, so
+    a subscription on job-hunting is an exfiltration channel. No delivery id, no receiver
+    freshness rule (a captured delivery replays forever), one attempt with no retry,
+    task handles discarded (GC-able mid-flight), bookkeeping write unlocked.
+  description: "## Evidence\n- `webhooks.py:33` `secret: str` plain field; `routes/webhooks.py:26,34,49`\
+    \ use `Webhook` as `response_model`; `openapi.json` Webhook props include `secret`.\
+    \ Stored cleartext in `<project>/.agentjobs/webhooks.yaml` (`webhooks.py:65-68`).\
+    \ All five projects answered `[]` live \u2014 latent, not exposed today.\n- `url:\
+    \ HttpUrl` accepts anything (`webhooks.py:31`); delivery body is `task.model_dump(mode=\"\
+    json\")` plus metadata (`:242-255`, `docs/webhooks.md:43` confirms). `POST /webhooks/{id}/test`\
+    \ fires synchronously. Creation is not logged on any task and nothing in the UI\
+    \ lists webhooks. Verified clean: redirects not followed, 10 s timeout.\n- Signature:\
+    \ HMAC-SHA256 over the body, hex in `X-Hub-Signature-256`; `timestamp` is in the\
+    \ signed body but `docs/webhooks.md:50-57` never tells receivers to check it;\
+    \ no delivery/event id anywhere. Combined with replay-refire (separate task) a\
+    \ receiver cannot tell a second handoff from a duplicate delivery.\n- Delivery:\
+    \ `_dispatch` one attempt, warning on failure (`:228-237`); `_schedule` discards\
+    \ the `create_task` handle (`:214`); several deliveries per event run concurrently,\
+    \ so two handoffs seconds apart can arrive out of order; `record_trigger` + `save_webhook`\
+    \ read-modify-write `webhooks.yaml` from a background task with no lock and plain\
+    \ `write_text`.\n- `docs/webhooks.md:11` says `task.handoff` fires when \"the\
+    \ ball moves to an agent, human, or external dependency\"; only the `handoff`\
+    \ verb fires it \u2014 `claim`, `release`, `promote` move the ball and fire nothing.\
+    \ `WebhookCreateRequest.events` is unvalidated (`routes/webhooks.py:30`).\n\n\
+    ## Fix\n- `WebhookRead` without `secret` (or a fingerprint) for list/get/create;\
+    \ keep `Webhook` as the storage model; a test that the secret is withheld.\n-\
+    \ Refuse non-global targets by default (loopback only via explicit config); write\
+    \ a `note` or server-log line on create/test.\n- `delivery_id` (uuid) in payload\
+    \ and header; docs tell receivers to reject stale timestamps and dedup on it.\n\
+    - Hold task references in a set; serialise bookkeeping through the atomic-write\
+    \ helper (storage task); either document \"at most once, no order\" or add a bounded\
+    \ retry.\n- Reword the events table or fire on every ball move (product decision\
+    \ \u2014 record it); validate `events` against the enum.\n- Proxy allow-list denies\
+    \ `/webhooks*` from the tailnet (proxy task)."
+  context:
+  - path: audits/2026-08-21/07-api-client-webhooks.md
+    why: Secrets P2, delivery/signature/docs P3s, event inventory table
+  - path: audits/2026-08-21/12-security.md
+    why: 'S-4, S-5: forgery and exfiltration framing'
+  - path: src/agentjobs/webhooks.py
+    why: The manager
+acceptance:
+- id: ac-1
+  text: No API response or OpenAPI schema carries a webhook secret (test).
+  status: pending
+- id: ac-2
+  text: A webhook targeting 127.0.0.1 or 169.254.x.x is refused by default.
+  status: pending
+- id: ac-3
+  text: Every delivery carries a delivery_id and docs/webhooks.md states the freshness
+    and dedup rule and the real firing conditions.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:54:32.216490Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 504369f2-cef2-4ba7-ae78-3e037b145c67
+      kind: create
+      fingerprint: f680d53edea69493dffd7877fa8ef57e

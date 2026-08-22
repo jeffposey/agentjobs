@@ -1,0 +1,103 @@
+schema: 2
+id: task-255
+title: 'Make the operation_id contract true: webhooks fire only on a real write, create/update
+  report replayed, and a replay says when state has moved on'
+created: '2026-08-22T18:53:43.154763Z'
+updated: '2026-08-22T18:53:43.593644Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 12800
+category: infrastructure
+tags:
+- big-dawg-audit
+- api
+- mcp
+- storage
+assignment:
+  eligible: []
+spec:
+  summary: 'Big Dawg Audit P2 cluster with four witnesses (auditor 4 F3/F5, auditor
+    7, auditor 8 F2/F3, auditor 2). The served text promises "reusing an operation_id
+    replays the original result instead of writing twice". Three ways it is not true:
+    every verb fires its webhook unconditionally after _mutate, so a retried handoff
+    delivers task.handoff twice; replay returns the task as it is now, not the original
+    result, so a retried claim can report "replayed" on a task another agent now owns;
+    and POST /tasks and PATCH /tasks/{id} bypass _run, so their replayed is hard-coded
+    False and their conflicts arrive as invalid_transition without current_task.'
+  description: "## Evidence\n1. **Webhooks re-fire on replay** (auditors 4 and 7 independently).\
+    \ `manager.py:1292-1302` (`handoff`), `:1435-1440` (`close`), `:2016-2018` (`add_log_entry`\
+    \ \u2192 `task.question`) call `self._mutate(...)` then unconditionally `self._fire(...)`.\
+    \ On replay `apply` returns `None` and `mutate_task` returns the current task\
+    \ without writing (`storage.py:462-463`), then the verb fires anyway. `fire_event`\
+    \ (`webhooks.py:163-181`) has no dedupe. A client retrying after a timeout produces\
+    \ one log entry and two signed deliveries, byte-identical except `timestamp`.\
+    \ No test mentions both replay and webhook. When a notification service is built\
+    \ on `task.handoff` (ENGINEERING.md names it as the extension point) this is a\
+    \ duplicate push per retry.\n2. **Replay returns the current task** (auditor 4\
+    \ F5; verified by the synthesis against `storage.py:458-463`). No original result\
+    \ is stored anywhere (`operations.py:181-185`). Scenario: agent A claims with\
+    \ op u1, reply lost, A's run is reaped, task released, agent B claims; A retries\
+    \ u1 \u2192 marker found, fingerprint matches, envelope says `replayed: true`,\
+    \ body is the task owned by B. Nothing says the state moved on.\n3. **Two routes\
+    \ outside the envelope** (auditor 8 F2/F3, auditor 7). `POST /tasks` and `PATCH\
+    \ /{id}` return a bare `Task` and never go through `status.py::_run` where `replayed`\
+    \ is measured and errors get `ErrorBody`. MCP hard-codes `\"replayed\": False`\
+    \ for `task_create_*` and `task_update_content` (`mutation_tools.py:411-414, 619`);\
+    \ their `OperationConflictError` is wrapped in a bare `HTTPException(409)` (`tasks.py:425-426,\
+    \ 468-469`) so the MCP client sees `invalid_transition`, and a stale `expected_revision`\
+    \ on `task_update_content` returns no `current_task` \u2014 `docs/mcp.md:207-216`\
+    \ promises both. `test_mcp_mutation_tools.py:355-371` asserts only that a retried\
+    \ create returns the same id.\n4. Create's fingerprint excludes description/priority/spec\
+    \ (`operations.py:254-267`), so a retried create with a changed description replays\
+    \ silently \u2014 arguably correct, undocumented.\n\n## Fix\n- `_mutate` returns\
+    \ `(task, wrote)` (or `replay_or_conflict`'s result surfaces); `_fire` only when\
+    \ `wrote`. Five call sites. Auditor 7 asks whether `maybe_auto_dispatch` (`tasks.py:616`)\
+    \ is gated on a real write \u2014 check it in the same pass.\n- On replay, compare\
+    \ the marker's entry to the last transition entry and add `replayed_but_superseded:\
+    \ true` when later state-moving entries exist (~20 lines in `operations.py`);\
+    \ or change the words everywhere to \"returns the task as it now stands; re-read\
+    \ owner/ball before acting\".\n- Accept `?envelope=true` on `POST /tasks` and\
+    \ `PATCH /{id}`, run them through `_run` (for create, replayed = `_find_created_by`\
+    \ hit), return `MutationResult` from the client's `create`/`update_content`, and\
+    \ stop hard-coding `replayed` in MCP. Until then `docs/mcp.md:207-209` should\
+    \ say \"eight of the ten tools\".\n- Tests for each of the three."
+  context:
+  - path: audits/2026-08-21/04-storage-manager.md
+    why: F3 (webhooks on replay), F5 (current vs original), section 3 on what is fingerprinted
+  - path: audits/2026-08-21/07-api-client-webhooks.md
+    why: The replay-refires P2 and the _run replay measurement
+  - path: audits/2026-08-21/08-mcp.md
+    why: F2, F3 and the answer to auditor 2's question (result-shape fix at the REST
+      layer)
+acceptance:
+- id: ac-1
+  text: A replayed handoff/close/question delivers no second webhook (test).
+  status: pending
+- id: ac-2
+  text: task_create_* and task_update_content report replayed truthfully and return
+    operation_conflict / revision_conflict with current_task.
+  status: pending
+- id: ac-3
+  text: A replay whose task has since moved state is marked as superseded in the envelope,
+    or the served text no longer promises the original result.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:53:43.592559Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 5042915c-652c-4938-ad48-ed7b6454fc6e
+      kind: create
+      fingerprint: 231fb84aabbea913d01943a2082849a4

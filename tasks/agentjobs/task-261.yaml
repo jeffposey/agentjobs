@@ -1,0 +1,109 @@
+schema: 2
+id: task-261
+title: 'CLI knows whose server it is: probe /api/version in status/stop/restart/open,
+  restart never starts a server, defaults read gui.port, read-only commands stop creating
+  tasks/'
+created: '2026-08-22T18:55:59.739742Z'
+updated: '2026-08-22T18:56:00.189249Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 13400
+category: developer_experience
+tags:
+- big-dawg-audit
+- cli
+assignment:
+  eligible: []
+spec:
+  summary: 'Big Dawg Audit P2 (auditor 6 F2/F5/F7/F8/F9). The CLI identifies "the
+    server" by port number alone: status cannot tell a stale AgentJobs from another
+    program; stop/restart taskkill /F whatever listens; restart with default flags
+    on this machine reproduces the second-server-on-8765 incident ENGINEERING.md warns
+    about, and restart --port 8876 kills the launcher-managed dashboard and the phone
+    UI behind it. Read-only commands run outside a project silently create tasks/
+    and answer "No tasks found." serve/open/status/stop ignore the gui.port that init
+    wrote.'
+  description: "## Evidence\n- `_find_process_by_port` (`cli.py:422-447`) parses netstat/lsof\
+    \ and returns the first listening PID; it is a substring match (`\":8765\" in\
+    \ line`) so 8765 matches 87650 or 18765 (F8). `stop` (`:450-474`) and `restart`\
+    \ (`:491-529`) `taskkill /F` that PID. `status` (`:477-488`) prints PID and URL,\
+    \ exit 0 \u2014 live: `status --port 8876` \u2192 \"Server is running (PID 294284)\"\
+    , nothing about what it is.\n- `restart` with no listener skips the kill and runs\
+    \ `uvicorn.run(..., port=8765)` in the foreground (`:520-529`) \u2014 the stale\
+    \ second server GLOBAL-AGENTS and the Merge Gate step 6 name as an incident class,\
+    \ enforced nowhere. `restart --port 8876` replaces the launcher's process (and\
+    \ the tsnet-proxied phone UI) with one tied to the agent's shell.\n- The probe\
+    \ that fixes all of it exists: `dispatch.address.probe_api_base` (`address.py:253-278`)\
+    \ GETs `/api/version` (which reports `source_root`, `source_commit`, `started_at`)\
+    \ and reports *answered* and *is_agentjobs* separately; `dispatch config` already\
+    \ uses it.\n- F5: `_load_config` returns `DEFAULT_CONFIG` when no `.agentjobs/config.yaml`\
+    \ exists (`:111-117`) and `_resolve_tasks_dir` creates `tasks/` (`:137`). Demonstrated:\
+    \ empty directory, `agentjobs list` \u2192 \"No tasks found.\" exit 0, and a `tasks/`\
+    \ directory now exists. Half the CLI lacks `--project`, so an agent in a worktree\
+    \ under `C:/projects/worktrees/` gets the default-config path for `next`/`queue`/`promote`\
+    \ \u2014 a silent empty answer.\n- F7: `init` asks for a port and writes `gui.port`;\
+    \ `serve`, `restart`, `open`, `status`, `stop` print `[default: 8765]` and use\
+    \ it; only `project mcp-setup` reads `gui.port`. A user who answered 9000 gets\
+    \ a server on 8765 and an MCP entry pointing at 9000.\n- F9: `migrate` prints\
+    \ \"Migration complete!\" and exits 0 with `failed > 0` (`:1821-1830`); `open`\
+    \ exits 0 after \"Server may not have started\".\n- Tests: `restart`, `stop`,\
+    \ `status` have none beyond the wildcard-binding refusal; the `open` tests mock\
+    \ `_find_process_by_port` and `webbrowser.open`.\n\n## Fix\n- `_describe_server(host,\
+    \ port)` \u2192 (pid, is_agentjobs, source_root, source_commit, started_at) via\
+    \ `probe_api_base`; `status` prints it plus a \"started before the newest change\
+    \ under src/ \u2014 restart\" hint (the launcher's `Test-RestartNeeded` already\
+    \ does this). `stop`/`restart` refuse when `is_agentjobs` is false unless `--force`,\
+    \ and print `source_root` before killing. `restart` with nothing listening says\
+    \ so and exits 1 rather than starting a foreground server.\n- Exact-port match\
+    \ in `_find_process_by_port`.\n- `_load_config` raises (with `resolve_default`'s\
+    \ sentence naming `agentjobs init`/`project add`) when neither config nor registry\
+    \ match exists; read-only commands never create directories; `--project` on every\
+    \ task command.\n- Server commands default to `gui.port` from the cwd's config.\n\
+    - `migrate` exits 1 on failures; `open` exits 1 on a failed start (overlaps the\
+    \ install-cliff task \u2014 do the `open` half once).\n- Auditor 6's question\
+    \ for auditor 12, unanswered: does the dispatch guard list cover `agentjobs stop`/`restart`?\
+    \ From a dispatched agent's shell these are a one-liner to kill the dashboard\
+    \ or the proxy."
+  context:
+  - path: audits/2026-08-21/06-cli.md
+    why: Findings 2, 5, 7, 8, 9 and section 3 on the not-yours-to-restart doctrine
+  - path: src/agentjobs/cli.py
+    why: Server commands at 399-594; _load_config at 111-146
+  - path: src/agentjobs/dispatch/address.py
+    why: probe_api_base, the probe to reuse
+acceptance:
+- id: ac-1
+  text: agentjobs status names the server's source_root, source_commit and start time,
+    and says whether it is AgentJobs.
+  status: pending
+- id: ac-2
+  text: stop/restart refuse a non-AgentJobs listener without --force; restart with
+    nothing listening starts nothing.
+  status: pending
+- id: ac-3
+  text: agentjobs list in a directory with no project config exits non-zero naming
+    the fix and creates no directory.
+  status: pending
+- id: ac-4
+  text: serve/open/status/stop default to the configured gui.port.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:56:00.188354Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 4676b7d7-c79d-4a47-825f-4a67fef5aabd
+      kind: create
+      fingerprint: 6664b41fa889591da0a7afb98d3a7aaa

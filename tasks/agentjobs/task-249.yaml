@@ -1,0 +1,94 @@
+schema: 2
+id: task-249
+title: 'Dispatch: run identity and the runner''s env: never reach a --bg worker in
+  steady state (the daemon owns the environment)'
+created: '2026-08-22T18:51:44.798464Z'
+updated: '2026-08-22T18:51:45.394030Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: critical
+queue_position: 600
+category: infrastructure
+tags:
+- big-dawg-audit
+- dispatch
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P1 (auditor 10 P1-1; auditor 11 and auditor 1 observed\
+    \ the symptom \u2014 one phases.jsonl across 61 runs). runner._environment puts\
+    \ AGENTJOBS_RUN_ID/RUN_DIR and the runner's env: on the claude --bg launcher,\
+    \ but --bg hands the session to a persistent daemon that spawns the worker with\
+    \ the daemon's environment. Gate phase records therefore land only when the launch\
+    \ happened to start the daemon; the inverse \u2014 a later session inheriting\
+    \ a dispatched run's ids \u2014 is worse and merely unobserved."
+  description: "## Evidence (all from this machine)\n\n- `~/.claude/daemon.log`: the\
+    \ daemon that shut down at 2026-08-22T03:19:29Z had uptime 41679 s \u2192 started\
+    \ 2026-08-21T15:44:50Z, seven and a half hours before the instrumentation merged\
+    \ (`735c267`, 23:22Z). It spawned six post-instrumentation sessions (runs `run_92d3e98c`,\
+    \ `run_1994a874`, `run_b06b6084`, `run_f0accc73`, `run_e62535f2`, `run_b440fdb5`).\
+    \ None has a `phases.jsonl`.\n- The one run that does, `run_d813a110`, is the\
+    \ one whose launcher printed \"Starting background service\u2026\" \u2014 the\
+    \ daemon log shows `daemon start` at 04:27:57Z immediately followed by its `bg\
+    \ spawned`.\n- `run_b440fdb5` (task-241's working run) logged a full green gate\
+    \ at 130.8 s in its task record; no phase record exists for it.\n- Only 12 of\
+    \ 61 `stdout.log`s contain \"Starting background service\" \u2014 steady state\
+    \ is daemon-already-up, launcher env discarded. `~/.claude/jobs/<id>/state.json`\
+    \ records argv and no environment.\n- `scripts/run_report.py:329-334` prints \"\
+    No phase records yet\" identically for uninstrumented / env never arrived / gate\
+    \ never ran.\n- `docs/agent-dispatch-design.md:434-436` and `config.py` tell operators\
+    \ to put secrets in a runner's `env:` because argv is logged. In steady state\
+    \ `env:` is not delivered at all; a runner depending on it works once per daemon\
+    \ lifetime.\n- `tests/test_dispatch_runner.py::TestTheRunIsMeasurable` and `test_a_run_identity_is_granted_and_never_inherited`\
+    \ pass against a `sys.executable` fake runner that inherits Popen env directly\
+    \ \u2014 they cannot see the daemon hop.\n\n## Fix\n1. Verify first (read-only)\
+    \ whether the installed CLI (2.1.238) offers a per-session environment for `--bg`\
+    \ (`claude --help`, `claude agents --help`). Auditor 10 did not run this.\n2.\
+    \ If not: have the gate derive its run from the ledger \u2014 `live_runs(home)`\
+    \ filtered to the project whose checkout it runs in, attribute to the single live\
+    \ session run when there is exactly one, write `run_id: ambiguous` otherwise.\n\
+    3. Record `daemon_started: true/false` in `meta.yaml` from the launcher banner\
+    \ so `run_report` can say why a run has no records.\n4. Re-measure task-233's\
+    \ baseline table afterwards; its numbers were built on settlement time (auditor\
+    \ 10 P2-11, separate task) and on records that mostly do not exist."
+  context:
+  - path: audits/2026-08-21/10-dispatch.md
+    why: P1-1 with the daemon-log evidence and the four consequences
+  - path: audits/2026-08-21/11-gate-tooling.md
+    why: 'Section 0: only two real gate_finished records exist; P3-1 on what the record
+      lacks'
+  - path: src/agentjobs/dispatch/runner.py
+    why: _environment at 1027-1053
+  - path: src/agentjobs/dispatch/phases.py
+    why: record_phase_from_env no-op without the env
+acceptance:
+- id: ac-1
+  text: A gate run inside a dispatched session whose launch did not start the daemon
+    still produces gate_started/gate_finished in that run's directory.
+  status: pending
+- id: ac-2
+  text: run_report distinguishes 'no gate ran' from 'instrumentation absent'.
+  status: pending
+- id: ac-3
+  text: The secrets-in-env advice in the design doc and config.py is either true or
+    removed.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:51:45.393178Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 5fbd0ae7-7c13-4c0e-9e6d-6c2c9513b3e5
+      kind: create
+      fingerprint: e6f7dbdcdfd2709fb73a14a11e08e516

@@ -1,0 +1,96 @@
+schema: 2
+id: task-272
+title: 'migrate-schema: a re-run on a half-migrated corpus duplicates queue positions,
+  and the migrator writes outside TaskStorage (no lock, no receipt, non-canonical
+  bytes)'
+created: '2026-08-22T19:00:21.002481Z'
+updated: '2026-08-22T19:00:21.451976Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: medium
+queue_position: 7800
+category: migration
+tags:
+- big-dawg-audit
+- schema
+- migration
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P2 (auditor 3 F6/F8/F9; auditor 4's bypass table lists\
+    \ the same site). _assign_queue_positions plans positions over only the records\
+    \ this run converted; already-v2 files are skipped before it runs, so the ordinary\
+    \ retry shape (fix the one file that failed, run again) produces queue-duplicate\
+    \ findings \u2014 reproduced. migrate_corpus writes with destination.write_text,\
+    \ so every migrated file fails validate with non-canonical-serialization and --staged\
+    \ with no-write-receipt, contradicting storage.py's claim that the migrator produces\
+    \ receipts. TestTheRealCorpus skips every one of 247 files and asserts nothing."
+  description: "## Evidence\n- `migrate_schema.py:784-818` `_assign_queue_positions`\
+    \ plans over the converted records; v2 files are skipped at `:771-773` (`AlreadyV2Error`)\
+    \ and never seen by `plan_queue_migration`. Reproduction (three v1 files; convert\
+    \ one; then the directory): pass 2 \u2192 positions `{'task-901-x': 100, 'task-902-x':\
+    \ 100, 'task-903-x': 200}`; `validate_corpus` \u2192 two `queue-duplicate`. The\
+    \ CLI's own help says \"a corpus half-converted is worse than one not converted\"\
+    \ and the all-or-nothing write exists to prevent it \u2014 but a partial corpus\
+    \ is the normal shape of a retry. `plan_queue_migration` already supports \"below\
+    \ whatever is already there\" (`queue.py:701-704`) if handed the positioned siblings,\
+    \ which is what `migration/__init__.py:_claim_next_position` does for the markdown\
+    \ importer.\n- `migrate_corpus` writes `destination.write_text(yaml.safe_dump(data,\
+    \ ...))` (`:871-874`): no per-task lock, no receipt, not the canonical dump (`exclude_none`,\
+    \ `mode=\"json\"`, aliases, `storage.py:489-496`). Reproduced: `receipt for task-901\
+    \ after migrate: None`; non-canonical diff `+archived: false`, `+assignment:`,\
+    \ `+  eligible: []`. `storage.py:497-499` says receipts are recorded \"at the\
+    \ single point every managed write passes through, so \u2026 the schema migrator\
+    \ all produce receipts\" \u2014 false.\n- `tests/test_migrate_schema.py:417-437`\
+    \ iterates every real file and `continue`s on `v1.get(\"schema\")`; 0 of 247 lack\
+    \ the v2 stamp; the assertion is `assert not []`. It has caught nothing since\
+    \ task-052.\n- Good machinery, examined and sound: completeness (`MAPPED_FIELDS`/`INTENTIONALLY_DROPPED`,\
+    \ `verify_no_loss`), idempotence on a fully converted corpus, nothing still emits\
+    \ v1 shapes.\n\n## Fix\n- Feed `_assign_queue_positions` the existing v2 records\
+    \ from the target directory (via `TaskStorage.list_tasks_uncached`) alongside\
+    \ the converted ones.\n- Write through `TaskStorage(destination.parent).save_task(load_task(data))`\
+    \ so locks, receipts and canonical bytes come for free; fix the `storage.py` comment\
+    \ if any writer is still excepted.\n- Either pin a v1 fixture corpus under `tests/`\
+    \ (`git show <pre-052>:\u2026` snapshot) for `TestTheRealCorpus` or delete the\
+    \ test. Also delete the orphan `models_v2_preview.py` regen step or say what it\
+    \ is for (`regen-schema-docs.sh:26` still says \"input to task-050, not yet wired\
+    \ in\")."
+  context:
+  - path: audits/2026-08-21/03-schema-validation.md
+    why: Findings 6, 8, 9 with reproductions; section 3 on what is sound
+  - path: audits/2026-08-21/04-storage-manager.md
+    why: 'Section 4: the abstraction-bypass table naming migrate_schema.py as the
+      one raw writer in src/'
+  - path: src/agentjobs/migrate_schema.py
+    why: _assign_queue_positions at 784-818, the write at 871-874
+acceptance:
+- id: ac-1
+  text: Converting one file, then the rest of the directory, yields unique positions
+    per band (test).
+  status: pending
+- id: ac-2
+  text: A migrated file passes validate (canonical) and validate --staged (receipt
+    present).
+  status: pending
+- id: ac-3
+  text: TestTheRealCorpus either exercises a pinned v1 fixture or no longer exists.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T19:00:21.450655Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 241c05a5-12cf-44bb-8076-952fd9c9bbb0
+      kind: create
+      fingerprint: d56ff2d31cb21d42dc6849b0969042e6

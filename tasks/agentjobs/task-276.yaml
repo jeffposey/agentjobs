@@ -1,0 +1,90 @@
+schema: 2
+id: task-276
+title: "The task write guard refuses reads and unrelated writes that merely mention\
+  \ a task path \u2014 four auditors and the dispatcher lost time to it"
+created: '2026-08-22T19:01:44.658672Z'
+updated: '2026-08-22T19:01:45.146419Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: medium
+queue_position: 7900
+category: developer_experience
+tags:
+- big-dawg-audit
+- plugin
+- process
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P3 by rating, P2 by witness count (auditor 1 F-12, auditor\
+    \ 4's question to auditor 10, auditor 8 F4, the task-242 dispatcher's own log).\
+    \ The plugin guard extends its target list with every .yaml-looking token in the\
+    \ content of a Write/Edit, and on the shell path matches any write-shaped verb\
+    \ anywhere on the line plus any task path anywhere on the line \u2014 including\
+    \ inside quoted prose. A findings file that cites a task record by path is unwritable;\
+    \ a sed -n sharing a line with a grep that names a task file is refused as \"\
+    sed -i would write task records\". The installed copy also predates the d2ef033\
+    \ redirect fix. A guard that refuses reads trains agents to reword until something\
+    \ passes."
+  description: "## Evidence\n- Auditor 1: a read-only script written to the job tmp\
+    \ dir was refused because its text contained the task directory glob; the refusal\
+    \ said the tool \"would write AgentJobs task records\". Mechanism: `task_write_guard.py:421-423`\
+    \ extends targets with `re.findall(r\"[^\\s\\\"']+\\.ya?ml\", content)` for every\
+    \ file-write tool \u2014 the comment says it is for `apply_patch`, whose paths\
+    \ are in the patch body, but it runs on `content` too.\n- Auditor 4: three read-only\
+    \ commands refused in one session \u2014 a `sed -n` on a design doc sharing a\
+    \ command line with a grep naming a task record; a `sed 's/\u2026/'` filter on\
+    \ a line that also grepped a task record; the heredoc writing the findings file\
+    \ itself, because the prose contained the word \"touch\" and a task path. Each\
+    \ message named `sed -i`/`touch`. The match appears to be verb-anywhere AND task-path-anywhere,\
+    \ quoted data included.\n- Auditor 8 F4: the installed cache copy predates `d2ef033`\
+    \ (\"a redirect writes to its target, not to every path named\"), so `head x.yaml\
+    \ 2>/dev/null` is still denied on this machine.\n- task-242 log entry 8: auditor\
+    \ 2's file had to be recovered from its session tmp dir; two auditors lost their\
+    \ final minutes; the synthesis prompt carried a compose-in-scratch-then-cp workaround.\n\
+    - The guard's own docstring says it is \"a guardrail, not a security boundary\"\
+    ; the false positives teach the route-around habit that memory already warns about.\n\
+    \n## Fix\n- Apply the content regex only when the tool is `apply_patch` (or the\
+    \ key is `patch`/`input`), never to `content`.\n- Shell path: anchor to the verb's\
+    \ *target* (the argument position), not the line; treat quoted strings and heredoc\
+    \ bodies as data.\n- Re-install the plugin so the `d2ef033` fix is what runs (plugin-drift\
+    \ task).\n- One sentence in ALLAGENTS (static-context task) saying what the guard\
+    \ refuses and why, so the next session that hits it does not diagnose it from\
+    \ scratch."
+  context:
+  - path: audits/2026-08-21/01-context-architecture.md
+    why: F-12 with the mechanism at task_write_guard.py:421-423
+  - path: audits/2026-08-21/04-storage-manager.md
+    why: 'Questions for other auditors: the three refused read-only commands'
+  - path: audits/2026-08-21/08-mcp.md
+    why: 'F4: the installed guard predates the redirect fix'
+  - path: plugins/agentjobs/hooks/task_write_guard.py
+    why: The guard
+acceptance:
+- id: ac-1
+  text: A Write whose content names a task path but whose target is outside tasks/
+    is allowed (test).
+  status: pending
+- id: ac-2
+  text: A shell command whose only task-path mention is inside a quoted string or
+    heredoc body, with no write verb targeting it, is allowed (test).
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T19:01:45.145453Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 737bc07a-a5c8-41f4-985b-fddbef442288
+      kind: create
+      fingerprint: aed64d40d374ace06dc9d5add5c22f58

@@ -1,0 +1,79 @@
+schema: 2
+id: task-274
+title: 'Refuse cross-site and cross-host requests to the loopback API: custom header
+  on non-GET, TrustedHostMiddleware'
+created: '2026-08-22T19:01:12.977974Z'
+updated: '2026-08-22T19:01:13.707473Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 14100
+category: infrastructure
+tags:
+- big-dawg-audit
+- security
+- api
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P2 (auditor 12 S-3; server side verified, browser side\
+    \ not exercised). No Host/Origin validation; CORS only governs whether a response\
+    \ is readable. FastAPI parses a body with no Content-Type as JSON, a fetch with\
+    \ a typeless Blob and mode no-cors sends no preflight, and several mutations need\
+    \ no body at all \u2014 POST /dispatch/disable, DELETE /webhooks/{id}, DELETE\
+    \ /tasks/{id} (closes as cancelled), and POST /tasks/{id}/dispatch whose payload\
+    \ defaults, so a bare POST from any page Jeff visits can start a paid session.\
+    \ DNS rebinding reaches the same place."
+  description: "## Evidence\n- No `TrustedHostMiddleware`; `api/main.py:202-218` is\
+    \ CORS only (and its `allow_origins` lists 8765 and 5173, not the 8876 deployment\
+    \ \u2014 auditor 7 P4).\n- fastapi 0.119.1 `routing.py:336-338` parses a body\
+    \ with no `Content-Type` as JSON. A `fetch` with a typeless `Blob` body and `mode:\
+    \ \"no-cors\"` sends no `Content-Type` and triggers no preflight.\n- Body-less\
+    \ mutations: `POST /dispatch/disable`, `DELETE /webhooks/{id}`, `DELETE /tasks/{id}`\
+    \ (archive \u2192 closes open task as cancelled), `POST /tasks/{id}/dispatch`\
+    \ (`status.py:591` defaults the payload \u2014 a bare POST dispatches if the newest\
+    \ entry is a human's).\n- So `fetch(\"http://127.0.0.1:8876/api/projects/agentjobs/tasks/task-241/dispatch\"\
+    , {method:\"POST\", mode:\"no-cors\"})` from any page works; a rebinding attacker\
+    \ gets the same with a `Host` the server never checks.\n\n## Fix (both one-liners\
+    \ in `api/main.py`)\n- Require a custom header (e.g. `X-AgentJobs-Client`) on\
+    \ every non-GET; a browser cannot add one cross-origin without a preflight, which\
+    \ the explicit CORS origin list then denies. The React client, the Python client\
+    \ and MCP add it.\n- `TrustedHostMiddleware` with loopback and the tailnet hostname;\
+    \ fix `allow_origins` to the real deployment.\n- Verify in a sandbox server on\
+    \ its own port with throwaway data (GLOBAL-AGENTS review-server rule): a page\
+    \ on another origin cannot trigger a dispatch before the fix and gets a 4xx after."
+  context:
+  - path: audits/2026-08-21/12-security.md
+    why: S-3 with the request shape
+  - path: audits/2026-08-21/07-api-client-webhooks.md
+    why: 'P4: CORS allow_origins lists the wrong ports'
+  - path: src/agentjobs/api/main.py
+    why: Middleware stack at 171-218
+acceptance:
+- id: ac-1
+  text: A no-cors POST from a foreign origin to any mutating route is refused (sandbox
+    demonstration recorded in the log).
+  status: pending
+- id: ac-2
+  text: A request with a Host header that is neither loopback nor the tailnet hostname
+    is refused.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T19:01:13.706094Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: d6ad2b27-7b2e-4c98-a12b-96a1b760fc24
+      kind: create
+      fingerprint: dcd96815f1e1b0b6b0314450962839bb

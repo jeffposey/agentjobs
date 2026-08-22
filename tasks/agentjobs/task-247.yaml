@@ -1,0 +1,95 @@
+schema: 2
+id: task-247
+title: Atomic task-file writes, stale task-lock reclaim, and the same helper for the
+  registry and webhooks.yaml
+created: '2026-08-22T18:51:10.598317Z'
+updated: '2026-08-22T18:51:11.196978Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: critical
+queue_position: 400
+category: infrastructure
+tags:
+- big-dawg-audit
+- storage
+assignment:
+  eligible: []
+spec:
+  summary: 'Big Dawg Audit P1 (auditor 4 F1/F2; auditor 7 for webhooks.yaml; auditor
+    7''s aside that task files already use temp-file rename was checked by the synthesis
+    and is wrong). TaskStorage._write_task is a bare Path.write_text: truncate then
+    write, no temp file, no os.replace, no fsync. Every write has a window in which
+    the server, the poller and other CLIs read a truncated file as a broken task,
+    and a kill mid-write leaves a zero-length record whose only recovery loses every
+    log entry since the last chore commit. A crashed writer also leaves a lock nothing
+    reclaims.'
+  description: "## What was found\n\n- `src/agentjobs/storage.py:496-497`: `yaml_text\
+    \ = yaml.safe_dump(...)`; `path.write_text(yaml_text, encoding=\"utf-8\")`. Verified\
+    \ by the synthesis session against main. Compare `attachments.py:128-134`, written\
+    \ four days later, which writes a `.partial` and `os.replace`s it. `storage.py:220-222`\
+    \ describes an atomic writer that does not exist.\n- Consequence 1: a server restart\
+    \ (prescribed after every merge) or a killed CLI mid-write leaves a truncated\
+    \ file \u2192 `TaskLoadError` \u2192 the task drops into the broken banner, counts\
+    \ as not-closed for dependents, is invisible as a child. Recovery is `git checkout\
+    \ -- <file>`, which loses every log entry since the last task-file commit.\n-\
+    \ Consequence 2: readers take no lock by design, the per-request snapshot is entered\
+    \ per request, and the dashboard re-lists on every `/revision` change \u2014 whose\
+    \ hash changes twice per write (once at truncation). Landing inside the window\
+    \ is made more likely, not less.\n- `storage.py:366-382`: the lock file records\
+    \ the writer's pid and nothing ever reads it. Contention spins 10 s then raises\
+    \ `TaskLockTimeout`; there is no `agentjobs unlock` and no sweep. The dispatch\
+    \ ledger solved exactly this for its own locks (`dispatch/ledger.py:377-400 release_stale_locks`).\
+    \ The crash that truncates the file also leaves the lock, so the two compound.\n\
+    - Same `write_text` pattern: `projects.py:368-372` (registry, unlocked) and `webhooks.py:65-68`\
+    \ (`_write_webhooks`, read-modify-written from a background delivery task with\
+    \ no lock \u2014 auditor 7).\n- No test reads during a write or reads a truncated\
+    \ file (`tests/test_storage.py` 11 tests, `test_concurrency.py` 14).\n\n## Fix\n\
+    1. `_write_task`: write to `path.with_name(f\".{task.id}.partial\")` in the same\
+    \ directory, `fsync`, `os.replace` onto the target. Three lines; NTFS and POSIX\
+    \ both make `replace` atomic. Fix or delete the comment at `storage.py:220`.\n\
+    2. Factor that into one helper and use it for the registry and `webhooks.yaml`.\n\
+    3. On `FileExistsError` in `locked()`: read the pid; if not alive AND the lock\
+    \ is older than the timeout, reclaim (delete + retry once). Windows pid reuse\
+    \ is why both conditions are needed. Add `agentjobs unlock <task>` for the residual\
+    \ case and name it in the timeout message.\n4. Tests: one process in a write loop,\
+    \ one reading `list_tasks()` in a loop, assert zero `TaskLoadError`; a stale-lock\
+    \ reclaim test.\n\nAuditor 4's \xA76 note: these are owed to the current backend\
+    \ and cost the same under any future one."
+  context:
+  - path: audits/2026-08-21/04-storage-manager.md
+    why: F1 (write atomicity), F2 (stale locks), the registry P4
+  - path: audits/2026-08-21/07-api-client-webhooks.md
+    why: webhooks.yaml write pattern and unlocked bookkeeping
+  - path: src/agentjobs/storage.py
+    why: _write_task at 479-507, locked() at 334-389
+acceptance:
+- id: ac-1
+  text: A reader racing a writer never observes a truncated task file (test with a
+    concurrent write loop).
+  status: pending
+- id: ac-2
+  text: A lock left by a dead pid older than the timeout is reclaimed automatically;
+    agentjobs unlock exists for the rest.
+  status: pending
+- id: ac-3
+  text: Registry and webhooks.yaml writes go through the same atomic helper.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:51:11.196054Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 81b8c49e-5403-442d-b8af-3d10ffb50609
+      kind: create
+      fingerprint: 3ab34b74fc5cb0223bc45f3ea83f0a7c

@@ -1,0 +1,76 @@
+schema: 2
+id: task-275
+title: 'Delete the legacy Jinja/Alpine pages: stored XSS through marked.parse into
+  innerHTML, CDN scripts with no SRI, still mounted and proxied to the tailnet'
+created: '2026-08-22T19:01:27.155876Z'
+updated: '2026-08-22T19:01:27.640941Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 14200
+category: infrastructure
+tags:
+- big-dawg-audit
+- security
+- frontend
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P2 (auditor 12 S-7; auditor 9 notes the SPA still links\
+    \ to /projects/new and /docs which reach the legacy router through the proxy;\
+    \ auditor 2's \"abandoned\" column). x-markdown does el.innerHTML = marked.parse(content)\
+    \ with no sanitiser, rendered on ball_prompt, spec fields and every log entry\
+    \ body, so any author of task content \u2014 an agent, an MCP client, a tailnet\
+    \ peer \u2014 runs script in whoever opens /p/<project>/tasks/<id>. Alpine and\
+    \ marked load from cdn.jsdelivr.net without integrity attributes. The React UI\
+    \ is clean. ENGINEERING.md already calls Jinja legacy and not recommended."
+  description: "## Evidence\n- `api/templates/base.html:40-54` `x-markdown` \u2192\
+    \ `el.innerHTML = marked.parse(content)`; `marked@11` has no sanitiser. Rendered\
+    \ on `task.ball_prompt`, `spec.intent/description/constraints/out_of_scope`, every\
+    \ `entry.body` (`api/templates/task_detail.html:70, 151, 251, 287, 296, 304, 370-394`).\
+    \ `| tojson` escapes the attribute; the innerHTML step is the damage.\n- `base.html:30-32`\
+    \ loads Alpine and marked from `cdn.jsdelivr.net` with no `integrity` \u2014 a\
+    \ CDN compromise runs in a page that can call the API as Jeff.\n- `api/main.py:291-292`\
+    \ still mounts `web_router`/`web_legacy_router`; the tsnet proxy forwards everything;\
+    \ `App.tsx:80` links `/projects/new` (`routes/web.py:359`) and `:519` links `/docs`,\
+    \ pinned by `InAppLinks.test.tsx` as the only raw anchors.\n- The React app: no\
+    \ markdown library in `frontend/package.json`, no `dangerouslySetInnerHTML`/`innerHTML`\
+    \ in `frontend/src`; Starlette Jinja autoescape on. Clean.\n\n## Fix\nDelete `web_router`,\
+    \ `web_legacy_router` and `api/templates/`; move the project-creation page into\
+    \ the SPA (or keep only that one route with DOMPurify + SRI hashes if it must\
+    \ stay). Update `InAppLinks.test.tsx`. Auditor 7 did not read `api/routes/web.py`\
+    \ (374 lines) for correctness \u2014 deletion makes that moot."
+  context:
+  - path: audits/2026-08-21/12-security.md
+    why: S-7
+  - path: audits/2026-08-21/09-frontend.md
+    why: 'Section 4: the two SPA escapes into the legacy router'
+  - path: src/agentjobs/api/templates/base.html
+    why: The x-markdown directive and CDN script tags
+acceptance:
+- id: ac-1
+  text: No server route renders task content through a markdown-to-innerHTML path;
+    /p/<project>/tasks/<id> no longer exists or is sanitised with SRI-pinned scripts.
+  status: pending
+- id: ac-2
+  text: The SPA's raw anchors point only at routes that still exist.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T19:01:27.639876Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: dc079ac0-ce23-4417-8df8-aecfdd24ce9b
+      kind: create
+      fingerprint: a3e7ecd43dcd5efb5fdbf7a6cea37901

@@ -1,0 +1,101 @@
+schema: 2
+id: task-260
+title: 'PWA staleness: no-cache on the shell, a service-worker update check when the
+  bundle changes, gate builds to a scratch directory, randomUUID fallback on insecure
+  origins'
+created: '2026-08-22T18:55:37.834340Z'
+updated: '2026-08-22T18:55:38.283656Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 13300
+category: ux
+tags:
+- big-dawg-audit
+- frontend
+- pwa
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P2 (auditor 9 P2-1/P2-2/P2-3; auditor 11 P3-2). The machinery\
+    \ meant to get a new bundle onto an open tablet does not: /app/ is served with\
+    \ no Cache-Control and the service worker precaches it through the HTTP cache\
+    \ (so the offline shell can be the old HTML pointing at deleted assets); nothing\
+    \ ever calls ServiceWorkerRegistration.update() after load, so a foregrounded\
+    \ PWA keeps its bundle unbounded \u2014 and the scripted finish now rebuilds with\
+    \ no agent in the loop. Separately, every gate run in the main clone empties the\
+    \ directory the live dashboard serves, and crypto.randomUUID throws on the documented\
+    \ plain-HTTP fallback so reorder/issue/screenshot all fail there."
+  description: "## Evidence\n- `api/spa.py:77-90` `shell()` returns `FileResponse(index)`\
+    \ with no headers; `:50` (manifest) and `:67` (sw.js) set `no-cache`. Live: `GET\
+    \ /app/` \u2192 last-modified, etag, no cache-control. `tests/test_spa.py:70`\
+    \ pins `no-cache` on `sw.js` only. `service-worker.js:7` `cache.addAll(SHELL_URLS)`\
+    \ with `/app/` first \u2014 default cache mode, through the HTTP cache. RFC 9111\
+    \ heuristic freshness (~10% of age) makes a week-old bundle fresh for ~17 h; a\
+    \ new worker's `addAll` can receive the previous `index.html` while precaching\
+    \ new hashed assets, then the activate step deletes the old ones \u2192 blank\
+    \ offline page, exactly what `docs/mobile-access.md:163-164` says must not happen.\
+    \ The device check at `:157-165` installs seconds after building (age \u2248 0)\
+    \ so would not catch it.\n- `pwa.ts:23-27` registers once on `load`; `LiveUpdates.tsx:135-150`\
+    \ polls only `/revision`; `grep -rn \"\\.update()\" frontend/src` \u2192 nothing;\
+    \ `/api/version` carries `source_commit`/`started_at` and nothing reads them.\
+    \ `mobile-access.md:153-155, 161` claims foregrounding picks up the update; browsers\
+    \ check on navigation/register/update/functional events, not visibility change.\n\
+    - `vite.config.ts`: `outDir: ../src/agentjobs/frontend_dist`, `emptyOutDir: true`;\
+    \ `spa.py:25-33` serves it per request uncached; the 8876 dashboard runs from\
+    \ the main clone \u2014 every main-clone gate empties then refills the live bundle\
+    \ (auditor 11 P3-2).\n- `App.tsx:180,193`, `IssueReporter.tsx:101`, `report/attachments.ts:85`\
+    \ call `crypto.randomUUID()`, which is `[SecureContext]` \u2014 undefined on `http://100.x.y.z:8765/app/`,\
+    \ the fallback `mobile-access.md:130-147` documents. `TaskList.tsx:274-285` then\
+    \ shows \"Reload and try again\", which cannot work.\n\n## Fix\n- `shell()` gets\
+    \ `Cache-Control: no-cache`; `test_spa.py` asserts it on `/app` and a deep link;\
+    \ precache `/app/` with `new Request(url, {cache: \"reload\"})`.\n- Add the bundle\
+    \ revision (`agentjobs-shell-<hash>` from `build-service-worker.mjs:25`) or `started_at`\
+    \ to `/revision`; on change call `getRegistration().then(r => r?.update())`; `controllerchange`\
+    \ \u2192 reload already exists. Do not reload while a form is dirty (`TaskDetail.tsx:334-346`,\
+    \ `DispatchPanel.tsx:311-323` exist because losing typed prose is worse) \u2014\
+    \ a \"new version, reload\" banner beside `LiveUpdateStatus` is the safe shape.\n\
+    - Gate `build` stage writes to a scratch dir and swaps atomically, or ENGINEERING.md\
+    \ states the blackout.\n- One `newOperationId()` helper with a `getRandomValues`\
+    \ v4 fallback at all four sites; a sentence in `mobile-access.md` on what the\
+    \ fallback cannot do.\n- Device check: build, install, background the PWA, rebuild\
+    \ + restart, foreground \u2014 the new bundle must appear."
+  context:
+  - path: audits/2026-08-21/09-frontend.md
+    why: P2-1, P2-2, P2-3 and section 3's staleness table
+  - path: audits/2026-08-21/11-gate-tooling.md
+    why: 'P3-2: the gate redeploys the live dashboard'
+  - path: src/agentjobs/api/spa.py
+    why: shell() at 77-90
+  - path: frontend/src/pwa.ts
+    why: The one-time registration
+acceptance:
+- id: ac-1
+  text: '/app/ and deep links are served with Cache-Control: no-cache (test).'
+  status: pending
+- id: ac-2
+  text: A foregrounded installed PWA picks up a rebuilt bundle within one revision
+    poll without losing a dirty form (verified on a device, recorded in the log).
+  status: pending
+- id: ac-3
+  text: Reorder, issue filing and screenshot paste work on an http://<ip> origin.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:55:38.282281Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 3e4581cc-039b-4d9a-a18a-777b5eb9c9b2
+      kind: create
+      fingerprint: 60bd0ff081bfadf35a796556d35dc942

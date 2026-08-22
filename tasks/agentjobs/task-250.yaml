@@ -1,0 +1,78 @@
+schema: 2
+id: task-250
+title: POST /api/webhooks/{id}/test always returns 500; no webhook route has a test
+created: '2026-08-22T18:52:04.932048Z'
+updated: '2026-08-22T18:52:05.560569Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 12300
+category: infrastructure
+tags:
+- big-dawg-audit
+- api
+- webhooks
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P1 (auditor 7). The async route calls WebhookManager.test_webhook\
+    \ synchronously, which ends in asyncio.run() inside the running event loop \u2192\
+    \ RuntimeError \u2192 unhandled 500 with no body, and the delivery coroutine is\
+    \ never awaited so no HTTP request is made. Reproduced out of process. Zero tests\
+    \ touch any of the five webhook routes; the one manager-level test ends in assert\
+    \ True."
+  description: "## Evidence\n- `src/agentjobs/api/routes/webhooks.py:78-91` is `async\
+    \ def` and calls `webhook_manager.test_webhook(webhook_id)`; that method ends\
+    \ with `asyncio.run(self._dispatch(...))` (`src/agentjobs/webhooks.py:198`). Reproduced\
+    \ by auditor 7 with the manager alone: sync call OK; call from inside a running\
+    \ loop \u2192 `RuntimeError: asyncio.run() cannot be called from a running event\
+    \ loop`, plus `coroutine 'WebhookManager._dispatch' was never awaited`.\n- The\
+    \ route catches only `ValueError` (`routes/webhooks.py:87`), so the `RuntimeError`\
+    \ escapes as a bare 500.\n- `grep tests/*.py` for `api/webhooks` or `/webhooks`\
+    \ \u2192 nothing. `tests/test_webhooks.py:113-146` builds a subscription, hands\
+    \ off, `assert True`.\n- `docs/webhooks.md:78` and `docs/api-reference.md:137`\
+    \ advertise the endpoint.\n\n## Fix\n- Make `test_webhook` return the coroutine\
+    \ (or expose an awaitable path) and `await` it in the route; or route it through\
+    \ `_schedule` like `fire_event` and return 202.\n- One `TestClient` test per webhook\
+    \ route (list, get, create, delete, test). While there: `DELETE` is documented\
+    \ 200 and returns 204 (`routes/webhooks.py:63-75`); `WebhookCreateRequest.events`\
+    \ is an unvalidated `List[str]` so subscribing to the retired `task.status_changed`\
+    \ succeeds and never fires (`routes/webhooks.py:30`) \u2014 validate against the\
+    \ four known names.\n\nRelated but separate: secrets returned by the API / SSRF\
+    \ / delivery_id (its own task)."
+  context:
+  - path: audits/2026-08-21/07-api-client-webhooks.md
+    why: The P1 with the reproduction script output; the P3 on events validation and
+      delete status
+  - path: src/agentjobs/api/routes/webhooks.py
+    why: The route at 78-91
+  - path: src/agentjobs/webhooks.py
+    why: test_webhook ending in asyncio.run at 198
+acceptance:
+- id: ac-1
+  text: POST /api/webhooks/{id}/test returns a JSON body and performs one delivery
+    attempt; a TestClient test proves it.
+  status: pending
+- id: ac-2
+  text: Every webhook route has at least one route-level test; events are validated
+    against the known names.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:52:05.559594Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: dfc15f45-7594-411c-9bf8-3da2227c2074
+      kind: create
+      fingerprint: f33d015714adf8c29aa363a5d86cab98

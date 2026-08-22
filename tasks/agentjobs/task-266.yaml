@@ -1,0 +1,83 @@
+schema: 2
+id: task-266
+title: 'Dispatch gate 2 is false for .mcp.json: a repository pre-approves its own
+  MCP servers (and every tool of them for a supervisor)'
+created: '2026-08-22T18:57:39.045339Z'
+updated: '2026-08-22T18:57:39.517090Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: medium
+queue_position: 7500
+category: infrastructure
+tags:
+- big-dawg-audit
+- dispatch
+- security
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P2 (auditor 10 P2-3; auditor 12's threat model agrees).\
+    \ mcpjson_server_names reads the dispatched project's own .mcp.json and pre-approves\
+    \ every server in it via enabledMcpjsonServers in --settings; supervisor runs\
+    \ additionally pre-approve mcp__<name> for every tool. That file is repository\
+    \ content, so the design's \"a project cannot execute a command that was not written\
+    \ into dispatch.yaml by hand\" does not hold \u2014 dispatch bypasses exactly\
+    \ the consent prompt that stops a cloned repo from running a command. Latent today\
+    \ because every enabled project is Jeff's own."
+  description: "## Evidence\n- `runner.py:296-328` `mcpjson_server_names` reads the\
+    \ project's `.mcp.json`; `:331-357, 434-446` put the names into `enabledMcpjsonServers`\
+    \ in the `--settings` blob. `supervisor_allow_rules` (`:268-293`) adds `mcp__<name>`\
+    \ for each \u2014 classifier not consulted.\n- `docs/agent-dispatch-design.md:1244-1254`\
+    \ states the gate; `:792-795` rejected `enableAllProjectMcpServers` as \"a much\
+    \ broader grant\". Per project the grant is the same; only cross-project scope\
+    \ differs.\n- Same family, lower severity and inherent to running a project's\
+    \ gate at all: `Bash(npm run:*)` and `poetry run pytest:*` are pre-approved, and\
+    \ what `npm run build` executes is defined by the repository.\n- Auditor 8's related\
+    \ question (unanswered): `.claude/settings.json` allow-lists `mcp__agentjobs__*`\
+    \ only, and `runner.py:356` passes `enabledMcpjsonServers` for the project-scoped\
+    \ server \u2014 in a `--bg` run does the plugin's second MCP server prompt, fail\
+    \ silently, or get used with the stale skill? Auditor 11 P4-4: `bootstrap.py:184-218`\
+    \ copies the main clone's `.mcp.json` into a worktree, interpreter path included,\
+    \ so a worktree session's MCP server runs the main clone's code, not the branch's.\n\
+    \n## Fix\nName the permitted MCP servers per project in `dispatch.yaml` (machine-local,\
+    \ hand-written, where runners live) and intersect with `.mcp.json`; refuse on\
+    \ a name the machine has not approved, the way an unknown runner is refused. Write\
+    \ down the `npm run`/`pytest` residual as accepted. Answer auditor 8's `--bg`\
+    \ question in the same pass and record it."
+  context:
+  - path: audits/2026-08-21/10-dispatch.md
+    why: P2-3
+  - path: audits/2026-08-21/08-mcp.md
+    why: The --bg plugin-server question and F4 on the stale cache
+  - path: audits/2026-08-21/11-gate-tooling.md
+    why: 'P4-4: bootstrap copies the main clone''s .mcp.json'
+  - path: src/agentjobs/dispatch/runner.py
+    why: mcpjson_server_names at 296-328, supervisor_allow_rules at 268-293
+acceptance:
+- id: ac-1
+  text: A .mcp.json naming a server not approved in dispatch.yaml is refused at dispatch
+    with a message naming the server.
+  status: pending
+- id: ac-2
+  text: A decision entry records what a --bg run does with the plugin's second MCP
+    server.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:57:39.516216Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 041c0e9e-365c-4e4b-a6ee-f973ebc4ff16
+      kind: create
+      fingerprint: 918516f635c7b531b83a3c66d1891006

@@ -1,0 +1,132 @@
+schema: 2
+id: task-269
+title: 'Static context: stop the harness/repo worktree contradiction, cut the inactive
+  scripted-finish prose, fix the two rules the bundle states wrongly, put a word budget
+  under test'
+created: '2026-08-22T18:59:11.785040Z'
+updated: '2026-08-22T18:59:12.434614Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 13900
+category: meta
+tags:
+- big-dawg-audit
+- context
+- docs
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P2 cluster, the audit Jeff named first (auditor 1 F-2/F-3/F-4/F-1/F-5/F-6/F-7;\
+    \ auditor 3 F7; auditor 10 P3-17; three auditors hit the harness refusal). The\
+    \ @-chain is \u224817,200 tokens per session, \u224836% of it rules a session\
+    \ acts on and the rest rationale, incident narrative and measurements \u2014 two\
+    \ of three test counts in the dated gate table were wrong the day it was written.\
+    \ The background-session harness tells every --bg session to EnterWorktree and\
+    \ enforces it; the repo forbids it and never says so. 634 words describe a scripted\
+    \ finish that is switched off on this machine. GLOBAL-AGENTS says a parent is\
+    \ not claimable while a child is open; the code (task-164) says it is. ALLAGENTS\
+    \ states the ball_prompt rule without the agent/available exemption the schema\
+    \ has."
+  description: "## Evidence\n- Measured (`wc`): GLOBAL-AGENTS 1,488 w; C:/projects/AGENTS\
+    \ 355; ENGINEERING 4,786; ALLAGENTS 3,931 \u2192 68,723 chars \u2248 17,200 tokens,\
+    \ plus MEMORY.md \u2248 1,500 and MCP instructions/docstrings \u2248 800 (and\
+    \ auditor 8 F11: dual MCP registration costs 30 tool declarations and two identical\
+    \ instruction blocks \u2014 not in auditor 1's count). ENGINEERING and ALLAGENTS\
+    \ were committed 13 times on 2026-08-19/20/21 alone; no test, budget or count\
+    \ exists for them, while the MCP leading rule has a 512-char budget and a test\
+    \ (`mcp/instructions.py:10-13`). Per-section load-bearing classification puts\
+    \ \u22483,900 words (\u22486,000 tokens) in compress/move/delete without losing\
+    \ a rule.\n- F-2: the harness preamble says \"use EnterWorktree \u2026 This is\
+    \ enforced: file edits in the shared checkout are rejected\". Auditors 1, 4 and\
+    \ 11 each had their findings-file write refused and routed it through a tmp dir\
+    \ and `cp`. ALLAGENTS \xA7Why you get your own worktree, `docs/agent-workflow.md`\
+    \ and `runner.py:115-131` forbid `-w`/EnterWorktree (a `-w` session cannot reach\
+    \ the shared clone for task-record commits or the merge; run_6f1f0741 parked on\
+    \ it). The escape the refusal names \u2014 `.claude/settings.json` `\"worktree\"\
+    : {\"bgIsolation\": \"none\"}` \u2014 is not set in the repo. Unverified whether\
+    \ it disables the guard.\n- F-3 / auditor 10 P3-17: `~/.agentjobs/dispatch.yaml`\
+    \ has no `finish:` block, `~/.agentjobs/finishes/` does not exist, `agentjobs\
+    \ dispatch config` prints nothing about finish. ENGINEERING \xA7Steps 3 to 6 (429\
+    \ w) and ALLAGENTS \xA7Steps 6 and 7 (205 w) describe a path no session here will\
+    \ hit; the finish writes its own dispositive sentence onto the record (`finish.py:1043`)\
+    \ and `WAKE_STUB` delivers it, so the static text is a copy of a dynamic payload.\
+    \ Same for ALLAGENTS \xA7You may be woken (242 w, verbatim overlap with `wake.py:39-53`).\n\
+    - Auditor 3 F7: `GLOBAL-AGENTS.md:125` \"a parent is not claimable while a child\
+    \ is open\" vs `manager.py:1180-1195` (task-164), `docs/task-schema.md:84`, `schema-design.md:89`:\
+    \ claimable by name, only `/next` skips it \u2014 and the supervisor dispatch\
+    \ path relies on claiming exactly such a parent. Auditor 1's redundancy map missed\
+    \ this one.\n- F-4: ALLAGENTS \"ball_prompt is required whenever the ball is set\
+    \ \u2026 the schema rejects it\" vs `models_v2.py:782-791` exempting `agent/available`;\
+    \ 87 of 87 ready tasks have an empty prompt.\n- F-5/F-6/F-7/F-11: merge gate numbered\
+    \ 1-6 in ENGINEERING and 1-7 in ALLAGENTS with each file cross-referencing its\
+    \ own numbering; \u22481,500 words of ALLAGENTS pasted from `docs/agent-workflow.md`\
+    \ (queue rule, supervisor protocol) and already drifting (the guide has the auth-expiry\
+    \ state); gate table says 2608 pytest / 26 Playwright, measured 2723 collected\
+    \ / 22 (`check.py:183` and `pyproject.toml` say 2538 \u2014 three numbers, one\
+    \ measurement); worktree naming `aj-<nnn>` vs `<repo>-<nnn>` in the stub.\n- F-12\
+    \ (see the write-guard task): nothing static warns that the guard refuses any\
+    \ write whose content names a task path.\n- F-14: contract drift in the corpus\
+    \ \u2014 summary medians 35 \u2192 43 \u2192 54 words by era; default claim prompt\
+    \ surviving on active tasks (task-242 itself); 15 `question` entries in 240 records.\n\
+    \n## Fix\n1. Set `\"worktree\": {\"bgIsolation\": \"none\"}` in `.claude/settings.json`\
+    \ (verify it disables the guard); one sentence in ALLAGENTS naming the harness\
+    \ instruction as the one to ignore here; a clause in `PROMPT_STUB`.\n2. Cut both\
+    \ finish sections and \xA7You may be woken to one sentence + pointer: \"If you\
+    \ are woken after an approval, the record says whether main moved. Believe it.\"\
+    \ `dispatch config` prints `finish: off|on` per project.\n3. Correct GLOBAL-AGENTS:125\
+    \ and the ALLAGENTS ball_prompt sentence; one merge-gate list, the other file\
+    \ points at it; ALLAGENTS keeps the queue rule and the supervisor threshold sentence,\
+    \ the guide keeps the mechanics; one worktree naming convention.\n4. Move measurement\
+    \ history from \xA7Testing/\xA7Measuring performance to `docs/performance.md`\
+    \ and the incident narratives (207, 225, 194, 210) to one line + task id each.\
+    \ Quote commands and dates, not counts; have `check.py` print the counts.\n5.\
+    \ A word budget per file asserted by a cheap test (ENGINEERING \u2264 2,500, ALLAGENTS\
+    \ \u2264 2,000 are achievable after the moves).\n6. Cheap contract checks: `validate`\
+    \ warns on summaries over 40 words; a warning when `claim`'s default prompt survives\
+    \ more than one log entry on an active task; a questions-per-100-entries stat\
+    \ in the corpus-audit doc."
+  context:
+  - path: audits/2026-08-21/01-context-architecture.md
+    why: The measurement, redundancy map, staleness sweep, per-section verdicts and
+      migration candidates
+  - path: audits/2026-08-21/03-schema-validation.md
+    why: 'Finding 7: GLOBAL-AGENTS vs task-164 on parent claimability'
+  - path: audits/2026-08-21/10-dispatch.md
+    why: 'P3-17: the scripted finish has never run here'
+  - path: ENGINEERING.md
+    why: The file to compress
+  - path: ALLAGENTS.md
+    why: The file to compress
+acceptance:
+- id: ac-1
+  text: A --bg session in this repository can write into the shared checkout without
+    EnterWorktree, and ALLAGENTS says which instruction to ignore.
+  status: pending
+- id: ac-2
+  text: GLOBAL-AGENTS and ALLAGENTS state parent claimability and the ball_prompt
+    exemption as the code does.
+  status: pending
+- id: ac-3
+  text: ENGINEERING.md and ALLAGENTS.md are under a word budget a test asserts, with
+    no rule removed (the removed text lives in docs/ or a task id).
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:59:12.433750Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: d48d7ab0-de63-450e-ba58-b3cfc47a21dd
+      kind: create
+      fingerprint: 34548e460550f21f9dd91448069bb7eb

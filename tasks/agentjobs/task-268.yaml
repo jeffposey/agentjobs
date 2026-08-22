@@ -1,0 +1,118 @@
+schema: 2
+id: task-268
+title: 'Gate speed, safely: copy the mypy cache into worktrees, add --durations, drop
+  nested poetry run, then prototype concurrent stages behind a flag'
+created: '2026-08-22T18:58:37.392234Z'
+updated: '2026-08-22T18:58:37.998709Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 13800
+category: developer_experience
+tags:
+- big-dawg-audit
+- gate
+- performance
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit, Jeff-weighted question (auditor 11 Part A). The real stage\
+    \ graph is {black, ruff, mypy, icons, oxlint} \u2225 api \u2192 {vitest, build\
+    \ \u2192 e2e} \u2225 pytest, so the uncontended critical path is max(pytest 52s,\
+    \ api+build+e2e 33s) \u2248 52s against 95.8s serial today; inside a dispatched\
+    \ run the gate measured 124.5s. Ranked by seconds saved per unit of risk: (1)\
+    \ copy .mypy_cache into fresh worktrees (~17s on every dispatched run's first\
+    \ gate, near-zero risk), (2) --durations=15 so pytest proposals stop being guesses,\
+    \ (4) call export_openapi/generate_icons with sys.executable instead of nested\
+    \ poetry run (removes the task-210 hazard class), then (5)/(6) concurrency behind\
+    \ a flag with three contended runs on record. Receipt-backed incremental pytest\
+    \ rejected for now."
+  description: "## The graph (auditor 11 A1, from the code)\n- `api` must precede\
+    \ `vitest` and `build` and is not read-only: `check-generated-client.mjs:126-131`\
+    \ regenerates `src/api/generated` in place.\n- `build` must precede `e2e` (`vite.config.ts`\
+    \ writes `frontend_dist`; Playwright's `run_server.py` serves it).\n- `icons`,\
+    \ `black --check`, `ruff`, `mypy`, `oxlint` are read-only. `pytest` is independent\
+    \ of every frontend stage and nothing depends on it.\n- Critical path uncontended\
+    \ \u2248 52 s; realistic floor with #1, #4, #5, #6 \u2248 55-60 s. The first gate\
+    \ in a fresh worktree drops from ~113 s (cold mypy, 19 s) to about the same 60\
+    \ s because #1 takes mypy off the path.\n\n## Ranked proposals (A2)\n1. **`bootstrap.py`\
+    \ copies `.mypy_cache` into a fresh worktree** the way it copies `.mcp.json` (`bootstrap.py:184-218`).\
+    \ mypy validates entries by source hash, so a stale copy is a miss, not a wrong\
+    \ answer. Do it.\n2. **`--durations=15` in `PARALLEL_ARGS`** (`check.py:180`).\
+    \ No per-test durations exist anywhere; 2538 tests at 342 s serial is 135 ms/test,\
+    \ and 52 s at 32 workers vs an 11 s ideal says the tail is the cost. Candidates:\
+    \ 13 subprocess sites in `test_dispatch_runner.py`, three real `uvicorn` spawns,\
+    \ `sleep(600)` runner scripts. Do it first.\n3. `--dist worksteal` \u2014 measure\
+    \ after #2, three runs, quote all three.\n4. **Stop nesting `poetry run`**: `check:api-schema`\
+    \ and `check:icons` each start Poetry + a fresh interpreter; `check.py` knows\
+    \ `sys.executable`. ~2-3 s, and it removes the hazard `child_environment()` exists\
+    \ to patch (task-210). Playwright's `webServer` would remain.\n5. Cheap block\
+    \ concurrently (black/ruff/mypy/icons/oxlint; api alone first since it writes):\
+    \ ~8 s warm; needs per-stage output capture. Only with #6.\n6. `pytest` concurrently\
+    \ with `api \u2192 vitest \u2192 build \u2192 e2e`: ~34 s. Medium risk \u2014\
+    \ `-n auto` takes every core, Playwright has 30 s start/test timeouts, the ledger\
+    \ already shows pytest stretching to ~85 s in a dispatched run. Mitigation: cap\
+    \ xdist at `cores-4` while e2e runs; `--serial` stays fully serial. Prototype\
+    \ behind a flag; adopt only with three clean contended runs (two gates at once)\
+    \ on record \u2014 ENGINEERING.md is right that the contended figure is unmeasured.\n\
+    7. Playwright `workers: 2+`: \u226412 s; all 8 specs share one server and one\
+    \ temp project and two specs toggle machine-level dispatch config. Defer until\
+    \ a spec-by-spec audit.\n8. `tsc --incremental`: ~1-2 s, optional.\n9. Receipt-backed\
+    \ incremental pytest selection: the test\u2192source graph is implicit (conftest\
+    \ fixtures, REPO_ROOT reads, subprocess invocations of scripts/); any hand map\
+    \ is vibes; `pytest-testmon` is unmeasured with xdist on Windows. **Not now**;\
+    \ reopen when #2 shows the bulk rather than the tail is the cost.\n\n## Rejected\
+    \ on the record (A3), so they stay rejected\n`frontend/*` \u2192 skip pytest (pytest\
+    \ reads `frontend/package.json` and `frontend/README.md`); `tests/*` \u2192 pytest\
+    \ only (black/ruff/mypy check tests/); `src/agentjobs/*` \u2192 skip frontend\
+    \ stages (api exports from src/); `reuseExistingServer: true`; `--since-gate`\
+    \ inside `finish.py`; `pytest -x` in the gate.\n\n## Related (auditor 11 P3-4)\n\
+    Three tests reserve an ephemeral port, release it, then bind it from a `uvicorn`\
+    \ child (`test_dispatch_api_base_end_to_end.py:330-341`, `test_mcp_server.py:403-411`,\
+    \ `test_mcp_protocol.py:117-119`); under 32 workers two can draw the same number.\
+    \ The ledger's one red pytest followed by green on the same run is consistent\
+    \ with this shape. Have the child bind port 0 and report it; until then `check.py:183-186`'s\
+    \ \"parallel-safe\" should say \"probably\"."
+  context:
+  - path: audits/2026-08-21/11-gate-tooling.md
+    why: 'Part A: the dependency graph, the ranked table, the rejections, and P3-4'
+  - path: scripts/check.py
+    why: Stage order at 262-273, PARALLEL_ARGS at 180, child_environment at 51-93
+  - path: scripts/bootstrap.py
+    why: The .mcp.json copy at 184-218 to mirror for .mypy_cache
+  - path: ENGINEERING.md
+    why: The stage table and the contended-figure caveat to update
+acceptance:
+- id: ac-1
+  text: A fresh worktree's first gate runs mypy against a warm cache (measured before/after
+    in the log).
+  status: pending
+- id: ac-2
+  text: The gate prints the 15 slowest tests and the ledger records per-stage seconds.
+  status: pending
+- id: ac-3
+  text: No check stage starts a nested poetry run except Playwright's webServer.
+  status: pending
+- id: ac-4
+  text: Any concurrency change ships behind a flag with three contended-run timings
+    recorded before it becomes the default; ENGINEERING.md's table is re-cut.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:58:37.997630Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 77c05739-209b-40cf-aea8-4d8c4fbdd9ad
+      kind: create
+      fingerprint: 4538a55bf8bbaf19f91d9b1b7cd56560

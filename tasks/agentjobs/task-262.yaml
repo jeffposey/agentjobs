@@ -1,0 +1,91 @@
+schema: 2
+id: task-262
+title: 'agentjobs validate is red on its own corpus (221 problems): treat reserved
+  and system actors as known, give findings a severity, decide the category policy'
+created: '2026-08-22T18:56:25.390143Z'
+updated: '2026-08-22T18:56:25.850649Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: medium
+queue_position: 7300
+category: developer_experience
+tags:
+- big-dawg-audit
+- schema
+- cli
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P2 with two witnesses (auditor 3 F5, auditor 6 F3 \u2014\
+    \ same count, same breakdown). validate on this repository prints 221 problems\
+    \ across 240 files and exits 1: 124 unknown-actor (70 system, 26 dispatcher \u2014\
+    \ ids the product itself writes as), 84 unknown-category, 13 non-canonical. TestRealCorpus\
+    \ deliberately filters to structural rules so the gate stays green; the CLI has\
+    \ no such filter, twelve docs tell users to run it, and validate --install-hook\
+    \ would refuse every commit on this repo."
+  description: "## Evidence\n- `AGENTJOBS_HOME=<scratch> poetry run agentjobs validate`\
+    \ (auditor 3) and `poetry run agentjobs validate` (auditor 6): `221 problem(s)\
+    \ across 240 task file(s)`, exit 1 \u2014 `124 unknown-actor` (70 `system`, 26\
+    \ `dispatcher`, 10 `jeff`, 10 `Codex`, 6 `Claude`, 2 `human`), `84 unknown-category`,\
+    \ `13 non-canonical-serialization`.\n- `system` is what the manager writes (`manager.py:906,957`;\
+    \ migrator `:553`); `dispatcher`/`finisher` are `RESERVED` and accepted by every\
+    \ write path (`actors.py:175-204`). `validation._check_taxonomy` uses `load_actors(config)`\
+    \ (`validation.py:261`), which excludes `RESERVED` on purpose (`actors.py:178-185`)\
+    \ and has never heard of `system`. So 96 of 221 findings are the validator objecting\
+    \ to the product's own writes; 28 are real historical drift.\n- `docs/task-schema.md:81`\
+    \ says category is \"validated against config by the manager\" \u2014 the manager\
+    \ does not (`grep categor manager.py` \u2192 defaults only); only `validate` does.\
+    \ `.agentjobs/config.yaml` declares six categories; the corpus uses eleven.\n\
+    - `tests/test_validate.py::TestRealCorpus` (`:659-690`) filters to structural\
+    \ rules with a docstring saying why. The CLI docstring (`cli.py:288-291`) claims\
+    \ \"it is the check that works in CI and in a clean clone\". `validate --install-hook`\
+    \ writes a pre-commit hook that runs `validate --staged`, which runs the full\
+    \ corpus check first (`cli.py:309`); not installed here (`.git/hooks/pre-commit`\
+    \ absent), which is presumably why nobody noticed.\n- The 13 non-canonical files\
+    \ are task-031\u2026057, consistent with hand edits before the managed-write gate\
+    \ existed (auditor 6); auditor 3 did not check their `git log -p`.\n\n## Fix (pick\
+    \ and record the decision)\n- `_check_taxonomy`: treat `RESERVED` and `system`\
+    \ as known \u2014 or reserve `system` properly in `actors.py`, since it is an\
+    \ actor the product writes as.\n- Give `Finding` a severity; the CLI exits 1 on\
+    \ structural findings by default and `--strict` for taxonomy, matching the test.\
+    \ Or add the missing categories/actors to config and canonically rewrite the 13\
+    \ files (a task-file change, belongs to a task).\n- Decide category policy: config\
+    \ declares the eleven in use, or the manager enforces the list at create/update\
+    \ so the doc becomes true.\n- Auditor 6's question for auditor 11 (unanswered):\
+    \ the gate never runs `agentjobs validate` \u2014 deliberate, or the omission\
+    \ that would have caught this divergence?"
+  context:
+  - path: audits/2026-08-21/03-schema-validation.md
+    why: Finding 5 with the breakdown and the actors.py reasoning
+  - path: audits/2026-08-21/06-cli.md
+    why: 'Finding 3 and section 6: the hook and the doc references'
+  - path: src/agentjobs/validation.py
+    why: _check_taxonomy at 244-261
+acceptance:
+- id: ac-1
+  text: agentjobs validate exits 0 on this repository's corpus, or exits 1 only for
+    findings the gate's real-corpus test would also fail on.
+  status: pending
+- id: ac-2
+  text: A decision entry records the category policy and the fate of the 13 non-canonical
+    files.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:56:25.849619Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: c3555999-8595-47a9-bc8e-efb183d94221
+      kind: create
+      fingerprint: ae6862e7117630485cfee77159d886f0

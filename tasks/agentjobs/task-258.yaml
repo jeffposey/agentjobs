@@ -1,0 +1,101 @@
+schema: 2
+id: task-258
+title: 'Queue: refuse instead of "nothing claimable" over an all-broken corpus; baseline
+  the three projects whose open tasks have never had positions; repair gets a dry
+  run'
+created: '2026-08-22T18:54:53.626971Z'
+updated: '2026-08-22T18:54:54.078055Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 13100
+category: infrastructure
+tags:
+- big-dawg-audit
+- queue
+assignment:
+  eligible: []
+spec:
+  summary: Big Dawg Audit P2 (auditor 5 F2/F3/F7; auditor 8's _explain_no_work corroborates).
+    job-hunting, product-strategy and fantasy-football each have every open task (17
+    in total) without a queue_position, so rule 6 makes them unloadable; next, next/explain
+    and the dashboard report "nothing claimable" (HTTP 200) while GET /queue lists
+    the problems, because get_next_task returns None before reaching assert_queue_integrity
+    when there are no loadable candidates. Nothing at init or startup runs the baseline,
+    and repair writes on first contact with no preview.
+  description: "## Evidence (live, 2026-08-22)\n- `GET /api/projects/job-hunting/tasks/next`\
+    \ \u2192 `null` 200; `/next/explain` \u2192 empty skipped; `/dashboard` \u2192\
+    \ `next_action: nothing_claimable, queue_broken: None`; `GET /queue` \u2192 4\
+    \ \xD7 \"is open in band 'high' with no queue_position\"; `/tasks/broken` \u2192\
+    \ 4 files \"lifecycle 'ready' is open, so queue_position is required\". Same shape:\
+    \ product-strategy (6), fantasy-football (7). Raw YAML: job-hunting 21 files /\
+    \ 4 open / 0 positioned; product-strategy 7 / 6 / 0; all schema v2. Last writes\
+    \ 2026-08-16..20, within days of task-204 landing (`e6188d2`).\n- Why: `get_next_task`\
+    \ (`manager.py:565-593`) builds candidates from `storage.list_tasks()` \u2014\
+    \ loadable only \u2014 and returns `None` at `:589` before `assert_queue_integrity`\
+    \ at `:591`; `explain_next` has the same structure; `dashboard.py:131-138` sets\
+    \ `queue_broken` only on a raised `QueueCorruptionError`. Design \xA78's refusal\
+    \ rule (\"an open task in a checked band with no position\") is never evaluated\
+    \ when no band has a winner. Only MCP `_explain_no_work` (`read_tools.py:538-583`)\
+    \ mentions broken files; CLI `next` prints \"Nothing is claimable right now.\"\
+    \ exit 0.\n- `queue.migrate_queue_positions` and `repair_queue` would each fix\
+    \ it in one command; nothing invokes either for a registered project; nothing\
+    \ runs `validate` against those repos.\n- `queue_repair` (`cli.py:1577-1596`)\
+    \ and `POST /queue/repair` write first and report after; `migrate_queue_positions`\
+    \ defaults `write=False` and `migrate-schema` has `--apply`. Repair is the one\
+    \ that guesses (who keeps a contested number) and the one without a preview; its\
+    \ report names the losers, not the winner (F10).\n- Also: `check`/`repair` cover\
+    \ three of rule 6's four conditions \u2014 a closed task carrying a position is\
+    \ refused by the loader and reported by `validate` but `queue check` prints \"\
+    sound\" (F4).\n\n## Fix\n1. Today: `agentjobs queue repair` in each of the three\
+    \ projects after reviewing what it would assign \u2014 which needs (3) first,\
+    \ or the migration with `--write` after a dry run.\n2. `get_next_task`/`explain_next`:\
+    \ when candidates are empty, run `assert_queue_integrity()` with no band filter\
+    \ before returning `None` (`_queue_places` raw-read path at `:1847-1864` already\
+    \ surfaces the files). Then `next` 409s, CLI exits 1 with the repair command,\
+    \ dashboard shows the banner. Test: a corpus whose every open task lacks a position\
+    \ refuses.\n3. `queue repair --dry-run` returning the same `QueueRepairReport`\
+    \ with `written: False`; one line per contested position naming who kept it.\n\
+    4. A registry-wide unpositioned-open-tasks probe at server start (or `agentjobs\
+    \ doctor`), and `check` reporting position-on-closed as a fourth problem kind.\n\
+    \nAuditor 5's open question for auditor 4: were these files written by a pre-task-204\
+    \ TaskStorage or by something that bypassed it? If the former, every registered\
+    \ project predating `e6188d2` is a candidate."
+  context:
+  - path: audits/2026-08-21/05-queue.md
+    why: F2, F3, F4, F7, F10 with the live evidence and reproductions
+  - path: audits/2026-08-21/08-mcp.md
+    why: _explain_no_work is the one surface that currently tells the truth here
+  - path: src/agentjobs/manager.py
+    why: get_next_task at 565-593, explain_next at 595-657, repair_queue at 1891
+acceptance:
+- id: ac-1
+  text: "A project whose every open task lacks a position gets a queue_broken refusal\
+    \ from next, next/explain, the CLI and the dashboard \u2014 not 'nothing claimable'."
+  status: pending
+- id: ac-2
+  text: job-hunting, product-strategy and fantasy-football open tasks are positioned
+    and visible in their dashboards.
+  status: pending
+- id: ac-3
+  text: queue repair has a --dry-run and names the winner of each contested position.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:54:54.077156Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: e8d5a9dc-764c-4eca-bbb0-910ef8ef8d2b
+      kind: create
+      fingerprint: 19143b86ee8e81a04e39fa728cdc6efe

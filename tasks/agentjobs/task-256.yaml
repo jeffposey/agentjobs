@@ -1,0 +1,114 @@
+schema: 2
+id: task-256
+title: 'One error envelope: render HTTPException as ErrorBody, declare the real status
+  codes in OpenAPI, route human actions through _run, stop inventing actionable:false'
+created: '2026-08-22T18:54:12.740658Z'
+updated: '2026-08-22T18:54:13.180121Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 12900
+category: infrastructure
+tags:
+- big-dawg-audit
+- api
+- mcp
+- frontend
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P2 cluster (auditor 7 \xD73, auditor 8 F1/F13, auditor\
+    \ 9 P3-11). The API emits three error shapes plus a bare 500 with no rule for\
+    \ which route gets which; openapi.json documents a 422 on 90 operations that never\
+    \ happens and omits the 400/404/409 that do, so the generated TS client types\
+    \ every failure as a validation error and mutation-error.ts works around it by\
+    \ hand. The seven human-action routes return 404 for every manager ValueError,\
+    \ including \"task is closed\". task_next reports its own winner actionable:false\
+    \ because /next returns a bare Task and the summary invents False for the missing\
+    \ field."
+  description: "## Evidence\n- Shapes emitted (auditor 7): `{\"detail\": str}` from\
+    \ every `HTTPException` (task reads, `POST /tasks`, `PATCH`, `DELETE`, deliverables,\
+    \ `queue_broken` 409, webhooks, dispatch cancel, project resolution, `ProjectError`,\
+    \ validation 400); `ErrorBody` (`api/models.py:614-633`) from the nine `_run`\
+    \ verbs and dispatch enable/disable; `{\"detail\",\"broken\"}` 422 from `TaskLoadError`;\
+    \ no JSON / 500 for anything unhandled including `QueueCorruptionError` on any\
+    \ route other than `/next` and `/next/explain`. \"Not found\" and \"operation\
+    \ conflict\" each land in different rows depending on route. `readRefusal()` in\
+    \ the frontend returns `null` for row one, so the UI loses the message (auditor\
+    \ 9 P3-11: approve/reject/send-back errors collapse to a generic sentence).\n\
+    - `openapi.json`: 99 operations, `422` on 90, `ErrorBody` absent from `components`,\
+    \ zero ops documenting any other non-2xx. `main.py:258-276` turns `RequestValidationError`\
+    \ into **400** with only the first error. `frontend/src/api/mutation-error.ts:1-14`\
+    \ is a finding filed as a code comment. Also: webhook `DELETE` documented 200,\
+    \ returns 204; `GET /api/all/tasks` and `POST /webhooks/{id}/test` typed `Dict[str,\
+    \ Any]` with known shapes; attachments route has an empty schema.\n- Human actions\
+    \ (`/approve`, `/request-changes`, `/answer`, `/redirect`, `/hold`, `/resume`,\
+    \ `/reject`): `except ValueError \u2192 404` (`routes/tasks.py:699-703, 737-741,\
+    \ 782-783, 910-914, 935-939`). `handoff` on a closed task (\"the ball cannot move\"\
+    , `manager.py:1277`) \u2192 404; `/reject` on a closed task \u2192 404; `stamp()`\
+    \ refusing a reserved key \u2192 404. The same failures via `/handoff`/`/close`\
+    \ come back `409 invalid_transition` with a `suggested_action`. These routes also\
+    \ lack `operation_id` and `expected_revision`.\n- MCP (auditor 8 F13, F8): a Pydantic\
+    \ 400 carries no `code`/`field_errors` so MCP classifies by status alone and loses\
+    \ the field path; `_classify` falls to `invalid_transition` for a forged `data.operation`\
+    \ marker, and its \"umbrella task\" substring branch is dead since task-164.\n\
+    - `task_next` (auditor 8 F1, live): winner task-214 reported `\"actionable\":\
+    \ false` beside \"task-214 is ready, eligible \u2026 no unmet needs\". `GET /next`\
+    \ returns a stored `Task` (`tasks.py:195-208`), `task_summary` does `value if\
+    \ value is not None else False` (`summaries.py:51-52`); `open_children_count`\
+    \ was already fixed to pass `None` through, `actionable` was not. An agent filtering\
+    \ on the field drops the queue's answer.\n\n## Fix\n- One exception handler rendering\
+    \ `HTTPException` into `ErrorBody` (code from status, `detail` preserved) \u2014\
+    \ row one becomes a subset of row two without touching a route. Catch `QueueCorruptionError`\
+    \ globally as 409 `queue_broken`.\n- `responses={400: ErrorBody, 404: ErrorBody,\
+    \ 409: ErrorBody}` on the mutation routers; drop the default 422; `status_code=204`\
+    \ on webhook delete; models for the two `Dict[str, Any]` routes. Regenerate; narrow\
+    \ `mutation-error.ts` against the real type.\n- Route the seven human actions\
+    \ through `_run`/`_classify` (approve is `manager.handoff`; reject is `manager.close_task`),\
+    \ which also gives them `ErrorBody`, `operation_id` and `expected_revision`. Frontend:\
+    \ route the five review mutations through `readRefusal` the way promote does.\n\
+    - `/next` answers with `TaskRead` (computed fields) or `task_summary` passes `None`\
+    \ through with schema `[\"boolean\",\"null\"]`; a test asserts the rendered `actionable`\
+    \ of a `task_next` result.\n- Use `ErrorBody.field_errors` in `handle_validation_error`\
+    \ (all errors, not the first)."
+  context:
+  - path: audits/2026-08-21/07-api-client-webhooks.md
+    why: The three P2s on the error contract and openapi honesty, with the shape table
+  - path: audits/2026-08-21/08-mcp.md
+    why: F1 (actionable false), F2, F8, F13 and the contract-enforcement table
+  - path: audits/2026-08-21/09-frontend.md
+    why: 'P3-11: review-action errors discard the server''s reason'
+acceptance:
+- id: ac-1
+  text: Every non-2xx response from the API is an ErrorBody with a code; a test walks
+    every route with a not-found id and asserts the shape.
+  status: pending
+- id: ac-2
+  text: openapi.json declares 400/404/409 with ErrorBody on mutation routes and no
+    422 where the app returns 400.
+  status: pending
+- id: ac-3
+  text: Human-action routes on a closed task return 409 invalid_transition, not 404.
+  status: pending
+- id: ac-4
+  text: task_next never reports its own winner as actionable:false.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:54:13.179118Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: edcb5359-036d-4c28-ae82-060c642f9378
+      kind: create
+      fingerprint: 4ccb86fd81d5805b1e325f86f701a0be

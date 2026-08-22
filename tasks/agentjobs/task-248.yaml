@@ -1,0 +1,78 @@
+schema: 2
+id: task-248
+title: "Tolerant reader rejects an unknown ball_reason \u2014 the enum widened two\
+  \ days after tolerance shipped"
+created: '2026-08-22T18:51:25.400936Z'
+updated: '2026-08-22T18:51:25.995888Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: critical
+queue_position: 500
+category: infrastructure
+tags:
+- big-dawg-audit
+- schema
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P1 (auditor 3 F1/F12). schema_tolerance promises an older\
+    \ client keeps working when an enum widens, but consistency rule 2 (models_v2.py:762-768)\
+    \ tests the pseudo-member against BALL_REASONS and raises. BallReason gained hold/revise/answer/redirect\
+    \ on 2026-08-21 (a79bfc5); any MCP server or TaskClient started before that commit\
+    \ gets retryable:false on every task carrying one of them \u2014 today task-233\
+    \ (on hold). Fix rule 2 under tolerance and parametrise the skew test over the\
+    \ axis enums."
+  description: "## What was found\n\n- `models_v2.py:757-761` degrades an unknown\
+    \ **ball** via `.get`; `:762-768` then does `if allowed is not None and self.ball_reason\
+    \ not in allowed: raise`. Under `tolerant_enum_values()` an unknown reason is\
+    \ a pseudo-member, not in the frozenset \u2192 raises. Reproduced in memory by\
+    \ auditor 3: `ball: agent, ball_reason: warp` \u2192 \"Value error, ball_reason\
+    \ 'warp' does not belong to ball 'agent'\". Unknown ball `robot` is tolerated\
+    \ and `display_status` degrades to Active.\n- Tolerance shipped `ddc4d32` 2026-08-19;\
+    \ the widening `a79bfc5` 2026-08-21. The field is checked on every parse, so a\
+    \ stale process cannot read, list-by-envelope, or hand off the affected task.\
+    \ `log[].data.ball_reason` is unaffected (`data` is `Dict[str, Any]`).\n- `tests/test_schema_skew.py`\
+    \ rewrites only `log[].data.posture` \u2014 a value no cross-field rule reads.\
+    \ None of `Ball`, `BallReason`, `Lifecycle`, `Outcome`, `Priority` is tested,\
+    \ and all participate in `_check_consistency`.\n- Related degrade (P4): tolerated\
+    \ unknown `Priority` makes `priority_rank()` raise `KeyError`.\n\n## Fix\n1. In\
+    \ rule 2, skip the membership check when `ball_reason` is a pseudo-member (e.g.\
+    \ `self.ball_reason not in BallReason.__members__.values()`), or have `_missing_`\
+    \ flag pseudo-members and test the flag.\n2. Parametrise the skew test's rewrite\
+    \ over `(\"ball_reason\",\"warp\")`, `(\"ball\",\"robot\")`, `(\"lifecycle\",\"\
+    zombie\")`, `(\"priority\",\"urgent\")`, `(\"outcome\",\"vanished\")`. The `ball_reason`\
+    \ case fails today \u2014 that is the point.\n3. Guard `priority_rank()` with\
+    \ a default for pseudo-members."
+  context:
+  - path: audits/2026-08-21/03-schema-validation.md
+    why: Finding 1 with the reproduction, Finding 12 on the skew test, section 2 on
+      where tolerated data flows
+  - path: src/agentjobs/models_v2.py
+    why: Rule 2 at 750-768; ValueEnum._missing_ at 73-103
+acceptance:
+- id: ac-1
+  text: Under tolerant_enum_values a task with an unknown ball_reason under a known
+    ball validates and round-trips unchanged.
+  status: pending
+- id: ac-2
+  text: test_schema_skew is parametrised over every top-level axis enum and passes.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:51:25.994739Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: f8d00efb-9039-4f16-a686-b65d3816d722
+      kind: create
+      fingerprint: 182be3ea7bde0bb0b38b038b8f0e8190

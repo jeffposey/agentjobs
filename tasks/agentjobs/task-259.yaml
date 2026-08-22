@@ -1,0 +1,102 @@
+schema: 2
+id: task-259
+title: 'Tie ball/reason to lifecycle: a held task is not claimable, agent/available
+  only when ready, approve/resume only on active, dispatch refuses draft and human-ball
+  tasks'
+created: '2026-08-22T18:55:15.483181Z'
+updated: '2026-08-22T18:55:15.941487Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 13200
+category: infrastructure
+tags:
+- big-dawg-audit
+- schema
+- dispatch
+- queue
+assignment:
+  eligible: []
+spec:
+  summary: Big Dawg Audit P2 (auditor 3 F2/F3, auditor 10 P2-8). The six consistency
+    rules constrain pairs of axes, not the combinations the verbs were meant to be
+    the only source of. A ready task put on hold is still offered by next/task_next
+    and claim erases the hold; handoff can make active+agent/available (displays Ready,
+    is not), draft+agent/work (eligible for auto-dispatch, unclaimable), ready+agent/work
+    (what /approve and /resume write on a never-claimed task). MCP refuses agent/available
+    on handoff; REST and the manager accept it. Dispatch accepts a draft and a human/review
+    task and then quotes the agent its own review request.
+  description: "## Evidence (auditor 3, reproduced through TaskManager)\n- `_skip_reason`\
+    \ (`manager.py:520-548`) tests lifecycle, open children, unmet needs, eligibility,\
+    \ band \u2014 never `ball_reason`; `claim_task` (`:1203-1224`) unconditionally\
+    \ writes `ball_reason = WORK`. `/hold` goes through `_send_back \u2192 manager.handoff`,\
+    \ which checks only `is_open`, so a ready task can be held. Output: `after hold\
+    \ on a ready task: lifecycle=ready ball=agent/hold`; `get_next_task offers the\
+    \ held task? True`; `claim on held task: ACCEPTED, ball_reason now work`. `docs/task-schema.md:66-67`\
+    \ says hold is not workable because auto-dispatch skips it and manual dispatch\
+    \ refuses \u2014 both true (`auto.py:199-205`, `guards.py:184`) and both the dispatch\
+    \ door; `task_next`, which every dispatched agent is told to call first, walks\
+    \ through the other one.\n- Handoff table: active \u2192 `agent/available` gives\
+    \ `display_status` **Ready** with owner still set and no ask; draft \u2192 `agent/work`\
+    \ is **In progress** and `auto.py:193` (`ball is AGENT and is_open and not HOLD`)\
+    \ makes it auto-dispatchable at a draft the agent cannot claim; ready \u2192 `agent/work`\
+    \ is what `tasks.py:673,903` write for `/resume` and `/approve`, so approve on\
+    \ a never-claimed task is legal.\n- Surfaces disagree on `available`: MCP's agent\
+    \ branch is `[work, revise, answer, redirect, hold]` with \"agent/available is\
+    \ task_release\" (`mutation_tools.py:112-126`); `HandoffRequest.ball_reason: BallReason`\
+    \ (`api/models.py:647`) and the manager accept it.\n- Auditor 10 P2-8: `dispatch_task`\
+    \ refuses only `closed` and `agent/hold` (`guards.py:660-670`); `_claim_or_verify`\
+    \ (`:850-872`) passes any task whose owner is unset \u2014 including `draft`;\
+    \ nothing checks `ball` on the manual path, so a task at `human/review` is dispatchable\
+    \ and `_plan_wake` builds `WAKE_STUB` from its `ball_prompt`: \"A human has moved\
+    \ the ball back to you. What they said:\" followed by the agent's own handoff.\
+    \ No test in `test_dispatch_guards.py` constructs a draft or a human-ball task.\n\
+    \n## Fix (schema-first)\n- Rule 7 in the model: `agent/available \u21D4 lifecycle\
+    \ ready`; `agent/work|revise|answer|redirect \u21D2 active`; decide whether `hold`\
+    \ is allowed on `ready` (a held unclaimed task) and write it down. Every surface\
+    \ inherits it.\n- `_skip_reason`: `if task.ball_reason is HOLD: return \"on hold\"\
+    ` before eligibility; `claim_task` refuses with the same text; `explain_next`\
+    \ reports it.\n- Human-action routes precondition on `active` (or approve writes\
+    \ a release for an unclaimed task).\n- Remove `available` from `HandoffRequest`'s\
+    \ accepted values or document why the API differs from MCP.\n- Dispatch: refuse\
+    \ `DRAFT` by name; refuse `ball is HUMAN` unless the request moves the ball; `build_wake_prompt`\
+    \ names whose entry it quotes (overlaps the allow-list task \u2014 do it once).\n\
+    - Tests: one per row above, plus `draft` and `human`-ball fixtures in `test_dispatch_guards.py`."
+  context:
+  - path: audits/2026-08-21/03-schema-validation.md
+    why: Findings 2 and 3 with reproductions; section 5 on ball_reason across surfaces
+  - path: audits/2026-08-21/10-dispatch.md
+    why: 'P2-8: draft and human-ball tasks are dispatchable'
+  - path: src/agentjobs/models_v2.py
+    why: _check_consistency at 728-857
+acceptance:
+- id: ac-1
+  text: A task at agent/hold is never returned by get_next_task and cannot be claimed;
+    explain_next reports 'on hold'.
+  status: pending
+- id: ac-2
+  text: No handoff can produce active+available, draft+work or ready+work; a model
+    test asserts each is rejected.
+  status: pending
+- id: ac-3
+  text: Dispatching a draft or a human-ball task is refused by name.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:55:15.940629Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: f874ed95-4157-436d-9dd0-16abeacb5abe
+      kind: create
+      fingerprint: 12a1fe4f8e2375e2d91abeea26de0dd2

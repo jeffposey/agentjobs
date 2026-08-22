@@ -1,0 +1,92 @@
+schema: 2
+id: task-251
+title: 'Close the install/quickstart cliff: open/serve report a missing bundle, docs
+  add the build step, quickstart promotes, work uses the configured tasks dir'
+created: '2026-08-22T18:52:24.683512Z'
+updated: '2026-08-22T18:52:25.125822Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 12400
+category: developer_experience
+tags:
+- big-dawg-audit
+- cli
+- docs
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P1 (auditor 2, corroborated and answered by auditor 6).\
+    \ A new user following installation.md, quickstart.md, agent-workflow.md or README\
+    \ does clone \u2192 poetry install \u2192 agentjobs open and lands on a JSON 404:\
+    \ frontend_dist/ is gitignored, never built by the recipe, and open opens the\
+    \ browser without checking. Quickstart step 3 then creates a draft, lists ready\
+    \ (nothing), and runs work, which reads ./tasks instead of the configured directory."
+  description: "## Evidence\n- `docs/installation.md:6-11`, `docs/quickstart.md:10-16,27-31`,\
+    \ `docs/agent-workflow.md:592-595`, `README.md:112-121` all end at `poetry run\
+    \ agentjobs open`. `.gitignore:10` ignores `/src/agentjobs/frontend_dist/`; `git\
+    \ log -- src/agentjobs/frontend_dist` is empty; `vite.config.ts:9` is the only\
+    \ thing that creates it. `scripts/bootstrap.py` does not build the frontend either.\n\
+    - `api/spa.py:77-87` returns 404 with the right sentence (\"React frontend bundle\
+    \ is missing \u2026 run npm run build\") \u2014 as a JSON body in the tab that\
+    \ `open` already opened. `cli.py:532-594` decides \"ready\" by a socket listening\
+    \ and never requests anything; on Windows the child is spawned `CREATE_NEW_CONSOLE\
+    \ | CREATE_NO_WINDOW` so the wrong-checkout banner goes to a console nobody sees\
+    \ (auditor 6 F1, F12). `open` exits 0 after \"Server may not have started\" (F9).\n\
+    - Quickstart step 3 (auditor 6 F4): `create` has no `lifecycle` so the task is\
+    \ born `draft` (`manager.py:762`); `list --lifecycle ready` prints nothing; `work`\
+    \ reads `--storage-dir` default `./tasks` (`cli.py:764-777`) and never consults\
+    \ `tasks_directory` \u2014 on this repo `work --agent x` prints \"No tasks available\"\
+    \ while `next` answers task-214. `create --help` does not say the task is a draft;\
+    \ nothing mentions `promote`.\n- `installation.md:33-39` contributor recipe uses\
+    \ `npm install` (can rewrite the lockfile) and skips the source-provenance check\
+    \ `bootstrap.py` does; it ends up with a bundle only because `check.py` builds\
+    \ as stage 9.\n\n## Fix (auditor 6's shape, ~50 lines in cli.py/spa.py/health.py)\n\
+    - `spa.py`: `bundle_status(dist)` returning the existing sentence; `serve`/`restart`/lifespan\
+    \ print it to stderr as a warning (do not refuse \u2014 REST and MCP work without\
+    \ a bundle). `/api/version` gains `frontend_bundle: present|missing`.\n- `open`:\
+    \ after the port appears, `probe_api_base` (already in `dispatch/address.py:253`);\
+    \ exit 1 with captured stderr if no answer; exit 1 naming the port if not AgentJobs;\
+    \ print the sentence and exit 1 without opening a browser if the bundle is missing.\
+    \ Same probe on the \"already running\" branch.\n- Docs: one line in all four\
+    \ places (`npm --prefix frontend ci && npm --prefix frontend run build` before\
+    \ `open`); point the contributor recipe at `bootstrap.py`; quickstart either `create`\
+    \ then `promote` or `create --lifecycle ready` if the CLI grows it (MCP already\
+    \ has `task_create_ready`).\n- `work` uses `_build_manager` like every other command."
+  context:
+  - path: audits/2026-08-21/02-docs-vs-reality.md
+    why: P1 install cliff with the four doc locations; section 3 walk-through
+  - path: audits/2026-08-21/06-cli.md
+    why: Findings 1, 4, 9, 12, 13 and the answer to auditor 2's question with the
+      concrete shape
+acceptance:
+- id: ac-1
+  text: In a fresh clone without a bundle, agentjobs open exits non-zero with the
+    build instruction and opens no browser; serve prints the warning at startup.
+  status: pending
+- id: ac-2
+  text: The quickstart's three commands, run verbatim in a fresh project, end with
+    a claimable task and no 'No tasks available'.
+  status: pending
+- id: ac-3
+  text: agentjobs work reads the configured tasks_directory.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:52:25.124902Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 871aacf6-8e50-47d7-b238-59b79a83e3d6
+      kind: create
+      fingerprint: 4dc76e5d3900f42ddde6484bb264ba8b

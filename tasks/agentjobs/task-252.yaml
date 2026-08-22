@@ -1,0 +1,99 @@
+schema: 2
+id: task-252
+title: agent-dispatch-design.md says "nothing here is implemented" over 11.7k shipped
+  lines and describes unbuilt features in the present tense
+created: '2026-08-22T18:52:47.264637Z'
+updated: '2026-08-22T18:52:47.703706Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 12500
+category: documentation
+tags:
+- big-dawg-audit
+- docs
+- dispatch
+assignment:
+  eligible: []
+spec:
+  summary: Big Dawg Audit P1 (auditor 2; corroborated by auditor 10 P4-19/P3-15/P3-17
+    and auditor 12 S-14). The longest doc in the repo, linked from README as the dispatch
+    reference, has a status line that is the inverse of the truth, three present-tense
+    features that do not exist (difficulty, runner model/effort labels, strict), two
+    claimed absences that do exist (run directories/transcripts, Remote Control URL),
+    a false "poller reaps" and "shutdown cancels runs", and a Safety section arguing
+    against a localhost attacker the deployment no longer has. README repeats "not
+    yet implemented" for dispatch and denies the loops design exists.
+  description: "## Evidence (auditor 2 unless noted)\n- `docs/agent-dispatch-design.md:3-4`\
+    \ \"Nothing here is implemented\" \u2014 `src/agentjobs/dispatch/` is 13 modules\
+    \ / ~11.7k lines; CLI `dispatch` sub-app `cli.py:933-1367`; routes `api/routes/dispatch.py:398-528`;\
+    \ `README.md:96-98` repeats \"not yet implemented\"; `docs/index.md:52-53` says\
+    \ the doc is \"clearly labelled where implementation is still pending\".\n- Present\
+    \ tense, unbuilt: `:887-893` \"difficulty and runner groups are built\" (`grep\
+    \ difficulty src/` \u2192 one `(unbuilt)` comment); `:1052-1073` runner `model`/`effort`\
+    \ labels (`DispatchRunner` has name/argv/env/mode/actor only); `:1041-1045` per-profile\
+    \ `strict`; `:129-138` chain-aware cap semantics (`auto.py` counts dispatches,\
+    \ no chain).\n- Present tense, claims absence of things that exist: `:1796` \"\
+    no run directories, no stdout capture\" (`runner.py:1232` RunDirectory; transcripts\
+    \ served by `/runs/{id}/output`); `:656-659` Remote Control URL \"neither is verified\"\
+    \ (built, `runner.py:484-487, 1606-1609`); `:1274, :1938` \"on graceful shutdown\
+    \ every live run is cancelled\" (`main.py:129-155` cancels only the poller; batch\
+    \ thread is daemon=True \u2192 orphaned; `reconcile` labels it interrupted).\n\
+    - Auditor 10: `:1719-1720` and `main.py:77` say the poller reaps; it stops (`reap_finished`\
+    \ runs at startup/on demand only). `:434-436` secrets-in-env advice is broken\
+    \ by the daemon hop (separate P1 task). `:87-101` \"structurally impossible\"\
+    \ is false (proxy/caps task). \xA714 says auto-dispatch consumes `get_next_task`;\
+    \ `auto.py` never calls it \u2014 `maybe_auto_dispatch` is reactive to the task\
+    \ a human just acted on (synthesis grep).\n- Auditor 12 S-14: the Safety section\
+    \ (`:1236-1266`) defends against a repository choosing what executes; none of\
+    \ its four gates defends against a network peer, and gate 3 is HTTP-flippable.\n\
+    - Numbers: probe timeout \"two second\" (`:368`) vs `PROBE_TIMEOUT_SECONDS = 5.0`;\
+    \ gate \"355s solo\" (`:1430`) vs 95.8s. Config example omits `posture`, `resume_sessions`,\
+    \ `finish`, runner `actor`. Not in the doc at all: `agentjobs finish` and its\
+    \ exit codes, `~/.agentjobs/finishes/`, `phases.jsonl`/`AGENTJOBS_RUN_*`, `run_report.py`,\
+    \ the `WAKE_STUB` contract (only in ALLAGENTS.md and `wake.py`), `dispatch auth-check|reconcile|status\
+    \ --live`.\n- `README.md:100-103` \"No agent-loops design document exists yet\"\
+    \ \u2014 `docs/agent-loops-design.md` has existed since `df307c1` 2026-08-18.\n\
+    \n## Fix\nReplace `:3-4` with a status block: what shipped (\xA713 items 1-7 with\
+    \ task ids) and what did not (\xA72a chains, difficulty, labels, strict). Mark\
+    \ each of the passages above `(unbuilt)` / `(built, see \u2026)` using the convention\
+    \ `config.py:1042` already uses. Fix the two numbers and the two README paragraphs.\
+    \ Add a \"network peer\" row to the Safety section and re-examine \"each gate\
+    \ independently sufficient\". Add a \xA75a for `finish`/ledger and a \xA78 paragraph\
+    \ for `WAKE_STUB`; correct \xA714 to describe what auto-dispatch actually does."
+  context:
+  - path: audits/2026-08-21/02-docs-vs-reality.md
+    why: The P1 with every line citation, and the README contradiction P2
+  - path: audits/2026-08-21/10-dispatch.md
+    why: P3-15, P3-17, P4-19 and the five lines auditor 10 would flag first
+  - path: audits/2026-08-21/12-security.md
+    why: 'S-14: the Safety section argues against the wrong attacker'
+  - path: docs/agent-dispatch-design.md
+    why: The document
+acceptance:
+- id: ac-1
+  text: The doc's header states what is shipped and what is not, with task ids, and
+    every present-tense passage about an unbuilt feature is marked.
+  status: pending
+- id: ac-2
+  text: README no longer says dispatch is unimplemented or that no loops design exists.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:52:47.702817Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: cf61a8d6-317d-4765-875b-20f2258615c0
+      kind: create
+      fingerprint: 00b20296990ca7cb69b60d036bfc2035

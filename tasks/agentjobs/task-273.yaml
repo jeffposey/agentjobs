@@ -1,0 +1,115 @@
+schema: 2
+id: task-273
+title: 'Backend decision point: declare the TaskStorage Protocol with load_raw, and
+  record the hybrid-index and out-of-the-working-tree triggers'
+created: '2026-08-22T19:00:47.987602Z'
+updated: '2026-08-22T19:00:48.505072Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 14000
+category: infrastructure
+tags:
+- big-dawg-audit
+- storage
+- decision
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit, Jeff-weighted question (auditor 4 \xA76). Measured: nine\
+    \ of the ten non-migration sites that read or write task files outside TaskStorage\
+    \ are five days old \u2014 about two new coupling sites per working day, every\
+    \ one reasonable in isolation. The corpus doubling changes nothing; the leak count\
+    \ doubling does. Recommendation: stop the accrual now (an afternoon, no behaviour\
+    \ change), do a derived SQLite index when listing p50 exceeds 250 ms or a writer\
+    \ that is not a process on this machine appears, and price \"task records out\
+    \ of the working tree\" before pricing a database \u2014 because the weekly cost\
+    \ is the shared clone, not YAML."
+  description: "## Coupling inventory (auditor 4 \xA76.1)\nContained (a backend swap\
+    \ changes `TaskStorage` only): every manager verb, API, CLI verbs, MCP (via REST),\
+    \ React (via API), queue writes, migration writes, attachments and receipts (handed\
+    \ a directory), locks, snapshot, parse counter.\n\nLeaks, by assumption:\n1. **Tasks\
+    \ are files in a git repository** \u2014 `dispatch/record_commit.py` commits `storage.task_path()`;\
+    \ `finish.py` \xD74; `guards.py:730` and `runner.py:1079` exclude `tasks_dir`\
+    \ from the clean-tree check; `validation --staged` + receipts define provenance\
+    \ as staged bytes; `gate_scope.py:76`; and the whole tasks-on-main / worktree\
+    \ / \"checked-out branch decides what the dashboard shows\" workflow. This is\
+    \ the coupling that costs the most per week.\n2. **Documents that may fail validation**\
+    \ \u2014 `queue.py` raw readers, `validation.py` raw readers, `_write_raw_position`,\
+    \ `repair_queue`. Every raw read in `src/` has the same justification (\"the loader\
+    \ refuses this file and I need to see it anyway\"), and it is legitimate \u2014\
+    \ a capability any backend must offer.\n3. **Storage identity is file bytes**\
+    \ \u2014 `project_revision` hashes every file per poll (3.76 MB per `/revision`\
+    \ hit, zero parses); receipts hash bytes; `TaskLoadError` carries `path` into\
+    \ API responses.\n4. **`X-Task-Parses` counts files parsed** \u2014 the question\
+    \ survives an index, the unit does not.\n5. **Sparse integer positions in files**\
+    \ \u2014 ~600 lines of `queue.py` are the cost of one-file-per-task; trivial in\
+    \ a database.\n6. **Sidecars beside the files** \u2014 `.attachments/`, `*.lock`,\
+    \ `.creation`, `.queue`.\n7. **Fixtures** \u2014 ~30 test files build YAML on\
+    \ disk; `bench.py`; sandboxes.\n\n## Accrual (\xA76.2)\nFirst appearance: 2026-08-10\
+    \ migrators; 08-17 validation, receipts, attachments, instrumentation, bench;\
+    \ 08-19/20 guards tasks_dir exclusion, record_commit; 08-21 queue raw readers,\
+    \ gate_scope, review sandbox, `_write_raw_position`. Corpus today: 240 files,\
+    \ 3.76 MB, 15.7 KB/task (2.4\xD7 the schema-design estimate because the log is\
+    \ the product), 1,697 log entries, 96 open.\n\n## Weighing (\xA76.3-6.4)\n\"Git\
+    \ is the database\" is a real position and buys blame, diff-as-review, zero infra.\
+    \ It does not require the read path to hit files every time or the lock to live\
+    \ in files. Where the pressure actually is: F1 atomic write (3 lines), F2 stale\
+    \ locks, F4 position race (a `UNIQUE(band, position)` makes the class impossible),\
+    \ `/revision` bytes, `_find_created_by` O(corpus \xD7 log) \u2014 all fixable\
+    \ in place; and the workflow coupling, which only a backend that is not the working\
+    \ tree reaches. **The files are not too big; they are in the wrong place for concurrent\
+    \ writers.**\n- Hybrid (YAML canonical, SQLite index for reads + locks): ~1 working\
+    \ day, ~300 lines, identical at 2\xD7 corpus, does not absorb category 1.\n- Full\
+    \ swap (SQLite canonical, YAML export): 2-3 working weeks, loses the README's\
+    \ lead, fixes category 1.\n- Cheapest version of fixing category 1: files move\
+    \ to `~/.agentjobs/projects/<id>/tasks/` with a git export \u2014 keeps YAML and\
+    \ git, loses only the location. Not in `schema-design.md` \xA77; deserves a paragraph\
+    \ before a database does.\n\n## Recommended actions\n1. Now (contained, under\
+    \ a day total): the atomic write / lock reclaim / rejoin lock / fire-on-write\
+    \ tasks already filed.\n2. Now, to stop the accrual: declare `TaskStorage` as\
+    \ a `Protocol` (`load_task`, `load_all`, `mutate_task`, `save_task`, `locked`,\
+    \ `queue_lock`, `creation_lock`, `task_path`, `project_revision`, plus `load_raw(task_id)`)\
+    \ and make the four raw readers call `load_raw`. Gives reviewers a one-line test\
+    \ for future PRs: \"does this reach `tasks_dir` outside `storage.py`?\"\n3. Record\
+    \ the triggers as a decision: hybrid index when `GET /tasks` p50 > 250 ms here\
+    \ (~480 files) or a non-local writer appears; full relocation/swap when tasks-on-main\
+    \ / worktrees / checkout-dependent dashboards cost more than once a week \u2014\
+    \ 2026-08-11's three failures suggest that is close. Add the relocation option\
+    \ to `schema-design.md` \xA77."
+  context:
+  - path: audits/2026-08-21/04-storage-manager.md
+    why: 'Section 6 in full: inventory, accrual table, the weighing, and the trigger'
+  - path: docs/schema-design.md
+    why: Section 7, the stated philosophy and the existing SQLite-index escape hatch
+  - path: src/agentjobs/storage.py
+    why: The surface to declare as a Protocol
+acceptance:
+- id: ac-1
+  text: TaskStorage's surface is a Protocol with load_raw, and no module in src/ outside
+    storage.py opens a file under tasks_dir (a test greps for it).
+  status: pending
+- id: ac-2
+  text: A decision entry states the hybrid-index trigger and the relocation/swap trigger
+    with the rejected alternatives, and schema-design.md section 7 carries the relocation
+    option.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T19:00:48.504023Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 5a0796b0-bdec-4b7d-b0a9-d15849227fa6
+      kind: create
+      fingerprint: 7cddcbf97be059d2afc4a1f3e95ad7bd

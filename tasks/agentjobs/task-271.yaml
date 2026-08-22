@@ -1,0 +1,101 @@
+schema: 2
+id: task-271
+title: 'Plugin drift: the installed Claude Code plugin is a hand-edited snapshot from
+  2026-08-17, and version 0.1.0 forever makes every version check vacuous'
+created: '2026-08-22T19:00:02.434136Z'
+updated: '2026-08-22T19:00:03.020744Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: medium
+queue_position: 7700
+category: developer_experience
+tags:
+- big-dawg-audit
+- mcp
+- plugin
+assignment:
+  eligible: []
+spec:
+  summary: Big Dawg Audit P2 (auditor 8 F4/F9; auditor 11 P3-9 on build_release never
+    running). The plugin cache was installed from c30ca8c and then hand-edited to
+    point at 8876 (the repo copy says 8765, where nothing listens, so without the
+    edit the plugin server fails at startup). Its guard predates the d2ef033 redirect
+    fix, its skill predates the queue. Nine commits since touch plugins/ or mcp/;
+    the version is still 0.1.0, the cache is keyed by version, and the equality test
+    in test_claude_plugin.py would fire only on a bump nobody makes. The compat probe
+    compares (0,1) to (0,1) and ignores the source_commit the service already reports.
+  description: "## Evidence\n- `installed_plugins.json`: installed 2026-08-17T20:18Z\
+    \ from `gitCommitSha c30ca8c`, version 0.1.0. `diff -rq plugins/agentjobs <cache>`:\
+    \ `.mcp.json` differs (cache 8876, repo and c30ca8c 8765; mtime four hours after\
+    \ install \u2014 hand-edited); `hooks/task_write_guard.py` differs (cache predates\
+    \ `d2ef033` \"a redirect writes to its target, not to every path named\", so the\
+    \ installed guard still denies `head x.yaml 2>/dev/null`); `skills/agentjobs/SKILL.md`\
+    \ differs (no `task_queue_move`, no \"work what task_next returns\", no `queue_broken`\
+    \ guidance, no `-w` warning).\n- `curl 127.0.0.1:8765/api/version` \u2192 exit\
+    \ 7; task-154 made that port deliberately dead. Without the cache edit the plugin\
+    \ server fails the startup probe.\n- Both MCP server halves import the same tree\
+    \ (editable installs), so the server cannot diverge; the guard and skill already\
+    \ have.\n- `compat.check_version` reduces both sides to `(0, 1)` (`compat.py:47-59`);\
+    \ `/api/version` reports `source_commit` and `started_at` and the probe reads\
+    \ neither (`compat.py:125-135`). The hazard is documented in the corpus: task-233's\
+    \ ball_prompt describes a server holding pre-merge code; `client._parse_task`'s\
+    \ tolerant path exists because task-024 hit it through MCP.\n- `docs/mcp.md:109-110`\
+    \ and `plugins/agentjobs/README.md:178-181` contradict each other on whether a\
+    \ non-8765 machine edits the cache or overrides an env var; the hand edit is evidence\
+    \ for the first. Whether Claude Code honours a per-plugin env override is unverified.\n\
+    - Auditor 11: `build_release.py` is referenced by two docs and run by nothing;\
+    \ there is no CI.\n\n## Fix\n1. MCP server prints a startup stderr line naming\
+    \ `CLAUDE_PLUGIN_ROOT` when set and the cache's `gitCommitSha` vs HEAD, so drift\
+    \ is visible.\n2. Bump the plugin version on every merge that touches `plugins/`\
+    \ \u2014 `build_release.py` is the place (and run it from somewhere: a gate stage\
+    \ or a release task).\n3. Port: `plugins/agentjobs/.mcp.json` omits `AGENTJOBS_URL`\
+    \ so the process falls back to `AGENTJOBS_API_BASE`/`dispatch.yaml` (`_mcp_base_url`\
+    \ in `cli.py:149-167` already resolves that; `McpConfig.resolve` does not), or\
+    \ document that a non-8765 machine must edit the cache and will lose the edit\
+    \ on update.\n4. The compat probe compares the service's `source_commit` to the\
+    \ importing tree's HEAD and warns on mismatch, refuses when `source_root` differs.\
+    \ Rejected alternative: bumping the package version on every merge.\n5. Decide\
+    \ whether this clone needs both registrations (auditor 8 F11: 30 tools and two\
+    \ identical instruction blocks per session; `.claude/settings.json` allow-lists\
+    \ only the `mcp__agentjobs__*` names so the plugin copies prompt)."
+  context:
+  - path: audits/2026-08-21/08-mcp.md
+    why: F4, F9, F10, F11 and section 4 on dual registration
+  - path: audits/2026-08-21/11-gate-tooling.md
+    why: 'P3-9: build_release.py is documentation-only'
+  - path: src/agentjobs/mcp/compat.py
+    why: The version probe
+  - path: plugins/agentjobs/.mcp.json
+    why: The 8765 default
+acceptance:
+- id: ac-1
+  text: A session in this repo can see, without diffing caches, whether the installed
+    plugin matches HEAD.
+  status: pending
+- id: ac-2
+  text: The plugin's .mcp.json works on a machine whose server is not on 8765 without
+    editing the cache.
+  status: pending
+- id: ac-3
+  text: The MCP startup probe warns when the service's source_commit differs from
+    the importing tree.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T19:00:03.019605Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: d3a211f6-de87-474c-9931-a090b02137cf
+      kind: create
+      fingerprint: 83fc652cf0bd934a8aab9530d272e166

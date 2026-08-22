@@ -1,0 +1,119 @@
+schema: 2
+id: task-267
+title: 'Gate receipts and bootstrap: capture HEAD before the run, see both sides of
+  a rename, detach by identity not importability, verify the wheel in a clean venv'
+created: '2026-08-22T18:58:04.228770Z'
+updated: '2026-08-22T18:58:04.662227Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 13700
+category: developer_experience
+tags:
+- big-dawg-audit
+- gate
+- tooling
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P2 \xD74 (auditor 11 P2-1..P2-4; auditor 4 names the receipt\
+    \ race as the gate-side face of \"several processes write one clone\"). issue_receipt\
+    \ reads HEAD and tree cleanliness after the stages, so a task-file commit landing\
+    \ mid-gate gets a receipt for a commit the gate never verified and the next --since-gate\
+    \ skips pytest for it \u2014 HEAD moved c51eb64\u2192d258cba during the audit\
+    \ itself. git diff --name-only lists only a rename's destination. bootstrap.py\
+    \ leaves an activated env alone when it cannot import agentjobs, which is exactly\
+    \ the task-194 residue, and then writes the worktree's editable install into it.\
+    \ build_release.py probes the wheel with the dev venv's dependencies, so a missing\
+    \ runtime dep passes."
+  description: "## Evidence\n- P2-1: `check.py:358-380` `issue_receipt()` calls `gate_scope.head_commit(ROOT)`\
+    \ and `tree_is_clean(ROOT)` after the stages (`:542-546`); nothing captures either\
+    \ before. Task records are committed to `main` continuously by other agents (ENGINEERING\
+    \ \"Task files live on main\"). Scenario: gate starts at clean A; another session\
+    \ commits task YAML as B during the ~2 min; `TestRealCorpus` may or may not have\
+    \ loaded it; tree is clean at B \u2192 receipt says B verified; next `--since-gate`\
+    \ sees nothing for that YAML and skips pytest \u2014 the one stage the `tasks/*`\
+    \ class exists to keep. `test_check_gate.py` stubs `head_commit` to a constant,\
+    \ so nothing covers it.\n- P2-2: `gate_scope.py:192` uses `git diff --name-only\
+    \ <commit>`; default rename detection lists only the destination. Probe in a throwaway\
+    \ repo: `git mv src/mod.py docs/mod.md` \u2192 `docs/mod.md` alone; with `--no-renames`\
+    \ both. A move into `docs/` or `tasks/` classifies as prose/corpus \u2192 pytest\
+    \ only, and the deleted source is never seen. None of `TestChangedSince`'s 28\
+    \ tests covers a rename, case or separator.\n- P2-3: `bootstrap.py:121-134` detaches\
+    \ only when `imported_checkout(poetry, None)` returns a checkout other than `ROOT`;\
+    \ it returns `None` when `poetry run python -c \"import agentjobs\"` fails (`:81-99`),\
+    \ and `None` is treated as \"somebody's own venv, leave it alone\". The main clone's\
+    \ env left unable to import \u2014 a removed worktree's `.pth`, a half-finished\
+    \ install \u2014 is the task-194 residue; a dispatched session inheriting that\
+    \ `VIRTUAL_ENV`, taking a worktree and running the bootstrap as instructed writes\
+    \ the worktree's editable install into the main clone's env. `test_source_provenance.py:262-312`\
+    \ covers nothing-activated / foreign / own; not broken-env. Unverified follow-on:\
+    \ after detaching, `PATH` still leads with the foreign venv's `Scripts/`, and\
+    \ Poetry 2.4.1 here has `virtualenvs.use-poetry-python = false` \u2192 `shutil.which(\"\
+    python\")`; auditor 11 believes virtualenv resolves to the base interpreter but\
+    \ did not run it.\n- P2-4: `build_release.py:73-94` installs the wheel `--no-deps`\
+    \ into a temp target and prepends it to `sys.executable` \u2014 the dev venv with\
+    \ fastapi/uvicorn/pydantic/typer/pyyaml/jinja2 already present; the probe asserts\
+    \ only that `agentjobs` imports from the target. No CI exists. `installation.md:44-47`\
+    \ \"boots the installed server with Node removed from PATH\" is true and that\
+    \ is all it removes. Nothing runs `build_release.py` at all (P3-9).\n\n## Fix\n\
+    - Record `head_commit` and `tree_is_clean` before the first stage; issue the receipt\
+    \ only if both are unchanged, else print \"No gate receipt written: HEAD moved\
+    \ from A to B during the run.\" Test that moves HEAD between stubbed stages.\n\
+    - `git diff --name-only --no-renames`; rename/case/separator cases in `TestChangedSince`.\
+    \ Also tighten `tasks/*` and `docs/*` to `tasks/**/*.yaml`, `docs/**/*.md` (+img/svg)\
+    \ so a `.py` dropped there falls to default-deny (P3-7), and use `fnmatchcase`\
+    \ (P4-2).\n- Bootstrap detaches whenever `VIRTUAL_ENV` is set and is neither this\
+    \ checkout's path-keyed env (`poetry env info --path`) nor inside `ROOT`. Test\
+    \ the broken-env shape. Run the PATH experiment auditor 11 named and record the\
+    \ result.\n- `build_release.py`: `python -m venv` a fresh interpreter, `pip install\
+    \ <wheel>` with deps, boot from that (~20 s). It is the only test of `[tool.poetry.dependencies]`\
+    \ the repo would have.\n- Also from auditor 11 (cheap, same files): record `stage_seconds`\
+    \ in `gate_finished` (P3-1); when a `--since-gate` run selects all ten stages,\
+    \ print the full banner and record `scope=full` (P3-5); keep `grounded_at` alongside\
+    \ `basis` so the receipt chain is more than one link (P3-6)."
+  context:
+  - path: audits/2026-08-21/11-gate-tooling.md
+    why: P2-1..P2-4, P3-1, P3-5, P3-6, P3-7, P4-2 with the probes
+  - path: scripts/check.py
+    why: issue_receipt at 358-380
+  - path: scripts/gate_scope.py
+    why: changed_since at 192, the classification table at 75-79
+  - path: scripts/bootstrap.py
+    why: Detachment decision at 121-134
+  - path: scripts/build_release.py
+    why: The wheel probe at 73-117
+acceptance:
+- id: ac-1
+  text: A gate during which HEAD moves writes no receipt and says so (test).
+  status: pending
+- id: ac-2
+  text: A staged rename out of src/ into docs/ selects every stage.
+  status: pending
+- id: ac-3
+  text: Bootstrap in a worktree with a broken activated env does not write into that
+    env (test).
+  status: pending
+- id: ac-4
+  text: build_release.py boots the wheel from a fresh venv with only the wheel's declared
+    dependencies installed.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:58:04.661101Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 44986283-0a3d-45eb-8a2a-586d74db5e9f
+      kind: create
+      fingerprint: c0715765c06264aea11ffcb3defce3b6

@@ -1,0 +1,100 @@
+schema: 2
+id: task-245
+title: 'Dispatch: drop git merge/git add/npm run from the pre-approved allow-list
+  and frame the wake ball_prompt as quoted data'
+created: '2026-08-22T18:50:33.217480Z'
+updated: '2026-08-22T18:50:33.652344Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: critical
+queue_position: 300
+category: infrastructure
+tags:
+- big-dawg-audit
+- security
+- dispatch
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P1 (auditor 12 S-2, auditor 10 P2-10). Task content written\
+    \ by any API caller reaches a dispatched agent as instructions \u2014 verbatim\
+    \ in the wake stub as \"what the human said\" \u2014 and the --settings blob pre-approves\
+    \ git merge, git commit, git add, npm run and poetry run pytest with no classifier\
+    \ round-trip. The merge gate has no mechanical enforcement inside a run."
+  description: "## What was found\n\nThree content paths reach a dispatched agent\
+    \ (auditor 12):\n1. Cold dispatch: `PROMPT_STUB` (`dispatch/runner.py:115-126`)\
+    \ tells the agent to read the record and follow it; `spec.description/constraints/context`\
+    \ are writable by `PATCH /tasks/{id}` and at creation.\n2. Wake: `WAKE_STUB` delivers\
+    \ `ball_prompt` verbatim, up to 4000 chars, framed as \"A human has moved the\
+    \ ball back to you. What they said:\" (`dispatch/wake.py:39-53, 70, 225-252`).\
+    \ `POST /tasks/{id}/request-changes` writes `payload.feedback` straight into `ball_prompt`\
+    \ (`api/routes/tasks.py:716-728`). Auditor 10 P2-8 adds: a task at human/review\
+    \ is dispatchable, and the wake then quotes the agent its own review request as\
+    \ the human's words.\n3. Log entries: `POST /tasks/{id}/log` accepts the reserved\
+    \ `dispatcher`/`finisher` ids from any caller, so an injected \"decision\" can\
+    \ be attributed to AgentJobs itself.\n\n`ALLOW_PREFIXES` (`runner.py:233-244,\
+    \ 265`) pre-approves `git merge`, `git commit`, `git add` (including `git add\
+    \ -A`, the command ALLAGENTS forbids), `npm run`, `poetry run pytest` for both\
+    \ Bash and PowerShell \u2014 classifier bypassed. The design justifies pre-approved\
+    \ merge because \"the merge is gated on a human approval recorded on the task\"\
+    \ (`agent-dispatch-design.md:728-736`), but the allow rule reads nothing from\
+    \ the task. The only thing between a dispatched run and an unapproved merge into\
+    \ `main` in the shared clone is that the model read ALLAGENTS.md. Memory already\
+    \ calls classifier-mediated `git merge` \"a coin flip\"; pre-approval removes\
+    \ the coin.\n\n`record_can_brief` (`guards.py:303-329`) keys on a non-empty description,\
+    \ which the attacker supplies. `require_clean_tree` defaults to true (`config.py:366`)\
+    \ \u2014 that part already holds.\n\n## Fix\n- Remove `git merge` from `ALLOW_PREFIXES`\
+    \ (and decide on `git commit`, `git add`, `npm run`); keep the test/lint prefixes.\
+    \ Or, once `finish.enabled` is on for a project, make the scripted finish the\
+    \ only merge path and drop the pre-approval for that project. A `pre-merge-commit`\
+    \ hook in the main clone refusing merges into `main` without a recorded approval\
+    \ is the belt to that brace.\n- `build_wake_prompt`: name the actor of the entry\
+    \ it quotes, read from the record, and frame the text as quoted data rather than\
+    \ as a human instruction.\n- Refuse `lifecycle is DRAFT` and `ball is HUMAN` on\
+    \ the manual dispatch path unless the request moves the ball (auditor 10 P2-8;\
+    \ overlaps the schema task on ball/lifecycle coupling).\n- Refuse reserved actor\
+    \ ids from HTTP and MCP (see the actor-kind task).\n\nNetwork half is the proxy-identity\
+    \ task; this one stands on its own \u2014 the content path is open to any MCP\
+    \ client or agent regardless of auth."
+  context:
+  - path: audits/2026-08-21/12-security.md
+    why: 'S-2: the injection chain and why the allow-list is what makes it bite'
+  - path: audits/2026-08-21/10-dispatch.md
+    why: P2-10 (merge gate unenforced), P2-8 (draft/human-ball dispatchable), item
+      5 on prompt interpolation
+  - path: src/agentjobs/dispatch/runner.py
+    why: ALLOW_PREFIXES at 233-244 and PROMPT_STUB at 115
+  - path: src/agentjobs/dispatch/wake.py
+    why: WAKE_STUB framing of ball_prompt
+acceptance:
+- id: ac-1
+  text: git merge is not in the pre-approved prefix list for any posture; a test asserts
+    it (replacing the decorative seed-list test).
+  status: pending
+- id: ac-2
+  text: The wake prompt states whose log entry it is quoting, read from the record,
+    and does not assert the author is a human.
+  status: pending
+- id: ac-3
+  text: Dispatching a draft task or a task whose ball is with the human is refused
+    by name.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:50:33.651350Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: adb5ddd9-1a82-4cc2-891c-c0d3cbf329fa
+      kind: create
+      fingerprint: 1012318a1ed7d22e46a7a47741e7f8b0

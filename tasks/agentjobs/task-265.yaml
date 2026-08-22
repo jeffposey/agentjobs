@@ -1,0 +1,94 @@
+schema: 2
+id: task-265
+title: 'Dispatch settlement: _ball_moved counts the dispatcher''s own handoffs, poller-written
+  handoffs fire no webhooks, run_report measures settlement time not work time'
+created: '2026-08-22T18:57:24.677521Z'
+updated: '2026-08-22T18:57:25.143606Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: medium
+queue_position: 7400
+category: infrastructure
+tags:
+- big-dawg-audit
+- dispatch
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P2 (auditor 10 P2-6/P2-7/P2-11; P3-13/P3-14/P3-15 fold\
+    \ in). A parked or auth-stalled session that never hands off is recorded completed\
+    \ because _ball_moved sees the dispatcher's own park handoff. The poller builds\
+    \ TaskManager without a webhook manager, so the four handoffs that most need a\
+    \ notification \u2014 parked, auth-expired, finished-without-handoff, cancelled\
+    \ \u2014 emit no task.handoff. finished_at is written when the poller settles,\
+    \ so every finished_without_handoff run is \u226560 min by construction and task-233's\
+    \ baseline table was built on those numbers."
+  description: "## Evidence\n- P2-6: `_ball_moved` (`runner.py:1672-1679`) is true\
+    \ for any `handoff`/`transition` newer than the dispatch entry; `_park_session`\
+    \ and `_park_auth_stall` write a `handoff` under actor `dispatcher` (`runner.py:1560-1576,\
+    \ 1613-1623`). After the human answers and the session later idles without handing\
+    \ off, `_settle_finished_session` sees the dispatcher's entry and records `completed`\
+    \ with reap \u2014 the run_a1e35ca5 class (task-224) through a second door.\n\
+    - P2-7: `poll_live_sessions` constructs `TaskManager(TaskStorage(project.tasks_dir()))`\
+    \ with no webhook manager (`poller.py:163`); `main.py:148` passes no managers.\
+    \ The same handoff via the API gets one through `dependencies.manager_for` (`dependencies.py:226-228`).\
+    \ ENGINEERING.md names `task.handoff` as the notification extension point.\n-\
+    \ P2-11: a session run's `finished_at` is written when the poller settles it (`runner.py:1720-1722`);\
+    \ a run with an unmoved ball waits out `session_stale_seconds` (3600) first (`:1651-1654`).\
+    \ `run_9f5385a4` (task-233) shows 63.0 min. `summary()` folds these into total\
+    \ time, p90 and runs-per-task; `per_task` ranks on them.\n- P3-13: disabling dispatch\
+    \ (or the sentinel) while a run is live leaves it never settled, never reaped,\
+    \ lock and slot held until re-enable or restart \u2014 the poller re-runs `assert_dispatch_permitted`\
+    \ per tick and skips on refusal (`poller.py:171-178`).\n- P3-14: `reconcile` lists\
+    \ with `--all` (`ledger.py:646`), so a hand-stopped session is \"re-attached\"\
+    \ then concluded `interrupted` with the wrong story.\n- P3-15: `main.py:77` and\
+    \ the design say the poller reaps; `_finish_session` stops (`runner.py:1725-1726`);\
+    \ `reap_finished` runs at startup/on demand only \u2014 every finished run's `meta.yaml`\
+    \ mtime clusters at the last server start.\n\n## Fix\n- Exclude `reserved_actors()`\
+    \ from the `_ball_moved` scan.\n- Build the poller's managers through `dependencies.manager_for(project)`\
+    \ or pass the server's managers into `poll_sessions_forever`.\n- Record `idle_at`\
+    \ the first time a poll observes `idle`; `run_report` reports work time from it\
+    \ and keeps `finished_at` as bookkeeping. Re-cut task-233's table.\n- Poller loads\
+    \ config without the permission gates for *following* a run; only *starting* one\
+    \ needs them.\n- `reconcile` uses the active view or classifies `status` before\
+    \ re-attaching; either call `reap_finished` from the poller after a settle or\
+    \ fix the two sentences."
+  context:
+  - path: audits/2026-08-21/10-dispatch.md
+    why: P2-6, P2-7, P2-11, P3-13, P3-14, P3-15
+  - path: src/agentjobs/dispatch/runner.py
+    why: _ball_moved at 1672-1679, _settle_finished_session at 1633-1670
+  - path: src/agentjobs/dispatch/poller.py
+    why: Manager construction at 163
+  - path: scripts/run_report.py
+    why: The consumer of finished_at
+acceptance:
+- id: ac-1
+  text: A session parked by the dispatcher that later idles without an agent handoff
+    is recorded finished_without_handoff, not completed.
+  status: pending
+- id: ac-2
+  text: A dispatcher-written handoff fires task.handoff to a subscribed webhook (test).
+  status: pending
+- id: ac-3
+  text: run_report reports work time from idle_at and labels settlement time separately.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:57:25.142532Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 973a418d-d015-4563-a2db-d8422fc82d59
+      kind: create
+      fingerprint: 4a01646942504f7a592e1f9eba64d1a2

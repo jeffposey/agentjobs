@@ -1,0 +1,90 @@
+schema: 2
+id: task-254
+title: Manager-owned content allowlist for update_task; reopen becomes a verb that
+  writes its transition
+created: '2026-08-22T18:53:24.620208Z'
+updated: '2026-08-22T18:53:25.058296Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 12700
+category: infrastructure
+tags:
+- big-dawg-audit
+- schema
+- storage
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P2 (auditor 4 F6, auditor 3 F4, auditor 8 noted the unreachable\
+    \ reopen path). manager.update_task(**updates) does payload.update(updates) then\
+    \ model_validate, so lifecycle, ball, ball_prompt, outcome, archived, queue_position,\
+    \ assignment and even log: [] go straight through from Python \u2014 the CLI,\
+    \ finish.py, scripts, tests. The \"axes move only through verbs\" rule is enforced\
+    \ only at the API and MCP edges, in two hand-maintained copies of a list the manager\
+    \ does not own. A reopen through the generic patch writes a queue_move and no\
+    \ transition entry."
+  description: "## Evidence\n- `manager.py:988-990` / `:1000-1004`: `payload = existing.model_dump(...)`;\
+    \ `payload.update(updates)`; `Task.model_validate(payload)`. The module docstring\
+    \ (`:3-7`) says \"callers never write the axes directly\" \u2014 a convention,\
+    \ not a check.\n- Auditor 3 reproduced through `TaskManager`: `update_task(lifecycle=\"\
+    ready\", ball=\"agent\", ball_reason=\"available\", outcome=None)` on a closed\
+    \ task \u2192 ACCEPTED, reopened with log types `['transition','transition','queue_move']`\
+    \ (no transition for the reopen); `update_task(ball_prompt=\"smuggled\")`, `update_task(archived=True)`,\
+    \ `update_task(log=[])` \u2192 all ACCEPTED. The last one empties the append-only\
+    \ log with no trace in the file.\n- Allowlists live only at the edges: `api/models.py:356-367\
+    \ TaskUpdateRequest` (13 fields, `extra=\"forbid\"`) and `mcp/mutation_tools.py:96-109\
+    \ CONTENT_FIELDS` (12 fields).\n- `_rejoining_the_queue` (`manager.py:1020-1070`)\
+    \ is written for \"a closed task whose lifecycle is patched back to something\
+    \ open\" and says \"there is deliberately no reopen verb yet, so this generic\
+    \ patch is the only path\" \u2014 code for a path no HTTP route can reach. `docs/task-schema.md:402-403`\
+    \ (\"update_task \u2026 deliberately cannot touch the axes\") is false at this\
+    \ layer.\n- Today's legitimate Python caller: `dispatch/finish.py:935` patches\
+    \ `branches` only.\n- Auditor 3 F13, same family: rule 5 does not cover `closed`\
+    \ (a closed task may keep `assignment.owner`); `LogEntry.actor: \"\"` validates.\n\
+    \n## Fix\n- One module-level `CONTENT_FIELDS` frozenset in `manager.py` (the `MANAGER_WRITTEN_LOG_TYPES`\
+    \ pattern); `update_task` rejects anything else with a `ValueError` naming the\
+    \ verb to use; the API and MCP schemas derive from it rather than copying it.\n\
+    - Make reopen a verb (`reopen_task`) that writes its `transition` entry and holds\
+    \ the queue lock across the write (coordinate with the reopen-race task).\n- Add\
+    \ `closed \u21D2 owner empty` to rule 5 and `min_length=1` on `LogEntry.actor`.\n\
+    - Fix `docs/task-schema.md:402-403`."
+  context:
+  - path: audits/2026-08-21/04-storage-manager.md
+    why: F6 and the verb-integrity table in section 5
+  - path: audits/2026-08-21/03-schema-validation.md
+    why: Finding 4 with the reproduction; Finding 13; the enforcement table in section
+      1
+  - path: src/agentjobs/manager.py
+    why: update_task at 949-1018, _rejoining_the_queue at 1020-1070
+acceptance:
+- id: ac-1
+  text: update_task refuses lifecycle, ball, ball_reason, ball_prompt, outcome, archived,
+    queue_position, assignment, log, schema, id and created by name, from Python.
+  status: pending
+- id: ac-2
+  text: The API and MCP content allowlists are derived from the manager's set (a test
+    asserts equality).
+  status: pending
+- id: ac-3
+  text: Reopening a closed task writes a transition entry.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:53:25.057128Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 09867a61-a10a-457d-91fb-bf9b11bfb62d
+      kind: create
+      fingerprint: 27850653a3a7def8877f4f91836a1967

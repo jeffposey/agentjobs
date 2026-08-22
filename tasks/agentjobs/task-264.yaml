@@ -1,0 +1,99 @@
+schema: 2
+id: task-264
+title: 'Dispatch ledger races: cancel vs poller write contradictory terminal entries,
+  the machine ceiling is a directory scan, per-task mechanisms are keyed by task id
+  without project'
+created: '2026-08-22T18:57:06.901451Z'
+updated: '2026-08-22T18:57:07.578387Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 13600
+category: infrastructure
+tags:
+- big-dawg-audit
+- dispatch
+assignment:
+  eligible: []
+spec:
+  summary: 'Big Dawg Audit P2 (auditor 10 P2-4/P2-9/P2-5). Observed on task-107 run_a6deb292:
+    cancel wrote dispatch_result cancelled, the poller wrote interrupted eleven seconds
+    later, and meta.yaml ended status finished / outcome interrupted / cancel_requested
+    true. The max_concurrent_runs ceiling counts run directories before the directory
+    is created, so two dispatches of different tasks both pass at N-1. Run locks,
+    live-run scans, wake targets and reap keys use the bare task id, so an agentjobs
+    task-224 could --resume job-hunting''s task-224 conversation.'
+  description: "## Evidence\n- P2-4: `ledger._stop` writes `cancel_requested` before\
+    \ stopping (`ledger.py:672-684`); `_finish_batch` honours it (`runner.py:1943-1949`);\
+    \ `_finish_session` does not \u2014 its only guard is a re-read of `status` (`runner.py:1702`).\
+    \ Poller tick and cancel handler both do unlocked read-modify-writes of `meta.yaml`\
+    \ (`RunDirectory.update_meta`, `ledger.write_status`) and both call `record_dispatch_result`.\
+    \ task-107 log entries 9 (`cancelled`, 21:48:04Z) and 11 (`interrupted`, 21:48:15Z),\
+    \ same actor, same `re: 7`. Both guards (`daa97ac`, `841f84b`) predate the event.\
+    \ Recurs whenever a human cancels within a poll interval.\n- P2-9: `guards.py:707-722`\
+    \ counts live run directories against `max_concurrent_runs`; the directory is\
+    \ created later, after claim, `git status` and (CLI) the HTTP probe. The per-task\
+    \ lock is atomic; the ceiling has no primitive. Three dispatch sources on this\
+    \ machine (server, `dispatch run`, a finish's escalation) and a ceiling of 3.\
+    \ `test_the_machine_limit_refuses_and_does_not_enqueue` is sequential only.\n\
+    - P2-5: run lock `~/.agentjobs/runs/.locks/<task_id>.lock` (`ledger.py:305`);\
+    \ live-run scan compares `run.task_id == task.id` across projects (`guards.py:708-709`);\
+    \ `newest_session_run` filters on `task_id` only (`wake.py:120-138`); `_wakeable_run_ids`\
+    \ keys on task id (`ledger.py:902`). Zero collisions today (job-hunting ids carry\
+    \ slugs); when it fires the failure is a `--resume` of another project's conversation\
+    \ with a wake prompt asserting \"this is the same session\". `test_another_tasks_session_is_never_borrowed`\
+    \ covers one project.\n- P4: `_conclude` writes `status: cancelled` for every\
+    \ outcome including `interrupted` (`ledger.py:933-938`), so meta lies about how\
+    \ a run ended even when the display is right.\n- Auditor 12's question (unanswered):\
+    \ does `poller`/`ledger` ever act on a `meta.yaml` field a run wrote about itself?\
+    \ The run directory is writable by the agent inside it; if `reconcile` trusts\
+    \ `status:` from that file, an agent can declare itself finished and slip the\
+    \ live-run lock. Check while here.\n\n## Fix\n- `_finish_session` checks `cancel_requested`\
+    \ exactly as `_finish_batch` does; `record_dispatch_result` refuses a second terminal\
+    \ entry for the same `run_id` (the per-task storage lock is already held); a per-run-directory\
+    \ lock for meta writes \u2014 auditor 10 asked auditor 4 whether storage's `O_EXCL`\
+    \ helper can be reused rather than growing a second locking convention.\n- Machine-wide\
+    \ `O_EXCL` lock around scan-plus-directory-creation, or create the directory first\
+    \ and back it out on refusal; a test with two concurrent dispatches of different\
+    \ tasks at N-1.\n- `project_id` in the lock filename and all three lookups; a\
+    \ two-project test.\n- `_conclude` writes the real outcome."
+  context:
+  - path: audits/2026-08-21/10-dispatch.md
+    why: P2-4, P2-5, P2-9, P4-19 with the observed incident and line citations
+  - path: audits/2026-08-21/12-security.md
+    why: The question about trusting meta.yaml fields an agent can write
+  - path: src/agentjobs/dispatch/ledger.py
+    why: Locks at 278-337, _stop at 672-684, _conclude at 933-938
+  - path: src/agentjobs/dispatch/guards.py
+    why: Ceiling scan at 707-722
+acceptance:
+- id: ac-1
+  text: A cancel landing mid-poll yields exactly one terminal dispatch_result and
+    a meta.yaml whose outcome matches it (test with a poller in flight).
+  status: pending
+- id: ac-2
+  text: Two concurrent dispatches of different tasks at ceiling-1 admit exactly one.
+  status: pending
+- id: ac-3
+  text: Run locks, live-run scans, wake targets and reap keys include the project
+    id; a two-project test passes.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:57:07.577243Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 3f360c9e-24c0-4623-9244-2bd80d59a2af
+      kind: create
+      fingerprint: 69bbd5b29b574cf7024601b71f6c5fdd

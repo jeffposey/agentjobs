@@ -1,0 +1,121 @@
+schema: 2
+id: task-270
+title: 'Docs drift sweep: api-reference misses 20 operations and makes a false actor
+  claim; index.md indexes 12 of 19; queue design still "proposed"; sentences in task-schema,
+  webhooks and mobile-access overturned by system auditors'
+created: '2026-08-22T18:59:41.077322Z'
+updated: '2026-08-22T18:59:41.532401Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: medium
+queue_position: 7600
+category: documentation
+tags:
+- big-dawg-audit
+- docs
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P2 cluster (auditor 2's P2s; auditor 7 on api-reference;\
+    \ auditors 3, 7 and 9 overturned three of auditor 2's \"accurate\" verdicts at\
+    \ the sentence level). Structural checks passed \u2014 25/25 schema fields, 15/15\
+    \ MCP tools, 0 broken links, openapi.json identical to the routes \u2014 while\
+    \ the prose describes old behaviour as present: api-reference says actor is optional\
+    \ on the verbs (it is required on five), the fully-shipped queue design is labelled\
+    \ a proposal in three places, index.md mislabels two of three design records,\
+    \ task-schema says seven fields are required (ten), webhooks.md says task.handoff\
+    \ fires on every ball move (only the handoff verb), mobile-access says foregrounding\
+    \ the PWA picks up a new bundle (it does not)."
+  description: "## Evidence\n- `docs/api-reference.md`: 74 of 94 operations documented;\
+    \ missing `GET /api/version`, `/api/all/tasks`, the project create/init/inspect\
+    \ routes, the whole dispatch family, `/promote`, `/answer|redirect|hold|resume`,\
+    \ attachments. `:83-85` \"actor and operation_id are optional\" \u2014 `actor`\
+    \ is `Field(...)` on Handoff/Release/Promote/Close/LogAppend requests; `ClaimRequest`\
+    \ takes `agent`. `:65-66` \"approval does not run git\" is conditional now (finish.enabled).\
+    \ `:48` hides that DELETE closes an open task as cancelled. `:10-12` \"no authentication\"\
+    \ is the most important line and should be first (auditor 7).\n- `docs/index.md`:\
+    \ indexes 12 of 19 top-level docs (missing loops design, playbooks design, performance,\
+    \ corpus audit, integration/*); `:52-53` says the dispatch design is \"clearly\
+    \ labelled where implementation is still pending\" (inverse); `:54` queue design\
+    \ \"proposed\". `mkdocs.yml:71` \"Task schema reference (v1 + v2)\" \u2014 no\
+    \ v1 section; `site_name: AgentJobs Schema` for a site two-thirds project docs.\n\
+    - `task-selection-design.md:1` \"design proposal\" \u2014 shipped in full (task-081,\
+    \ 204-209 closed); \xA71/\xA714 describe the old `(priority_rank, -updated)` sort\
+    \ in present tense; `:302,493` show `queue compact` bare (requires a band); `:205-207`\
+    \ `create --before/--after/--top` exposed nowhere; `:336-338` renumber-crash claim\
+    \ \u2014 `find_queue_problems` does not report odd-but-ordered numbers.\n- `task-schema.md`\
+    \ (auditor 3 F11): `:207-209` \"seven required fields\" \u2014 a file with exactly\
+    \ those fails rules 1 and 6; `:96-108` lists five rules, the model enforces six;\
+    \ `:81` \"category validated by the manager\" \u2014 only `validate` does; `:402-403`\
+    \ update_task \"cannot touch the axes\" \u2014 false at the manager. `models_v2.py:667`\
+    \ \"five rules\" vs `:730` \"six\". `schema-design.md` and `understanding.md`\
+    \ list 8 of 11 log types.\n- `webhooks.md:11` (auditor 7): `task.handoff` \"when\
+    \ the ball moves to an agent, human, or external dependency\" \u2014 `claim`,\
+    \ `release`, `promote` move the ball and fire nothing. `task.question` carries\
+    \ `body`, `task.closed` carries `outcome` \u2014 undocumented.\n- `mobile-access.md:153-155,\
+    \ 161` (auditor 9): \"relaunch or foreground\" picks up the new worker \u2014\
+    \ foregrounding is not a navigation; `:130-147` documents an http fallback on\
+    \ which `crypto.randomUUID` throws.\n- `README.md:42` \"Codex additionally gets\
+    \ a bundled plugin\" \u2014 Claude Code has one too. `plugins/agentjobs/README.md:9,166-170`\
+    \ \"fourteen tools \u2026 nine mutation\" \u2014 15/10, `task_queue_move` missing\
+    \ (auditor 8 F10). `docs/mcp.md:213` names three `expected_revision` verbs where\
+    \ there are five; the leading MCP instruction names four state verbs where `task_promote`\
+    \ is a fifth.\n- `playbooks-design.md:3-5` \"held as drafts until approved\" \u2014\
+    \ children 214-219 are ready since `25427f1`; not in mkdocs nav. `agent-loops-design.md`\
+    \ L1 says `verify` keeps its prose meaning; `models_v2.py:416-419` still documents\
+    \ it as machine-checkable. `docs/schema/v2/index.md:3-4` and `schema/agentjobs-v2.yaml:6-13`\
+    \ carry \"PRESCRIPTIVE \u2026 nothing here is implemented yet\". `performance.md:114`\
+    \ `--port` default 18950 \u2014 derived from the checkout path since task-187.\
+    \ `installation.md` contributor recipe is a weaker bootstrap (`npm install`, no\
+    \ provenance check).\n- Also: nothing in the gate checks `regen-schema-docs.sh`\
+    \ output is committed (auditor 3 F10, auditor 2); the cheapest guard is a test\
+    \ that `gen-json-schema` output equals the committed `agentjobs-v2.schema.json`.\n\
+    \n## Fix\nOne pass, one commit per file or per cluster: add the missing tables\
+    \ to api-reference and correct the two claims; index every doc under a status\
+    \ word (shipped / design / historical / dated report); relabel the queue design\
+    \ \"accepted 2026-08-20, implemented 2026-08-21\" and mark \xA71/\xA714 as before-state;\
+    \ fix the task-schema sentences and the five/six count; reword the webhooks events\
+    \ table (or fire on every ball move \u2014 record which); fix mobile-access's\
+    \ upgrade and fallback sentences; the README/plugin README counts; the playbooks/loops/v2\
+    \ banners; the regen-output test. The dispatch design doc has its own task."
+  context:
+  - path: audits/2026-08-21/02-docs-vs-reality.md
+    why: The classification table and every P2/P3 with line numbers
+  - path: audits/2026-08-21/03-schema-validation.md
+    why: 'Finding 11: task-schema.md sentences that are not true of the code; Finding
+      10 on regen output'
+  - path: audits/2026-08-21/07-api-client-webhooks.md
+    why: api-reference and webhooks.md drift from the API's side
+  - path: audits/2026-08-21/09-frontend.md
+    why: mobile-access.md claims overturned
+acceptance:
+- id: ac-1
+  text: api-reference.md documents every operation in openapi.json (a test walks operationIds
+    against the doc) and states actor as required where it is.
+  status: pending
+- id: ac-2
+  text: docs/index.md lists every file under docs/ with a status word; no design doc
+    describes shipped behaviour as proposed.
+  status: pending
+- id: ac-3
+  text: A test asserts the committed LinkML JSON schema equals regenerated output.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:59:41.531502Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 4a292b6b-847f-4518-af08-aff40bb31c3b
+      kind: create
+      fingerprint: 179b13b25d94b8ee38567f28cf185f55

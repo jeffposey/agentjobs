@@ -1,0 +1,85 @@
+schema: 2
+id: task-246
+title: Decide what to do about audits/ and machine identifiers already on the public
+  remote
+created: '2026-08-22T18:50:50.835857Z'
+updated: '2026-08-22T18:50:51.447331Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: high
+queue_position: 12200
+category: meta
+tags:
+- big-dawg-audit
+- security
+- decision
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P1-class decision (auditor 12 S-9, confirmed by the synthesis\
+    \ session's git check). The repo is public, and audits/2026-08-21/ \u2014 including\
+    \ 12-security.md, which names the tailnet hostname, peer count and exact request\
+    \ shapes that work against the unauthenticated API \u2014 is on origin/main as\
+    \ of f56c9ae. Jeff has to decide: accept, rewrite history, or scrub and re-push.\
+    \ No agent should force-push."
+  description: "## What was found\n\n- `gh repo view` \u2192 `\"visibility\":\"PUBLIC\"\
+    `. `git log origin/main -- audits` shows six commits including `f56c9ae` (nine\
+    \ findings files, among them `12-security.md`) and `f9d3f7b`. The synthesis session\
+    \ verified `git log origin/main..HEAD -- audits` is empty: every findings file\
+    \ is already pushed. PLAN.md's closing note (\"review the report before any push\
+    \ of audits/\") was overtaken by the dispatcher's commits being pushed.\n- `12-security.md`\
+    \ states in its own handling note: do not push this file as-is. It names `agentjobs.tailfed1df.ts.net`,\
+    \ the four tailnet peers, that the API has no auth, and the curl shapes that mutate\
+    \ state.\n- Also tracked on the remote: `C:\\Users\\jpose\\...` paths in ~30 task\
+    \ YAML files (dispatch `argv` records `claude.CMD`'s full path; `log_path` fields);\
+    \ the tailnet hostname in `dispatch/address.py:88`, task-108, task-154, task-240,\
+    \ PLAN.md; tailnet IPs `100.126.67.115`, `100.90.111.6`, `100.89.165.121` and\
+    \ `jobsearch.tailfed1df.ts.net` in task-086; `.agentjobs/config.yaml` tracked\
+    \ despite the ignore. task-155 (\"scrub personal references\") did not reach the\
+    \ dispatch argv records every run appends.\n- Not found in 1147 commits of history:\
+    \ any token, key, or private-key block. Hostnames and tailnet IPs are not credentials\
+    \ \u2014 the ACL still gates \u2014 but with the unauthenticated API they form\
+    \ a target list.\n\n## Decision needed (Jeff)\n1. History: leave it (the hostname\
+    \ was already public via task files), or rewrite `origin/main` to drop `12-security.md`\
+    \ and the report. Rewriting a public branch is a force-push; do it by hand if\
+    \ at all, not from an agent.\n2. Going forward: gitignore `audits/` (PLAN.md's\
+    \ own fallback) or keep it tracked with a review step before push. The synthesis\
+    \ report (`00-BIG-DAWG-REPORT.md`) repeats the exposure facts in summary form\
+    \ \u2014 it is committed locally and NOT pushed.\n3. Mechanical follow-ups once\
+    \ decided: the dispatcher records `argv[0]` as the bare program name and keeps\
+    \ the resolved path in `meta.yaml` only; decide whether `tasks/` belongs on a\
+    \ public remote at all (the corpus is also a log of one person's machine).\n\n\
+    Related: the proxy-identity task closes the exposure the identifiers point at;\
+    \ doing that first makes the published hostname much less interesting."
+  context:
+  - path: audits/2026-08-21/12-security.md
+    why: S-9 and the handling note at the top of the file
+  - path: audits/2026-08-21/PLAN.md
+    why: The closing note that anticipated this and proposed gitignoring audits/
+acceptance:
+- id: ac-1
+  text: A decision entry records whether origin/main history is rewritten and whether
+    audits/ stays tracked, with the rejected alternative.
+  status: pending
+- id: ac-2
+  text: Dispatch records no longer write absolute user-profile paths into task YAML.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:50:51.446373Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: b02fb918-4250-49f7-b6bd-04836f3e7363
+      kind: create
+      fingerprint: e43da83e210229c8641aecfa7d88292c

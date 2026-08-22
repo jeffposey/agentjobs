@@ -1,0 +1,104 @@
+schema: 2
+id: task-244
+title: 'Tailnet proxy: identity header and path allow-list; stop serving local-only
+  projects and run transcripts to every peer'
+created: '2026-08-22T18:50:12.663333Z'
+updated: '2026-08-22T18:50:13.113025Z'
+lifecycle: draft
+ball: human
+ball_reason: spec
+ball_prompt: Finish specifying this task.
+archived: false
+priority: critical
+queue_position: 200
+category: infrastructure
+tags:
+- big-dawg-audit
+- security
+assignment:
+  eligible: []
+spec:
+  summary: "Big Dawg Audit P1 (auditor 12 S-1/S-6/S-8, corroborated by auditor 10\
+    \ P1-2 and auditor 7). The whole REST API \u2014 99 operations, 61 mutating \u2014\
+    \ is reachable at https://agentjobs.tailfed1df.ts.net with no authentication;\
+    \ identity is a body field that GET /api/projects discloses. Put identity and\
+    \ a path allow-list in the tsnet proxy and keep onboarding/dispatch-enable/webhook/init\
+    \ routes loopback-only."
+  description: "## What was found\n\n- No auth dependency, middleware or token anywhere\
+    \ in `src/agentjobs` (grep for APIKey/HTTPBearer/Authorization/TrustedHost hits\
+    \ only the CORS block at `api/main.py:202-218`).\n- Review endpoints require `user\
+    \ == default_user` (`api/routes/tasks.py:96-118`) and `GET /api/projects` hands\
+    \ out `default_user` for every project (`api/routes/projects.py:88-94`). Agent\
+    \ verbs accept any configured actor id (`api/routes/status.py:182-205`) \u2014\
+    \ the same GET lists them.\n- `POST /tasks/{id}/dispatch` with `{\"user\": \"\
+    Jeff Posey\"}` writes a human note and dispatches on it (`status.py:583-665`,\
+    \ `guards.py:693-704, 759-775`); `POST /dispatch/enable` flips per-project enablement\
+    \ over HTTP. A dispatched agent inside a run can do the same with one curl \u2014\
+    \ the design's \"structurally impossible\" claim (`docs/agent-dispatch-design.md:87-101`)\
+    \ is not enforced (auditor 10 P1-2).\n- The proxy (`scripts/tailscale-service-host/main.go:56-63`)\
+    \ is `NewSingleHostReverseProxy` with no path filter, no WhoIs, no identity header.\
+    \ Verified live: `/api/all/tasks` returned 3.9 MB \u2014 every task of every project\
+    \ including `product-strategy` and `job-hunting`, whose standing rule is \"local\
+    \ only, never push\" \u2014 to the tailnet hostname. `/dispatch/runs/{id}/output`\
+    \ serves up to 512 KB of any session transcript (61 run dirs).\n- `POST /api/projects/init`\
+    \ writes `.agentjobs/config.yaml`, a tasks dir and `.mcp.json` into any existing\
+    \ directory, with the caller-supplied user as the human actor (`projects.py:221-246`,\
+    \ `project_setup.py:54-58, 108-113`); `/api/projects/inspect` is a filesystem\
+    \ existence oracle. Chain: init any dir \u2192 enable dispatch \u2192 create task\
+    \ \u2192 dispatch as \"Jeff\" \u2192 Claude session with that cwd.\n\n## Fix (two\
+    \ layers; either alone is a large improvement)\n\n1. **Identity at the proxy.**\
+    \ `server.LocalClient().WhoIs(remoteAddr)` \u2192 set `X-Tailscale-User`; the\
+    \ app trusts the header only on requests arriving from the proxy on loopback,\
+    \ maps it to a configured actor, and refuses a `user`/`actor` body field that\
+    \ does not match.\n2. **Path allow-list at the proxy.** The phone needs `/app/*`,\
+    \ project reads, and the review mutations. Deny `/api/projects/init`, `/api/projects`\
+    \ POST, `/inspect`, `/dispatch/enable|disable`, `/webhooks*`, `/queue/repair`,\
+    \ `/docs`, `/redoc`, `/dispatch/runs/*/output|tail`, and `/api/all/tasks` at the\
+    \ proxy; they stay reachable on loopback.\n3. Per-project `expose_on_proxy: false`\
+    \ honoured by the allow-list, defaulting `product-strategy` and `job-hunting`\
+    \ to off. Server-side, restrict `init`/register roots to an allow-listed parent\
+    \ declared in `~/.agentjobs/`.\n4. Until then: `DISPATCH_DISABLED` sentinel when\
+    \ the phone is not in use; keep `auto_dispatch` off (it is).\n\nAlso bind the\
+    \ per-task and a machine-wide dispatches-per-hour cap to **every** trigger, not\
+    \ only AUTO (`auto.py:114-163` binds AUTO only), and rewrite the design's \xA7\
+    2 and `guards.py` docstring to say the loop is bounded by caps, not impossible\
+    \ (auditor 10's recommendation).\n\n## Open item the audit could not answer\n\
+    The tailnet ACL contents \u2014 whether `svc:agentjobs` is reachable by all four\
+    \ peers (2 Windows, 2 Android) or a subset. Read it before sizing this."
+  context:
+  - path: audits/2026-08-21/12-security.md
+    why: Findings S-1, S-6, S-8 and the threat model; names the exact requests that
+      work
+  - path: audits/2026-08-21/10-dispatch.md
+    why: 'P1-2: the same door seen from inside a dispatched run; the caps recommendation'
+  - path: scripts/tailscale-service-host/main.go
+    why: The proxy that forwards everything
+acceptance:
+- id: ac-1
+  text: A request through the tailnet hostname carries a proxy-set identity the app
+    maps to a configured actor; a body user/actor that disagrees is refused.
+  status: pending
+- id: ac-2
+  text: Onboarding, dispatch-enable, webhook, queue-repair, transcript and /api/all/tasks
+    routes return 403/404 through the proxy and 200 on loopback.
+  status: pending
+- id: ac-3
+  text: product-strategy and job-hunting tasks are not served through the proxy unless
+    explicitly exposed.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T18:50:13.112023Z'
+  actor: claude
+  type: transition
+  body: Created draft by claude.
+  data:
+    lifecycle: draft
+    operation:
+      id: 2f3aef75-9ed4-4916-a0db-26b358cd6a6e
+      kind: create
+      fingerprint: b063d315632cc15f9e1d0ca13180eb33
