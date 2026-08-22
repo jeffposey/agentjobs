@@ -17,7 +17,11 @@ import pytest
 
 from agentjobs.__version__ import __version__
 
-PLUGIN = Path(__file__).resolve().parents[1] / "plugins" / "agentjobs"
+ROOT = Path(__file__).resolve().parents[1]
+PLUGIN = ROOT / "plugins" / "agentjobs"
+MARKETPLACE = json.loads(
+    (ROOT / ".agents" / "plugins" / "marketplace.json").read_text(encoding="utf-8")
+)
 MANIFEST = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
 MCP_CONFIG = json.loads((PLUGIN / ".mcp.json").read_text(encoding="utf-8"))
 SKILL = (PLUGIN / "skills" / "agentjobs" / "SKILL.md").read_text(encoding="utf-8")
@@ -58,9 +62,15 @@ ALL_TOOLS = [
 class TestManifest:
     def test_it_declares_the_expected_shape(self):
         assert MANIFEST["name"] == "agentjobs"
-        assert MANIFEST["mcpServers"] == ".mcp.json"
-        assert MANIFEST["skills"] == ["skills/agentjobs"]
-        assert MANIFEST["hooks"] == "hooks/hooks.json"
+        assert MANIFEST["mcpServers"] == "./.mcp.json"
+        assert MANIFEST["skills"] == ["./skills/agentjobs"]
+        assert MANIFEST["hooks"] == "./hooks/hooks.json"
+
+    def test_every_component_path_uses_codex_relative_path_syntax(self):
+        """Codex ignores a component path that does not start with ``./``."""
+        paths = [MANIFEST["mcpServers"], MANIFEST["hooks"], *MANIFEST["skills"]]
+
+        assert all(path.startswith("./") for path in paths)
 
     def test_the_plugin_version_tracks_the_package_version(self):
         """They ship from one release; a drift means somebody upgraded half of it."""
@@ -71,6 +81,37 @@ class TestManifest:
         for skill in MANIFEST["skills"]:
             assert (PLUGIN / skill / "SKILL.md").exists()
         assert (PLUGIN / MANIFEST["hooks"]).exists()
+
+
+class TestMarketplace:
+    """The repository root is a Codex marketplace, using Codex's published shape."""
+
+    def test_it_declares_the_expected_codex_shape(self):
+        assert MARKETPLACE["name"] == "agentjobs-local"
+        assert MARKETPLACE["interface"]["displayName"]
+        entry = next(item for item in MARKETPLACE["plugins"] if item["name"] == "agentjobs")
+        assert entry["source"]["source"] == "local"
+        assert entry["policy"]["installation"] == "AVAILABLE"
+
+    def test_the_plugin_source_resolves_to_a_real_codex_plugin(self):
+        entry = next(item for item in MARKETPLACE["plugins"] if item["name"] == "agentjobs")
+        source = ROOT / entry["source"]["path"]
+
+        assert source.is_dir(), entry["source"]["path"]
+        assert (source / ".codex-plugin" / "plugin.json").exists()
+
+    def test_the_marketplace_and_plugin_agree_on_the_plugin_name(self):
+        entry = next(item for item in MARKETPLACE["plugins"] if item["name"] == "agentjobs")
+
+        assert entry["name"] == MANIFEST["name"]
+
+    def test_the_source_is_relative_and_machine_independent(self):
+        entry = next(item for item in MARKETPLACE["plugins"] if item["name"] == "agentjobs")
+        source = entry["source"]["path"]
+
+        assert source.startswith("./")
+        for marker in ("C:/Users", "C:\\\\Users", "/home/", "/Users/"):
+            assert marker not in json.dumps(MARKETPLACE), marker
 
 
 class TestMcpWiring:

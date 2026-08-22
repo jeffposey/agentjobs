@@ -6,7 +6,7 @@ Packages the AgentJobs MCP server, a workflow skill, and a direct-write guard fo
 standalone integration are the same server and cannot drift apart.
 
 Other MCP clients — Gemini, IDEs — install the standalone server instead and get the
-same fourteen tools, without the skill or the guard. See
+same fifteen tools, without the skill or the guard. See
 [docs/mcp-clients.md](../../docs/mcp-clients.md).
 
 ## What is in it
@@ -131,8 +131,20 @@ The same operations are available interactively as `/plugin` inside a session.
 
 ### Codex
 
-Add a local marketplace entry pointing at this directory through your Codex plugin
-configuration, then start a new session.
+The repository root is a Codex marketplace — `.agents/plugins/marketplace.json` lists
+this directory. Add the marketplace, then install from it:
+
+```bash
+codex plugin marketplace add https://github.com/jeffposey/agentjobs
+```
+
+```bash
+codex plugin add agentjobs@agentjobs-local
+```
+
+Working from a clone? Point the first command at your checkout instead of the URL —
+`codex plugin marketplace add /path/to/agentjobs` — and it will install whatever is on
+your current branch.
 
 ### Either client
 
@@ -156,11 +168,11 @@ invocation that works.
 In a new session, confirm the tools are present:
 
 - `projects_list` should return your projects with their configured actors.
-- The tool list should hold fourteen `agentjobs` tools: five read
-  (`projects_list`, `tasks_list`, `task_get`, `tasks_search`, `task_next`) and nine
+- The tool list should hold fifteen `agentjobs` tools: five read
+  (`projects_list`, `tasks_list`, `task_get`, `tasks_search`, `task_next`) and ten
   mutation (`task_create_draft`, `task_create_ready`, `task_promote`, `task_claim`,
   `task_release`, `task_handoff`, `task_close`, `task_log_append`,
-  `task_update_content`).
+  `task_update_content`, `task_queue_move`).
 - Asking "what should I work on in <project>?" should trigger the AgentJobs skill.
 - Asking your client to edit a task YAML file directly should be refused, with a message
   naming the file and the tools to use instead.
@@ -172,9 +184,30 @@ installed package and the running service (upgrade the older one and restart it)
 ## Configure
 
 `.mcp.json` sets `AGENTJOBS_URL` to `http://127.0.0.1:8765`, the default service
-address. If yours listens elsewhere, override that variable in your client's MCP
-configuration rather than editing the file here — a machine-specific path or port
-committed to this repository would be wrong for everybody else.
+address. A client that installs only the standalone server can override that variable
+in its MCP configuration.
+
+Codex deliberately does not let user configuration replace the command or environment
+of a plugin-provided MCP server. If AgentJobs listens on another port, keep the plugin
+enabled for its skill and guard, disable only its bundled server, and add a standalone
+server entry in `~/.codex/config.toml`:
+
+```toml
+[plugins."agentjobs@agentjobs-local".mcp_servers.agentjobs]
+enabled = false
+
+[mcp_servers.agentjobs]
+command = "agentjobs"
+args = ["mcp"]
+startup_timeout_sec = 30
+
+[mcp_servers.agentjobs.env]
+AGENTJOBS_URL = "http://127.0.0.1:8876"
+```
+
+The desktop app, CLI, and IDE extension all read that one Codex configuration. Start
+a new session after changing it. Do not edit the cached plugin: the next upgrade would
+replace that edit.
 
 `AGENTJOBS_TIMEOUT` sets the request timeout in seconds (default 30, maximum 300).
 
