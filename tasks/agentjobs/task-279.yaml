@@ -2,7 +2,7 @@ schema: 2
 id: task-279
 title: Add a Codex App Server session runner for steerable dispatch
 created: '2026-08-22T20:23:50.857500Z'
-updated: '2026-08-22T20:35:13.585803Z'
+updated: '2026-08-22T20:35:40.038862Z'
 lifecycle: active
 ball: human
 ball_reason: decision
@@ -204,3 +204,16 @@ log:
       id: 0b55ee84-1a46-4d43-8af3-1e46f5c0ca6b
       kind: log_append
       fingerprint: 45bd517a599110802eeba10537309cd4
+- id: 10
+  ts: '2026-08-22T20:35:40.038707Z'
+  actor: codex
+  type: decision
+  body: 'Refined quota policy: GPT-5.6 Luna high is now the active default/workhorse
+    runner; Claude Opus remains disabled in the default group as a fresh-session canary.
+    Terra stays defined but disabled in both default and codex-smoke. Big Dawg remains
+    GPT-5.6 Sol high.'
+  data:
+    operation:
+      id: 1936b31f-840a-41ce-a80f-5a56b826c5c1
+      kind: log_append
+      fingerprint: b3dbbfc4e7fe58cc0021e9de176cd1bb
