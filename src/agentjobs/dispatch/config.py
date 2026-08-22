@@ -174,6 +174,19 @@ class RunnerMode(str, Enum):
     BATCH = "batch"
 
 
+class RunnerDriver(str, Enum):
+    """The agent CLI whose posture rules a runner needs.
+
+    Claude remains the default so every existing machine-local configuration preserves
+    its exact behaviour.  A driver is deliberately distinct from a runner's name and
+    actor: names are operator labels, actors are task-record identities, and drivers
+    decide how AgentJobs expresses its safety posture to one particular CLI.
+    """
+
+    CLAUDE = "claude"
+    CODEX = "codex"
+
+
 class Posture(str, Enum):
     """What a dispatched agent may do once running (design section 4, task-076).
 
@@ -208,6 +221,12 @@ class DispatchRunner:
     Dispatch claimed tasks and wrote log entries under the runner name, which the
     task-write API then refused as unknown, so a dispatched agent could not log progress
     under the identity that owned its own task.
+    """
+    driver: RunnerDriver = RunnerDriver.CLAUDE
+    """The CLI whose posture flags this runner needs.
+
+    Kept after ``actor`` to preserve the positional constructor shape used by callers
+    before drivers existed. New callers should use keywords for both identities.
     """
 
     @property
@@ -604,6 +623,21 @@ def _parse_runner(name: str, raw: object, path: Path) -> DispatchRunner:
             f"{_values(RunnerMode)}, not {mode_raw!r}."
         ) from exc
 
+    driver_raw = mapping.get("driver", RunnerDriver.CLAUDE.value)
+    try:
+        driver = RunnerDriver(driver_raw)
+    except ValueError as exc:
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: {where}.driver must be one of "
+            f"{_values(RunnerDriver)}, not {driver_raw!r}."
+        ) from exc
+    if driver is RunnerDriver.CODEX and mode is not RunnerMode.BATCH:
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: {where} uses driver: codex, which "
+            "currently supports mode: batch only. Codex session and resume dispatch "
+            "are not implemented."
+        )
+
     actor_raw = mapping.get("actor")
     if actor_raw is not None and not isinstance(actor_raw, str):
         raise DispatchConfigError(
@@ -611,7 +645,14 @@ def _parse_runner(name: str, raw: object, path: Path) -> DispatchRunner:
             f"an actor in the project's 'actors:', not {actor_raw!r}."
         )
 
-    return DispatchRunner(name=name, argv=list(argv), env=env, mode=mode, actor=actor_raw or None)
+    return DispatchRunner(
+        name=name,
+        argv=list(argv),
+        env=env,
+        mode=mode,
+        driver=driver,
+        actor=actor_raw or None,
+    )
 
 
 def _parse_group(name: str, raw: object, path: Path) -> RunnerGroup:

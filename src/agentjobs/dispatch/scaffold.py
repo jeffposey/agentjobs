@@ -68,7 +68,10 @@ enabled: false
 #
 # Flags are your business, not AgentJobs'. It never learns what a model is, and never
 # builds a command from a label -- so whichever model or effort a runner uses is
-# whatever its argv says.
+# whatever its argv says. `driver:` is the exception: omit it for Claude (the compatible
+# default), or set `driver: codex` for a Codex *batch* runner. That tells AgentJobs how
+# to express the project's posture safely; see docs/codex-dispatch.md for exact Terra
+# and Sol examples.
 #
 # The permission flags are NOT yours, and writing them here is a bug: AgentJobs splices
 # the project's posture in front of the prompt itself, and that is where

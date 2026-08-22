@@ -34,6 +34,7 @@ from agentjobs.dispatch.config import (
     Posture,
     ProjectDispatchSettings,
     RunnerCandidate,
+    RunnerDriver,
     RunnerMode,
     RunnerSelection,
     SelectionSource,
@@ -56,6 +57,7 @@ from agentjobs.dispatch.runner import (
     mcpjson_server_names,
     posture_flags,
     readable_tail,
+    codex_desktop_executable,
     resolve_executable,
     settings_json,
     strip_ansi,
@@ -91,12 +93,13 @@ def make_resolution(
     *,
     mode: RunnerMode = RunnerMode.BATCH,
     posture: Posture = Posture.SUPERVISED,
+    driver: RunnerDriver = RunnerDriver.CLAUDE,
     timeout: int = 1800,
     stale: int = 3600,
     require_clean_tree: bool = False,
 ) -> DispatchResolution:
     """A resolution as task-068's config layer would produce it."""
-    runner = RunnerConfig(name="fake", argv=argv, env={}, mode=mode)
+    runner = RunnerConfig(name="fake", argv=argv, env={}, mode=mode, driver=driver)
     settings = ProjectDispatchSettings(
         project_id="sandbox",
         enabled=True,
@@ -534,6 +537,64 @@ class TestArgvComposition:
         argv = compose_argv(["claude", "-p", "{prompt}"], {"prompt": prompt}, [])
 
         assert argv == ["claude", "-p", prompt]
+
+
+class TestCodexBatchRunner:
+    @pytest.mark.parametrize(
+        ("posture", "sandbox"),
+        [
+            (Posture.READ_ONLY, "read-only"),
+            (Posture.AUTO, "workspace-write"),
+            (Posture.AUTONOMOUS, "danger-full-access"),
+        ],
+    )
+    def test_posture_becomes_a_codex_sandbox_and_requires_agentjobs_mcp(
+        self, posture: Posture, sandbox: str
+    ) -> None:
+        assert posture_flags(posture, [], driver=RunnerDriver.CODEX) == [
+            "--sandbox",
+            sandbox,
+            "-c",
+            "mcp_servers.agentjobs.required=true",
+        ]
+
+    def test_supervised_is_refused_before_spawn(self) -> None:
+        with pytest.raises(DispatchRunError, match="does not support posture 'supervised'"):
+            posture_flags(Posture.SUPERVISED, [], driver=RunnerDriver.CODEX)
+
+    def test_codex_flags_land_before_the_prompt(self) -> None:
+        prompt = "work task-277"
+        argv = compose_argv(
+            ["codex", "exec", "--json", "{prompt}"],
+            {"prompt": prompt},
+            posture_flags(Posture.AUTO, [], driver=RunnerDriver.CODEX),
+        )
+
+        assert argv == [
+            "codex",
+            "exec",
+            "--json",
+            "--sandbox",
+            "workspace-write",
+            "-c",
+            "mcp_servers.agentjobs.required=true",
+            prompt,
+        ]
+
+    def test_desktop_cli_path_is_read_from_current_codex_configuration(
+        self, tmp_path: Path
+    ) -> None:
+        executable = tmp_path / "bin" / "codex.exe"
+        executable.parent.mkdir()
+        executable.write_text("placeholder", encoding="utf-8")
+        config = tmp_path / ".codex" / "config.toml"
+        config.parent.mkdir()
+        config.write_text(
+            "[mcp_servers.node_repl.env]\n" f"CODEX_CLI_PATH = '{executable.as_posix()}'\n",
+            encoding="utf-8",
+        )
+
+        assert codex_desktop_executable(tmp_path) == str(executable)
 
 
 class TestPromptStub:

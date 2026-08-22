@@ -38,6 +38,7 @@ import shutil
 import signal
 import subprocess
 import threading
+import tomllib
 import traceback
 import uuid
 from dataclasses import dataclass, field
@@ -54,6 +55,7 @@ from agentjobs.dispatch.config import (
     DispatchResolution,
     DispatchRunner as RunnerConfig,
     Posture,
+    RunnerDriver,
     RunnerMode,
     RunnerSelection,
     sentinel_active,
@@ -358,7 +360,11 @@ def settings_json(*, allow_list: bool, mcp_servers: Sequence[str], supervisor: b
 
 
 def posture_flags(
-    posture: Posture, mcp_servers: Sequence[str], *, supervisor: bool = False
+    posture: Posture,
+    mcp_servers: Sequence[str],
+    *,
+    supervisor: bool = False,
+    driver: RunnerDriver = RunnerDriver.CLAUDE,
 ) -> List[str]:
     """The flags that decide what a run may do, per task-076.
 
@@ -431,6 +437,9 @@ def posture_flags(
     differ from ``supervised`` in two ways at once and left the first ``pytest`` of every
     run waiting on a classifier round-trip for no benefit.
     """
+    if driver is RunnerDriver.CODEX:
+        return codex_posture_flags(posture)
+
     if posture is Posture.READ_ONLY:
         flags = ["--tools", "Read,Glob,Grep,WebFetch"]
         if mcp_servers:
@@ -443,6 +452,39 @@ def posture_flags(
         "auto" if posture is Posture.AUTO else "acceptEdits",
         "--settings",
         settings_json(allow_list=True, mcp_servers=mcp_servers, supervisor=supervisor),
+    ]
+
+
+def codex_posture_flags(posture: Posture) -> List[str]:
+    """Map AgentJobs' safe postures to Codex's batch sandbox policies.
+
+    Codex's normal non-interactive surface is ``codex exec``.  Its sandbox policy is
+    the direct equivalent of a dispatch posture, but it deliberately has no useful
+    unattended analogue of Claude's ``supervised`` mode: a batch process has nobody to
+    answer its confirmation prompts.  Refusing is more honest than silently widening
+    that posture to workspace-write.
+
+    The inline ``required`` override is intentionally independent of the runner argv.
+    A Codex dispatch must be able to use AgentJobs to make its task-record writes; if
+    this machine's shared ``mcp_servers.agentjobs`` entry is not available, Codex exits
+    before doing work instead of producing an untracked run.
+    """
+    if posture is Posture.SUPERVISED:
+        raise DispatchRunError(
+            "Codex batch dispatch does not support posture 'supervised'. Use "
+            "read_only, auto, or autonomous; unattended Codex cannot answer "
+            "interactive approval prompts."
+        )
+    sandbox = {
+        Posture.READ_ONLY: "read-only",
+        Posture.AUTO: "workspace-write",
+        Posture.AUTONOMOUS: "danger-full-access",
+    }[posture]
+    return [
+        "--sandbox",
+        sandbox,
+        "-c",
+        "mcp_servers.agentjobs.required=true",
     ]
 
 
@@ -651,7 +693,29 @@ def git_head(project_root: Path) -> str:
     return (result.stdout or "").strip() or "unknown"
 
 
-def resolve_executable(name: str) -> str:
+def codex_desktop_executable(home: Optional[Path] = None) -> Optional[str]:
+    """Find the versioned CLI bundled with Codex Desktop, if this is that install.
+
+    The Microsoft Store ``codex`` app-execution alias appears on PATH but cannot be
+    spawned by a background dispatcher (``Access is denied``).  Codex Desktop records
+    its actual, versioned executable in its own configuration for the Node REPL server.
+    Read that value afresh for every launch, so a desktop update changes the target
+    without a hand edit to ``dispatch.yaml``.  A normal npm/standalone install has no
+    such value and simply falls back to PATH below.
+    """
+    config_path = (home or Path.home()) / ".codex" / "config.toml"
+    try:
+        raw = tomllib.loads(config_path.read_text(encoding="utf-8"))
+        candidate = raw["mcp_servers"]["node_repl"]["env"]["CODEX_CLI_PATH"]
+    except (KeyError, OSError, tomllib.TOMLDecodeError, TypeError):
+        return None
+    if not isinstance(candidate, str):
+        return None
+    path = Path(candidate)
+    return str(path) if path.is_file() else None
+
+
+def resolve_executable(name: str, *, driver: RunnerDriver = RunnerDriver.CLAUDE) -> str:
     """Turn a program name into a path ``subprocess`` can actually start.
 
     On Windows most npm-installed CLIs are ``.CMD`` shims rather than ``.exe``, and
@@ -670,6 +734,10 @@ def resolve_executable(name: str) -> str:
     runners spawned as ``sys.executable``, which is an absolute path and therefore never
     exercised this.
     """
+    if driver is RunnerDriver.CODEX and name.lower() in {"codex", "codex.exe"}:
+        desktop = codex_desktop_executable()
+        if desktop is not None:
+            return desktop
     return shutil.which(name) or name
 
 
@@ -1017,11 +1085,12 @@ class DispatchRunner:
             self.resolution.settings.posture,
             mcpjson_server_names(self.project_root),
             supervisor=bool(children),
+            driver=self.runner.driver,
         )
         argv = compose_argv(self.runner.argv, values, flags)
         # Resolved before it is recorded, because the dispatch entry claims to say what
         # actually ran.
-        argv[0] = resolve_executable(argv[0])
+        argv[0] = resolve_executable(argv[0], driver=self.runner.driver)
         return argv, values["prompt"]
 
     def _environment(self, run: Optional[RunDirectory] = None, run_id: str = "") -> Dict[str, str]:
