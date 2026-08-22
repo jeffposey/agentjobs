@@ -2,11 +2,30 @@ schema: 2
 id: task-242
 title: "Big Dawg Audit \u2014 every system, separately, then one combined report"
 created: '2026-08-22T01:12:47.552800Z'
-updated: '2026-08-22T18:43:32.776794Z'
+updated: '2026-08-22T19:08:16.962898Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "The Big Dawg Audit is done and synthesized. Read audits/2026-08-21/00-BIG-DAWG-REPORT.md\
+  \ \u2014 section 1 is the phone-sized summary, section 2 ranks every P1/P2 with\
+  \ its draft task id, section 3 is the contradiction sweep, section 6 is what to\
+  \ change next week.\n\nCounts: twelve of twelve auditors completed (no stubs). Raw:\
+  \ 9 P1, 59 P2, ~80 P3, ~45 P4. Deduplicated into 33 P1/P2 clusters, each filed as\
+  \ a draft task: task-244 through task-276 (dashboard, draft band). Nothing promoted,\
+  \ claimed or started. Thirteen contradictions swept, five adjudicated against source.\n\
+  \nThree things need you, in order:\n1. task-246 \u2014 audits/ including 12-security.md\
+  \ is ALREADY on the public remote (commits f56c9ae, f9d3f7b were pushed before synthesis).\
+  \ Decide whether to rewrite history or accept; nothing from this synthesis session\
+  \ is pushed (db55d7d report, 4bad53e tasks, plus this handoff commit are local only).\
+  \ Do not let an agent force-push.\n2. task-244 and task-245 \u2014 the API is unauthenticated\
+  \ on the tailnet with identity as a body field, and git merge is pre-approved for\
+  \ dispatched agents. These are the two P1s with blast radius.\n3. Promote what is\
+  \ real among 244-276, close what is not. task-273 (backend decision) and task-268\
+  \ (gate speed) are the answers to the two questions you weighted.\n\nAlso from the\
+  \ report: job-hunting's backlog is invisible in the dashboard (task-258) and agentjobs\
+  \ validate is red on its own corpus (task-262).\n\nOn approval of this task: close\
+  \ it with outcome completed. The deliverables are all on main; there is no branch\
+  \ to merge."
 archived: false
 priority: high
 queue_position: 12100
@@ -295,3 +314,72 @@ log:
       id: d3f8a1c6-7b24-4e9d-b0a5-2c6e9f41d8b7
       kind: log_append
       fingerprint: 3534a4eb7605982084508ed4d59c3ff4
+- id: 10
+  ts: '2026-08-22T19:08:01.385758Z'
+  actor: claude
+  type: progress
+  body: "Synthesis complete. Read PLAN.md and all twelve findings files (01-12, ~380\
+    \ KB, no stubs \u2014 twelve of twelve completed). Wrote audits/2026-08-21/00-BIG-DAWG-REPORT.md\
+    \ (424 lines; committed db55d7d as chore(task-242): Big Dawg Audit report) with\
+    \ the six sections the plan asked for: executive summary, ranked/deduplicated\
+    \ P1+P2 findings, contradiction sweep, themes, coverage honesty, weekly-ritual\
+    \ verdict.\n\nCounts. Raw across the twelve files: 9 P1, 59 P2, ~80 P3, ~45 P4.\
+    \ Deduplicated P1/P2 clusters: 33. Contradictions swept: 13, five adjudicated\
+    \ by opening source (task-file writes are NOT atomic \u2014 auditor 4 right, auditor\
+    \ 7 wrong; replay returns the current task, not the original; require_clean_tree\
+    \ defaults true so auditor 12's \"not set\" is moot; auto-dispatch never calls\
+    \ get_next_task \u2014 it is reactive, design \xA714 is wrong; GLOBAL-AGENTS is\
+    \ wrong about parent claimability). Three of auditor 2's \"accurate\" doc verdicts\
+    \ (task-schema, webhooks, mobile-access) were overturned by auditors 3, 7 and\
+    \ 9 at the sentence level \u2014 a method finding for next week. The three auditor-2\
+    \ questions answered by 5, 6 and 8 all agree with the other auditors' evidence;\
+    \ eight cross-auditor questions remain unanswered and are listed in \xA75.\n\n\
+    Draft tasks filed via task_create_draft, actor claude: 33, task-244 through task-276,\
+    \ committed as chore(tasks): draft tasks from the Big Dawg Audit. None promoted,\
+    \ claimed or started. Two are Jeff-weighted analyses rather than defects (task-273\
+    \ backend decision point, task-268 gate speed); one is a decision (task-246: audits/\
+    \ is already on the public remote \u2014 confirmed by git log origin/main, nothing\
+    \ from this session is pushed and nothing should be until that decision is made).\n\
+    \nHeadline for the morning: the API is unauthenticated on the tailnet and identity\
+    \ is a body field (task-244); git merge is pre-approved for dispatched agents\
+    \ (task-245); three real core defects \u2014 non-atomic task writes (task-247),\
+    \ tolerant reader rejecting the widened ball_reason enum (task-248), reopen/reband\
+    \ position race reproduced by auditor 5 (task-253); run instrumentation never\
+    \ reaches --bg workers (task-249); job-hunting's backlog is invisible because\
+    \ its open tasks have no queue positions (task-258)."
+  data:
+    operation:
+      id: d902b301-8b4d-49f1-87c0-c44b9cb26a8a
+      kind: log_append
+      fingerprint: 781816d696a45a743c1d9b37f46bcabb
+- id: 11
+  ts: '2026-08-22T19:08:16.962695Z'
+  actor: claude
+  type: handoff
+  body: "The Big Dawg Audit is done and synthesized. Read audits/2026-08-21/00-BIG-DAWG-REPORT.md\
+    \ \u2014 section 1 is the phone-sized summary, section 2 ranks every P1/P2 with\
+    \ its draft task id, section 3 is the contradiction sweep, section 6 is what to\
+    \ change next week.\n\nCounts: twelve of twelve auditors completed (no stubs).\
+    \ Raw: 9 P1, 59 P2, ~80 P3, ~45 P4. Deduplicated into 33 P1/P2 clusters, each\
+    \ filed as a draft task: task-244 through task-276 (dashboard, draft band). Nothing\
+    \ promoted, claimed or started. Thirteen contradictions swept, five adjudicated\
+    \ against source.\n\nThree things need you, in order:\n1. task-246 \u2014 audits/\
+    \ including 12-security.md is ALREADY on the public remote (commits f56c9ae, f9d3f7b\
+    \ were pushed before synthesis). Decide whether to rewrite history or accept;\
+    \ nothing from this synthesis session is pushed (db55d7d report, 4bad53e tasks,\
+    \ plus this handoff commit are local only). Do not let an agent force-push.\n\
+    2. task-244 and task-245 \u2014 the API is unauthenticated on the tailnet with\
+    \ identity as a body field, and git merge is pre-approved for dispatched agents.\
+    \ These are the two P1s with blast radius.\n3. Promote what is real among 244-276,\
+    \ close what is not. task-273 (backend decision) and task-268 (gate speed) are\
+    \ the answers to the two questions you weighted.\n\nAlso from the report: job-hunting's\
+    \ backlog is invisible in the dashboard (task-258) and agentjobs validate is red\
+    \ on its own corpus (task-262).\n\nOn approval of this task: close it with outcome\
+    \ completed. The deliverables are all on main; there is no branch to merge."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 8268d65b-061c-4c5d-8fb6-8a1be8eafa5b
+      kind: handoff
+      fingerprint: 42e7b071e53bfbf6e77ea3348cf20482
