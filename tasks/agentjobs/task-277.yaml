@@ -2,16 +2,11 @@ schema: 2
 id: task-277
 title: Dispatch Codex safely in batch mode with provider-aware posture flags
 created: '2026-08-22T19:48:47.275133Z'
-updated: '2026-08-22T20:01:44.886634Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-22T20:07:16.897717Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 14300
 category: feature
 tags:
 - dispatch
@@ -20,7 +15,6 @@ tags:
 - mcp
 effort: medium
 assignment:
-  owner: codex
   eligible:
   - codex
 spec:
@@ -90,7 +84,8 @@ dependencies: []
 links: []
 branches:
 - name: codex/task-277-codex-dispatch
-  status: active
+  status: merged
+  merged_at: '2026-08-22T20:03:10Z'
 log:
 - id: 1
   ts: '2026-08-22T19:48:47.661431Z'
@@ -181,3 +176,96 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 8
+  ts: '2026-08-22T20:03:19.850429Z'
+  actor: codex
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: da76c4f0-c93a-49ce-aa6e-1b6a34384ef8
+      kind: update_content
+      fingerprint: 80127aae9ea059703d365466c15538bc
+- id: 9
+  ts: '2026-08-22T20:05:05.495649Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched codex to work this task.
+  data:
+    run_id: run_8413ed0f
+    agent: codex
+    runner: codex-terra
+    mode: batch
+    posture: auto
+    trigger: manual
+    caused_by: 7
+    argv:
+    - C:\Users\jpose\AppData\Local\OpenAI\Codex\bin\110b3d66a02d864e\codex.exe
+    - exec
+    - --json
+    - --model
+    - gpt-5.6-terra
+    - -c
+    - model_reasoning_effort="high"
+    - --sandbox
+    - workspace-write
+    - -c
+    - mcp_servers.agentjobs.required=true
+    - 'You are the agent `codex` working task `task-277` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-277-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_8413ed0f.'
+    cwd: C:\projects\agentjobs
+    git_head: 6eb90d3
+    selection:
+      group: codex-smoke
+      source: dispatch
+      candidates:
+      - runner: codex-terra
+        eligible: true
+- id: 10
+  ts: '2026-08-22T20:06:29.045121Z'
+  actor: codex
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 8c57ea0b-1e7e-420a-990a-45be1826f653
+      kind: update_content
+      fingerprint: a1463aabdffa62e377071afd1aacbe92
+- id: 11
+  ts: '2026-08-22T20:06:33.419661Z'
+  actor: codex
+  type: progress
+  body: 'Resumption verification found that main had already merged the approved feature:
+    merge commit 6eb90d3 has 7d26f7c (codex/task-277-codex-dispatch) as its second
+    parent, created 2026-08-22T20:03:10Z. Recorded that timestamp in branches[]. No
+    rebase, duplicate merge, source edit, or repeat gate was performed; this run made
+    only task-record reconciliation changes.'
+  data:
+    operation:
+      id: 88bf4a89-ab9e-4bd4-b65f-b3158b0dcd21
+      kind: log_append
+      fingerprint: 4db88f3f01c3953c99da6c9fde782af1
+- id: 12
+  ts: '2026-08-22T20:07:16.897502Z'
+  actor: codex
+  type: transition
+  body: Completed after approval. Verified that main already contains no-ff merge
+    commit 6eb90d3 with codex/task-277-codex-dispatch as its second parent; branch
+    metadata records the merge timestamp.
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 5a30ca9d-f980-43da-8bf5-c930c6a21d5e
+      kind: close
+      fingerprint: 36b228e5b13b40297dd54f9cd7b34607

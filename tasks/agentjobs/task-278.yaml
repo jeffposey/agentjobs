@@ -1,0 +1,72 @@
+schema: 2
+id: task-278
+title: Keep CLI batch dispatch supervised through completion
+created: '2026-08-22T20:10:07.889153Z'
+updated: '2026-08-22T20:10:08.234705Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 14300
+category: infrastructure
+tags:
+- dispatch
+- batch
+- codex
+- reliability
+effort: small
+assignment:
+  eligible: []
+spec:
+  summary: A successful Codex batch run launched by `agentjobs dispatch run` exited
+    but remained permanently `running` in the ledger because its daemon supervisor
+    died with the CLI process.
+  intent: Ensure the command-line dispatch path has a trustworthy terminal ledger
+    state before Codex becomes a production runner.
+  description: Make the CLI batch-dispatch path preserve a completion supervisor so
+    terminal results are written reliably. The live Codex smoke run `run_8413ed0f`
+    successfully used AgentJobs MCP and closed task-277, but its run record was left
+    `running` after the child exited because the CLI returned immediately and the
+    daemon thread could not finish its terminal write.
+  constraints: Preserve the existing safety postures and no-shell process launching.
+    Do not broaden Codex permissions or alter runner-group selection as part of this
+    repair.
+  out_of_scope: Production runner-group cutover and the separate AgentJobs plugin-manifest
+    cleanup (task-124).
+  context:
+  - path: src/agentjobs/cli.py
+    why: '`dispatch run` returns immediately after starting the batch handle.'
+  - path: src/agentjobs/dispatch/runner.py
+    why: Batch supervision is currently a daemon thread around `process.wait()`.
+  - path: src/agentjobs/dispatch/ledger.py
+    why: Startup reconciliation presently marks the orphaned batch run interrupted.
+acceptance:
+- id: ac-1
+  text: A batch run started by `agentjobs dispatch run` writes exactly one terminal
+    run state and dispatch-result record after its child exits.
+  status: pending
+- id: ac-2
+  text: A successfully completed child is not later misclassified as interrupted merely
+    because the launching CLI process ended.
+  status: pending
+- id: ac-3
+  text: Regression coverage exercises the CLI batch path and asserts the terminal
+    ledger state.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T20:10:08.233895Z'
+  actor: codex
+  type: transition
+  body: Created ready by codex.
+  data:
+    lifecycle: ready
+    operation:
+      id: dc53ac9f-4f1b-44d7-9b4c-a55a414d3ae1
+      kind: create
+      fingerprint: d60d2d6189d647d5f8796d8844b6d730
