@@ -3,7 +3,7 @@ id: task-234
 title: Merging after approval costs a whole second agent session, about eleven minutes,
   on every task
 created: '2026-08-21T20:43:16.534300Z'
-updated: '2026-08-22T00:35:16.029003Z'
+updated: '2026-08-22T00:36:57.024458Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -935,3 +935,13 @@ log:
       id: 7f1c2a90-4b3d-4e51-9c62-1a0b7e5d3f85
       kind: handoff
       fingerprint: 9320ca9ceec6e1a7f055f3581494f975
+- id: 21
+  ts: '2026-08-22T00:36:57.024152Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 15
+  data:
+    run_id: run_1994a874
+    outcome: completed
+    duration_seconds: 3263.581573
+    log_path: C:\Users\jpose\.agentjobs\runs\run_1994a874
