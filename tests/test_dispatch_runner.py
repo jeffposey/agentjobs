@@ -69,6 +69,7 @@ from agentjobs.dispatch.runner import (
     uncommitted_paths,
     working_tree_clean,
 )
+from agentjobs.dispatch.codex_app_server import CodexAppServerError, CodexSessionStarted
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     Ball,
@@ -684,6 +685,88 @@ class TestCodexBatchRunner:
         )
 
         assert codex_desktop_executable(tmp_path) == str(executable)
+
+    def test_app_server_preflight_runs_before_the_task_turn(
+        self, workspace: Path, manager: TaskManager, task, monkeypatch
+    ) -> None:
+        resolution = make_resolution(
+            ["codex", "app-server", "--model", "gpt-5.6-terra", "{prompt}"],
+            mode=RunnerMode.SESSION,
+            driver=RunnerDriver.CODEX,
+            posture=Posture.AUTO,
+        )
+        runner = build(workspace, manager, resolution)
+        events: list[str] = []
+
+        class FakeAppServer:
+            pid = 1238
+
+            def __init__(self, **_kwargs) -> None:
+                pass
+
+            def preflight_required_mcp(self):
+                events.append("preflight")
+                return type("Preflight", (), {"server_name": "agentjobs", "status": "ready"})()
+
+            def start(self, _prompt, *, resume_thread_id=None):
+                events.append("start")
+                return CodexSessionStarted("thread-1", "session-1", "turn-1", self.pid)
+
+            def supervise(self, *, turn_id, on_message=None, timeout=None):
+                events.append("supervise")
+                return {"turn": {"id": turn_id, "status": "completed"}}
+
+            def terminate(self) -> None:
+                events.append("terminate")
+
+        monkeypatch.setattr("agentjobs.dispatch.runner.CodexAppServerProcess", FakeAppServer)
+
+        handle = runner.start(task, actor="Jeff Posey", caused_by=1)
+        assert handle.supervisor is not None
+        handle.supervisor.join(timeout=5)
+
+        assert events[:2] == ["preflight", "start"]
+        assert handle.directory.read_meta()["mcp_preflight_status"] == "ready"
+        assert handle.directory.read_meta()["mcp_preflight_server"] == "agentjobs"
+
+    def test_app_server_preflight_failure_prevents_the_task_turn(
+        self, workspace: Path, manager: TaskManager, task, monkeypatch
+    ) -> None:
+        resolution = make_resolution(
+            ["codex", "app-server", "--model", "gpt-5.6-terra", "{prompt}"],
+            mode=RunnerMode.SESSION,
+            driver=RunnerDriver.CODEX,
+            posture=Posture.AUTO,
+        )
+        runner = build(workspace, manager, resolution)
+        events: list[str] = []
+
+        class FakeAppServer:
+            def __init__(self, **_kwargs) -> None:
+                pass
+
+            def preflight_required_mcp(self):
+                events.append("preflight")
+                raise CodexAppServerError("AgentJobs MCP is not ready: connection refused")
+
+            def start(self, _prompt, *, resume_thread_id=None):
+                events.append("start")
+                pytest.fail("the task turn must not start after preflight fails")
+
+            def terminate(self) -> None:
+                events.append("terminate")
+
+        monkeypatch.setattr("agentjobs.dispatch.runner.CodexAppServerProcess", FakeAppServer)
+
+        with pytest.raises(DispatchRunError, match="Could not start a Codex App Server session"):
+            runner.start(task, actor="Jeff Posey", caused_by=1)
+
+        runs = list((workspace / "home" / "runs").iterdir())
+        assert len(runs) == 1
+        meta = yaml.safe_load((runs[0] / "meta.yaml").read_text(encoding="utf-8"))
+        assert meta["codex_phase"] == "preflight"
+        assert meta["mcp_preflight_error"] == "AgentJobs MCP is not ready: connection refused"
+        assert events == ["preflight", "terminate"]
 
 
 class TestPromptStub:

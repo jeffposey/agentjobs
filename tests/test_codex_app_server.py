@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import io
 import json
+import threading
 from pathlib import Path
+
+import pytest
 
 from agentjobs.dispatch.codex_app_server import (
     CodexAppServerProcess,
+    CodexAppServerError,
+    CodexMcpPreflight,
     CodexSessionSettings,
     parse_session_settings,
 )
@@ -124,6 +129,198 @@ def test_parse_workspace_postures_add_only_git_and_sibling_worktrees() -> None:
     )
 
     assert settings.writable_roots == ("C:\\project\\.git", "C:\\worktrees")
+
+
+def test_app_server_preflight_requires_ready_agentjobs_mcp(monkeypatch) -> None:
+    output = (
+        "\n".join(
+            [
+                json.dumps({"id": 1, "result": {}}),
+                json.dumps(
+                    {
+                        "id": 2,
+                        "result": {
+                            "data": [
+                                {
+                                    "name": "agentjobs",
+                                    "startupStatus": "ready",
+                                    "required": True,
+                                }
+                            ]
+                        },
+                    }
+                ),
+            ]
+        )
+        + "\n"
+    )
+
+    class FakeProcess:
+        pid = 1236
+
+        def __init__(self) -> None:
+            self.stdin = io.StringIO()
+            self.stdout = io.StringIO(output)
+            self.stderr = io.StringIO()
+
+        def poll(self):
+            return None
+
+        def terminate(self) -> None:
+            pass
+
+        def wait(self, timeout=None) -> None:
+            pass
+
+    fake = FakeProcess()
+    monkeypatch.setattr(
+        "agentjobs.dispatch.codex_app_server.subprocess.Popen", lambda *a, **k: fake
+    )
+    process = CodexAppServerProcess(
+        executable="codex",
+        cwd=Path("C:/project"),
+        env={},
+        settings=CodexSessionSettings("gpt-5.6-terra", "high", "never", "workspace-write"),
+    )
+
+    assert process.preflight_required_mcp() == CodexMcpPreflight("agentjobs", "ready")
+    messages = [json.loads(line) for line in fake.stdin.getvalue().splitlines()]
+    assert [message["method"] for message in messages] == [
+        "initialize",
+        "initialized",
+        "mcpServerStatus/list",
+    ]
+    assert messages[-1]["params"] == {"detail": "toolsAndAuthOnly"}
+
+
+def test_app_server_preflight_reports_required_server_failure(monkeypatch) -> None:
+    output = (
+        "\n".join(
+            [
+                json.dumps({"id": 1, "result": {}}),
+                json.dumps(
+                    {
+                        "id": 2,
+                        "result": {
+                            "data": [
+                                {
+                                    "name": "agentjobs",
+                                    "startupStatus": "failed",
+                                    "failureReason": "connection refused",
+                                }
+                            ]
+                        },
+                    }
+                ),
+            ]
+        )
+        + "\n"
+    )
+
+    class FakeProcess:
+        pid = 1237
+
+        def __init__(self) -> None:
+            self.stdin = io.StringIO()
+            self.stdout = io.StringIO(output)
+            self.stderr = io.StringIO()
+
+        def poll(self):
+            return None
+
+        def terminate(self) -> None:
+            pass
+
+        def wait(self, timeout=None) -> None:
+            pass
+
+    monkeypatch.setattr(
+        "agentjobs.dispatch.codex_app_server.subprocess.Popen", lambda *a, **k: FakeProcess()
+    )
+    process = CodexAppServerProcess(
+        executable="codex",
+        cwd=Path("C:/project"),
+        env={},
+        settings=CodexSessionSettings("gpt-5.6-terra", "high", "never", "workspace-write"),
+    )
+
+    with pytest.raises(CodexAppServerError, match="agentjobs.*connection refused"):
+        process.preflight_required_mcp()
+
+
+def test_app_server_preflight_names_non_json_handshake_output(monkeypatch) -> None:
+    class FakeProcess:
+        pid = 1239
+
+        def __init__(self) -> None:
+            self.stdin = io.StringIO()
+            self.stdout = io.StringIO("not json\n")
+            self.stderr = io.StringIO()
+
+        def poll(self):
+            return None
+
+        def terminate(self) -> None:
+            pass
+
+        def wait(self, timeout=None) -> None:
+            pass
+
+    monkeypatch.setattr(
+        "agentjobs.dispatch.codex_app_server.subprocess.Popen", lambda *a, **k: FakeProcess()
+    )
+    process = CodexAppServerProcess(
+        executable="codex",
+        cwd=Path("C:/project"),
+        env={},
+        settings=CodexSessionSettings("gpt-5.6-terra", "high", "never", "workspace-write"),
+    )
+
+    with pytest.raises(CodexAppServerError, match="non-JSON output"):
+        process.preflight_required_mcp()
+
+
+def test_app_server_preflight_times_out_before_a_task_turn(monkeypatch) -> None:
+    started_read = threading.Event()
+    unblock_read = threading.Event()
+
+    class BlockingOutput:
+        def readline(self) -> str:
+            started_read.set()
+            unblock_read.wait(timeout=1)
+            return ""
+
+    class FakeProcess:
+        pid = 1240
+
+        def __init__(self) -> None:
+            self.stdin = io.StringIO()
+            self.stdout = BlockingOutput()
+            self.stderr = io.StringIO()
+
+        def poll(self):
+            return None
+
+        def terminate(self) -> None:
+            unblock_read.set()
+
+        def wait(self, timeout=None) -> None:
+            pass
+
+    monkeypatch.setattr(
+        "agentjobs.dispatch.codex_app_server.subprocess.Popen", lambda *a, **k: FakeProcess()
+    )
+    process = CodexAppServerProcess(
+        executable="codex",
+        cwd=Path("C:/project"),
+        env={},
+        settings=CodexSessionSettings("gpt-5.6-terra", "high", "never", "workspace-write"),
+        preflight_timeout_seconds=0.01,
+    )
+
+    with pytest.raises(CodexAppServerError, match="preflight timed out"):
+        process.preflight_required_mcp()
+    assert started_read.is_set()
 
 
 def test_app_server_resumes_a_persisted_thread_before_injecting_follow_up(monkeypatch) -> None:

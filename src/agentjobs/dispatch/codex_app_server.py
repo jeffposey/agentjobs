@@ -44,6 +44,14 @@ class CodexSessionStarted:
     pid: int
 
 
+@dataclass(frozen=True)
+class CodexMcpPreflight:
+    """Readiness evidence for the required AgentJobs MCP server."""
+
+    server_name: str
+    status: str
+
+
 def _response_error(message: Dict[str, Any], method: str) -> CodexAppServerError:
     error = message.get("error")
     if isinstance(error, dict):
@@ -65,6 +73,7 @@ class CodexAppServerProcess:
         settings: CodexSessionSettings,
         service_name: str = "agentjobs",
         thread_name: Optional[str] = None,
+        preflight_timeout_seconds: float = 30.0,
     ) -> None:
         self.executable = executable
         self.cwd = cwd
@@ -72,6 +81,7 @@ class CodexAppServerProcess:
         self.settings = settings
         self.service_name = service_name
         self.thread_name = thread_name
+        self.preflight_timeout_seconds = preflight_timeout_seconds
         self.process: Optional["subprocess.Popen[str]"] = None
         self._next_id = 1
         self._write_lock = threading.Lock()
@@ -127,6 +137,117 @@ class CodexAppServerProcess:
                 raise CodexAppServerError(f"Codex App Server {method} returned no result.")
             return result
 
+    def _launch_and_initialize(self) -> None:
+        """Start the App Server and complete its required connection handshake."""
+        popen_kwargs: dict[str, Any] = {
+            "cwd": str(self.cwd),
+            "env": self.env,
+            "stdin": subprocess.PIPE,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+            "encoding": "utf-8",
+            "errors": "replace",
+        }
+        if os.name == "nt":
+            # Keep console control events sent to AgentJobs' launcher tab from
+            # aborting a dispatched Codex turn. Batch dispatch already establishes
+            # this boundary; App Server sessions need the same isolation.
+            popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            popen_kwargs["start_new_session"] = True
+        self.process = subprocess.Popen(
+            [self.executable, "app-server", "-c", "mcp_servers.agentjobs.required=true"],
+            **popen_kwargs,
+        )
+        self._request(
+            "initialize",
+            {
+                "clientInfo": {
+                    "name": self.service_name,
+                    "title": "AgentJobs Codex session",
+                    "version": "0.1.0",
+                },
+                "capabilities": {"experimentalApi": True},
+            },
+        )
+        self._send({"method": "initialized", "params": {}})
+
+    @staticmethod
+    def _mcp_status(entry: Dict[str, Any]) -> Optional[str]:
+        """Extract the status shape used by supported App Server versions."""
+        raw = entry.get("startupStatus", entry.get("status"))
+        if isinstance(raw, str):
+            return raw
+        if isinstance(raw, dict):
+            for key in ("status", "type", "state"):
+                value = raw.get(key)
+                if isinstance(value, str):
+                    return value
+        return None
+
+    def preflight_required_mcp(self, *, server_name: str = "agentjobs") -> CodexMcpPreflight:
+        """Prove that the required MCP server is ready before starting a task turn.
+
+        This uses App Server's app-scoped MCP readiness surface.  It deliberately
+        does not create a task thread or call a task-mutating MCP tool.  The real
+        ``thread/start``/``thread/resume`` retains Codex's required-server check as
+        the final fail-closed guard.
+        """
+        result: list[CodexMcpPreflight] = []
+        errors: list[BaseException] = []
+
+        def inspect() -> None:
+            self._launch_and_initialize()
+            response = self._request("mcpServerStatus/list", {"detail": "toolsAndAuthOnly"})
+            entries = response.get("data", response.get("servers", []))
+            if not isinstance(entries, list):
+                raise CodexAppServerError(
+                    "Codex App Server MCP preflight returned no server status list."
+                )
+            for entry in entries:
+                if not isinstance(entry, dict) or entry.get("name") != server_name:
+                    continue
+                status = self._mcp_status(entry)
+                if isinstance(status, str) and status.lower() == "ready":
+                    result.append(CodexMcpPreflight(server_name=server_name, status=status))
+                    return
+                detail = entry.get("failureReason") or entry.get("error") or status or "unknown"
+                raise CodexAppServerError(
+                    f"Codex App Server required MCP server '{server_name}' is not ready: {detail}"
+                )
+            raise CodexAppServerError(
+                f"Codex App Server required MCP server '{server_name}' was not configured."
+            )
+
+        def run_inspection() -> None:
+            try:
+                inspect()
+            except BaseException as exc:  # delivered back to the calling protocol boundary
+                errors.append(exc)
+
+        try:
+            worker = threading.Thread(target=run_inspection, daemon=True)
+            worker.start()
+            worker.join(self.preflight_timeout_seconds)
+            if worker.is_alive():
+                self.terminate()
+                raise CodexAppServerError(
+                    "Codex App Server MCP preflight timed out after "
+                    f"{self.preflight_timeout_seconds:g} seconds."
+                )
+            if errors:
+                raise errors[0]
+            if result:
+                return result[0]
+            raise CodexAppServerError(
+                "Codex App Server MCP preflight returned no readiness result."
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise CodexAppServerError(f"Could not start Codex App Server preflight: {exc}") from exc
+        finally:
+            self.terminate()
+
     def start(self, prompt: str, *, resume_thread_id: Optional[str] = None) -> CodexSessionStarted:
         """Launch, initialize, and start a turn for a dispatched task.
 
@@ -136,39 +257,7 @@ class CodexAppServerProcess:
         prompt as its next turn.
         """
         try:
-            popen_kwargs = {
-                "cwd": str(self.cwd),
-                "env": self.env,
-                "stdin": subprocess.PIPE,
-                "stdout": subprocess.PIPE,
-                "stderr": subprocess.PIPE,
-                "text": True,
-                "encoding": "utf-8",
-                "errors": "replace",
-            }
-            if os.name == "nt":
-                # Keep console control events sent to AgentJobs' launcher tab from
-                # aborting a dispatched Codex turn. Batch dispatch already establishes
-                # this boundary; App Server sessions need the same isolation.
-                popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-            else:
-                popen_kwargs["start_new_session"] = True
-            self.process = subprocess.Popen(
-                [self.executable, "app-server", "-c", "mcp_servers.agentjobs.required=true"],
-                **popen_kwargs,
-            )
-            self._request(
-                "initialize",
-                {
-                    "clientInfo": {
-                        "name": self.service_name,
-                        "title": "AgentJobs Codex session",
-                        "version": "0.1.0",
-                    },
-                    "capabilities": {"experimentalApi": True},
-                },
-            )
-            self._send({"method": "initialized", "params": {}})
+            self._launch_and_initialize()
             if resume_thread_id:
                 thread_result = self._request(
                     "thread/resume",

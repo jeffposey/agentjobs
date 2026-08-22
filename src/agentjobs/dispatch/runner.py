@@ -1176,16 +1176,27 @@ class DispatchRunner:
                 ),
             },
         )
-        app_server = CodexAppServerProcess(
-            executable=resolve_executable(argv[0], driver=RunnerDriver.CODEX),
-            cwd=self.project_root,
-            env=self._environment(directory, run_id),
-            settings=settings,
-            service_name="agentjobs",
-            thread_name=f"AgentJobs {self.resolution.project_id}/{task.id}",
-        )
+
+        def new_app_server() -> CodexAppServerProcess:
+            return CodexAppServerProcess(
+                executable=resolve_executable(argv[0], driver=RunnerDriver.CODEX),
+                cwd=self.project_root,
+                env=self._environment(directory, run_id),
+                settings=settings,
+                service_name="agentjobs",
+                thread_name=f"AgentJobs {self.resolution.project_id}/{task.id}",
+            )
+
+        app_server = new_app_server()
         resumed = wake is not None
+        launch_phase = "preflight"
         try:
+            preflight = new_app_server().preflight_required_mcp()
+            directory.update_meta(
+                mcp_preflight_server=preflight.server_name,
+                mcp_preflight_status=preflight.status,
+            )
+            launch_phase = "start"
             try:
                 started = app_server.start(
                     prompt, resume_thread_id=wake.session_uuid if wake else None
@@ -1198,14 +1209,7 @@ class DispatchRunner:
                 # making the task depend on a manual cleanup step.
                 if wake is None or "active writer" not in str(exc).lower():
                     raise
-                app_server = CodexAppServerProcess(
-                    executable=resolve_executable(argv[0], driver=RunnerDriver.CODEX),
-                    cwd=self.project_root,
-                    env=self._environment(directory, run_id),
-                    settings=settings,
-                    service_name="agentjobs",
-                    thread_name=f"AgentJobs {self.resolution.project_id}/{task.id}",
-                )
+                app_server = new_app_server()
                 started = app_server.start(self.build_argv_and_prompt(task.id, run_id)[1])
                 resumed = False
                 directory.update_meta(
@@ -1238,7 +1242,15 @@ class DispatchRunner:
             )
         except (CodexAppServerError, DispatchRunError) as exc:
             app_server.terminate()
-            directory.update_meta(status="failed", codex_status="failed", error=str(exc))
+            failure_meta: Dict[str, object] = {
+                "status": "failed",
+                "codex_status": "failed",
+                "codex_phase": launch_phase,
+                "error": str(exc),
+            }
+            if launch_phase == "preflight":
+                failure_meta["mcp_preflight_error"] = str(exc)
+            directory.update_meta(**failure_meta)
             self.manager.record_dispatch_result(
                 task.id,
                 actor="dispatcher",
