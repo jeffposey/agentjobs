@@ -2,7 +2,7 @@ schema: 2
 id: task-242
 title: "Big Dawg Audit \u2014 every system, separately, then one combined report"
 created: '2026-08-22T01:12:47.552800Z'
-updated: '2026-08-22T19:23:14.152348Z'
+updated: '2026-08-22T19:23:55.965454Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -485,3 +485,13 @@ log:
       id: ab41d7e5-2c98-4f16-9e03-6d5b7a0c34f1
       kind: close
       fingerprint: 8b1dc125de07c6808905db698a7d9b34
+- id: 17
+  ts: '2026-08-22T19:23:55.965311Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 14
+  data:
+    run_id: run_824d9746
+    outcome: completed
+    duration_seconds: 125.333514
+    log_path: C:\Users\jpose\.agentjobs\runs\run_824d9746
