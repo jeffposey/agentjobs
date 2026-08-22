@@ -1,0 +1,125 @@
+schema: 2
+id: task-243
+title: The grandchild-kill test asserts on a moment, and loses the race under load
+created: '2026-08-22T04:38:42.531332Z'
+updated: '2026-08-22T04:38:43.049767Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+queue_position: 7200
+category: testing
+tags:
+- flaky
+- dispatch
+- testing
+effort: "small \u2014 a settle window and a clearer failure message, plus a decision\
+  \ about whether the timeout should be bounded at all"
+assignment:
+  eligible: []
+spec:
+  summary: "`tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
+    \ fails intermittently on a loaded machine \u2014 twice on 2026-08-22, once at\
+    \ each of its two assertions. The feature looks fine; the test has no settle window,\
+    \ and on Windows the group kill it is waiting for is asynchronous. It cost task-241's\
+    \ merge a full gate cycle, and under the scripted finish every occurrence costs\
+    \ an escalation."
+  intent: "A test that fails for reasons unrelated to the change under test is worse\
+    \ than no test: it teaches everyone to re-run rather than to read. This one now\
+    \ sits directly in the path of the scripted finish (task-241), which never merges\
+    \ on a red gate \u2014 so each flake becomes an escalation, a woken session, and\
+    \ a human wondering what broke."
+  description: "## What is observed\n\nTwo failures on 2026-08-22, both only under\
+    \ load, and \u2014 this is the useful part \u2014 **at the two different assertions\
+    \ in the same test**:\n\n| When | Message | Assertion |\n|---|---|---|\n| ~02:55,\
+    \ a gate running beside three concurrent `bootstrap.py` runs | `the grandchild\
+    \ never started, so this proves nothing` | the wait-for-marker loop |\n| ~04:30,\
+    \ task-241's merge gate | `pid 223936 survived the timeout` | the final `_pid_alive`\
+    \ check |\n\nBoth passed on a re-run of the same commit; the test passed three\
+    \ times out of three when run alone.\n\n## Why it is almost certainly the test\
+    \ and not the feature\n\n```python\nhandle = runner.start(task, ...)         \
+    \ # runner timeout=3\ndeadline = 30\nwhile not marker.exists() and deadline: \
+    \  # up to 30 x ~0.2s subprocess sleeps\n    ...\nassert marker.exists(), \"the\
+    \ grandchild never started, so this proves nothing\"\ngrandchild_pid = int(marker.read_text())\n\
+    join(handle)\nassert not _pid_alive(grandchild_pid), f\"pid {grandchild_pid} survived\
+    \ the timeout\"\n```\n\nTwo races, one at each end:\n\n1. **The setup race.**\
+    \ The grandchild has to spawn, and be seen to spawn, within roughly six seconds\
+    \ \u2014 but each poll iteration is itself `subprocess.run([sys.executable, \"\
+    -c\", \"sleep(0.2)\"])`, which on a loaded Windows box costs far more than 0.2s\
+    \ in process creation. The clock the loop thinks it is keeping is not the clock\
+    \ it keeps.\n2. **The teardown race.** `join(handle)` returns and the pid is asserted\
+    \ dead **immediately**. On Windows `terminate_group` is `taskkill /PID <pid> /T\
+    \ /F`, which asks the OS to walk the tree and returns before it has finished doing\
+    \ so. There is no settle window at all.\n\nNeither is a claim about `terminate_group`\
+    \ being wrong. The feature it covers is real and worth covering; the test asserts\
+    \ on an instant where it should assert on an outcome.\n\n## What to do\n\nPoll\
+    \ for the outcome rather than sampling it once, at both ends, with a generous\
+    \ bound:\n\n- Wait for the marker on a wall clock rather than on a count of subprocess-sleeps,\
+    \ and say how long it waited when it gives up.\n- After `join`, poll `_pid_alive`\
+    \ until it goes false or a few seconds elapse, and fail with how long it waited.\n\
+    \nThen decide the question that is genuinely open, and record it: **should the\
+    \ assertion be bounded at all, or should the test wait as long as it takes and\
+    \ rely on pytest's own timeout?** A bound that is too tight is what produced this;\
+    \ a bound that is too loose hides a real regression in the kill path for exactly\
+    \ as long as the bound.\n\n## What not to do\n\n- **Do not delete or skip it.**\
+    \ It covers a real hazard \u2014 an agent that shelled out to pytest leaving the\
+    \ pytest behind \u2014 and the message at the top of the file says so.\n- **Do\
+    \ not mark it flaky and retry it.** A retry decorator on a timing test converts\
+    \ a real regression into a slow test, silently.\n- **Do not \"fix\" `terminate_group`**\
+    \ without first showing it is wrong. Nothing here is evidence of that, and the\
+    \ task-225 lesson applies: a tool reporting failure is not the same as the thing\
+    \ being broken."
+  constraints: "- The hazard the test covers stays covered: a timed-out agent must\
+    \ not leave a grandchild process alive.\n- No retry decorators, no `skip`, no\
+    \ `xfail`.\n- A failure must say what it waited for and how long, so the next\
+    \ person does not have to reconstruct the race from the source.\n- If the conclusion\
+    \ is that `terminate_group` really is at fault, that is a different task \u2014\
+    \ say so and file it rather than widening this one."
+  out_of_scope: Changing `terminate_group` itself, unless the investigation produces
+    evidence it is wrong. The gate's cost or parallelism (task-233). Anything about
+    the scripted finish (task-241) beyond noting that a red gate blocks its merges
+    by design.
+  context:
+  - path: tests/test_dispatch_runner.py
+    why: "TestProcessGroup::test_the_timeout_kills_the_grandchild_too \u2014 the test\
+      \ itself, and both of the assertions that have failed."
+  - path: src/agentjobs/dispatch/runner.py
+    why: "terminate_group \u2014 what the test is waiting for, and why on Windows\
+      \ it returns before the work is done."
+  - path: tasks/agentjobs/task-241.yaml
+    why: Where both failures were observed and recorded, and why a flake here now
+      costs an escalation rather than a re-run.
+acceptance:
+- id: a1
+  text: The test waits for its outcomes on a wall clock at both ends, and a failure
+    states what it waited for and for how long.
+  status: pending
+- id: a2
+  text: 'The hazard is still covered: a deliberately broken terminate_group makes
+    the test fail. Demonstrated, not assumed.'
+  status: pending
+- id: a3
+  text: A decision entry records whether the assertion is bounded and why, since both
+    a tight bound and a loose one have a real cost.
+  status: pending
+- id: a4
+  text: The test passes repeatedly on a machine under deliberate load, not only on
+    an idle one.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T04:38:43.048705Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: d9e04b71-3c28-4a15-8f96-1b0e73c5a284
+      kind: create
+      fingerprint: c711e9f64db02993f86906f21dff1aa4

@@ -2,16 +2,11 @@ schema: 2
 id: task-241
 title: Approval runs the merge itself, and wakes a session only when it cannot
 created: '2026-08-22T00:48:16.842628Z'
-updated: '2026-08-22T04:27:58.210570Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-22T04:38:51.637662Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 300
 category: dispatch
 tags:
 - cycle-time
@@ -20,7 +15,6 @@ tags:
 - agent-dx
 effort: small mechanism, but the escalation path has to be real rather than theoretical
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "The post-approval session does five fixed commands \u2014 rebase, merge\
@@ -161,7 +155,8 @@ dependencies: []
 links: []
 branches:
 - name: feat/task-241-scripted-finish
-  status: active
+  status: merged
+  merged_at: '2026-08-22T04:36:00Z'
 log:
 - id: 1
   ts: '2026-08-22T00:48:17.254933Z'
@@ -664,3 +659,101 @@ log:
         eligible: true
       - runner: chatgpt-sol
         eligible: true
+- id: 15
+  ts: '2026-08-22T04:37:52.815463Z'
+  actor: claude
+  type: progress
+  body: "**Merged and delivered, by hand.** Approved by Jeff at 04:27; merged at 04:36.\n\
+    \n- Rebased `feat/task-241-scripted-finish` onto `main` (8 commits, clean \u2014\
+    \ `17d78f5` \u2192 `5ab0991`).\n- **Gate re-run on the rebased branch, and it\
+    \ went red the first time**: `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`,\
+    \ \"pid 223936 survived the timeout\". I did not merge on it. Established it was\
+    \ not mine \u2014 my diff touches neither `runner.py` nor its tests, and the test\
+    \ passed three times out of three in isolation \u2014 then re-ran the whole gate,\
+    \ which went green in 124.5s with a receipt for `5ab09917`. Details and a follow-up\
+    \ below.\n- `git merge --no-ff` \u2192 **`17fdfd0`**, two parents, 21 files, +4042/\u2212\
+    9.\n- `npm run build` in the serving clone: the merge touched `frontend/openapi.json`\
+    \ and the generated client, so the bundle needed it.\n- Restarted 8876 through\
+    \ its own launcher, then verified.\n\n## The delivery is verified, and the thing\
+    \ that verifies it is the thing that merged\n\n```\n$ curl http://127.0.0.1:8876/api/version\
+    \        # before\n{\"version\":\"0.1.0\", ... \"source_root\":\"C:\\\\projects\\\
+    \\agentjobs\"}          <- no source_commit\n\n$ curl http://127.0.0.1:8876/api/version\
+    \        # after\n{... \"source_commit\":\"17fdfd0288db5c64bc6d3eeea994afcbaf05861e\"\
+    ,\n     \"started_at\":\"2026-08-22T04:36:42.333991+00:00\"}\n\n$ git merge-base\
+    \ --is-ancestor 17fdfd0 17fdfd0  -> YES\n```\n\nThe running process reports the\
+    \ merge commit itself, from `C:\\projects\\agentjobs`, having started after the\
+    \ merge. The pre-merge process had no `source_commit` field at all, which is as\
+    \ clean a demonstration as the field could ask for: it did not exist an hour ago,\
+    \ and the server that now reports it is running the code that added it. `/app/`\
+    \ returns 200.\n\n## A correction to the config block in my handoff\n\nI said\
+    \ I had not verified the restart command and that Jeff should. I have now, and\
+    \ **two words in it were wrong**:\n\n- **`pwsh` does not exist on this machine.**\
+    \ Only Windows PowerShell 5.1 (`powershell`) is installed.\n- **`-NoOpen` was\
+    \ missing, and it matters for automation.** Reading the launcher: without it,\
+    \ a server that fails to come up inside 45s raises a `System.Windows.Forms.MessageBox`\
+    \ \u2014 a modal dialog. An unattended finish would hang on it until somebody\
+    \ dismissed it, which is the worst possible failure for a background mechanism.\
+    \ `-NoOpen` downgrades that to a warning, and the script's own comment says it\
+    \ means \"nobody is watching\", which is exactly true here.\n\nThe corrected block,\
+    \ verified against the launcher's source rather than its description:\n\n```yaml\n\
+    \  agentjobs:\n    enabled: true\n    group: default\n    auto_dispatch: false\n\
+    \    posture: auto\n    finish:\n      enabled: true\n      base_branch: main\n\
+    \      restart:\n        - powershell\n        - -NoProfile\n        - -ExecutionPolicy\n\
+    \        - Bypass\n        - -File\n        - C:/ai/shared/launchers/open-agentjobs.ps1\n\
+    \        - -Force\n        - -NoOpen\n      verify_base: http://127.0.0.1:8876\n\
+    ```\n\n`-Force` is right and is what I used: the launcher's staleness check only\
+    \ notices edits under `src/` and to `pyproject.toml`/`poetry.lock`, so a merge\
+    \ that changed only the frontend bundle would otherwise be treated as needing\
+    \ no restart. The script also brings the tailnet proxy up, which `agentjobs restart`\
+    \ would not have \u2014 one more reason the CLI was never the right answer here.\n\
+    \nStill switched **off**. Nothing merges by itself until Jeff adds that block.\n\
+    \n## The flaky test is worth its own task\n\nTwo distinct failures now, both in\
+    \ `test_the_timeout_kills_the_grandchild_too`, both only under load:\n\n- 2026-08-22\
+    \ ~02:55, in a sandbox gate running beside three bootstraps: *\"the grandchild\
+    \ never started, so this proves nothing\"*.\n- 2026-08-22 ~04:30, in the merge\
+    \ gate: *\"pid 223936 survived the timeout\"*.\n\nThose are the test's two assertions\
+    \ failing for the same underlying reason: it has no settle window. It waits up\
+    \ to 30 iterations for the grandchild to appear, then `join(handle)` and asserts\
+    \ the pid is gone **immediately** \u2014 but on Windows the group kill is `taskkill\
+    \ /T /F`, which is asynchronous, so a loaded machine can lose that race. The feature\
+    \ is almost certainly fine; the test asserts on a moment rather than on an outcome.\n\
+    \nIt cost this merge one full gate cycle and it will cost the scripted finish\
+    \ one escalation every time it happens, since a red gate never merges. Filing\
+    \ it as a follow-up.\n"
+  data:
+    operation:
+      id: f3c81a56-2b47-4e09-8d61-7c0a24e5b912
+      kind: log_append
+      fingerprint: a6893c13daf35d43d499e88bc27cc543
+- id: 16
+  ts: '2026-08-22T04:37:58.369997Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: a2d7c934-6f81-4b5e-9c02-38e15d0a7b64
+      kind: update_content
+      fingerprint: 56ecf42c0544f2cf3fd5ff230ee3a9f2
+- id: 17
+  ts: '2026-08-22T04:38:51.637430Z'
+  actor: claude
+  type: transition
+  body: "Merged `feat/task-241-scripted-finish` into `main` as `17fdfd0` (`--no-ff`,\
+    \ 21 files, +4042/\u22129), rebuilt the bundle, restarted 8876 through its own\
+    \ launcher, and verified: `/api/version` reports `source_commit: 17fdfd0\u2026\
+    ` from `C:\\projects\\agentjobs`, started 04:36:42 \u2014 after the merge. `/app/`\
+    \ returns 200. All six acceptance criteria met, each demonstrated live rather\
+    \ than asserted.\n\nApproved by Jeff at 04:27. Merged by hand, not by the mechanism\
+    \ being merged: it is still switched off, and turning it on is a separate decision\
+    \ he has the corrected config block for.\n\nFollow-up filed as **task-243** for\
+    \ the flaky grandchild-kill test that cost this merge one gate cycle.\n"
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: c5b8e310-9a47-4f26-8d13-06e9b2a4f875
+      kind: close
+      fingerprint: 57903dab09092dcf12de6b2bd0727f17
