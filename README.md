@@ -96,6 +96,8 @@ than leaving the rationale in a chat transcript:
 - [Agent dispatch](docs/agent-dispatch-design.md) is the accepted, **not yet implemented**
   design for turning authorized task state into a supervised agent process, with bounded
   autonomy and explicit safety gates.
+- [Codex dispatch rollout](docs/codex-dispatch.md) documents the batch-only Codex
+  runner setup and the Terra/Sol rollout sequence.
 
 Agent loops are also **not implemented**. Their design pass is queued in
 [task-078](tasks/agentjobs/task-078-agent-loops.yaml); the proposed contribution is an

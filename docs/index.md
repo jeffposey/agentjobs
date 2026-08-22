@@ -51,6 +51,8 @@ history; new records and integrations must use v2.
 - [Schema migration](migration-guide.md)
 - [Agent dispatch design](agent-dispatch-design.md) — accepted design record; clearly
   labelled where implementation is still pending
+- [Codex dispatch rollout](codex-dispatch.md) — batch runners, MCP requirement, and the
+  safe Terra/Sol rollout sequence
 - [Queue position design](task-selection-design.md) — proposed design for the explicit
   work order that decides what is next
 

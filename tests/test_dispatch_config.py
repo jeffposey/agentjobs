@@ -28,6 +28,7 @@ from agentjobs.dispatch.config import (
     Posture,
     ProjectNotEnabledError,
     RunnerMode,
+    RunnerDriver,
     SelectionSource,
     SkipReason,
     UnknownGroupError,
@@ -90,6 +91,50 @@ class TestLoading:
         assert config is not None
         assert config.runners["claude"].mode is RunnerMode.BATCH
         assert config.runners["codex"].mode is RunnerMode.SESSION
+
+    def test_runner_driver_defaults_to_claude_for_compatibility(self) -> None:
+        write_config()
+
+        config = load_dispatch_config()
+
+        assert config is not None
+        assert config.runners["claude"].driver is RunnerDriver.CLAUDE
+
+    def test_codex_driver_is_parsed_for_a_batch_runner(self) -> None:
+        write_config(
+            runners={
+                "codex": {
+                    "argv": ["codex", "exec", "--json", "{prompt}"],
+                    "driver": "codex",
+                    "mode": "batch",
+                }
+            }
+        )
+
+        config = load_dispatch_config()
+
+        assert config is not None
+        assert config.runners["codex"].driver is RunnerDriver.CODEX
+
+    def test_unknown_runner_driver_is_refused(self) -> None:
+        write_config(runners={"bad": {"argv": ["bad", "{prompt}"], "driver": "other"}})
+
+        with pytest.raises(DispatchConfigError, match="driver"):
+            load_dispatch_config()
+
+    def test_codex_session_runner_is_refused_before_any_spawn(self) -> None:
+        write_config(
+            runners={
+                "codex": {
+                    "argv": ["codex", "exec", "{prompt}"],
+                    "driver": "codex",
+                    "mode": "session",
+                }
+            }
+        )
+
+        with pytest.raises(DispatchConfigError, match="batch only"):
+            load_dispatch_config()
 
     def test_posture_defaults_to_auto(self) -> None:
         """Changed from supervised on 2026-08-19; see task-020.
