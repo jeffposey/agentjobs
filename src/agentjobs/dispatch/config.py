@@ -310,6 +310,52 @@ class RunnerSelection:
 
 
 @dataclass(frozen=True)
+class FinishSettings:
+    """Whether and how an approval finishes a task without an agent (task-241).
+
+    Off by default, and gated behind dispatch being enabled for the project, because
+    what it does is run ``git merge`` into a shared clone in response to an HTTP
+    request. A person who has not asked for that must never get it, and the switch is
+    in machine-local ``~/.agentjobs/dispatch.yaml``, which no browser can write.
+
+    Everything except ``enabled`` describes *this machine's* deployment rather than the
+    project, which is why it lives here and not in the repository. ``restart`` is the
+    sharpest example: this repository's own ENGINEERING.md warns that ``agentjobs
+    restart`` binds the default port and reports success while the real dashboard stays
+    stale, so a finish that assumed the CLI would be silently wrong. It is told the
+    command instead, or it does not restart at all.
+    """
+
+    enabled: bool = False
+    base_branch: str = "main"
+    """Branch the work is rebased onto and merged into. Never checked out by the finish."""
+
+    restart: List[str] = field(default_factory=list)
+    """Argv that restarts the server serving this project, exactly as it was started.
+
+    Empty means "this machine has not said how", and that is not treated as "no restart
+    needed": a merge that touched served code escalates rather than reporting a finish
+    it cannot deliver.
+    """
+
+    verify_base: Optional[str] = None
+    """Where to ask ``/api/version`` whether the merged code is live. Defaults to the
+    machine's ``api_base``."""
+
+    gate_timeout_seconds: int = 3600
+    """Ceiling on the gate run. The gate is about 96 seconds on an idle machine and
+    several times that on a contended one, so this is a runaway guard, not a budget."""
+
+    verify_timeout_seconds: int = 120
+    """How long to keep asking whether the restarted server is serving the merge.
+
+    A budget rather than a runaway guard, and the one number here worth tuning: a server
+    that takes longer than this to come back escalates, which is the right answer for a
+    restart that has actually failed and the wrong one for a slow boot.
+    """
+
+
+@dataclass(frozen=True)
 class ProjectDispatchSettings:
     """Whether and how one project may dispatch on this machine."""
 
@@ -334,6 +380,9 @@ class ProjectDispatchSettings:
     producing agents whose memory disagrees with the tree, this turns it off without a
     code change. Nothing else about the run changes when it is off.
     """
+
+    finish: FinishSettings = field(default_factory=FinishSettings)
+    """The scripted post-approval finish (task-241). Off unless this machine asks."""
 
 
 @dataclass(frozen=True)
@@ -674,7 +723,65 @@ def _parse_project(project_id: str, raw: object, path: Path) -> ProjectDispatchS
         resume_sessions=_bool(
             mapping.get("resume_sessions"), f"{where}.resume_sessions", path, default=True
         ),
+        finish=_parse_finish(mapping.get("finish"), f"{where}.finish", path),
     )
+
+
+def _parse_finish(raw: object, where: str, path: Path) -> FinishSettings:
+    """Validate one project's ``finish:`` block, defaulting the whole thing if absent."""
+    if raw is None:
+        return FinishSettings()
+    mapping = _mapping(raw, where, path)
+    defaults = FinishSettings()
+
+    base_branch = mapping.get("base_branch", defaults.base_branch)
+    if not isinstance(base_branch, str) or not base_branch.strip():
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: {where}.base_branch must be a "
+            "non-empty branch name."
+        )
+
+    verify_base = mapping.get("verify_base")
+    if verify_base is not None and not isinstance(verify_base, str):
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: {where}.verify_base must be a URL."
+        )
+
+    return FinishSettings(
+        enabled=_bool(mapping.get("enabled"), f"{where}.enabled", path, default=False),
+        base_branch=base_branch.strip(),
+        restart=_argv(mapping.get("restart"), f"{where}.restart", path),
+        verify_base=verify_base.rstrip("/") if verify_base else None,
+        gate_timeout_seconds=_positive_int(
+            mapping.get("gate_timeout_seconds"),
+            f"{where}.gate_timeout_seconds",
+            path,
+            defaults.gate_timeout_seconds,
+        ),
+        verify_timeout_seconds=_positive_int(
+            mapping.get("verify_timeout_seconds"),
+            f"{where}.verify_timeout_seconds",
+            path,
+            defaults.verify_timeout_seconds,
+        ),
+    )
+
+
+def _argv(value: object, where: str, path: Path) -> List[str]:
+    """A list of command words, refused rather than coerced when it is a bare string.
+
+    A string here would be a command line needing a shell to split, and this never uses
+    one -- a restart command assembled by a shell is a quoting bug waiting on a path
+    with a space in it, which is most paths on Windows.
+    """
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(word, str) for word in value):
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: {where} must be a list of strings -- "
+            "the executable and each argument separately, not one command line."
+        )
+    return [str(word) for word in value]
 
 
 def _parse_limits(raw: Mapping[str, object], path: Path) -> DispatchLimits:

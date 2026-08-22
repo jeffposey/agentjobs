@@ -614,3 +614,78 @@ class TestEnablingAgainstAGroup:
         settings = set_project_enabled("agentjobs", True, home=home())
         assert settings.enabled is True
         assert settings.group == "default"
+
+
+class TestTheFinishBlock:
+    """``finish:`` -- the scripted post-approval merge (task-241), off by default."""
+
+    def test_a_project_that_says_nothing_gets_a_finish_that_does_nothing(self) -> None:
+        write_config()
+
+        config = load_dispatch_config()
+
+        assert config is not None
+        finish = config.project("agentjobs").finish
+        assert finish.enabled is False
+        assert finish.base_branch == "main"
+        assert finish.restart == []
+        assert finish.verify_base is None
+
+    def test_every_field_is_read(self) -> None:
+        write_config(
+            projects={
+                "agentjobs": {
+                    "enabled": True,
+                    "runner": "claude",
+                    "finish": {
+                        "enabled": True,
+                        "base_branch": "trunk",
+                        "restart": ["pwsh", "-File", "C:/launchers/serve.ps1", "-Force"],
+                        "verify_base": "http://127.0.0.1:8876/",
+                        "gate_timeout_seconds": 900,
+                        "verify_timeout_seconds": 45,
+                    },
+                }
+            }
+        )
+
+        config = load_dispatch_config()
+
+        assert config is not None
+        finish = config.project("agentjobs").finish
+        assert finish.enabled is True
+        assert finish.base_branch == "trunk"
+        assert finish.restart == ["pwsh", "-File", "C:/launchers/serve.ps1", "-Force"]
+        # The trailing slash is dropped so the URL can be joined without producing "//".
+        assert finish.verify_base == "http://127.0.0.1:8876"
+        assert finish.gate_timeout_seconds == 900
+        assert finish.verify_timeout_seconds == 45
+
+    def test_a_restart_written_as_one_command_line_is_refused(self) -> None:
+        """A string would need a shell to split, and a shell would break on a path."""
+        write_config(
+            projects={
+                "agentjobs": {
+                    "enabled": True,
+                    "runner": "claude",
+                    "finish": {"restart": "pwsh -File C:/Program Files/serve.ps1"},
+                }
+            }
+        )
+
+        with pytest.raises(DispatchConfigError, match="list of strings"):
+            load_dispatch_config()
+
+    def test_an_empty_base_branch_is_refused(self) -> None:
+        write_config(
+            projects={
+                "agentjobs": {
+                    "enabled": True,
+                    "runner": "claude",
+                    "finish": {"base_branch": "   "},
+                }
+            }
+        )
+
+        with pytest.raises(DispatchConfigError, match="base_branch"):
+            load_dispatch_config()

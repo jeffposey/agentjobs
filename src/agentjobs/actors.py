@@ -159,8 +159,22 @@ def default_user(config: Dict[str, Any]) -> Optional[str]:
     return human_identity(config).user
 
 
+FINISHER = "finisher"
+"""The actor id the scripted post-approval finish writes as (task-241).
+
+Distinct from ``dispatcher`` because it is a different claim about who did something. A
+``dispatch`` entry says AgentJobs started an agent; a ``finisher`` entry says AgentJobs
+rebased, ran the gate and merged, with no agent anywhere in it. Collapsing the two would
+make the record unable to answer "was a model involved in this merge", which is the one
+question this whole mechanism exists to change the answer to.
+
+Reserved and an agent, like ``dispatcher`` and for the same reason: an entry it writes
+must never clock a dispatch as a human act.
+"""
+
 RESERVED = {
     DISPATCHER: Actor(id=DISPATCHER, kind=AGENT, display_name="AgentJobs dispatcher"),
+    FINISHER: Actor(id=FINISHER, kind=AGENT, display_name="AgentJobs finisher"),
 }
 """Actor ids AgentJobs itself writes as, valid in every project without configuration.
 

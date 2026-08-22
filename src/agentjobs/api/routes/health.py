@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from agentjobs.__version__ import __version__
-from agentjobs.environment import describe_source
+from agentjobs.environment import describe_source, source_identity
 from agentjobs.models_v2 import SCHEMA_VERSION
 from agentjobs.storage import yaml_loader_name
 
@@ -39,6 +41,23 @@ class VersionResponse(BaseModel):
             "server and a wrongly-installed one, and guessing costs a forensic session."
         )
     )
+    source_commit: Optional[str] = Field(
+        default=None,
+        description=(
+            "Git commit this process's source was at when the process started, or null "
+            "when the source is not a checkout. Captured at startup and never "
+            "recomputed, so it describes the code in memory rather than the files on "
+            "disk -- which is what makes it evidence that a merge is actually live "
+            "rather than merely committed."
+        ),
+    )
+    started_at: str = Field(
+        description=(
+            "When this process fixed its identity, in UTC. Independent of the commit: "
+            "a process that started before a merge cannot be serving it, whatever any "
+            "file on disk now says."
+        )
+    )
 
 
 @router.get("/health")
@@ -55,9 +74,12 @@ async def api_version() -> VersionResponse:
     service it cannot understand. The version is already in ``/openapi.json``, but
     reading it there makes every client parse a large document to learn two fields.
     """
+    identity = source_identity()
     return VersionResponse(
         version=__version__,
         schema_version=SCHEMA_VERSION,
         yaml_loader=yaml_loader_name(),
         source_root=describe_source(),
+        source_commit=identity.commit,
+        started_at=identity.started_at,
     )

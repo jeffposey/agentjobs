@@ -213,6 +213,12 @@ source rather than a neighbouring one's.
     downstream of the agent inherits them and can add a phase with
     `agentjobs.dispatch.phases.record_phase_from_env`.
 
+    It also reads `~/.agentjobs/finishes/`, where a **scripted finish** (task-241)
+    writes itself down. A finish is not a run — no agent, no session, no tokens — and it
+    exists to remove the follow-on run this report was built to measure, so it is
+    counted in its own block rather than folded in. Without that the saving would show
+    up only as runs-per-task falling, with nothing to attribute it to.
+
     **Do not measure a run by grepping `transcript.log`.** It is a raw TTY capture, so a
     line appears in it as many times as the terminal repainted it and every count derived
     from it is an artefact of that. Task-233 is the incident; phase records exist so the
@@ -337,6 +343,44 @@ Work does not merge itself. When a branch is complete and verified:
     Restart it the way it was started, and check the environment's own setup notes for
     that command rather than assuming the default. Either way the step is the same: the
     human ends up on the merged version, and you checked.
+
+#### Steps 3 to 6 may already have happened before you read them
+
+**On a machine with `finish.enabled` set for this project, clicking Approve runs steps
+3 to 6 itself, with no agent anywhere in it** (task-241). It rebases, runs the full gate
+in your worktree with your worktree's interpreter, merges `--no-ff`, rebuilds the
+frontend if the merge touched it, restarts the server the way this machine's config says
+it was started, proves the running process is serving the merge, closes the task and
+removes your worktree. It takes about as long as the gate does.
+
+Nothing above is relaxed by that: **a person still approves, per task, before anything
+merges**, and the merge is still a `--no-ff` merge commit.
+
+What changes for you is only what to do when you are woken after an approval. Read the
+task record first. It says, unambiguously, whether `main` moved:
+
+- **"The merge is done: `abc1234`"** — the merge is in and the *delivery* is not. The
+  task is deliberately still open, and the prompt names what remains: the bundle was not
+  rebuilt, or the server did not come back, or it came back on the old code. Finish that
+  and close the task. Do not re-merge.
+- **"Nothing was merged"** — the rebase conflicted or the gate went red. The escalation
+  says which, and for a conflict it states whether the branch was restored to the commit
+  it was on, having read it back and compared. Nothing was forced and nothing was
+  guessed at.
+
+You can run the same thing by hand, which is how a finish that escalated is retried once
+its cause is fixed. It knows its own earlier merge and picks up from it rather than
+refusing:
+
+```bash
+poetry run agentjobs finish task-241 --project agentjobs
+```
+
+Exit 0 means merged, closed and verified; 1 means it stopped and the task says where; 2
+means the task was never a candidate and nothing happened. It declines rather than
+guessing whenever the answer is a judgement — no active branch, two of them, a clone
+with something else checked out, a missing or dirty worktree, or a branch somebody
+already merged by hand.
 
 AgentJobs does not yet deliver durable out-of-session notifications. The intended
 extension point is the existing HMAC-signed webhook system in

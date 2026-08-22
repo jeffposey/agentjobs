@@ -201,6 +201,38 @@ default_group: standard
 #       Every doubt falls back to a cold start, so turning it off changes speed and
 #       nothing else. Set it to false if a resumed agent ever starts acting on a memory
 #       of the tree that disagrees with the tree.
+#
+#     finish:
+#       enabled: false
+#       base_branch: main
+#       restart: []
+#       verify_base: null
+#
+#       The scripted post-approval finish. With it on, clicking Approve rebases the
+#       task's branch, runs the project's full gate in that branch's own worktree,
+#       merges --no-ff, rebuilds and restarts if the merge touched anything served,
+#       verifies the running process is actually serving the merge, and closes the
+#       task. No agent is started at all. It stops at the first thing it cannot do
+#       safely -- a conflicting rebase, a red gate, a server it cannot show is live --
+#       writes where it stopped onto the task, and hands the ball back for a session to
+#       take over.
+#
+#       Off by default because what it does is run `git merge` in a shared clone in
+#       response to an HTTP request. Nobody should get that without asking for it.
+#
+#       `restart` is the field to think about, and an empty one is not "no restart
+#       needed" -- it is "this machine has not said how", and a merge touching served
+#       code then escalates rather than reporting a delivery it cannot make. Give it
+#       the command that actually starts your server, as separate words:
+#
+#         restart: ["pwsh", "-File", "C:/launchers/serve.ps1", "-Force"]
+#
+#       Do not reach for `agentjobs restart` unless that is genuinely how it was
+#       started. It binds the default port and reports success, so a dashboard served
+#       on any other port stays stale while everything looks fine.
+#
+#       `verify_base` is where to ask /api/version whether the merge is live; it
+#       defaults to this file's `api_base`.
 projects: {}
 
 # ----- limits: caps that apply however a run was started ----------------------

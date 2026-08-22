@@ -2730,11 +2730,23 @@ export type VersionResponse = {
      */
     schema_version: number;
     /**
+     * Source Commit
+     *
+     * Git commit this process's source was at when the process started, or null when the source is not a checkout. Captured at startup and never recomputed, so it describes the code in memory rather than the files on disk -- which is what makes it evidence that a merge is actually live rather than merely committed.
+     */
+    source_commit?: string | null;
+    /**
      * Source Root
      *
      * Directory this process imported its own code from. Startup refuses when that is the wrong checkout, but the answer is reported here too: on a machine with several worktrees it is the difference between a stale server and a wrongly-installed one, and guessing costs a forensic session.
      */
     source_root: string;
+    /**
+     * Started At
+     *
+     * When this process fixed its identity, in UTC. Independent of the commit: a process that started before a merge cannot be serving it, whatever any file on disk now says.
+     */
+    started_at: string;
     /**
      * Version
      *

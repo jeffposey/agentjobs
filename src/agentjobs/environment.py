@@ -19,8 +19,10 @@ which is the only thing that decides what the process actually runs.
 from __future__ import annotations
 
 import os
+import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, NamedTuple, Optional
 
 import agentjobs
 
@@ -151,3 +153,83 @@ def verify_source_or_die(project_roots: Iterable[Path] = ()) -> None:
     problem = source_mismatch(project_roots=project_roots)
     if problem is not None:
         raise SourceMismatchError(problem)
+
+
+# ----- what this process is running, fixed at the moment it started ------------
+#
+# `describe_source` answers "which directory did I import from". That is enough to
+# catch a wrongly-installed process and not enough to catch a *stale* one: a server
+# started before a merge imports from exactly the right directory and runs exactly the
+# wrong code. The two values below close that gap, and both are captured once and never
+# recomputed, which is the only property that makes them worth anything.
+#
+# Recomputing on request would defeat the whole point. A running server whose clone has
+# since been merged into would read the new HEAD off disk and report the merge commit
+# while still executing the code it loaded an hour ago -- which is precisely the answer
+# that must not be given, because the scripted finish (task-241) verifies a delivery by
+# asking for it.
+
+_GIT_TIMEOUT_SECONDS = 10
+"""Ceiling on the one git call this module makes, so a wedged git cannot hang a boot."""
+
+_IDENTITY: Optional["SourceIdentity"] = None
+
+
+class SourceIdentity(NamedTuple):
+    """What this process is running, as of the moment it started.
+
+    ``commit`` is ``None`` when the source is not a git checkout -- an ordinary
+    installation, which is the common case for anyone who did not clone. A caller that
+    needs to prove which code is live treats ``None`` as "cannot be proven", never as
+    "close enough".
+    """
+
+    commit: Optional[str]
+    started_at: str
+
+
+def _head_commit(root: Optional[Path]) -> Optional[str]:
+    """The git commit at ``root``'s HEAD, or None when that cannot be established."""
+    if root is None:
+        return None
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    commit = (result.stdout or "").strip()
+    return commit or None
+
+
+def capture_source_identity() -> SourceIdentity:
+    """Fix this process's identity, if it has not already been fixed. Idempotent.
+
+    Call it from a long-lived process's startup, before it begins serving. Every later
+    call -- including the ones a request handler makes -- returns what was captured
+    then, so the answer describes the code in memory rather than the files on disk.
+
+    A short-lived process that never calls it at startup captures on first use instead.
+    That is a weaker guarantee and an honest one: it is still the truth at some point
+    before the answer was given, and the alternative is paying for a subprocess at
+    import time in every CLI invocation that will never ask.
+    """
+    global _IDENTITY
+    if _IDENTITY is None:
+        _IDENTITY = SourceIdentity(
+            commit=_head_commit(imported_source_root()),
+            started_at=datetime.now(timezone.utc).isoformat(),
+        )
+    return _IDENTITY
+
+
+def source_identity() -> SourceIdentity:
+    """This process's captured identity. Captures now if startup did not."""
+    return capture_source_identity()

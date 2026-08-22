@@ -1202,6 +1202,35 @@ Two rejected triggers, both of which look natural given the existing code:
   dispatch happen with no log entry to attribute it to, so "who authorized this?" has no
   answer.
 
+### 5a. The approval that starts no dispatch at all (task-241)
+
+An approval can now cause something other than a run: a **scripted finish**, which does
+the fixed post-approval sequence — rebase, gate, merge `--no-ff`, rebuild, restart,
+verify, close, retire the worktree — with no agent anywhere in it. Where it is enabled,
+that is what Approve starts, instead of a dispatch. `src/agentjobs/dispatch/finish.py`.
+
+It belongs in this document rather than beside it because it sits inside §2 rather than
+around it, in three ways worth being explicit about:
+
+- **It consumes no dispatch authorisation, because it starts no agent.** §2 is a rule
+  about what may start a *run*. A finish reads git and runs a configured command; the
+  human-clocked rule is not weakened, because nothing it does is a dispatch.
+- **When it escalates, it spends exactly the authorisation the approval already carried.**
+  One human act, one dispatch, unchanged. It attributes that dispatch to the human's own
+  approval entry rather than to the newest one — by then the newest is the finisher's,
+  and a dispatch defaulting to it would be refused as not human-clocked, correctly and
+  uselessly. It only dispatches at all where `auto_dispatch` is on; elsewhere it parks
+  the task at `agent`/`work` and the human's existing Dispatch click resumes the session.
+- **It writes as `finisher`, a reserved *agent* actor.** So an entry it wrote can never
+  clock a later dispatch as a human act, exactly as `dispatcher` cannot. It is a separate
+  id from `dispatcher` because the two make different claims: one says AgentJobs started
+  an agent, the other says AgentJobs merged with none.
+
+The switch is `finish.enabled` in machine-local `~/.agentjobs/dispatch.yaml`, off by
+default and gated behind the project having dispatch enabled at all. Same shape as
+`auto_dispatch`, for a stronger reason: what this runs is `git merge` in a shared clone,
+in response to an HTTP request.
+
 ---
 
 ## 6. Safety
