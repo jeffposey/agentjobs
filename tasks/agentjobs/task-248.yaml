@@ -3,7 +3,7 @@ id: task-248
 title: "Tolerant reader rejects an unknown ball_reason \u2014 the enum widened two\
   \ days after tolerance shipped"
 created: '2026-08-22T18:51:25.400936Z'
-updated: '2026-08-22T22:23:09.593708Z'
+updated: '2026-08-22T22:27:06.546173Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -854,3 +854,63 @@ log:
     outcome: interrupted
     duration_seconds: 6.017104
     log_path: C:\Users\jpose\.agentjobs\runs\run_ff910542
+- id: 41
+  ts: '2026-08-22T22:26:56.363309Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Started a Codex App Server thread. Its conversation is persisted in the Codex
+    session store and can be opened by Codex Desktop.
+  data:
+    run_id: run_7f272549
+    agent: codex
+    runner: codex-luna
+    mode: session
+    posture: autonomous
+    trigger: manual
+    caused_by: 26
+    argv:
+    - C:\Users\jpose\AppData\Local\OpenAI\Codex\bin\110b3d66a02d864e\codex.exe
+    - app-server
+    - --model
+    - gpt-5.6-luna
+    - -c
+    - model_reasoning_effort="high"
+    - --sandbox
+    - danger-full-access
+    - -c
+    - mcp_servers.agentjobs.required=true
+    - 'You are the agent `codex` working task `task-248` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-248-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_7f272549.'
+    cwd: C:\projects\agentjobs
+    git_head: 0feb126
+    session_id: 01a02b95-8045-78b2-99ca-9f79693079c9
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: false
+        skipped_because: disabled
+        detail: Claude remains defined as a fresh-session canary; Luna is the active
+          workhorse.
+      - runner: codex-luna
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 42
+  ts: '2026-08-22T22:27:06.545853Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: The Codex App Server process exited before reporting turn completion.
+  re: 41
+  data:
+    run_id: run_7f272549
+    outcome: interrupted
+    duration_seconds: 13.850176
+    log_path: C:\Users\jpose\.agentjobs\runs\run_7f272549
