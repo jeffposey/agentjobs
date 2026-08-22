@@ -2,11 +2,63 @@ schema: 2
 id: task-241
 title: Approval runs the merge itself, and wakes a session only when it cannot
 created: '2026-08-22T00:48:16.842628Z'
-updated: '2026-08-22T02:56:10.827499Z'
+updated: '2026-08-22T03:18:28.405808Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "**Ready for review: `feat/task-241-scripted-finish`, 8 commits, gate\
+  \ green at 130.8s on a clean tree.** All six acceptance criteria met; the demonstration\
+  \ entry has the evidence and the decision entry has the six binding calls.\n\n**What\
+  \ it does.** With it enabled, clicking Approve rebases the task's branch, runs the\
+  \ full gate in that branch's own worktree with that worktree's own interpreter,\
+  \ merges `--no-ff`, rebuilds the frontend if the merge touched it, restarts the\
+  \ server the way this machine says it was started, proves the running process is\
+  \ serving the merge, closes the task and removes the worktree. No agent is started\
+  \ at all. When it cannot do a step safely it stops, writes exactly how far it got,\
+  \ and hands the ball back.\n\n**The number: 11.0 minutes -> 3.1 minutes, and no\
+  \ dispatched run.** 176.7s of that 3.1m is a full gate run the eleven-minute sessions\
+  \ never did, so like for like it is 11.0 minutes against 9.1 seconds of machinery,\
+  \ with a re-verification of the rebased branch thrown in.\n\n**Demonstrated live,\
+  \ not asserted** \u2014 real clone of this repo, real server, real `agentjobs finish`,\
+  \ in `scripts/finish_sandbox.py`: a clean branch merged and verified live; a real\
+  \ conflicting rebase aborted with the branch tip read back and unchanged; a real\
+  \ red gate blocking the merge; and a restart command that exits zero and restarts\
+  \ nothing, caught by verification with the merge already done and the record saying\
+  \ so.\n\n---\n\n**Two things I need from you, and one is a decision.**\n\n**1. The\
+  \ switch is off, and turning it on is yours.** I did not touch `~/.agentjobs/dispatch.yaml`.\
+  \ Nothing changes on this machine until you add this under `projects.agentjobs`,\
+  \ and it takes effect only after this branch is merged and 8876 restarts:\n\n```yaml\n\
+  \  agentjobs:\n    enabled: true\n    group: default\n    auto_dispatch: false\n\
+  \    posture: auto\n    finish:\n      enabled: true\n      base_branch: main\n\
+  \      restart:\n        - pwsh\n        - -File\n        - C:/ai/shared/launchers/open-agentjobs.ps1\n\
+  \        - -Force\n      verify_base: http://127.0.0.1:8876\n```\n\nI have **not\
+  \ verified that exact restart command**, and you should before trusting it: I know\
+  \ from the task spec that the launcher restarts-if-stale and takes `-Force`, and\
+  \ I have not read it or run it. If it is wrong the failure is loud rather than silent\
+  \ \u2014 the finish escalates at `restart` or at `verify` with the merge already\
+  \ recorded \u2014 but check it. If the executable is `powershell` rather than `pwsh`\
+  \ on this machine, that is the word to change.\n\nWhat you are agreeing to if you\
+  \ turn it on: **approving a task on agentjobs merges it into `main` without a second\
+  \ click, and briefly restarts the dashboard.** A person still approves every task.\
+  \ Nothing else about the gate moves.\n\n**2. Please look at the two places I departed\
+  \ from the spec's step list**, both in the decision entry:\n\n- **Closing is last,\
+  \ not fourth.** If closing came before the rebuild and restart, the one failure\
+  \ ENGINEERING.md warns loudest about \u2014 a merged frontend change nobody rebuilt\
+  \ \u2014 would end with a task marked `completed`. The cost is a state that did\
+  \ not exist before: a task open with its branch already merged, saying so on its\
+  \ own record.\n- **The finish writes nothing to `acceptance[]`,** although the spec\
+  \ asked for \"statuses that are genuinely determinable\". I could not find one a\
+  \ script can determine without fabricating evidence. If you disagree, say which\
+  \ criterion you had in mind.\n\n---\n\n**Also worth knowing before you approve**\n\
+  \n- **It never pushes.** Same rule as the dispatcher's own commits.\n- **A flaky\
+  \ test showed up under load** and is not mine: `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
+  \ failed once in a sandbox gate running alongside three bootstraps, with \"the grandchild\
+  \ never started, so this proves nothing\". It passes in every unloaded run including\
+  \ the final gate. Worth a task if it recurs.\n- **`main` in this clone is 8 task-record\
+  \ commits ahead of `origin`,** which is the existing state and not something I created.\n\
+  \nOn approval I will rebase, merge `--no-ff`, mark the branch merged, close, rebuild,\
+  \ restart 8876 and confirm the merged code is live \u2014 by hand this time, since\
+  \ the thing that would do it for me is what is being reviewed."
 archived: false
 priority: critical
 queue_position: 300
@@ -131,29 +183,29 @@ acceptance:
 - id: f1
   text: Approval on a clean, green branch merges, closes, rebuilds if needed, restarts
     and verifies with no dispatched run and no model in the loop.
-  status: pending
+  status: met
 - id: f2
   text: A before/after pair from scripts/run_report.py, using the same method as task-234's
     baseline, with finished-without-a-run represented rather than appearing as missing
     data.
-  status: pending
+  status: met
 - id: f3
   text: "A deliberately conflicting rebase is aborted, the branch is left byte-identical\
     \ to what it was, and the task is escalated with the record saying so \u2014 demonstrated\
     \ on a real branch."
-  status: pending
+  status: met
 - id: f4
   text: "A deliberately failing gate blocks the merge and escalates \u2014 demonstrated,\
     \ not asserted."
-  status: pending
+  status: met
 - id: f5
   text: An unavailable or unrestartable server escalates rather than reporting a finish;
     verification proves the serving process is running the merged code, not merely
     that the port answers.
-  status: pending
+  status: met
 - id: f6
   text: A person still approves every task in the GUI before any merge occurs, unchanged.
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -411,3 +463,182 @@ log:
       id: 9d3a5c81-4b2e-4a77-93f0-6c8e1d2f4a55
       kind: log_append
       fingerprint: 952d32dba079615f3feda0e74e78d68b
+- id: 8
+  ts: '2026-08-22T03:17:25.625763Z'
+  actor: claude
+  type: progress
+  body: "**Demonstrations. All four ran against a real clone of this repository, with\
+    \ a real AgentJobs server started out of it, driving the real `agentjobs finish`\
+    \ CLI.** `scripts/finish_sandbox.py`, `python scripts/finish_sandbox.py` \u2014\
+    \ about ten minutes for the set. Nothing is stubbed; the gate is this repository's\
+    \ own `scripts/check.py` and the server is a real `agentjobs serve`.\n\n## f1\
+    \ \u2014 a clean, green branch, with no agent anywhere\n\n```\ntask-243: finished\
+    \ (finished)\n  preflight  ok         1.1s  sandbox/happy at d599ebc9 in .../worktrees/happy\n\
+    \  rebase     ok         0.1s  sandbox/happy onto main: d599ebc9 -> d599ebc9\n\
+    \  gate       ok       185.2s  scripts/check.py green\n  merge      ok       \
+    \  0.9s  --no-ff into main as 228f56d8f759ef72a9164abc93d603845c4e664a\n  rebuild\
+    \    skipped    0.0s  the merge touched no frontend/ path\n  restart    ok   \
+    \      3.8s  ran .../restart.py\n  verify     ok         0.0s  http://127.0.0.1:43124\
+    \ is serving fff8d536, which contains\n                              the merge\
+    \ 228f56d8, from .../clone\n                              (started 2026-08-22T03:02:57.781814+00:00)\n\
+    \  close      ok         0.0s  closed completed\n  worktree   ok         0.0s\
+    \  removed .../worktrees/happy\n```\n\nChecked afterwards, not taken from the\
+    \ tool's own word: `main` contains the branch, the merge commit has two parents,\
+    \ the task is `closed`/`completed`, `branches[]` reads `merged` with a timestamp,\
+    \ `git worktree list` no longer has it, and `/api/version` moved from `fe667189`\
+    \ to `fff8d536`. **194.7s end to end, no dispatched run, no model.**\n\n## f3\
+    \ \u2014 a real conflicting rebase\n\n```\ntask-244: escalated (rebase_conflict)\n\
+    \  preflight  ok         1.0s  sandbox/conflict at 41732619\n  rebase     STOPPED\
+    \          \"The branch is exactly where it was (41732619). Nothing was merged.\"\
+    \n```\n\n`CONFLICT (content): Merge conflict in sandbox-conflict.txt`, aborted,\
+    \ and **the branch tip read back and compared: `41732619 -> 41732619`.** Not merged\
+    \ into main. Task `active`, ball `agent`, prompt opens \"**Nothing was merged.**\"\
+    . 2.1s.\n\nThe sentence in that escalation is not boilerplate: the code reads\
+    \ the tip after the abort and picks between \"the branch is exactly where it was\"\
+    \ and \"**the abort did not restore it** \u2014 do not assume the branch is clean\"\
+    . A woken session acts on that sentence, so it may not be a guess.\n\n## f4 \u2014\
+    \ a real red gate\n\n```\ntask-245: escalated (gate_failed)\n  rebase     ok \
+    \        0.1s  sandbox/red-gate onto main: c87a93a5 -> c87a93a5\n  gate      \
+    \ STOPPED          `scripts/check.py` failed after the rebase (3s, exit 1).\n\
+    \                              A red gate never merges.\n```\n\nThe real gate,\
+    \ failing at its real first stage on a deliberately unformatted file. Not merged.\
+    \ Full output kept at `<finish>/gate.log` and named in the escalation. 4.7s.\n\
+    \n## f5 \u2014 the port answers, and the answer is wrong\n\nThe sharp case: a\
+    \ restart command that **exits zero and restarts nothing**, which is exactly what\
+    \ a wrong restart command looks like from outside.\n\n```\ntask-246: escalated\
+    \ (not_live)\n  gate       ok       184.7s  scripts/check.py green\n  merge  \
+    \    ok         0.2s  --no-ff into main as 74a8e27c8421743cb16007c0730f4a66508eaff1\n\
+    \  restart    ok         0.0s  ran ... -c pass\n  verify     STOPPED         \
+    \ \"is serving commit fff8d536, which does not contain the merge\n           \
+    \                   74a8e27c -- it is the process that was already running.\n\
+    \                              **The merge is done** and the rebuild and restart\
+    \ both ran,\n                              so this is about the serving process,\
+    \ not about the branch.\"\n```\n\n**The merge is real and the record says so;\
+    \ the task stays open.** Ball with the agent, prompt opening \"**The merge is\
+    \ done: `74a8e27c`.**\" This is the ambiguity constraint discharged: a reader\
+    \ can tell, without guessing, that `main` moved and the delivery did not.\n\n\
+    Also covered by tests rather than by the sandbox, because they need a server that\
+    \ lies in a specific way: a different checkout answering on the address escalates\
+    \ immediately as `wrong_checkout_serving` instead of being waited out, and a `/api/version`\
+    \ with no `source_commit` cannot prove anything and is not accepted.\n\n## f6\
+    \ \u2014 untouched\n\nA person clicks Approve, per task, and only the approve\
+    \ route passes `finishable`. `tests/test_finish_approval_hook.py` asserts request-changes\
+    \ never starts a finish, a machine with the feature off falls through to exactly\
+    \ the old behaviour, a task sitting in review starts nothing on its own, and the\
+    \ approval is still recorded against the person who made it.\n\n## f2 \u2014 the\
+    \ before/after pair, and the honest caveat\n\n**Before** \u2014 task-234's named\
+    \ table, eleven post-approval runs: 6.1, 12.0, 12.1, 10.2, 10.7, 12.5, 11.6, 17.2,\
+    \ 8.3, 16.4, 4.1 minutes. **Mean 11.0m.**\n\n**After** \u2014 from a real finish's\
+    \ own record, through the same instrument:\n\n```\n$ python scripts/run_report.py\
+    \ --home <sandbox>\n\nNo dispatched runs matched. Scripted finishes in <sandbox>\\\
+    home\\finishes\n\n  scripted finishes     1 (task-241; approval merges without\
+    \ an agent)\n    finished            1, mean 3.1m  <- follow-on runs that never\
+    \ happened\n    tasks finished with no dispatched run: 1\n```\n\n**11.0m \u2192\
+    \ 3.1m, and no dispatched run at all.**\n\n**The caveat, stated rather than buried:\
+    \ those are not the same job.** The finish's phase records split it \u2014\n\n\
+    ```\ngate_started  03:13:12\ngate_finished 03:16:08   passed: true, seconds: 176.7,\
+    \ stages_run: 10\nwhole finish                       185.8s\n```\n\n\u2014 so\
+    \ **176.7s of the 185.8s is the gate, and the machinery itself costs 9.1 seconds.**\
+    \ The eleven-minute sessions being replaced did *not* re-run the gate; they rebased\
+    \ already-verified work and merged it. So the finish does **strictly more** than\
+    \ what it replaces and still takes a third of the time. If you want the comparison\
+    \ that is exactly like for like, it is 11.0 minutes against **9 seconds**, with\
+    \ a full re-verification of the rebased branch thrown in.\n\nThe report is silent\
+    \ about finishes until there is one, so this changes nothing for anyone who never\
+    \ turns it on.\n\n## What the sandbox itself got wrong, three times, and why it\
+    \ is written into the script\n\nEach of these is a way of demonstrating nothing\
+    \ while appearing to demonstrate something, and each cost a run:\n\n1. **An un-bootstrapped\
+    \ worktree stops at `preflight`, not at the conflict.** The first pass reported\
+    \ a `no_interpreter` refusal as a successful demonstration of a rebase conflict,\
+    \ because it only checked the shape \u2014 escalated, branch unchanged, nothing\
+    \ merged \u2014 and not the reason. It asserts the reason now.\n2. **A sandbox\
+    \ file Black would reformat turns every case downstream of the gate into another\
+    \ red-gate case.** The gate is real; single-quoted strings are not.\n3. **Rewriting\
+    \ `README.md` to force a conflict breaks `test_documentation_contract` for every\
+    \ case that follows** \u2014 so the next case's gate went red for a reason belonging\
+    \ to the previous one, and reported it as its own finding. The conflict case uses\
+    \ a scratch file now.\n\n## The gate\n\n`scripts/check.py`, unqualified, green:\
+    \ **130.8s**, all ten stages, on a clean tree at `17d78f5`.\n"
+  data:
+    operation:
+      id: 2e7f9b04-8c13-4d5a-b6e2-0f19a3c7d840
+      kind: log_append
+      fingerprint: 5c9ac60b0b8b208904b379d894ad2e5a
+- id: 9
+  ts: '2026-08-22T03:17:58.078981Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 7a4c2e19-5d63-4b80-91af-3e5c0b7d2f61
+      kind: update_content
+      fingerprint: 35fe40964c4bb640134305a9a933e545
+- id: 10
+  ts: '2026-08-22T03:18:28.405500Z'
+  actor: claude
+  type: handoff
+  body: "**Ready for review: `feat/task-241-scripted-finish`, 8 commits, gate green\
+    \ at 130.8s on a clean tree.** All six acceptance criteria met; the demonstration\
+    \ entry has the evidence and the decision entry has the six binding calls.\n\n\
+    **What it does.** With it enabled, clicking Approve rebases the task's branch,\
+    \ runs the full gate in that branch's own worktree with that worktree's own interpreter,\
+    \ merges `--no-ff`, rebuilds the frontend if the merge touched it, restarts the\
+    \ server the way this machine says it was started, proves the running process\
+    \ is serving the merge, closes the task and removes the worktree. No agent is\
+    \ started at all. When it cannot do a step safely it stops, writes exactly how\
+    \ far it got, and hands the ball back.\n\n**The number: 11.0 minutes -> 3.1 minutes,\
+    \ and no dispatched run.** 176.7s of that 3.1m is a full gate run the eleven-minute\
+    \ sessions never did, so like for like it is 11.0 minutes against 9.1 seconds\
+    \ of machinery, with a re-verification of the rebased branch thrown in.\n\n**Demonstrated\
+    \ live, not asserted** \u2014 real clone of this repo, real server, real `agentjobs\
+    \ finish`, in `scripts/finish_sandbox.py`: a clean branch merged and verified\
+    \ live; a real conflicting rebase aborted with the branch tip read back and unchanged;\
+    \ a real red gate blocking the merge; and a restart command that exits zero and\
+    \ restarts nothing, caught by verification with the merge already done and the\
+    \ record saying so.\n\n---\n\n**Two things I need from you, and one is a decision.**\n\
+    \n**1. The switch is off, and turning it on is yours.** I did not touch `~/.agentjobs/dispatch.yaml`.\
+    \ Nothing changes on this machine until you add this under `projects.agentjobs`,\
+    \ and it takes effect only after this branch is merged and 8876 restarts:\n\n\
+    ```yaml\n  agentjobs:\n    enabled: true\n    group: default\n    auto_dispatch:\
+    \ false\n    posture: auto\n    finish:\n      enabled: true\n      base_branch:\
+    \ main\n      restart:\n        - pwsh\n        - -File\n        - C:/ai/shared/launchers/open-agentjobs.ps1\n\
+    \        - -Force\n      verify_base: http://127.0.0.1:8876\n```\n\nI have **not\
+    \ verified that exact restart command**, and you should before trusting it: I\
+    \ know from the task spec that the launcher restarts-if-stale and takes `-Force`,\
+    \ and I have not read it or run it. If it is wrong the failure is loud rather\
+    \ than silent \u2014 the finish escalates at `restart` or at `verify` with the\
+    \ merge already recorded \u2014 but check it. If the executable is `powershell`\
+    \ rather than `pwsh` on this machine, that is the word to change.\n\nWhat you\
+    \ are agreeing to if you turn it on: **approving a task on agentjobs merges it\
+    \ into `main` without a second click, and briefly restarts the dashboard.** A\
+    \ person still approves every task. Nothing else about the gate moves.\n\n**2.\
+    \ Please look at the two places I departed from the spec's step list**, both in\
+    \ the decision entry:\n\n- **Closing is last, not fourth.** If closing came before\
+    \ the rebuild and restart, the one failure ENGINEERING.md warns loudest about\
+    \ \u2014 a merged frontend change nobody rebuilt \u2014 would end with a task\
+    \ marked `completed`. The cost is a state that did not exist before: a task open\
+    \ with its branch already merged, saying so on its own record.\n- **The finish\
+    \ writes nothing to `acceptance[]`,** although the spec asked for \"statuses that\
+    \ are genuinely determinable\". I could not find one a script can determine without\
+    \ fabricating evidence. If you disagree, say which criterion you had in mind.\n\
+    \n---\n\n**Also worth knowing before you approve**\n\n- **It never pushes.** Same\
+    \ rule as the dispatcher's own commits.\n- **A flaky test showed up under load**\
+    \ and is not mine: `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
+    \ failed once in a sandbox gate running alongside three bootstraps, with \"the\
+    \ grandchild never started, so this proves nothing\". It passes in every unloaded\
+    \ run including the final gate. Worth a task if it recurs.\n- **`main` in this\
+    \ clone is 8 task-record commits ahead of `origin`,** which is the existing state\
+    \ and not something I created.\n\nOn approval I will rebase, merge `--no-ff`,\
+    \ mark the branch merged, close, rebuild, restart 8876 and confirm the merged\
+    \ code is live \u2014 by hand this time, since the thing that would do it for\
+    \ me is what is being reviewed."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: b8f31d26-7e94-4c05-a2b1-59d7e6f018c3
+      kind: handoff
+      fingerprint: 87119b074e5cd484b0dd876d5227fcdd
