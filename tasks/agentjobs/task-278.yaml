@@ -2,16 +2,11 @@ schema: 2
 id: task-278
 title: Keep CLI batch dispatch supervised through completion
 created: '2026-08-22T20:10:07.889153Z'
-updated: '2026-08-22T20:16:40.311497Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-22T20:21:57.305795Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 15
 category: infrastructure
 tags:
 - dispatch
@@ -20,7 +15,6 @@ tags:
 - reliability
 effort: small
 assignment:
-  owner: codex
   eligible: []
 spec:
   summary: A successful Codex batch run launched by `agentjobs dispatch run` exited
@@ -68,7 +62,8 @@ dependencies: []
 links: []
 branches:
 - name: codex/task-278-cli-batch-supervision
-  status: active
+  status: merged
+  merged_at: '2026-08-22T20:19:04Z'
 log:
 - id: 1
   ts: '2026-08-22T20:10:08.233895Z'
@@ -158,3 +153,81 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 8
+  ts: '2026-08-22T20:19:58.315429Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched codex to work this task.
+  data:
+    run_id: run_8ed3bc34
+    agent: codex
+    runner: codex-terra
+    mode: batch
+    posture: auto
+    trigger: manual
+    caused_by: 7
+    argv:
+    - C:\Users\jpose\AppData\Local\OpenAI\Codex\bin\110b3d66a02d864e\codex.exe
+    - exec
+    - --json
+    - --model
+    - gpt-5.6-terra
+    - -c
+    - model_reasoning_effort="high"
+    - --sandbox
+    - workspace-write
+    - -c
+    - mcp_servers.agentjobs.required=true
+    - 'You are the agent `codex` working task `task-278` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-278-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_8ed3bc34.'
+    cwd: C:\projects\agentjobs
+    git_head: 9ad6a2e
+    selection:
+      group: codex-smoke
+      source: dispatch
+      candidates:
+      - runner: codex-terra
+        eligible: true
+- id: 9
+  ts: '2026-08-22T20:20:57.285358Z'
+  actor: codex
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: ac2d684f-4ef1-435b-99d7-f3629ca1f145
+      kind: update_content
+      fingerprint: 86de37bcf3f5892944f643757698d970
+- id: 10
+  ts: '2026-08-22T20:21:44.432363Z'
+  actor: codex
+  type: transition
+  body: Verified that merge commit 5e966f2e4fbf76014d5e98d7d8526889612c706a is on
+    main and contains the approved task-278 CLI supervision change. Marked codex/task-278-cli-batch-supervision
+    merged at 2026-08-22T20:19:04Z and closed the task completed.
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 5fe2edda-aaf6-4d96-88ea-cd207ed6631a
+      kind: close
+      fingerprint: ed53208e56f8c4d08b8015e4ef395637
+- id: 11
+  ts: '2026-08-22T20:21:57.305617Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 8
+  data:
+    run_id: run_8ed3bc34
+    outcome: completed
+    exit_code: 0
+    duration_seconds: 119.019216
+    log_path: C:\Users\jpose\.agentjobs\runs\run_8ed3bc34
