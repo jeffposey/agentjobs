@@ -3,11 +3,57 @@ id: task-234
 title: Merging after approval costs a whole second agent session, about eleven minutes,
   on every task
 created: '2026-08-21T20:43:16.534300Z'
-updated: '2026-08-21T23:58:42.258129Z'
+updated: '2026-08-22T00:35:16.029003Z'
 lifecycle: active
-ball: agent
-ball_reason: redirect
-ball_prompt: I logged in AGAIN today just now from claude terminal. Try again.
+ball: human
+ball_reason: review
+ball_prompt: "**Ready for review: `feat/task-234-wake-the-session`, commit `a3e1c7b`.\
+  \ Full gate green, 10 of 10 stages, 128.2s. Nothing merged, nothing pushed.**\n\n\
+  Dispatching a task whose previous session still exists now **resumes that conversation**\
+  \ instead of booting a cold agent. Your shape from entry 4, and the condition you\
+  \ put on it is discharged.\n\n**Proven live, not just in tests.** In a sandbox with\
+  \ its own home and repo, driving the real `DispatchRunner` against the real `claude`:\
+  \ dispatch 2 resumed dispatch 1's session, dispatch 3 resumed dispatch 2's. The\
+  \ resumed agent was then asked what sentinel string it had said on its previous\
+  \ turn, with an explicit out if it could not remember, no tools allowed. It answered\
+  \ correctly from memory. A cold agent cannot do that. Read from the session JSONL,\
+  \ not scraped off a transcript.\n\n**One finding you should know about even if you\
+  \ reject the change.** `--remote-control` and `--resume` do not compose over a positional\
+  \ prompt: the session comes up with its conversation restored and the prompt **silently\
+  \ dropped**, then settles at `idle` \u2014 which dispatch reads as FINISHED. A wake\
+  \ that got this wrong would be filed as an agent that stopped without handing off,\
+  \ every time, with nothing in the output saying why. The prompt goes on stdin instead.\
+  \ Reproduced twice on 2.1.238. Same class of trap: `agents --json` lists *active*\
+  \ sessions only, so the lookup passes `--all` \u2014 without it, zero rows for a\
+  \ stopped session.\n\n**What I am not claiming.** m2 is half done: the *before*\
+  \ is your eleven-minute mean, but there is no *after* yet, because nothing real\
+  \ has been merged by a woken session. I built the instrument instead \u2014 `run_report.py`\
+  \ now prints cold-start against resumed-session means over follow-on runs, and stays\
+  \ silent until there is something to compare. The first real number will be this\
+  \ task's own merge. m3 and m4 are **not demonstrated**: this change alters who runs\
+  \ the post-approval steps, not what they are or how they escalate, so I did not\
+  \ stage a conflicting rebase. The genuinely new risk is that a resumed agent is\
+  \ confident by construction; `WAKE_STUB` ends with an explicit clause telling it\
+  \ to hand back rather than improvise if the tree disagrees with its memory. That\
+  \ is a mitigation, not a demonstration.\n\n**Worth your eye:** the `--all` parameter\
+  \ on `ledger()` (wrong in either direction is silent); `reap_finished` now keeping\
+  \ exactly one run per open task, asking `wake.newest_session_run` for it so the\
+  \ sweep and the waker cannot disagree; and the deliberate bare `except` in `_plan_wake`\
+  \ \u2014 a wake that does not happen costs eleven minutes, a dispatch that refuses\
+  \ costs the run.\n\nSix reaping tests were retargeted at a new `closed_task` fixture:\
+  \ they were seeded against an open task, which is now exactly the case that is kept.\
+  \ Their subject is unchanged and the keeping behaviour got its own test class.\n\
+  \n**Two things for you to decide**, neither of which I did:\n\n1. Whether to file\
+  \ the follow-up \u2014 a scripted `finish` that runs the fixed five commands and\
+  \ wakes the session only when the rebase does not apply cleanly. That is the eleven-minutes-to-under-one\
+  \ version, and it is only safe once waking works, because waking is its fallback.\n\
+  2. Whether m3 deserves its own task with a deliberately conflicting branch, rather\
+  \ than being signed off on reasoning.\n\nAlso: you asked me to bump the auth-expiry\
+  \ task and then said you would reopen task-224 yourself in another session. I did\
+  \ not touch it. This task hit that expiry twice today, which is on the record now\
+  \ as the reason option A \u2014 holding a session open across the review \u2014\
+  \ was rejected.\n\nApprove and I will rebase, merge `--no-ff`, close, and put it\
+  \ in front of you."
 archived: false
 priority: critical
 queue_position: 200
@@ -653,3 +699,239 @@ log:
       id: 7f1c2a90-4b3d-4e51-9c62-1a0b7e5d3f82
       kind: update_content
       fingerprint: 181d79b7a20e6d7f41a92c8727f5672f
+- id: 18
+  ts: '2026-08-22T00:34:15.499184Z'
+  actor: claude
+  type: decision
+  body: "**Decision: option D \u2014 the session is stopped when the ball leaves the\
+    \ agent, and the next dispatch resumes that conversation instead of booting a\
+    \ cold one.** This is Jeff's shape from entry 4, and the condition he attached\
+    \ to it (\"if that will work\") is now discharged: the mechanism is verified twice\
+    \ over, by hand and through AgentJobs' own dispatch path.\n\nBuilt on branch `feat/task-234-wake-the-session`,\
+    \ commit `a3e1c7b`.\n\n## What was chosen, mechanically\n\n- **`reap_finished`\
+    \ keeps exactly one run per open task** \u2014 the newest session run, which is\
+    \ the only one `wake.find_wake_target` will ever offer. It asks that module for\
+    \ it rather than growing a second rule beside it, because two rules that disagree\
+    \ produce a wake resuming a session the sweep already deleted, and that surfaces\
+    \ as an unexplained dispatch failure long after the cause.\n- **`_start_session`\
+    \ rewrites its argv** \u2014 the element carrying the prompt becomes `--resume\
+    \ <uuid>`; the executable, `--bg`, `--remote-control` and every posture flag stay\
+    \ where `build_argv` put them. A wake and a cold start differ in one argument,\
+    \ which is what stops them drifting apart in what the run may do.\n- **The prompt\
+    \ is delivered on stdin**, and the argv lookup passes `--all`. Both are load-bearing;\
+    \ the entry above has why, and both have a test whose failure mode matches the\
+    \ production one.\n- **The trigger is dispatch, not the approve route.** Jeff\
+    \ named both approval and request-changes, and dispatch is downstream of both\
+    \ \u2014 `after_human_handoff` funnels every human act that moves the ball to\
+    \ an agent, and this project runs `auto_dispatch: false`, so the click that actually\
+    \ starts a run is Dispatch. Hooking dispatch covers the approve loop, the revise\
+    \ loop, and manual re-dispatch, with one place to reason about.\n\n## The three\
+    \ shapes the spec asked me to weigh, and why each lost\n\n**A \u2014 hold the\
+    \ session open across the review. Rejected.** It is the cheapest in wall clock\
+    \ and the worst in every other dimension, and entry 2 established it is reachable\
+    \ today by prompt alone. It holds a `max_concurrent_runs` slot for as long as\
+    \ the human takes, which on this corpus is sometimes hours; this machine allows\
+    \ three. And it is *more* exposed to the auth expiry of task-224, not less \u2014\
+    \ a session held six hours is six hours of exposure, where a stopped one is not\
+    \ running to be expired. **This task hit that expiry twice in the four hours it\
+    \ was being worked**, which is about as direct a refutation of \"just keep it\
+    \ running\" as the record could have supplied.\n\n**B \u2014 a scripted merge\
+    \ with no model in the loop. Rejected, and it is the one I would revisit.** It\
+    \ is the fastest possible answer: eleven minutes to under one, because the five\
+    \ commands are fixed. It loses on the fallback. A rebase conflict and a failing\
+    \ post-merge check are exactly where judgement is needed, so B needs a real escalation\
+    \ path to a dispatched session \u2014 and that path is the thing being built here\
+    \ anyway. B is therefore a *later* optimisation on top of D, not an alternative\
+    \ to it: once waking works, the scripted attempt can try first and wake the session\
+    \ when it does not apply cleanly. Recorded as a follow-up rather than done here,\
+    \ because building both at once means the fallback is never exercised.\n\n**C\
+    \ \u2014 the handoff carries a merge plan a cold session executes. Rejected as\
+    \ strictly dominated.** It is the smallest change and it saves the least: the\
+    \ second agent still boots cold and still re-reads the record, and now there is\
+    \ a hand-written plan that can go stale between the handoff and the approval.\
+    \ D gets the same context for free and cannot go stale, because it is the same\
+    \ agent's own memory rather than a copy of it.\n\n## What was rejected inside\
+    \ D\n\n- **Capturing the session UUID at spawn time.** Rejected for reading it\
+    \ from `agents --json --all` at wake time. A field written at spawn is a stale\
+    \ guess at \"does this conversation still exist\"; the ledger is the live answer,\
+    \ and a deleted conversation simply has no row, which is exactly the signal needed.\n\
+    - **Falling back to an older run when the newest is not resumable.** Rejected.\
+    \ It would hand the human an agent whose picture of the branch is a run out of\
+    \ date \u2014 worse than the cold start it avoided. The rule is: the newest run\
+    \ or nothing.\n- **Making waking a precondition.** Rejected everywhere, deliberately\
+    \ and repeatedly. Every uncertainty resolves to a cold start: no previous session,\
+    \ a conversation the manager no longer lists, a runner that does not answer `agents\
+    \ --json`, an argv with no single prompt element. A wake that does not happen\
+    \ costs eleven minutes; a dispatch that refuses because a wake was unavailable\
+    \ costs the run. That asymmetry is why `_plan_wake` catches broadly rather than\
+    \ precisely, and it has its own test class.\n- **Shipping without an off switch.**\
+    \ Considered rejecting `resume_sessions` as a flag nobody would set. Kept it,\
+    \ because the failure mode of this feature is a *confident* agent rather than\
+    \ a broken one \u2014 a resumed conversation acts on what it remembers \u2014\
+    \ and if that ever starts disagreeing with the tree, Jeff needs to stop it without\
+    \ a code change.\n\n## The human gate is untouched (m5)\n\nNothing here approves\
+    \ anything. A person still clicks Approve in the GUI and still clicks Dispatch;\
+    \ `auto_dispatch` stays `false` on this project and this change does not read\
+    \ it. All that changed is what the run started by that click has to rediscover."
+  data:
+    operation:
+      id: 7f1c2a90-4b3d-4e51-9c62-1a0b7e5d3f83
+      kind: log_append
+      fingerprint: eb035108bbf7c21d717c3720b0777cd0
+- id: 19
+  ts: '2026-08-22T00:34:55.214408Z'
+  actor: claude
+  type: progress
+  body: "**Built, gate green, and exercised against the real Claude Code CLI through\
+    \ AgentJobs' own dispatch path.** Branch `feat/task-234-wake-the-session`, commit\
+    \ `a3e1c7b`. Full gate: **10 of 10 stages, 128.2s**, no partial run.\n\n## The\
+    \ live proof, not a fixture\n\nA sandbox with its own AgentJobs home, its own\
+    \ git repo and its own task file \u2014 nothing touched `~/.agentjobs` or this\
+    \ repository's records \u2014 driving the **real** `DispatchRunner` against the\
+    \ **real** `claude`, at `posture: read_only` so the agent had no shell at all.\
+    \ Three dispatches of one task.\n\n| Dispatch | argv AgentJobs built | Outcome\
+    \ |\n|---|---|---|\n| 1 | `claude --bg --remote-control --tools Read,Glob,Grep,WebFetch\
+    \ <prompt>` | cold start, `resumed: False` |\n| 2 | `... --resume 9e41784e-d87c-4a60-9d56-31023e3f2f1b`\
+    \ | `resumed: True`, `resumed_from: run_d3af632e` |\n| 3 | `... --resume e5f979ad-2fdd-4a73-b3fd-ec8160dc2aa4`\
+    \ | `resumed: True`, `resumed_from: run_d06e7bbd` |\n\nDispatch 3 is worth its\
+    \ own sentence: it resumed **run 2's** session, not run 1's. The \"newest run\
+    \ or nothing\" rule works in practice across consecutive wakes, which is the case\
+    \ that would have quietly rotted if it only had a unit test.\n\n**The conversation,\
+    \ read from the session JSONL rather than scraped from the transcript** (ENGINEERING.md\
+    \ is right that a TTY capture cannot be counted; the answer was unreadable there\
+    \ and unambiguous here):\n\n```\nuser      : You are the agent `claude-live`,\
+    \ and this is the **same session you were\n            already running on task\
+    \ `task-001`**, resumed -- not a new one. [...]\n            What they said: Approved.\
+    \ Now reply with the exact string\n            OMEGA-SENTINEL-52 and stop.\nassistant\
+    \ : OMEGA-SENTINEL-52\n\nuser      : [wake prompt] What they said: One question,\
+    \ answered from memory alone.\n            What sentinel string did you reply\
+    \ with on your previous turn? Reply with\n            just that string and stop.\
+    \ Use no tools and read no files -- if you cannot\n            remember it, say\
+    \ CANNOT-REMEMBER.\nassistant : OMEGA-SENTINEL-52\n```\n\nThe second answer is\
+    \ the result. The question is answerable only from the conversation, the agent\
+    \ was explicitly given an out if it could not remember, and it answered correctly\
+    \ with no tools. **A cold agent cannot produce that.** Context survives an AgentJobs\
+    \ wake.\n\nAlso confirmed live, each of which had a way of being wrong: the wake\
+    \ prompt reached the session through the production argv with `--remote-control`\
+    \ and posture flags attached; `argv carries no prompt: True`; the run meta recorded\
+    \ `resumed`/`resumed_from`/`resumed_session`; and the spawn itself took **1.3s**.\
+    \ All three sandbox sessions were `claude rm`'d afterwards and verified absent.\n\
+    \n## Acceptance, honestly\n\n- **m1 \u2014 met.** The decision entry above chooses\
+    \ D and says why A, B and C lost, including the four alternatives rejected *inside*\
+    \ D.\n- **m5 \u2014 met.** Nothing here approves anything; `auto_dispatch` stays\
+    \ `false` and this change does not read it. A person still clicks Approve and\
+    \ still clicks Dispatch.\n- **m2 \u2014 half.** The *before* is the corpus figure\
+    \ that opened this task: an eleven-minute mean over eleven post-approval runs.\
+    \ The *after* cannot honestly be stated yet, because no real merge has been done\
+    \ by a woken session \u2014 this branch is not merged, so the code is not live.\
+    \ What I have built instead is the instrument: `scripts/run_report.py` now reads\
+    \ `resumed_from` off each run and prints `cold start` against `resumed session`\
+    \ as mean minutes over follow-on runs only (a task's *first* run is excluded,\
+    \ so a day's work is never averaged against a merge). It prints nothing until\
+    \ there is something to compare, and the first real number will be this task's\
+    \ own merge if this lands. **I am not claiming a speed-up I have measured; I am\
+    \ claiming the mechanism and a way to measure it.**\n- **m3 and m4 \u2014 not\
+    \ demonstrated, and I want to be plain about that.** A rebase conflict, a failing\
+    \ post-merge check, an unavailable server, the frontend rebuild and the correct\
+    \ restart are all handled exactly as they are today: this change alters *who*\
+    \ runs the post-approval steps \u2014 an agent with its own context instead of\
+    \ one without \u2014 not what those steps are or how they escalate. So m3 and\
+    \ m4 are properties of the existing lifecycle that this does not touch, and I\
+    \ have not staged a conflicting rebase to watch a woken agent escalate from it.\n\
+    \n  The one genuinely new risk is the reason those criteria were written, and\
+    \ it is worth naming: **a resumed conversation is confident by construction.**\
+    \ It remembers a worktree and a branch and will act on that memory, so if the\
+    \ world moved underneath it \u2014 somebody removed the worktree, the branch is\
+    \ already merged (which memory says means Jeff) \u2014 a confident agent improvises.\
+    \ `WAKE_STUB` closes with an explicit clause telling it not to: say so on the\
+    \ record and hand the ball back. That clause has a test. It is a mitigation, not\
+    \ a demonstration, and if you want m3 demonstrated properly it should be its own\
+    \ task with a deliberately conflicting branch.\n\n## What a reviewer should look\
+    \ hardest at\n\n1. **`ledger(include_finished=True)`** \u2014 the `--all` flag.\
+    \ `agents --json` lists *active* sessions; a stopped one is absent. Measured:\
+    \ `--json --cwd` returned **zero** rows for a stopped session, `--json --all --cwd`\
+    \ returned it. Polling deliberately keeps the active-only view, because a session\
+    \ missing from *that* one is genuinely gone, so this is a parameter rather than\
+    \ a new default. Getting this backwards in either direction is silent.\n2. **`reap_finished`\
+    \ calling `wake.newest_session_run`** \u2014 one definition of \"the session that\
+    \ matters\", shared by the sweep and the waker, so they cannot disagree. Exactly\
+    \ one run per open task survives; older ones are still reaped; closing the task\
+    \ collects the last one.\n3. **`_plan_wake`'s bare `except Exception`** \u2014\
+    \ deliberate, and the docstring argues for it. A wake that does not happen costs\
+    \ eleven minutes; a dispatch that refuses because a wake was unavailable costs\
+    \ the run. `TestDispatchStartsColdInstead` covers four ways it can be unavailable.\n\
+    \nSix reaping tests in `test_dispatch_lifecycle.py` were retargeted at a new `closed_task`\
+    \ fixture. They were seeded against an open task, which is now precisely the kept\
+    \ case; their subject \u2014 that reaping issues `rm`, that a refusal is surfaced\
+    \ and never forced \u2014 is unchanged, and the keeping behaviour got its own\
+    \ class beside them.\n\n## Follow-up worth filing, not filed\n\nOption B on top\
+    \ of D: a scripted `finish` that tries the fixed five commands and wakes the session\
+    \ only when the rebase does not apply cleanly or a check fails. That is eleven\
+    \ minutes to under one for the common case, and it is only safe to build *after*\
+    \ waking works, because waking is its fallback. Not filed \u2014 searched the\
+    \ backlog and found nothing covering it, but filing it is a scope decision that\
+    \ is Jeff's."
+  data:
+    operation:
+      id: 7f1c2a90-4b3d-4e51-9c62-1a0b7e5d3f84
+      kind: log_append
+      fingerprint: a50025573356cb535d5516355e6b4024
+- id: 20
+  ts: '2026-08-22T00:35:16.028754Z'
+  actor: claude
+  type: handoff
+  body: "**Ready for review: `feat/task-234-wake-the-session`, commit `a3e1c7b`. Full\
+    \ gate green, 10 of 10 stages, 128.2s. Nothing merged, nothing pushed.**\n\nDispatching\
+    \ a task whose previous session still exists now **resumes that conversation**\
+    \ instead of booting a cold agent. Your shape from entry 4, and the condition\
+    \ you put on it is discharged.\n\n**Proven live, not just in tests.** In a sandbox\
+    \ with its own home and repo, driving the real `DispatchRunner` against the real\
+    \ `claude`: dispatch 2 resumed dispatch 1's session, dispatch 3 resumed dispatch\
+    \ 2's. The resumed agent was then asked what sentinel string it had said on its\
+    \ previous turn, with an explicit out if it could not remember, no tools allowed.\
+    \ It answered correctly from memory. A cold agent cannot do that. Read from the\
+    \ session JSONL, not scraped off a transcript.\n\n**One finding you should know\
+    \ about even if you reject the change.** `--remote-control` and `--resume` do\
+    \ not compose over a positional prompt: the session comes up with its conversation\
+    \ restored and the prompt **silently dropped**, then settles at `idle` \u2014\
+    \ which dispatch reads as FINISHED. A wake that got this wrong would be filed\
+    \ as an agent that stopped without handing off, every time, with nothing in the\
+    \ output saying why. The prompt goes on stdin instead. Reproduced twice on 2.1.238.\
+    \ Same class of trap: `agents --json` lists *active* sessions only, so the lookup\
+    \ passes `--all` \u2014 without it, zero rows for a stopped session.\n\n**What\
+    \ I am not claiming.** m2 is half done: the *before* is your eleven-minute mean,\
+    \ but there is no *after* yet, because nothing real has been merged by a woken\
+    \ session. I built the instrument instead \u2014 `run_report.py` now prints cold-start\
+    \ against resumed-session means over follow-on runs, and stays silent until there\
+    \ is something to compare. The first real number will be this task's own merge.\
+    \ m3 and m4 are **not demonstrated**: this change alters who runs the post-approval\
+    \ steps, not what they are or how they escalate, so I did not stage a conflicting\
+    \ rebase. The genuinely new risk is that a resumed agent is confident by construction;\
+    \ `WAKE_STUB` ends with an explicit clause telling it to hand back rather than\
+    \ improvise if the tree disagrees with its memory. That is a mitigation, not a\
+    \ demonstration.\n\n**Worth your eye:** the `--all` parameter on `ledger()` (wrong\
+    \ in either direction is silent); `reap_finished` now keeping exactly one run\
+    \ per open task, asking `wake.newest_session_run` for it so the sweep and the\
+    \ waker cannot disagree; and the deliberate bare `except` in `_plan_wake` \u2014\
+    \ a wake that does not happen costs eleven minutes, a dispatch that refuses costs\
+    \ the run.\n\nSix reaping tests were retargeted at a new `closed_task` fixture:\
+    \ they were seeded against an open task, which is now exactly the case that is\
+    \ kept. Their subject is unchanged and the keeping behaviour got its own test\
+    \ class.\n\n**Two things for you to decide**, neither of which I did:\n\n1. Whether\
+    \ to file the follow-up \u2014 a scripted `finish` that runs the fixed five commands\
+    \ and wakes the session only when the rebase does not apply cleanly. That is the\
+    \ eleven-minutes-to-under-one version, and it is only safe once waking works,\
+    \ because waking is its fallback.\n2. Whether m3 deserves its own task with a\
+    \ deliberately conflicting branch, rather than being signed off on reasoning.\n\
+    \nAlso: you asked me to bump the auth-expiry task and then said you would reopen\
+    \ task-224 yourself in another session. I did not touch it. This task hit that\
+    \ expiry twice today, which is on the record now as the reason option A \u2014\
+    \ holding a session open across the review \u2014 was rejected.\n\nApprove and\
+    \ I will rebase, merge `--no-ff`, close, and put it in front of you."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 7f1c2a90-4b3d-4e51-9c62-1a0b7e5d3f85
+      kind: handoff
+      fingerprint: 9320ca9ceec6e1a7f055f3581494f975
