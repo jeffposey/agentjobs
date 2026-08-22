@@ -1176,8 +1176,34 @@ class DispatchRunner:
             service_name="agentjobs",
             thread_name=f"AgentJobs {self.resolution.project_id}/{task.id}",
         )
+        resumed = wake is not None
         try:
-            started = app_server.start(prompt, resume_thread_id=wake.session_uuid if wake else None)
+            try:
+                started = app_server.start(
+                    prompt, resume_thread_id=wake.session_uuid if wake else None
+                )
+            except CodexAppServerError as exc:
+                # A persisted thread may still be open in Codex Desktop (or in a
+                # crashed App Server child).  App Server refuses a second writer in
+                # that case.  Keep the resumable path when it works, but start a fresh
+                # app-visible thread when the old writer is stale/busy rather than
+                # making the task depend on a manual cleanup step.
+                if wake is None or "active writer" not in str(exc).lower():
+                    raise
+                app_server = CodexAppServerProcess(
+                    executable=resolve_executable(argv[0], driver=RunnerDriver.CODEX),
+                    cwd=self.project_root,
+                    env=self._environment(directory, run_id),
+                    settings=settings,
+                    service_name="agentjobs",
+                    thread_name=f"AgentJobs {self.resolution.project_id}/{task.id}",
+                )
+                started = app_server.start(self.build_argv_and_prompt(task.id, run_id)[1])
+                resumed = False
+                directory.update_meta(
+                    resume_fallback=True,
+                    resume_fallback_reason="persisted thread already had an active writer",
+                )
             entry_id = self._record_dispatch(
                 task,
                 run_id,
@@ -1191,9 +1217,14 @@ class DispatchRunner:
                     (
                         f"Resumed Codex App Server thread from run `{wake.previous_run_id}` "
                         "and injected the latest AgentJobs wake prompt."
-                        if wake is not None
-                        else "Started a Codex App Server thread. Its conversation is persisted in "
-                        "the Codex session store and can be opened by Codex Desktop."
+                        if resumed and wake is not None
+                        else (
+                            f"Started a fresh Codex App Server thread because persisted run "
+                            f"`{wake.previous_run_id}` still had an active writer."
+                            if wake is not None
+                            else "Started a Codex App Server thread. Its conversation is persisted in "
+                            "the Codex session store and can be opened by Codex Desktop."
+                        )
                     )
                 ),
             )
@@ -1224,6 +1255,7 @@ class DispatchRunner:
             thread_id=started.thread_id,
             turn_id=started.turn_id,
             dispatch_entry_id=entry_id,
+            resumed=resumed,
         )
         handle = RunHandle(
             run_id=run_id,

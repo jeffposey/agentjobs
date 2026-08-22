@@ -16,9 +16,10 @@ primary view for output, diffs, and approvals.
 When `resume_sessions: true` (the default), a later dispatch of the same task selects
 the newest completed Codex session run, calls `thread/resume`, and injects the current
 AgentJobs wake prompt—including the new ball prompt—through `turn/start`. This keeps
-one conversation across a task's work/review/follow-up lifecycle. If the persisted
-thread cannot be resumed, the dispatch records the App Server error rather than silently
-starting a second conversation or falling back to batch mode.
+one conversation across a task's work/review/follow-up lifecycle. If Codex reports that
+the persisted thread already has an active writer (for example, a stale desktop App
+Server), AgentJobs starts a fresh app-visible session and records that fallback; other
+resume errors remain hard failures rather than silently falling back to batch mode.
 
 The current Windows CLI's `app-server daemon` and `remote-control` lifecycle commands
 are Unix-only. That is separate from ChatGPT Remote: the supported Windows path is to
