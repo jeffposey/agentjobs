@@ -2,7 +2,7 @@ schema: 2
 id: task-242
 title: "Big Dawg Audit \u2014 every system, separately, then one combined report"
 created: '2026-08-22T01:12:47.552800Z'
-updated: '2026-08-22T04:45:26.157904Z'
+updated: '2026-08-22T04:47:12.739366Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -196,3 +196,23 @@ log:
       id: c5e83b90-2d17-4f4a-b8c6-71a9d40e5f22
       kind: claim
       fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 5
+  ts: '2026-08-22T04:47:12.739229Z'
+  actor: claude
+  type: progress
+  body: 'Audit dispatch started. task-241 closed and merged first (17fdfd0), so the
+    dispatch subsystem is audited post-merge. Batch 1 of 4 launched as three background
+    sessions on main, model claude-fable-5, permission-mode auto, per PLAN.md: auditor
+    10 dispatch (session 3fb5534c, "bda-10-dispatch"), auditor 12 security (4faf6989,
+    "bda-12-security"), auditor 1 context architecture (2d9200c3, "bda-01-context").
+    Dispatcher session is watching via a backgrounded poll of claude agents --json
+    every 120s (cap 3h); on batch completion it verifies the three findings files
+    exist, applies the retry-once-or-stub rule, and launches batch 2 (auditors 4,
+    11, 3). Remaining batches per the priority order in PLAN.md, then synthesis. Limit-exhaustion
+    policy: toss unfinished sections, synthesize what completed; synthesis falls to
+    after the 7pm 2026-08-22 reset if the pool dies first.'
+  data:
+    operation:
+      id: f8a2c470-91b5-4e6d-a3f2-6c0d8b17e9a3
+      kind: log_append
+      fingerprint: 9fde2244a0c6cb51ecd85c0c20e20db4
