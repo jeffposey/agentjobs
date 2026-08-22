@@ -199,6 +199,26 @@ task-schema, task-selection-design, webhooks. For each:
 5. **manager.py verb integrity.** claim/handoff/release/close: each appends its
    log entry and moves the axes atomically with respect to the file write?
    Any path where state moves without a log entry?
+6. **The backend question — weighted heavily, from Jeff directly.** He does not
+   want to wait forever to switch to SQL or MongoDB, because every month of
+   waiting compounds the tech debt of the eventual migration. Your job is not
+   to pick a database; it is to measure the coupling and name the decision
+   point:
+   - Inventory the **coupling surface**: everything that assumes tasks are YAML
+     files on disk — direct globbing, git-as-history, the dashboard reading the
+     working tree, the tasks-on-main workflow, queue positions living in files,
+     `X-Task-Parses` as a metric, test fixtures, `--since-gate`'s tasks/ rule.
+     Which of it goes through TaskStorage (contained — a backend swap touches
+     one class) and which leaks past it (debt — the swap touches everything)?
+   - Which *recent* code added new leaks? That's the debt-accrual rate, and
+     it's the number that decides "now vs later."
+   - Weigh honestly against the product philosophy: "git-friendly YAML is the
+     product" is a real position, not an accident (docs/schema-design.md,
+     README). Consider the hybrid explicitly — YAML stays canonical, a
+     SQLite index/cache absorbs the read path — versus a full swap.
+   - Output: the coupling inventory, the accrual trend, and a recommended
+     trigger condition ("switch when X") with what it costs at today's size
+     vs at 2× the corpus.
 
 ### 5 — Queue system
 **Findings file:** `audits/2026-08-21/05-queue.md`
@@ -341,6 +361,25 @@ least audited. Trace one run's full lifecycle through the code first, then:
 
 `scripts/check.py`, `gate_scope.py`, `bootstrap.py`, `bench.py`,
 `build_frontend.py`, `build_release.py`, `project_setup.py`.
+
+**Weighted goal, from Jeff directly: the gate should be as fast as possible
+while still safe.** Audit both directions of that trade:
+
+- **Where is the remaining time?** Current stage costs are tabled in
+  ENGINEERING.md (~96s total; pytest ~52s wall in the gate, e2e ~25s, build
+  ~4s). For each big block, name the next credible reduction and what safety
+  it would trade: can independent stages run concurrently instead of
+  serially (black/ruff/mypy/oxlint are 3s together, but api+icons are 7s and
+  pytest/vitest/build/e2e are serial 86s — what actually depends on what)?
+  Warm-cache strategies (mypy already varies 1.5s↔19s)? An incremental pytest
+  selection that is *receipt-backed like --since-gate* rather than vibes?
+  State a realistic floor for the full gate and the cost of getting there.
+- **Are the existing speedups still safe?** `-n auto`'s parallel-safety rests
+  on conftest isolation claims — spot-verify them. `--since-gate`'s safety
+  rests on the default-deny table — that's item 1 below.
+- Rank every proposal by seconds-saved per unit of new risk; "fast but
+  unsafe" proposals get named and rejected on the record so they stay
+  rejected.
 
 1. **`--since-gate` default-deny:** verify by reading `gate_scope.py` that an
    unclassified path selects all ten stages — then hunt for the hole: glob
