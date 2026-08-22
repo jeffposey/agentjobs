@@ -264,3 +264,134 @@ class TestRunReport:
         (broken / "meta.yaml").write_text("::: not yaml :::\n", encoding="utf-8")
 
         assert len(run_report.load_runs(tmp_path)) == 1
+
+
+def write_finish(
+    home: Path,
+    finish_id: str,
+    *,
+    task_id: str,
+    outcome: str = "finished",
+    reason: str = "",
+    stopped_at: str = "",
+    merge_commit: str | None = "abc123",
+    started: str = "2026-08-22T10:00:00+00:00",
+    finished: str | None = "2026-08-22T10:01:30+00:00",
+) -> Path:
+    directory = home / "finishes" / finish_id
+    directory.mkdir(parents=True)
+    lines = [
+        f"finish_id: {finish_id}",
+        f"task_id: {task_id}",
+        f"outcome: {outcome}",
+        f"started_at: '{started}'",
+    ]
+    if reason:
+        lines.append(f"reason: {reason}")
+    if stopped_at:
+        lines.append(f"stopped_at: {stopped_at}")
+    if merge_commit:
+        lines.append(f"merge_commit: {merge_commit}")
+    if finished:
+        lines.append(f"finished_at: '{finished}'")
+    (directory / "meta.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return directory
+
+
+class TestScriptedFinishesInTheReport:
+    """task-241: a finish is the *absence* of a follow-on run, and has to read as one.
+
+    The failure this guards is specific and quiet. A finish leaves no run behind, so a
+    report that only reads ``runs/`` shows the runs-per-task figure falling with nothing
+    to attribute it to -- the saving reads as missing data, which is exactly what the
+    task's f2 says must not happen.
+    """
+
+    def test_a_finish_is_not_counted_as_a_run(self, tmp_path: Path) -> None:
+        write_run(tmp_path, "run_a", task_id="task-001")
+        write_finish(tmp_path, "fin_a", task_id="task-001")
+
+        runs = run_report.load_runs(tmp_path)
+
+        assert len(runs) == 1
+        assert "runs                  1" in run_report.summary(
+            runs, run_report.load_finishes(tmp_path)
+        )
+
+    def test_finished_ones_are_reported_as_runs_that_never_happened(self, tmp_path: Path) -> None:
+        write_run(tmp_path, "run_a", task_id="task-001")
+        write_finish(tmp_path, "fin_a", task_id="task-001")
+        write_finish(tmp_path, "fin_b", task_id="task-002")
+
+        text = run_report.summary(
+            run_report.load_runs(tmp_path), run_report.load_finishes(tmp_path)
+        )
+
+        assert "scripted finishes     2" in text
+        assert "finished            2, mean 1.5m" in text
+        assert "follow-on runs that never happened" in text
+        assert "tasks finished with no dispatched run: 2" in text
+
+    def test_an_escalated_finish_says_where_it_stopped(self, tmp_path: Path) -> None:
+        """An escalation did not save a run, and must not be counted as if it had."""
+        write_finish(
+            tmp_path,
+            "fin_a",
+            task_id="task-001",
+            outcome="escalated",
+            reason="gate_failed",
+            stopped_at="gate",
+            merge_commit=None,
+        )
+        write_run(tmp_path, "run_a", task_id="task-001")
+
+        text = run_report.summary(
+            run_report.load_runs(tmp_path), run_report.load_finishes(tmp_path)
+        )
+
+        assert "escalated           1" in text
+        assert "stopped at: gate" in text
+        assert "0 had already merged" in text
+
+    def test_an_escalation_after_the_merge_is_distinguished(self, tmp_path: Path) -> None:
+        write_finish(
+            tmp_path,
+            "fin_a",
+            task_id="task-001",
+            outcome="escalated",
+            reason="no_restart_command",
+            stopped_at="restart",
+        )
+        write_run(tmp_path, "run_a", task_id="task-001")
+
+        text = run_report.summary(
+            run_report.load_runs(tmp_path), run_report.load_finishes(tmp_path)
+        )
+
+        assert "1 had already merged" in text
+
+    def test_the_block_is_silent_when_nothing_has_been_finished(self, tmp_path: Path) -> None:
+        write_run(tmp_path, "run_a", task_id="task-001")
+
+        text = run_report.summary(run_report.load_runs(tmp_path), [])
+
+        assert "scripted finish" not in text
+
+    def test_the_spawn_log_directory_is_not_read_as_a_finish(self, tmp_path: Path) -> None:
+        (tmp_path / "finishes" / "spawn").mkdir(parents=True)
+        (tmp_path / "finishes" / "spawn" / "task-001.log").write_text("noise\n", encoding="utf-8")
+        write_finish(tmp_path, "fin_a", task_id="task-001")
+
+        assert [finish.finish_id for finish in run_report.load_finishes(tmp_path)] == ["fin_a"]
+
+    def test_a_machine_with_only_finishes_still_reports_them(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The one case the report used to answer with "no runs" and stop."""
+        write_finish(tmp_path, "fin_a", task_id="task-001")
+
+        assert run_report.main(["--home", str(tmp_path)]) == 0
+
+        printed = capsys.readouterr().out
+        assert "No dispatched runs matched" in printed
+        assert "scripted finishes     1" in printed

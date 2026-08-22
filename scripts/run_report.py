@@ -16,6 +16,12 @@ script never has to guess.
     python scripts/run_report.py --since 7       # runs started in the last 7 days
     python scripts/run_report.py --task task-233 # one task's runs, listed
     python scripts/run_report.py --per-task      # every task, worst first
+
+Since task-241 it also reads ``~/.agentjobs/finishes/*/``, which is where a **scripted
+finish** writes itself down. A finish is not a run -- no agent, no session, no tokens --
+and it exists precisely to remove the follow-on run this report was built to measure. It
+is counted separately for that reason: folded into ``runs`` it would inflate the figure
+it reduces, and left out altogether the saving would read as missing data.
 """
 
 from __future__ import annotations
@@ -41,6 +47,7 @@ except ImportError:  # pragma: no cover - the package depends on it
 
 HOME_ENV = "AGENTJOBS_HOME"
 GATE_FINISHED = "gate_finished"
+FINISHES_DIRNAME = "finishes"
 
 
 def default_home() -> Path:
@@ -171,6 +178,76 @@ def read_run(directory: Path) -> Optional[Run]:
     )
 
 
+@dataclass(frozen=True)
+class Finish:
+    """One scripted post-approval finish (task-241), as its own record describes it.
+
+    ``outcome`` is one of ``finished``, ``escalated`` or ``declined``. Only the first is
+    a follow-on run that did not have to happen; an escalated finish asked for a session
+    (or left the task waiting for a human's Dispatch click), and a declined one means the
+    task was never a candidate and nothing at all was done.
+    """
+
+    finish_id: str
+    task_id: str
+    outcome: str
+    reason: str
+    stopped_at: str
+    started_at: Optional[datetime]
+    finished_at: Optional[datetime]
+    merged: bool
+    gates: Sequence[Gate]
+
+    @property
+    def seconds(self) -> Optional[float]:
+        if self.started_at is None or self.finished_at is None:
+            return None
+        return (self.finished_at - self.started_at).total_seconds()
+
+    @property
+    def gate_seconds(self) -> float:
+        return sum(gate.seconds for gate in self.gates)
+
+
+def read_finish(directory: Path) -> Optional[Finish]:
+    """One finish directory, or None when it holds no readable metadata."""
+    meta_path = directory / "meta.yaml"
+    if not meta_path.is_file():
+        return None
+    try:
+        loaded = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return None
+    meta = loaded if isinstance(loaded, dict) else {}
+    return Finish(
+        finish_id=str(meta.get("finish_id") or directory.name),
+        task_id=str(meta.get("task_id") or "?"),
+        outcome=str(meta.get("outcome") or "unknown"),
+        reason=str(meta.get("reason") or ""),
+        stopped_at=str(meta.get("stopped_at") or ""),
+        started_at=as_moment(meta.get("started_at")),
+        finished_at=as_moment(meta.get("finished_at")),
+        merged=bool(meta.get("merge_commit")),
+        gates=read_gates(directory),
+    )
+
+
+def load_finishes(home: Path) -> List[Finish]:
+    """Every finish this machine has a directory for, oldest first."""
+    root = home / FINISHES_DIRNAME
+    if not root.is_dir():
+        return []
+    finishes = [
+        finish
+        for directory in sorted(root.iterdir())
+        if directory.is_dir() and directory.name != "spawn"
+        for finish in [read_finish(directory)]
+        if finish is not None
+    ]
+    epoch = datetime.min.replace(tzinfo=timezone.utc)
+    return sorted(finishes, key=lambda finish: finish.started_at or epoch)
+
+
 def load_runs(home: Path) -> List[Run]:
     """Every run this machine has a directory for, oldest first."""
     root = home / "runs"
@@ -211,7 +288,7 @@ def outcome_counts(runs: Iterable[Run]) -> str:
     return ", ".join(f"{count} {name}" for name, count in sorted(counts.items()))
 
 
-def summary(runs: List[Run]) -> str:
+def summary(runs: List[Run], finishes: Sequence[Finish] = ()) -> str:
     """The baseline table, reproduced from the ledger rather than from a transcript."""
     timed = [run for run in runs if run.seconds is not None]
     durations = [run.seconds or 0.0 for run in timed]
@@ -257,6 +334,7 @@ def summary(runs: List[Run]) -> str:
         ]
 
     lines += _resume_lines(timed)
+    lines += _finish_lines(finishes)
 
     return "\n".join(lines)
 
@@ -291,6 +369,52 @@ def _resume_lines(timed: List[Run]) -> List[str]:
         f"    cold start          {len(cold)}, mean {mean(cold)}",
         f"    resumed session     {len(warm)}, mean {mean(warm)}",
     ]
+
+
+def _finish_lines(finishes: Sequence[Finish]) -> List[str]:
+    """The scripted finish's own block (task-241), and the third leg of the comparison.
+
+    Kept separate from the cold/resumed pair above rather than added as a third row in
+    it, because it is not the same kind of thing. Those two are follow-on *runs* and
+    differ in how the agent started. A finish is the absence of a follow-on run, so its
+    mean is not "how long the merge session took" but "how long there was no session
+    for" -- and reading it off the same axis without saying so would invite exactly the
+    comparison it should be making explicit.
+
+    Silent when nothing has been finished, so the report reads as it did before.
+    """
+    if not finishes:
+        return []
+    done = [finish for finish in finishes if finish.outcome == "finished"]
+    escalated = [finish for finish in finishes if finish.outcome == "escalated"]
+    declined = [finish for finish in finishes if finish.outcome == "declined"]
+
+    def mean(group: Sequence[Finish]) -> str:
+        timed = [finish.seconds or 0.0 for finish in group if finish.seconds is not None]
+        return minutes(sum(timed) / len(timed)) if timed else "-"
+
+    lines = [
+        "",
+        f"  scripted finishes     {len(finishes)} (task-241; approval merges without an agent)",
+        f"    finished            {len(done)}, mean {mean(done)}  <- follow-on runs that never happened",
+    ]
+    if escalated:
+        stops = ", ".join(sorted({f"{finish.stopped_at or finish.reason}" for finish in escalated}))
+        merged = sum(1 for finish in escalated if finish.merged)
+        lines.append(
+            f"    escalated           {len(escalated)}, mean {mean(escalated)}  "
+            f"(stopped at: {stops}; {merged} had already merged)"
+        )
+    if declined:
+        lines.append(
+            f"    declined            {len(declined)}  (never a candidate; nothing was done)"
+        )
+    if done:
+        lines.append(
+            f"    tasks finished with no dispatched run: "
+            f"{len({finish.task_id for finish in done})}"
+        )
+    return lines
 
 
 def per_task(runs: List[Run]) -> str:
@@ -355,18 +479,31 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
     home = args.home or default_home()
     runs = load_runs(home)
+    finishes = load_finishes(home)
     if args.since is not None:
         cutoff = datetime.now(timezone.utc) - timedelta(days=args.since)
         runs = [run for run in runs if run.started_at and run.started_at >= cutoff]
+        finishes = [
+            finish for finish in finishes if finish.started_at and finish.started_at >= cutoff
+        ]
     if args.task:
         runs = [run for run in runs if run.task_id == args.task]
+        finishes = [finish for finish in finishes if finish.task_id == args.task]
 
-    if not runs:
+    if not runs and not finishes:
         print(f"No runs in {home / 'runs'} matching that selection.")
         return 0
 
+    if not runs:
+        # A task finished with no dispatched run at all is the whole point of task-241,
+        # and it is also the one case this report used to answer with "no runs" and stop.
+        print(f"\nNo dispatched runs matched. Scripted finishes in {home / 'finishes'}\n")
+        print("\n".join(_finish_lines(finishes)).strip("\n"))
+        print()
+        return 0
+
     print(f"\nDispatched runs in {home / 'runs'}\n")
-    print(summary(runs))
+    print(summary(runs, finishes))
     if args.per_task:
         print(f"\nBy task\n\n{per_task(runs)}")
     if args.list or args.task:
