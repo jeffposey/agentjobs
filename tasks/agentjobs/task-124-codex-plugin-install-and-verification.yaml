@@ -2,10 +2,15 @@ schema: 2
 id: task-124-codex-plugin-install-and-verification
 title: Finish and verify the Codex plugin install the way task-122 did for Claude
 created: '2026-08-17T20:33:40.478661Z'
-updated: '2026-08-21T16:58:00.583045Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-22T19:46:52.395503Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: Review branch codex/task-124-codex-plugin-verification (b87d1e2 and 3939c1d).
+  If acceptable, approve it in AgentJobs so it can be merged to main; then Jeff must
+  run the documented Codex plugin refresh from main and restart a fresh session for
+  final skill/hook verification. The MCP connection itself already passes in fresh
+  desktop and Terra CLI sessions with all 15 tools.
 archived: false
 priority: high
 queue_position: 7100
@@ -17,6 +22,7 @@ tags:
 - agent-integration
 effort: 1-2 days
 assignment:
+  owner: codex
   eligible: []
 spec:
   summary: The Codex bundle -- MCP wiring, skill, and direct-write guard -- is built
@@ -157,3 +163,94 @@ log:
       id: c3a95d82-4e06-4b17-9f38-7a425c6b6c48
       kind: create
       fingerprint: 36d96f4897c22c1a6cb1e05935d45d95
+- id: 2
+  ts: '2026-08-22T19:34:59.421340Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 6b880f17-22ac-4ae2-a043-349ebc9f8ef1
+      kind: claim
+      fingerprint: 3534a688d8c2dcc09596c1c42c585933
+- id: 3
+  ts: '2026-08-22T19:37:41.642328Z'
+  actor: codex
+  type: progress
+  body: 'Prepared Codex install verification on branch codex/task-124-codex-plugin-verification
+    at b87d1e2. Added and tracked the published-shape .agents/plugins/marketplace.json,
+    added Codex marketplace resolution tests, documented the actual codex plugin marketplace/add
+    commands, updated the stale tool count to 15, and documented the non-default-port
+    rule: keep the plugin for skill/guard, disable only its bundled MCP server, then
+    add a standalone user-level server. Targeted Codex/Claude packaging suite passes:
+    54 tests. Live user-scope configuration and fresh-session checks remain, and must
+    be performed by Jeff per the task constraint.'
+  data:
+    operation:
+      id: d3b4ef72-01fc-4fcb-b34f-ab167bf14f3a
+      kind: log_append
+      fingerprint: 94d7ac575caaea2f78398f27f4423479
+- id: 4
+  ts: '2026-08-22T19:38:11.979572Z'
+  actor: codex
+  type: decision
+  body: Jeff stated that active work is moving off Claude. Codex is the production
+    dispatch target; Claude remains installed only to verify that the shared AgentJobs
+    MCP continues working in fresh Claude sessions. Do not treat Claude as an active
+    workload fallback when configuring the Codex runner groups.
+  data:
+    operation:
+      id: c8735417-e57f-4df1-a5d9-9ec5a4996d36
+      kind: log_append
+      fingerprint: 3d846abeac999fa766d0094b82d9a583
+- id: 5
+  ts: '2026-08-22T19:42:06.566740Z'
+  actor: codex
+  type: progress
+  body: 'Fresh Codex desktop and CLI verification reached the live AgentJobs MCP at
+    127.0.0.1:8876. Desktop exposes all 15 tools and projects_list returned the five
+    configured projects. A separate gpt-5.6-terra Codex CLI exec also called projects_list
+    successfully. The CLI surfaced three manifest warnings before that call: skills,
+    mcpServers, and hooks were ignored because their paths did not begin with ''./''.
+    Fixed all three paths on the task branch and added a regression assertion; the
+    focused Codex/Claude packaging suite now passes 55 tests. The installed cached
+    plugin still needs Jeff to reinstall/refresh after the branch is ready, per the
+    task''s persistent-config constraint.'
+  data:
+    operation:
+      id: fc5bc180-4502-4d75-bd7e-1adf3b114b9b
+      kind: log_append
+      fingerprint: e43a5563613b9a8df0575134a29d6418
+- id: 6
+  ts: '2026-08-22T19:46:51.811910Z'
+  actor: codex
+  type: progress
+  body: 'Manifest repair committed at 3939c1d after live CLI evidence. Full gate:
+    black, ruff, mypy, API generation, icons, and oxlint passed; pytest had 2793 passes
+    and one unrelated corpus-policy failure because human-draft task-275 points context
+    at src/agentjobs/api/templates/base.html. I did not alter another task''s spec.
+    Focused plugin tests pass 55/55. The remaining post-pytest stages were run explicitly:
+    Vitest 228/228, build passed, Playwright 22/22. Branch is clean and ready for
+    human review/install verification.'
+  data:
+    operation:
+      id: 8dc3c180-8334-4bf7-9cf8-a7c586490787
+      kind: log_append
+      fingerprint: 075efd22895ce28e6d0a651c12c4c126
+- id: 7
+  ts: '2026-08-22T19:46:52.395357Z'
+  actor: codex
+  type: handoff
+  body: Handing off the shippable marketplace/docs/manifest repair before persistent
+    user-scope plugin refresh. One full-gate failure is the unrelated open draft task-275
+    corpus-policy violation; every branch-relevant and later gate stage passes.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 10eeb1b4-0f65-4aa4-8822-5cfc3c2c81a2
+      kind: handoff
+      fingerprint: 4dfc523622eecc11533095b26c9b4f0d
