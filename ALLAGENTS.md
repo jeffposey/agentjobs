@@ -176,6 +176,29 @@ are not working it — you are supervising, you take no worktree, and
     [The Merge Gate](ENGINEERING.md#the-merge-gate) for the commands, including which
     server is yours to restart and which is not.
 
+### You may be woken rather than restarted
+
+**A second dispatch of your task may resume the session that worked it, not start a new
+one.** When it does, your first prompt says so explicitly: it names this as the same
+session, carries what the human just wrote, and tells you the run it resumed. Everything
+you established still applies — the worktree you took, the branch you are on, what you
+built and what you verified. Do not start over and do not take a second worktree.
+
+This exists because the post-approval run — rebase, merge `--no-ff`, close, rebuild,
+restart — averaged about eleven minutes, almost none of it those commands. It was a cold
+agent working out which branch it owned. Resuming skips that and nothing else: the human
+still approves in the GUI, and the merge gate is untouched.
+
+Two things to do with it:
+
+- **Check before you act on memory.** A resumed conversation is confident by
+  construction. If your worktree is gone, your branch is not where you left it, or your
+  account of the task no longer matches what is on disk, say so on the record and hand
+  the ball back. Do not improvise a recovery.
+- **Do not assume you were resumed.** A cold start is the fallback for every uncertainty
+  and stays the ordinary case for a task's first run. The prompt is what tells you which
+  one you are; if it did not say you were resumed, you were not.
+
 ### The Resumption Contract
 
 A task must be sufficient working memory for a new agent session with no access to the

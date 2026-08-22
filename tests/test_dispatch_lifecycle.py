@@ -42,7 +42,7 @@ from agentjobs.dispatch.ledger import (
 )
 from agentjobs.dispatch.runner import RunDirectory
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Ball, Lifecycle, LogEntryType
+from agentjobs.models_v2 import Ball, Lifecycle, LogEntryType, Outcome
 from agentjobs.projects import Project, ProjectRegistry
 from agentjobs.storage import TaskStorage
 
@@ -96,6 +96,20 @@ def task(manager: TaskManager):
         actor="Jeff Posey",
     )
     return manager.claim_task(created.id, agent="claude")
+
+
+@pytest.fixture()
+def closed_task(manager: TaskManager, task):
+    """A task nothing is coming back for.
+
+    The reaping tests need one because reaping is now conditional on the task: an *open*
+    task's newest session is kept so a later dispatch can resume its conversation rather
+    than boot a cold agent (task-234). These tests are about the mechanics of removal --
+    that it issues `rm`, that a refusal is surfaced and never forced -- so they take a
+    task where removal is unambiguously the right thing to do, and the keeping behaviour
+    has tests of its own below.
+    """
+    return manager.close_task(task.id, actor="claude", outcome=Outcome.COMPLETED)
 
 
 def seed_run(
@@ -809,8 +823,10 @@ class TestReconcile:
 
 
 class TestReap:
-    def test_a_finished_session_is_removed(self, home: Path, task, fake_session_cli: Path) -> None:
-        seed_run(home, task.id, mode="session", session_id="s1", status="finished")
+    def test_a_finished_session_is_removed(
+        self, home: Path, closed_task, fake_session_cli: Path
+    ) -> None:
+        seed_run(home, closed_task.id, mode="session", session_id="s1", status="finished")
 
         results = ledger_with(home, fake_session_cli).reap_finished()
 
@@ -818,7 +834,7 @@ class TestReap:
         assert read_run(home / "runs" / "run_test0001").path.exists()
 
     def test_a_refused_reap_says_so_and_is_never_forced(
-        self, home: Path, task, fake_session_cli: Path
+        self, home: Path, closed_task, fake_session_cli: Path
     ) -> None:
         """A refusal is surfaced verbatim rather than retried with force.
 
@@ -829,7 +845,7 @@ class TestReap:
         and is the point of the test: report it, do not pass ``-f``.
         """
         (fake_session_cli.parent / "dirty").write_text("", encoding="utf-8")
-        seed_run(home, task.id, mode="session", session_id="s1", status="finished")
+        seed_run(home, closed_task.id, mode="session", session_id="s1", status="finished")
 
         results = ledger_with(home, fake_session_cli).reap_finished()
 
@@ -839,9 +855,9 @@ class TestReap:
         assert "uncommitted" in meta["reap_blocked"]
 
     def test_a_reaped_session_is_not_reaped_again(
-        self, home: Path, task, fake_session_cli: Path
+        self, home: Path, closed_task, fake_session_cli: Path
     ) -> None:
-        seed_run(home, task.id, mode="session", session_id="s1", status="finished")
+        seed_run(home, closed_task.id, mode="session", session_id="s1", status="finished")
         ledger = ledger_with(home, fake_session_cli)
 
         ledger.reap_finished()
@@ -850,7 +866,7 @@ class TestReap:
         assert second == []
 
     def test_reaping_issues_exactly_one_session_removal_and_nothing_else(
-        self, home: Path, task, fake_session_cli: Path
+        self, home: Path, closed_task, fake_session_cli: Path
     ) -> None:
         """task-186's coherence check: reap narrowed, it did not become a no-op.
 
@@ -860,7 +876,7 @@ class TestReap:
         and is the agent's to remove. So this asserts the exact call issued, which is
         the only way to tell "narrowed on purpose" from "quietly does nothing".
         """
-        seed_run(home, task.id, mode="session", session_id="s1", status="finished")
+        seed_run(home, closed_task.id, mode="session", session_id="s1", status="finished")
 
         results = ledger_with(home, fake_session_cli).reap_finished()
 
@@ -868,16 +884,89 @@ class TestReap:
         calls = json.loads((fake_session_cli.parent / "calls.json").read_text())
         assert calls == [["rm", "s1"]]
 
-    def test_batch_runs_are_never_reaped(self, home: Path, task, fake_session_cli: Path) -> None:
+    def test_batch_runs_are_never_reaped(
+        self, home: Path, closed_task, fake_session_cli: Path
+    ) -> None:
         """There is no session to remove; the process is already gone."""
-        seed_run(home, task.id, mode="batch", status="finished")
+        seed_run(home, closed_task.id, mode="batch", status="finished")
 
         assert ledger_with(home, fake_session_cli).reap_finished() == []
 
-    def test_a_live_session_is_never_reaped(self, home: Path, task, fake_session_cli: Path) -> None:
-        seed_run(home, task.id, mode="session", session_id="s1", status="running")
+    def test_a_live_session_is_never_reaped(
+        self, home: Path, closed_task, fake_session_cli: Path
+    ) -> None:
+        seed_run(home, closed_task.id, mode="session", session_id="s1", status="running")
 
         assert ledger_with(home, fake_session_cli).reap_finished() == []
+
+
+class TestReapKeepsWhatCanStillBeWoken:
+    """task-234. Reaping calls ``claude rm``, which deletes the conversation -- and the
+    conversation is what the next dispatch of an open task resumes instead of booting a
+    cold agent. So the sweep now asks "can anything still want this session back".
+    """
+
+    def test_an_open_tasks_newest_session_is_kept(
+        self, home: Path, task, fake_session_cli: Path
+    ) -> None:
+        seed_run(home, task.id, mode="session", session_id="s1", status="finished")
+
+        assert ledger_with(home, fake_session_cli).reap_finished() == []
+        # No calls file at all: the session manager was never invoked, which is a
+        # stronger statement than "it was invoked and removed nothing".
+        assert not (fake_session_cli.parent / "calls.json").exists()
+
+    def test_an_open_tasks_older_sessions_are_still_reaped(
+        self, home: Path, task, fake_session_cli: Path
+    ) -> None:
+        """Only one is wakeable, so only one is kept. The rest are litter.
+
+        Without this the pile grows without bound for any long-lived task: a session per
+        run, forever, none of which anything will ever resume.
+        """
+        seed_run(
+            home,
+            task.id,
+            run_id="run_old",
+            mode="session",
+            session_id="old",
+            status="finished",
+            started_at="2026-08-18T08:00:00+00:00",
+        )
+        seed_run(
+            home,
+            task.id,
+            run_id="run_new",
+            mode="session",
+            session_id="new",
+            status="finished",
+            started_at="2026-08-19T08:00:00+00:00",
+        )
+
+        results = ledger_with(home, fake_session_cli).reap_finished()
+
+        assert [r.run_id for r in results] == ["run_old"]
+        assert json.loads((fake_session_cli.parent / "calls.json").read_text()) == [["rm", "old"]]
+
+    def test_closing_the_task_releases_the_kept_session(
+        self, home: Path, manager: TaskManager, task, fake_session_cli: Path
+    ) -> None:
+        """The collection point. A kept session is deferred, not exempt."""
+        seed_run(home, task.id, mode="session", session_id="s1", status="finished")
+        ledger = ledger_with(home, fake_session_cli)
+        assert ledger.reap_finished() == []
+
+        manager.close_task(task.id, actor="claude", outcome=Outcome.COMPLETED)
+
+        assert [r.stopped for r in ledger.reap_finished()] == [True]
+
+    def test_a_run_whose_task_cannot_be_resolved_is_reaped(
+        self, home: Path, fake_session_cli: Path
+    ) -> None:
+        """Keeping every unattributable session would be hoarding, not caution."""
+        seed_run(home, "task-does-not-exist", mode="session", session_id="s1", status="finished")
+
+        assert [r.stopped for r in ledger_with(home, fake_session_cli).reap_finished()] == [True]
 
 
 # ----- a run that cannot be attributed ----------------------------------------
@@ -930,11 +1019,11 @@ class TestStartupReaping:
     """
 
     def test_a_finished_session_worktree_is_removed_at_startup(
-        self, home: Path, task, fake_session_cli: Path, capsys
+        self, home: Path, closed_task, fake_session_cli: Path, capsys
     ) -> None:
         from agentjobs.api.main import _reap_finished_sessions
 
-        seed_run(home, task.id, mode="session", session_id="s1", status="finished")
+        seed_run(home, closed_task.id, mode="session", session_id="s1", status="finished")
 
         _reap_finished_sessions(ledger_with(home, fake_session_cli))
 
@@ -943,13 +1032,13 @@ class TestStartupReaping:
         assert "reaped run_test0001" in capsys.readouterr().out
 
     def test_a_worktree_holding_uncommitted_work_is_kept_and_said_so(
-        self, home: Path, task, fake_session_cli: Path, capsys
+        self, home: Path, closed_task, fake_session_cli: Path, capsys
     ) -> None:
         """The refusal is the signal: that run produced work nobody has looked at."""
         from agentjobs.api.main import _reap_finished_sessions
 
         (fake_session_cli.parent / "dirty").write_text("", encoding="utf-8")
-        seed_run(home, task.id, mode="session", session_id="s1", status="finished")
+        seed_run(home, closed_task.id, mode="session", session_id="s1", status="finished")
 
         _reap_finished_sessions(ledger_with(home, fake_session_cli))
 
@@ -958,7 +1047,7 @@ class TestStartupReaping:
         assert "uncommitted" in out
 
     def test_reconciliation_reaps_as_well_as_reconciles(
-        self, home: Path, task, monkeypatch, capsys
+        self, home: Path, closed_task, monkeypatch, capsys
     ) -> None:
         """Wiring, asserted directly: deleting the call is otherwise invisible."""
         from agentjobs.api import main as api_main
@@ -968,18 +1057,18 @@ class TestStartupReaping:
         monkeypatch.setattr(
             api_main, "_reap_finished_sessions", lambda ledger: called.append(ledger)
         )
-        seed_run(home, task.id, mode="batch", status="finished")
+        seed_run(home, closed_task.id, mode="batch", status="finished")
 
         api_main._reconcile_dispatch_runs()
 
         assert len(called) == 1
 
     def test_a_session_manager_that_cannot_be_run_does_not_take_the_server_down(
-        self, home: Path, task, capsys
+        self, home: Path, closed_task, capsys
     ) -> None:
         from agentjobs.api.main import _reap_finished_sessions
 
-        seed_run(home, task.id, mode="session", session_id="s1", status="finished")
+        seed_run(home, closed_task.id, mode="session", session_id="s1", status="finished")
         ledger = DispatchLedger(
             home,
             registry=ProjectRegistry(home=home),

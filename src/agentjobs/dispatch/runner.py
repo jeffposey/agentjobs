@@ -60,6 +60,13 @@ from agentjobs.dispatch.config import (
     substitute_argv,
 )
 from agentjobs.dispatch.record_commit import CommitOutcome, commit_task_record
+from agentjobs.dispatch.wake import (
+    WakeError,
+    WakeTarget,
+    build_wake_prompt,
+    find_wake_target,
+    wake_argv,
+)
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     Ball,
@@ -981,11 +988,20 @@ class DispatchRunner:
         )
 
     def build_argv(self, task_id: str, run_id: str) -> List[str]:
-        """The full argv for a run, posture flags included.
+        """The full argv for a run, posture flags included."""
+        return self.build_argv_and_prompt(task_id, run_id)[0]
+
+    def build_argv_and_prompt(self, task_id: str, run_id: str) -> tuple[List[str], str]:
+        """The full argv, and the prompt string that is inside it.
 
         The open children are read **once** and used twice -- for the prompt stub and for
         the supervisor permission grant. One read, so the prompt and the settings cannot
         describe two different runs.
+
+        The prompt is returned alongside rather than recovered from the argv afterwards
+        because a wake has to *replace* that element (see ``dispatch.wake``), and
+        searching an argv for "the one that looks like a prompt" is a guess. Handing back
+        the exact string the caller put in is not.
         """
         children = self.open_child_ids(task_id)
         values = {
@@ -1006,7 +1022,7 @@ class DispatchRunner:
         # Resolved before it is recorded, because the dispatch entry claims to say what
         # actually ran.
         argv[0] = resolve_executable(argv[0])
-        return argv
+        return argv, values["prompt"]
 
     def _environment(self, run: Optional[RunDirectory] = None, run_id: str = "") -> Dict[str, str]:
         """The child's environment: ours, plus the runner's additions.
@@ -1096,6 +1112,7 @@ class DispatchRunner:
         trigger: DispatchTrigger,
         mode: DispatchMode,
         session_id: Optional[str],
+        body: Optional[str] = None,
     ) -> int:
         """Append the dispatch entry and return its id."""
         updated = self.manager.record_dispatch(
@@ -1113,6 +1130,7 @@ class DispatchRunner:
             git_head=self._git_head(),
             session_id=session_id,
             selection=selection_data(self.resolution.selection),
+            body=body,
         )
         return updated.log[-1].id
 
@@ -1136,6 +1154,49 @@ class DispatchRunner:
 
     _SHORT_ID = re.compile(r"\b([0-9a-f]{8})\b")
 
+    def _plan_wake(
+        self, task: Task, run_id: str, argv: List[str], prompt: str
+    ) -> tuple[Optional[WakeTarget], List[str], Optional[str]]:
+        """Decide whether this dispatch resumes the task's previous session.
+
+        Returns the target (``None`` for a cold start), the argv to run, and what to put
+        on the child's stdin. A cold start returns the argv untouched and ``None`` for
+        stdin, so nothing about the existing path moves.
+
+        **Every failure here is a cold start, never an exception.** Reading the session
+        ledger spawns a subprocess and parses its output; a runner that is not Claude
+        Code will not answer at all, and a runner whose argv carries no single prompt
+        element cannot be rewritten. None of those is a reason to refuse to dispatch a
+        task, because starting cold is a correct -- merely slower -- answer to all of
+        them. That asymmetry is the entire safety argument for this feature and it is
+        why the `except` below is broad rather than precise.
+        """
+        if not self.resolution.settings.resume_sessions:
+            return None, argv, None
+        try:
+            rows = self.ledger(include_finished=True)
+            target = find_wake_target(self.home, task.id, rows=rows)
+        except Exception:  # noqa: BLE001 - see the docstring; a cold start is the fallback
+            return None, argv, None
+        if target is None:
+            return None, argv, None
+        try:
+            resumed = wake_argv(argv, prompt, target.session_uuid)
+        except WakeError:
+            return None, argv, None
+        return (
+            target,
+            resumed,
+            build_wake_prompt(
+                agent=self.runner.actor_id,
+                task_id=task.id,
+                ball_prompt=task.ball_prompt or "",
+                api_base=self.api_base,
+                run_id=run_id,
+                previous_run_id=target.previous_run_id,
+            ),
+        )
+
     def _start_session(
         self, task: Task, *, actor: str, caused_by: int, trigger: DispatchTrigger
     ) -> RunHandle:
@@ -1147,22 +1208,27 @@ class DispatchRunner:
         is wrong.
         """
         run_id = new_run_id()
-        argv = self.build_argv(task.id, run_id)
-        directory = RunDirectory.create(
-            self.home,
-            run_id,
-            {
-                "run_id": run_id,
-                "task_id": task.id,
-                "project_id": self.resolution.project_id,
-                "mode": DispatchMode.SESSION.value,
-                "posture": self.resolution.settings.posture.value,
-                "status": "starting",
-                "started_at": self.clock().isoformat(),
-                "caused_by": caused_by,
-                "argv": argv,
-            },
-        )
+        argv, prompt = self.build_argv_and_prompt(task.id, run_id)
+        wake, argv, stdin_text = self._plan_wake(task, run_id, argv, prompt)
+        meta: Dict[str, object] = {
+            "run_id": run_id,
+            "task_id": task.id,
+            "project_id": self.resolution.project_id,
+            "mode": DispatchMode.SESSION.value,
+            "posture": self.resolution.settings.posture.value,
+            "status": "starting",
+            "started_at": self.clock().isoformat(),
+            "caused_by": caused_by,
+            "argv": argv,
+        }
+        if wake is not None:
+            # Recorded on the run rather than only in the task entry, because this is
+            # what `scripts/run_report.py` reads to tell a woken run from a cold one --
+            # which is the whole before/after measurement task-234 has to produce.
+            meta["resumed"] = True
+            meta["resumed_from"] = wake.previous_run_id
+            meta["resumed_session"] = wake.session_uuid
+        directory = RunDirectory.create(self.home, run_id, meta)
 
         try:
             completed = subprocess.run(
@@ -1174,6 +1240,10 @@ class DispatchRunner:
                 encoding="utf-8",
                 errors="replace",
                 timeout=120,
+                # A cold start carries its prompt in argv and inherits stdin, exactly as
+                # it always has. A wake **must** deliver its prompt here instead: see
+                # `wake_argv` for why the positional form fails silently.
+                input=stdin_text,
             )
         except (OSError, subprocess.SubprocessError) as exc:
             directory.update_meta(status="failed", error=str(exc))
@@ -1205,6 +1275,16 @@ class DispatchRunner:
             trigger=trigger,
             mode=DispatchMode.SESSION,
             session_id=session_id,
+            body=(
+                None
+                if wake is None
+                else (
+                    f"Resumed the session from run `{wake.previous_run_id}` rather than "
+                    "starting a cold one, so this agent still has the worktree, the "
+                    "branch and the verification it established there. The ball prompt "
+                    "was delivered to it as its next turn."
+                )
+            ),
         )
         directory.update_meta(status="running", session_id=session_id, dispatch_entry_id=entry_id)
         return RunHandle(
@@ -1251,7 +1331,7 @@ class DispatchRunner:
             prefix = [self.runner.argv[0]]
         return [resolve_executable(prefix[0]), *prefix[1:]]
 
-    def ledger(self) -> List[Dict[str, object]]:
+    def ledger(self, *, include_finished: bool = False) -> List[Dict[str, object]]:
         """Background sessions this project owns, from ``<runner> agents --json --cwd``.
 
         ``--cwd`` scopes the listing to one project root, so an unrelated session
@@ -1261,8 +1341,22 @@ class DispatchRunner:
         hardcoded to ``claude``. That is what "session mode" means operationally: a
         runner whose executable answers ``agents --json``. It also makes the path
         testable without a real Claude Code install.
+
+        **``include_finished`` adds ``--all``, and without it a stopped session is not
+        in the answer at all.** ``--json`` prints *active* sessions; ``--all`` is
+        documented as "also include completed background sessions", and the difference
+        is total rather than cosmetic -- measured on 2.1.238 against one stopped
+        session, ``--json --cwd`` returned **zero** rows and ``--json --all --cwd``
+        returned it with its ``sessionId``. Polling wants the active view, because a
+        session missing from it is a session that is gone. Waking wants the other one,
+        because the whole population it looks at is stopped by definition. Handing
+        polling the ``--all`` view would make ``poll_session`` unable to ever conclude
+        ``GONE``, so this stays a parameter rather than becoming the default.
         """
-        argv = [*self.executable_prefix(), "agents", "--json", "--cwd", str(self.project_root)]
+        argv = [*self.executable_prefix(), "agents", "--json"]
+        if include_finished:
+            argv.append("--all")
+        argv += ["--cwd", str(self.project_root)]
         try:
             completed = subprocess.run(
                 argv,

@@ -320,6 +320,20 @@ class ProjectDispatchSettings:
     require_clean_tree: bool = True
     auto_dispatch: bool = False
     posture: Posture = Posture.AUTO
+    resume_sessions: bool = True
+    """Whether dispatching a task resumes its previous session instead of starting cold.
+
+    On by default: a task's second run is almost always the post-approval merge, and a
+    cold agent spends about eleven minutes rediscovering the branch and worktree the
+    first one already had (task-234). Resuming keeps that context, and every doubt --
+    no previous session, a conversation the session manager no longer lists, an argv
+    this cannot rewrite -- falls back to a cold start rather than to a failure.
+
+    The switch exists because the failure mode is a *confident* agent rather than a
+    broken one. A resumed conversation acts on what it remembers; if that ever starts
+    producing agents whose memory disagrees with the tree, this turns it off without a
+    code change. Nothing else about the run changes when it is off.
+    """
 
 
 @dataclass(frozen=True)
@@ -657,6 +671,9 @@ def _parse_project(project_id: str, raw: object, path: Path) -> ProjectDispatchS
             mapping.get("auto_dispatch"), f"{where}.auto_dispatch", path, default=False
         ),
         posture=posture,
+        resume_sessions=_bool(
+            mapping.get("resume_sessions"), f"{where}.resume_sessions", path, default=True
+        ),
     )
 
 
