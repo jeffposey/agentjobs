@@ -2,11 +2,17 @@ schema: 2
 id: task-279
 title: Add a Codex App Server session runner for steerable dispatch
 created: '2026-08-22T20:23:50.857500Z'
-updated: '2026-08-22T20:24:33.037777Z'
+updated: '2026-08-22T20:28:48.845543Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: decision
+ball_prompt: 'The stable Windows App Server path has been proven: it creates a named,
+  persisted Codex thread in the Desktop session store and a normal App Server can
+  list it. The Windows build does not provide the stable shared App Server daemon/control
+  socket, so AgentJobs cannot keep a separate process''s live turn remotely steerable
+  through the stable API. Do you authorize enabling and testing Codex''s experimental
+  Remote Control service for true live, device-pairable steering, or should task-279
+  ship the stable app-visible session path only?'
 archived: false
 priority: high
 queue_position: 15
@@ -123,3 +129,20 @@ log:
       id: ef159d14-83e0-4336-8835-5c3c43bb663d
       kind: update_content
       fingerprint: d6a798c0e08957c74ff681ea754bbd48
+- id: 5
+  ts: '2026-08-22T20:28:48.845411Z'
+  actor: codex
+  type: handoff
+  body: 'Progress: direct App Server probe initialized against Codex Desktop, created
+    a Terra thread with required AgentJobs MCP configured, completed a no-file-change
+    turn, and confirmed the named thread is persisted/listable in ~/.codex session
+    storage. Binding decision required: stable daemon/proxy reports unsupported/unreachable
+    on Windows, while Remote Control is experimental and deliberately excluded by
+    the current task constraint.'
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: 44e56f8c-4c34-4a65-bf44-d47aee9afbc6
+      kind: handoff
+      fingerprint: a36110bf4242239a9fa0e100448f4489
