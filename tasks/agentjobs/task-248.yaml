@@ -3,13 +3,13 @@ id: task-248
 title: "Tolerant reader rejects an unknown ball_reason \u2014 the enum widened two\
   \ days after tolerance shipped"
 created: '2026-08-22T18:51:25.400936Z'
-updated: '2026-08-22T22:17:54.792075Z'
+updated: '2026-08-22T22:23:09.593708Z'
 lifecycle: active
-ball: human
-ball_reason: input
-ball_prompt: The declared trust boundary is still overridden by explicit Windows DENY
-  ACLs on `.git/refs/heads`. Please repair the effective ACL or provide a task worktree
-  created outside this session; task-248 remains unimplemented and has no source changes.
+ball: agent
+ball_reason: work
+ball_prompt: Implement the tolerant enum fix in src/agentjobs/models_v2.py, parametrize
+  tests/test_schema_skew.py over all top-level axis enums, guard priority_rank for
+  tolerated unknown priorities, run the required verification, and report the evidence.
 archived: false
 priority: critical
 queue_position: 500
@@ -749,3 +749,108 @@ log:
     outcome: interrupted
     duration_seconds: 6.228044
     log_path: C:\Users\jpose\.agentjobs\runs\run_e310bdce
+- id: 36
+  ts: '2026-08-22T22:20:07.423691Z'
+  actor: codex
+  type: handoff
+  body: The mandated worktree was successfully created at C:/projects/worktrees/agentjobs-248
+    on branch codex/task-248-class-probe. The prior ACL/worktree blocker is resolved;
+    resume implementation in that worktree.
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: c2488b12-1d6c-4f78-9d7d-8bd6c39cb4d1
+      kind: handoff
+      fingerprint: a8a07f835ea0ece1fce780b363a80810
+- id: 37
+  ts: '2026-08-22T22:20:34.542318Z'
+  actor: codex
+  type: progress
+  body: Worktree and branch are now available. Inspection confirms rule 2 still checks
+    every parsed ball_reason against BALL_REASONS, so tolerant pseudo-members fail;
+    priority_rank indexes PRIORITY_RANK directly; test_schema_skew currently covers
+    only nested dispatch posture plus separate priority/ball cases. I will make pseudo-members
+    bypass only the cross-field vocabulary check, default unknown priority ranking,
+    and extend skew coverage across the five top-level axes.
+  data:
+    worktree_path: C:/projects/worktrees/agentjobs-248
+    branch: codex/task-248-class-probe
+    operation:
+      id: 55f0ca4f-1a94-47b1-9b1c-55fda28645dd
+      kind: log_append
+      fingerprint: 2b994b5c04c159c2c5965de5cf425f19
+- id: 38
+  ts: '2026-08-22T22:21:07.358996Z'
+  actor: codex
+  type: progress
+  body: 'Resumption complete in the mandated worktree. The current defect is confirmed:
+    tolerant BallReason pseudo-members fail the known-ball vocabulary check, and tolerated
+    Priority pseudo-members can raise KeyError in priority_rank(). The skew harness
+    will be expanded to exercise the five top-level axis enums while preserving valid
+    cross-field shapes for the outcome case.'
+  data:
+    operation:
+      id: c7c46bce-0f47-4ecf-9d30-7264c96d5b8b
+      kind: log_append
+      fingerprint: d3f8092396993133b02d20b4d0f8da11
+- id: 39
+  ts: '2026-08-22T22:23:07.709948Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Started a Codex App Server thread. Its conversation is persisted in the Codex
+    session store and can be opened by Codex Desktop.
+  data:
+    run_id: run_ff910542
+    agent: codex
+    runner: codex-luna
+    mode: session
+    posture: autonomous
+    trigger: manual
+    caused_by: 26
+    argv:
+    - C:\Users\jpose\AppData\Local\OpenAI\Codex\bin\110b3d66a02d864e\codex.exe
+    - app-server
+    - --model
+    - gpt-5.6-luna
+    - -c
+    - model_reasoning_effort="high"
+    - --sandbox
+    - danger-full-access
+    - -c
+    - mcp_servers.agentjobs.required=true
+    - 'You are the agent `codex` working task `task-248` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-248-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_ff910542.'
+    cwd: C:\projects\agentjobs
+    git_head: 44620bb
+    session_id: 01a02b92-01a2-78c0-870c-34c4e2c933ad
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: false
+        skipped_because: disabled
+        detail: Claude remains defined as a fresh-session canary; Luna is the active
+          workhorse.
+      - runner: codex-luna
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 40
+  ts: '2026-08-22T22:23:09.593397Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: The Codex App Server process exited before reporting turn completion.
+  re: 39
+  data:
+    run_id: run_ff910542
+    outcome: interrupted
+    duration_seconds: 6.017104
+    log_path: C:\Users\jpose\.agentjobs\runs\run_ff910542
