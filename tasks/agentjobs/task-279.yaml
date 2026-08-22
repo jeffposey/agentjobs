@@ -2,15 +2,16 @@ schema: 2
 id: task-279
 title: Add a Codex App Server session runner for steerable dispatch
 created: '2026-08-22T20:23:50.857500Z'
-updated: '2026-08-22T20:33:41.975189Z'
+updated: '2026-08-22T20:35:13.585803Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Human authorized enabling and testing the experimental Codex Remote
-  Control path. Resume task-279: implement the Codex session driver, test Windows
-  Remote Control pairing/live steering, preserve batch runner, and report whether
-  sessions appear in Codex app lists. Keep Terra/Sol production groups unchanged until
-  verified.'
+ball: human
+ball_reason: decision
+ball_prompt: 'The authorized Remote Control test cannot start on this Windows Codex
+  build: both `remote-control start --json` and `remote-control pair --json` fail
+  because app-server daemon lifecycle is Unix-only. Should task-279 proceed with the
+  proven stable App Server session path (named/listable app-visible sessions, no live
+  phone steering), while documenting Remote Control as unavailable on Windows; or
+  should we pause pending a Windows Codex release that supports the daemon?'
 archived: false
 priority: high
 queue_position: 15
@@ -174,3 +175,32 @@ log:
       id: a7f6e2c1-0c9d-49b4-9eb4-d92a4d31c4e0
       kind: handoff
       fingerprint: 1f5071c0d9ff0f6996f734b589af4935
+- id: 8
+  ts: '2026-08-22T20:34:42.457665Z'
+  actor: codex
+  type: handoff
+  body: 'Remote Control authorization was attempted. Evidence: Codex Desktop bundled
+    CLI 0.149.0-alpha.4.1 on Windows rejects `remote-control start` and `pair` with
+    `codex app-server daemon lifecycle is only supported on Unix platforms`. No remote
+    service was started and no pairing state was changed.'
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: cf0fb9d1-c7f9-4f48-a6da-4f7b1fd90a74
+      kind: handoff
+      fingerprint: cbb6e2a8532c5eeb9b50495bd45ad5eb
+- id: 9
+  ts: '2026-08-22T20:35:13.585659Z'
+  actor: codex
+  type: decision
+  body: 'Quota policy decision: keep Terra out of the workhorse/default and smoke
+    paths on the $20 subscription. Configure Big Dawg to use GPT-5.6 Sol with high
+    reasoning; leave Claude Fable disabled in that group as a fresh-session canary.
+    The Sol setting is high rather than xhigh to conserve quota while retaining Big
+    Dawg quality.'
+  data:
+    operation:
+      id: 0b55ee84-1a46-4d43-8af3-1e46f5c0ca6b
+      kind: log_append
+      fingerprint: 45bd517a599110802eeba10537309cd4
