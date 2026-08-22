@@ -780,3 +780,39 @@ class TestTheUnexpected:
         result = run(world)
         assert result.outcome == DECLINED
         assert result.reason == "no_active_branch"
+
+
+class TestTheRecordWhileItRuns:
+    """The gate is minutes long and silent; the record must not be."""
+
+    def test_it_says_it_started_before_the_expensive_part(self, world: Dict[str, Any]) -> None:
+        run(world)
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        started = [entry for entry in task.log if entry.data.get("finish_step") == "started"]
+        assert len(started) == 1
+        assert "Nothing is merged yet" in started[0].body
+        assert world["branch"] in started[0].body
+        # And it is written before the merge is, so a reader mid-gate sees the first and
+        # not the second.
+        merged_at = next(
+            index
+            for index, entry in enumerate(task.log)
+            if entry.data.get("finish_step") == "merge"
+        )
+        assert task.log.index(started[0]) < merged_at
+
+    def test_the_closing_entry_carries_the_evidence_not_just_the_claim(
+        self, world: Dict[str, Any]
+    ) -> None:
+        run(world)
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        closing = task.log[-1]
+        assert "verified live" in closing.body
+        # Up to and including verification. `close` and `worktree` are absent because
+        # this entry *is* the close -- and the body says so, rather than leaving a reader
+        # to wonder whether two steps went missing.
+        for step in ("preflight", "rebase", "gate", "merge", "rebuild", "restart", "verify"):
+            assert step in closing.body
+        assert "up to and including verification" in closing.body

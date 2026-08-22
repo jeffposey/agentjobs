@@ -935,6 +935,41 @@ def mark_branch_merged(manager: TaskManager, task_id: str, branch: str) -> None:
     manager.update_task(task_id, actor=FINISHER, branches=branches)
 
 
+def announce_start(
+    manager: TaskManager, task_id: str, plan: Plan, directory: FinishDirectory
+) -> None:
+    """Say on the record that a finish is running, before the part that takes minutes.
+
+    The gate is the expensive step and it is silent. Without this the task reads
+    ``agent``/``work`` with the approval's own prompt for two or three minutes while a
+    rebase and a full gate happen underneath it, and somebody watching the dashboard has
+    no way to tell a finish in progress from an approval nothing picked up.
+
+    It also covers the case a log entry cannot be written for afterwards: a machine that
+    reboots mid-gate leaves this entry and nothing else, which is a much better record
+    than none.
+    """
+    manager.add_log_entry(
+        task_id,
+        actor=FINISHER,
+        type=LogEntryType.PROGRESS,
+        body=(
+            f"Scripted finish started on `{plan.branch}` "
+            f"({plan.branch_head_before[:8]}).\n\n"
+            f"Rebasing onto `{plan.base}` and running the full gate in {plan.worktree}. "
+            "**Nothing is merged yet** and nothing will be unless the gate is green. "
+            f"Its output will be at {directory.path / 'gate.log'}."
+        ),
+        data={"finish_step": "started", "branch": plan.branch, "finish_id": directory.finish_id},
+    )
+    commit_task_record(
+        manager,
+        task_id,
+        subject=f"note the scripted finish starting on {plan.branch}",
+        actor=FINISHER,
+    )
+
+
 def record_merge(
     manager: TaskManager, task_id: str, plan: Plan, merge_commit: str, approver: str
 ) -> None:
@@ -1215,6 +1250,14 @@ def _sequence(
         )
     )
     directory.record("finish_preflight", branch=plan.branch, worktree=str(plan.worktree))
+    announce_start(manager, task.id, plan, directory)
+
+    # Re-read the base *after* the announcement, because the announcement commits a task
+    # record onto it. `merge` refuses when the base moved between here and the gate
+    # finishing -- that check is for somebody else's merge landing mid-gate, and it does
+    # not get to fire on this function's own bookkeeping. Caught by a test the moment the
+    # announcement was added: every finish escalated with `base_moved`.
+    plan.base_head_before = git_out(plan.root, ["rev-parse", plan.base])
 
     began = time.monotonic()
     rebased = rebase(plan)
@@ -1270,7 +1313,9 @@ def _sequence(
             # escalation has to say how far it got or the record is ambiguous; a success
             # has to say the same thing for a different reason -- "verified live" is a
             # claim, and this is the evidence for it, including what verification
-            # actually asked and what answered.
+            # actually asked and what answered. It stops at verification because this
+            # entry *is* the close; the worktree is retired immediately after it.
+            "Everything up to and including verification:\n\n"
             "```\n" + "\n".join(step.render() for step in steps) + "\n```"
         ),
     )
