@@ -176,6 +176,26 @@ are not working it — you are supervising, you take no worktree, and
     [The Merge Gate](ENGINEERING.md#the-merge-gate) for the commands, including which
     server is yours to restart and which is not.
 
+### Steps 6 and 7 may be done before you wake up
+
+**Where this machine has the scripted finish switched on, the approval runs them
+itself** — rebase, gate, merge `--no-ff`, rebuild, restart, verify, close, remove the
+worktree — with no agent in the loop at all (task-241). Most of the time you will simply
+never be dispatched again, and the task will be closed by the time anyone looks.
+
+You are woken only when it stopped, and then **the record tells you where, and whether
+`main` moved**. Read it before acting on anything you remember:
+
+- **"The merge is done: `abc1234`"** — the merge is in, the task is deliberately still
+  open, and what is missing is the delivery. Do that and close it. Do not merge again.
+- **"Nothing was merged"** — the rebase conflicted or the gate went red, and the entry
+  says which. For a conflict it also says whether your branch was restored to where it
+  was, having read the tip back rather than assumed it.
+
+Nothing about the merge gate itself is relaxed: a person still approves, per task, and
+step 5 above is still where you stop. `agentjobs finish <task>` is the same code by
+hand, and is how a finish that escalated is retried once its cause is fixed.
+
 ### You may be woken rather than restarted
 
 **A second dispatch of your task may resume the session that worked it, not start a new
