@@ -745,3 +745,38 @@ class TestReaders:
         found = worktree_paths(world["root"])
         assert found[world["branch"]].resolve() == world["worktree"].resolve()
         assert found["main"].resolve() == world["root"].resolve()
+
+
+class TestTheUnexpected:
+    """Whatever the sequence does not model still has to reach the record."""
+
+    def test_an_unmodelled_failure_escalates_instead_of_crashing(
+        self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A traceback here is a merge that happened with nobody left to say so."""
+        import agentjobs.dispatch.finish as finish_module
+
+        real_merge = finish_module.merge
+
+        def merge_then_explode(plan: Any, task: Any, approver: str) -> str:
+            commit = real_merge(plan, task, approver)
+            raise RuntimeError("something nobody thought about")
+
+        monkeypatch.setattr(finish_module, "merge", merge_then_explode)
+
+        result = run(world)
+
+        assert result.outcome == ESCALATED
+        assert result.reason == "unexpected_error"
+        assert "something nobody thought about" in result.detail
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        assert task.is_open
+        assert task.ball is Ball.AGENT
+
+    def test_a_decline_is_not_swallowed_as_an_unexpected_error(self, world: Dict[str, Any]) -> None:
+        """The guard sits outside the sequence, so its own signals pass through it."""
+        world["manager"].update_task(world["task_id"], actor="claude", branches=[])
+        result = run(world)
+        assert result.outcome == DECLINED
+        assert result.reason == "no_active_branch"

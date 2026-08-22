@@ -725,6 +725,14 @@ def restart_server(
 ) -> StepResult:
     """Restart the server the way this machine says it was started, or say why not.
 
+    **A configured restart always runs, whatever the merge touched.** ``SERVED_PREFIXES``
+    is a guess about what a process is holding -- it would have to be right about
+    templates, static files, the bundle and the package metadata all at once, and being
+    wrong about any of them leaves the human on stale code, which is the one failure this
+    step exists to prevent. A few seconds of downtime on a local dashboard is a much
+    smaller cost than being wrong about that, so the prefixes are used only to decide
+    whether an *unconfigured* restart may be skipped.
+
     An empty ``restart`` is not "no restart needed". It is "nobody has told this machine
     how", and the difference decides whether a merge that changed served code can be
     reported as delivered. Guessing ``agentjobs restart`` here is the specific silent
@@ -1067,7 +1075,7 @@ def finish_task(
     started = time.monotonic()
     steps: List[StepResult] = []
     try:
-        result = _sequence(
+        result = _guarded_sequence(
             manager=manager,
             project=project,
             task=task,
@@ -1155,6 +1163,30 @@ def _merge_commit_of(steps: Sequence[StepResult]) -> Optional[str]:
     return None
 
 
+def _guarded_sequence(**kwargs: Any) -> FinishResult:
+    """``_sequence``, with every unanticipated failure turned into an escalation.
+
+    A traceback out of here would be the exact failure this task must not introduce: a
+    merge that happened, a record that does not say so, and a process that died before
+    it could hand the ball to anybody. So anything the sequence does not model becomes
+    a stop like any other -- named ``unexpected``, carrying the exception verbatim,
+    landing on the record with the steps that did complete. An ugly escalation is worth
+    a great deal more than a silent one.
+    """
+    try:
+        return _sequence(**kwargs)
+    except (Escalate, Declined):
+        raise
+    except Exception as unexpected:
+        raise Escalate(
+            "unexpected",
+            "unexpected_error",
+            f"The scripted finish hit something it does not handle: "
+            f"`{type(unexpected).__name__}: {unexpected}`. The steps below say how far "
+            "it got; check the tree against them before doing anything else.",
+        ) from unexpected
+
+
 def _sequence(
     *,
     manager: TaskManager,
@@ -1233,7 +1265,13 @@ def _sequence(
         body=(
             f"Merged `{plan.branch}` into `{plan.base}` as `{merge_commit[:8]}` and "
             f"verified live. Approved by {approver}; finished by the scripted path with "
-            "no agent session (task-241)."
+            "no agent session (task-241).\n\n"
+            # The step table, on the successful path as well as the escalating one. An
+            # escalation has to say how far it got or the record is ambiguous; a success
+            # has to say the same thing for a different reason -- "verified live" is a
+            # claim, and this is the evidence for it, including what verification
+            # actually asked and what answered.
+            "```\n" + "\n".join(step.render() for step in steps) + "\n```"
         ),
     )
     steps.append(StepResult("close", True, "closed completed", 0.0))
