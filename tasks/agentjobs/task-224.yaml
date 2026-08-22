@@ -3,30 +3,47 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-21T23:59:46.229683Z'
-lifecycle: ready
+updated: '2026-08-22T01:00:30.201377Z'
+lifecycle: active
 ball: human
 ball_reason: decision
-ball_prompt: 'Third occurrence, 2026-08-21 23:39-23:41 UTC, and the first one the
-  detector this task built actually caught: run_92d3e98c (task-234) carries auth_stalled_at:
-  2026-08-21T23:39:59.562Z and was swept `cancelled` rather than recorded as a success.
-  The detector works; the underlying failure has not stopped, and this occurrence
-  has a different shape from the two researched before it (see the newest progress
-  entry).
+ball_prompt: 'No fourth occurrence yet, so instead of waiting I dated the whole existing
+  population. Entry 35 has it. Headline: there are two different failures here, and
+  three of the five refusals are mundane.
 
 
-  Two things are yours to decide, neither started:
+  Three were plain post-expiry refusals with dull causes - occurrence 1 happened because
+  the daemon idle-exited 104 seconds before the refresh it had scheduled, so nothing
+  refreshed the token. Two were not: a session was refused a token with 53.7s of life
+  left (15:36:45.8Z) and another with 271.9s left (23:39:59.6Z), in each case before
+  the daemon had attempted anything. A fixed client-side staleness margin is ruled
+  out by the daemon''s own log. Client version is ruled out - all three of 2.1.235/237/238
+  produced it. Concurrency is ruled out. That is three of the spec''s four hypotheses
+  now dead.
 
-  1. Post the comment on the open upstream issue anthropics/claude-code#79685. Nothing
-  has been posted; log entry 8 lists the three findings this investigation adds that
-  the issue does not have.
 
-  2. Whether to open an Anthropic support ticket. Nobody has opened one, and no ticket
-  id exists anywhere on this record.
+  Two calls, both yours:
 
 
-  If the answer to both is ''not yet'', hand the ball back to the agent to keep collecting
-  occurrences, or close this again as completed.'
+  1. TONIGHT, and it expires: the current token dies at 07:40:44.5Z = 02:40:44 CDT,
+  derived two independent ways agreeing to 100ms. If the anomaly recurs on this cycle
+  it lands around 02:35-02:40 CDT. The test is a throwaway `claude -p` every 30s from
+  02:34, plus a control an hour earlier - a scheduled job costing a few cents, and
+  it would either confirm the shape or make the next cycle the target. Want it run?
+  If not, this window is gone and the next is roughly 10:40 CDT tomorrow.
+
+
+  2. The upstream comment on anthropics/claude-code#79685. Entry 35 has a much sharper
+  report than entry 8''s draft - refused a token with 54s and 272s of life remaining,
+  before any refresh attempt, with the daemon''s next read returning `no token found`
+  in 1-2ms having read the same store successfully 46 seconds earlier. Still unposted,
+  still yours to send.
+
+
+  Nothing was built and nothing needs to be: the detector already catches the effect,
+  and the trigger for the anomaly is still unknown, which is exactly when this task''s
+  own constraints say not to build. No code touched, no branch, no worktree - task
+  record only.'
 archived: false
 priority: high
 queue_position: 11400
@@ -38,6 +55,7 @@ tags:
 - research
 effort: research first; the fix is unknown until the trigger is
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: On 2026-08-21 Claude Code reported "Login expired" during autonomous work
@@ -1137,3 +1155,255 @@ log:
       id: 8f3c1a06-52b9-4d47-a1e0-6c9b3f27d5ea
       kind: log_append
       fingerprint: e9b1aba3b5f3baf8d14578c75fa2305f
+- id: 31
+  ts: '2026-08-22T00:43:02.984961Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'New instructions from Jeff Posey:
+
+
+    not yet'
+  data:
+    ball: agent
+    ball_reason: redirect
+- id: 32
+  ts: '2026-08-22T00:43:06.800639Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 33
+  ts: '2026-08-22T00:43:07.302955Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 34
+  ts: '2026-08-22T00:43:08.629061Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_f0accc73
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 32
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-224` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-224-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_f0accc73.'
+    cwd: C:\projects\agentjobs
+    git_head: b680a6b
+    session_id: 55e8c4ae
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 35
+  ts: '2026-08-22T00:59:52.609435Z'
+  actor: claude
+  type: progress
+  body: "## The full population of refusals, dated. There are two different failures\
+    \ here, not one \u2014 and only one of them is a mystery.\n\nBall came back on\
+    \ entry 31 (\"not yet\" to both the upstream comment and a support ticket), which\
+    \ under the entry-28 prompt means *keep collecting occurrences*. No fourth occurrence\
+    \ has happened: the last auth line in `~/.claude/daemon.log` is 23:41:02Z and\
+    \ it is now 00:44Z. So instead of waiting, I enumerated the whole existing population\
+    \ and dated every event. Evidence is `~/.claude/daemon.log`, the run ledger, and\
+    \ the session JSONLs. No credential file was read \u2014 the classifier refused\
+    \ that, correctly, and nothing here needed it.\n\n### Every `authentication_failed`\
+    \ on this machine, with its distance from token expiry\n\nFive events, four sessions.\
+    \ `E` is the access token's expiry, derived below.\n\n| # | Refusal (UTC) | E\
+    \ | \u0394 vs E | Session | Position in transcript | Daemon's state at that moment\
+    \ |\n|---|---|---|---|---|---|---|\n| 1 | 08-20 07:48:29.047 | 07:38:38.6 | **E+590s**\
+    \ | `7ceaaaab` (aj-192) | record 12, 468 ms after session start | had idle-exited\
+    \ 07:32:54, 104 s *before* its own scheduled refresh |\n| 2a | 08-21 15:36:45.777\
+    \ | 15:37:39.5 | **E\u221253.7s** | `6a0beee3` | record 1120, mid-session | 3\
+    \ refresh attempts had failed on the network (7.1 s, 6.4 s, 5.7 s), each reporting\
+    \ `(token still valid)` |\n| 2b | 08-21 15:38:21.136 | 15:37:39.5 | E+41.6s |\
+    \ `61e30711` | record 471, mid-session | had given up 15:36:59.686, `no token\
+    \ found` |\n| 2c | 08-21 15:43:38.025 | 15:37:39.5 | E+358.5s | `61e30711` | record\
+    \ 477, mid-session | `no token found` |\n| 3 | 08-21 23:39:59.562 | 23:44:31.5\
+    \ | **E\u2212271.9s** | `0fa21703` | record 12, **2.5 s after session start**\
+    \ | had not yet attempted anything this cycle; its first attempt came 33 s *later*\
+    \ and failed in 2 ms |\n\n### How E is derived, and why it is trustworthy\n\n\
+    The daemon logs `auth: scheduling proactive refresh in Ns`, and each schedule\
+    \ fires within a second of `T+N`. Against entry 6's twice-verified 8-hour lifetime,\
+    \ that puts the refresh at a fixed **240 s before expiry** \u2014 derived independently\
+    \ on two cycles:\n\n- `07:37:39.506 + 28560s = 15:33:39.5`, fired 15:33:40.465.\
+    \ Token issued 07:37:39.5 \u2192 E = 15:37:39.5. Margin 240 s.\n- `15:44:50.496\
+    \ + 28541s = 23:40:31.5`, fired 23:40:32.445. Token written 15:44:31 (entry 30)\
+    \ \u2192 E = 23:44:31.5. Margin 240 s.\n\nIt is corroborated from the other side\
+    \ too: refusal 2b lands 41.6 s after the derived E, and the daemon's `no token\
+    \ found` lands 39.8 s before it. The model is sound, so the \u0394 column is real\
+    \ arithmetic and not an estimate.\n\n### Splitting the population\n\n**Mechanism\
+    \ A \u2014 the token expired, unrefreshed. Three of the five, and both causes\
+    \ are mundane.**\n\n- **Occurrence 1 is now fully explained, and nobody had this.**\
+    \ `daemon.log` line 244: `[07:32:54.012] shutting down (cause=idle_exit, uptime=363s,\
+    \ leases=0, live_workers=0)` \u2014 the daemon idled out **104 seconds before\
+    \ the 07:34:38 refresh it had scheduled**, so nothing refreshed the token and\
+    \ it expired on time at 07:38:38.6. The cold-start session at 07:48:28 was refused\
+    \ 590 s later. Entry 6 recorded this occurrence as an unaided self-heal; the *death*\
+    \ was a cancelled timer, which is a much less alarming thing than it looked.\n\
+    - **2b and 2c** are ordinary post-expiry refusals following the three failed network\
+    \ refreshes entry 6 already documented.\n\n**Mechanism B \u2014 a session refused\
+    \ a token that had not expired. Two of the five, and this is the actual problem.**\n\
+    \n`2a` at **E\u221253.7 s** and `3` at **E\u2212271.9 s**. Entry 30 found this\
+    \ inversion for occurrence 3 and called it the open question. It also holds for\
+    \ occurrence 2, which nobody had noticed \u2014 so it is the *shape* of the failure\
+    \ rather than a one-off. In both cases the session was refused **before the daemon\
+    \ had concluded anything was wrong**: at 15:36:45.8 the daemon still had 14 s\
+    \ to go before its final attempt, and at 23:39:59.6 it had 33 s to go before its\
+    \ first.\n\nAnd in both, the daemon's very next attempt after that first refusal\
+    \ returned in **1\u20132 ms with `no token found`** \u2014 no network call at\
+    \ all \u2014 where its earlier attempts that same cycle were 5.7\u20137.1 s network\
+    \ failures that reported the token *present*.\n\n### A fixed client-side staleness\
+    \ margin is ruled out\n\nThis was the obvious explanation and it does not survive\
+    \ the data. In occurrence 2 the daemon read the token as **present** at E\u2212\
+    239 s, E\u2212166 s and E\u2212106 s (real network calls, `(token still valid)`),\
+    \ then **absent** at E\u221240 s. In occurrence 3 it read it as **absent** at\
+    \ E\u2212238.5 s. The same offset \u2014 about E\u2212240 s \u2014 reads present\
+    \ on one cycle and absent on the next, so no single margin explains both. Ruling\
+    \ this out matters because it is the reading a later session would otherwise reach\
+    \ for, and it would send anyone chasing a client constant that is not there.\n\
+    \nWhat is left is that the stored credential genuinely stops being readable at\
+    \ some point in the last minutes before expiry, and that both the sessions and\
+    \ the daemon then see nothing. In occurrence 2 that transition is bracketed to\
+    \ a **46-second window**: present at 15:35:59.68, a session refused at 15:36:45.78,\
+    \ daemon reporting nothing at 15:36:59.69.\n\n### Two more hypotheses from the\
+    \ original spec, now dropped\n\n- **Client version.** New: the CLI upgraded twice\
+    \ this week \u2014 2.1.228 \u2192 2.1.235 (08-18 21:36) \u2192 **2.1.237** (08-20\
+    \ 07:50) \u2192 **2.1.238** (08-21 15:44:49, `binary \u2026 changed (mtime changed)\
+    \ \u2014 self-restarting for upgrade`). Occurrence 1 straddles the 235\u2192237\
+    \ upgrade, occurrence 2 ran on 237, occurrence 3 on 238. **All three versions\
+    \ produced it.** Version is not the discriminator.\n- **Concurrency / device limit.**\
+    \ Occurrence 3's failing session was the *only* dispatched run live in the window\
+    \ \u2014 the ledger has nothing else overlapping 23:39:59. The 15:44:49 upgrade\
+    \ line also records `live_workers=6` with no auth trouble at all. Load does not\
+    \ track the failures.\n\n**A correction to entry 29 while I am here.** It read\
+    \ the interleaved `bg spawned`/`bg settled` lines around the window as \"two bg\
+    \ workers were live \u2026 which is the contention shape.\" Contention is not\
+    \ supported \u2014 but neither is the opposite, and I nearly wrote it. `8c7d3704`,\
+    \ `b0e6f93c`, `6a0beee3` and `c3d83a32` were all still registered across 23:39:59\
+    \ (they settle `(done)` between 23:45 and 00:22), so the machine was not idle\
+    \ either. The number of live workers simply does not correlate with the failures\
+    \ in any direction, which is why the concurrency hypothesis dies rather than flips.\n\
+    \n### One thing entry 30's framing missed\n\n`run_92d3e98c/meta.yaml`: `started_at:\
+    \ 23:39:57.024`, `auth_stalled_at: 23:39:59.562`. That session was refused **2.5\
+    \ seconds after launch and never ran a turn** \u2014 it did not die mid-work.\
+    \ Occurrence 1 is the same shape (record 12, 468 ms in). So Mechanism B is not\
+    \ confined to cold starts (2a was 1120 records deep), but when it hits a cold\
+    \ start the run is dead on arrival, which is exactly the case dispatch cannot\
+    \ afford.\n\n### The next cycle is predictable to the second\n\n`[23:41:02.459Z]\
+    \ auth: scheduling proactive refresh in 28542s` \u2192 the daemon refreshes at\
+    \ **2026-08-22T07:36:44.5Z**, so the current token expires at **07:40:44.5Z**.\
+    \ Independently: Jeff's credential was written 23:40:44.602Z, +8 h = 07:40:44.602Z.\
+    \ Two derivations agreeing to 100 ms.\n\nThat is **02:40:44 CDT** \u2014 Jeff's\
+    \ clock is UTC\u22125, per entry 30's timezone note.\n\nSo if Mechanism B recurs\
+    \ on this cycle it lands in roughly **07:35\u201307:40 Z**. The test that would\
+    \ settle it: from 07:34 Z, launch a throwaway `claude -p` every 30 s and record\
+    \ which attempts are refused, with a control run an hour earlier. That is a scheduled\
+    \ job at 02:35 CDT and it costs a few cents; it is not something to start without\
+    \ Jeff saying so.\n\n### Nothing to build, and why\n\nThe detector from entry\
+    \ 8 already catches the effect and proved it on `run_92d3e98c`. Recording the\
+    \ *derived expiry* alongside `auth_stalled_at` would let the poller classify each\
+    \ occurrence A or B automatically \u2014 but that needs `~/.claude/daemon.log`,\
+    \ which `src/agentjobs/dispatch/auth.py`'s module docstring explicitly rejected\
+    \ as an undocumented internal. That is a recorded decision and I am not relitigating\
+    \ it for a nicety. The task's own constraint also stands: no workaround before\
+    \ the trigger is known, and Mechanism B's trigger is still unknown.\n\n### For\
+    \ the upstream comment, whenever Jeff posts it\n\nThis is materially better than\
+    \ entry 8's draft and replaces it. The report is not \"login expired during long\
+    \ runs\" \u2014 it is: *on two occasions the CLI refused an access token with\
+    \ 54 s and 272 s of life remaining, in each case before the refresh daemon had\
+    \ attempted anything, and the daemon's next read of the credential store returned\
+    \ `no token found` in 1\u20132 ms with no network call, having read the same store\
+    \ successfully 46 s earlier.* Across CLI 2.1.235, 2.1.237 and 2.1.238. Still `anthropics/claude-code#79685`,\
+    \ still unposted, still Jeff's to send.\n"
+  data:
+    operation:
+      id: 1f2a6c30-8b4d-4e57-9a21-3c6e0d75b418
+      kind: log_append
+      fingerprint: 078b564a88878d45e54bab49186be991
+- id: 36
+  ts: '2026-08-22T01:00:30.200911Z'
+  actor: claude
+  type: handoff
+  body: 'No fourth occurrence yet, so instead of waiting I dated the whole existing
+    population. Entry 35 has it. Headline: there are two different failures here,
+    and three of the five refusals are mundane.
+
+
+    Three were plain post-expiry refusals with dull causes - occurrence 1 happened
+    because the daemon idle-exited 104 seconds before the refresh it had scheduled,
+    so nothing refreshed the token. Two were not: a session was refused a token with
+    53.7s of life left (15:36:45.8Z) and another with 271.9s left (23:39:59.6Z), in
+    each case before the daemon had attempted anything. A fixed client-side staleness
+    margin is ruled out by the daemon''s own log. Client version is ruled out - all
+    three of 2.1.235/237/238 produced it. Concurrency is ruled out. That is three
+    of the spec''s four hypotheses now dead.
+
+
+    Two calls, both yours:
+
+
+    1. TONIGHT, and it expires: the current token dies at 07:40:44.5Z = 02:40:44 CDT,
+    derived two independent ways agreeing to 100ms. If the anomaly recurs on this
+    cycle it lands around 02:35-02:40 CDT. The test is a throwaway `claude -p` every
+    30s from 02:34, plus a control an hour earlier - a scheduled job costing a few
+    cents, and it would either confirm the shape or make the next cycle the target.
+    Want it run? If not, this window is gone and the next is roughly 10:40 CDT tomorrow.
+
+
+    2. The upstream comment on anthropics/claude-code#79685. Entry 35 has a much sharper
+    report than entry 8''s draft - refused a token with 54s and 272s of life remaining,
+    before any refresh attempt, with the daemon''s next read returning `no token found`
+    in 1-2ms having read the same store successfully 46 seconds earlier. Still unposted,
+    still yours to send.
+
+
+    Nothing was built and nothing needs to be: the detector already catches the effect,
+    and the trigger for the anomaly is still unknown, which is exactly when this task''s
+    own constraints say not to build. No code touched, no branch, no worktree - task
+    record only.'
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: 6d90b71e-2f83-4c14-b5a7-91e2af0c3d77
+      kind: handoff
+      fingerprint: 2bf807789990c7c9d999cafac05918bc
