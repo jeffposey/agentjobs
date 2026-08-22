@@ -2,63 +2,13 @@ schema: 2
 id: task-241
 title: Approval runs the merge itself, and wakes a session only when it cannot
 created: '2026-08-22T00:48:16.842628Z'
-updated: '2026-08-22T03:19:23.998715Z'
+updated: '2026-08-22T04:27:58.210570Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "**Ready for review: `feat/task-241-scripted-finish`, 8 commits, gate\
-  \ green at 130.8s on a clean tree.** All six acceptance criteria met; the demonstration\
-  \ entry has the evidence and the decision entry has the six binding calls.\n\n**What\
-  \ it does.** With it enabled, clicking Approve rebases the task's branch, runs the\
-  \ full gate in that branch's own worktree with that worktree's own interpreter,\
-  \ merges `--no-ff`, rebuilds the frontend if the merge touched it, restarts the\
-  \ server the way this machine says it was started, proves the running process is\
-  \ serving the merge, closes the task and removes the worktree. No agent is started\
-  \ at all. When it cannot do a step safely it stops, writes exactly how far it got,\
-  \ and hands the ball back.\n\n**The number: 11.0 minutes -> 3.1 minutes, and no\
-  \ dispatched run.** 176.7s of that 3.1m is a full gate run the eleven-minute sessions\
-  \ never did, so like for like it is 11.0 minutes against 9.1 seconds of machinery,\
-  \ with a re-verification of the rebased branch thrown in.\n\n**Demonstrated live,\
-  \ not asserted** \u2014 real clone of this repo, real server, real `agentjobs finish`,\
-  \ in `scripts/finish_sandbox.py`: a clean branch merged and verified live; a real\
-  \ conflicting rebase aborted with the branch tip read back and unchanged; a real\
-  \ red gate blocking the merge; and a restart command that exits zero and restarts\
-  \ nothing, caught by verification with the merge already done and the record saying\
-  \ so.\n\n---\n\n**Two things I need from you, and one is a decision.**\n\n**1. The\
-  \ switch is off, and turning it on is yours.** I did not touch `~/.agentjobs/dispatch.yaml`.\
-  \ Nothing changes on this machine until you add this under `projects.agentjobs`,\
-  \ and it takes effect only after this branch is merged and 8876 restarts:\n\n```yaml\n\
-  \  agentjobs:\n    enabled: true\n    group: default\n    auto_dispatch: false\n\
-  \    posture: auto\n    finish:\n      enabled: true\n      base_branch: main\n\
-  \      restart:\n        - pwsh\n        - -File\n        - C:/ai/shared/launchers/open-agentjobs.ps1\n\
-  \        - -Force\n      verify_base: http://127.0.0.1:8876\n```\n\nI have **not\
-  \ verified that exact restart command**, and you should before trusting it: I know\
-  \ from the task spec that the launcher restarts-if-stale and takes `-Force`, and\
-  \ I have not read it or run it. If it is wrong the failure is loud rather than silent\
-  \ \u2014 the finish escalates at `restart` or at `verify` with the merge already\
-  \ recorded \u2014 but check it. If the executable is `powershell` rather than `pwsh`\
-  \ on this machine, that is the word to change.\n\nWhat you are agreeing to if you\
-  \ turn it on: **approving a task on agentjobs merges it into `main` without a second\
-  \ click, and briefly restarts the dashboard.** A person still approves every task.\
-  \ Nothing else about the gate moves.\n\n**2. Please look at the two places I departed\
-  \ from the spec's step list**, both in the decision entry:\n\n- **Closing is last,\
-  \ not fourth.** If closing came before the rebuild and restart, the one failure\
-  \ ENGINEERING.md warns loudest about \u2014 a merged frontend change nobody rebuilt\
-  \ \u2014 would end with a task marked `completed`. The cost is a state that did\
-  \ not exist before: a task open with its branch already merged, saying so on its\
-  \ own record.\n- **The finish writes nothing to `acceptance[]`,** although the spec\
-  \ asked for \"statuses that are genuinely determinable\". I could not find one a\
-  \ script can determine without fabricating evidence. If you disagree, say which\
-  \ criterion you had in mind.\n\n---\n\n**Also worth knowing before you approve**\n\
-  \n- **It never pushes.** Same rule as the dispatcher's own commits.\n- **A flaky\
-  \ test showed up under load** and is not mine: `tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too`\
-  \ failed once in a sandbox gate running alongside three bootstraps, with \"the grandchild\
-  \ never started, so this proves nothing\". It passes in every unloaded run including\
-  \ the final gate. Worth a task if it recurs.\n- **`main` in this clone is 8 task-record\
-  \ commits ahead of `origin`,** which is the existing state and not something I created.\n\
-  \nOn approval I will rebase, merge `--no-ff`, mark the branch merged, close, rebuild,\
-  \ restart 8876 and confirm the merged code is live \u2014 by hand this time, since\
-  \ the thing that would do it for me is what is being reviewed."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: critical
 queue_position: 300
@@ -652,3 +602,65 @@ log:
     outcome: completed
     duration_seconds: 7377.64791
     log_path: C:\Users\jpose\.agentjobs\runs\run_b440fdb5
+- id: 12
+  ts: '2026-08-22T04:27:51.434315Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
+- id: 13
+  ts: '2026-08-22T04:27:55.125320Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 14
+  ts: '2026-08-22T04:27:58.210396Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_b440fdb5` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_d813a110
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 13
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - --resume
+    - 7d9101ec-84bd-4451-9d84-ceb30231270f
+    cwd: C:\projects\agentjobs
+    git_head: eb12686
+    session_id: d12b034c
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
