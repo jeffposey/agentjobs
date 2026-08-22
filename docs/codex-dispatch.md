@@ -13,6 +13,13 @@ conversation is written to Codex's normal session store so Codex Desktop can ope
 AgentJobs keeps a diagnostic JSONL transcript, but the Desktop conversation is the
 primary view for output, diffs, and approvals.
 
+Codex Fast mode is a runner setting, not something AgentJobs should inherit from the
+currently-open Desktop conversation. Add `-c service_tier="priority"` (or the documented
+`"fast"` alias) to a Codex runner's argv when that runner should spend the extra credits
+for roughly 1.5x speed. The session adapter forwards this value to App Server's
+`thread/start`/`thread/resume` and `turn/start`; batch runners pass it directly to
+`codex exec`. Claude runners have no corresponding speed setting.
+
 When `resume_sessions: true` (the default), a later dispatch of the same task selects
 the newest completed Codex session run, calls `thread/resume`, and injects the current
 AgentJobs wake prompt—including the new ball prompt—through `turn/start`. This keeps
@@ -50,14 +57,16 @@ Windows, avoiding the non-spawnable Microsoft Store `codex` alias.
 
   codex-luna-session:
     argv: ["codex", "app-server", "--model", "gpt-5.6-luna",
-           "-c", 'model_reasoning_effort="high"', "{prompt}"]
+           "-c", 'model_reasoning_effort="high"',
+           "-c", 'service_tier="priority"', "{prompt}"]
     driver: codex
     mode: session
     actor: codex
 
   codex-sol-session:
     argv: ["codex", "app-server", "--model", "gpt-5.6-sol",
-           "-c", 'model_reasoning_effort="high"', "{prompt}"]
+           "-c", 'model_reasoning_effort="high"',
+           "-c", 'service_tier="priority"', "{prompt}"]
     driver: codex
     mode: session
     actor: codex

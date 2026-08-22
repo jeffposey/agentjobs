@@ -22,6 +22,8 @@ def test_parse_session_settings_reads_codex_flags_and_posture() -> None:
             "gpt-5.6-sol",
             "-c",
             'model_reasoning_effort="high"',
+            "-c",
+            'service_tier="priority"',
         ],
         posture="autonomous",
         project_root=Path("C:/project"),
@@ -32,6 +34,7 @@ def test_parse_session_settings_reads_codex_flags_and_posture() -> None:
         effort="high",
         approval_policy="never",
         sandbox="danger-full-access",
+        service_tier="priority",
     )
 
 
@@ -85,6 +88,7 @@ def test_app_server_start_and_supervise_use_jsonl_protocol(monkeypatch) -> None:
             "never",
             "workspace-write",
             ("C:/project/.git", "C:/worktrees"),
+            "priority",
         ),
         thread_name="AgentJobs test/task-279",
     )
@@ -107,6 +111,9 @@ def test_app_server_start_and_supervise_use_jsonl_protocol(monkeypatch) -> None:
         "type": "workspaceWrite",
         "writableRoots": ["C:/project/.git", "C:/worktrees"],
     }
+    assert messages[0]["params"]["capabilities"]["experimentalApi"] is True
+    assert messages[2]["params"]["serviceTier"] == "priority"
+    assert messages[4]["params"]["serviceTier"] == "priority"
 
 
 def test_parse_workspace_postures_add_only_git_and_sibling_worktrees() -> None:

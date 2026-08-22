@@ -31,6 +31,7 @@ class CodexSessionSettings:
     approval_policy: str
     sandbox: str
     writable_roots: tuple[str, ...] = ()
+    service_tier: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -163,7 +164,8 @@ class CodexAppServerProcess:
                         "name": self.service_name,
                         "title": "AgentJobs Codex session",
                         "version": "0.1.0",
-                    }
+                    },
+                    "capabilities": {"experimentalApi": True},
                 },
             )
             self._send({"method": "initialized", "params": {}})
@@ -175,6 +177,11 @@ class CodexAppServerProcess:
                         "cwd": str(self.cwd),
                         "approvalPolicy": self.settings.approval_policy,
                         "sandbox": self.settings.sandbox,
+                        **(
+                            {"serviceTier": self.settings.service_tier}
+                            if self.settings.service_tier
+                            else {}
+                        ),
                     },
                 )
             else:
@@ -186,6 +193,11 @@ class CodexAppServerProcess:
                         "approvalPolicy": self.settings.approval_policy,
                         "sandbox": self.settings.sandbox,
                         "serviceName": self.service_name,
+                        **(
+                            {"serviceTier": self.settings.service_tier}
+                            if self.settings.service_tier
+                            else {}
+                        ),
                     },
                 )
             thread = thread_result.get("thread")
@@ -204,6 +216,11 @@ class CodexAppServerProcess:
                     "input": [{"type": "text", "text": prompt}],
                     **({"model": self.settings.model} if self.settings.model else {}),
                     **({"effort": self.settings.effort} if self.settings.effort else {}),
+                    **(
+                        {"serviceTier": self.settings.service_tier}
+                        if self.settings.service_tier
+                        else {}
+                    ),
                     "cwd": str(self.cwd),
                     "approvalPolicy": self.settings.approval_policy,
                     "sandboxPolicy": {
@@ -286,6 +303,7 @@ def parse_session_settings(
     """
     model: Optional[str] = None
     effort: Optional[str] = None
+    service_tier: Optional[str] = None
     for index, element in enumerate(argv):
         if element in {"--model", "-m"} and index + 1 < len(argv):
             model = argv[index + 1]
@@ -295,6 +313,8 @@ def parse_session_settings(
             effort = argv[index + 1].strip("\"'")
         if element.startswith("model_reasoning_effort="):
             effort = element.split("=", 1)[1].strip("\"'")
+        if element.startswith("service_tier="):
+            service_tier = element.split("=", 1)[1].strip("\"'")
     sandbox = {
         "read_only": "read-only",
         "auto": "workspace-write",
@@ -321,4 +341,5 @@ def parse_session_settings(
         approval_policy=approval,
         sandbox=sandbox,
         writable_roots=writable_roots,
+        service_tier=service_tier,
     )
