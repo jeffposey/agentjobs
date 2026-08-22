@@ -2,17 +2,15 @@ schema: 2
 id: task-279
 title: Add a Codex App Server session runner for steerable dispatch
 created: '2026-08-22T20:23:50.857500Z'
-updated: '2026-08-22T20:28:48.845543Z'
+updated: '2026-08-22T20:33:41.975189Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: 'The stable Windows App Server path has been proven: it creates a named,
-  persisted Codex thread in the Desktop session store and a normal App Server can
-  list it. The Windows build does not provide the stable shared App Server daemon/control
-  socket, so AgentJobs cannot keep a separate process''s live turn remotely steerable
-  through the stable API. Do you authorize enabling and testing Codex''s experimental
-  Remote Control service for true live, device-pairable steering, or should task-279
-  ship the stable app-visible session path only?'
+ball: agent
+ball_reason: work
+ball_prompt: 'Human authorized enabling and testing the experimental Codex Remote
+  Control path. Resume task-279: implement the Codex session driver, test Windows
+  Remote Control pairing/live steering, preserve batch runner, and report whether
+  sessions appear in Codex app lists. Keep Terra/Sol production groups unchanged until
+  verified.'
 archived: false
 priority: high
 queue_position: 15
@@ -29,16 +27,19 @@ assignment:
   eligible: []
 spec:
   summary: AgentJobs currently dispatches Codex through noninteractive `codex exec`.
-    Add a separate session runner so a dispatch creates a durable App Server-owned
-    Codex thread that can be inspected and steered.
-  intent: Make Codex Dispatch usable as an interactive, app-visible session workflow
-    rather than only a batch log.
+    Add a separate session runner so a dispatch creates a durable, app-visible Codex
+    thread that can be inspected and remotely steered.
+  intent: Make Codex Dispatch usable as an interactive, app-visible, remotely steerable
+    session workflow rather than only a batch log.
   description: Implement and prove a Codex App Server-backed session driver for AgentJobs
-    Dispatch. Preserve the existing `codex exec` batch driver and defer production
-    runner-group cutover until the session path is validated.
-  constraints: Use the stable Codex App Server protocol core. Do not enable experimental
-    `remote-control`, do not expose a LAN service by default, and do not silently
-    fall back to the batch driver. Keep the existing Codex batch runner.
+    Dispatch. On Windows, test the experimental Codex Remote Control path needed for
+    live device-pairable steering. Preserve the existing `codex exec` batch driver
+    and defer production runner-group cutover until the session path is validated.
+  constraints: 'Use the App Server JSON-RPC protocol and the Codex Desktop Remote
+    Control path where Windows lacks the stable shared daemon socket. Remote Control
+    is experimental: keep it loopback/pairing-scoped, do not expose an unauthenticated
+    LAN listener, surface startup/pairing failures clearly, and do not silently fall
+    back to batch. Keep the existing Codex batch runner.'
   out_of_scope: Switching default or Big Dawg production runner groups to Codex; that
     follows only after this driver is verified.
   context:
@@ -48,27 +49,27 @@ spec:
     why: Current dispatch driver, run ledger, and supervisor implementation.
 acceptance:
 - id: ac1
-  text: A configured Codex App Server session driver can coexist with the existing
-    Codex batch driver.
+  text: A configured Codex App Server/Remote Control session driver can coexist with
+    the existing Codex batch driver.
   status: pending
 - id: ac2
-  text: Dispatch starts a Codex App Server thread with explicit model, cwd, sandbox/approval
+  text: Dispatch starts a Codex session with explicit model, cwd, sandbox/approval
     posture, and required AgentJobs MCP configuration; it records the returned thread/session
     identifier in the run and task dispatch records.
   status: pending
 - id: ac3
-  text: AgentJobs can query the stable App Server thread status and send follow-up
-    work to a running or resumed session using supported RPCs, without transcript
-    scraping.
+  text: AgentJobs can query session status and send follow-up work through supported
+    App Server or Remote Control RPCs, without transcript scraping.
   status: pending
 - id: ac4
-  text: Unreachable App Server and required-MCP failures are surfaced clearly and
-    never silently invoke the batch runner.
+  text: Unreachable App Server, Remote Control pairing/startup, and required-MCP failures
+    are surfaced clearly and never silently invoke the batch runner.
   status: pending
 - id: ac5
-  text: Deterministic protocol unit tests and an integration proof verify that a started
-    thread is listed by the App Server; documentation distinguishes this runner from
-    ChatGPT Remote device pairing.
+  text: Deterministic protocol unit tests and a Windows integration proof verify that
+    a started session is visible/listable in Codex Desktop and can be steered through
+    the authorized remote path; documentation distinguishes stable App Server behavior
+    from experimental Remote Control.
   status: pending
 deliverables: []
 dependencies: []
@@ -146,3 +147,30 @@ log:
       id: 44e56f8c-4c34-4a65-bf44-d47aee9afbc6
       kind: handoff
       fingerprint: a36110bf4242239a9fa0e100448f4489
+- id: 6
+  ts: '2026-08-22T20:33:34.684505Z'
+  actor: codex
+  type: note
+  body: Updated acceptance, spec.
+  data:
+    fields:
+    - acceptance
+    - spec
+    operation:
+      id: 8d6b4e1a-1c1d-4a93-b1ad-0e4ce7f8c41c
+      kind: update_content
+      fingerprint: 0512d7d1d924f0411b5690584246b1b0
+- id: 7
+  ts: '2026-08-22T20:33:41.975054Z'
+  actor: codex
+  type: handoff
+  body: 'Decision received: yes, enable and test experimental Remote Control. Updated
+    constraints and acceptance to include the authorized Windows Remote Control path
+    while retaining App Server safety and no silent batch fallback.'
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: a7f6e2c1-0c9d-49b4-9eb4-d92a4d31c4e0
+      kind: handoff
+      fingerprint: 1f5071c0d9ff0f6996f734b589af4935
