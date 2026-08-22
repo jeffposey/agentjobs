@@ -2,13 +2,18 @@ schema: 2
 id: task-278
 title: Keep CLI batch dispatch supervised through completion
 created: '2026-08-22T20:10:07.889153Z'
-updated: '2026-08-22T20:10:08.234705Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-22T20:15:40.632112Z'
+lifecycle: active
+ball: human
+ball_reason: review
+ball_prompt: 'Review task-278. The branch `codex/task-278-cli-batch-supervision` contains
+  commit `2e8559e`: CLI batch dispatch now waits for its supervisor to record the
+  terminal outcome, with regression coverage. If satisfactory, approve it for merge;
+  then I will merge, restart the local service, rerun the Terra smoke dispatch, and
+  switch the production runner groups.'
 archived: false
 priority: high
-queue_position: 14300
+queue_position: 15
 category: infrastructure
 tags:
 - dispatch
@@ -17,6 +22,7 @@ tags:
 - reliability
 effort: small
 assignment:
+  owner: codex
   eligible: []
 spec:
   summary: A successful Codex batch run launched by `agentjobs dispatch run` exited
@@ -45,19 +51,26 @@ acceptance:
 - id: ac-1
   text: A batch run started by `agentjobs dispatch run` writes exactly one terminal
     run state and dispatch-result record after its child exits.
-  status: pending
+  verify: '`pytest tests/test_dispatch_cli.py::TestDispatchRun tests/test_dispatch_runner.py
+    -q`'
+  status: met
 - id: ac-2
   text: A successfully completed child is not later misclassified as interrupted merely
     because the launching CLI process ended.
-  status: pending
+  verify: CLI regression asserts a completed subprocess has a terminal ledger record
+    before command return.
+  status: met
 - id: ac-3
   text: Regression coverage exercises the CLI batch path and asserts the terminal
     ledger state.
-  status: pending
+  verify: '`pytest tests/test_dispatch_cli.py -q`'
+  status: met
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: codex/task-278-cli-batch-supervision
+  status: active
 log:
 - id: 1
   ts: '2026-08-22T20:10:08.233895Z'
@@ -70,3 +83,72 @@ log:
       id: dc53ac9f-4f1b-44d7-9b4c-a55a414d3ae1
       kind: create
       fingerprint: d60d2d6189d647d5f8796d8844b6d730
+- id: 2
+  ts: '2026-08-22T20:10:42.033121Z'
+  actor: codex
+  type: queue_move
+  body: 'Move ahead of the general queue: it is the demonstrated completion-recording
+    defect that blocks the approved Codex dispatch rollout.'
+  data:
+    band: high
+    from: 14300
+    to: 15
+    placement:
+      kind: top
+    operation:
+      id: 6d71be09-0f15-4c82-9e38-8e59da7cf48a
+      kind: queue_move
+      fingerprint: 94ada3bc3d393f4c296d9b2bcda4ab97
+- id: 3
+  ts: '2026-08-22T20:10:44.709549Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: f8f7ec25-c3a5-49a0-afb0-46d36963fc26
+      kind: claim
+      fingerprint: 3534a688d8c2dcc09596c1c42c585933
+- id: 4
+  ts: '2026-08-22T20:15:04.805879Z'
+  actor: codex
+  type: progress
+  body: 'Implemented the narrow CLI lifecycle repair on codex/task-278-cli-batch-supervision:
+    `dispatch run` now waits for batch supervision to write its terminal record. Added
+    a CLI regression test that asserts the run ledger is terminal and the task has
+    a dispatch_result. Focused dispatch tests (126), Black, Ruff, and MyPy pass.'
+  data:
+    operation:
+      id: bf12a3f7-8c13-4d0d-b564-666b0c3a19f5
+      kind: log_append
+      fingerprint: 9bf48b80f9cc59db9ddf811f301d2973
+- id: 5
+  ts: '2026-08-22T20:15:35.624166Z'
+  actor: codex
+  type: note
+  body: Updated acceptance, branches.
+  data:
+    fields:
+    - acceptance
+    - branches
+    operation:
+      id: f924ed56-0ee2-4ae7-bac6-91acbeaece6a
+      kind: update_content
+      fingerprint: d6169515e84957e6530bd1f8763221c5
+- id: 6
+  ts: '2026-08-22T20:15:40.631968Z'
+  actor: codex
+  type: handoff
+  body: 'Ready for review: commit 2e8559e on codex/task-278-cli-batch-supervision.
+    Verified `pytest tests/test_dispatch_cli.py -q` (35 passed), focused dispatch
+    runner coverage (126 passed combined), Black, Ruff, MyPy, and diff check.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 20ee0b81-7462-494f-8e1e-aae761ef93a4
+      kind: handoff
+      fingerprint: 9831cd58fa584de0a9a141e43a1e1f85
