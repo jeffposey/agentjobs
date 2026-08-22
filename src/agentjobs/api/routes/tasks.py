@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.attachments import AttachmentError, AttachmentPayload
 from agentjobs.dispatch.auto import maybe_auto_dispatch
+from agentjobs.dispatch.finish import finish_is_offered, spawn_finish
 from agentjobs.operations import OperationConflictError, RevisionConflictError
 from agentjobs.projects import Project
 from agentjobs.queue import QueueCorruptionError
@@ -573,7 +574,13 @@ class RejectActionRequest(HumanActionRequest):
 
 
 def after_human_handoff(
-    manager: TaskManager, project: Project, task: Task, request: Request
+    manager: TaskManager,
+    project: Project,
+    task: Task,
+    request: Request,
+    *,
+    finishable: bool = False,
+    approver: str = "",
 ) -> Task:
     """Start an agent if this project opted into auto-dispatch, and never fail.
 
@@ -590,7 +597,22 @@ def after_human_handoff(
     is told the same thing as one started by Dispatch. The two paths reaching different
     answers is exactly the failure task-154 fixed, and passing the request is what makes
     them the same code rather than the same constant written twice.
+
+    ``finishable`` is passed by **the approve route and by nothing else**, and it is a
+    parameter rather than a check on the resulting ball for one reason: the difference
+    between "merge this" and "change this" must not be a value some later route can
+    reproduce by accident. Requesting changes and approving both hand to the agent; only
+    one of them means the work is finished, and the route that received the click is the
+    only thing that knows which. See ``spawn_finish`` (task-241).
     """
+    if finishable and finish_is_offered(project.id):
+        # A finish and an auto-dispatch are alternatives, never both: they would race
+        # for the same branch and the same per-task lock. The finish is preferred when
+        # this machine offers it, and it escalates into a dispatch itself when it cannot
+        # complete -- so the auto-dispatch path is reached, just later and only if needed.
+        spawn_finish(project=project, task_id=task.id, approver=approver or "a human")
+        return manager.get_task(task.id) or task
+
     outcome = maybe_auto_dispatch(
         manager=manager,
         project=project,
@@ -669,7 +691,11 @@ async def approve_task(
                 else f"Approved by {user} through the web UI."
             ),
         )
-        return HumanActionResponse(task=after_human_handoff(manager, project, task, request))
+        return HumanActionResponse(
+            task=after_human_handoff(
+                manager, project, task, request, finishable=True, approver=user
+            )
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

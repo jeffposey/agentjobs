@@ -1830,5 +1830,52 @@ def migrate(
         typer.echo("\n⚠️  This was a dry run - no files were written.")
 
 
+@app.command()
+def finish(
+    task_id: str = typer.Argument(..., help="Approved task to rebase, gate, merge and close."),
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Registered project id. Defaults to the one you are in."
+    ),
+    approver: str = typer.Option(
+        "a human", "--approver", help="Who approved this, for the merge message and the log."
+    ),
+) -> None:
+    """Run the scripted post-approval finish, with no agent in the loop (task-241).
+
+    This is what the Approve button starts in a detached process; running it by hand is
+    the same code and is how a finish that escalated is retried once its cause is fixed.
+
+    It never merges anything a person has not approved, and it stops at the first thing
+    it cannot do safely -- a conflicting rebase, a red gate, a server it cannot show is
+    serving the merged code -- writing where it stopped onto the task and handing the
+    ball back. Exit code 0 means merged, closed and verified; 1 means it stopped and the
+    task says where; 2 means the task was never a candidate and nothing happened.
+    """
+    from agentjobs.dispatch.finish import DECLINED, ESCALATED, finish_task
+
+    registry = ProjectRegistry()
+    try:
+        project = registry.get(project_id) if project_id else registry.resolve_default()
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    manager = TaskManager(TaskStorage(project.tasks_dir()))
+    result = finish_task(manager=manager, project=project, task_id=task_id, approver=approver)
+    typer.echo(result.render())
+    if result.outcome == DECLINED:
+        typer.secho(f"Nothing done ({result.reason}).", fg=typer.colors.YELLOW)
+        raise typer.Exit(code=2)
+    if result.outcome == ESCALATED:
+        typer.secho(
+            f"Stopped at {result.steps[-1].step} ({result.reason}). The task says where.",
+            fg=typer.colors.RED,
+        )
+        if result.dispatched_run_id:
+            typer.echo(f"   Escalated into run {result.dispatched_run_id}.")
+        raise typer.Exit(code=1)
+    typer.secho(f"✅ {result.detail}", fg=typer.colors.GREEN)
+
+
 if __name__ == "__main__":
     app()
