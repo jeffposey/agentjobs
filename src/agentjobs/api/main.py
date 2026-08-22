@@ -15,7 +15,11 @@ from fastapi.responses import JSONResponse
 from starlette import status
 
 from agentjobs.__version__ import __version__
-from agentjobs.environment import SourceMismatchError, verify_source_or_die
+from agentjobs.environment import (
+    SourceMismatchError,
+    capture_source_identity,
+    verify_source_or_die,
+)
 from agentjobs.instrumentation import reset_task_parses, task_parse_count
 from agentjobs.projects import ProjectError, ProjectRegistry, default_home
 from agentjobs.storage import TaskLoadError, corpus_snapshot
@@ -137,6 +141,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     from agentjobs.dispatch.poller import poll_sessions_forever
 
     _verify_served_source()
+    # Fix which code this process is running *before* it serves anything. Captured here
+    # rather than on demand because the whole value of the answer is that a merge into
+    # the served clone cannot change it -- see `capture_source_identity` (task-241).
+    capture_source_identity()
     poller = asyncio.create_task(poll_sessions_forever(default_home()))
     _reconcile_dispatch_runs()
     try:
