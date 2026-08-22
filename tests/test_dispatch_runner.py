@@ -21,10 +21,12 @@ import os
 import subprocess
 import sys
 import textwrap
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
 import pytest
+import yaml
 
 from agentjobs.dispatch.config import (
     DispatchConfig,
@@ -48,6 +50,7 @@ from agentjobs.dispatch.runner import (
     TRANSCRIPT_FILENAME,
     DispatchRunner,
     DispatchRunError,
+    RunHandle,
     RunDirectory,
     SessionPhase,
     allow_rules,
@@ -70,6 +73,7 @@ from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     Ball,
     BallReason,
+    DispatchMode,
     DispatchOutcome,
     Lifecycle,
     LogEntryType,
@@ -594,6 +598,58 @@ class TestCodexBatchRunner:
     def test_supervised_is_refused_before_spawn(self) -> None:
         with pytest.raises(DispatchRunError, match="does not support posture 'supervised'"):
             posture_flags(Posture.SUPERVISED, [], driver=RunnerDriver.CODEX)
+
+    def test_a_transient_pid_probe_miss_does_not_reap_the_live_app_server(
+        self, workspace: Path, manager: TaskManager, task, monkeypatch
+    ) -> None:
+        """Windows can miss a just-started child once; polling must keep the run alive."""
+        resolution = make_resolution(
+            ["codex", "app-server", "{prompt}"],
+            mode=RunnerMode.SESSION,
+            driver=RunnerDriver.CODEX,
+            posture=Posture.AUTO,
+        )
+        now = datetime(2026, 8, 22, tzinfo=timezone.utc)
+        runner = DispatchRunner(
+            manager=manager,
+            resolution=resolution,
+            project_root=workspace / "project",
+            home=workspace / "home",
+            clock=lambda: now,
+        )
+        directory = RunDirectory.create(
+            workspace / "home",
+            "run_codex_probe",
+            {
+                "run_id": "run_codex_probe",
+                "task_id": task.id,
+                "project_id": "sandbox",
+                "mode": "session",
+                "status": "running",
+                "codex_status": "running",
+                "pid": 4242,
+                "session_id": "thread-1",
+                "started_at": now.isoformat(),
+            },
+        )
+        handle = RunHandle(
+            run_id="run_codex_probe",
+            task_id=task.id,
+            mode=DispatchMode.SESSION,
+            directory=directory,
+            pid=4242,
+            session_id="thread-1",
+        )
+        probes = iter([OSError("temporarily unavailable"), None])
+        monkeypatch.setattr("agentjobs.dispatch.runner.os.kill", lambda _pid, _sig: next(probes))
+
+        assert runner.poll_session(handle) is SessionPhase.RUNNING
+        assert yaml.safe_load((directory.path / "meta.yaml").read_text())["status"] == "running"
+        assert runner.poll_session(handle) is SessionPhase.RUNNING
+        assert (
+            yaml.safe_load((directory.path / "meta.yaml").read_text()).get("pid_missing_since")
+            is None
+        )
 
     def test_codex_flags_land_before_the_prompt(self) -> None:
         prompt = "work task-277"

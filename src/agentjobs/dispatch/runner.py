@@ -209,6 +209,14 @@ rest from the record it is about to open anyway.
 GRACE_SECONDS = 30.0
 """How long a cancelled batch run gets to finish a ``git commit`` before it is killed."""
 
+CODEX_PID_MISSING_GRACE_SECONDS = 30.0
+"""How long a Codex App Server PID may be temporarily invisible before reaping.
+
+Windows can briefly reject or miss a process probe while a newly-started App Server is
+initializing.  A single failed ``os.kill(pid, 0)`` is therefore not evidence that the
+session ended; the supervisor state remains authoritative until this grace expires.
+"""
+
 OUTPUT_TAIL_LINES = 40
 """Lines of run output inlined into a non-success ``dispatch_result``.
 
@@ -1837,11 +1845,31 @@ class DispatchRunner:
         if isinstance(pid, int) and pid > 0:
             try:
                 os.kill(pid, 0)
+                # Clear a transient miss once the process is observable again.  A null
+                # value keeps the run metadata self-describing without growing a new
+                # schema just for this one startup race.
+                if meta.get("pid_missing_since") is not None:
+                    handle.directory.update_meta(pid_missing_since=None)
             except PermissionError:
                 # The process exists but Windows denied the probe; that is still alive
                 # for polling purposes.
                 pass
             except (OSError, ProcessLookupError):
+                now = self.clock()
+                missing_raw = meta.get("pid_missing_since")
+                missing_since: Optional[datetime] = None
+                if isinstance(missing_raw, str):
+                    try:
+                        missing_since = datetime.fromisoformat(missing_raw)
+                    except ValueError:
+                        missing_since = None
+                    if missing_since is not None and missing_since.tzinfo is None:
+                        missing_since = missing_since.replace(tzinfo=timezone.utc)
+                if missing_since is None:
+                    handle.directory.update_meta(pid_missing_since=now.isoformat())
+                    return SessionPhase.RUNNING
+                if now - missing_since < timedelta(seconds=CODEX_PID_MISSING_GRACE_SECONDS):
+                    return SessionPhase.RUNNING
                 self._finish_session(
                     handle,
                     DispatchOutcome.INTERRUPTED,
