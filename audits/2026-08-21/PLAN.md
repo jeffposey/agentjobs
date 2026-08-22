@@ -51,6 +51,14 @@ shared preamble to each brief, and spawns sessions.
 - Auditor death: if a session dies without writing its file, retry **once**.
   If it dies again, write a one-line stub findings file saying so and move on —
   the synthesis must know the gap exists.
+- **Hitting the weekly limit mid-audit (Jeff's ruling, 2026-08-21): toss the
+  unfinished sections, keep everything finished.** No retries against a dead
+  pool. Write a stub for each auditor that was cut ("cut by weekly limit"),
+  and run synthesis over what exists — the report's Coverage honesty section
+  states plainly "we audited these N systems and ran out of limit." If the
+  pool is too dead even for synthesis, the dispatcher writes a bare index of
+  the completed findings files instead, and synthesis runs after the reset
+  (7pm 2026-08-22) — the findings files don't expire, only the quota does.
 - Auditors **write their findings file but do not commit**. The synthesis
   session commits everything at the end (twelve concurrent committers on one
   clone is a race nobody needs).
