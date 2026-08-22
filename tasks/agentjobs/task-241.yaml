@@ -2,7 +2,7 @@ schema: 2
 id: task-241
 title: Approval runs the merge itself, and wakes a session only when it cannot
 created: '2026-08-22T00:48:16.842628Z'
-updated: '2026-08-22T02:51:15.185363Z'
+updated: '2026-08-22T02:56:10.827499Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -325,3 +325,89 @@ log:
       id: c41d8e77-2a3b-4f16-9c05-72e1a0b4d3e8
       kind: log_append
       fingerprint: aed599b5a5bfd946151ce6b15abb3d01
+- id: 7
+  ts: '2026-08-22T02:56:10.824210Z'
+  actor: claude
+  type: decision
+  body: "**Decision: five choices where I did not build what the spec's step list\
+    \ literally said, and one where I did.** Each is binding unless a reviewer overturns\
+    \ it; each names what was rejected, because none of them is recoverable from the\
+    \ diff.\n\n## 1. Closing is the last step, not the fourth\n\nThe spec lists close\
+    \ at step 4 and rebuild/restart/verify at step 5. Built the other way round.\n\
+    \n**Rejected: closing before delivery.** ENGINEERING.md's sharpest warning about\
+    \ this exact sequence is that `frontend_dist/` is gitignored, so a merged React\
+    \ change is committed and invisible until `npm run build` runs in the serving\
+    \ clone \u2014 and the human ends up looking at the version they approved you\
+    \ to replace. If closing came first, that failure would end with a task marked\
+    \ `completed`, which is precisely the ambiguity this task's constraints forbid.\n\
+    \nAs built, a failure after the merge leaves: the merge on the record with its\
+    \ commit, the task **open**, the ball with the agent, and a prompt reading \"\
+    **The merge is done: `abc1234`**\" followed by what is missing. A reader can never\
+    \ be in doubt about whether `main` moved.\n\nThe cost, stated so nobody rediscovers\
+    \ it: a task can now sit open with its branch already merged. That state is real\
+    \ and it is the honest one.\n\n## 2. The finish does not touch acceptance statuses\n\
+    \nThe spec says \"set acceptance statuses that are genuinely determinable\".\n\
+    \n**Rejected: writing anything to `acceptance[]`.** I could not find one that\
+    \ a script can determine. \"The branch merged\" is not an acceptance criterion;\
+    \ every real criterion on the tasks in this corpus is a claim about behaviour\
+    \ that a human or an agent judged. Writing `met` on them from a merge would be\
+    \ fabricating evidence in the one part of the record that is supposed to carry\
+    \ it. The agent sets them before handing off, and the human approves on that basis\
+    \ \u2014 that chain is intact and this must not insert itself into it.\n\n## 3.\
+    \ Verification asks for containment, not equality \u2014 and asks about the checkout\
+    \ first\n\nThe spec says to check the serving process is running the merged code,\
+    \ and calls \"started after the merge commit\" a floor.\n\nBuilt: `/api/version`\
+    \ gains `source_commit`, **captured once at process start and never recomputed**,\
+    \ and the check is `merge-base --is-ancestor <merge> <serving commit>` in the\
+    \ clone that was merged into.\n\n- **Rejected: comparing for equality.** The finisher\
+    \ commits the task record to the base immediately after merging, so the base is\
+    \ already past the merge by the time anything restarts. Equality would fail every\
+    \ successful delivery. Found by a test, not by reasoning.\n- **Rejected: recomputing\
+    \ the commit per request.** The whole value is that a *stale* process cannot produce\
+    \ the right answer. Read on demand, a server running hour-old code would read\
+    \ the new HEAD off disk and report the merge commit. Captured at startup, it cannot.\n\
+    - **Rejected: retrying a source-root mismatch.** A different clone answering on\
+    \ the address is not a slow restart, and waiting cannot turn it into the right\
+    \ one. It escalates immediately, with its own reason.\n- **`started_at` is reported\
+    \ but not tested against.** It is the floor; the commit is the ceiling, and where\
+    \ there is a commit the floor adds nothing.\n\n## 4. A configured restart always\
+    \ runs; the prefix list only decides whether an *unconfigured* one may be skipped\n\
+    \nThe spec says rebuild \"if and only if the merge touched it\", and I did exactly\
+    \ that for the frontend. I did **not** extend that logic to the restart.\n\n**Rejected:\
+    \ restarting only when `src/agentjobs/` or `frontend/` changed.** That list is\
+    \ a guess about what a process holds \u2014 templates, static files, the bundle,\
+    \ package metadata \u2014 and being wrong about any one of them leaves the human\
+    \ on stale code, the failure this step exists to prevent. A few seconds of downtime\
+    \ on a local dashboard is a much smaller cost than being wrong. The prefixes still\
+    \ decide one thing: whether a machine that has configured *no* restart command\
+    \ may finish anyway, or must escalate.\n\n## 5. Escalation goes through the existing\
+    \ `auto_dispatch` switch\n\nThe spec says \"escalation means: dispatch the task\"\
+    .\n\n**Rejected: dispatching unconditionally.** `auto_dispatch` is the existing\
+    \ switch for \"may a human's approval start a run without a second click\", and\
+    \ it is off for this project deliberately. Overriding it from a new code path\
+    \ would be a second, undocumented answer to a question already answered in machine-local\
+    \ config.\n\nAs built: an escalation always writes the full account and hands\
+    \ the ball to `agent`/`work` with a prompt naming the step. Where `auto_dispatch`\
+    \ is on it then dispatches, attributing the run to **the human's approval entry**\
+    \ rather than the newest one \u2014 by then the newest is the finisher's, and\
+    \ a dispatch defaulting to it would be refused as not human-clocked. Where it\
+    \ is off, which is here, the task sits with a precise prompt and Jeff's existing\
+    \ Dispatch click wakes the session that did the work. That is the pre-task-234\
+    \ flow with a far better prompt in it, and it costs nothing to fall back to.\n\
+    \n**Also rejected: making the finish a thread in the server.** Step five restarts\
+    \ the server. A finish running inside it would be killed by its own restart, half\
+    \ way through the part whose job is to verify the restart worked \u2014 leaving\
+    \ a merged branch, a live server, and nobody to say so. It is a detached process.\n\
+    \n## 6. The one place I built exactly what was asked: `--no-ff`, and a human before\
+    \ every merge\n\nUntouched, and both have tests. The merge commit is still the\
+    \ reviewable unit. A person still clicks Approve, per task, and the *route that\
+    \ received the click* is what passes `finishable` \u2014 not a value derived from\
+    \ the resulting task, because requesting changes and approving both hand the ball\
+    \ to the agent and only the route can tell them apart. That is the failure mode\
+    \ a derived value would eventually produce: merging a branch somebody had just\
+    \ asked for changes on.\n"
+  data:
+    operation:
+      id: 9d3a5c81-4b2e-4a77-93f0-6c8e1d2f4a55
+      kind: log_append
+      fingerprint: 952d32dba079615f3feda0e74e78d68b
