@@ -3,47 +3,30 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-22T01:01:26.544958Z'
+updated: '2026-08-22T01:12:13.248029Z'
 lifecycle: active
 ball: human
-ball_reason: decision
-ball_prompt: 'No fourth occurrence yet, so instead of waiting I dated the whole existing
-  population. Entry 35 has it. Headline: there are two different failures here, and
-  three of the five refusals are mundane.
-
-
-  Three were plain post-expiry refusals with dull causes - occurrence 1 happened because
-  the daemon idle-exited 104 seconds before the refresh it had scheduled, so nothing
-  refreshed the token. Two were not: a session was refused a token with 53.7s of life
-  left (15:36:45.8Z) and another with 271.9s left (23:39:59.6Z), in each case before
-  the daemon had attempted anything. A fixed client-side staleness margin is ruled
-  out by the daemon''s own log. Client version is ruled out - all three of 2.1.235/237/238
-  produced it. Concurrency is ruled out. That is three of the spec''s four hypotheses
-  now dead.
-
-
-  Two calls, both yours:
-
-
-  1. TONIGHT, and it expires: the current token dies at 07:40:44.5Z = 02:40:44 CDT,
-  derived two independent ways agreeing to 100ms. If the anomaly recurs on this cycle
-  it lands around 02:35-02:40 CDT. The test is a throwaway `claude -p` every 30s from
-  02:34, plus a control an hour earlier - a scheduled job costing a few cents, and
-  it would either confirm the shape or make the next cycle the target. Want it run?
-  If not, this window is gone and the next is roughly 10:40 CDT tomorrow.
-
-
-  2. The upstream comment on anthropics/claude-code#79685. Entry 35 has a much sharper
-  report than entry 8''s draft - refused a token with 54s and 272s of life remaining,
-  before any refresh attempt, with the daemon''s next read returning `no token found`
-  in 1-2ms having read the same store successfully 46 seconds earlier. Still unposted,
-  still yours to send.
-
-
-  Nothing was built and nothing needs to be: the detector already catches the effect,
-  and the trigger for the anomaly is still unknown, which is exactly when this task''s
-  own constraints say not to build. No code touched, no branch, no worktree - task
-  record only.'
+ball_reason: input
+ball_prompt: "The probe is armed and validated. Entry 37 has the detail. Nothing to\
+  \ do until morning.\n\nWhat happens tonight, unattended: a Windows scheduled task\
+  \ starts at 01:30 CDT, takes 3 control probes at 01:35, then fires a cold-start\
+  \ `claude -p ping` every 15 seconds from 02:35:00 to 02:42:00 CDT - across the daemon's\
+  \ token refresh at 02:36:44 and the expiry at 02:40:44 - then three tail probes\
+  \ out to 02:52. It wakes the machine if it is asleep. Cost is about 35 one-word\
+  \ prompts.\n\nIn the morning, read this one file:\n\n  C:/ai/scratch/task-224-probe/RESULT.md\n\
+  \nIt opens with a one-line verdict - REPRODUCED with the first refusal's offset\
+  \ from expiry, or NOT REPRODUCED - then a table of every probe. `probes.jsonl` beside\
+  \ it is the evidence, plus snapshots of daemon.log and daemon-auth-status.json taken\
+  \ at the end.\n\nThen dispatch this task again and I will read it, work out which\
+  \ of the three outcomes in entry 37 it is, and write it up. If REPRODUCED, we have\
+  \ a repeatable test and the upstream comment writes itself.\n\nThe expiry is now\
+  \ confirmed three independent ways agreeing to the microsecond - the credential\
+  \ file's mtime is 23:40:44.6026608Z and +8h is exactly the derived E.\n\nTo cancel:\
+  \ `Unregister-ScheduledTask -TaskName 'task-224-auth-probe' -Confirm:$false`\n\n\
+  Still unposted and still yours: the upstream comment on anthropics/claude-code#79685.\
+  \ Worth waiting for tonight's result either way - it either adds a reproduction\
+  \ or rules one out.\n\nNo repo changes: no branch, no worktree, no code. The probe\
+  \ lives in C:/ai/scratch, which is throwaway by convention."
 archived: false
 priority: high
 queue_position: 11400
@@ -1417,3 +1400,175 @@ log:
     outcome: completed
     duration_seconds: 1098.694458
     log_path: C:\Users\jpose\.agentjobs\runs\run_f0accc73
+- id: 38
+  ts: '2026-08-22T01:02:22.868821Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    i want it run'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 39
+  ts: '2026-08-22T01:02:25.642249Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 40
+  ts: '2026-08-22T01:02:27.535390Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_f0accc73` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_e62535f2
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 39
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - --resume
+    - 55e8c4ae-99e3-462d-8f17-e3016866e152
+    cwd: C:\projects\agentjobs
+    git_head: bdeda14
+    session_id: 2d28ad2d
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 41
+  ts: '2026-08-22T01:09:22.362737Z'
+  actor: claude
+  type: progress
+  body: "## The boundary test is armed for tonight. Jeff said \"i want it run\".\n\
+    \nAnswering entry 36's first question. The harness is built, validated end to\
+    \ end, and registered with Windows Task Scheduler so it survives this session\
+    \ ending. Nothing in this repository changed: no branch, no worktree, no code.\
+    \ The probe lives in `C:/ai/scratch/task-224-probe/`, which is throwaway by convention.\n\
+    \n### The expiry is now confirmed to the microsecond, a third way\n\nEntry 35\
+    \ derived `E = 2026-08-22T07:40:44.5Z` two ways. A third is now on the record:\
+    \ the credential file's mtime is `2026-08-21T23:40:44.6026608Z`, and `+8h` gives\
+    \ **`07:40:44.6026608Z`**. Only the modification time was read; the file's contents\
+    \ were not, and the classifier refused that read anyway, which is the right answer.\n\
+    \nSo the daemon refreshes at `07:36:44.5Z` (E\u2212240s) and the token dies at\
+    \ `07:40:44.6Z`. In Jeff's clock that is a refresh at **02:36:44** and expiry\
+    \ at **02:40:44 CDT**.\n\n### What the probe does\n\n`probe.ps1` fires a cold-start\
+    \ `claude -p ping` at fixed UTC targets and records, per probe: start and finish,\
+    \ duration, exit code, whether the output carries `Login expired` / `authentication_failed`\
+    \ / `Please run /login`, the credential file's mtime, and the output verbatim.\
+    \ One JSONL line each, to `probes.jsonl`.\n\n- **Control block** \u2014 3 probes\
+    \ at 06:35:00, 06:35:40, 06:36:20 (about 65 minutes before expiry). Establishes\
+    \ that a healthy credential answers, tonight, on this machine.\n- **Main sweep**\
+    \ \u2014 every 15 s from **07:35:00 to 07:42:00**, 29 probes. It starts 5m45s\
+    \ before expiry, so the first probe sits outside any plausible client staleness\
+    \ margin and the sweep walks into the zone, across the daemon's refresh at 07:36:44.5\
+    \ and the expiry at 07:40:44.6.\n- **Tail block** \u2014 07:44, 07:47, 07:52.\
+    \ If the refresh worked these pass; if it failed they should be refused.\n\nAt\
+    \ run end it snapshots `daemon.log` and `daemon-auth-status.json` into the scratch\
+    \ directory, because `daemon.log` is the only record of what the refresh actually\
+    \ did and it is an internal file that may rotate. Neither snapshot contains a\
+    \ credential.\n\n### Validation, because a silent failure at 02:35 loses the window\n\
+    \nNot assumed \u2014 exercised.\n\n1. **A probe run by hand now** (01:07Z, E\u2212\
+    6.6h): `pong`, 5.4 s, `refused=False`. The credential is healthy and the probe\
+    \ is a real API call.\n2. **Two defects found and fixed by running it**, both\
+    \ of which would have produced worthless data:\n   - `Start-Process -ArgumentList\
+    \ '-p', 'Reply with exactly: OK'` does not reliably quote a multi-word argument\
+    \ on PowerShell 5.1. The prompt arrived as separate argv entries and the CLI answered\
+    \ *\"I don't see a question or task in your message\"* \u2014 a probe that looks\
+    \ like it worked and tested nothing. Now a single bare word, `ping`.\n   - `$p.ExitCode`\
+    \ read back **empty** after `WaitForExit(ms)`. PowerShell 5.1 releases the process\
+    \ handle; touching `$p.Handle` before the wait caches it. Exit codes now populate\
+    \ (`exit=0`).\n3. **`-SelfTest` runs the whole scheduling loop** against targets\
+    \ a few seconds out, including the \"machine was asleep, target missed\" skip\
+    \ branch. All three branches behaved: two probes at the right offsets, one correctly\
+    \ skipped as 610 s late.\n4. **A throwaway scheduled task ran the self-test through\
+    \ Task Scheduler**, to prove the scheduler's environment works \u2014 it does\
+    \ not inherit this session's `CLAUDE_*` variables, which is exactly the difference\
+    \ that breaks things silently at 2am.\n\n### What each outcome would mean\n\n\
+    - **Probes refused somewhere in 07:35\u201307:40 while the daemon is silent**\
+    \ \u2014 Mechanism B reproduced, on demand, with a timestamp. That converts entry\
+    \ 35's two-observation pattern into a repeatable test and makes the upstream report\
+    \ concrete.\n- **Every probe passes and the 07:36:44 refresh succeeds** \u2014\
+    \ the anomaly needs a condition tonight does not have. The probes themselves become\
+    \ the control for the next attempt, and the honest conclusion is that it is not\
+    \ simply a function of the cycle boundary.\n- **The refresh fails and probes are\
+    \ refused only after 07:40:44** \u2014 that is Mechanism A, the ordinary post-expiry\
+    \ failure, and it says the anomaly did not recur.\n\n### One confound, stated\
+    \ rather than engineered away\n\nStarting a `claude` process can start the daemon,\
+    \ and a fresh daemon does its own auth check. So a probe could provoke a refresh\
+    \ that moves E and destroys the window it is measuring. This is not fixable and\
+    \ it is also *realistic* \u2014 real dispatch spawns sessions the same way, and\
+    \ occurrence 3 happened at the moment a session was spawned. What makes it tolerable\
+    \ is that sessions do not refresh their own credential; the daemon owns refresh,\
+    \ which is established in `src/agentjobs/dispatch/auth.py`'s module docstring\
+    \ rather than assumed here. The credential mtime recorded on every probe is what\
+    \ would expose a refresh if one happened.\n\n### How to stop it\n\n```powershell\n\
+    Unregister-ScheduledTask -TaskName 'task-224-auth-probe' -Confirm:$false\n```\n\
+    \nIt is a one-shot trigger with a 2-hour execution limit, so it cannot linger.\
+    \ It is set to wake the machine, because a sleeping machine produces no data and\
+    \ also no failure.\n\n### Cost\n\nAbout 35 one-word prompts. Cents.\n"
+  data:
+    operation:
+      id: 3e5b81a4-7d26-4c93-b0f1-58a9e2c7d640
+      kind: log_append
+      fingerprint: 511374484cc5294e04fd2dac89485e89
+- id: 42
+  ts: '2026-08-22T01:12:13.247512Z'
+  actor: claude
+  type: handoff
+  body: "The probe is armed and validated. Entry 37 has the detail. Nothing to do\
+    \ until morning.\n\nWhat happens tonight, unattended: a Windows scheduled task\
+    \ starts at 01:30 CDT, takes 3 control probes at 01:35, then fires a cold-start\
+    \ `claude -p ping` every 15 seconds from 02:35:00 to 02:42:00 CDT - across the\
+    \ daemon's token refresh at 02:36:44 and the expiry at 02:40:44 - then three tail\
+    \ probes out to 02:52. It wakes the machine if it is asleep. Cost is about 35\
+    \ one-word prompts.\n\nIn the morning, read this one file:\n\n  C:/ai/scratch/task-224-probe/RESULT.md\n\
+    \nIt opens with a one-line verdict - REPRODUCED with the first refusal's offset\
+    \ from expiry, or NOT REPRODUCED - then a table of every probe. `probes.jsonl`\
+    \ beside it is the evidence, plus snapshots of daemon.log and daemon-auth-status.json\
+    \ taken at the end.\n\nThen dispatch this task again and I will read it, work\
+    \ out which of the three outcomes in entry 37 it is, and write it up. If REPRODUCED,\
+    \ we have a repeatable test and the upstream comment writes itself.\n\nThe expiry\
+    \ is now confirmed three independent ways agreeing to the microsecond - the credential\
+    \ file's mtime is 23:40:44.6026608Z and +8h is exactly the derived E.\n\nTo cancel:\
+    \ `Unregister-ScheduledTask -TaskName 'task-224-auth-probe' -Confirm:$false`\n\
+    \nStill unposted and still yours: the upstream comment on anthropics/claude-code#79685.\
+    \ Worth waiting for tonight's result either way - it either adds a reproduction\
+    \ or rules one out.\n\nNo repo changes: no branch, no worktree, no code. The probe\
+    \ lives in C:/ai/scratch, which is throwaway by convention."
+  data:
+    ball: human
+    ball_reason: input
+    operation:
+      id: b48c1f75-9a03-4d62-8e17-2c5f30a9e6b1
+      kind: handoff
+      fingerprint: fdef03206756ce87684c81d70866320c
