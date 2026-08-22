@@ -2,7 +2,7 @@ schema: 2
 id: task-279
 title: Add a Codex App Server session runner for steerable dispatch
 created: '2026-08-22T20:23:50.857500Z'
-updated: '2026-08-22T20:41:59.686829Z'
+updated: '2026-08-22T20:49:51.479375Z'
 lifecycle: active
 ball: agent
 ball_reason: answer
@@ -250,3 +250,27 @@ log:
       id: 36dbf94e-9b95-4d1d-b2bb-0c7a31df5c1c
       kind: log_append
       fingerprint: 52a0647dadd728d147ab3781b52d09b9
+- id: 13
+  ts: '2026-08-22T20:49:51.479185Z'
+  actor: codex
+  type: progress
+  body: Implemented and validated the stable Codex App Server session driver on the
+    task branch. Codex session mode now coexists with batch mode, starts initialize/thread/start/thread/name/set/turn/start
+    over JSONL, records thread/session/turn IDs, writes diagnostic events, and settles
+    through the existing poller without invoking codex agents/stop. Required AgentJobs
+    MCP failures remain startup errors with no batch fallback. Deterministic protocol
+    tests plus config/runner tests pass (188 targeted tests). A live Windows smoke
+    using the bundled Codex Desktop CLI, GPT-5.6 Luna high, and a no-file prompt completed
+    successfully; thread/list found the persisted named conversation in ~/.codex/sessions
+    with source vscode and the task worktree. Documentation now distinguishes stable
+    App Server from Unix-only CLI daemon commands and supported ChatGPT Desktop Remote
+    on Windows.
+  data:
+    tests: 188 targeted tests passed
+    live_smoke: completed
+    thread_id: 01a02b3b-31dc-7b72-a665-a1c7733977c9
+    cli_version: 0.149.0-alpha.4.1
+    operation:
+      id: 9c66b4fd-9b17-4f90-95c0-38a38f9f6fcb
+      kind: log_append
+      fingerprint: e9b168b26f4028a4bb39e3f8979f6d71
