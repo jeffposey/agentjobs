@@ -3,7 +3,7 @@ id: task-248
 title: "Tolerant reader rejects an unknown ball_reason \u2014 the enum widened two\
   \ days after tolerance shipped"
 created: '2026-08-22T18:51:25.400936Z'
-updated: '2026-08-22T22:14:11.337138Z'
+updated: '2026-08-22T22:14:28.996401Z'
 lifecycle: active
 ball: human
 ball_reason: input
@@ -619,3 +619,13 @@ log:
     outcome: interrupted
     duration_seconds: 274.624828
     log_path: C:\Users\jpose\.agentjobs\runs\run_48b3cdeb
+- id: 31
+  ts: '2026-08-22T22:14:28.996104Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: 'The Codex App Server session never started: Codex App Server thread/resume
+    failed: thread 01a02b71-05de-7941-a870-1ca25e323dca already has an active writer'
+  data:
+    run_id: run_98aa69b5
+    outcome: crashed
+    log_path: C:\Users\jpose\.agentjobs\runs\run_98aa69b5
