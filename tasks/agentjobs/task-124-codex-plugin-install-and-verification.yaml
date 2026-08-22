@@ -2,16 +2,11 @@ schema: 2
 id: task-124-codex-plugin-install-and-verification
 title: Finish and verify the Codex plugin install the way task-122 did for Claude
 created: '2026-08-17T20:33:40.478661Z'
-updated: '2026-08-22T21:02:17.096856Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-22T21:04:45.402079Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 7100
 category: developer_experience
 tags:
 - mcp
@@ -20,7 +15,6 @@ tags:
 - agent-integration
 effort: 1-2 days
 assignment:
-  owner: codex
   eligible: []
 spec:
   summary: The Codex bundle -- MCP wiring, skill, and direct-write guard -- is built
@@ -148,7 +142,10 @@ dependencies:
   note: 'Creating this task reproduced that bug: the generator first assigned task-002.
     See this task''s log entry 1.'
 links: []
-branches: []
+branches:
+- name: codex/task-124-codex-plugin-verification
+  status: merged
+  merged_at: '2026-08-22T21:04:00Z'
 log:
 - id: 1
   ts: '2026-08-17T20:33:40.478721Z'
@@ -260,3 +257,31 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 9
+  ts: '2026-08-22T21:04:39.585096Z'
+  actor: codex
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 4b18e729-4c4f-4d07-8f6c-fd5d6c09a3c1
+      kind: update_content
+      fingerprint: 54707ca7c5c4f29585cab09d53fd5728
+- id: 10
+  ts: '2026-08-22T21:04:45.401916Z'
+  actor: codex
+  type: transition
+  body: 'Recovered the approved branch from commit 3939c1d after the cleanup misread,
+    rebased it onto main, and merged with --no-ff as 3e45841. Packaging verification
+    passes: tests/test_codex_plugin.py 37 passed. The tracked Codex marketplace manifest,
+    relative plugin paths, docs, and regression coverage are now on main. Persistent
+    user-scope plugin refresh remains a Jeff-run step as required by the task constraints.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 3c7cbecf-cd58-46cf-9679-62db095b694e
+      kind: close
+      fingerprint: f959d7a98e33732690219ec6e55b5f81
