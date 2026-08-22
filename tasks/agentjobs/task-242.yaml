@@ -2,11 +2,11 @@ schema: 2
 id: task-242
 title: "Big Dawg Audit \u2014 every system, separately, then one combined report"
 created: '2026-08-22T01:12:47.552800Z'
-updated: '2026-08-22T01:18:44.278042Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Finish specifying this task.
+updated: '2026-08-22T04:45:26.157904Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 queue_position: 12100
@@ -15,6 +15,7 @@ tags:
 - big-dawg-audit
 - weekly-ritual
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: 'Overnight full-repo audit (night of 2026-08-21, before the weekly limit
@@ -173,3 +174,25 @@ log:
       id: e2b6f4d1-8a3c-47e9-b510-c96d2f7a03e8
       kind: log_append
       fingerprint: 7f954bdc36b3911f247ce55c12c1aa3c
+- id: 3
+  ts: '2026-08-22T04:31:24.338367Z'
+  actor: Jeff Posey
+  type: transition
+  body: BIG DAWG IT
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+- id: 4
+  ts: '2026-08-22T04:45:26.157750Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: c5e83b90-2d17-4f4a-b8c6-71a9d40e5f22
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
