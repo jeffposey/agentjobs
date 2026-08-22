@@ -1,0 +1,170 @@
+schema: 2
+id: task-241
+title: Approval runs the merge itself, and wakes a session only when it cannot
+created: '2026-08-22T00:48:16.842628Z'
+updated: '2026-08-22T00:48:17.255771Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: critical
+queue_position: 300
+category: dispatch
+tags:
+- cycle-time
+- dispatch
+- workflow
+- agent-dx
+effort: small mechanism, but the escalation path has to be real rather than theoretical
+assignment:
+  eligible: []
+spec:
+  summary: "The post-approval session does five fixed commands \u2014 rebase, merge\
+    \ --no-ff, mark the branch merged, close the task, rebuild and restart \u2014\
+    \ and averaged about eleven minutes doing them, almost none of it the commands.\
+    \ Task-234 removed the cold boot by resuming the session that did the work. This\
+    \ task removes the model from the common case entirely: approval runs a scripted\
+    \ `finish`, and only escalates to a woken session when the rebase does not apply\
+    \ cleanly, a check fails, or the restart cannot be verified."
+  intent: Eleven minutes to under one, on every task, forever. Task-234's measurement
+    is the baseline and its decision entry names this as option B; it was deliberately
+    deferred because a scripted finish is only safe once waking works, since waking
+    is its fallback. Waking now works and is merged, so the precondition is discharged.
+    Jeff asked for this to be filed as critical on 2026-08-22, on the reasoning that
+    turning an eleven-minute process into a sub-minute one is worth doing before almost
+    anything else.
+  description: "## Where this starts from\n\nTask-234 measured the post-approval run\
+    \ across the run corpus: 2.13 runs per task, the second one short, mean about\
+    \ **eleven minutes**, whose entire job is ALLAGENTS.md steps 6 and 7. Its decision\
+    \ entry weighed three shapes and chose **D \u2014 wake the session that did the\
+    \ work** (merged as `feat/task-234-wake-the-session`, commit `4da37b0`, merge\
+    \ `ed1a339`). It explicitly named **B \u2014 a scripted finish** as the shape\
+    \ that reaches under a minute, and explicitly declined to build it yet, because\
+    \ B's fallback when anything goes wrong is exactly D, and building a fallback-dependent\
+    \ mechanism before its fallback exists is how you get a merge that half-happened\
+    \ with nobody to finish it.\n\nThat precondition is now met.\n\n## What to build\n\
+    \nA `finish` path invoked by the approval route \u2014 not by a model \u2014 that\
+    \ performs the fixed sequence and stops at the first thing it cannot do safely:\n\
+    \n1. Rebase the task's branch onto `main`. **A conflict is not resolved, ever.**\
+    \ Abort the rebase, leave the branch exactly as it was, and escalate.\n2. Run\
+    \ the gate on the rebased branch, in that branch's worktree, with that worktree's\
+    \ interpreter. A red gate escalates; it never merges.\n3. `git merge --no-ff`\
+    \ into `main` in the shared clone, with a merge message naming the task and the\
+    \ approval.\n4. Mark the branch `merged` in `branches[]`, set acceptance statuses\
+    \ that are genuinely determinable, and `close` the task `completed`.\n5. Rebuild\
+    \ the frontend **if and only if the merge touched it**, restart the server **the\
+    \ way it was actually started**, and verify the running process is serving the\
+    \ merged code \u2014 not merely that something answers on the port.\n6. `git worktree\
+    \ remove` the worktree.\n\nEscalation means: dispatch the task, which (post-234)\
+    \ wakes the session that did the work, with a prompt saying which step failed,\
+    \ what state the tree is in, and what the finish path already did. The task record\
+    \ must be unambiguous about how far it got at every point where it can stop.\n\
+    \n## What makes this hard, and what the acceptance criteria are really for\n\n\
+    **The steps are deterministic; the failures are not.** Every interesting property\
+    \ of this task is in the escalation path, so a demonstration that only shows the\
+    \ happy case has demonstrated the easy half. Task-234 closed with m3 outstanding\
+    \ for exactly this reason \u2014 it changed *who* runs the steps, not *what happens\
+    \ when one fails* \u2014 and that debt lands here.\n\n**Which server to restart.**\
+    \ `agentjobs restart` binds the default 8765 and reports success while the real\
+    \ dashboard on 8876 stays stale. The live server here is started by `C:/ai/shared/launchers/open-agentjobs.ps1`\
+    \ behind a tsnet proxy; that script already knows how to restart-if-stale and\
+    \ takes `-Force`. Automation that assumes the CLI is the restart is the failure\
+    \ mode ENGINEERING.md warns about, and it is silent.\n\n**The frontend rebuild.**\
+    \ `frontend_dist/` is gitignored, so a merged React change is invisible until\
+    \ `npm run build` runs in the serving clone. This is the step most likely to be\
+    \ silently skipped, and its failure mode is the human looking at the version they\
+    \ just approved you to replace.\n\n**Verification is part of finishing.** \"Confirm\
+    \ the change is live\" cannot degrade to \"the port answers\". Checking that the\
+    \ serving process started *after* the merge commit is a floor, not a ceiling.\n\
+    \n**Task records still go to `main` in the shared clone**, and the branch never\
+    \ carries them.\n\n## The number to produce\n\nThe same run-record method as the\
+    \ baseline: `scripts/run_report.py`, which task-234 extended to separate cold-start\
+    \ from resumed-session follow-on runs. A scripted finish produces **no follow-on\
+    \ run at all** in the common case, so the report needs a third category \u2014\
+    \ finished-without-a-run \u2014 or the saving will look like missing data. State\
+    \ the before/after pair explicitly; do not let it be inferred."
+  constraints: '- The human approval gate is untouched. A person still approves each
+    task in the GUI, per task, before anything merges.
+
+    - A conflicting rebase is aborted and escalated, never forced and never guessed
+    at.
+
+    - A failing gate never merges.
+
+    - The frontend rebuild and the server restart stay part of finishing, and the
+    restart respects how the server was actually started rather than assuming the
+    default port.
+
+    - Task records go to `main` in the shared clone.
+
+    - Every stopping point leaves the task record unambiguous about what was done
+    and what was not. A half-finished merge that reads as either state is the failure
+    this task must not introduce.
+
+    - The escalation path is demonstrated against a real conflicting rebase and a
+    real failing check, not asserted.'
+  out_of_scope: "Auto-approval or any reduction in human review. Changing the merge\
+    \ policy \u2014 `--no-ff` and the merge commit as the reviewable unit both stay.\
+    \ The gate's own cost (task-233). The consolidation capability (task-232), which\
+    \ reduces how many merges there are rather than what each costs. Re-implementing\
+    \ the wake mechanism, which is merged and is this task's fallback."
+  context:
+  - path: tasks/agentjobs/task-234.yaml
+    why: The eleven-minute measurement, the decision entry that named this as option
+      B, and the reason it was deferred until waking worked.
+  - path: src/agentjobs/dispatch/wake.py
+    why: "The fallback this task escalates into \u2014 merged by task-234."
+  - path: src/agentjobs/api/routes/tasks.py
+    why: The approve route, which is where a scripted finish would be invoked from.
+  - path: ALLAGENTS.md
+    why: "Steps 6 and 7 of the task lifecycle \u2014 the exact fixed sequence being\
+      \ scripted."
+  - path: ENGINEERING.md
+    why: The Merge Gate section, including which server is yours to restart and why
+      the CLI is often the wrong answer.
+  - path: scripts/run_report.py
+    why: The instrument the before/after pair has to come from; task-234 extended
+      it to separate cold from resumed runs.
+acceptance:
+- id: f1
+  text: Approval on a clean, green branch merges, closes, rebuilds if needed, restarts
+    and verifies with no dispatched run and no model in the loop.
+  status: pending
+- id: f2
+  text: A before/after pair from scripts/run_report.py, using the same method as task-234's
+    baseline, with finished-without-a-run represented rather than appearing as missing
+    data.
+  status: pending
+- id: f3
+  text: "A deliberately conflicting rebase is aborted, the branch is left byte-identical\
+    \ to what it was, and the task is escalated with the record saying so \u2014 demonstrated\
+    \ on a real branch."
+  status: pending
+- id: f4
+  text: "A deliberately failing gate blocks the merge and escalates \u2014 demonstrated,\
+    \ not asserted."
+  status: pending
+- id: f5
+  text: An unavailable or unrestartable server escalates rather than reporting a finish;
+    verification proves the serving process is running the merged code, not merely
+    that the port answers.
+  status: pending
+- id: f6
+  text: A person still approves every task in the GUI before any merge occurs, unchanged.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T00:48:17.254933Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3f2b1c44-6d7e-4a92-b0c1-5e8f3a90d211
+      kind: create
+      fingerprint: 0bf1085c4d61a403e68f751457ddb0c4

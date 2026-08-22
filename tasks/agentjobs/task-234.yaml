@@ -3,60 +3,11 @@ id: task-234
 title: Merging after approval costs a whole second agent session, about eleven minutes,
   on every task
 created: '2026-08-21T20:43:16.534300Z'
-updated: '2026-08-22T00:36:57.024458Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "**Ready for review: `feat/task-234-wake-the-session`, commit `a3e1c7b`.\
-  \ Full gate green, 10 of 10 stages, 128.2s. Nothing merged, nothing pushed.**\n\n\
-  Dispatching a task whose previous session still exists now **resumes that conversation**\
-  \ instead of booting a cold agent. Your shape from entry 4, and the condition you\
-  \ put on it is discharged.\n\n**Proven live, not just in tests.** In a sandbox with\
-  \ its own home and repo, driving the real `DispatchRunner` against the real `claude`:\
-  \ dispatch 2 resumed dispatch 1's session, dispatch 3 resumed dispatch 2's. The\
-  \ resumed agent was then asked what sentinel string it had said on its previous\
-  \ turn, with an explicit out if it could not remember, no tools allowed. It answered\
-  \ correctly from memory. A cold agent cannot do that. Read from the session JSONL,\
-  \ not scraped off a transcript.\n\n**One finding you should know about even if you\
-  \ reject the change.** `--remote-control` and `--resume` do not compose over a positional\
-  \ prompt: the session comes up with its conversation restored and the prompt **silently\
-  \ dropped**, then settles at `idle` \u2014 which dispatch reads as FINISHED. A wake\
-  \ that got this wrong would be filed as an agent that stopped without handing off,\
-  \ every time, with nothing in the output saying why. The prompt goes on stdin instead.\
-  \ Reproduced twice on 2.1.238. Same class of trap: `agents --json` lists *active*\
-  \ sessions only, so the lookup passes `--all` \u2014 without it, zero rows for a\
-  \ stopped session.\n\n**What I am not claiming.** m2 is half done: the *before*\
-  \ is your eleven-minute mean, but there is no *after* yet, because nothing real\
-  \ has been merged by a woken session. I built the instrument instead \u2014 `run_report.py`\
-  \ now prints cold-start against resumed-session means over follow-on runs, and stays\
-  \ silent until there is something to compare. The first real number will be this\
-  \ task's own merge. m3 and m4 are **not demonstrated**: this change alters who runs\
-  \ the post-approval steps, not what they are or how they escalate, so I did not\
-  \ stage a conflicting rebase. The genuinely new risk is that a resumed agent is\
-  \ confident by construction; `WAKE_STUB` ends with an explicit clause telling it\
-  \ to hand back rather than improvise if the tree disagrees with its memory. That\
-  \ is a mitigation, not a demonstration.\n\n**Worth your eye:** the `--all` parameter\
-  \ on `ledger()` (wrong in either direction is silent); `reap_finished` now keeping\
-  \ exactly one run per open task, asking `wake.newest_session_run` for it so the\
-  \ sweep and the waker cannot disagree; and the deliberate bare `except` in `_plan_wake`\
-  \ \u2014 a wake that does not happen costs eleven minutes, a dispatch that refuses\
-  \ costs the run.\n\nSix reaping tests were retargeted at a new `closed_task` fixture:\
-  \ they were seeded against an open task, which is now exactly the case that is kept.\
-  \ Their subject is unchanged and the keeping behaviour got its own test class.\n\
-  \n**Two things for you to decide**, neither of which I did:\n\n1. Whether to file\
-  \ the follow-up \u2014 a scripted `finish` that runs the fixed five commands and\
-  \ wakes the session only when the rebase does not apply cleanly. That is the eleven-minutes-to-under-one\
-  \ version, and it is only safe once waking works, because waking is its fallback.\n\
-  2. Whether m3 deserves its own task with a deliberately conflicting branch, rather\
-  \ than being signed off on reasoning.\n\nAlso: you asked me to bump the auth-expiry\
-  \ task and then said you would reopen task-224 yourself in another session. I did\
-  \ not touch it. This task hit that expiry twice today, which is on the record now\
-  \ as the reason option A \u2014 holding a session open across the review \u2014\
-  \ was rejected.\n\nApprove and I will rebase, merge `--no-ff`, close, and put it\
-  \ in front of you."
+updated: '2026-08-22T00:49:22.002228Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: critical
-queue_position: 200
 category: dispatch
 tags:
 - cycle-time
@@ -66,7 +17,6 @@ tags:
 effort: a design decision about run lifecycle first; the mechanism is small either
   way
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "Measured across the run corpus: nearly every task runs twice \u2014 a\
@@ -172,7 +122,7 @@ acceptance:
 - id: m1
   text: A decision entry chooses among the held-session, scripted-finish and carried-plan
     shapes, with the rejected alternatives and their reasoning.
-  status: pending
+  status: met
 - id: m2
   text: The post-approval path completes in materially less time than the measured
     eleven-minute mean, stated as a before/after pair from the same run-record method
@@ -187,17 +137,18 @@ acceptance:
   text: The frontend rebuild and the correct server restart still happen, and the
     finished task is verified live; a run that merges without them is treated as a
     failure.
-  status: pending
+  status: met
 - id: m5
   text: A person still approves every task in the GUI before any merge occurs, unchanged
     from today.
-  status: pending
+  status: met
 deliverables: []
 dependencies: []
 links: []
 branches:
 - name: feat/task-234-wake-the-session
-  status: active
+  status: merged
+  merged_at: '2026-08-22T00:52:00Z'
 log:
 - id: 1
   ts: '2026-08-21T20:43:17.063037Z'
@@ -945,3 +896,145 @@ log:
     outcome: completed
     duration_seconds: 3263.581573
     log_path: C:\Users\jpose\.agentjobs\runs\run_1994a874
+- id: 22
+  ts: '2026-08-22T00:38:22.403265Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    yes on 1. we should definjitely file and follow up on something that changes an
+    11 minute process into less than a minute, make it critical if so'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 23
+  ts: '2026-08-22T00:39:09.960543Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 24
+  ts: '2026-08-22T00:39:11.452412Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_b06b6084
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 23
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-234` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-234-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_b06b6084.'
+    cwd: C:\projects\agentjobs
+    git_head: b680a6b
+    session_id: 1d565f9c
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 25
+  ts: '2026-08-22T00:49:15.128198Z'
+  actor: claude
+  type: progress
+  body: "**Merged.** `feat/task-234-wake-the-session` \u2192 `main` as `ed1a339`,\
+    \ a `--no-ff` merge commit naming the task and the approval. Nothing pushed \u2014\
+    \ approval to merge is not approval to push, and `main` is now 7 ahead of `origin/main`.\n\
+    \nSequence, in order, with what each cost:\n\n| Step | Result |\n|---|---|\n|\
+    \ Rebase onto `main` (5 commits, all `tasks/` and one docs correction) | clean,\
+    \ no conflicts; `a3e1c7b` \u2192 `4da37b0` |\n| Bootstrap the worktree | 12s,\
+    \ already warm |\n| Full gate on the rebased branch, worktree interpreter | **green,\
+    \ 10 of 10 stages, 121.6s**, receipt written for `4da37b08` |\n| `git merge --no-ff`\
+    \ in the shared clone | `ed1a339`, 10 files, +1238/-44 |\n| Frontend rebuild |\
+    \ **not needed** \u2014 the merge touches no frontend file (`git show --stat`\
+    \ is `ALLAGENTS.md`, `docs/`, `scripts/run_report.py`, `src/agentjobs/dispatch/*`,\
+    \ `tests/*`) |\n| Server restart | `C:/ai/shared/launchers/open-agentjobs.ps1\
+    \ -NoOpen -Force`, **not** `agentjobs restart` |\n| Live check | `/api/version`\
+    \ reports `source_root: C:\\projects\\agentjobs`; `/app/` 200; listener pid 14512\
+    \ started 19:46:25 local, **after** the merge, so the process holds the merged\
+    \ dispatch code rather than the code it replaced |\n\n## Acceptance, honestly\n\
+    \n- **m1 met** \u2014 entry 19 is the decision, with A, B and C and why each lost.\n\
+    - **m4 met** \u2014 demonstrated by the table above rather than asserted: the\
+    \ rebuild was correctly skipped on evidence, the restart went through the launcher\
+    \ that actually owns this server, and \"live\" was checked as *the serving process\
+    \ started after the merge*, not as *the port answers*.\n- **m5 met** \u2014 entry\
+    \ 22 is Jeff's approval in the web UI at 00:38:22Z; the merge commit is at 00:44.\
+    \ The gate held in the right order.\n- **m2 pending** \u2014 and this run cannot\
+    \ discharge it. The wake code was not running when this dispatch was authorised\
+    \ (`git_head: b680a6b`, pre-merge), so **this was a cold start**: I booted with\
+    \ no memory of the session that built the branch and re-read the record to find\
+    \ out which branch I owned. The instrument is merged and will separate cold from\
+    \ resumed follow-on runs; the first resumed merge will be some later task's, not\
+    \ this one's. `scripts/run_report.py` stays silent until it has a pair, which\
+    \ is the correct behaviour and also why nothing can be quoted here.\n- **m3 pending**\
+    \ \u2014 unchanged from the handoff. This change altered who runs the post-approval\
+    \ steps, not what happens when one fails, and no conflicting rebase was staged.\
+    \ Carried into task-241 as f3/f4/f5, where it is load-bearing rather than incidental.\n\
+    \nClosing with two of five criteria open is deliberate and Jeff approved on that\
+    \ basis: the handoff (entry 20) stated m2 and m3 were not claimed, and the approval\
+    \ answered the two questions it asked. m2's evidence is a future run's, and m3's\
+    \ evidence belongs to the task that makes failure handling the point.\n\n## Filed\n\
+    \n**task-241, critical** \u2014 \"Approval runs the merge itself, and wakes a\
+    \ session only when it cannot\". That is option B from entry 19, sitting on top\
+    \ of D, which is now merged and is its fallback. Searched the backlog immediately\
+    \ before filing (`/api/search`, and the four tasks filed by other sessions in\
+    \ the last ten minutes \u2014 235 through 238, all frontend shell work); nothing\
+    \ covered it. It stands third in the critical band behind task-233 and this task,\
+    \ and will be the only claimable critical once this one closes.\n\nThe unfinished\
+    \ m3 is written into it as f3 and f4 with \"demonstrated, not asserted\" in the\
+    \ text, so it cannot quietly go the same way twice."
+  data:
+    operation:
+      id: 8c14e0b7-2a55-4f1e-9d33-6b7042fa5c19
+      kind: log_append
+      fingerprint: 24be6a8e0789570413a89849523c8b9d
+- id: 26
+  ts: '2026-08-22T00:49:22.001943Z'
+  actor: claude
+  type: transition
+  body: "Merged as `ed1a339` after a green 10-of-10 gate on the rebased branch; branch\
+    \ marked merged, server restarted through its own launcher and verified serving\
+    \ the merged code. m1, m4 and m5 met; m2 and m3 carried into task-241 (critical),\
+    \ which Jeff asked for \u2014 the evidence for both belongs to a later run and\
+    \ to a task where failure handling is the point. Not pushed: approval to merge\
+    \ is not approval to push."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: b5d90e12-77a4-4c68-8f31-1e2c6a03d7f0
+      kind: close
+      fingerprint: cec733d2e1b7007c5e94b5f65be55b35
