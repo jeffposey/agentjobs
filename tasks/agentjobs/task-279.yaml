@@ -2,16 +2,17 @@ schema: 2
 id: task-279
 title: Add a Codex App Server session runner for steerable dispatch
 created: '2026-08-22T20:23:50.857500Z'
-updated: '2026-08-22T20:35:40.038862Z'
+updated: '2026-08-22T20:41:59.686829Z'
 lifecycle: active
-ball: human
-ball_reason: decision
-ball_prompt: 'The authorized Remote Control test cannot start on this Windows Codex
-  build: both `remote-control start --json` and `remote-control pair --json` fail
-  because app-server daemon lifecycle is Unix-only. Should task-279 proceed with the
-  proven stable App Server session path (named/listable app-visible sessions, no live
-  phone steering), while documenting Remote Control as unavailable on Windows; or
-  should we pause pending a Windows Codex release that supports the daemon?'
+ball: agent
+ball_reason: answer
+ball_prompt: Double check by researching if this is not possible on Windows today,
+  and then if not, proceed with the "proven stable" method. Note that it's not just
+  about my tablet and phone, it's also about the app itself on my desktop when I'm
+  in full development mode. Along with the fact that the output shown agentjob is
+  like only last 40 line and is not parsed and displayed in any reasonable way, so
+  it's not very useful yet, making the remote viewable sessions in the apps more important
+  until the UX is good in agentjobs.
 archived: false
 priority: high
 queue_position: 15
@@ -217,3 +218,35 @@ log:
       id: 1936b31f-840a-41ce-a80f-5a56b826c5c1
       kind: log_append
       fingerprint: b3dbbfc4e7fe58cc0021e9de176cd1bb
+- id: 11
+  ts: '2026-08-22T20:41:01.369974Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    Double check by researching if this is not possible on Windows today, and then
+    if not, proceed with the "proven stable" method. Note that it''s not just about
+    my tablet and phone, it''s also about the app itself on my desktop when I''m in
+    full development mode. Along with the fact that the output shown agentjob is like
+    only last 40 line and is not parsed and displayed in any reasonable way, so it''s
+    not very useful yet, making the remote viewable sessions in the apps more important
+    until the UX is good in agentjobs.'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 12
+  ts: '2026-08-22T20:41:59.686674Z'
+  actor: codex
+  type: decision
+  body: 'Research correction: official Codex Remote documentation explicitly supports
+    a connected Windows PC through ChatGPT desktop Settings > Connections > Control
+    this Mac or PC; the unsupported command is the CLI''s `remote-control` daemon
+    lifecycle, not Desktop Remote itself. Proceed with the proven local App Server
+    protocol to create persisted, app-visible threads, and treat Desktop Remote connectivity
+    as a separate app-managed capability rather than launching the Unix-only CLI daemon.'
+  data:
+    operation:
+      id: 36dbf94e-9b95-4d1d-b2bb-0c7a31df5c1c
+      kind: log_append
+      fingerprint: 52a0647dadd728d147ab3781b52d09b9
