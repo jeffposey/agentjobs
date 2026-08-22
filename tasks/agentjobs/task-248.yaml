@@ -3,13 +3,15 @@ id: task-248
 title: "Tolerant reader rejects an unknown ball_reason \u2014 the enum widened two\
   \ days after tolerance shipped"
 created: '2026-08-22T18:51:25.400936Z'
-updated: '2026-08-22T22:27:06.546173Z'
+updated: '2026-08-22T22:31:40.794978Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Implement the tolerant enum fix in src/agentjobs/models_v2.py, parametrize
-  tests/test_schema_skew.py over all top-level axis enums, guard priority_rank for
-  tolerated unknown priorities, run the required verification, and report the evidence.
+ball: human
+ball_reason: review
+ball_prompt: Review commit f409d16 on branch codex/task-248-class-probe. It fixes
+  tolerant unknown ball_reason validation, adds a safe fallback for unknown priority_rank(),
+  and parametrizes schema skew over all five top-level axis enums. Focused tests pass
+  134/134. The full gate is otherwise blocked by pre-existing mypy error src/agentjobs/dispatch/codex_app_server.py:155
+  and unrelated task-275 corpus failure; full pytest was 2820 passed, 1 failed.
 archived: false
 priority: critical
 queue_position: 500
@@ -913,4 +915,57 @@ log:
     run_id: run_7f272549
     outcome: interrupted
     duration_seconds: 13.850176
+    log_path: C:\Users\jpose\.agentjobs\runs\run_7f272549
+- id: 43
+  ts: '2026-08-22T22:31:16.332552Z'
+  actor: codex
+  type: progress
+  body: 'Implemented and committed as f409d16 on branch codex/task-248-class-probe.
+    In src/agentjobs/models_v2.py, tolerant ball_reason pseudo-members now bypass
+    only the local holder-vocabulary membership check, while known reasons remain
+    strictly scoped; priority_rank() defaults unknown tolerated priorities behind
+    the four known bands. In tests/test_schema_skew.py, the real service transport
+    is parametrized over unknown ball_reason, ball, lifecycle, priority, and outcome
+    values; the outcome case rewrites the fixture to a legal closed-task shape, and
+    the test verifies verbatim round-trip plus the priority fallback. Evidence: focused
+    tests `tests/test_schema_skew.py tests/test_models_v2.py` pass 134/134; full pytest
+    partial gate ran 2821 tests with 2820 passed and one unrelated existing failure
+    at tests/test_task_corpus.py::test_open_ui_tasks_do_not_target_legacy_templates
+    for task-275. Full scripts/check.py also stops at an unchanged pre-existing mypy
+    error in src/agentjobs/dispatch/codex_app_server.py:155 (Popen env typing); Black
+    and Ruff passed. Worktree is clean.'
+  data:
+    commit: f409d16
+    branch: codex/task-248-class-probe
+    focused_tests: 134 passed
+    full_pytest: 2820 passed, 1 unrelated failure
+    gate_blockers:
+    - pre-existing mypy error at src/agentjobs/dispatch/codex_app_server.py:155
+    - pre-existing task-275 legacy-template corpus failure
+    operation:
+      id: f409d16e-2480-4f3a-a2ec-0aa6b8fef5f6
+      kind: log_append
+      fingerprint: f0a3ed6ed1925e298a125f860660f8a2
+- id: 44
+  ts: '2026-08-22T22:31:28.232920Z'
+  actor: codex
+  type: handoff
+  body: Implementation is complete and committed. Please review the branch and decide
+    whether to merge; do not treat the unrelated gate failures as caused by this diff.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: f409d16e-2480-4f3a-a2ec-0aa6b8fef5f7
+      kind: handoff
+      fingerprint: af4cffa54bd8b3cd4026c7a480bcac4d
+- id: 45
+  ts: '2026-08-22T22:31:40.794645Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 41
+  data:
+    run_id: run_7f272549
+    outcome: completed
+    duration_seconds: 288.098762
     log_path: C:\Users\jpose\.agentjobs\runs\run_7f272549
