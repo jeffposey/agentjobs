@@ -62,9 +62,15 @@ ALL_TOOLS = [
 class TestManifest:
     def test_it_declares_the_expected_shape(self):
         assert MANIFEST["name"] == "agentjobs"
-        assert MANIFEST["mcpServers"] == ".mcp.json"
-        assert MANIFEST["skills"] == ["skills/agentjobs"]
-        assert MANIFEST["hooks"] == "hooks/hooks.json"
+        assert MANIFEST["mcpServers"] == "./.mcp.json"
+        assert MANIFEST["skills"] == ["./skills/agentjobs"]
+        assert MANIFEST["hooks"] == "./hooks/hooks.json"
+
+    def test_every_component_path_uses_codex_relative_path_syntax(self):
+        """Codex ignores a component path that does not start with ``./``."""
+        paths = [MANIFEST["mcpServers"], MANIFEST["hooks"], *MANIFEST["skills"]]
+
+        assert all(path.startswith("./") for path in paths)
 
     def test_the_plugin_version_tracks_the_package_version(self):
         """They ship from one release; a drift means somebody upgraded half of it."""

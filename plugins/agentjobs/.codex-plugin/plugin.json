@@ -11,9 +11,9 @@
     "workflow",
     "mcp"
   ],
-  "mcpServers": ".mcp.json",
+  "mcpServers": "./.mcp.json",
   "skills": [
-    "skills/agentjobs"
+    "./skills/agentjobs"
   ],
-  "hooks": "hooks/hooks.json"
+  "hooks": "./hooks/hooks.json"
 }
