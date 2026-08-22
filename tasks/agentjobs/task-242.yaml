@@ -2,7 +2,7 @@ schema: 2
 id: task-242
 title: "Big Dawg Audit \u2014 every system, separately, then one combined report"
 created: '2026-08-22T01:12:47.552800Z'
-updated: '2026-08-22T01:12:47.964833Z'
+updated: '2026-08-22T01:18:44.278042Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -151,3 +151,25 @@ log:
       id: 9c1d5b28-6e4f-4a7c-8d02-b3f7e1a94c55
       kind: create
       fingerprint: 5e5c725e83ed9b4b005de2b097d83b2b
+- id: 2
+  ts: '2026-08-22T01:18:44.277894Z'
+  actor: claude
+  type: progress
+  body: 'Executable plan written and committed to main: audits/2026-08-21/PLAN.md
+    (commit 8351848). It contains the full runbook (pre-flight /usage check, spawn-session
+    auto-mode dispatch, 4 batches of 3 slowest-first, monitoring mechanism, one-retry-then-stub
+    failure rule, budget cut order), a shared preamble prepended to every auditor,
+    twelve verbatim auditor briefs (context architecture, docs-vs-reality, schema
+    v2, storage/manager, queue, CLI, API/client/webhooks, MCP, React frontend, dispatch,
+    gate/tooling, security), and the verbatim synthesis prompt that writes 00-BIG-DAWG-REPORT.md,
+    files draft tasks for P1/P2s, commits everything, and hands this task to human/review.
+    Auditors write findings files but never commit; synthesis commits. Remaining before
+    dispatch: Jeff''s /usage answer (does Fable draw the all-models pool), his go
+    signal, and any weighting from the extra prompting he said is coming. Security
+    note in PLAN.md: review the report before any push of audits/, since auditor 12
+    may document tailnet exposure details and this repo has a public remote.'
+  data:
+    operation:
+      id: e2b6f4d1-8a3c-47e9-b510-c96d2f7a03e8
+      kind: log_append
+      fingerprint: 7f954bdc36b3911f247ce55c12c1aa3c
