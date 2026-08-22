@@ -2,7 +2,7 @@ schema: 2
 id: task-277
 title: Dispatch Codex safely in batch mode with provider-aware posture flags
 created: '2026-08-22T19:48:47.275133Z'
-updated: '2026-08-22T20:07:16.897717Z'
+updated: '2026-08-22T20:19:12.045536Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -269,3 +269,16 @@ log:
       id: 5a30ca9d-f980-43da-8bf5-c930c6a21d5e
       kind: close
       fingerprint: 36b228e5b13b40297dd54f9cd7b34607
+- id: 13
+  ts: '2026-08-22T20:19:12.045382Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: A batch run was still marked live when AgentJobs restarted. Batch runs do
+    not outlive their supervisor, so whatever it was doing stopped without reporting.
+    Its output is in the run directory.
+  re: 9
+  data:
+    run_id: run_8413ed0f
+    outcome: interrupted
+    duration_seconds: 846.582851
+    log_path: C:\Users\jpose\.agentjobs\runs\run_8413ed0f
