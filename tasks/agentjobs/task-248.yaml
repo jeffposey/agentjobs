@@ -3,7 +3,7 @@ id: task-248
 title: "Tolerant reader rejects an unknown ball_reason \u2014 the enum widened two\
   \ days after tolerance shipped"
 created: '2026-08-22T18:51:25.400936Z'
-updated: '2026-08-22T21:36:24.627342Z'
+updated: '2026-08-22T21:40:29.279314Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -309,3 +309,15 @@ log:
     outcome: interrupted
     duration_seconds: 8.138373
     log_path: C:\Users\jpose\.agentjobs\runs\run_88c1a78e
+- id: 16
+  ts: '2026-08-22T21:40:29.279141Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: 'The Codex App Server session never started: Codex App Server thread/start
+    failed: error creating thread: Fatal error: Failed to initialize session: required
+    MCP servers failed to initialize: agentjobs: handshaking with MCP server failed:
+    connection closed: initialize response'
+  data:
+    run_id: run_0bb44dbc
+    outcome: crashed
+    log_path: C:\Users\jpose\.agentjobs\runs\run_0bb44dbc
