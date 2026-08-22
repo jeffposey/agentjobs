@@ -2,13 +2,17 @@ schema: 2
 id: task-279
 title: Add a Codex App Server session runner for steerable dispatch
 created: '2026-08-22T20:23:50.857500Z'
-updated: '2026-08-22T20:56:48.649168Z'
+updated: '2026-08-22T20:56:59.359984Z'
 lifecycle: active
-ball: agent
-ball_reason: revise
-ball_prompt: Yes make it support the agentjobs resume and prompt injection stuff for
-  follow ups so a single session can be used through a task lifecycle, and such that
-  the session is available from the chatgpt apps.
+ball: human
+ball_reason: review
+ball_prompt: 'Follow-up support is implemented on branch codex/task-279-codex-session-dispatch
+  at commit c8adfb1 (on top of 7a39bb6). The newest completed Codex run for a task
+  is now selected for resume; AgentJobs builds the normal wake prompt with the latest
+  ball_prompt and sends thread/resume + turn/start, recording resumed_from/resumed_session.
+  Resume protocol tests and wake-target test pass; real Windows bundled CLI follow-up
+  completed against the persisted app-visible thread. Focused suite: 126 passed. Please
+  review and approve/merge this revision.'
 archived: false
 priority: high
 queue_position: 15
@@ -324,3 +328,21 @@ log:
       id: c67b2d92-8a61-4c69-880a-027e14a9ec5e
       kind: log_append
       fingerprint: f194f05b1738f58b5fbb94ddd08e531c
+- id: 17
+  ts: '2026-08-22T20:56:59.359821Z'
+  actor: codex
+  type: handoff
+  body: 'Follow-up support is implemented on branch codex/task-279-codex-session-dispatch
+    at commit c8adfb1 (on top of 7a39bb6). The newest completed Codex run for a task
+    is now selected for resume; AgentJobs builds the normal wake prompt with the latest
+    ball_prompt and sends thread/resume + turn/start, recording resumed_from/resumed_session.
+    Resume protocol tests and wake-target test pass; real Windows bundled CLI follow-up
+    completed against the persisted app-visible thread. Focused suite: 126 passed.
+    Please review and approve/merge this revision.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: a2c798a1-5307-4d85-a847-3d6d228bb8bc
+      kind: handoff
+      fingerprint: c38983e4074062c2815db26c48748e80
