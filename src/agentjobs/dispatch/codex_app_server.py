@@ -10,6 +10,7 @@ the recovery boundary if AgentJobs itself restarts.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import threading
 from dataclasses import dataclass
@@ -133,16 +134,26 @@ class CodexAppServerProcess:
         prompt as its next turn.
         """
         try:
+            popen_kwargs = {
+                "cwd": str(self.cwd),
+                "env": self.env,
+                "stdin": subprocess.PIPE,
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.PIPE,
+                "text": True,
+                "encoding": "utf-8",
+                "errors": "replace",
+            }
+            if os.name == "nt":
+                # Keep console control events sent to AgentJobs' launcher tab from
+                # aborting a dispatched Codex turn. Batch dispatch already establishes
+                # this boundary; App Server sessions need the same isolation.
+                popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            else:
+                popen_kwargs["start_new_session"] = True
             self.process = subprocess.Popen(
                 [self.executable, "app-server", "-c", "mcp_servers.agentjobs.required=true"],
-                cwd=str(self.cwd),
-                env=self.env,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
+                **popen_kwargs,
             )
             self._request(
                 "initialize",

@@ -3,11 +3,10 @@ id: task-248
 title: "Tolerant reader rejects an unknown ball_reason \u2014 the enum widened two\
   \ days after tolerance shipped"
 created: '2026-08-22T18:51:25.400936Z'
-updated: '2026-08-22T21:32:41.805979Z'
-lifecycle: active
+updated: '2026-08-22T21:35:16.480965Z'
+lifecycle: ready
 ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball_reason: available
 archived: false
 priority: critical
 queue_position: 500
@@ -16,7 +15,6 @@ tags:
 - big-dawg-audit
 - schema
 assignment:
-  owner: codex
   eligible: []
 spec:
   summary: "Big Dawg Audit P1 (auditor 3 F1/F12). schema_tolerance promises an older\
@@ -223,3 +221,20 @@ log:
     outcome: interrupted
     duration_seconds: 10.224174
     log_path: C:\Users\jpose\.agentjobs\runs\run_37ffcbe8
+- id: 12
+  ts: '2026-08-22T21:35:16.480716Z'
+  actor: codex
+  type: transition
+  body: The second CLI dispatch proved MCP initialization and thread/start, but the
+    App Server turn was immediately aborted because the child shared the launcher
+    console process boundary. AgentJobs now launches Codex App Server in its own Windows
+    process group; targeted tests pass and the launcher has been restarted with this
+    code. Releasing this interrupted claim for the next CLI smoke.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: e4a70f03-88e4-4d6d-9860-a96cf2e1ad9f
+      kind: release
+      fingerprint: 41561c5b20c3dbaf2c4548a711da7260
