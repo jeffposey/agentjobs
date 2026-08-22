@@ -2,7 +2,7 @@ schema: 2
 id: task-279
 title: Add a Codex App Server session runner for steerable dispatch
 created: '2026-08-22T20:23:50.857500Z'
-updated: '2026-08-22T20:24:10.225840Z'
+updated: '2026-08-22T20:24:33.037777Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -67,7 +67,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: codex/task-279-codex-session-dispatch
+  status: active
 log:
 - id: 1
   ts: '2026-08-22T20:23:51.227269Z'
@@ -109,3 +111,15 @@ log:
       id: f0b373ff-b658-4d85-8f57-378a79b56621
       kind: claim
       fingerprint: 3534a688d8c2dcc09596c1c42c585933
+- id: 4
+  ts: '2026-08-22T20:24:33.037665Z'
+  actor: codex
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: ef159d14-83e0-4336-8835-5c3c43bb663d
+      kind: update_content
+      fingerprint: d6a798c0e08957c74ff681ea754bbd48
