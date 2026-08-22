@@ -1,0 +1,111 @@
+schema: 2
+id: task-279
+title: Add a Codex App Server session runner for steerable dispatch
+created: '2026-08-22T20:23:50.857500Z'
+updated: '2026-08-22T20:24:10.225840Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
+archived: false
+priority: high
+queue_position: 15
+category: infrastructure
+tags:
+- codex
+- dispatch
+- session
+- app-server
+- remote
+effort: large
+assignment:
+  owner: codex
+  eligible: []
+spec:
+  summary: AgentJobs currently dispatches Codex through noninteractive `codex exec`.
+    Add a separate session runner so a dispatch creates a durable App Server-owned
+    Codex thread that can be inspected and steered.
+  intent: Make Codex Dispatch usable as an interactive, app-visible session workflow
+    rather than only a batch log.
+  description: Implement and prove a Codex App Server-backed session driver for AgentJobs
+    Dispatch. Preserve the existing `codex exec` batch driver and defer production
+    runner-group cutover until the session path is validated.
+  constraints: Use the stable Codex App Server protocol core. Do not enable experimental
+    `remote-control`, do not expose a LAN service by default, and do not silently
+    fall back to the batch driver. Keep the existing Codex batch runner.
+  out_of_scope: Switching default or Big Dawg production runner groups to Codex; that
+    follows only after this driver is verified.
+  context:
+  - path: docs/codex-dispatch.md
+    why: Existing batch runner design and operational posture.
+  - path: src/agentjobs/dispatch
+    why: Current dispatch driver, run ledger, and supervisor implementation.
+acceptance:
+- id: ac1
+  text: A configured Codex App Server session driver can coexist with the existing
+    Codex batch driver.
+  status: pending
+- id: ac2
+  text: Dispatch starts a Codex App Server thread with explicit model, cwd, sandbox/approval
+    posture, and required AgentJobs MCP configuration; it records the returned thread/session
+    identifier in the run and task dispatch records.
+  status: pending
+- id: ac3
+  text: AgentJobs can query the stable App Server thread status and send follow-up
+    work to a running or resumed session using supported RPCs, without transcript
+    scraping.
+  status: pending
+- id: ac4
+  text: Unreachable App Server and required-MCP failures are surfaced clearly and
+    never silently invoke the batch runner.
+  status: pending
+- id: ac5
+  text: Deterministic protocol unit tests and an integration proof verify that a started
+    thread is listed by the App Server; documentation distinguishes this runner from
+    ChatGPT Remote device pairing.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T20:23:51.227269Z'
+  actor: codex
+  type: transition
+  body: Created ready by codex.
+  data:
+    lifecycle: ready
+    operation:
+      id: 2a7f4a5e-0b77-44d3-b01b-76c4dc025ea8
+      kind: create
+      fingerprint: 0b6aba6e96d2a01e90fa3ceedf6a159e
+- id: 2
+  ts: '2026-08-22T20:24:04.152671Z'
+  actor: codex
+  type: queue_move
+  body: Prioritized because session-capable Codex dispatch is required for the requested
+    usable migration and precedes production runner-group cutover.
+  data:
+    band: high
+    from: 14300
+    to: 15
+    placement:
+      kind: top
+    operation:
+      id: 3b4f52c6-5a8e-4d8d-8fda-2010464927a5
+      kind: queue_move
+      fingerprint: d26e65d1ef05a143ea75c35b9ce5205c
+- id: 3
+  ts: '2026-08-22T20:24:10.225730Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: f0b373ff-b658-4d85-8f57-378a79b56621
+      kind: claim
+      fingerprint: 3534a688d8c2dcc09596c1c42c585933
