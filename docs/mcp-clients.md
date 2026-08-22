@@ -51,6 +51,17 @@ Install the plugin from
 via a local marketplace entry. It bundles three things: the MCP wiring, the AgentJobs
 workflow skill, and the direct-write guard hook.
 
+```bash
+codex plugin marketplace add https://github.com/jeffposey/agentjobs
+```
+
+```bash
+codex plugin add agentjobs@agentjobs-local
+```
+
+From a clone, point the first command at your checkout instead of the URL —
+`codex plugin marketplace add /path/to/agentjobs`.
+
 Codex will ask you to review and trust the hook before it runs. Read
 `hooks/task_write_guard.py` and `hooks/guard_task_yaml.py` first — they are
 dependency-free and offline by design, so there is not much of them.
@@ -64,6 +75,26 @@ Verify: ask "what should I work on in *project*?" — the skill should trigger, 
 
 Protection: MCP tools, plus the pre-tool hook once trusted, plus the receipt gate if
 you install it, plus portable validation.
+
+If AgentJobs is not listening on the default port, Codex cannot replace the environment
+of the plugin-provided MCP transport. Keep the plugin enabled for its skill and guard,
+disable only that bundled server, and add a standalone entry to `~/.codex/config.toml`:
+
+```toml
+[plugins."agentjobs@agentjobs-local".mcp_servers.agentjobs]
+enabled = false
+
+[mcp_servers.agentjobs]
+command = "agentjobs"
+args = ["mcp"]
+startup_timeout_sec = 30
+
+[mcp_servers.agentjobs.env]
+AGENTJOBS_URL = "http://127.0.0.1:8876"
+```
+
+That is one Codex configuration shared by the desktop app, CLI, and IDE extension. It
+leaves the installed plugin untouched, so upgrades cannot erase the machine-local port.
 
 ## Claude Code
 
