@@ -2,19 +2,13 @@ schema: 2
 id: task-279
 title: Add a Codex App Server session runner for steerable dispatch
 created: '2026-08-22T20:23:50.857500Z'
-updated: '2026-08-22T20:50:26.962725Z'
+updated: '2026-08-22T20:56:48.649168Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review branch codex/task-279-codex-session-dispatch at commit 7a39bb6.
-  It adds Codex App Server session mode alongside batch mode, explicit model/posture/MCP
-  startup, named persisted threads, poller settlement, deterministic protocol tests,
-  and docs. Validation: 188 targeted tests pass; a real Windows bundled Codex CLI
-  GPT-5.6 Luna-high no-file turn completed; thread/list found the named persisted
-  session in ~/.codex/sessions. Production runner groups were not switched. Please
-  review/approve before merge and decide whether AgentJobs-native follow-up RPC control
-  (acceptance ac3) is required in this slice; Desktop can already open and steer the
-  persisted conversation.'
+ball: agent
+ball_reason: revise
+ball_prompt: Yes make it support the agentjobs resume and prompt injection stuff for
+  follow ups so a single session can be used through a task lifecycle, and such that
+  the session is available from the chatgpt apps.
 archived: false
 priority: high
 queue_position: 15
@@ -296,3 +290,37 @@ log:
       id: 3b4f2345-a8ea-42c6-9d15-2c6159380274
       kind: handoff
       fingerprint: 982354ed9ad99d44a5741fdb82300b2c
+- id: 15
+  ts: '2026-08-22T20:53:26.958398Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by Jeff Posey:
+
+
+    Yes make it support the agentjobs resume and prompt injection stuff for follow
+    ups so a single session can be used through a task lifecycle, and such that the
+    session is available from the chatgpt apps.'
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 16
+  ts: '2026-08-22T20:56:48.648969Z'
+  actor: codex
+  type: progress
+  body: Implemented the requested single-session lifecycle follow-up. Codex App Server
+    now supports thread/resume before turn/start; Dispatch selects the newest completed
+    Codex session run for the task, reuses its thread ID, and injects the standard
+    AgentJobs wake prompt with the latest ball prompt. Resume metadata and dispatch
+    body identify the prior run. A resume failure is recorded as an App Server crash
+    rather than silently creating a second thread or falling back to batch. Added
+    protocol and wake-target tests; focused suite passes 126 tests. Real Windows bundled
+    CLI follow-up against the persisted smoke thread completed with RESUME_CLIENT_OK.
+  data:
+    tests: 126 focused tests passed
+    live_followup: completed
+    thread_id: 01a02b3b-31dc-7b72-a665-a1c7733977c9
+    turn_id: 01a02b42-01c3-7213-bb77-3c8f9f68dc61
+    operation:
+      id: c67b2d92-8a61-4c69-880a-027e14a9ec5e
+      kind: log_append
+      fingerprint: f194f05b1738f58b5fbb94ddd08e531c
