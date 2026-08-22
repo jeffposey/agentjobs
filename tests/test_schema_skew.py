@@ -41,6 +41,7 @@ from agentjobs.models_v2 import (
     DispatchPosture,
     DispatchTrigger,
     Lifecycle,
+    PRIORITY_RANK,
     Task,
 )
 from agentjobs.projects import ProjectRegistry
@@ -55,6 +56,17 @@ ACTORS = [
 #: rather than assumed, so adding it for real later fails the test that depends on it
 #: being unknown instead of quietly making that test prove nothing.
 UNKNOWN_POSTURE = "warp_drive"
+
+# Every top-level axis participates in Task's consistency checks.  Keep the values
+# deliberately unknown to this process so this test proves tolerance rather than a
+# matched-version parse.
+UNKNOWN_AXIS_VALUES = (
+    ("ball_reason", "warp"),
+    ("ball", "robot"),
+    ("lifecycle", "zombie"),
+    ("priority", "urgent"),
+    ("outcome", "vanished"),
+)
 
 TASK_ID = "task-001-work"
 
@@ -72,6 +84,7 @@ class NewerServiceTransport(httpx.BaseTransport):
         """Wrap a live TestClient, whose lifespan the caller owns."""
         self._inner = inner
         self.rewrites = 0
+        self.axis_skew: Tuple[str, str] | None = None
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         response = self._inner.request(
@@ -97,6 +110,20 @@ class NewerServiceTransport(httpx.BaseTransport):
         if not isinstance(node, dict):
             return node
         rewritten = {key: self._rewrite(value) for key, value in node.items()}
+        if self.axis_skew and {"id", "lifecycle", "priority"}.issubset(rewritten):
+            field, value = self.axis_skew
+            if field == "outcome":
+                # The active fixture has no outcome.  Make this one response a valid
+                # closed task so the unknown value is tested in its legal position.
+                rewritten["lifecycle"] = "closed"
+                rewritten["ball"] = None
+                rewritten["ball_reason"] = None
+                rewritten["ball_prompt"] = None
+                rewritten["queue_position"] = None
+                assignment = rewritten.get("assignment")
+                if isinstance(assignment, dict):
+                    assignment["owner"] = None
+            rewritten[field] = value
         data = rewritten.get("data")
         if rewritten.get("type") == "dispatch" and isinstance(data, dict) and "posture" in data:
             data["posture"] = UNKNOWN_POSTURE
@@ -181,6 +208,28 @@ def test_the_unknown_posture_really_is_unknown_here() -> None:
 
 
 class TestAnOlderClientReads:
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        UNKNOWN_AXIS_VALUES,
+        ids=[field for field, _ in UNKNOWN_AXIS_VALUES],
+    )
+    def test_a_typed_read_survives_an_unknown_top_level_axis(
+        self, skewed, field: str, value: str
+    ) -> None:
+        """Every task axis must tolerate a member added by the newer service."""
+        _, manager, client = skewed
+        dispatched_task(manager)
+        client._client._transport.axis_skew = (field, value)
+
+        task = client.for_project("solo").get_task(TASK_ID)
+
+        parsed = getattr(task, field)
+        assert parsed is not None
+        assert parsed.value == value
+        assert task.model_dump(mode="json")[field] == value
+        if field == "priority":
+            assert task.priority_rank() == len(PRIORITY_RANK)
+
     def test_a_typed_read_survives_a_value_the_client_does_not_know(self, skewed) -> None:
         """ac-1. This is the read that used to fail with the whole task, not one field."""
         _, manager, client = skewed
