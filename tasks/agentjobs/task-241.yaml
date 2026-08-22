@@ -2,7 +2,7 @@ schema: 2
 id: task-241
 title: Approval runs the merge itself, and wakes a session only when it cannot
 created: '2026-08-22T00:48:16.842628Z'
-updated: '2026-08-22T04:38:51.637662Z'
+updated: '2026-08-22T04:39:52.717626Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -757,3 +757,13 @@ log:
       id: c5b8e310-9a47-4f26-8d13-06e9b2a4f875
       kind: close
       fingerprint: 57903dab09092dcf12de6b2bd0727f17
+- id: 18
+  ts: '2026-08-22T04:39:52.717466Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 14
+  data:
+    run_id: run_d813a110
+    outcome: completed
+    duration_seconds: 716.379697
+    log_path: C:\Users\jpose\.agentjobs\runs\run_d813a110
