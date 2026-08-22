@@ -1690,6 +1690,59 @@ order to delete them.
 Reaping happens at server startup, as the poller settles each session, and on demand via
 `agentjobs dispatch reap`.
 
+#### The one session a sweep keeps: waking instead of starting cold
+
+**Added 2026-08-21, task-234.** Reaping is now conditional, because `claude rm` deletes
+the *conversation* and the conversation turned out to be worth something.
+
+The measurement: across 49 timed runs on 23 tasks, runs per task was 2.13. The second run
+is almost always the post-approval one — rebase, `merge --no-ff`, mark the branch merged,
+close the task, rebuild the frontend, restart the server — and it averaged **about eleven
+minutes**. Almost none of that is those commands. It is a cold agent booting and working
+out which branch and which worktree it owns, which the *first* session had in memory when
+it handed off.
+
+So dispatching a task whose previous session still exists resumes that conversation
+instead of starting a new one. Three pieces:
+
+- **`reap_finished` keeps exactly one run per open task** — the newest session run, which
+  is the only one `wake.find_wake_target` will ever offer. The reaper asks that module
+  for it rather than implementing a second rule, because the failure of two rules
+  disagreeing is a wake that resumes a session the sweep deleted. Closing the task
+  collects it on the next sweep. A kept session is a row in a list, not a process and
+  not a concurrency slot: a stopped session has no `pid`.
+- **`_start_session` rewrites its argv** — the element carrying the prompt becomes
+  `--resume <uuid>`, and everything else, posture flags included, stays where
+  `build_argv` put it. A wake and a cold start differ in one argument, which is what
+  stops the two drifting apart in what the run may do.
+- **The prompt goes on stdin.** Not a style choice. `--remote-control` and `--resume`
+  do not compose over a positional prompt: the session comes up with its conversation
+  correctly restored and the prompt argument **silently dropped**, sitting at
+  `idle`/`blocked` with an empty box. `classify_session` reads `idle` as `FINISHED`, so
+  dispatch would settle a session that never got its instruction as one that finished
+  without handing off. Verified on 2.1.238, reproduced twice.
+
+Two properties are worth stating because they are what make this safe rather than clever:
+
+**Waking is an optimisation and never a precondition.** No previous session, a
+conversation the manager no longer lists, a runner that does not answer `agents --json`,
+an argv with no single prompt element — every one of them falls back to a cold start.
+None may turn into a failed dispatch, because starting cold is a correct if slower answer
+to all of them.
+
+**Only the newest run is ever a candidate.** If it is disqualified the answer is a cold
+start, not the run before it. Resuming a stale conversation would hand the human an agent
+whose picture of the branch is a run out of date, which is worse than the cold start it
+avoided.
+
+The session lookup passes `--all`, and that flag is load-bearing: `agents --json` prints
+*active* sessions, so a stopped one — the entire population a wake looks at — is absent
+without it. Measured on 2.1.238 against one stopped session, `--json --cwd` returned zero
+rows and `--json --all --cwd` returned it with its `sessionId`. Polling deliberately keeps
+the active-only view, because a session missing from *that* one is a session that is gone.
+
+Off switch: `resume_sessions: false` on a project. It changes speed and nothing else.
+
 ---
 
 ## 9. Process lifecycle

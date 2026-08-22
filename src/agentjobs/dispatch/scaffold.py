@@ -191,6 +191,16 @@ default_group: standard
 #       block one -- see docs/agent-dispatch-design.md.
 #
 #     auto_dispatch: false
+#
+#     resume_sessions: true
+#
+#       Dispatching a task whose previous session is still resumable wakes that session
+#       instead of starting a cold one. It is on by default because a task's second run
+#       is almost always the post-approval merge, and a cold agent spends about eleven
+#       minutes rediscovering the branch and the worktree the first one already had.
+#       Every doubt falls back to a cold start, so turning it off changes speed and
+#       nothing else. Set it to false if a resumed agent ever starts acting on a memory
+#       of the tree that disagrees with the tree.
 projects: {}
 
 # ----- limits: caps that apply however a run was started ----------------------

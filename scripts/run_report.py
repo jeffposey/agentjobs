@@ -89,6 +89,18 @@ class Run:
     started_at: Optional[datetime]
     finished_at: Optional[datetime]
     gates: Sequence[Gate]
+    resumed_from: Optional[str] = None
+    """The run whose session this one resumed, or None for a cold start (task-234).
+
+    This is what makes the before/after pair measurable from the ledger rather than
+    asserted. A woken run and a cold one are otherwise indistinguishable here -- same
+    mode, same shape, same phase records -- and the whole claim of task-234 is that one
+    of them is much shorter than the other.
+    """
+
+    @property
+    def resumed(self) -> bool:
+        return self.resumed_from is not None
 
     @property
     def seconds(self) -> Optional[float]:
@@ -153,6 +165,9 @@ def read_run(directory: Path) -> Optional[Run]:
         started_at=as_moment(meta.get("started_at")),
         finished_at=as_moment(meta.get("finished_at")),
         gates=read_gates(directory),
+        resumed_from=(
+            str(meta["resumed_from"]) if isinstance(meta.get("resumed_from"), str) else None
+        ),
     )
 
 
@@ -241,7 +256,41 @@ def summary(runs: List[Run]) -> str:
             "  only meta.yaml, so the gate lines cannot be computed for them.",
         ]
 
+    lines += _resume_lines(timed)
+
     return "\n".join(lines)
+
+
+def _resume_lines(timed: List[Run]) -> List[str]:
+    """The wake's before/after, from the ledger (task-234).
+
+    Only runs that were **not the first for their task** are compared. A task's first
+    run has no session to resume and is long by nature -- it is the working run -- so
+    averaging it in on the cold side would flatter the change by comparing a merge
+    against a day's work. What is compared is like with like: second-and-later runs that
+    resumed a conversation, against second-and-later runs that started cold.
+
+    Silent when nothing has been resumed yet, so the report reads exactly as it did
+    before this existed until there is something to say.
+    """
+    if not any(run.resumed for run in timed):
+        return []
+    first_of_task = {run.task_id: run.run_id for run in reversed(timed)}
+    later = [run for run in timed if first_of_task.get(run.task_id) != run.run_id]
+    cold = [run for run in later if not run.resumed]
+    warm = [run for run in later if run.resumed]
+
+    def mean(group: List[Run]) -> str:
+        if not group:
+            return "-"
+        return minutes(sum(run.seconds or 0.0 for run in group) / len(group))
+
+    return [
+        "",
+        f"  follow-on runs        {len(later)} (runs after a task's first)",
+        f"    cold start          {len(cold)}, mean {mean(cold)}",
+        f"    resumed session     {len(warm)}, mean {mean(warm)}",
+    ]
 
 
 def per_task(runs: List[Run]) -> str:
@@ -271,6 +320,7 @@ def listing(runs: List[Run]) -> str:
     width = max((len(run.run_id) for run in runs), default=6)
     lines = [f"  {'run'.ljust(width)}  task       outcome      elapsed  gates"]
     for run in runs:
+        marker = " (resumed)" if run.resumed else ""
         elapsed = minutes(run.seconds) if run.seconds is not None else "-"
         if run.gates:
             failed = sum(1 for gate in run.gates if not gate.passed)
@@ -280,7 +330,7 @@ def listing(runs: List[Run]) -> str:
             gates = "-"
         lines.append(
             f"  {run.run_id.ljust(width)}  {run.task_id:<10} {run.outcome:<11}  "
-            f"{elapsed:>7}  {gates}"
+            f"{elapsed:>7}  {gates}{marker}"
         )
     return "\n".join(lines)
 

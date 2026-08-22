@@ -33,7 +33,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 import yaml
 
@@ -853,7 +853,28 @@ class DispatchLedger:
         return StopResult(record.run_id, False, f"not removed: {detail}")
 
     def reap_finished(self) -> List[StopResult]:
-        """Reap every session run that has reached a terminal state and not been reaped."""
+        """Reap every finished session run whose conversation is no longer needed.
+
+        **The one session a still-open task could resume is kept, and that is task-234.**
+        Reaping calls ``claude rm``, which deletes the conversation -- and the
+        conversation is exactly what the next dispatch of that task resumes instead of
+        booting a cold agent that has to rediscover the branch and the worktree. So the
+        question this asks is no longer "has this run finished" but "can anything still
+        want this session back".
+
+        Precisely one run per open task is kept: the newest session run, which is the
+        only one ``wake.find_wake_target`` will ever offer. It is found by calling that
+        module's own function rather than by a second rule written here, so the reaper
+        and the waker cannot come to disagree about which conversation matters -- the
+        failure that would produce is a wake that resumes a session the reaper deleted,
+        and it would surface as an unexplained dispatch failure long after the cause.
+
+        The cost of keeping one is a row in the session manager's list. It is not a held
+        process and not a concurrency slot: a stopped session has no ``pid``, which is
+        why ``_finish_session`` was already calling ``stop`` rather than ``rm``. Closing
+        the task collects it on the next sweep.
+        """
+        keep = self._wakeable_run_ids()
         results = []
         for record in list_runs(self.home):
             if not record.is_session or record.is_live:
@@ -861,8 +882,35 @@ class DispatchLedger:
             meta_path = record.path / META_FILENAME
             if meta_path.is_file() and "reaped: true" in _read_text(meta_path):
                 continue
+            if record.run_id in keep:
+                continue
             results.append(self.reap(record))
         return results
+
+    def _wakeable_run_ids(self) -> Set[str]:
+        """The run ids whose sessions a later dispatch could still resume.
+
+        Empty on every uncertainty -- a run with no task id, a project the registry
+        cannot resolve, a task that has been deleted, a storage error. Each of those
+        means nothing is going to resume that conversation, so keeping it would be
+        hoarding rather than caution, and an unbounded pile of sessions nobody can
+        account for is a worse outcome than a cold start.
+        """
+        from agentjobs.dispatch.wake import newest_session_run
+
+        keep: Set[str] = set()
+        for task_id in {r.task_id for r in list_runs(self.home) if r.is_session and r.task_id}:
+            newest = newest_session_run(self.home, task_id)
+            if newest is None or newest.is_live:
+                continue
+            try:
+                manager = self.manager_for(newest)
+                task = manager.get_task(task_id) if manager is not None else None
+            except Exception:  # noqa: BLE001 - an unreadable task is not a reason to keep
+                continue
+            if task is not None and task.is_open:
+                keep.add(newest.run_id)
+        return keep
 
     # ----- writing the outcome back to the task ------------------------------
 
