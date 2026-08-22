@@ -2,15 +2,13 @@ schema: 2
 id: task-278
 title: Keep CLI batch dispatch supervised through completion
 created: '2026-08-22T20:10:07.889153Z'
-updated: '2026-08-22T20:15:40.632112Z'
+updated: '2026-08-22T20:16:40.311497Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Review task-278. The branch `codex/task-278-cli-batch-supervision` contains
-  commit `2e8559e`: CLI batch dispatch now waits for its supervisor to record the
-  terminal outcome, with regression coverage. If satisfactory, approve it for merge;
-  then I will merge, restart the local service, rerun the Terra smoke dispatch, and
-  switch the production runner groups.'
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 15
@@ -152,3 +150,11 @@ log:
       id: 20ee0b81-7462-494f-8e1e-aae761ef93a4
       kind: handoff
       fingerprint: 9831cd58fa584de0a9a141e43a1e1f85
+- id: 7
+  ts: '2026-08-22T20:16:40.311393Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
