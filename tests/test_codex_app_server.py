@@ -79,7 +79,13 @@ def test_app_server_start_and_supervise_use_jsonl_protocol(monkeypatch) -> None:
         executable="codex",
         cwd=Path("C:/project"),
         env={},
-        settings=CodexSessionSettings("gpt-5.6-luna", "high", "never", "workspace-write"),
+        settings=CodexSessionSettings(
+            "gpt-5.6-luna",
+            "high",
+            "never",
+            "workspace-write",
+            ("C:/project/.git", "C:/worktrees"),
+        ),
         thread_name="AgentJobs test/task-279",
     )
 
@@ -97,7 +103,20 @@ def test_app_server_start_and_supervise_use_jsonl_protocol(monkeypatch) -> None:
         "thread/name/set",
         "turn/start",
     ]
-    assert messages[-1]["params"]["sandboxPolicy"] == {"type": "workspaceWrite"}
+    assert messages[-1]["params"]["sandboxPolicy"] == {
+        "type": "workspaceWrite",
+        "writableRoots": ["C:/project/.git", "C:/worktrees"],
+    }
+
+
+def test_parse_workspace_postures_add_only_git_and_sibling_worktrees() -> None:
+    settings = parse_session_settings(
+        ["codex", "app-server", "--model", "gpt-5.6-luna"],
+        posture="auto",
+        project_root=Path("C:/project"),
+    )
+
+    assert settings.writable_roots == ("C:\\project\\.git", "C:\\worktrees")
 
 
 def test_app_server_resumes_a_persisted_thread_before_injecting_follow_up(monkeypatch) -> None:

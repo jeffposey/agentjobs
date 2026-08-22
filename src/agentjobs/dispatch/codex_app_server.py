@@ -30,6 +30,7 @@ class CodexSessionSettings:
     effort: Optional[str]
     approval_policy: str
     sandbox: str
+    writable_roots: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -211,7 +212,13 @@ class CodexAppServerProcess:
                             "workspace-write": "workspaceWrite",
                             "danger-full-access": "dangerFullAccess",
                         }[self.settings.sandbox]
-                    },
+                    }
+                    | (
+                        {"writableRoots": list(self.settings.writable_roots)}
+                        if self.settings.sandbox == "workspace-write"
+                        and self.settings.writable_roots
+                        else {}
+                    ),
                 },
             )
             turn = turn_result.get("turn")
@@ -297,6 +304,21 @@ def parse_session_settings(
     if sandbox is None:
         raise CodexAppServerError(f"Unsupported AgentJobs posture for Codex session: {posture}")
     approval = "on-request" if posture == "supervised" else "never"
+    writable_roots: tuple[str, ...] = ()
+    if sandbox == "workspace-write":
+        # Codex's managed workspace profile intentionally makes .git read-only.
+        # AgentJobs requires the dispatched agent to create its own sibling
+        # worktree, so grant only the metadata directory and the prescribed
+        # worktree container.  The project root is already writable under the
+        # workspace-write sandbox and is not repeated here.
+        writable_roots = (
+            str((project_root / ".git").resolve()),
+            str((project_root.parent / "worktrees").resolve()),
+        )
     return CodexSessionSettings(
-        model=model, effort=effort, approval_policy=approval, sandbox=sandbox
+        model=model,
+        effort=effort,
+        approval_policy=approval,
+        sandbox=sandbox,
+        writable_roots=writable_roots,
     )
