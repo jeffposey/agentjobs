@@ -51,6 +51,11 @@ import yaml
 
 from agentjobs.dispatch.address import resolve_api_base
 from agentjobs.dispatch.auth import AuthStall, read_auth_stall
+from agentjobs.dispatch.codex_app_server import (
+    CodexAppServerError,
+    CodexAppServerProcess,
+    parse_session_settings,
+)
 from agentjobs.dispatch.config import (
     DispatchResolution,
     DispatchRunner as RunnerConfig,
@@ -1093,6 +1098,133 @@ class DispatchRunner:
         argv[0] = resolve_executable(argv[0], driver=self.runner.driver)
         return argv, values["prompt"]
 
+    def _start_codex_app_server_session(
+        self, task: Task, *, actor: str, caused_by: int, trigger: DispatchTrigger
+    ) -> RunHandle:
+        """Start a persisted Codex App Server thread and its first turn."""
+        run_id = new_run_id()
+        argv, prompt = self.build_argv_and_prompt(task.id, run_id)
+        settings = parse_session_settings(
+            argv, posture=self.resolution.settings.posture.value, project_root=self.project_root
+        )
+        directory = RunDirectory.create(
+            self.home,
+            run_id,
+            {
+                "run_id": run_id,
+                "task_id": task.id,
+                "project_id": self.resolution.project_id,
+                "mode": DispatchMode.SESSION.value,
+                "driver": self.runner.driver.value,
+                "posture": self.resolution.settings.posture.value,
+                "status": "starting",
+                "codex_status": "starting",
+                "started_at": self.clock().isoformat(),
+                "caused_by": caused_by,
+                "argv": argv,
+            },
+        )
+        app_server = CodexAppServerProcess(
+            executable=resolve_executable(argv[0], driver=RunnerDriver.CODEX),
+            cwd=self.project_root,
+            env=self._environment(directory, run_id),
+            settings=settings,
+            service_name="agentjobs",
+            thread_name=f"AgentJobs {self.resolution.project_id}/{task.id}",
+        )
+        try:
+            started = app_server.start(prompt)
+            entry_id = self._record_dispatch(
+                task,
+                run_id,
+                argv,
+                actor=actor,
+                caused_by=caused_by,
+                trigger=trigger,
+                mode=DispatchMode.SESSION,
+                session_id=started.thread_id,
+                body=(
+                    "Started a Codex App Server thread. Its conversation is persisted in "
+                    "the Codex session store and can be opened by Codex Desktop."
+                ),
+            )
+        except (CodexAppServerError, DispatchRunError) as exc:
+            app_server.terminate()
+            directory.update_meta(status="failed", codex_status="failed", error=str(exc))
+            self.manager.record_dispatch_result(
+                task.id,
+                actor="dispatcher",
+                run_id=run_id,
+                outcome=DispatchOutcome.CRASHED,
+                re=None,
+                log_path=str(directory.path),
+                body=f"The Codex App Server session never started: {exc}",
+            )
+            self._commit_record(
+                task.id, f"record run {run_id} as crashed before it started", directory=directory
+            )
+            raise DispatchRunError(
+                f"Could not start a Codex App Server session for {task.id}: {exc}"
+            ) from exc
+
+        directory.update_meta(
+            status="running",
+            codex_status="running",
+            pid=started.pid,
+            session_id=started.session_id,
+            thread_id=started.thread_id,
+            turn_id=started.turn_id,
+            dispatch_entry_id=entry_id,
+        )
+        handle = RunHandle(
+            run_id=run_id,
+            task_id=task.id,
+            mode=DispatchMode.SESSION,
+            directory=directory,
+            pid=started.pid,
+            session_id=started.thread_id,
+            dispatch_entry_id=entry_id,
+            runner=self.runner.name,
+            group=self._group_name(),
+            api_base=self.api_base,
+        )
+        handle.supervisor = threading.Thread(
+            target=self._supervise_codex_app_server,
+            args=(handle, app_server, started.turn_id),
+            name=f"dispatch-{run_id}",
+            daemon=True,
+        )
+        handle.supervisor.start()
+        return handle
+
+    def _supervise_codex_app_server(
+        self, handle: RunHandle, app_server: CodexAppServerProcess, turn_id: str
+    ) -> None:
+        """Persist App Server events and leave task settlement to the poller."""
+        transcript = handle.directory.path / TRANSCRIPT_FILENAME
+        try:
+            with transcript.open("w", encoding="utf-8") as stream:
+
+                def write_message(message: Dict[str, object]) -> None:
+                    stream.write(json.dumps(message, ensure_ascii=False) + "\n")
+                    stream.flush()
+
+                completed = app_server.supervise(turn_id=turn_id, on_message=write_message)
+            turn = completed.get("turn") if isinstance(completed, dict) else None
+            status = turn.get("status") if isinstance(turn, dict) else None
+            codex_status = "completed" if status == "completed" else "failed"
+            error = turn.get("error") if isinstance(turn, dict) else None
+            handle.directory.update_meta(
+                status="running" if codex_status == "completed" else "failed",
+                codex_status=codex_status,
+                codex_turn_status=status or "unknown",
+                **({"error": str(error)} if error else {}),
+            )
+        except BaseException as exc:  # noqa: BLE001 - total supervisor, like batch mode
+            handle.directory.update_meta(status="failed", codex_status="failed", error=str(exc))
+        finally:
+            app_server.terminate()
+
     def _environment(self, run: Optional[RunDirectory] = None, run_id: str = "") -> Dict[str, str]:
         """The child's environment: ours, plus the runner's additions.
 
@@ -1276,6 +1408,10 @@ class DispatchRunner:
         the record stores both; anything that passes ``--session-id`` alongside ``--bg``
         is wrong.
         """
+        if self.runner.driver is RunnerDriver.CODEX:
+            return self._start_codex_app_server_session(
+                task, actor=actor, caused_by=caused_by, trigger=trigger
+            )
         run_id = new_run_id()
         argv, prompt = self.build_argv_and_prompt(task.id, run_id)
         wake, argv, stdin_text = self._plan_wake(task, run_id, argv, prompt)
@@ -1525,6 +1661,12 @@ class DispatchRunner:
         uncommitted changes, so reaping with it would either destroy work or fail exactly
         when a run had produced something.
         """
+        # App Server owns its child process directly.  There is no ``codex stop``
+        # command for an App Server thread, and attempting one would accidentally
+        # invoke the batch CLI with a thread id.  The supervisor terminates the child
+        # after turn completion; an interrupted run is handled by its process owner.
+        if self.runner.driver is RunnerDriver.CODEX:
+            return False
         try:
             completed = subprocess.run(
                 [*self.executable_prefix(), "stop", session_id],
@@ -1548,6 +1690,9 @@ class DispatchRunner:
         """
         if handle.session_id is None:  # pragma: no cover - a session handle always has one
             raise DispatchRunError(f"Run {handle.run_id} has no session id to poll.")
+
+        if self.runner.driver is RunnerDriver.CODEX:
+            return self._poll_codex_app_server(handle)
 
         row = self._ledger_row(handle.session_id)
         if row is None:
@@ -1587,6 +1732,37 @@ class DispatchRunner:
         elif phase is SessionPhase.FINISHED:
             self._settle_finished_session(handle)
         return phase
+
+    def _poll_codex_app_server(self, handle: RunHandle) -> SessionPhase:
+        """Poll the App Server supervisor state without pretending ``codex agents`` exists."""
+        meta = handle.directory.read_meta()
+        codex_status = meta.get("codex_status")
+        if codex_status == "completed":
+            self._settle_finished_session(handle)
+            return SessionPhase.FINISHED
+        if codex_status == "failed":
+            self._finish_session(
+                handle,
+                DispatchOutcome.CRASHED,
+                body=str(meta.get("error") or "The Codex App Server supervisor failed."),
+            )
+            return SessionPhase.GONE
+        pid = meta.get("pid")
+        if isinstance(pid, int) and pid > 0:
+            try:
+                os.kill(pid, 0)
+            except PermissionError:
+                # The process exists but Windows denied the probe; that is still alive
+                # for polling purposes.
+                pass
+            except (OSError, ProcessLookupError):
+                self._finish_session(
+                    handle,
+                    DispatchOutcome.INTERRUPTED,
+                    body="The Codex App Server process exited before reporting turn completion.",
+                )
+                return SessionPhase.GONE
+        return SessionPhase.RUNNING
 
     def auth_stall(self, handle: RunHandle) -> Optional[AuthStall]:
         """Whether this run's session is sitting dead on an expired login.
