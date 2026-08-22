@@ -48,6 +48,7 @@ from agentjobs.dispatch.runner import (
     TRANSCRIPT_FILENAME,
     DispatchRunner,
     DispatchRunError,
+    RunDirectory,
     SessionPhase,
     allow_rules,
     classify_session,
@@ -166,6 +167,38 @@ def join(runner_handle, timeout: float = 60.0) -> None:
     assert runner_handle.supervisor is not None
     runner_handle.supervisor.join(timeout=timeout)
     assert not runner_handle.supervisor.is_alive(), "supervisor thread never finished"
+
+
+def test_codex_session_wake_target_uses_newest_completed_thread(
+    workspace: Path, manager: TaskManager, task
+) -> None:
+    resolution = make_resolution(
+        ["codex", "app-server", "--model", "gpt-5.6-luna", "{prompt}"],
+        mode=RunnerMode.SESSION,
+        driver=RunnerDriver.CODEX,
+        posture=Posture.AUTO,
+    )
+    runner = build(workspace, manager, resolution)
+    RunDirectory.create(
+        workspace / "home",
+        "run_previous",
+        {
+            "run_id": "run_previous",
+            "task_id": task.id,
+            "mode": "session",
+            "driver": "codex",
+            "status": "finished",
+            "codex_status": "completed",
+            "session_id": "thread-previous",
+            "started_at": "2026-08-22T20:00:00+00:00",
+        },
+    )
+
+    target = runner._codex_wake_target(task.id)
+
+    assert target is not None
+    assert target.previous_run_id == "run_previous"
+    assert target.session_uuid == "thread-previous"
 
 
 # ----- the permission posture -------------------------------------------------

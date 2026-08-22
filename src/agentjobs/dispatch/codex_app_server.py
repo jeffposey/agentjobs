@@ -124,8 +124,14 @@ class CodexAppServerProcess:
                 raise CodexAppServerError(f"Codex App Server {method} returned no result.")
             return result
 
-    def start(self, prompt: str) -> CodexSessionStarted:
-        """Launch, initialize, and start the first turn for a dispatched task."""
+    def start(self, prompt: str, *, resume_thread_id: Optional[str] = None) -> CodexSessionStarted:
+        """Launch, initialize, and start a turn for a dispatched task.
+
+        ``resume_thread_id`` uses App Server's persisted-thread path.  The process is
+        intentionally short-lived, but the conversation is not: ``thread/resume``
+        reloads the same Codex Desktop thread before injecting the new AgentJobs wake
+        prompt as its next turn.
+        """
         try:
             self.process = subprocess.Popen(
                 [self.executable, "app-server", "-c", "mcp_servers.agentjobs.required=true"],
@@ -149,16 +155,27 @@ class CodexAppServerProcess:
                 },
             )
             self._send({"method": "initialized", "params": {}})
-            thread_result = self._request(
-                "thread/start",
-                {
-                    **({"model": self.settings.model} if self.settings.model else {}),
-                    "cwd": str(self.cwd),
-                    "approvalPolicy": self.settings.approval_policy,
-                    "sandbox": self.settings.sandbox,
-                    "serviceName": self.service_name,
-                },
-            )
+            if resume_thread_id:
+                thread_result = self._request(
+                    "thread/resume",
+                    {
+                        "threadId": resume_thread_id,
+                        "cwd": str(self.cwd),
+                        "approvalPolicy": self.settings.approval_policy,
+                        "sandbox": self.settings.sandbox,
+                    },
+                )
+            else:
+                thread_result = self._request(
+                    "thread/start",
+                    {
+                        **({"model": self.settings.model} if self.settings.model else {}),
+                        "cwd": str(self.cwd),
+                        "approvalPolicy": self.settings.approval_policy,
+                        "sandbox": self.settings.sandbox,
+                        "serviceName": self.service_name,
+                    },
+                )
             thread = thread_result.get("thread")
             if not isinstance(thread, dict) or not isinstance(thread.get("id"), str):
                 raise CodexAppServerError("Codex App Server thread/start returned no thread id.")
@@ -166,7 +183,7 @@ class CodexAppServerProcess:
             session_id = thread.get("sessionId")
             if not isinstance(session_id, str) or not session_id:
                 session_id = thread_id
-            if self.thread_name:
+            if self.thread_name and not resume_thread_id:
                 self._request("thread/name/set", {"threadId": thread_id, "name": self.thread_name})
             turn_result = self._request(
                 "turn/start",

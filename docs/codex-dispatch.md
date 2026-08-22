@@ -13,6 +13,13 @@ conversation is written to Codex's normal session store so Codex Desktop can ope
 AgentJobs keeps a diagnostic JSONL transcript, but the Desktop conversation is the
 primary view for output, diffs, and approvals.
 
+When `resume_sessions: true` (the default), a later dispatch of the same task selects
+the newest completed Codex session run, calls `thread/resume`, and injects the current
+AgentJobs wake prompt—including the new ball prompt—through `turn/start`. This keeps
+one conversation across a task's work/review/follow-up lifecycle. If the persisted
+thread cannot be resumed, the dispatch records the App Server error rather than silently
+starting a second conversation or falling back to batch mode.
+
 The current Windows CLI's `app-server daemon` and `remote-control` lifecycle commands
 are Unix-only. That is separate from ChatGPT Remote: the supported Windows path is to
 enable **Settings → Connections → Control this Mac or PC** in ChatGPT Desktop, approve

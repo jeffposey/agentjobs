@@ -73,6 +73,7 @@ from agentjobs.dispatch.wake import (
     build_wake_prompt,
     find_wake_target,
     wake_argv,
+    newest_session_run,
 )
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
@@ -1098,12 +1099,46 @@ class DispatchRunner:
         argv[0] = resolve_executable(argv[0], driver=self.runner.driver)
         return argv, values["prompt"]
 
+    def _codex_wake_target(self, task_id: str) -> Optional[WakeTarget]:
+        """Find the newest completed Codex thread for this task.
+
+        Claude's wake path reads its session ledger. Codex's persisted App Server
+        thread is already represented by the AgentJobs run directory, so the newest
+        session run is the authoritative candidate. As with Claude, only that newest
+        run is considered; a missing or reaped conversation starts no second wake chain.
+        """
+        if not self.resolution.settings.resume_sessions:
+            return None
+        record = newest_session_run(self.home, task_id)
+        if record is None or record.is_live or not record.session_id:
+            return None
+        meta = RunDirectory(record.path).read_meta()
+        if meta.get("driver") != RunnerDriver.CODEX.value:
+            return None
+        if meta.get("reaped") is True or meta.get("codex_status") != "completed":
+            return None
+        return WakeTarget(
+            previous_run_id=record.run_id,
+            session_id=record.session_id,
+            session_uuid=record.session_id,
+        )
+
     def _start_codex_app_server_session(
         self, task: Task, *, actor: str, caused_by: int, trigger: DispatchTrigger
     ) -> RunHandle:
         """Start a persisted Codex App Server thread and its first turn."""
         run_id = new_run_id()
         argv, prompt = self.build_argv_and_prompt(task.id, run_id)
+        wake = self._codex_wake_target(task.id)
+        if wake is not None:
+            prompt = build_wake_prompt(
+                agent=self.runner.actor_id,
+                task_id=task.id,
+                ball_prompt=task.ball_prompt or "",
+                api_base=self.api_base,
+                run_id=run_id,
+                previous_run_id=wake.previous_run_id,
+            )
         settings = parse_session_settings(
             argv, posture=self.resolution.settings.posture.value, project_root=self.project_root
         )
@@ -1122,6 +1157,15 @@ class DispatchRunner:
                 "started_at": self.clock().isoformat(),
                 "caused_by": caused_by,
                 "argv": argv,
+                **(
+                    {
+                        "resumed": True,
+                        "resumed_from": wake.previous_run_id,
+                        "resumed_session": wake.session_uuid,
+                    }
+                    if wake is not None
+                    else {}
+                ),
             },
         )
         app_server = CodexAppServerProcess(
@@ -1133,7 +1177,7 @@ class DispatchRunner:
             thread_name=f"AgentJobs {self.resolution.project_id}/{task.id}",
         )
         try:
-            started = app_server.start(prompt)
+            started = app_server.start(prompt, resume_thread_id=wake.session_uuid if wake else None)
             entry_id = self._record_dispatch(
                 task,
                 run_id,
@@ -1144,8 +1188,13 @@ class DispatchRunner:
                 mode=DispatchMode.SESSION,
                 session_id=started.thread_id,
                 body=(
-                    "Started a Codex App Server thread. Its conversation is persisted in "
-                    "the Codex session store and can be opened by Codex Desktop."
+                    (
+                        f"Resumed Codex App Server thread from run `{wake.previous_run_id}` "
+                        "and injected the latest AgentJobs wake prompt."
+                        if wake is not None
+                        else "Started a Codex App Server thread. Its conversation is persisted in "
+                        "the Codex session store and can be opened by Codex Desktop."
+                    )
                 ),
             )
         except (CodexAppServerError, DispatchRunError) as exc:
