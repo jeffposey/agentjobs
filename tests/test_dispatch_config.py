@@ -122,7 +122,7 @@ class TestLoading:
         with pytest.raises(DispatchConfigError, match="driver"):
             load_dispatch_config()
 
-    def test_codex_session_runner_is_refused_before_any_spawn(self) -> None:
+    def test_codex_session_runner_is_allowed_for_app_server_transport(self) -> None:
         write_config(
             runners={
                 "codex": {
@@ -133,8 +133,11 @@ class TestLoading:
             }
         )
 
-        with pytest.raises(DispatchConfigError, match="batch only"):
-            load_dispatch_config()
+        config = load_dispatch_config()
+
+        assert config is not None
+        assert config.runners["codex"].driver is RunnerDriver.CODEX
+        assert config.runners["codex"].mode is RunnerMode.SESSION
 
     def test_posture_defaults_to_auto(self) -> None:
         """Changed from supervised on 2026-08-19; see task-020.

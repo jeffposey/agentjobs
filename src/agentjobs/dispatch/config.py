@@ -631,13 +631,6 @@ def _parse_runner(name: str, raw: object, path: Path) -> DispatchRunner:
             f"Invalid dispatch config at {path}: {where}.driver must be one of "
             f"{_values(RunnerDriver)}, not {driver_raw!r}."
         ) from exc
-    if driver is RunnerDriver.CODEX and mode is not RunnerMode.BATCH:
-        raise DispatchConfigError(
-            f"Invalid dispatch config at {path}: {where} uses driver: codex, which "
-            "currently supports mode: batch only. Codex session and resume dispatch "
-            "are not implemented."
-        )
-
     actor_raw = mapping.get("actor")
     if actor_raw is not None and not isinstance(actor_raw, str):
         raise DispatchConfigError(

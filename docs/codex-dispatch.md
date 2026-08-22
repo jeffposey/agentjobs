@@ -6,9 +6,24 @@ mcp`, and set `AGENTJOBS_URL` to the running AgentJobs service. AgentJobs makes 
 server required on every Codex dispatch, so a run fails before work begins if it cannot
 record its task activity.
 
-Codex dispatch is batch-only for now: each run uses `codex exec --json` and finishes in
-the normal AgentJobs batch supervisor. Session, remote-control, and resume dispatch are
-Claude-specific and are rejected for a Codex runner instead of being silently imitated.
+Codex supports both batch and session dispatch. Batch runs use `codex exec --json` and
+finish in the normal AgentJobs batch supervisor. Session runs use the stable JSONL
+`codex app-server` protocol: the first turn is started through App Server, and its
+conversation is written to Codex's normal session store so Codex Desktop can open it.
+AgentJobs keeps a diagnostic JSONL transcript, but the Desktop conversation is the
+primary view for output, diffs, and approvals.
+
+When `resume_sessions: true` (the default), a later dispatch of the same task selects
+the newest completed Codex session run, calls `thread/resume`, and injects the current
+AgentJobs wake prompt—including the new ball prompt—through `turn/start`. This keeps
+one conversation across a task's work/review/follow-up lifecycle. If the persisted
+thread cannot be resumed, the dispatch records the App Server error rather than silently
+starting a second conversation or falling back to batch mode.
+
+The current Windows CLI's `app-server daemon` and `remote-control` lifecycle commands
+are Unix-only. That is separate from ChatGPT Remote: the supported Windows path is to
+enable **Settings → Connections → Control this Mac or PC** in ChatGPT Desktop, approve
+the connection, and then use the ChatGPT mobile app to follow the connected computer.
 
 ## Add the runners, disabled
 
@@ -31,6 +46,20 @@ Windows, avoiding the non-spawnable Microsoft Store `codex` alias.
     driver: codex
     mode: batch
     actor: codex
+
+  codex-luna-session:
+    argv: ["codex", "app-server", "--model", "gpt-5.6-luna",
+           "-c", 'model_reasoning_effort="high"', "{prompt}"]
+    driver: codex
+    mode: session
+    actor: codex
+
+  codex-sol-session:
+    argv: ["codex", "app-server", "--model", "gpt-5.6-sol",
+           "-c", 'model_reasoning_effort="high"', "{prompt}"]
+    driver: codex
+    mode: session
+    actor: codex
 ```
 
 Add the disabled candidates to the groups before turning either one on:
@@ -40,14 +69,14 @@ runner_groups:
   default:
     members:
       - runner: claude-opus-5
-      - runner: codex-terra
+      - runner: codex-luna-session
         enabled: false
-        note: Enable after the first Codex batch smoke dispatch passes.
+        note: Enable after a human-reviewed App Server session smoke passes.
 
   big-dawg:
     members:
       - runner: claude-fable-5
-      - runner: codex-sol
+      - runner: codex-sol-session
         enabled: false
         note: Keep Sol reserved for high-value, complex work.
 ```
@@ -56,12 +85,12 @@ runner_groups:
 
 1. Start AgentJobs and verify a fresh Codex desktop or CLI session can call
    `projects_list` through MCP.
-2. Enable only `codex-terra` and run one human-triggered, ordinary task through an
-   explicitly named test group. Confirm the dispatch record, its JSONL output, and the
-   task handoff all appear in AgentJobs.
-3. Switch `default` to `codex-terra` as its only enabled candidate. Do not leave a
+2. Enable only `codex-luna-session` and run one human-triggered, ordinary task through
+   an explicitly named test group. Confirm the dispatch record, the diagnostic JSONL,
+   and the same named conversation in Codex Desktop.
+3. Switch `default` to `codex-luna-session` as its only enabled candidate. Do not leave a
    Claude fallback: a group must fail rather than quietly spend on a different model.
-4. Enable `codex-sol` only in `big-dawg`, then run its own human-triggered smoke task.
+4. Enable `codex-sol-session` only in `big-dawg`, then run its own human-triggered smoke task.
    After it passes, disable the Claude member there too.
 5. Keep Claude defined outside production groups only for a fresh-session MCP
    compatibility canary.
@@ -73,8 +102,9 @@ runner_groups:
 | `read_only` | `--sandbox read-only` | Review and investigation |
 | `auto` | `--sandbox workspace-write` | Normal workhorse dispatch |
 | `autonomous` | `--sandbox danger-full-access` | Explicit, high-trust automation |
-| `supervised` | refused | A batch run cannot answer interactive approvals |
+| `supervised` | `approvalPolicy: on-request` | Desktop can answer an interactive approval |
 
-The `default` recommendation is Terra with `high` reasoning. Sol with `xhigh` is the
-Big Dawg choice: reserve it for hard architecture, risky changes, and work where the
-extra weekly capacity is worth the expected quality gain.
+For the current $20 plan, the configured policy is Luna with `high` reasoning for the
+default workhorse and Sol with `high` reasoning for Big Dawg. Terra remains available
+as a disabled candidate; Sol is reserved for work where its extra weekly capacity is
+worth the cost.
