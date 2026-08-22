@@ -2,16 +2,11 @@ schema: 2
 id: task-279
 title: Add a Codex App Server session runner for steerable dispatch
 created: '2026-08-22T20:23:50.857500Z'
-updated: '2026-08-22T20:57:32.405116Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+updated: '2026-08-22T20:58:32.732609Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 15
 category: infrastructure
 tags:
 - codex
@@ -21,7 +16,6 @@ tags:
 - remote
 effort: large
 assignment:
-  owner: codex
   eligible: []
 spec:
   summary: AgentJobs currently dispatches Codex through noninteractive `codex exec`.
@@ -74,7 +68,8 @@ dependencies: []
 links: []
 branches:
 - name: codex/task-279-codex-session-dispatch
-  status: active
+  status: merged
+  merged_at: '2026-08-22T21:00:00Z'
 log:
 - id: 1
   ts: '2026-08-22T20:23:51.227269Z'
@@ -350,3 +345,32 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 19
+  ts: '2026-08-22T20:58:28.291493Z'
+  actor: codex
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: ef126d53-cf3a-4f1c-9d55-8d154c08d61f
+      kind: update_content
+      fingerprint: 137f6bf284ec42207386ff4611d40d9a
+- id: 20
+  ts: '2026-08-22T20:58:32.732414Z'
+  actor: codex
+  type: transition
+  body: 'Merged with --no-ff into main as 7e2366f after rebasing onto main. Post-rebase
+    validation passed: 190 dispatch/config/App Server tests. The merged implementation
+    supports Codex App Server session creation, app-visible persisted threads, AgentJobs
+    resume/prompt injection through thread/resume + turn/start, explicit posture/model/MCP
+    setup, and clear startup failure handling without batch fallback. Production runner
+    groups remain unchanged pending a separate controlled smoke/cutover decision.'
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 4c2e0b57-4d9c-4c4d-98cc-65fb0b4a70b6
+      kind: close
+      fingerprint: ff75afcb9aed6b15f51ea83385e2c4fb
