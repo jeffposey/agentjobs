@@ -3,7 +3,7 @@ id: task-275
 title: 'Delete the legacy Jinja/Alpine pages: stored XSS through marked.parse into
   innerHTML, CDN scripts with no SRI, still mounted and proxied to the tailnet'
 created: '2026-08-22T19:01:27.155876Z'
-updated: '2026-08-22T19:01:27.640941Z'
+updated: '2026-08-22T23:38:49.936594Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
@@ -48,8 +48,9 @@ spec:
     why: S-7
   - path: audits/2026-08-21/09-frontend.md
     why: 'Section 4: the two SPA escapes into the legacy router'
-  - path: src/agentjobs/api/templates/base.html
-    why: The x-markdown directive and CDN script tags
+  - path: src/agentjobs/api/routes/web.py
+    why: Legacy router that task-275 proposes to remove; replaces the stale template
+      path as the implementation boundary.
 acceptance:
 - id: ac-1
   text: No server route renders task content through a markdown-to-innerHTML path;
@@ -74,3 +75,15 @@ log:
       id: dc079ac0-ce23-4417-8df8-aecfdd24ce9b
       kind: create
       fingerprint: a3e7ecd43dcd5efb5fdbf7a6cea37901
+- id: 2
+  ts: '2026-08-22T23:38:49.936474Z'
+  actor: codex
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: b076ddfb-1c35-465f-84b8-2cce3e0a949e
+      kind: update_content
+      fingerprint: 108f165d076f740d5d6a7fbdfaeca7d1
