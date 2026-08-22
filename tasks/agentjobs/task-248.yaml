@@ -3,11 +3,11 @@ id: task-248
 title: "Tolerant reader rejects an unknown ball_reason \u2014 the enum widened two\
   \ days after tolerance shipped"
 created: '2026-08-22T18:51:25.400936Z'
-updated: '2026-08-22T18:51:25.995888Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Finish specifying this task.
+updated: '2026-08-22T21:22:17.398891Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 queue_position: 500
@@ -16,6 +16,7 @@ tags:
 - big-dawg-audit
 - schema
 assignment:
+  owner: codex
   eligible: []
 spec:
   summary: "Big Dawg Audit P1 (auditor 3 F1/F12). schema_tolerance promises an older\
@@ -76,3 +77,42 @@ log:
       id: f8d00efb-9039-4f16-a686-b65d3816d722
       kind: create
       fingerprint: 182be3ea7bde0bb0b38b038b8f0e8190
+- id: 2
+  ts: '2026-08-22T21:14:44.086800Z'
+  actor: Jeff Posey
+  type: transition
+  body: Promoted by Jeff Posey; the spec is finished and it is claimable.
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+- id: 3
+  ts: '2026-08-22T21:21:45.552973Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 4
+  ts: '2026-08-22T21:21:45.992350Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 5
+  ts: '2026-08-22T21:22:17.398804Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: 'The Codex App Server session never started: Codex App Server thread/start
+    failed: error creating thread: Fatal error: Failed to initialize session: required
+    MCP servers failed to initialize: agentjobs: timed out handshaking with MCP server
+    after 29.9999997s'
+  data:
+    run_id: run_6e24a4fa
+    outcome: crashed
+    log_path: C:\Users\jpose\.agentjobs\runs\run_6e24a4fa
