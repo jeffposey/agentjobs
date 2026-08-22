@@ -2,7 +2,7 @@ schema: 2
 id: task-241
 title: Approval runs the merge itself, and wakes a session only when it cannot
 created: '2026-08-22T00:48:16.842628Z'
-updated: '2026-08-22T01:25:48.590306Z'
+updated: '2026-08-22T02:51:15.185363Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -251,3 +251,77 @@ log:
       id: 6b1f2d3a-9c44-4e21-8a55-1d0e7f3b2c90
       kind: update_content
       fingerprint: ca1224665e18e88660e7bf9673d5ff10
+- id: 6
+  ts: '2026-08-22T02:51:15.185085Z'
+  actor: claude
+  type: progress
+  body: "Built on `feat/task-241-scripted-finish`. Four commits, gate green at 152.9s\
+    \ before the last two edits (re-run pending). What exists now:\n\n## The mechanism\n\
+    \n`src/agentjobs/dispatch/finish.py` \u2014 `finish_task()` runs the fixed sequence\
+    \ and stops at the first thing it cannot do safely. Reachable three ways, all\
+    \ the same code: the Approve route spawns it detached, `agentjobs finish <task>\
+    \ --project <id>` runs it by hand, and a test calls it directly.\n\nOrder, and\
+    \ it differs from the spec in one deliberate place:\n\n1. `preflight` \u2014 exactly\
+    \ one active branch, the branch exists, the clone is on the base branch (never\
+    \ checked out), the branch has a worktree, that worktree is clean, and Poetry\
+    \ can name its interpreter.\n2. `rebase` onto the base, in that worktree. On failure:\
+    \ abort, **read the branch tip back and compare it with what it was**, and say\
+    \ in the escalation which of \"the branch is exactly where it was\" / \"the abort\
+    \ did not restore it\" is true.\n3. `gate` \u2014 the unqualified `scripts/check.py`,\
+    \ in the worktree, with that worktree's own interpreter, `VIRTUAL_ENV` scrubbed.\
+    \ Output kept at `<finish>/gate.log`.\n4. `merge --no-ff` in the shared clone,\
+    \ then **immediately** a `progress` entry naming the merge commit, then a task-record\
+    \ commit. Nothing that can fail sits between the merge and the record of it.\n\
+    5. `rebuild` if the merge touched `frontend/`, `restart` per machine config, `verify`.\n\
+    6. `close` \u2014 **last, not fourth**. See the decision entry.\n7. `worktree\
+    \ remove` \u2014 a failure here is logged, not escalated.\n\n## What the spec\
+    \ asked for and what it got instead, at three points\n\n- **Closing moved from\
+    \ step 4 to last.** A merged frontend change is invisible until the bundle is\
+    \ rebuilt; if closing came first, that exact failure would end with a task marked\
+    \ `completed`. It now ends with an open task, the merge on the record, and a prompt\
+    \ naming what remains.\n- **Verification asks for containment, not equality.**\
+    \ The finisher commits the task record to the base right after merging, so by\
+    \ the time anything restarts the base is already one commit past the merge. Comparing\
+    \ for equality would fail every successful delivery.\n- **Escalation goes through\
+    \ the existing `auto_dispatch` switch** rather than dispatching unconditionally.\
+    \ This project runs `auto_dispatch: false`, so an escalation parks the task at\
+    \ `agent`/`work` with a prompt naming the step, and Jeff's existing Dispatch click\
+    \ wakes the session \u2014 the pre-234 flow with a much better prompt in it. Where\
+    \ `auto_dispatch` is on, the finish dispatches itself, attributing the run to\
+    \ the human's approval entry rather than to its own (a finisher entry would be\
+    \ refused as not human-clocked, correctly).\n\n## Supporting changes\n\n- **`/api/version`\
+    \ gained `source_commit` and `started_at`**, captured once at process start and\
+    \ never recomputed. Without that, verification could only ask whether the port\
+    \ answers: a server started before a merge reads the *new* HEAD off disk and would\
+    \ report the merge commit while running hour-old code. Warmed from the app's lifespan,\
+    \ so a server always captures before serving; the CLI never asks and never pays\
+    \ for the subprocess.\n- **`finisher` is a new reserved actor**, distinct from\
+    \ `dispatcher`. A `dispatch` entry says AgentJobs started an agent; a `finisher`\
+    \ entry says AgentJobs merged with no agent anywhere. Collapsing them would make\
+    \ the record unable to answer \"was a model involved in this merge\", which is\
+    \ the one question this whole thing changes the answer to.\n- **`scripts/run_report.py`\
+    \ reads `~/.agentjobs/finishes/`** and reports finished / escalated / declined\
+    \ separately. A finish leaves no run, so a report reading only `runs/` shows runs-per-task\
+    \ falling with nothing to attribute it to \u2014 the saving reads as missing data,\
+    \ which f2 says it must not.\n- **`scripts/finish_sandbox.py`** \u2014 drives\
+    \ the real CLI against a real clone of this repository with a real server. The\
+    \ demonstrations are in the next entry.\n\n## Two defects the tests caught in\
+    \ my own code\n\n- **`dirty_paths` was slicing paths one character short.** `git\
+    \ status --porcelain` puts the status in two *columns* and leaves the first blank\
+    \ for an unstaged modification, and I was reading it through a helper that strips.\
+    \ So \"somebody in the clone is editing a file this merge overwrites\" silently\
+    \ found nothing \u2014 the wrong direction for that check.\n- **A merge that moves\
+    \ nothing exits zero.** `git merge --no-ff` of a branch already contained in the\
+    \ base prints \"Already up to date\" and returns 0, so the exit code alone would\
+    \ have closed a task on a merge that never happened. Told apart from the task's\
+    \ own record: our own earlier merge entry means this is a retry and it continues;\
+    \ anything else means a person merged by hand, and it escalates rather than quietly\
+    \ closing.\n\n## Not done\n\n`finish.enabled` is **off** for `agentjobs` in `~/.agentjobs/dispatch.yaml`\
+    \ and I have not turned it on. Turning it on is what makes approvals merge by\
+    \ themselves on this machine, and that is Jeff's call, not mine. The exact block\
+    \ is in the handoff.\n"
+  data:
+    operation:
+      id: c41d8e77-2a3b-4f16-9c05-72e1a0b4d3e8
+      kind: log_append
+      fingerprint: aed599b5a5bfd946151ce6b15abb3d01
