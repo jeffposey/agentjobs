@@ -3,10 +3,14 @@ id: task-248
 title: "Tolerant reader rejects an unknown ball_reason \u2014 the enum widened two\
   \ days after tolerance shipped"
 created: '2026-08-22T18:51:25.400936Z'
-updated: '2026-08-22T21:43:40.921077Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-22T22:06:53.034449Z'
+lifecycle: active
+ball: human
+ball_reason: input
+ball_prompt: Please rerun task-248 in an environment where `git worktree add ../worktrees/agentjobs-248
+  -b <type>/task-248-<slug>` can write `.git` branch metadata, or provide an approved
+  task worktree. The source/test fix is still unimplemented; no repository code was
+  changed.
 archived: false
 priority: critical
 queue_position: 500
@@ -15,6 +19,7 @@ tags:
 - big-dawg-audit
 - schema
 assignment:
+  owner: codex
   eligible: []
 spec:
   summary: "Big Dawg Audit P1 (auditor 3 F1/F12). schema_tolerance promises an older\
@@ -384,3 +389,117 @@ log:
       id: f8c78f34-26ea-451f-8b4f-9e8fa6c96911
       kind: release
       fingerprint: 5c991b98ed6d7bd3da50fecdfffa1dd5
+- id: 19
+  ts: '2026-08-22T21:47:01.051347Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 20
+  ts: '2026-08-22T21:47:01.457654Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 21
+  ts: '2026-08-22T21:47:06.670852Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Started a Codex App Server thread. Its conversation is persisted in the Codex
+    session store and can be opened by Codex Desktop.
+  data:
+    run_id: run_baceeeb3
+    agent: codex
+    runner: codex-luna
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 19
+    argv:
+    - C:\Users\jpose\AppData\Local\OpenAI\Codex\bin\110b3d66a02d864e\codex.exe
+    - app-server
+    - --model
+    - gpt-5.6-luna
+    - -c
+    - model_reasoning_effort="high"
+    - --sandbox
+    - workspace-write
+    - -c
+    - mcp_servers.agentjobs.required=true
+    - 'You are the agent `codex` working task `task-248` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-248-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_baceeeb3.'
+    cwd: C:\projects\agentjobs
+    git_head: '5943279'
+    session_id: 01a02b71-05de-7941-a870-1ca25e323dca
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: false
+        skipped_because: disabled
+        detail: Claude remains defined as a fresh-session canary; Luna is the active
+          workhorse.
+      - runner: codex-luna
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 22
+  ts: '2026-08-22T21:48:24.434337Z'
+  actor: codex
+  type: progress
+  body: 'Resumption completed: task spec, newest log entries, acceptance criteria,
+    docs/agent-workflow.md, ENGINEERING.md, and ALLAGENTS.md were read. The required
+    first command `git worktree add ../worktrees/agentjobs-248 -b feature/task-248-task-work`
+    failed because Git could not create `.git/refs/heads/feature/task-248-task-work`;
+    a direct-branch retry also failed at `.git/refs/heads/task-248-ball-reason.lock`
+    with `Permission denied`. No source or test files were edited. The fix remains
+    localized to `src/agentjobs/models_v2.py` rule 2 / priority_rank and `tests/test_schema_skew.py`;
+    continuation requires a writable Git metadata/worktree environment.'
+  data:
+    worktree_path: C:/projects/worktrees/agentjobs-248
+    attempted_commands:
+    - git worktree add ../worktrees/agentjobs-248 -b feature/task-248-task-work
+    - git worktree add ../worktrees/agentjobs-248 -b task-248-ball-reason
+    operation:
+      id: baceeeb3-2480-4a5b-9b0d-1c6d5a0e8f31
+      kind: log_append
+      fingerprint: 99d51244e2f34468e9ee300e4e8a4337
+- id: 23
+  ts: '2026-08-22T21:48:30.782164Z'
+  actor: codex
+  type: handoff
+  body: 'Work cannot proceed safely in this session because the mandated Git worktree
+    cannot be created: the sandbox denies writes to the repository''s `.git` metadata.
+    No code changes were made.'
+  data:
+    ball: human
+    ball_reason: input
+    operation:
+      id: e3d8d4a7-2480-4e7a-8a41-3d7f6d9b2c10
+      kind: handoff
+      fingerprint: 7ca78e48b4579792327f42e7c60927e9
+- id: 24
+  ts: '2026-08-22T22:06:53.034241Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: This session is no longer known to the session manager, so it cannot be followed
+    or resumed. It was recorded as live when AgentJobs last stopped.
+  re: 21
+  data:
+    run_id: run_baceeeb3
+    outcome: interrupted
+    duration_seconds: 1190.985023
+    log_path: C:\Users\jpose\.agentjobs\runs\run_baceeeb3
