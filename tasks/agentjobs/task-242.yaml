@@ -2,7 +2,7 @@ schema: 2
 id: task-242
 title: "Big Dawg Audit \u2014 every system, separately, then one combined report"
 created: '2026-08-22T01:12:47.552800Z'
-updated: '2026-08-22T04:47:12.739366Z'
+updated: '2026-08-22T05:06:42.984772Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -216,3 +216,21 @@ log:
       id: f8a2c470-91b5-4e6d-a3f2-6c0d8b17e9a3
       kind: log_append
       fingerprint: 9fde2244a0c6cb51ecd85c0c20e20db4
+- id: 6
+  ts: '2026-08-22T05:06:42.984550Z'
+  actor: claude
+  type: progress
+  body: "Batch 1 complete, ~75 min wall. All three findings files written and substantial:\
+    \ 01-context-architecture.md (39KB, 18 severity-tagged findings), 10-dispatch.md\
+    \ (37KB, 19), 12-security.md (28KB, 15); each has its \"did not get to\" section.\
+    \ Session 4faf6989 (security) ended idle/blocked \u2014 finished after a permission\
+    \ denial rather than parked; its file is complete, so no retry. Batch 2 launched,\
+    \ same model/mode: auditor 4 storage/manager (session 056a8c4c, \"bda-04-storage\"\
+    ), auditor 11 gate/tooling (7c96fbc1, \"bda-11-gate\"), auditor 3 schema/validation\
+    \ (3790b0f1, \"bda-03-schema\"). Same 120s backgrounded watch. Findings files\
+    \ remain uncommitted by design \u2014 synthesis commits everything at the end."
+  data:
+    operation:
+      id: 1b9e6d43-7a20-4c5f-9e81-d4f3a8c260b7
+      kind: log_append
+      fingerprint: 76d335cafeef64de19bf6074a421e21b
