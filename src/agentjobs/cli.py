@@ -36,7 +36,7 @@ from .mcp.config import BASE_URL_ENV as MCP_BASE_URL_ENV
 from .mcp.config import TIMEOUT_ENV as MCP_TIMEOUT_ENV
 from .migration import migrate_tasks
 from .migration.reporter import MigrationReporter
-from .models_v2 import Ball, Lifecycle, Outcome, Priority
+from .models_v2 import Ball, DispatchMode, Lifecycle, Outcome, Priority
 from .project_setup import (
     DEFAULT_CONFIG,
     MCP_CONFIG_FILENAME,
@@ -1047,6 +1047,14 @@ def dispatch_run(
     if handle.session_id:
         typer.echo(f"   Session {handle.session_id} — the CLI assigned that id, not us.")
     typer.echo(f"   Run directory: {handle.directory.path}")
+    if handle.mode is DispatchMode.BATCH:
+        # A session belongs to its CLI's own session manager, but a batch process needs
+        # this process's supervisor to write its terminal record.  Returning here used
+        # to end the daemon thread with the CLI, leaving a completed child permanently
+        # marked running until a server restart misclassified it as interrupted.
+        assert handle.supervisor is not None
+        typer.echo("   Waiting for the batch run to record its outcome.")
+        handle.supervisor.join()
 
 
 @dispatch_app.command("example")
