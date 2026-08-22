@@ -3,10 +3,11 @@ id: task-248
 title: "Tolerant reader rejects an unknown ball_reason \u2014 the enum widened two\
   \ days after tolerance shipped"
 created: '2026-08-22T18:51:25.400936Z'
-updated: '2026-08-22T21:35:16.480965Z'
-lifecycle: ready
+updated: '2026-08-22T21:36:24.627342Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: critical
 queue_position: 500
@@ -15,6 +16,7 @@ tags:
 - big-dawg-audit
 - schema
 assignment:
+  owner: codex
   eligible: []
 spec:
   summary: "Big Dawg Audit P1 (auditor 3 F1/F12). schema_tolerance promises an older\
@@ -238,3 +240,72 @@ log:
       id: e4a70f03-88e4-4d6d-9860-a96cf2e1ad9f
       kind: release
       fingerprint: 41561c5b20c3dbaf2c4548a711da7260
+- id: 13
+  ts: '2026-08-22T21:36:15.933733Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 14
+  ts: '2026-08-22T21:36:20.166385Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Started a Codex App Server thread. Its conversation is persisted in the Codex
+    session store and can be opened by Codex Desktop.
+  data:
+    run_id: run_88c1a78e
+    agent: codex
+    runner: codex-luna
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 7
+    argv:
+    - C:\Users\jpose\AppData\Local\OpenAI\Codex\bin\110b3d66a02d864e\codex.exe
+    - app-server
+    - --model
+    - gpt-5.6-luna
+    - -c
+    - model_reasoning_effort="high"
+    - --sandbox
+    - workspace-write
+    - -c
+    - mcp_servers.agentjobs.required=true
+    - 'You are the agent `codex` working task `task-248` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-248-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_88c1a78e.'
+    cwd: C:\projects\agentjobs
+    git_head: f23edbb
+    session_id: 01a02b67-2bd9-7081-a5e8-402fde4e45aa
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: false
+        skipped_because: disabled
+        detail: Claude remains defined as a fresh-session canary; Luna is the active
+          workhorse.
+      - runner: codex-luna
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 15
+  ts: '2026-08-22T21:36:24.627153Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: The Codex App Server process exited before reporting turn completion.
+  re: 14
+  data:
+    run_id: run_88c1a78e
+    outcome: interrupted
+    duration_seconds: 8.138373
+    log_path: C:\Users\jpose\.agentjobs\runs\run_88c1a78e
