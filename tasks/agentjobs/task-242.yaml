@@ -2,39 +2,16 @@ schema: 2
 id: task-242
 title: "Big Dawg Audit \u2014 every system, separately, then one combined report"
 created: '2026-08-22T01:12:47.552800Z'
-updated: '2026-08-22T19:08:16.962898Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "The Big Dawg Audit is done and synthesized. Read audits/2026-08-21/00-BIG-DAWG-REPORT.md\
-  \ \u2014 section 1 is the phone-sized summary, section 2 ranks every P1/P2 with\
-  \ its draft task id, section 3 is the contradiction sweep, section 6 is what to\
-  \ change next week.\n\nCounts: twelve of twelve auditors completed (no stubs). Raw:\
-  \ 9 P1, 59 P2, ~80 P3, ~45 P4. Deduplicated into 33 P1/P2 clusters, each filed as\
-  \ a draft task: task-244 through task-276 (dashboard, draft band). Nothing promoted,\
-  \ claimed or started. Thirteen contradictions swept, five adjudicated against source.\n\
-  \nThree things need you, in order:\n1. task-246 \u2014 audits/ including 12-security.md\
-  \ is ALREADY on the public remote (commits f56c9ae, f9d3f7b were pushed before synthesis).\
-  \ Decide whether to rewrite history or accept; nothing from this synthesis session\
-  \ is pushed (db55d7d report, 4bad53e tasks, plus this handoff commit are local only).\
-  \ Do not let an agent force-push.\n2. task-244 and task-245 \u2014 the API is unauthenticated\
-  \ on the tailnet with identity as a body field, and git merge is pre-approved for\
-  \ dispatched agents. These are the two P1s with blast radius.\n3. Promote what is\
-  \ real among 244-276, close what is not. task-273 (backend decision) and task-268\
-  \ (gate speed) are the answers to the two questions you weighted.\n\nAlso from the\
-  \ report: job-hunting's backlog is invisible in the dashboard (task-258) and agentjobs\
-  \ validate is red on its own corpus (task-262).\n\nOn approval of this task: close\
-  \ it with outcome completed. The deliverables are all on main; there is no branch\
-  \ to merge."
+updated: '2026-08-22T19:23:14.152348Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 12100
 category: audit
 tags:
 - big-dawg-audit
 - weekly-ritual
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'Overnight full-repo audit (night of 2026-08-21, before the weekly limit
@@ -151,11 +128,14 @@ spec:
 acceptance: []
 deliverables:
 - path: audits/2026-08-21/00-BIG-DAWG-REPORT.md
-  note: Combined ranked report
-  status: pending
+  note: Combined ranked report - committed to main in db55d7d
+  status: done
 - path: audits/2026-08-21/
-  note: Twelve per-system findings files
-  status: pending
+  note: Twelve per-system findings files, 01- through 12-, plus PLAN.md - all on main
+  status: done
+- path: tasks/agentjobs/task-244.yaml .. task-276.yaml
+  note: 33 draft tasks, one per deduplicated P1/P2 cluster - committed in 4bad53e
+  status: done
 dependencies: []
 links: []
 branches: []
@@ -383,3 +363,125 @@ log:
       id: 8268d65b-061c-4c5d-8fb6-8a1be8eafa5b
       kind: handoff
       fingerprint: 42e7b071e53bfbf6e77ea3348cf20482
+- id: 12
+  ts: '2026-08-22T19:21:32.791202Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    If you didn''t think the audits should be in the public open source git repo,
+    you shouldn''t have been committing and merging them in.
+
+
+    I understand there is no authentication, but I feel like Tailscale is safe enough.
+    My mobile devices have screen locks, you''d have to grab my device while it''s
+    unlocked and that''s not something I want to build up annoying guards to handle
+    when it is not going to happen.
+
+
+    It may take a while to digest the report and the 33 new tasks.'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 13
+  ts: '2026-08-22T19:21:49.467901Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 14
+  ts: '2026-08-22T19:21:51.340919Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_824d9746
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 13
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - auto
+    - --settings
+    - '{"permissions": {"allow": ["Bash(poetry run pytest:*)", "PowerShell(poetry
+      run pytest:*)", "Bash(poetry run ruff:*)", "PowerShell(poetry run ruff:*)",
+      "Bash(poetry run black:*)", "PowerShell(poetry run black:*)", "Bash(poetry run
+      mypy:*)", "PowerShell(poetry run mypy:*)", "Bash(npm run:*)", "PowerShell(npm
+      run:*)", "Bash(git status:*)", "PowerShell(git status:*)", "Bash(git diff:*)",
+      "PowerShell(git diff:*)", "Bash(git add:*)", "PowerShell(git add:*)", "Bash(git
+      commit:*)", "PowerShell(git commit:*)", "Bash(git merge:*)", "PowerShell(git
+      merge:*)"]}, "enabledMcpjsonServers": ["agentjobs"]}'
+    - 'You are the agent `claude` working task `task-242` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-242-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_824d9746.'
+    cwd: C:\projects\agentjobs
+    git_head: '6396286'
+    session_id: 7f274168
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: chatgpt-sol
+        eligible: true
+- id: 15
+  ts: '2026-08-22T19:23:02.321326Z'
+  actor: claude
+  type: note
+  body: Updated deliverables.
+  data:
+    fields:
+    - deliverables
+    operation:
+      id: 3f0a7c21-9d64-4e18-b7a2-51c8e0d6ab73
+      kind: update_content
+      fingerprint: 71bd7d72b32eb6a6a12a9b70c7656c41
+- id: 16
+  ts: '2026-08-22T19:23:14.152157Z'
+  actor: claude
+  type: transition
+  body: "Closed on Jeff's approval. There was no merge to perform: the ball_prompt's\
+    \ \"rebase and merge --no-ff\" is the standard approval template, but this task\
+    \ never took a branch \u2014 branches[] is empty and every deliverable was committed\
+    \ directly to main by the auditors and the synthesis session, which is correct\
+    \ for a task whose output is audits/ and task records rather than code. Verified\
+    \ before closing: git branch shows only main; audits/2026-08-21/ holds 00-BIG-DAWG-REPORT.md,\
+    \ the twelve findings files 01- through 12-, and PLAN.md; tasks/agentjobs/ holds\
+    \ task-244 through task-276, the 33 draft tasks. All three deliverables marked\
+    \ done.\n\nCarrying Jeff's note forward rather than reopening it: he accepts audits/\
+    \ being on the public remote, and accepts the unauthenticated API on the tailnet\
+    \ as a risk not worth guarding against given device screen locks. That does not\
+    \ close task-244 (unauthenticated API, identity as a body field) or task-246 (audits\
+    \ already pushed) \u2014 those are his to promote, close or reframe when he digests\
+    \ the backlog, and his note is the context to read them with, not a decision recorded\
+    \ against them.\n\nNot pushed, deliberately. Three commits remain local to this\
+    \ clone: db55d7d (the report), 4bad53e (the 33 draft tasks) and 6396286 (the review\
+    \ handoff), plus the task-record commit for this close. Approval to merge is not\
+    \ approval to push, and the earlier push of the findings files \u2014 including\
+    \ 12-security.md \u2014 is exactly what task-246 exists to decide. Whoever pushes\
+    \ next should read task-246 first; nobody should force-push."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: ab41d7e5-2c98-4f16-9e03-6d5b7a0c34f1
+      kind: close
+      fingerprint: 8b1dc125de07c6808905db698a7d9b34
