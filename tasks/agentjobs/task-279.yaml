@@ -2,17 +2,19 @@ schema: 2
 id: task-279
 title: Add a Codex App Server session runner for steerable dispatch
 created: '2026-08-22T20:23:50.857500Z'
-updated: '2026-08-22T20:49:51.479375Z'
+updated: '2026-08-22T20:50:26.962725Z'
 lifecycle: active
-ball: agent
-ball_reason: answer
-ball_prompt: Double check by researching if this is not possible on Windows today,
-  and then if not, proceed with the "proven stable" method. Note that it's not just
-  about my tablet and phone, it's also about the app itself on my desktop when I'm
-  in full development mode. Along with the fact that the output shown agentjob is
-  like only last 40 line and is not parsed and displayed in any reasonable way, so
-  it's not very useful yet, making the remote viewable sessions in the apps more important
-  until the UX is good in agentjobs.
+ball: human
+ball_reason: review
+ball_prompt: 'Review branch codex/task-279-codex-session-dispatch at commit 7a39bb6.
+  It adds Codex App Server session mode alongside batch mode, explicit model/posture/MCP
+  startup, named persisted threads, poller settlement, deterministic protocol tests,
+  and docs. Validation: 188 targeted tests pass; a real Windows bundled Codex CLI
+  GPT-5.6 Luna-high no-file turn completed; thread/list found the named persisted
+  session in ~/.codex/sessions. Production runner groups were not switched. Please
+  review/approve before merge and decide whether AgentJobs-native follow-up RPC control
+  (acceptance ac3) is required in this slice; Desktop can already open and steer the
+  persisted conversation.'
 archived: false
 priority: high
 queue_position: 15
@@ -274,3 +276,23 @@ log:
       id: 9c66b4fd-9b17-4f90-95c0-38a38f9f6fcb
       kind: log_append
       fingerprint: e9b168b26f4028a4bb39e3f8979f6d71
+- id: 14
+  ts: '2026-08-22T20:50:26.962506Z'
+  actor: codex
+  type: handoff
+  body: 'Review branch codex/task-279-codex-session-dispatch at commit 7a39bb6. It
+    adds Codex App Server session mode alongside batch mode, explicit model/posture/MCP
+    startup, named persisted threads, poller settlement, deterministic protocol tests,
+    and docs. Validation: 188 targeted tests pass; a real Windows bundled Codex CLI
+    GPT-5.6 Luna-high no-file turn completed; thread/list found the named persisted
+    session in ~/.codex/sessions. Production runner groups were not switched. Please
+    review/approve before merge and decide whether AgentJobs-native follow-up RPC
+    control (acceptance ac3) is required in this slice; Desktop can already open and
+    steer the persisted conversation.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 3b4f2345-a8ea-42c6-9d15-2c6159380274
+      kind: handoff
+      fingerprint: 982354ed9ad99d44a5741fdb82300b2c
