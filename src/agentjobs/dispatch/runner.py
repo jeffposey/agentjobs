@@ -1273,7 +1273,12 @@ class DispatchRunner:
             target=self._supervise_codex_app_server,
             args=(handle, app_server, started.turn_id),
             name=f"dispatch-{run_id}",
-            daemon=True,
+            # Unlike Claude's detached session manager, Codex App Server is the
+            # child owned by this process.  A daemon supervisor would be killed
+            # when `agentjobs dispatch run` returns, taking the Codex child with
+            # it before the first model turn.  Keep this owner alive until the
+            # App Server turn has reported completion.
+            daemon=False,
         )
         handle.supervisor.start()
         return handle
