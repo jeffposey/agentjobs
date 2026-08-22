@@ -26,8 +26,11 @@ from agentjobs.dispatch.config import (
     assert_dispatch_permitted,
     load_dispatch_config,
 )
+from agentjobs.dispatch.ledger import list_runs
 from agentjobs.dispatch.scaffold import EXAMPLE_CONFIG
+from agentjobs.manager import TaskManager
 from agentjobs.projects import ProjectRegistry
+from agentjobs.storage import TaskStorage
 
 from test_dispatch_auth import (
     SESSION,
@@ -187,6 +190,40 @@ class TestDispatchRun:
 
         assert result.exit_code == 1
         assert "Unknown project" in result.output
+
+    def test_waits_for_a_batch_run_to_write_its_terminal_record(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """The CLI owns a batch supervisor; it cannot abandon it on return.
+
+        A zero exit leaves this task's ball unmoved, so the runner intentionally records
+        a failed result.  The important assertion is that `runner.invoke` returns only
+        after that terminal record exists -- the exact point the old daemon thread lost.
+        """
+        root = self.make_project(tmp_path, "alpha")
+        task_id = self.seed(root)
+        write_config(
+            runners={
+                "batch": {
+                    "argv": [sys.executable, "-c", "pass", "{prompt}"],
+                    "actor": "claude",
+                }
+            },
+            projects={"alpha": {"enabled": True, "runner": "batch", "require_clean_tree": False}},
+        )
+        monkeypatch.setattr("agentjobs.dispatch.guards.assert_api_base_answers", lambda *_: None)
+
+        result = runner.invoke(app, ["dispatch", "run", task_id, "--project", "alpha"])
+
+        assert result.exit_code == 0, result.output
+        assert "Waiting for the batch run" in result.output
+        runs = list_runs(home())
+        assert len(runs) == 1
+        assert runs[0].status == "finished"
+        assert runs[0].outcome is not None
+        task = TaskManager(TaskStorage(root / "tasks")).get_task(task_id)
+        assert task is not None
+        assert any(entry.type.value == "dispatch_result" for entry in task.log)
 
     # ----- helpers -----
 
