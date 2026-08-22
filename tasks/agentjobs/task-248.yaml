@@ -3,14 +3,13 @@ id: task-248
 title: "Tolerant reader rejects an unknown ball_reason \u2014 the enum widened two\
   \ days after tolerance shipped"
 created: '2026-08-22T18:51:25.400936Z'
-updated: '2026-08-22T22:06:53.034449Z'
+updated: '2026-08-22T22:14:11.337138Z'
 lifecycle: active
 ball: human
 ball_reason: input
-ball_prompt: Please rerun task-248 in an environment where `git worktree add ../worktrees/agentjobs-248
-  -b <type>/task-248-<slug>` can write `.git` branch metadata, or provide an approved
-  task worktree. The source/test fix is still unimplemented; no repository code was
-  changed.
+ball_prompt: The declared trust boundary is still overridden by explicit Windows DENY
+  ACLs on `.git/refs/heads`. Please repair the effective ACL or provide a task worktree
+  created outside this session; task-248 remains unimplemented and has no source changes.
 archived: false
 priority: critical
 queue_position: 500
@@ -503,3 +502,120 @@ log:
     outcome: interrupted
     duration_seconds: 1190.985023
     log_path: C:\Users\jpose\.agentjobs\runs\run_baceeeb3
+- id: 25
+  ts: '2026-08-22T22:09:30.224710Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    Trust boundaries adjusted. Trying again.'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 26
+  ts: '2026-08-22T22:09:35.907394Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 27
+  ts: '2026-08-22T22:09:38.999009Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed Codex App Server thread from run `run_baceeeb3` and injected the latest
+    AgentJobs wake prompt.
+  data:
+    run_id: run_48b3cdeb
+    agent: codex
+    runner: codex-luna
+    mode: session
+    posture: auto
+    trigger: manual
+    caused_by: 26
+    argv:
+    - C:\Users\jpose\AppData\Local\OpenAI\Codex\bin\110b3d66a02d864e\codex.exe
+    - app-server
+    - --model
+    - gpt-5.6-luna
+    - -c
+    - model_reasoning_effort="high"
+    - --sandbox
+    - workspace-write
+    - -c
+    - mcp_servers.agentjobs.required=true
+    - 'You are the agent `codex` working task `task-248` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-248-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_48b3cdeb.'
+    cwd: C:\projects\agentjobs
+    git_head: 59d9cd4
+    session_id: 01a02b71-05de-7941-a870-1ca25e323dca
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: false
+        skipped_because: disabled
+        detail: Claude remains defined as a fresh-session canary; Luna is the active
+          workhorse.
+      - runner: codex-luna
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 28
+  ts: '2026-08-22T22:10:25.964091Z'
+  actor: codex
+  type: progress
+  body: 'Resumed run verified the prior state: `git worktree list` still shows only
+    the main checkout, and neither task branch exists. Retried the original required
+    command at the same path and branch, then retried the earlier direct-branch form;
+    both still fail. Read-only ACL inspection confirms explicit Windows DENY entries
+    on `.git`, `.git/refs`, and `.git/refs/heads`, so the updated sandbox permission
+    declaration does not grant effective write access. No worktree, branch, source
+    edit, or test run was created in this resumed attempt. I am not substituting a
+    clone because the task requires the repository worktree workflow.'
+  data:
+    worktree_path: C:/projects/worktrees/agentjobs-248
+    commands:
+    - git worktree add ../worktrees/agentjobs-248 -b feature/task-248-task-work
+    - git worktree add ../worktrees/agentjobs-248 -b task-248-ball-reason
+    verified_acl: icacls .git .git/refs .git/refs/heads shows explicit DENY(W,D,Rc,DC)
+    operation:
+      id: 48b3cdeb-2480-4d6b-9a31-2f7e8c5b1a09
+      kind: log_append
+      fingerprint: 78e4e06c7f490fd4e4d6b13a3300d180
+- id: 29
+  ts: '2026-08-22T22:10:33.378020Z'
+  actor: codex
+  type: handoff
+  body: The resumed attempt verified that the prior state was intact, but effective
+    Windows ACLs still prevent creating the mandated worktree branch. No repository
+    code or tests were changed.
+  data:
+    ball: human
+    ball_reason: input
+    operation:
+      id: a7f2c9e4-2480-4b6d-91e3-5c8a2f7d6b10
+      kind: handoff
+      fingerprint: 4646bf0004c282a1731b747e2be1d6f3
+- id: 30
+  ts: '2026-08-22T22:14:11.336795Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: This session is no longer known to the session manager, so it cannot be followed
+    or resumed. It was recorded as live when AgentJobs last stopped.
+  re: 27
+  data:
+    run_id: run_48b3cdeb
+    outcome: interrupted
+    duration_seconds: 274.624828
+    log_path: C:\Users\jpose\.agentjobs\runs\run_48b3cdeb
