@@ -1,0 +1,196 @@
+schema: 2
+id: task-238
+title: "Shell 3: the task sidebar \u2014 a collapsible tree you select from"
+created: '2026-08-22T00:39:57.272889Z'
+updated: '2026-08-22T00:45:42.683012Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 11800
+category: ux
+tags:
+- frontend
+- layout
+- react
+- accessibility
+effort: medium
+assignment:
+  eligible: []
+parent: task-235
+spec:
+  summary: The task list is currently a wide multi-column table designed to be the
+    whole page; in the sidebar it is a narrow tree you pick from, with children that
+    collapse under their parents, a selected row, and arrow-key movement. Drag-to-reorder
+    and Alt+Up/Alt+Down must survive the move, verified by hand.
+  intent: A master column is a different component from a full-width table even when
+    it renders the same data, and in 350px a nine-child epic without a collapse control
+    buries everything below it.
+  description: "## The work\n\n`TaskList.tsx` renders a grid that assumes page width\
+    \ \u2014 line 344 is\n`min-[820px]:grid-cols-[minmax(16rem,1fr)_repeat(3,minmax(9rem,auto))]`.\
+    \ In a sidebar it\nhas roughly 300-400px, which is the narrow-viewport case `ResponsiveTable`\
+    \ already\nhandles by restacking into labelled rows. Start by checking whether\
+    \ that existing\nmechanism is the answer before writing a second one.\n\n### Collapsible\
+    \ children \u2014 the part that is new rather than moved\n\nHalf the tree already\
+    \ exists: `queueOrder.ts` groups children under their parents and\nreturns `depth`,\
+    \ `childCount` and `openChildren`, and `TaskList.tsx:481` indents by\ndepth. What\
+    \ is missing:\n\n- **A disclosure control per parent**, keyboard-reachable, with\
+    \ correct `aria-expanded`.\n  Left/Right arrows collapse and expand, as a tree\
+    \ normally does.\n- **Collapse state that survives a refetch and a navigation.**\
+    \ The list refetches\n  constantly (live updates); a tree that re-expands every\
+    \ poll is unusable. Decide where\n  the state lives \u2014 component state, URL,\
+    \ or `localStorage` \u2014 and say why in the record.\n  It is per project, not\
+    \ global.\n- **A collapsed parent must not hide work silently.** `childCount`\
+    \ and `openChildren`\n  are already computed; show enough that a collapsed epic\
+    \ still reads as having nine open\n  children. task-137 and task-167 both have\
+    \ nine.\n- **A deep link to a collapsed child expands its ancestors.** Pasting\n\
+    \  `/p/agentjobs/tasks/task-214` must reveal task-214 in the tree, not select\
+    \ something\n  invisible.\n- **A sensible default.** All-expanded reproduces today's\
+    \ wall of rows; all-collapsed\n  hides most of the backlog. Pick one, state the\
+    \ reasoning, and make it a one-line change\n  if it turns out wrong in review.\n\
+    \n### What the column needs beyond the tree\n\n- **A selected row.** The task\
+    \ in the detail panel is visibly the selected one, driven by\n  the route param,\
+    \ surviving a refetch. `aria-current`, so it is announced rather than\n  only\
+    \ coloured.\n- **Up/Down arrow movement** that changes the selection and loads\
+    \ that task's detail.\n  This is what makes a list-and-detail layout fast and\
+    \ is most of why the shape is worth\n  adopting.\n- **Scroll that stays put.**\
+    \ The column has its own scroll container (task-237).\n  Selecting a row must\
+    \ not scroll it; returning to the list must not reset it.\n  `scrollIntoView`\
+    \ on keyboard movement, only when the row is out of view.\n- **A row that reads\
+    \ at 320px.** Id, title, and the one or two signals that decide what to\n  click\
+    \ \u2014 ball and priority are the candidates. Everything else moves to the detail.\
+    \ Do\n  not shrink the font to keep a column.\n\n## The trap, stated plainly\n\
+    \n**Drag-to-reorder and Alt+Up/Alt+Down live in this component and both are focus-sensitive.**\n\
+    task-207 shipped the keyboard reorder with green jsdom and Playwright tests and\
+    \ it worked\nexactly once per click, because React reorders rows by moving DOM\
+    \ nodes and a browser\ndrops focus from a node it reinserts \u2014 and both tests\
+    \ re-focused the handle before every\nkeypress, so neither could see it. task-225\
+    \ then spent an afternoon on a drag defect that\ndid not exist, because an automation\
+    \ tool reported a successful drag that delivered zero\nevents to the page.\n\n\
+    So: **press the keys twice in a row yourself, and move a row with a real mouse.**\
+    \ Before\nfiling anything as broken, prove the gesture reached the page:\n\n```js\n\
+    document.addEventListener(\"mousedown\", (e) => console.log(\"got\", e.target.id),\
+    \ true);\n```\n\nEmpty console means the instrument, not the app.\n\n**The tree\
+    \ makes the collision worse, not better, and the record has to say how it is\n\
+    resolved.** Three specific cases:\n\n1. Arrow keys now mean two things \u2014\
+    \ move the selection (Up/Down), expand and collapse\n   (Left/Right) \u2014 next\
+    \ to an existing Alt+arrow that reorders.\n2. Reordering with a parent collapsed:\
+    \ does the parent carry its subtree, and what does\n   Alt+Up mean when the sibling\
+    \ above is hidden?\n3. Dragging a row onto a collapsed parent: does it do nothing,\
+    \ expand on hover, or\n   reparent? Reparenting is out of scope \u2014 the safe\
+    \ answer is likely \"nothing\" \u2014 but it\n   has to be a decision, not an\
+    \ accident."
+  constraints: "- Take a worktree and bootstrap it before anything else.\n- Reorder\
+    \ is not allowed to regress. Verification is a person's hand on a real mouse and\n\
+    \  a real keyboard; a Playwright pass is supporting evidence, not the evidence.\n\
+    - Below the breakpoint the list renders as it does today, collapse control included\
+    \ or\n  excluded \u2014 whichever, state which and why.\n- The tree extends `queueOrder.ts`\
+    \ rather than replacing it. It already produces the\n  rows; do not build a second\
+    \ grouping.\n- Keyboard selection and expansion are announced to assistive tech,\
+    \ not signalled by\n  colour or an icon alone.\n- scripts/check.py green before\
+    \ every commit."
+  out_of_scope: "- The detail panel's contents \u2014 task-239.\n- The shell geometry\
+    \ and routing \u2014 task-237, already done by the time this starts.\n- Reparenting\
+    \ a task by dragging it onto another. Real, wanted, and its own task.\n- Changing\
+    \ what the queue order is; this is the same order in a narrower column.\n- Filtering\
+    \ and search in the sidebar. Worth having, worth its own task."
+  context:
+  - path: frontend/src/components/TaskList.tsx
+    why: The component being adapted, including the reorder handlers, the line-344
+      grid built for page width, and the depth indent at line 481.
+  - path: frontend/src/components/queueOrder.ts
+    why: Already produces the parent/child rows with depth, childCount and openChildren.
+      The collapse extends this.
+  - path: frontend/src/components/ResponsiveTable.tsx
+    why: The existing restack-when-narrow mechanism; check whether it already solves
+      the column before writing another.
+  - path: frontend/src/components/dragAutoScroll.ts
+    why: Drag auto-scroll assumes the page scrolls. In a scroll container that assumption
+      changes.
+  - path: frontend/src/components/LiveUpdates.tsx
+    why: The refetch that collapse state has to survive.
+  - path: tasks/agentjobs/task-207-*.yaml
+    why: The focus-across-reorder defect and the two tests that hid it. Read before
+      writing tests for this.
+  - path: tasks/agentjobs/task-225.yaml
+    why: The afternoon lost to an automation tool reporting a drag it never delivered.
+acceptance:
+- id: ac-1
+  text: A parent row has a keyboard-reachable disclosure control with correct aria-expanded,
+    and Left/Right collapse and expand it.
+  status: pending
+- id: ac-2
+  text: Collapse state survives a live-update refetch and a navigation away and back;
+    the record says where the state lives and why.
+  status: pending
+- id: ac-3
+  text: A collapsed parent still shows that it has open children, and the default
+    expand/collapse state is chosen with stated reasoning.
+  status: pending
+- id: ac-4
+  text: Pasting a deep link to a child inside a collapsed parent expands its ancestors
+    and selects it.
+  status: pending
+- id: ac-5
+  text: The task open in the detail panel is visibly selected, carries aria-current,
+    and stays selected across a refetch.
+  status: pending
+- id: ac-6
+  text: Up/Down move the selection and load the corresponding detail, scrolling the
+    row into view only when it is off-screen.
+  status: pending
+- id: ac-7
+  text: The column's scroll position survives selecting a task and navigating back.
+  status: pending
+- id: ac-8
+  text: A row is legible and useful at 320px wide with no font shrinking.
+  status: pending
+- id: ac-9
+  text: Alt+Up pressed twice in a row moves a task two positions, verified by a person
+    at a real keyboard, and the record names who verified and how.
+  status: pending
+- id: ac-10
+  text: Drag-to-reorder still moves a row, verified by a person on a real mouse, with
+    the record naming the instrument.
+  status: pending
+- id: ac-11
+  text: 'The record answers all three collision cases: arrow-key meanings, reordering
+    with a parent collapsed, and dragging onto a collapsed parent.'
+  status: pending
+deliverables:
+- path: frontend/src/components/TaskList.tsx
+  note: Sidebar-capable list with selection and keyboard movement.
+  status: pending
+dependencies:
+- task: task-237
+  type: needs
+  note: The column this list has to fit does not exist until the shell does.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T00:39:57.645245Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c02f8e4d-6a75-4b19-8f2c-91d3ae70b524
+      kind: create
+      fingerprint: 7a6e9fc9c00cc25e774c775fd06508bb
+- id: 2
+  ts: '2026-08-22T00:45:42.682758Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, spec, title.
+  data:
+    fields:
+    - acceptance
+    - spec
+    - title
+    operation:
+      id: 8c40d7ab-95f2-4e18-a3d6-1b52f9e7c603
+      kind: update_content
+      fingerprint: 14a0a676c4a5f0c45f35de3cd0523b85

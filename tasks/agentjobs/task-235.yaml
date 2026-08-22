@@ -1,0 +1,252 @@
+schema: 2
+id: task-235
+title: Adopt the list-and-detail shell every other app on the screen already uses
+created: '2026-08-22T00:38:02.564268Z'
+updated: '2026-08-22T00:44:23.440914Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 11500
+category: ux
+tags:
+- frontend
+- layout
+- react
+- epic
+effort: large
+assignment:
+  eligible: []
+spec:
+  summary: "On a landscape screen the React app is a top nav bar over one full-width\
+    \ page, so opening a task replaces the task list and going back throws the detail\
+    \ away. This epic gives the Tasks surface the shell every comparable tool uses\
+    \ \u2014 the task list down the left as a collapsible tree, the selected task's\
+    \ detail in the main panel \u2014 while the Dashboard, Create and Dispatch stay\
+    \ full-width and the phone keeps what it has."
+  intent: A person working a backlog reads a list and a record together, not one after
+    the other. The current shell makes that impossible on the screen where there is
+    the most room to do it.
+  description: "## What is wrong now\n\n`frontend/src/App.tsx:508-532` is the whole\
+    \ shell: a `<header>` with four `<Link>`s\n(Dashboard, Tasks, Create, Dispatch),\
+    \ then a single `<main className=\"mx-auto w-full\nmax-w-7xl\">` that each route\
+    \ fills edge to edge. `tasks` and `tasks/:taskId` are\nsibling routes, so they\
+    \ are mutually exclusive views of the same rectangle.\n\nThree consequences on\
+    \ a wide screen, all of them daily:\n\n1. **Opening a task destroys the list.**\
+    \ Selecting `task-214` unmounts `TaskList`.\n   Returning re-mounts it, losing\
+    \ scroll position and any sense of where you were.\n2. **You cannot compare two\
+    \ records** without a browser back-and-forth, which is the\n   normal thing to\
+    \ want when grooming or when deciding what is next.\n3. **Half the viewport is\
+    \ margin.** `max-w-7xl` centres one column on a 2560px-wide\n   monitor and the\
+    \ reading pane is no bigger for it.\n\n## The target, as decided\n\n**Read log\
+    \ entry 3, the binding `decision` from Jeff dated 2026-08-22, before anything\n\
+    else.** In short:\n\n- **The sidebar is the task list itself**, not a navigation\
+    \ rail \u2014 the shape Claude's\n  own app uses for conversations, not the shape\
+    \ Gmail uses for folders.\n- **Children collapse under their parents.** `TaskList`\
+    \ already builds the tree and\n  indents by `depth` (`queueOrder.ts`); what is\
+    \ missing is a disclosure control and\n  collapse state that survives a refetch.\
+    \ In a narrow column that is the difference\n  between a readable list and a wall.\n\
+    - **It belongs to the Tasks surface only.** The Dashboard, Create and Dispatch\
+    \ keep the\n  full width. The sidebar is a master column over tasks, so it is\
+    \ redundant on a page\n  that is already a view over tasks and noise on one that\
+    \ is not about tasks at all.\n- **The header nav stays** as the global navigation\
+    \ between those surfaces. A per-surface\n  master column does not replace it,\
+    \ which is also what makes this epic cheap.\n\n## What must not regress\n\n- **The\
+    \ phone.** task-093 made the client usable and installable on a phone and the\n\
+    \  stacked, one-thing-at-a-time flow is correct there. This epic is the landscape\
+    \ shell;\n  portrait keeps what it has.\n- **Deep links.** `/p/{project}/tasks/{taskId}`\
+    \ is pasted into task records and chat.\n  It must keep resolving to that task,\
+    \ now with the list beside it.\n- **Reorder.** task-207 and task-225 are the scar\
+    \ tissue: drag-to-reorder and Alt+Up/\n  Alt+Down live in `TaskList`, and moving\
+    \ that component into a narrower column \u2014 with a\n  collapse control added\
+    \ next to it \u2014 is exactly the kind of change that quietly breaks\n  focus\
+    \ survival across a reorder. Verify by hand, per ENGINEERING.md: a Playwright\n\
+    \  keypress is not a person's keypress.\n- **The banners.** Broken-file and broken-queue\
+    \ banners currently sit above a full-width\n  page. They must still be impossible\
+    \ to miss.\n\n## Relationship to work already in the backlog\n\n- **task-168**\
+    \ (retire the floating button for a burger menu top-right) overlaps on\n  navigation.\
+    \ Less sharply now that the sidebar is per-surface rather than a global\n  spine,\
+    \ but task-236 still has to state whether the two collide. Recorded as `related`,\n\
+    \  not `needs`.\n- **task-212** moves the count tiles off the dashboard onto an\
+    \ analytics page \u2014 another\n  full-width surface reached from the header\
+    \ nav, which the decided shape already\n  accommodates.\n- **task-232** asks whether\
+    \ an epic whose children stand or fall together may be worked\n  on one branch.\
+    \ This epic is the clearest instance of that shape \u2014 children 3, 4 and 5\n\
+    \  edit the same shell and a half-migrated layout is not shippable. If task-232\
+    \ lands\n  first, use it; if not, the children merge in order and each keeps the\
+    \ app usable."
+  constraints: "- Landscape/desktop only. The portrait phone layout task-093 established\
+    \ is out of scope\n  and must not regress.\n- Deep links to `/p/{project}/tasks/{taskId}`\
+    \ keep working and now render both panes.\n- Every existing route stays reachable:\
+    \ Dashboard, Tasks, Create, task detail, Dispatch.\n- The Dashboard, Create and\
+    \ Dispatch surfaces keep the full width. Only the Tasks surface\n  gains a sidebar.\n\
+    - Selecting a task from the Dashboard lands on the Tasks surface with that task\
+    \ selected,\n  not on a detail-only page.\n- The gate (`scripts/check.py`) is\
+    \ green before each child's commit, including the 228\n  jsdom component tests\
+    \ and the 26 Playwright tests, which assert against the current\n  shell and will\
+    \ need updating rather than deleting.\n- No new frontend dependency for layout.\
+    \ Tailwind grid/flex is enough; a resizable\n  splitter, if wanted, is hand-rolled\
+    \ or deferred.\n- Jeff reviews this in a browser before any of it merges \u2014\
+    \ a diff and a green gate are\n  not a review request for a layout change. Stand\
+    \ up a sandbox on its own port with its\n  own seeded data."
+  out_of_scope: "- Visual restyling: colours, typography, spacing scale, dark-mode\
+    \ palette. This is where\n  things sit, not what they look like.\n- A global navigation\
+    \ rail. The decision was explicitly against one; reopening it means\n  reopening\
+    \ task-236, not quietly building it.\n- The analytics page (task-212) and the\
+    \ burger menu (task-168) as features. This epic\n  only has to leave room for\
+    \ them.\n- Any change to the API, the task schema, or the CLI. Frontend only.\n\
+    - The legacy Jinja routes (task-007 covers those)."
+  context:
+  - path: frontend/src/App.tsx
+    why: 'Lines 508-532 are the entire shell being replaced: the header nav, the max-w-7xl
+      main, and the sibling tasks / tasks:taskId routes.'
+  - path: frontend/src/components/TaskList.tsx
+    why: Becomes the master column. Owns drag-to-reorder and the Alt+Up/Alt+Down keyboard
+      move, both focus-sensitive, and already indents children by depth at line 481.
+  - path: frontend/src/components/queueOrder.ts
+    why: Builds the parent/child rows with depth and childCount. The collapsible tree
+      extends this rather than replacing it.
+  - path: frontend/src/components/TaskDetail.tsx
+    why: Becomes the detail panel. Currently assumes it owns the full content width.
+  - path: frontend/src/components/ResponsiveTable.tsx
+    why: "The existing narrow-viewport strategy \u2014 a table that restacks into\
+      \ labelled rows. The sidebar is a narrow viewport by another name, so this may\
+      \ already be the answer for the list column."
+  - path: tasks/agentjobs/task-093-mobile-and-pwa.yaml
+    why: The portrait behaviour that must not regress, and the breakpoint reasoning
+      already used in this app.
+  - path: tasks/agentjobs/task-168-menu-shell.yaml
+    why: The burger-menu task this epic overlaps with on navigation.
+acceptance:
+- id: ac-1
+  text: On a landscape browser window, the task list and a selected task's detail
+    are visible at the same time, and selecting a different task changes only the
+    detail panel.
+  status: pending
+- id: ac-2
+  text: A pasted /p/{project}/tasks/{taskId} URL loads with the list beside the detail
+    and that task selected in the list.
+  status: pending
+- id: ac-3
+  text: 'In a portrait phone viewport the app behaves as it did before this epic:
+    one thing at a time, no sidebar stealing width.'
+  status: pending
+- id: ac-4
+  text: Drag-to-reorder and Alt+Up/Alt+Down still work in the list's new position,
+    verified by a person's hand on a real mouse and keyboard, not by an automation
+    tool.
+  status: pending
+- id: ac-5
+  text: Every route the header nav reached is still reachable from the new shell,
+    and the broken-file and broken-queue banners are still unmissable.
+  status: pending
+- id: ac-6
+  text: Jeff has seen it in a browser, on his own screen, and approved it.
+  status: pending
+deliverables:
+- path: frontend/src/App.tsx
+  note: 'Replaced shell: persistent list column plus detail panel at landscape widths.'
+  status: pending
+- path: docs/
+  note: A short note recording the shell decision, so the next session does not re-litigate
+    the three-pane-vs-two-pane question.
+  status: pending
+dependencies:
+- task: task-168-menu-shell
+  type: related
+  note: Overlapping navigation surface. The decision child must state whether the
+    burger menu survives a persistent sidebar, is replaced by it, or applies only
+    in portrait.
+- task: task-212
+  type: related
+  note: Adds an analytics destination to whatever navigation this epic settles on.
+- task: task-232
+  type: related
+  note: This epic is the clearest example of children that stand or fall together
+    on one branch.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T00:38:02.923708Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 6b1c4e2a-9f30-4a7c-8d61-3ac2f5b7e401
+      kind: create
+      fingerprint: 169a5ec90d4be174d143432e22d98355
+- id: 2
+  ts: '2026-08-22T00:42:43.106447Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 3c9d0b71-8e14-42a6-9c57-0d2b6f8a15e3
+      kind: update_content
+      fingerprint: 0f88f647b2d9722aa562d3ce7cf80c27
+- id: 3
+  ts: '2026-08-22T00:43:19.555803Z'
+  actor: claude
+  type: decision
+  body: "**Binding, from Jeff, 2026-08-22. Do not relitigate.** This settles what\
+    \ task-236 was created to ask, so task-236 shrinks to the two questions left open\
+    \ (below).\n\n**The decision.** The Tasks page gets a sidebar of tasks, with collapsible\
+    \ children, and the task detail in the main panel. The Dashboard does not get\
+    \ a sidebar. Neither do Create or Dispatch.\n\n**What that means precisely, spelled\
+    \ out because the phrase admits more than one reading:**\n\n1. **The sidebar is\
+    \ the task list, not a navigation rail.** The left column holds task rows you\
+    \ select from. It is the shape Claude's own app uses for conversations, not the\
+    \ shape Gmail uses for folders.\n2. **The tree collapses.** `queueOrder.ts` already\
+    \ groups children under parents and `TaskList.tsx:481` already indents by `depth`;\
+    \ what is missing is a disclosure control per parent and collapse state that survives\
+    \ a refetch. In a 320-400px column this is not a nicety \u2014 an epic with nine\
+    \ children (task-137) otherwise buries everything after it.\n3. **It is per-surface,\
+    \ not a global spine.** This is the substantive half of Jeff's second message\
+    \ and the reason the Dashboard is excluded. Gmail, Slack, Discord and Claude all\
+    \ keep their sidebar on every screen because it is *navigation*. Ours is a *master\
+    \ column over tasks*, so it belongs only where tasks are the subject: redundant\
+    \ on the Dashboard, which is already a view over tasks, and irrelevant on Dispatch\
+    \ settings.\n4. **The header nav stays** and remains the way you move between\
+    \ Dashboard, Tasks, Create and Dispatch. A per-surface master column does not\
+    \ replace it. This is also why the epic stays cheap \u2014 no rail, no third pane,\
+    \ no new navigation system.\n5. **Dashboard \u2192 task lands in the Tasks surface\
+    \ with that task selected**, not on a detail-only page. Otherwise clicking a task\
+    \ from the dashboard drops you somewhere with no list, which is the defect this\
+    \ epic exists to remove.\n\n**Rejected: a global navigation rail (the three-pane\
+    \ Gmail/Slack shape).** It scales better to future surfaces \u2014 analytics from\
+    \ task-212, playbooks from task-211, runs from task-023 \u2014 and it is what\
+    \ four of the five apps Jeff named actually do. It was rejected because those\
+    \ apps have five to fifty destinations and we have four, so a permanent 60px column\
+    \ would spend width to duplicate a header that already works; and because the\
+    \ sidebar we actually want is a *list*, which a rail does not remove the need\
+    \ for. **What would make this wrong:** enough top-level surfaces that the header\
+    \ nav wraps, or a second list (playbooks, runs) that wants the same treatment.\
+    \ Either is a reason to reopen this, not to quietly build a rail inside a later\
+    \ child.\n\n**Still open, and still task-236's job:** the breakpoint (width, orientation,\
+    \ or both, and what a 1024px landscape tablet gets), and whether task-168's burger\
+    \ menu collides with any of this \u2014 less sharply now that the sidebar is per-surface,\
+    \ but it needs a stated answer recorded on task-168 as well."
+  data:
+    operation:
+      id: b7e2d340-1f96-4a5b-9c28-4e01f6d3a75c
+      kind: log_append
+      fingerprint: 854c2e284b9df70204314ea465eaa338
+- id: 4
+  ts: '2026-08-22T00:44:23.440636Z'
+  actor: claude
+  type: note
+  body: Updated spec.
+  data:
+    fields:
+    - spec
+    operation:
+      id: 5b97a3da-4e62-4f18-a073-8d219bf4c625
+      kind: update_content
+      fingerprint: 5c76ccfe1381cf32902633cbb6de89ef

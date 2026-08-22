@@ -1,0 +1,144 @@
+schema: 2
+id: task-240
+title: 'Shell 5: stand the new layout up on a sandbox and have Jeff drive it before
+  it merges'
+created: '2026-08-22T00:40:59.806337Z'
+updated: '2026-08-22T00:47:08.091216Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 12000
+category: testing
+tags:
+- frontend
+- layout
+- verification
+- review
+effort: small
+assignment:
+  eligible: []
+parent: task-235
+spec:
+  summary: "Run the finished Tasks-surface shell on its own port with seeded throwaway\
+    \ data, seeded so the wide and narrow states and a deep tree can all be compared\
+    \ without constructing them, and get Jeff's hands on it \u2014 mouse, keyboard,\
+    \ desktop and tablet \u2014 before any of task-235 merges. A green gate is not\
+    \ a review for a layout change."
+  intent: Everything this epic changes is something you can only judge by looking
+    at it and using it. The one verification that counts is a person driving it on
+    their own screen.
+  description: "## What to stand up\n\nJeff's standing rule for UI review, and each\
+    \ clause exists because skipping it caused a\nproblem:\n\n- **Its own port**,\
+    \ not 8876 and not the CLI's default 8765. A second server on a port\n  something\
+    \ else already owns serves stale code from a process nobody restarts, which is\n\
+    \  how a merged fix appeared to do nothing on 2026-08-17.\n- **Its own seeded\
+    \ data**, not the live backlog. He should be able to click approve,\n  reject,\
+    \ dispatch and delete without consequence.\n- **Every state that matters seeded.**\
+    \ The comparison here is layout at width and a tree\n  at depth, so seed: enough\
+    \ tasks that the sidebar actually scrolls; an epic with many\n  children and at\
+    \ least one grandchild, so collapse has something to hide; a task with a\n  very\
+    \ long log; a wide dependency graph; and a broken file so the banner shows in\
+    \ its new\n  home. `scripts/review_queue_sandbox.py` already does most of this\
+    \ and keeps its traces.\n- **Say how to stop it**, and stop it yourself when he\
+    \ is done.\n\n## What he is being asked to check\n\nGive him a short list rather\
+    \ than \"have a look\" \u2014 each item one gesture:\n\n1. Open a task from the\
+    \ sidebar. Does the sidebar stay put?\n2. Collapse an epic, then reload the page.\
+    \ Is it still collapsed?\n3. Paste a link to a child of a collapsed epic. Does\
+    \ it reveal and select that child?\n4. Arrow-key down the sidebar. Does the detail\
+    \ keep up?\n5. Alt+Up twice on the same row \u2014 does it move two places? (task-207's\
+    \ exact defect.)\n6. Drag a row with the mouse.\n7. Resize the window through\
+    \ the breakpoint, both directions.\n8. Go to the Dashboard. Is it full width,\
+    \ with no sidebar, as decided \u2014 and does clicking\n   a task from it land\
+    \ in the Tasks surface with that task selected?\n9. Open it on the tablet in landscape\
+    \ and in portrait\n   (`https://agentjobs.tailfed1df.ts.net/app/` is the tailnet\
+    \ path for the live server;\n   the sandbox needs its own equivalent).\n\n## Then\
+    \ the epic closes\n\nHis approval on this child is the approval the merge gate\
+    \ needs. Once it is in, the\nsiblings merge in order, the frontend is rebuilt\
+    \ (`cd frontend && npm run build` \u2014 the\nbundle is gitignored, so merging\
+    \ alone changes nothing a browser will see), the server\nthat serves 8876 is restarted\
+    \ the way it was started, and the change is confirmed live\nbefore anyone says\
+    \ it is done."
+  constraints: "- Not the default port, not the live dashboard, not the real task\
+    \ files.\n- Verification of the gestures is a person's hand. An automation tool's\
+    \ success report is\n  not evidence a gesture landed \u2014 task-225.\n- Tear\
+    \ the sandbox down when the review is finished.\n- Do not merge any sibling on\
+    \ the strength of this task's own testing. Approval comes from\n  Jeff, through\
+    \ the GUI, per the merge gate."
+  out_of_scope: '- Fixing what the review finds. That is a new task or a reopened
+    sibling, not this one.
+
+    - Restyling anything.
+
+    - The physical-device PWA verification task-106 already covers separately.'
+  context:
+  - path: scripts/review_queue_sandbox.py
+    why: The existing review sandbox, which already seeds throwaway data and records
+      what a gesture actually did.
+  - path: ENGINEERING.md
+    why: 'The Verification section: why an automated gesture is not evidence, and
+      what a Playwright keypress is and is not.'
+  - path: tasks/agentjobs/task-106-physical-device-pwa-verification.yaml
+    why: The separate physical-device verification, so the two do not duplicate each
+      other.
+acceptance:
+- id: ac-1
+  text: A sandbox server runs on a non-default port with seeded throwaway data, and
+    the record names the port and the stop command.
+  status: pending
+- id: ac-2
+  text: The seed includes a scrolling sidebar, an epic with many children and a grandchild,
+    a long-log task, a wide dependency graph, and a broken file.
+  status: pending
+- id: ac-3
+  text: Jeff has driven it on a desktop browser and on the tablet in both orientations.
+  status: pending
+- id: ac-4
+  text: The nine checks above are each reported with an outcome in the task record.
+  status: pending
+- id: ac-5
+  text: The sandbox is stopped and the record says so.
+  status: pending
+- id: ac-6
+  text: After the siblings merge, the frontend is rebuilt, the 8876 server restarted
+    the way it was started, and the change confirmed live in a browser.
+  status: pending
+deliverables:
+- path: scripts/
+  note: Any seed additions the review needed, if they are worth keeping.
+  status: pending
+dependencies:
+- task: task-238
+  type: needs
+  note: There is nothing to drive until the list column works.
+- task: task-239
+  type: needs
+  note: There is nothing to read until the detail panel fits.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T00:41:00.160948Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 9f31c806-5d42-4e83-b18a-6e7c0a25df90
+      kind: create
+      fingerprint: b8387ac48ed14a27ae35aec5b6d7072f
+- id: 2
+  ts: '2026-08-22T00:47:08.091064Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, spec.
+  data:
+    fields:
+    - acceptance
+    - spec
+    operation:
+      id: f2c47e60-8b13-4d95-a706-3e91d5b8a742
+      kind: update_content
+      fingerprint: becfe75e5d753e63c84be763c4576f28

@@ -1,0 +1,159 @@
+schema: 2
+id: task-237
+title: 'Shell 2: give the Tasks surface two regions and nest the detail route inside
+  it'
+created: '2026-08-22T00:39:16.236145Z'
+updated: '2026-08-22T00:46:17.026095Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 11700
+category: ux
+tags:
+- frontend
+- layout
+- react
+- routing
+effort: medium
+assignment:
+  eligible: []
+parent: task-235
+spec:
+  summary: "On the Tasks surface only, replace the single full-width page with a persistent\
+    \ left region and a main detail region at landscape widths, and change tasks and\
+    \ tasks/:taskId from sibling routes into a parent route with a nested outlet so\
+    \ both panes render at once. Structure only \u2014 the panes can hold the components\
+    \ they already hold."
+  intent: The routing change is the whole difficulty. Doing it on its own, with the
+    existing components dropped into the new regions unchanged, keeps the diff readable
+    and the regression surface small.
+  description: "## The change\n\n**Read task-235 log entry 3 first** \u2014 it is\
+    \ binding and it decides what you are building.\nThe short version for this child:\
+    \ the two regions belong to the **Tasks surface only**.\nDashboard, Create and\
+    \ Dispatch keep the full width and the header nav stays exactly as it\nis. You\
+    \ are not building a global sidebar.\n\n`frontend/src/App.tsx:521-530` currently\
+    \ renders:\n\n```\n<main className=\"mx-auto w-full max-w-7xl ...\">\n  <Routes>\n\
+    \    <Route path=\"tasks\" element={<TaskListPage .../>} />\n    <Route path=\"\
+    tasks/:taskId\" element={<TaskDetailPage .../>} />\n```\n\n`tasks` and `tasks/:taskId`\
+    \ are siblings, which is exactly why one replaces the other.\nMake `tasks` a layout\
+    \ route that renders the list region plus an `<Outlet />`, and\n`:taskId` its\
+    \ child. React Router v6 nesting does this without new dependencies.\n\nThen apply\
+    \ the breakpoint task-236 settled: two regions at and above it, today's\nsingle-column\
+    \ stack below it.\n\n## What \"structure only\" means\n\nThis child is finished\
+    \ when the geometry and the routing are right. `TaskList` and\n`TaskDetail` go\
+    \ into the new regions **as they are** \u2014 the collapsible tree and the\nnarrow-column\
+    \ row are task-238's job, and fitting the detail to a bounded panel is\ntask-239's.\
+    \ If they look cramped at the end of this task, that is expected and belongs in\n\
+    a progress note, not in this diff.\n\n## Points that will bite\n\n- **Independent\
+    \ scrolling.** Two regions that scroll the page as one is the failure mode\n \
+    \ that makes a sidebar layout feel wrong. Each region owns its own scroll container,\
+    \ and\n  the page itself does not scroll at landscape widths.\n- **The empty state.**\
+    \ `/tasks` with no task selected now renders a list and an empty\n  main region.\
+    \ Decide what fills it \u2014 a prompt, a summary, the queue's next task \u2014\
+    \ and\n  say why in a decision entry. Do not leave a blank rectangle.\n- **The\
+    \ Dashboard link.** Selecting a task from the Dashboard must land on the Tasks\n\
+    \  surface with that task selected, per the binding decision, not on a detail-only\
+    \ page.\n  The nested route makes this free; check it rather than assuming.\n\
+    - **The `max-w-7xl` centring** comes off the Tasks surface, but the detail region\
+    \ still\n  needs a readable measure. A wide panel with 200-character lines is\
+    \ not an improvement.\n- **Existing tests.** 228 vitest component tests and 26\
+    \ Playwright tests assert against\n  the current shell. Update the ones that describe\
+    \ structure; do not delete a test\n  because it now fails.\n- **The banners.**\
+    \ `BrokenFiles` and `QueueBroken` render above the current `<main>`.\n  Give them\
+    \ a home in the new shell where they cannot be scrolled past inside one pane."
+  constraints: "- Take a worktree and bootstrap it (`python scripts/bootstrap.py`)\
+    \ before anything else.\n- Only the Tasks surface changes shape. Dashboard, Create\
+    \ and Dispatch keep the full\n  width, and the header nav is untouched.\n- No\
+    \ new npm dependency. React Router v6 nesting and Tailwind are sufficient.\n-\
+    \ Below the breakpoint the rendered output is what it is today. A jsdom test at\
+    \ a phone\n  viewport should not be able to tell this change happened.\n- `scripts/check.py`\
+    \ green before every commit, using the interpreter path the bootstrap\n  prints\
+    \ rather than a bare `poetry run`."
+  out_of_scope: "- The collapsible tree, selection and keyboard movement in the list\
+    \ \u2014 task-238.\n- Fitting the detail panel and the other surfaces \u2014 task-239.\n\
+    - Any change to the header nav, or a global navigation rail. The decision was\
+    \ against one.\n- Any visual redesign beyond what the geometry forces."
+  context:
+  - path: frontend/src/App.tsx
+    why: 'The shell and the sibling routes being replaced: header at 508, main at
+      521, Routes at 523-530.'
+  - path: frontend/src/components/BrokenFiles.tsx
+    why: A banner that currently relies on sitting above a full-width main.
+  - path: frontend/src/components/QueueBroken.tsx
+    why: The other banner with the same dependency on the old shell.
+  - path: frontend/src/components/Dashboard.tsx
+    why: Where the link into the Tasks surface comes from; it must land with the task
+      selected.
+  - path: frontend/src/App.network.test.tsx
+    why: Shell-level tests that will need updating rather than deleting.
+acceptance:
+- id: ac-1
+  text: At the decided breakpoint and above, /p/{project}/tasks/{taskId} renders the
+    task list and that task's detail simultaneously.
+  status: pending
+- id: ac-2
+  text: Dashboard, Create and Dispatch still render full-width with no sidebar, and
+    the header nav is unchanged.
+  status: pending
+- id: ac-3
+  text: Selecting a task from the Dashboard lands on the Tasks surface with that task
+    selected in the list.
+  status: pending
+- id: ac-4
+  text: The two regions scroll independently and the page body does not scroll as
+    one unit at landscape widths.
+  status: pending
+- id: ac-5
+  text: Below the breakpoint the rendered structure matches pre-change behaviour,
+    demonstrated by a jsdom test at a phone viewport.
+  status: pending
+- id: ac-6
+  text: /tasks with nothing selected renders a deliberate empty state, and a decision
+    entry says what was chosen and why.
+  status: pending
+- id: ac-7
+  text: The broken-file and broken-queue banners are visible without scrolling either
+    region.
+  status: pending
+- id: ac-8
+  text: scripts/check.py is green, with updated rather than deleted shell tests.
+  status: pending
+deliverables:
+- path: frontend/src/App.tsx
+  note: Nested routing and the two-region shell.
+  status: pending
+dependencies:
+- task: task-236
+  type: needs
+  note: The sidebar contents and breakpoint are what this task builds; building before
+    they are decided means building twice.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T00:39:16.652299Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7a4e9c11-2b68-4d5f-9e03-b5d7f0a4c813
+      kind: create
+      fingerprint: 1d825d35585fbb0943aa3c7fb69cec4b
+- id: 2
+  ts: '2026-08-22T00:46:17.025914Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, spec, title.
+  data:
+    fields:
+    - acceptance
+    - spec
+    - title
+    operation:
+      id: a1f6c283-40b7-4d92-8e51-77c9b0e4a3d8
+      kind: update_content
+      fingerprint: 0cafe674a8769d0d39985338d0781f13

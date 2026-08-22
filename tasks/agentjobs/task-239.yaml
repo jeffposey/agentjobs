@@ -1,0 +1,142 @@
+schema: 2
+id: task-239
+title: 'Shell 4: fit the detail panel to the main region, and check the full-width
+  surfaces still hold up'
+created: '2026-08-22T00:40:27.040648Z'
+updated: '2026-08-22T00:46:41.281295Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 11900
+category: ux
+tags:
+- frontend
+- layout
+- react
+effort: medium
+assignment:
+  eligible: []
+parent: task-235
+spec:
+  summary: "TaskDetail was written to own the page and now shares the Tasks surface\
+    \ with a list column. Fit it to a bounded main region without losing any action,\
+    \ keep it readable at both 900px and 2560px, and confirm the Dashboard, Create\
+    \ and Dispatch pages \u2014 which stay full-width \u2014 did not pick up damage\
+    \ from the shell change."
+  intent: The detail panel is where the time is actually spent. A shell that makes
+    the list nicer and the record worse is a net loss.
+  description: "## The detail panel\n\n`TaskDetail.tsx` currently renders into a centred\
+    \ `max-w-7xl` column and assumes it is\nthe only thing on screen. In the new main\
+    \ region it needs:\n\n- **A readable measure regardless of window width.** On\
+    \ a 2560px monitor the panel is\n  ~2000px wide and prose at that width is unreadable.\
+    \ Cap the text measure; let tables,\n  the dependency graph and the log use the\
+    \ extra room.\n- **A header that stays.** Task id, title and the current ball\
+    \ are what you look up at\n  while reading a long log. The panel scrolls independently\
+    \ now, so the header should not\n  scroll away with it.\n- **Every action still\
+    \ reachable** \u2014 approve, reject, request changes, hold, resume,\n  redirect,\
+    \ answer, promote, dispatch, note, attachment. Count them before and after; a\n\
+    \  button that fell off the bottom of a narrower panel is the likely failure.\n\
+    - **The dependency graph and dispatch output**, both of which are wide, get an\n\
+    \  `overflow-x` container rather than forcing the panel wide.\n\n## The full-width\
+    \ surfaces\n\n**Whether they get a sidebar is already decided \u2014 they do not.**\
+    \ task-235 log entry 3 is\nbinding: the sidebar belongs to the Tasks surface only,\
+    \ and Dashboard, Create and Dispatch\nkeep the full width and the header nav.\
+    \ So this half of the child is verification rather\nthan design: confirm that\
+    \ task-237's changes to the shell did not narrow, re-centre or\notherwise disturb\
+    \ those three pages, and fix it if they did.\n\nThe one thing that is a design\
+    \ question: **`TaskCreate` reached from the Tasks surface.**\nCreating a task\
+    \ while a list is on screen is the normal case, and a form squeezed into a\nresidual\
+    \ column is worse than the page it replaced. Decide whether Create takes the whole\n\
+    width (leaving the Tasks surface) or renders in the main region beside the list,\
+    \ and\nrecord the reasoning. task-167 is separately trying to make these forms\
+    \ fast to fill on a\nphone, so do not make that harder."
+  constraints: "- Take a worktree and bootstrap it before anything else.\n- No action,\
+    \ button or panel currently reachable in the app may become unreachable. Count\n\
+    \  them explicitly and put the count in the record.\n- Dashboard, Create and Dispatch\
+    \ keep the full width. Do not give them a sidebar; that\n  was decided against.\n\
+    - Deep links to every route keep working.\n- Below the breakpoint, all five surfaces\
+    \ render as they do today.\n- scripts/check.py green before every commit."
+  out_of_scope: "- Restyling the detail's content or changing what fields it shows.\n\
+    - Giving any surface other than Tasks a sidebar.\n- The analytics page (task-212)\
+    \ \u2014 it does not exist yet.\n- Editing task fields from the browser (task-230),\
+    \ even though it lands in this panel.\n- The list column \u2014 task-238."
+  context:
+  - path: frontend/src/components/TaskDetail.tsx
+    why: The panel being fitted; currently assumes it owns the content width.
+  - path: frontend/src/components/Dashboard.tsx
+    why: A full-width page to verify the shell change did not disturb.
+  - path: frontend/src/components/TaskCreate.tsx
+    why: 'The one open design question here: full width, or beside the list when reached
+      from Tasks.'
+  - path: frontend/src/components/DispatchPanel.tsx
+    why: The other full-width page to verify.
+  - path: frontend/src/components/DependencyGraph.tsx
+    why: Wide content that must scroll inside the panel rather than widen it.
+  - path: frontend/src/components/DispatchOutput.tsx
+    why: The other wide content with the same requirement.
+acceptance:
+- id: ac-1
+  text: At 2560px the detail panel's prose holds a readable measure while wide content
+    uses the extra width.
+  status: pending
+- id: ac-2
+  text: At ~900px, the narrowest landscape width the breakpoint admits, the detail
+    panel is usable and nothing is clipped.
+  status: pending
+- id: ac-3
+  text: The count of reachable actions on a task detail is identical before and after,
+    and the record states the count and how it was taken.
+  status: pending
+- id: ac-4
+  text: The task id, title and ball remain visible while scrolling a long task log.
+  status: pending
+- id: ac-5
+  text: Wide content scrolls inside its own container; the panel itself never scrolls
+    horizontally.
+  status: pending
+- id: ac-6
+  text: Dashboard, Create and Dispatch are confirmed undamaged by the shell change,
+    each checked at a wide viewport.
+  status: pending
+- id: ac-7
+  text: A decision entry says whether Create renders full-width or beside the list
+    when reached from the Tasks surface, and why.
+  status: pending
+deliverables:
+- path: frontend/src/components/TaskDetail.tsx
+  note: Detail panel fitted to the main region.
+  status: pending
+dependencies:
+- task: task-237
+  type: needs
+  note: There is no main region to fit into until the shell exists.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T00:40:27.413103Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: e58a1934-77c2-4e60-b0aa-2c6f4d19ab37
+      kind: create
+      fingerprint: c04a96ea6002fd6f7009106bd4a5890f
+- id: 2
+  ts: '2026-08-22T00:46:41.281041Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, spec, title.
+  data:
+    fields:
+    - acceptance
+    - spec
+    - title
+    operation:
+      id: d3908b5e-6c27-4a11-b8d4-52f7ea16c0b9
+      kind: update_content
+      fingerprint: edb25d44274076d77f3936f703c5312a

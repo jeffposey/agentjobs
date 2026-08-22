@@ -1,0 +1,142 @@
+schema: 2
+id: task-236
+title: 'Shell 1: settle the breakpoint, and whether the burger menu collides with
+  the sidebar'
+created: '2026-08-22T00:38:43.664769Z'
+updated: '2026-08-22T00:44:55.765072Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 11600
+category: design
+tags:
+- frontend
+- layout
+- decision
+effort: small
+assignment:
+  eligible: []
+parent: task-235
+spec:
+  summary: "Jeff has decided the shape of task-235's shell \u2014 the Tasks page gets\
+    \ a sidebar of tasks with collapsible children, the Dashboard and the other surfaces\
+    \ keep the full width. Two questions are left before anyone writes code: at what\
+    \ viewport the sidebar appears, and what that means for task-168's burger menu."
+  intent: Two small answers that every later child depends on, settled once and written
+    down rather than guessed independently by three sessions.
+  description: "## What is already decided \u2014 do not reopen\n\n**task-235 log\
+    \ entry 3 is binding.** The sidebar is the task list itself (not a\nnavigation\
+    \ rail), children collapse under their parents, it appears on the Tasks surface\n\
+    only, the header nav stays as the global navigation, and a task opened from the\
+    \ Dashboard\nlands in the Tasks surface with that task selected. That was the\
+    \ question this child was\noriginally created to ask; Jeff answered it directly\
+    \ on 2026-08-22 and the reasoning and\nrejected alternative are recorded there.\n\
+    \nWhat is left is smaller, and still has to be answered before task-237 starts.\n\
+    \n## Question 1 \u2014 the breakpoint, and what \"landscape\" means\n\nThe app\
+    \ already uses `min-[820px]:` in `TaskList.tsx:344` and Tailwind's `sm`/`lg` in\
+    \ the\nshell. Decide whether the sidebar keys off a width breakpoint, an orientation\
+    \ media\nquery, or both, and state concretely:\n\n- what a 1024px landscape tablet\
+    \ gets;\n- what a phone held in landscape gets \u2014 wide by pixel count, but\
+    \ ~400px tall, which is\n  the case a pure width query gets wrong;\n- whether\
+    \ the sidebar can be collapsed by the user above the breakpoint, or is always\n\
+    \  present. If collapsible, does that state persist.\n\nReuse the existing breakpoint\
+    \ if it holds up; introduce a new one only with a reason.\ntask-093 is the prior\
+    \ art for how this app has reasoned about viewports.\n\n## Question 2 \u2014 the\
+    \ burger menu (task-168)\n\ntask-168 replaces the floating \"Report issue\" button\
+    \ with a top-right burger menu, and\ntask-167 grows that menu into the reusable\
+    \ control for every frontend. The collision is\nmilder than it looked when this\
+    \ task was written \u2014 the sidebar is a task list on one\nsurface, not a navigation\
+    \ spine \u2014 but it still needs a stated answer: does the menu\nsurvive unchanged,\
+    \ does it change position or contents once a sidebar exists, or does\nsomething\
+    \ move into the sidebar's header instead. Record the answer on **task-168 as\n\
+    well as here** \u2014 a decision recorded on one of two overlapping tasks is a\
+    \ decision the\nother's session will not see.\n\n## What done looks like\n\nA\
+    \ `decision` entry on task-235 answering both, plus a short note in `docs/` that\
+    \ states\nthe whole decided shape \u2014 Jeff's part and these two answers together\
+    \ \u2014 so the building\nchildren have one thing to read. Then hand the ball\
+    \ to Jeff for the breakpoint call if\nthere is any judgement in it; the burger-menu\
+    \ answer is yours to make and record."
+  constraints: "- No worktree, no branch, no frontend code. If you find yourself editing\
+    \ `App.tsx`, you\n  are working the wrong child.\n- task-235's log entry 3 is\
+    \ binding. If you believe it is wrong, say so on that task and\n  stop \u2014\
+    \ do not build something else.\n- Both answers recorded durably before task-237\
+    \ starts, and binding on it.\n- The task-168 answer goes on task-168 too."
+  out_of_scope: '- Implementing any of it.
+
+    - Colours, spacing, typography.
+
+    - Re-deciding the sidebar''s contents, the collapsible tree, or which surfaces
+    get one.
+
+    - Deciding anything about the analytics page (task-212) beyond leaving room for
+    it.'
+  context:
+  - path: frontend/src/components/TaskList.tsx
+    why: Line 344 holds the app's existing min-[820px] breakpoint, the prior art for
+      question 1.
+  - path: frontend/src/App.tsx
+    why: The header nav that survives, and the sm/lg breakpoints currently in the
+      shell.
+  - path: tasks/agentjobs/task-168-menu-shell.yaml
+    why: The overlapping navigation surface question 2 has to resolve, and where its
+      answer must also be recorded.
+  - path: tasks/agentjobs/task-093-mobile-and-pwa.yaml
+    why: How this app has previously reasoned about viewport and orientation.
+acceptance:
+- id: ac-1
+  text: The breakpoint or media query is stated concretely, including what a 1024px
+    landscape tablet gets and what a phone in landscape gets.
+  status: pending
+- id: ac-2
+  text: Whether the sidebar is user-collapsible above the breakpoint, and whether
+    that persists, is decided.
+  status: pending
+- id: ac-3
+  text: The task-168 relationship is decided and recorded on both task-168 and task-235.
+  status: pending
+- id: ac-4
+  text: "A short doc in docs/ states the whole decided shape \u2014 Jeff's decision\
+    \ plus these answers \u2014 as one thing the building children can read."
+  status: pending
+- id: ac-5
+  text: Jeff has seen the breakpoint answer and not objected.
+  status: pending
+deliverables:
+- path: docs/
+  note: The shell decision note.
+  status: pending
+dependencies:
+- task: task-168-menu-shell
+  type: related
+  note: Question 3 decides this task's fate; the answer gets recorded there too.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-22T00:38:44.029987Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 1d7f2b58-4c19-4a72-9be5-0f8c6d31a902
+      kind: create
+      fingerprint: 431c0a6a586bc531263a2c311e6be36c
+- id: 2
+  ts: '2026-08-22T00:44:55.764742Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, effort, spec, title.
+  data:
+    fields:
+    - acceptance
+    - effort
+    - spec
+    - title
+    operation:
+      id: 2e6b90cf-a13d-4d75-95a1-0b7e3c8f4d16
+      kind: update_content
+      fingerprint: 1fb6190433e41d48ad5c5a732ee1e7fd
