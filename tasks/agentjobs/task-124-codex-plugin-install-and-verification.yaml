@@ -2,15 +2,13 @@ schema: 2
 id: task-124-codex-plugin-install-and-verification
 title: Finish and verify the Codex plugin install the way task-122 did for Claude
 created: '2026-08-17T20:33:40.478661Z'
-updated: '2026-08-22T19:46:52.395503Z'
+updated: '2026-08-22T21:02:17.096856Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: Review branch codex/task-124-codex-plugin-verification (b87d1e2 and 3939c1d).
-  If acceptable, approve it in AgentJobs so it can be merged to main; then Jeff must
-  run the documented Codex plugin refresh from main and restart a fresh session for
-  final skill/hook verification. The MCP connection itself already passes in fresh
-  desktop and Terra CLI sessions with all 15 tools.
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.'
 archived: false
 priority: high
 queue_position: 7100
@@ -254,3 +252,11 @@ log:
       id: 10eeb1b4-0f65-4aa4-8822-5cfc3c2c81a2
       kind: handoff
       fingerprint: 4dfc523622eecc11533095b26c9b4f0d
+- id: 8
+  ts: '2026-08-22T21:02:17.096744Z'
+  actor: Jeff Posey
+  type: handoff
+  body: Approved by Jeff Posey through the web UI.
+  data:
+    ball: agent
+    ball_reason: work
