@@ -34,10 +34,16 @@ shared preamble to each brief, and spawns sessions.
   | Batch | Auditors |
   |---|---|
   | 1 | 10 (dispatch), 12 (security), 1 (context) |
-  | 2 | 3 (schema), 4 (storage), 7 (API/webhooks) |
-  | 3 | 9 (frontend), 11 (gate), 2 (docs) |
+  | 2 | 4 (storage), 11 (gate), 3 (schema) |
+  | 3 | 7 (API/webhooks), 9 (frontend), 2 (docs) |
   | 4 | 5 (queue), 6 (CLI), 8 (MCP) |
   | 5 | synthesis (alone, after all 12 land) |
+
+  Order is priority, not just speed: Jeff's answer on the meters is "Fable
+  almost certainly drains the all-models pool," so all sessions draw one
+  shared budget. If the pool dies mid-run, what is lost is the tail — and
+  the tail is deliberately the cuttable set (5, 6, 8), while the weighted
+  auditors (1, 10, 12, then 4, 11, 3) are already on disk.
 
 - **Monitoring is a mechanism, not an intention**: the dispatcher backgrounds a
   wait on each batch (spawn-session's wait/reap, or a Monitor on the findings
