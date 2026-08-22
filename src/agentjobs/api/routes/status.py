@@ -22,6 +22,7 @@ from typing import Any, Callable, List, Optional, Union
 
 from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.dispatch.address import api_base_from_server
@@ -622,7 +623,12 @@ async def dispatch_task_endpoint(
     than letting someone press it into a refusal.
     """
     try:
-        handle = dispatch_task(
+        # ``dispatch_task`` starts Codex App Server synchronously. Keep it off
+        # FastAPI's event loop: the child must handshake with this same AgentJobs
+        # server over MCP while startup is in progress. Running it inline deadlocks
+        # that handshake, which surfaced as "connection closed: initialize response".
+        handle = await run_in_threadpool(
+            dispatch_task,
             manager=manager,
             project=project,
             project_config=project_config(project),
