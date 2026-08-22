@@ -3,7 +3,7 @@ id: task-248
 title: "Tolerant reader rejects an unknown ball_reason \u2014 the enum widened two\
   \ days after tolerance shipped"
 created: '2026-08-22T18:51:25.400936Z'
-updated: '2026-08-22T21:22:17.398891Z'
+updated: '2026-08-22T21:31:29.454977Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -116,3 +116,50 @@ log:
     run_id: run_6e24a4fa
     outcome: crashed
     log_path: C:\Users\jpose\.agentjobs\runs\run_6e24a4fa
+- id: 6
+  ts: '2026-08-22T21:26:35.740868Z'
+  actor: codex
+  type: transition
+  body: 'The first dispatch never reached Codex work: the required AgentJobs MCP handshake
+    timed out before thread/start completed. The machine-wide Codex MCP recipe has
+    been corrected to the explicit AgentJobs Poetry interpreter with a 120-second
+    cold-start allowance; direct required-MCP thread/start now succeeds in about two
+    seconds. Releasing the failed claim so the human can retry the authorized dispatch.'
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: a8c88a2d-5ae4-4db7-9c0c-b6d8cc8cdb6a
+      kind: release
+      fingerprint: c204cb89f6eb6b873229b7596ee28f37
+- id: 7
+  ts: '2026-08-22T21:30:56.428581Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 8
+  ts: '2026-08-22T21:30:56.815262Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 9
+  ts: '2026-08-22T21:31:29.454875Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: 'The Codex App Server session never started: Codex App Server thread/start
+    failed: error creating thread: Fatal error: Failed to initialize session: required
+    MCP servers failed to initialize: agentjobs: handshaking with MCP server failed:
+    connection closed: initialize response'
+  data:
+    run_id: run_25408680
+    outcome: crashed
+    log_path: C:\Users\jpose\.agentjobs\runs\run_25408680
