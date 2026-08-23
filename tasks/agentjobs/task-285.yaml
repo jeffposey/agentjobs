@@ -1,43 +1,45 @@
 schema: 2
 id: task-285
-title: 'Codex dispatch: Luna reliability acceptance smoke and runbook'
+title: 'Codex dispatch: Terra reliability acceptance smoke and runbook'
 created: '2026-08-22T23:10:49.425223Z'
-updated: '2026-08-22T23:10:49.806909Z'
-lifecycle: ready
+updated: '2026-08-23T03:17:37.144257Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
-queue_position: 14800
+queue_position: 15
 category: acceptance
 tags:
 - codex
-- luna
+- terra
 - acceptance
 - smoke
 - runbook
 effort: medium
 assignment:
+  owner: codex
   eligible: []
 parent: task-280
 spec:
-  summary: Verify the completed dispatch stack with a controlled Luna run that proves
+  summary: Verify the completed dispatch stack with a controlled Terra run that proves
     task activity, same-thread resume, and separately recorded Desktop observation.
   description: Run the human-authorized acceptance smoke only after the lifecycle,
     MCP, resume, and visibility children close. Capture dispatch audit evidence, diagnostic
     phases, a resumed wake turn on the same persisted thread, task activity through
     AgentJobs MCP, and the distinct Desktop observation result. Update the operational
     runbook with expected outcomes and recovery steps.
-  constraints: Use only the configured Codex Luna/default runner. Preserve worktree
-    isolation, required MCP behavior, permissions, AgentJobs audit trail, and the
-    human review gate. Do not use Sol/Big Dawg, change runner selection, or perform
-    Fast-mode tuning.
-  out_of_scope: Changing architecture, retrial policy, task protocol, Desktop product
+  constraints: Use the directed Codex GPT-5.6 Terra runner at High reasoning and Standard/Slow
+    speed. Preserve worktree isolation, required MCP behavior, permissions, AgentJobs
+    audit trail, and the human review gate. Do not use Sol/Big Dawg, change the active
+    default runner-group policy, or perform Fast-mode tuning.
+  out_of_scope: Changing architecture, retry policy, task protocol, Desktop product
     behavior, or model comparisons.
   context: []
 acceptance:
 - id: ac-1
-  text: A controlled Luna task completes a dispatch and later resumes the same persisted
+  text: A controlled Terra task completes a dispatch and later resumes the same persisted
     thread, recording AgentJobs task activity without intervention except the declared
     review gate.
   verify: Human-authorized smoke evidence in task/run records.
@@ -68,7 +70,9 @@ dependencies:
   type: needs
   note: Visibility reporting and procedure must be implemented first.
 links: []
-branches: []
+branches:
+- name: feat/task-285-terra-acceptance
+  status: active
 log:
 - id: 1
   ts: '2026-08-22T23:10:49.806026Z'
@@ -81,3 +85,97 @@ log:
       id: f5730fd1-d1ac-4715-b01b-07e08c2712b4
       kind: create
       fingerprint: 57301d5b17a6a72a9cb7dc80caea57e9
+- id: 2
+  ts: '2026-08-23T03:14:31.959879Z'
+  actor: codex
+  type: note
+  body: Updated acceptance, spec, tags, title.
+  data:
+    fields:
+    - acceptance
+    - spec
+    - tags
+    - title
+    operation:
+      id: b1549d23-6475-48bb-bc57-c7a6a3dfd4d9
+      kind: update_content
+      fingerprint: 5d85f92e15bc7e264e50acb01742efc3
+- id: 3
+  ts: '2026-08-23T03:14:39.115062Z'
+  actor: codex
+  type: queue_move
+  body: Jeff authorized autonomous completion of task-280's dependency-ordered children.
+    Task-285 is the final unblocked acceptance task and takes priority over unrelated
+    backlog work.
+  data:
+    band: high
+    from: 14800
+    to: 15
+    placement:
+      kind: top
+    operation:
+      id: 88e20465-68cb-4ed8-84d9-f84a1fec8d8a
+      kind: queue_move
+      fingerprint: e9289b73476e7ba1370d61dc99e9b0b9
+- id: 4
+  ts: '2026-08-23T03:14:40.738299Z'
+  actor: codex
+  type: transition
+  body: Claimed by codex.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: fb895a4f-d2f0-4ad4-a2a7-b5d2cd46dc98
+      kind: claim
+      fingerprint: 3534a688d8c2dcc09596c1c42c585933
+- id: 5
+  ts: '2026-08-23T03:15:02.500548Z'
+  actor: codex
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: c2c4cf24-9b02-4e67-a645-b75d99c1e834
+      kind: update_content
+      fingerprint: 74d1c236b140981a525f17c25843f6cd
+- id: 6
+  ts: '2026-08-23T03:16:50.420176Z'
+  actor: codex
+  type: decision
+  body: 'Task-285 requires same-thread resume and persisted-thread evidence, which
+    only the App Server session path can produce. The existing directed Terra definition
+    was batch-only and disabled, so it cannot meet this acceptance. Enabled only the
+    already-defined `codex-smoke` group and converted its Terra runner to App Server
+    session mode with High reasoning and Standard speed; the active default group
+    and project selection remain unchanged. Rejected alternative: enabling or changing
+    the default group, because this controlled acceptance run must not silently alter
+    normal runner policy.'
+  data:
+    operation:
+      id: adf13896-a9ff-4431-9aa0-36728e7d59f
+      kind: log_append
+      fingerprint: 1eca54bde6e13e982d8ffb26354af847
+- id: 7
+  ts: '2026-08-23T03:17:33.247312Z'
+  actor: Jeff Posey
+  type: note
+  body: Jeff explicitly directed Terra High/Standard execution for this epic and authorized
+    continued autonomous completion. Start the controlled task-285 acceptance run
+    now.
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 8
+  ts: '2026-08-23T03:17:37.144120Z'
+  actor: dispatcher
+  type: dispatch_result
+  body: 'The Codex App Server session never started: Codex App Server required MCP
+    server ''agentjobs'' is not ready: unknown'
+  data:
+    run_id: run_7a879bdc
+    outcome: crashed
+    log_path: C:\Users\jpose\.agentjobs\runs\run_7a879bdc
