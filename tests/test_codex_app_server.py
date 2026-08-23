@@ -448,7 +448,9 @@ def test_app_server_inspects_persisted_app_server_thread(monkeypatch) -> None:
                                 {
                                     "id": "thread-1",
                                     "cwd": "C:/project",
-                                    "sourceKind": "appServer",
+                                    # App Server-created sessions are currently
+                                    # classified this way by the Windows Codex build.
+                                    "source": "vscode",
                                 }
                             ]
                         },
@@ -491,7 +493,7 @@ def test_app_server_inspects_persisted_app_server_thread(monkeypatch) -> None:
         "thread_id": "thread-1",
         "title": "AgentJobs sandbox/task-1",
         "cwd": "C:/project",
-        "source": "appServer",
+        "source": "vscode",
     }
     messages = [json.loads(line) for line in fake.stdin.getvalue().splitlines()]
     assert [message["method"] for message in messages] == [
@@ -500,11 +502,7 @@ def test_app_server_inspects_persisted_app_server_thread(monkeypatch) -> None:
         "thread/read",
         "thread/list",
     ]
-    assert messages[-1]["params"] == {
-        "sourceKinds": ["appServer"],
-        "cwd": str(Path("C:/project")),
-        "limit": 100,
-    }
+    assert messages[-1]["params"] == {"cwd": str(Path("C:/project")), "limit": 100}
 
 
 def test_app_server_resumes_a_persisted_thread_before_injecting_follow_up(monkeypatch) -> None:

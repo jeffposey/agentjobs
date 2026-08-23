@@ -33,9 +33,9 @@ resume failure remains a hard failure rather than silently falling back to batch
 ## Desktop observation is separate evidence
 
 After a completed App Server turn, AgentJobs records `persistence_status: persisted`
-only when a fresh App Server probe can both read the recorded thread and find it in
-`thread/list` with the `appServer` source and project cwd. That proves the durable Codex
-store retained the conversation after the launch child ended; it does not prove a
+only when a fresh App Server probe can both read the recorded thread and find its ID in
+an App Server `thread/list` for the project cwd. That proves the durable Codex store
+retained the conversation after the launch child ended; it does not prove a
 Desktop sidebar has indexed or displayed it.
 
 For a controlled Desktop observation, wait for that persisted result, open Codex
@@ -49,6 +49,16 @@ The current Windows CLI's `app-server daemon` and `remote-control` lifecycle com
 are Unix-only. That is separate from ChatGPT Remote: the supported Windows path is to
 enable **Settings → Connections → Control this Mac or PC** in ChatGPT Desktop, approve
 the connection, and then use the ChatGPT mobile app to follow the connected computer.
+
+### Source-kind discrepancy recovery
+
+On the current Windows Codex build, a thread created through App Server can be returned
+by `thread/read` and by an unfiltered `thread/list` at the expected project cwd while
+being labelled `source: vscode`. AgentJobs therefore matches the persisted ID and cwd
+rather than filtering the list by source. Treat a source-label mismatch as neither lost
+thread evidence nor Desktop visibility: record the read/list result and any successful
+same-thread resume. A person opening the exact conversation in Codex Desktop remains
+the only `desktop_visible` observation.
 
 ## Add the runners, disabled
 
@@ -66,47 +76,17 @@ Windows, avoiding the non-spawnable Microsoft Store `codex` alias.
     mode: session
     actor: codex
 
-  codex-sol:
-    argv: ["codex", "exec", "--json", "--model", "gpt-5.6-sol",
-           "-c", 'model_reasoning_effort="xhigh"', "{prompt}"]
-    driver: codex
-    mode: batch
-    actor: codex
-
-  codex-luna-session:
-    argv: ["codex", "app-server", "--model", "gpt-5.6-luna",
-           "-c", 'model_reasoning_effort="high"',
-           "-c", 'service_tier="priority"', "{prompt}"]
-    driver: codex
-    mode: session
-    actor: codex
-
-  codex-sol-session:
-    argv: ["codex", "app-server", "--model", "gpt-5.6-sol",
-           "-c", 'model_reasoning_effort="high"',
-           "-c", 'service_tier="priority"', "{prompt}"]
-    driver: codex
-    mode: session
-    actor: codex
 ```
 
-Add the disabled candidates to the groups before turning either one on:
+Add the isolated acceptance group without changing the machine default:
 
 ```yaml
 runner_groups:
-  default:
+  codex-smoke:
+    description: Controlled Terra App Server acceptance only.
     members:
-      - runner: claude-opus-5
-      - runner: codex-luna-session
-        enabled: false
-        note: Enable after a human-reviewed App Server session smoke passes.
-
-  big-dawg:
-    members:
-      - runner: claude-fable-5
-      - runner: codex-sol-session
-        enabled: false
-        note: Keep Sol reserved for high-value, complex work.
+      - runner: codex-terra
+        enabled: true
 ```
 
 ## Safe rollout
@@ -150,4 +130,4 @@ authorization on the task; the command intentionally refuses to invent a human a
 
 The controlled acceptance configuration uses Terra with `high` reasoning and Standard
 speed in an explicitly named group. It is not a claim that the default runner group has
-been changed, and it does not use Sol/Big Dawg.
+been changed.

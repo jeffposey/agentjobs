@@ -342,10 +342,11 @@ class CodexAppServerProcess:
                 raise CodexAppServerError(
                     "Codex App Server thread/read returned no matching thread."
                 )
-            listed = self._request(
-                "thread/list",
-                {"sourceKinds": ["appServer"], "cwd": str(self.cwd), "limit": 100},
-            )
+            # App Server-created threads are currently reported by the Windows Codex
+            # build with ``source: vscode``.  A sourceKinds=appServer filter therefore
+            # creates a false negative.  The persisted ID plus the project cwd are the
+            # protocol evidence we control, so list within that cwd and match the ID.
+            listed = self._request("thread/list", {"cwd": str(self.cwd), "limit": 100})
             entries = listed.get("data", listed.get("threads", []))
             if not isinstance(entries, list):
                 raise CodexAppServerError("Codex App Server thread/list returned no thread list.")
