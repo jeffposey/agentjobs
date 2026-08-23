@@ -2,64 +2,64 @@ schema: 2
 id: task-219
 title: 'The queue-move check: deterministic warnings when a human reorders'
 created: '2026-08-21T04:57:23.007031Z'
-updated: '2026-08-23T08:31:52.671414Z'
+updated: '2026-08-23T08:31:53.611540Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.
+ball_prompt: 'The approval ran the scripted finish and it stopped at `rebase`. **Nothing
+  was merged.**
 
 
-  Note from Jeff Posey:
+  Rebasing feat/task-219-queue-move-check onto main did not apply cleanly, and a conflict
+  is never resolved here. The branch is exactly where it was (ff1f734a). Nothing was
+  merged.
 
 
-  Standing approval, granted by Jeff in chat on 2026-08-23 before the work started,
-  for every child of the task-211 epic run overnight and autonomously. Not a per-task
-  click; relayed by the task-211 supervisor after reviewing the branch and this record.
+  ```
+
+  Auto-merging frontend/openapi.json
+
+  Auto-merging frontend/src/api/generated/@tanstack/react-query.gen.ts
+
+  CONFLICT (content): Merge conflict in frontend/src/api/generated/@tanstack/react-query.gen.ts
+
+  Auto-merging frontend/src/api/generated/index.ts
+
+  CONFLICT (content): Merge conflict in frontend/src/api/generated/index.ts
+
+  Auto-merging frontend/src/api/generated/sdk.gen.ts
+
+  CONFLICT (content): Merge conflict in frontend/src/api/generated/sdk.gen.ts
+
+  Auto-merging frontend/src/api/generated/types.gen.ts
+
+  Rebasing (1/4)
+
+  Rebasing (2/4)
+
+  error: could not apply c86a271... feat(frontend): the queue-move notice, with one-click
+  undo and keep
+
+  hint: Resolve all conflicts manually, mark them as resolved with
+
+  hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+  hint: You can instead skip this commit: run "git rebase --skip".
+
+  hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+
+  hint: Disable this message with "git config set advice.mergeConflict false"
+
+  Could not apply c86a271... # feat(frontend): the queue-move notice, with one-click
+  undo and keep
+
+  ```
 
 
-  What the supervisor checked. Four commits, +3048, both trees clean, all five acceptance
-  criteria met. sc-5''s two halves are asserted rather than claimed: TestTheCheckIsFree
-  computes the warnings inside count_task_parses and asserts zero parses, and separately
-  asserts a warning-producing move costs the same parses as a silent one -- the performance
-  convention this repository asks for, on parse counts rather than wall clock. TestSilenceIsNormal
-  is the guard on the requirement that most moves say nothing.
-
-
-  The four departures the handoff flags were each read and each stands:
-
-
-  1. `no_op` is implemented as "the band''s order is identical before and after" rather
-  than section 5.4''s literal "the head of the band above the drop is unclaimable".
-  The literal reading fires on nearly every move, which is the wallpaper the same
-  section forbids, and the implemented version entails the design''s claim. Correct
-  call, and the decision entry has the rejected alternatives.
-
-  2. `queue_warnings` rides the mutation envelope, so a plain REST POST without `?envelope=true`
-  does not see them. Always-on would break every existing caller; the findings are
-  still in the task''s own `queue_move` entry, and the Python client and MCP always
-  ask for the envelope.
-
-  3. `above_prerequisite` is same-band only, because cross-band would put a permanent
-  warning on every move of a high task with a medium prerequisite. The case is not
-  lost -- `promoted_unclaimable` names the same dependency.
-
-  4. Commit ff1f734 fixes an out-of-order refetch found in Chrome and not in jsdom:
-  two Alt+Up presses raced and the first move''s verdict overwrote the second''s,
-  so the notice described a queue that no longer existed. Both new tests fail without
-  the guard. This is the repository''s own rule about automated gestures being weak
-  evidence, obeyed rather than quoted.
-
-
-  The child''s session was stopped before this approval so its working directory does
-  not pin the worktree the finish removes. Its review sandbox on port 8899 is a separate
-  process and survived; the supervisor will stand a fresh one up from merged main
-  so Jeff has a live URL in the morning.
-
-
-  That note is context to carry into the merge, not another review round: you are
-  still cleared to merge.'
+  Take it from here by hand. Check the tree against what is written above before acting
+  on anything you remember: if your worktree, your branch or your account of this
+  task no longer matches what is on disk, say so on the record and hand the ball back
+  rather than improvising a recovery.'
 archived: false
 priority: medium
 queue_position: 6900
@@ -586,3 +586,96 @@ log:
     finish_step: started
     branch: feat/task-219-queue-move-check
     finish_id: fin_b68465f4
+- id: 16
+  ts: '2026-08-23T08:31:53.579304Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `rebase` (rebase_conflict).\n\n**Nothing was\
+    \ merged.**\n\nRebasing feat/task-219-queue-move-check onto main did not apply\
+    \ cleanly, and a conflict is never resolved here. The branch is exactly where\
+    \ it was (ff1f734a). Nothing was merged.\n\n```\nAuto-merging frontend/openapi.json\n\
+    Auto-merging frontend/src/api/generated/@tanstack/react-query.gen.ts\nCONFLICT\
+    \ (content): Merge conflict in frontend/src/api/generated/@tanstack/react-query.gen.ts\n\
+    Auto-merging frontend/src/api/generated/index.ts\nCONFLICT (content): Merge conflict\
+    \ in frontend/src/api/generated/index.ts\nAuto-merging frontend/src/api/generated/sdk.gen.ts\n\
+    CONFLICT (content): Merge conflict in frontend/src/api/generated/sdk.gen.ts\n\
+    Auto-merging frontend/src/api/generated/types.gen.ts\nRebasing (1/4)\nRebasing\
+    \ (2/4)\nerror: could not apply c86a271... feat(frontend): the queue-move notice,\
+    \ with one-click undo and keep\nhint: Resolve all conflicts manually, mark them\
+    \ as resolved with\nhint: \"git add/rm <conflicted_files>\", then run \"git rebase\
+    \ --continue\".\nhint: You can instead skip this commit: run \"git rebase --skip\"\
+    .\nhint: To abort and get back to the state before \"git rebase\", run \"git rebase\
+    \ --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict\
+    \ false\"\nCould not apply c86a271... # feat(frontend): the queue-move notice,\
+    \ with one-click undo and keep\n```\n\n```\n  preflight  ok         1.5s  feat/task-219-queue-move-check\
+    \ at ff1f734a in C:\\projects\\worktrees\\aj-219\n  rebase     STOPPED    0.0s\
+    \  Rebasing feat/task-219-queue-move-check onto main did not apply cleanly, and\
+    \ a conflict is never resolved here. The branch is exactly where it was (ff1f734a).\
+    \ Nothing was merged.\n```"
+  data:
+    finish_step: rebase
+    finish_reason: rebase_conflict
+    merge_commit: null
+    merged: false
+- id: 17
+  ts: '2026-08-23T08:31:53.611380Z'
+  actor: finisher
+  type: handoff
+  body: 'The approval ran the scripted finish and it stopped at `rebase`. **Nothing
+    was merged.**
+
+
+    Rebasing feat/task-219-queue-move-check onto main did not apply cleanly, and a
+    conflict is never resolved here. The branch is exactly where it was (ff1f734a).
+    Nothing was merged.
+
+
+    ```
+
+    Auto-merging frontend/openapi.json
+
+    Auto-merging frontend/src/api/generated/@tanstack/react-query.gen.ts
+
+    CONFLICT (content): Merge conflict in frontend/src/api/generated/@tanstack/react-query.gen.ts
+
+    Auto-merging frontend/src/api/generated/index.ts
+
+    CONFLICT (content): Merge conflict in frontend/src/api/generated/index.ts
+
+    Auto-merging frontend/src/api/generated/sdk.gen.ts
+
+    CONFLICT (content): Merge conflict in frontend/src/api/generated/sdk.gen.ts
+
+    Auto-merging frontend/src/api/generated/types.gen.ts
+
+    Rebasing (1/4)
+
+    Rebasing (2/4)
+
+    error: could not apply c86a271... feat(frontend): the queue-move notice, with
+    one-click undo and keep
+
+    hint: Resolve all conflicts manually, mark them as resolved with
+
+    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+    hint: You can instead skip this commit: run "git rebase --skip".
+
+    hint: To abort and get back to the state before "git rebase", run "git rebase
+    --abort".
+
+    hint: Disable this message with "git config set advice.mergeConflict false"
+
+    Could not apply c86a271... # feat(frontend): the queue-move notice, with one-click
+    undo and keep
+
+    ```
+
+
+    Take it from here by hand. Check the tree against what is written above before
+    acting on anything you remember: if your worktree, your branch or your account
+    of this task no longer matches what is on disk, say so on the record and hand
+    the ball back rather than improvising a recovery.'
+  data:
+    ball: agent
+    ball_reason: work
