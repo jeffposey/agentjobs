@@ -1,0 +1,77 @@
+schema: 2
+id: task-287
+title: 'The docs site cannot render Mermaid: mkdocs-material empties the diagram containers
+  and draws nothing'
+created: '2026-08-23T02:35:51.737626Z'
+updated: '2026-08-23T02:35:52.123357Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: low
+queue_position: 400
+category: documentation
+tags:
+- docs
+- mkdocs
+- tooling
+assignment:
+  eligible: []
+spec:
+  summary: "Any Mermaid diagram added under docs/ is invisible on the built site.\
+    \ The fence is configured and the library loads, but the rendered page has three\
+    \ diagram containers and zero SVGs \u2014 mkdocs-material replaces each pre.mermaid\
+    \ with an empty div. Found 2026-08-22 while previewing the README rewrite (task-286);\
+    \ the README itself is unaffected because GitHub renders Mermaid natively."
+  description: "## Symptom\n\nServe the site and load a page containing a ```mermaid\
+    \ fence:\n\n    poetry run python -m mkdocs serve -a 127.0.0.1:8899\n\nThe served\
+    \ HTML is correct \u2014 `<pre class=\"mermaid\"><code>flowchart LR \u2026</code></pre>`,\
+    \ three of them, confirmed with curl. In the live DOM those become `<div class=\"\
+    mermaid\">` with **empty innerHTML**, `data-processed` unset, and zero `<svg>`\
+    \ anywhere on the page.\n\n## What is not the cause\n\nRuled out by direct test,\
+    \ so nobody repeats them:\n\n- **Not the fence config.** `mkdocs.yml` has the\
+    \ documented `pymdownx.superfences` custom_fence with `name: mermaid`, `class:\
+    \ mermaid`, `format: fence_code_format`, and the served HTML proves it is applied.\n\
+    - **Not the library.** `typeof window.mermaid !== 'undefined'` is true on the\
+    \ page; material bundles and loads it.\n- **Not the diagram source.** Each of\
+    \ the three sources was passed to `window.mermaid.render()` by hand on that same\
+    \ page and every one produced a valid SVG \u2014 151 KB, 110 KB, 192 KB, with\
+    \ correct node and edge counts. The syntax is fine.\n\nSo the failure is in material's\
+    \ own Mermaid integration path: it consumes the `<pre>` content, replaces the\
+    \ element, and never renders. Re-injecting the source and calling `mermaid.render()`\
+    \ manually does produce SVGs, but they lay out at 0x0 inside material's container,\
+    \ which suggests the CSS half is missing too.\n\n## Where to start\n\nCheck the\
+    \ installed `mkdocs-material` version against the version that ships the Mermaid\
+    \ integration, and whether this project pins an older one. The integration is\
+    \ version-sensitive and this repo has no `extra_javascript` Mermaid wiring \u2014\
+    \ which is correct for recent material and not for older releases.\n\n## Why it\
+    \ is low priority\n\nNothing in `docs/` currently contains a Mermaid fence, so\
+    \ nothing is broken today. It matters the moment somebody adds one and reasonably\
+    \ assumes it works: the diagram simply will not be there, with no error on the\
+    \ page."
+  context: []
+acceptance:
+- id: ac-1
+  text: A page under docs/ containing a mermaid fence renders a visible SVG on the
+    served site, verified in a browser and not only by the presence of the container.
+  status: pending
+- id: ac-2
+  text: "The cause is recorded on this task \u2014 version, config, or integration\
+    \ \u2014 so the next person does not re-derive it."
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T02:35:52.122554Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: b2905f61-7d34-4e18-a56c-c04e3f1b8927
+      kind: create
+      fingerprint: b398773c4b4dfe37de54a93f19de56a2
