@@ -3,13 +3,13 @@ id: task-303
 title: The background-session harness orders EnterWorktree and enforces it; this repository
   forbids it and never says so
 created: '2026-08-23T21:51:57.473218Z'
-updated: '2026-08-23T21:51:57.904166Z'
+updated: '2026-08-23T22:00:53.600240Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: high
-queue_position: 14600
+priority: critical
+queue_position: 993
 category: meta
 tags:
 - big-dawg-audit
@@ -115,3 +115,27 @@ log:
       id: 3e6b7d92-14c5-4a83-9f21-0b8c5d4e2a34
       kind: create
       fingerprint: 956f492bb521158ce496d625c7de04e0
+- id: 2
+  ts: '2026-08-23T22:00:53.600048Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the high band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 14600
+    to: 993
+    placement:
+      kind: bottom
+    from_band: high
+- id: 3
+  ts: '2026-08-23T22:00:53.600067Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: 44d3f80a-7162-4cb4-8e95-6f0a13d51947
+      kind: update_content
+      fingerprint: 9a3de991a457a32ef7511b7ac0feaef6

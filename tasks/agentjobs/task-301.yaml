@@ -3,13 +3,13 @@ id: task-301
 title: "Measure what a session actually loads before its first thought \u2014 harness\
   \ prompt, MCP tool declarations, @-chain, memory \u2014 for Claude and for Codex"
 created: '2026-08-23T21:50:13.685056Z'
-updated: '2026-08-23T21:50:14.144785Z'
+updated: '2026-08-23T22:00:50.136778Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: high
-queue_position: 14400
+priority: critical
+queue_position: 793
 category: meta
 tags:
 - big-dawg-audit
@@ -130,3 +130,27 @@ log:
       id: 7f3a1c40-2b6e-4d18-9a3c-5e1d0c8b4a11
       kind: create
       fingerprint: 58b0e5f6bebd6a79d8aeb47008e03bfb
+- id: 2
+  ts: '2026-08-23T22:00:50.136656Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the high band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 14400
+    to: 793
+    placement:
+      kind: bottom
+    from_band: high
+- id: 3
+  ts: '2026-08-23T22:00:50.136672Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: 22b1d6e8-5f40-4a92-8c73-4d8e91b3f725
+      kind: update_content
+      fingerprint: 9a3de991a457a32ef7511b7ac0feaef6

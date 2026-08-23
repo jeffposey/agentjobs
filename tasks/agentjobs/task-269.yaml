@@ -3,13 +3,13 @@ id: task-269
 title: 'Static vs dynamic context: get the always-loaded bundle down to the rules
   an agent acts on, and make the split measurable rather than argued'
 created: '2026-08-22T18:59:11.785040Z'
-updated: '2026-08-23T21:55:50.014095Z'
+updated: '2026-08-23T22:00:47.708869Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: high
-queue_position: 13900
+priority: critical
+queue_position: 693
 category: meta
 tags:
 - big-dawg-audit
@@ -200,3 +200,27 @@ log:
       id: f4b82d16-5c73-49e8-a0d2-8b1e6f307c45
       kind: promote
       fingerprint: 9d28eafc28a7914d8b2172c4e90d8096
+- id: 4
+  ts: '2026-08-23T22:00:47.708689Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the high band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 13900
+    to: 693
+    placement:
+      kind: bottom
+    from_band: high
+- id: 5
+  ts: '2026-08-23T22:00:47.708711Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: 11a0c5d7-4e39-4f81-9b62-3c7d80a2e614
+      kind: update_content
+      fingerprint: 9a3de991a457a32ef7511b7ac0feaef6

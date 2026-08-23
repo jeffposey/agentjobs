@@ -3,13 +3,13 @@ id: task-302
 title: "Three statements in the always-loaded bundle contradict the code \u2014 fix\
   \ them, and collapse the double-numbered merge gate"
 created: '2026-08-23T21:50:44.787308Z'
-updated: '2026-08-23T21:56:38.809298Z'
+updated: '2026-08-23T22:00:52.131082Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: high
-queue_position: 14500
+priority: critical
+queue_position: 893
 category: documentation
 tags:
 - big-dawg-audit
@@ -118,3 +118,27 @@ log:
       id: 6a1d90fb-27e4-4c58-9d13-4e7b2a5c8036
       kind: update_content
       fingerprint: b8b02021b632c648d4c31d6f9a48118e
+- id: 3
+  ts: '2026-08-23T22:00:52.130975Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the high band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 14500
+    to: 893
+    placement:
+      kind: bottom
+    from_band: high
+- id: 4
+  ts: '2026-08-23T22:00:52.130990Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: 33c2e7f9-6051-4ba3-9d84-5e9f02c40836
+      kind: update_content
+      fingerprint: 9a3de991a457a32ef7511b7ac0feaef6

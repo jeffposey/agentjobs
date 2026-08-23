@@ -3,13 +3,13 @@ id: task-304
 title: 'Context evals: prove which rules in the always-loaded bundle actually change
   agent behaviour, and re-run it whenever a new model ships'
 created: '2026-08-23T21:52:43.476088Z'
-updated: '2026-08-23T21:52:43.942197Z'
+updated: '2026-08-23T22:01:03.847857Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: medium
-queue_position: 8300
+priority: critical
+queue_position: 1093
 category: meta
 tags:
 - big-dawg-audit
@@ -134,3 +134,27 @@ log:
       id: a8d1f307-6c92-4b5e-83a7-2f4c9e0d15b7
       kind: create
       fingerprint: 2d10988e6fdc20f467b7e46c4817623b
+- id: 2
+  ts: '2026-08-23T22:01:03.847731Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the medium band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 8300
+    to: 1093
+    placement:
+      kind: bottom
+    from_band: medium
+- id: 3
+  ts: '2026-08-23T22:01:03.847749Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: 55e4091b-8273-4dd5-9fa6-70ab24e6205a
+      kind: update_content
+      fingerprint: 9a3de991a457a32ef7511b7ac0feaef6

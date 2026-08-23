@@ -3,13 +3,13 @@ id: task-306
 title: 'The dynamic half is drifting too: long summaries, default ball prompts surviving
   on active tasks, and almost no questions ever reaching the record'
 created: '2026-08-23T21:53:59.468926Z'
-updated: '2026-08-23T21:54:00.040755Z'
+updated: '2026-08-23T22:01:06.807201Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
-priority: medium
-queue_position: 8500
+priority: critical
+queue_position: 1293
 category: meta
 tags:
 - big-dawg-audit
@@ -106,3 +106,27 @@ log:
       id: d9e4b217-3f85-4c60-a1b3-7e2f8c6d9034
       kind: create
       fingerprint: ed5d91fdb4b039aabc213124086fad33
+- id: 2
+  ts: '2026-08-23T22:01:06.807017Z'
+  actor: claude
+  type: queue_move
+  body: Moved from the medium band into the bottom of the critical band.
+  data:
+    band: critical
+    from: 8500
+    to: 1293
+    placement:
+      kind: bottom
+    from_band: medium
+- id: 3
+  ts: '2026-08-23T22:01:06.807050Z'
+  actor: claude
+  type: note
+  body: Updated priority.
+  data:
+    fields:
+    - priority
+    operation:
+      id: 77a62b3d-0495-4ff7-b168-92c46d4427c1
+      kind: update_content
+      fingerprint: 9a3de991a457a32ef7511b7ac0feaef6
