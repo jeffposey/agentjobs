@@ -3,70 +3,56 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-23T18:26:01.862237Z'
+updated: '2026-08-23T18:36:43.220365Z'
 lifecycle: active
 ball: human
-ball_reason: decision
-ball_prompt: 'The run came back NOT REPRODUCED and found the mechanism instead. Entry
-  41 has it. This is the answer the task was asking for.
+ball_reason: review
+ball_prompt: 'B is done and ready for review. A and C are untouched, as you asked
+  - nothing posted anywhere, no fault injection armed.
 
 
-  The harness worked this time - 36 probes, 36 answered, 0 invalid, 0 skipped, 30
-  of 30 sweep probes reached the model. But the per-probe credential mtime shows the
-  token was replaced mid-sweep by one of my own probes: probes starting at E-318.6s
-  left it alone, the probe starting at E-303.6s rewrote it with 299.137 seconds of
-  life left. The daemon''s own scheduled refresh 60s later found `token still valid
-  (cross-process refresh or not yet due)`. No other Claude process existed on the
-  machine for the four hours around it.
+  Branch: docs/task-224-client-refresh-correction, commit 3c90ca1, worktree ../worktrees/aj-224.
+
+  Diff: one file, 19 insertions, 6 deletions, docstring only. No behaviour change.
 
 
-  So: a Claude client refreshes its own credential when the access token has under
-  300 seconds left. Measured, bracketed by two probes 15 seconds apart.
+  What it corrects, in src/agentjobs/dispatch/auth.py:
 
 
-  That explains everything. Occurrence 3''s session cold-started with 274.5s of life
-  - inside the 300s zone - tried to refresh itself, the refresh FAILED, and it said
-  Login expired 2.5s later; the daemon''s attempt 33s after that found `no token found`
-  in 2ms because the failed refresh had left the store unusable. One mechanism accounts
-  for the inversion, the 2ms no-token, and a valid token being refused.
+  The module opened with "Claude Code does not refresh its own credential per session.
+  A shared background daemon owns the OAuth refresh for every --bg worker." The first
+  sentence is false and it is the sentence the module is justified by. It now says
+  there are two refreshes - a client one under 300 seconds of remaining life, and
+  the daemon''s scheduled one at 240 seconds before expiry - with the 2026-08-23 measurement
+  that establishes both, and it states that what kills a session is a refresh that
+  fails rather than a token that expires. That last point is the one a future reader
+  needs: it is why the failure looks like a valid credential being refused and why
+  the daemon appears to notice second.
 
 
-  The failure is a failed refresh, not an expiry. Two consequences:
+  Also date-stamped the "three occurrences, all genuine" line. It was true on 2026-08-21
+  and is five now; a bare count in prose goes stale, a dated one does not.
 
 
-  1. I was wrong in entry 35 to rule out a client-side staleness margin - that argument
-  used daemon observations against a client mechanism. Withdrawn in entry 41. The
-  rest of entry 35 stands.
+  Verification: full scripts/check.py, unqualified, green - 10 of 10 stages, 299.2s,
+  run with the worktree''s own interpreter. Slower than the 95.8s in ENGINEERING.md
+  because other gates were running; every stage passed.
 
 
-  2. The sweep approach is retired and I am not proposing another night of it. Probing
-  the window causes the refresh that closes it, so it will report NOT REPRODUCED forever
-  regardless of the truth. A quiet boundary is not weak evidence, it is no evidence.
-  The scheduled task is unregistered; probe.ps1 remains.
+  On your "are we the only ones who figured this out" - I have not re-checked the
+  issue tracker since entry 8, when #79685 was open with no maintainer response and
+  nothing describing this mechanism. Worth me re-searching before you decide, since
+  three days have passed and that is cheap. Say the word.
 
 
-  Three things for you, in the order I would do them:
+  On proving it reproducibly: agreed, and note the honest limit. The 300s threshold
+  IS now reproducible - it reproduced on demand and is bracketed to under a second.
+  What is not reproducible without fault injection is the failure, because a healthy
+  refresh succeeds and closes the window. So we can demonstrate the mechanism but
+  not the incident, unless you later want C.
 
 
-  A. The upstream comment on anthropics/claude-code#79685 is now worth posting and
-  is a much better report than anything before it: a cold-start client that lands
-  inside its own 300s refresh window and whose refresh fails reports "Login expired"
-  and leaves the credential store empty, so the shared daemon''s next read returns
-  `no token found` in 2ms. Still unposted, still yours to send.
-
-
-  B. `src/agentjobs/dispatch/auth.py`''s module docstring opens with "Claude Code
-  does not refresh its own credential per session" - now measured false, and it is
-  the sentence the module is justified by. The detector still works; the explanation
-  is wrong. One commit, needs a worktree and the gate. Say go and I will do it.
-
-
-  C. Actually reproducing it needs fault injection - blocking the auth endpoint while
-  a process sits in the 300s zone. More intrusive, on your machine, and I have not
-  armed anything. Only worth it if you want a demonstration rather than an explanation.
-
-
-  No repo changes this run: no branch, no worktree, no code.'
+  Approve and I will rebase, merge --no-ff, close, and remove the worktree.'
 archived: false
 priority: high
 queue_position: 11400
@@ -231,6 +217,8 @@ links: []
 branches:
 - name: feat/task-224-auth-park-detector
   status: merged
+- name: docs/task-224-client-refresh-correction
+  status: active
 log:
 - id: 1
   ts: '2026-08-21T15:51:07.589440Z'
@@ -2078,3 +2066,130 @@ log:
     outcome: completed
     duration_seconds: 356.581126
     log_path: C:\Users\jpose\.agentjobs\runs\run_1a4bc491
+- id: 56
+  ts: '2026-08-23T18:28:30.883920Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    Do B only. Although if we are the only one who has truly "figured this out", I''ll
+    consider the support post. And yeah, we would want to really prove it reproducibly
+    first, so I''ll wait.'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 57
+  ts: '2026-08-23T18:28:36.225375Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 58
+  ts: '2026-08-23T18:28:43.196451Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_1a4bc491` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_d85fa49f
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    trigger: manual
+    caused_by: 57
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --resume
+    - fdcfc3e0-cf87-461e-a469-aa0f045d9857
+    cwd: C:\projects\agentjobs
+    git_head: 35b9147
+    session_id: 314e8d8a
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 59
+  ts: '2026-08-23T18:36:03.293714Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 7a2c5e91-4d38-4b06-9f52-c1e83a70b64d
+      kind: update_content
+      fingerprint: 9100dd4dcd3ee0ebd8efb8b91d1d1740
+- id: 60
+  ts: '2026-08-23T18:36:43.219820Z'
+  actor: claude
+  type: handoff
+  body: 'B is done and ready for review. A and C are untouched, as you asked - nothing
+    posted anywhere, no fault injection armed.
+
+
+    Branch: docs/task-224-client-refresh-correction, commit 3c90ca1, worktree ../worktrees/aj-224.
+
+    Diff: one file, 19 insertions, 6 deletions, docstring only. No behaviour change.
+
+
+    What it corrects, in src/agentjobs/dispatch/auth.py:
+
+
+    The module opened with "Claude Code does not refresh its own credential per session.
+    A shared background daemon owns the OAuth refresh for every --bg worker." The
+    first sentence is false and it is the sentence the module is justified by. It
+    now says there are two refreshes - a client one under 300 seconds of remaining
+    life, and the daemon''s scheduled one at 240 seconds before expiry - with the
+    2026-08-23 measurement that establishes both, and it states that what kills a
+    session is a refresh that fails rather than a token that expires. That last point
+    is the one a future reader needs: it is why the failure looks like a valid credential
+    being refused and why the daemon appears to notice second.
+
+
+    Also date-stamped the "three occurrences, all genuine" line. It was true on 2026-08-21
+    and is five now; a bare count in prose goes stale, a dated one does not.
+
+
+    Verification: full scripts/check.py, unqualified, green - 10 of 10 stages, 299.2s,
+    run with the worktree''s own interpreter. Slower than the 95.8s in ENGINEERING.md
+    because other gates were running; every stage passed.
+
+
+    On your "are we the only ones who figured this out" - I have not re-checked the
+    issue tracker since entry 8, when #79685 was open with no maintainer response
+    and nothing describing this mechanism. Worth me re-searching before you decide,
+    since three days have passed and that is cheap. Say the word.
+
+
+    On proving it reproducibly: agreed, and note the honest limit. The 300s threshold
+    IS now reproducible - it reproduced on demand and is bracketed to under a second.
+    What is not reproducible without fault injection is the failure, because a healthy
+    refresh succeeds and closes the window. So we can demonstrate the mechanism but
+    not the incident, unless you later want C.
+
+
+    Approve and I will rebase, merge --no-ff, close, and remove the worktree.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 9b41c078-3ea6-4f25-b8d1-06c4e7a2593f
+      kind: handoff
+      fingerprint: 20f3a6221433a3626804cdbaf13ebb41
