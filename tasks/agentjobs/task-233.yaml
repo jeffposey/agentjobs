@@ -3,7 +3,7 @@ id: task-233
 title: 'Cycle time: 21 hours of dispatched runs over 23 tasks, and nothing measures
   where it goes'
 created: '2026-08-21T20:42:00.402460Z'
-updated: '2026-08-23T18:58:33.312760Z'
+updated: '2026-08-23T19:01:27.972260Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1121,3 +1121,19 @@ log:
     finish_step: started
     branch: perf/task-233-cycle-time-measured
     finish_id: fin_b641f74a
+- id: 30
+  ts: '2026-08-23T19:01:27.972049Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `perf/task-233-cycle-time-measured` into `main` as `a993b36f`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\aj-233
+    before the merge. Approved by Jeff Posey; no agent was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: a993b36f9538596d5e7363cb1ef94fc68a380e5b
+    branch: perf/task-233-cycle-time-measured
+    base: main
