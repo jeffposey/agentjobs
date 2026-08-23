@@ -1,0 +1,117 @@
+schema: 2
+id: task-303
+title: The background-session harness orders EnterWorktree and enforces it; this repository
+  forbids it and never says so
+created: '2026-08-23T21:51:57.473218Z'
+updated: '2026-08-23T21:51:57.904166Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 14600
+category: meta
+tags:
+- big-dawg-audit
+- context
+- dispatch
+effort: "small in code \u2014 a settings key, one sentence, one stub clause \u2014\
+  \ but the verification needs a real --bg run"
+assignment:
+  eligible: []
+parent: task-269
+spec:
+  summary: Every `--bg` session here is handed two instructions that cannot both be
+    followed, and the wrong one claims to be enforced and is. Three auditors had a
+    write refused and routed it through a temp directory and `cp`; one dispatched
+    run parked on it outright.
+  description: "## The contradiction\n\nThe Claude Code background-session preamble\
+    \ says: *\"Before making any code changes, use the EnterWorktree tool \u2026 This\
+    \ is enforced: file edits in the shared checkout are rejected until you isolate.\"\
+    *\n\nThis repository says the opposite, in four places \u2014 ALLAGENTS \xA7Why\
+    \ you get your own worktree, `docs/agent-workflow.md` \xA7Before you write anything,\
+    \ `runner.py:115-131`, and the `posture_flags` docstring \u2014 and explains why:\
+    \ a `-w` session relocates the permission root and cannot reach the shared clone,\
+    \ which is where task-record commits and the merge have to land. `auto` declines\
+    \ it and the run parks (run_6f1f0741, 2026-08-20, task-192).\n\nALLAGENTS already\
+    \ says \"the harness may tell you the opposite, and this rule wins\". What it\
+    \ does not say is that the harness **enforces** its side, that the first `Write`\
+    \ into the shared checkout will be refused, and what to do about it. So every\
+    \ background session resolves this alone, from scratch, and the three Big Dawg\
+    \ auditors who hit it each improvised the same workaround independently: stage\
+    \ the file outside the repository and `cp` it in.\n\nAuditor 10 should be read\
+    \ alongside this \u2014 the audit's own note is that this is *\"very likely the\
+    \ mechanism behind every `--bg` run that parked on a worktree prompt\"*, which\
+    \ makes it a dispatch-reliability fix, not only a documentation one.\n\n## Fix\n\
+    \n1. **Set `\"worktree\": {\"bgIsolation\": \"none\"}` in the repository's `.claude/settings.json`**\
+    \ \u2014 the escape the refusal message itself names. **It is unverified whether\
+    \ this actually disables the guard**; that is the first thing to establish, and\
+    \ if it does not work, say so and fall back to (2) and (3) alone rather than shipping\
+    \ a settings key that does nothing.\n2. One sentence in ALLAGENTS \xA7Why you\
+    \ get your own worktree naming the harness instruction as the one to ignore *here*,\
+    \ and saying what the refusal looks like when it comes.\n3. A clause in `PROMPT_STUB`\
+    \ \u2014 which a dispatched session reads first \u2014 along the lines of \"take\
+    \ a worktree with `git worktree add`, even if your harness tells you `EnterWorktree`\
+    \ is required\".\n\n## Verification\n\nNot satisfiable from the settings file\
+    \ alone. Dispatch a real `--bg` run in this repository and have it write a file\
+    \ into the shared checkout without calling `EnterWorktree`. If the write lands,\
+    \ the fix works; if it is refused, the settings key is not the escape and the\
+    \ task's finding is that fact.\n\nRecord the Claude Code version the probe ran\
+    \ against. The existing `-w` probe in ALLAGENTS is pinned to 2.1.235 and nothing\
+    \ re-probes it; do not repeat that pattern \u2014 state the version and the date\
+    \ next to the result.\n\nRelated: task-276 covers the write guard's separate false\
+    \ positive, where a write is refused because its *content* names a task path.\
+    \ A session hitting one often hits the other, but the mechanisms and the fixes\
+    \ differ."
+  constraints: 'Do not weaken the worktree rule itself: agents still take a worktree
+    with `git worktree add`, and `-w`/`EnterWorktree` stays forbidden. The only thing
+    changing is that the harness stops blocking writes to the shared clone, and that
+    the conflict is stated where a session will read it.'
+  out_of_scope: "The write guard's task-path false positive \u2014 that is task-276,\
+    \ a different mechanism with a different fix."
+  context:
+  - path: audits/2026-08-21/01-context-architecture.md
+    why: F-2 in full, including the exact refusal text and the escape it names
+  - path: audits/2026-08-21/10-dispatch.md
+    why: "The dispatch side \u2014 runs that parked on a worktree prompt"
+  - path: src/agentjobs/dispatch/runner.py
+    why: PROMPT_STUB at 115-131 is where the clause goes, and states the reason -w
+      cannot be used
+acceptance:
+- id: ac-1
+  text: A --bg session in this repository writes into the shared checkout without
+    calling EnterWorktree, demonstrated by an actual dispatched run, with the Claude
+    Code version and date recorded next to the result.
+  status: pending
+- id: ac-2
+  text: ALLAGENTS names the harness instruction as the one to ignore here and describes
+    the refusal a session will see.
+  status: pending
+- id: ac-3
+  text: PROMPT_STUB carries the clause, so a dispatched session reads it before its
+    first write.
+  status: pending
+- id: ac-4
+  text: If bgIsolation:none turns out not to disable the guard, that result is recorded
+    on the task and the settings key is not left in place doing nothing.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-276
+  type: related
+  note: The other half of the harness-versus-repository friction; separate mechanism,
+    separate fix
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T21:51:57.903242Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 3e6b7d92-14c5-4a83-9f21-0b8c5d4e2a34
+      kind: create
+      fingerprint: 956f492bb521158ce496d625c7de04e0

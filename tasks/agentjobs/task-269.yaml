@@ -1,14 +1,12 @@
 schema: 2
 id: task-269
-title: 'Static context: stop the harness/repo worktree contradiction, cut the inactive
-  scripted-finish prose, fix the two rules the bundle states wrongly, put a word budget
-  under test'
+title: 'Static vs dynamic context: get the always-loaded bundle down to the rules
+  an agent acts on, and make the split measurable rather than argued'
 created: '2026-08-22T18:59:11.785040Z'
-updated: '2026-08-22T18:59:12.434614Z'
-lifecycle: draft
-ball: human
-ball_reason: spec
-ball_prompt: Finish specifying this task.
+updated: '2026-08-23T21:55:50.014095Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
 archived: false
 priority: high
 queue_position: 13900
@@ -17,102 +15,135 @@ tags:
 - big-dawg-audit
 - context
 - docs
+- epic
+effort: six children; measure first, two cheap correctness fixes next, the cut last
 assignment:
   eligible: []
 spec:
-  summary: "Big Dawg Audit P2 cluster, the audit Jeff named first (auditor 1 F-2/F-3/F-4/F-1/F-5/F-6/F-7;\
-    \ auditor 3 F7; auditor 10 P3-17; three auditors hit the harness refusal). The\
-    \ @-chain is \u224817,200 tokens per session, \u224836% of it rules a session\
-    \ acts on and the rest rationale, incident narrative and measurements \u2014 two\
-    \ of three test counts in the dated gate table were wrong the day it was written.\
-    \ The background-session harness tells every --bg session to EnterWorktree and\
-    \ enforces it; the repo forbids it and never says so. 634 words describe a scripted\
-    \ finish that is switched off on this machine. GLOBAL-AGENTS says a parent is\
-    \ not claimable while a child is open; the code (task-164) says it is. ALLAGENTS\
-    \ states the ball_prompt rule without the agent/available exemption the schema\
-    \ has."
-  description: "## Evidence\n- Measured (`wc`): GLOBAL-AGENTS 1,488 w; C:/projects/AGENTS\
-    \ 355; ENGINEERING 4,786; ALLAGENTS 3,931 \u2192 68,723 chars \u2248 17,200 tokens,\
-    \ plus MEMORY.md \u2248 1,500 and MCP instructions/docstrings \u2248 800 (and\
-    \ auditor 8 F11: dual MCP registration costs 30 tool declarations and two identical\
-    \ instruction blocks \u2014 not in auditor 1's count). ENGINEERING and ALLAGENTS\
-    \ were committed 13 times on 2026-08-19/20/21 alone; no test, budget or count\
-    \ exists for them, while the MCP leading rule has a 512-char budget and a test\
-    \ (`mcp/instructions.py:10-13`). Per-section load-bearing classification puts\
-    \ \u22483,900 words (\u22486,000 tokens) in compress/move/delete without losing\
-    \ a rule.\n- F-2: the harness preamble says \"use EnterWorktree \u2026 This is\
-    \ enforced: file edits in the shared checkout are rejected\". Auditors 1, 4 and\
-    \ 11 each had their findings-file write refused and routed it through a tmp dir\
-    \ and `cp`. ALLAGENTS \xA7Why you get your own worktree, `docs/agent-workflow.md`\
-    \ and `runner.py:115-131` forbid `-w`/EnterWorktree (a `-w` session cannot reach\
-    \ the shared clone for task-record commits or the merge; run_6f1f0741 parked on\
-    \ it). The escape the refusal names \u2014 `.claude/settings.json` `\"worktree\"\
-    : {\"bgIsolation\": \"none\"}` \u2014 is not set in the repo. Unverified whether\
-    \ it disables the guard.\n- F-3 / auditor 10 P3-17: `~/.agentjobs/dispatch.yaml`\
-    \ has no `finish:` block, `~/.agentjobs/finishes/` does not exist, `agentjobs\
-    \ dispatch config` prints nothing about finish. ENGINEERING \xA7Steps 3 to 6 (429\
-    \ w) and ALLAGENTS \xA7Steps 6 and 7 (205 w) describe a path no session here will\
-    \ hit; the finish writes its own dispositive sentence onto the record (`finish.py:1043`)\
-    \ and `WAKE_STUB` delivers it, so the static text is a copy of a dynamic payload.\
-    \ Same for ALLAGENTS \xA7You may be woken (242 w, verbatim overlap with `wake.py:39-53`).\n\
-    - Auditor 3 F7: `GLOBAL-AGENTS.md:125` \"a parent is not claimable while a child\
-    \ is open\" vs `manager.py:1180-1195` (task-164), `docs/task-schema.md:84`, `schema-design.md:89`:\
-    \ claimable by name, only `/next` skips it \u2014 and the supervisor dispatch\
-    \ path relies on claiming exactly such a parent. Auditor 1's redundancy map missed\
-    \ this one.\n- F-4: ALLAGENTS \"ball_prompt is required whenever the ball is set\
-    \ \u2026 the schema rejects it\" vs `models_v2.py:782-791` exempting `agent/available`;\
-    \ 87 of 87 ready tasks have an empty prompt.\n- F-5/F-6/F-7/F-11: merge gate numbered\
-    \ 1-6 in ENGINEERING and 1-7 in ALLAGENTS with each file cross-referencing its\
-    \ own numbering; \u22481,500 words of ALLAGENTS pasted from `docs/agent-workflow.md`\
-    \ (queue rule, supervisor protocol) and already drifting (the guide has the auth-expiry\
-    \ state); gate table says 2608 pytest / 26 Playwright, measured 2723 collected\
-    \ / 22 (`check.py:183` and `pyproject.toml` say 2538 \u2014 three numbers, one\
-    \ measurement); worktree naming `aj-<nnn>` vs `<repo>-<nnn>` in the stub.\n- F-12\
-    \ (see the write-guard task): nothing static warns that the guard refuses any\
-    \ write whose content names a task path.\n- F-14: contract drift in the corpus\
-    \ \u2014 summary medians 35 \u2192 43 \u2192 54 words by era; default claim prompt\
-    \ surviving on active tasks (task-242 itself); 15 `question` entries in 240 records.\n\
-    \n## Fix\n1. Set `\"worktree\": {\"bgIsolation\": \"none\"}` in `.claude/settings.json`\
-    \ (verify it disables the guard); one sentence in ALLAGENTS naming the harness\
-    \ instruction as the one to ignore here; a clause in `PROMPT_STUB`.\n2. Cut both\
-    \ finish sections and \xA7You may be woken to one sentence + pointer: \"If you\
-    \ are woken after an approval, the record says whether main moved. Believe it.\"\
-    \ `dispatch config` prints `finish: off|on` per project.\n3. Correct GLOBAL-AGENTS:125\
-    \ and the ALLAGENTS ball_prompt sentence; one merge-gate list, the other file\
-    \ points at it; ALLAGENTS keeps the queue rule and the supervisor threshold sentence,\
-    \ the guide keeps the mechanics; one worktree naming convention.\n4. Move measurement\
-    \ history from \xA7Testing/\xA7Measuring performance to `docs/performance.md`\
-    \ and the incident narratives (207, 225, 194, 210) to one line + task id each.\
-    \ Quote commands and dates, not counts; have `check.py` print the counts.\n5.\
-    \ A word budget per file asserted by a cheap test (ENGINEERING \u2264 2,500, ALLAGENTS\
-    \ \u2264 2,000 are achievable after the moves).\n6. Cheap contract checks: `validate`\
-    \ warns on summaries over 40 words; a warning when `claim`'s default prompt survives\
-    \ more than one log entry on an active task; a questions-per-100-entries stat\
-    \ in the corpus-audit doc."
+  summary: 'Auditor 1''s verdict on the Big Dawg question Jeff named first: the static/dynamic
+    split is right in principle and wrong in proportion. This is the umbrella for
+    acting on it - measurement first, correctness next, compression last.'
+  intent: Everything a Claude or Codex session genuinely needs on every task is in
+    static context; everything else is dynamic, reachable when the task calls for
+    it. Measured, not asserted.
+  description: '## The finding
+
+
+    From `audits/2026-08-21/01-context-architecture.md`, the audit Jeff named first
+    and gave the strongest auditor. Its short answer: **"the split is right in principle
+    and wrong in proportion."**
+
+
+    The design already states the correct rule, in `runner.py:115-131` - *"the payload
+    is a pointer to where the context is, not a copy of it."* The dispatch prompt
+    obeys it, at about 600 characters. The always-loaded bundle does not: roughly
+    **17,200 tokens per session** across the @-chain, of which about **36% is a rule
+    a session acts on**; the rest is rationale, incident narrative and measurement
+    history. It restates dynamic payloads the record and the prompt already carry
+    verbatim, and it is rewritten most days (ENGINEERING.md and ALLAGENTS.md took
+    13 commits on 2026-08-19/20/21 alone) with no test, no budget and no count of
+    what it costs.
+
+
+    Nothing in it is wrong in a way that bites today. The cost is paid per session,
+    in tokens and in the attention every rule competes for.
+
+
+    ## The constraint on this epic
+
+
+    **Do not optimise static context for its own sake.** Jeff''s instruction, 2026-08-23,
+    and it is also the audit''s own weak point: auditor 1 measured only the markdown
+    it could `wc`, and the report''s coverage section lists the harness system prompt
+    and the MCP tool declarations as *"not examined at all, by anyone"*. An interactive
+    session on 2026-08-23 carried roughly 200 deferred tool names from gmail, slack,
+    notion, calendar, chrome and computer-use before a single repo word loaded. If
+    that is the dominant cost, grinding ENGINEERING.md is optimising the wrong half
+    - and it is the half where over-cutting loses rules.
+
+
+    So the measurement child runs first, and a finding that the deep cut is not worth
+    its risk is an acceptable outcome of this epic.
+
+
+    ## The children
+
+
+    | # | Child | Gate |
+
+    |---|---|---|
+
+    | 1 | **task-301** - measure what a session actually loads, Claude and Codex |
+    none; runs first |
+
+    | 2 | **task-302** - three statements that contradict the code, plus the double-numbered
+    merge gate | none; worth doing regardless of size |
+
+    | 3 | **task-303** - the harness orders EnterWorktree and enforces it; the repo
+    forbids it | none; also a dispatch-reliability fix |
+
+    | 4 | **task-304** - context evals: which rules actually change behaviour, re-run
+    per model release | none; the durable half |
+
+    | 5 | **task-305** - move rationale, incidents and measurement history out; budget
+    under test | needs task-301 |
+
+    | 6 | **task-306** - the dynamic half is drifting: summaries, default ball prompts,
+    missing questions | none |
+
+
+    Children 2 and 3 are correctness, not size: an agent following the text literally
+    does the wrong thing today. They do not wait on the measurement.
+
+
+    Child 4 is what keeps this from recurring. A rule that is load-bearing for one
+    model may be redundant for the next, so the classification has to be re-runnable
+    rather than re-argued.
+
+
+    ## Supervising this
+
+
+    Each child that takes a worktree gets its own session. Read the child''s record,
+    its acceptance statuses and its diff - not its transcript. Approval is per child,
+    through the GUI, as always.'
+  constraints: 'The measurement child changes no prose. The compression child does
+    not start before it. No rule leaves the repository in any child: text moves to
+    docs/, to a task record, or to a dynamic prompt that already carries it. GLOBAL-AGENTS.md
+    is edited at C:/ai/shared/ and is not in this repo''s history.'
+  out_of_scope: task-276 (the write guard's task-path false positive) stays independent
+    - related friction, different mechanism. Reducing the MCP surface itself, if the
+    measurement points there, gets its own task rather than being absorbed here.
   context:
   - path: audits/2026-08-21/01-context-architecture.md
     why: The measurement, redundancy map, staleness sweep, per-section verdicts and
-      migration candidates
+      migration candidates - the source for every child
+  - path: audits/2026-08-21/00-BIG-DAWG-REPORT.md
+    why: Rank 25 and theme T8; section 5 lists what nobody measured, which is why
+      the measurement child exists
   - path: audits/2026-08-21/03-schema-validation.md
     why: 'Finding 7: GLOBAL-AGENTS vs task-164 on parent claimability'
   - path: audits/2026-08-21/10-dispatch.md
     why: 'P3-17: the scripted finish has never run here'
-  - path: ENGINEERING.md
-    why: The file to compress
-  - path: ALLAGENTS.md
-    why: The file to compress
 acceptance:
 - id: ac-1
-  text: A --bg session in this repository can write into the shared checkout without
-    EnterWorktree, and ALLAGENTS says which instruction to ignore.
+  text: What a session loads is measured for both Claude and Codex, by source, with
+    dates and commands - so the split can be argued from a number instead of an estimate.
   status: pending
 - id: ac-2
-  text: GLOBAL-AGENTS and ALLAGENTS state parent claimability and the ball_prompt
-    exemption as the code does.
+  text: No statement in the always-loaded bundle contradicts the code it describes.
   status: pending
 - id: ac-3
-  text: ENGINEERING.md and ALLAGENTS.md are under a word budget a test asserts, with
-    no rule removed (the removed text lives in docs/ or a task id).
+  text: A background session in this repository can write into the shared checkout
+    without fighting its own harness.
+  status: pending
+- id: ac-4
+  text: The bundle is under a budget a test asserts, with no rule removed - or the
+    record carries a decision explaining why the deep cut was scaled back.
+  status: pending
+- id: ac-5
+  text: Which rules are load-bearing is answerable by re-running something, not by
+    re-reading the files.
   status: pending
 deliverables: []
 dependencies: []
@@ -130,3 +161,42 @@ log:
       id: d48d7ab0-de63-450e-ba58-b3cfc47a21dd
       kind: create
       fingerprint: 34548e460550f21f9dd91448069bb7eb
+- id: 2
+  ts: '2026-08-23T21:55:38.722493Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, effort, priority, spec, tags, title.
+  data:
+    fields:
+    - acceptance
+    - effort
+    - priority
+    - spec
+    - tags
+    - title
+    operation:
+      id: e1f6a428-70bd-4d93-8c25-6b0a3f9e7d51
+      kind: update_content
+      fingerprint: 949fffa197dc7d885380168754be1f60
+- id: 3
+  ts: '2026-08-23T21:55:50.013913Z'
+  actor: claude
+  type: transition
+  body: "Spec finished and restructured as an umbrella with six children (task-301..306),\
+    \ per Jeff 2026-08-23. The original single record carried six unrelated fixes\
+    \ in one Fix list; each is now its own child with its own acceptance and its own\
+    \ branch. The measurement child (task-301) runs first and the compression child\
+    \ (task-305) needs it, because auditor 1 measured only the markdown it could wc\
+    \ and the report itself lists the harness prompt and MCP tool declarations as\
+    \ unmeasured \u2014 so the budget in the original fix 5 had no denominator. Children\
+    \ 302 and 303 carry no dependency: they are correctness, not size. Child 304 (context\
+    \ evals) is new, added at Jeff's suggestion, and is what makes the load-bearing\
+    \ classification re-runnable per model release instead of a one-time judgement."
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: f4b82d16-5c73-49e8-a0d2-8b1e6f307c45
+      kind: promote
+      fingerprint: 9d28eafc28a7914d8b2172c4e90d8096

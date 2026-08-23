@@ -1,0 +1,108 @@
+schema: 2
+id: task-302
+title: "Three statements in the always-loaded bundle contradict the code \u2014 fix\
+  \ them, and collapse the double-numbered merge gate"
+created: '2026-08-23T21:50:44.787308Z'
+updated: '2026-08-23T21:50:45.479390Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 14500
+category: docs
+tags:
+- big-dawg-audit
+- context
+- docs
+effort: "small \u2014 four prose edits and a verification pass; no code"
+assignment:
+  eligible: []
+parent: task-269
+spec:
+  summary: GLOBAL-AGENTS says a parent is unclaimable while a child is open; the code
+    says it is claimable. ALLAGENTS states the ball_prompt rule without the agent/available
+    exemption the schema has. The merge gate is numbered twice, and each file cross-references
+    its own numbering.
+  description: "## Why this is separate from the compression\n\nThese are not size\
+    \ problems. Every session loads a rule that is **wrong about this repository's\
+    \ own behaviour**, and an agent that follows the text literally does the wrong\
+    \ thing. That is worth fixing whatever the measurement child concludes about the\
+    \ budget, so this task carries no dependency on it.\n\n## The four\n\n1. **Parent\
+    \ claimability** (auditor 3 F7). `C:/ai/shared/GLOBAL-AGENTS.md:125` says a parent\
+    \ with an open child \"is skipped by `agentjobs next`, but it *can* still be claimed\
+    \ by name\" \u2014 check the current wording against `manager.py:1180-1195` (task-164),\
+    \ `docs/task-schema.md:84` and `schema-design.md:89` and make it state what the\
+    \ code does. The supervisor dispatch path depends on claiming exactly such a parent,\
+    \ so a reader who concludes otherwise cannot start a supervised epic. Auditor\
+    \ 1's redundancy map missed this one; auditor 3 caught it.\n\n2. **The `ball_prompt`\
+    \ exemption** (auditor 1 F-4). ALLAGENTS \xA7The Resumption Contract: \"`ball_prompt`\
+    \ is required whenever the ball is set \u2026 the schema rejects it.\" `models_v2.py:782-791`\
+    \ exempts `agent/available`, `docs/task-schema.md:105` states the exception, and\
+    \ 87 of 87 `ready` tasks had an empty prompt when it was measured. An agent following\
+    \ the strict text invents a prompt on `release`. Add the schema doc's own words:\
+    \ *except `agent/available`, where the spec is itself the ask*.\n\n3. **The merge\
+    \ gate is numbered twice** (F-5). ENGINEERING numbers it 1\u20136, ALLAGENTS numbers\
+    \ the same procedure 1\u20137, and each file's follow-on section then refers to\
+    \ its own numbering \u2014 \"Steps 3 to 6\" and \"Steps 6 and 7\" name the same\
+    \ actions. One list is canonical; the other file points at it by anchor. Pick\
+    \ ENGINEERING as the home (it already holds the restart-ownership rule) unless\
+    \ there is a reason not to, and record the choice as a decision.\n\n4. **Worktree\
+    \ naming** (F-11, cosmetic but cheap). ENGINEERING and ALLAGENTS say `aj-<nnn>`;\
+    \ `PROMPT_STUB` and `docs/agent-workflow.md` say `<repo>-<nnn>`. One convention,\
+    \ stated once, everywhere else pointing at it.\n\n## Verification\n\nFor 1 and\
+    \ 2, do not fix from the audit's quotation \u2014 read the code at the cited lines\
+    \ yourself and make the prose match what is there **today**, then say in the task\
+    \ log which line you read and what it does. The audit is eight days old by the\
+    \ time anyone works this, and a doc corrected to match a stale reading of the\
+    \ code is the same defect with a new date.\n\nFor 3 and 4, check every cross-reference\
+    \ that survives the edit still resolves \u2014 the audit found all intra-doc anchors\
+    \ currently correct, and this change is the kind that breaks them."
+  constraints: "Prose and anchors only. Do not change `manager.py`, `models_v2.py`\
+    \ or the schema to match the docs \u2014 the code is right in all three cases\
+    \ and the documents are wrong. `GLOBAL-AGENTS.md` lives outside this repository\
+    \ at `C:/ai/shared/`; edit it there and note in the task log that the change is\
+    \ not in this repo's history."
+  out_of_scope: Compressing or moving any section (the sibling compression child owns
+    that). The harness/EnterWorktree contradiction, which is its own child.
+  context:
+  - path: audits/2026-08-21/03-schema-validation.md
+    why: 'Finding 7: GLOBAL-AGENTS vs task-164 on parent claimability'
+  - path: audits/2026-08-21/01-context-architecture.md
+    why: "F-4 (ball_prompt), F-5 (double numbering), F-11 (worktree naming); \xA7\
+      2's redundancy map R5 and R10"
+  - path: docs/task-schema.md
+    why: The canonical statement of both the claimability rule and the agent/available
+      exemption
+acceptance:
+- id: ac-1
+  text: GLOBAL-AGENTS.md states parent claimability as manager.py implements it, verified
+    by reading the code in this pass rather than quoting the audit.
+  status: pending
+- id: ac-2
+  text: ALLAGENTS.md states the ball_prompt rule with the agent/available exemption.
+  status: pending
+- id: ac-3
+  text: The merge-gate procedure is numbered in exactly one file; the other points
+    at it by anchor, and every cross-reference to it resolves.
+  status: pending
+- id: ac-4
+  text: One worktree naming convention appears in ENGINEERING, ALLAGENTS, PROMPT_STUB
+    and docs/agent-workflow.md.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T21:50:45.478323Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: c2a94e51-8d37-4f62-b0a5-9d2e6f7c3b22
+      kind: create
+      fingerprint: c89a9c1c1e3a51d0d21129da3d060c2a

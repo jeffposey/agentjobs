@@ -1,0 +1,136 @@
+schema: 2
+id: task-304
+title: 'Context evals: prove which rules in the always-loaded bundle actually change
+  agent behaviour, and re-run it whenever a new model ships'
+created: '2026-08-23T21:52:43.476088Z'
+updated: '2026-08-23T21:52:43.942197Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+queue_position: 8300
+category: meta
+tags:
+- big-dawg-audit
+- context
+- evals
+effort: a design pass first, then a scenario set and a runner; the value is in the
+  ablation, not the harness
+assignment:
+  eligible: []
+parent: task-269
+spec:
+  summary: 'Auditor 1 classified every section as load-bearing or decorative by hand
+    and by judgement. An ablation eval answers the same question by measurement: run
+    a scenario with the rule loaded and without it, and see whether the agent still
+    does the right thing.'
+  description: "## The question this answers\n\nThe whole static-context epic turns\
+    \ on one judgement: **which of these words is doing work?** Auditor 1 made that\
+    \ call by reading \u2014 \"load-bearing = cites an incident or a mechanism that\
+    \ still exists\" \u2014 and produced a table of keep / compress / move / delete\
+    \ verdicts. It is a good table and it is one person's opinion, unfalsifiable as\
+    \ written.\n\nAn eval makes it falsifiable. For a rule in the bundle, construct\
+    \ a task where following the rule and not following it produce visibly different\
+    \ actions, then run it two ways: with the bundle intact, and with that rule ablated.\
+    \ Three outcomes, all useful:\n\n- **The agent gets it right both ways** \u2014\
+    \ the model already knows, or the situation tells it. The rule is decorative *for\
+    \ this model*, and it can be cut with evidence rather than nerve.\n- **The agent\
+    \ gets it right only with the rule** \u2014 load-bearing, measured. Never cut\
+    \ it, and now nobody has to re-argue that.\n- **The agent gets it wrong both ways**\
+    \ \u2014 the rule is there and not working. That is the most valuable finding\
+    \ of the three, and no amount of reading the file would have surfaced it.\n\n\
+    ## Why it recurs\n\nJeff's framing, and the reason this is not a one-off: **a\
+    \ new model shifts the answer.** A rule that is load-bearing for one generation\
+    \ may be redundant with the next model's defaults, or a newer model may need a\
+    \ rule an older one absorbed from context. The bundle is a per-session tax paid\
+    \ forever, so the right cadence is to re-run this on each model release and let\
+    \ the results move text between the always-loaded bundle and `docs/`.\n\nThat\
+    \ makes this the durable half of the epic. The compression child is a one-time\
+    \ cut; this is what keeps the split honest afterwards.\n\n## Scope\n\n1. **Pick\
+    \ the scenarios from the incidents this repository already has.** The bundle's\
+    \ rules exist because something went wrong: `git add -A` over a peer's files,\
+    \ a checkout under a peer mid-task, a handoff committed to a branch where the\
+    \ reviewer could not see it, a worktree gate run against the main clone's virtualenv,\
+    \ a partial gate reported as a green gate, a task-record commit put on a feature\
+    \ branch. Each of those is a scenario with a checkable right answer, and each\
+    \ is already written up in a task record. Do not invent scenarios that no incident\
+    \ motivates.\n2. **Decide what is scored and by what.** An agent's action trace\
+    \ \u2014 which files it wrote, which branch it committed to, whether it took a\
+    \ worktree \u2014 is checkable mechanically and should be preferred over judging\
+    \ prose. Where a judge model is needed, say so and write the rubric down; a judge\
+    \ whose rubric lives in the prompt is not reproducible.\n3. **Ablation mechanics.**\
+    \ Establish how to run a session against a modified bundle without disturbing\
+    \ the live one \u2014 a scratch checkout with a trimmed `ENGINEERING.md`, or an\
+    \ env-var-selected chain. This is the part most likely to be fiddly; settle it\
+    \ before writing scenarios.\n4. **Cost.** Every scenario is a session. State what\
+    \ a full run costs in runs and in wall-clock, and design for a cheap subset that\
+    \ can run per-release plus a full sweep on demand. A suite too expensive to run\
+    \ on a release day will not be run on a release day.\n\n## Before building anything\n\
+    \nCheck what already exists rather than writing a runner from scratch: `claude\
+    \ plugin eval` runs plugin eval suites with a JSON report and a sandbox, and the\
+    \ `skill-creator` skill runs and benchmarks evals for skills with variance analysis.\
+    \ If either harness fits, adopt it and write scenarios; if neither does, say what\
+    \ did not fit before building a third thing.\n\nAlso read `scripts/run_report.py`\
+    \ \u2014 the run ledger already records what dispatched sessions did, and some\
+    \ of what an eval wants to score may be derivable from records that exist.\n\n\
+    ## Output\n\nA design decision recorded on this task first \u2014 harness, scoring,\
+    \ ablation method, cost \u2014 then the suite, then one full baseline run against\
+    \ the current model whose results are committed with the date and the model id.\
+    \ The baseline is the point: without it the next release has nothing to compare\
+    \ against."
+  constraints: Eval runs must not touch the live backlog, the shared clone, or `main`.
+    Scenarios that involve committing, merging or claiming run against throwaway task
+    data in a scratch project, the way the review sandboxes do. Do not use real task
+    records as eval fixtures.
+  out_of_scope: "Acting on the results \u2014 moving or cutting text is the compression\
+    \ child's job, informed by this. Evaluating model quality generally; the subject\
+    \ is this repository's context bundle, not the model."
+  context:
+  - path: audits/2026-08-21/01-context-architecture.md
+    why: "\xA74's load-bearing/decorative table is the hypothesis this suite tests,\
+      \ section by section"
+  - path: ALLAGENTS.md
+    why: The rules under test, and the incidents that motivate the scenarios
+  - path: docs/agent-workflow.md
+    why: "The on-demand guide \u2014 an ablation has to distinguish 'in the bundle'\
+      \ from 'reachable when needed'"
+acceptance:
+- id: ac-1
+  text: A recorded decision names the harness (reused or new, with what did not fit),
+    the scoring method, the ablation mechanism, and the cost of a full run in sessions
+    and wall-clock.
+  status: pending
+- id: ac-2
+  text: Scenarios exist for at least the rules whose violation this repository has
+    actually suffered, each traceable to the task record of the incident that motivates
+    it.
+  status: pending
+- id: ac-3
+  text: Each scenario is scored on a checkable action trace wherever possible; every
+    judge-scored scenario has a written rubric in the repository, not in a prompt.
+  status: pending
+- id: ac-4
+  text: One baseline run is committed with the date and the model id, and the report
+    states per-rule whether it was load-bearing, decorative, or not working.
+  status: pending
+- id: ac-5
+  text: "The suite is runnable by a named command, and the docs say when to run it\
+    \ \u2014 at minimum, on a new model release."
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T21:52:43.940714Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: a8d1f307-6c92-4b5e-83a7-2f4c9e0d15b7
+      kind: create
+      fingerprint: 2d10988e6fdc20f467b7e46c4817623b

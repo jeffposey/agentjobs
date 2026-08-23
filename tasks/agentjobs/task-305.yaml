@@ -1,0 +1,148 @@
+schema: 2
+id: task-305
+title: Move rationale, incident narrative and measurement history out of the always-loaded
+  bundle, and put what remains under a budget a test asserts
+created: '2026-08-23T21:53:30.307386Z'
+updated: '2026-08-23T21:53:30.804865Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+queue_position: 8400
+category: docs
+tags:
+- big-dawg-audit
+- context
+- docs
+effort: "one branch over two files plus docs/performance.md, one small CLI change,\
+  \ one test \u2014 but the judgement per section is the work"
+assignment:
+  eligible: []
+parent: task-269
+spec:
+  summary: "Roughly two of every three tokens in ENGINEERING.md and ALLAGENTS.md are\
+    \ the reason for a rule, the incident that produced it, or a measurement \u2014\
+    \ not the rule. Move them to `docs/` or to the task that found them, keeping every\
+    \ rule, and assert the result."
+  description: "## The size of it\n\nAuditor 1's per-section classification (`01-context-architecture.md`\
+    \ \xA74) puts **\u22483,900 words \u2014 \u224837% of the @-chain, \u22486,000\
+    \ tokens per session \u2014 in compress / move / delete without deleting a single\
+    \ rule.** Every candidate paragraph is already in a `docs/` file, already delivered\
+    \ by a dynamic prompt, or is a measurement table.\n\nThe specific moves, with\
+    \ the audit's reasoning:\n\n- **The two scripted-finish sections (634 w).** ENGINEERING\
+    \ \xA7Steps 3 to 6 (429 w) and ALLAGENTS \xA7Steps 6 and 7 (205 w) are the same\
+    \ content twice, and the feature was switched off on this machine when it was\
+    \ measured (no `finish:` block in `~/.agentjobs/dispatch.yaml`, no `~/.agentjobs/finishes/`).\
+    \ The finish writes its own dispositive sentence onto the record (`finish.py:1043`)\
+    \ and `WAKE_STUB` delivers it. Replace both with one sentence and a pointer: *\"\
+    If you are woken after an approval, the record says whether `main` moved. Believe\
+    \ it.\"* **Re-check whether finish is still off before acting \u2014 it may have\
+    \ been enabled since 2026-08-21**, and if it is on, the cut is smaller.\n- **ALLAGENTS\
+    \ \xA7You may be woken rather than restarted (242 w).** Verbatim overlap with\
+    \ `WAKE_STUB` (`wake.py:39-53`). A cold session does not need to be told what\
+    \ a warm one will be told.\n- **The supervisor and queue restatements (\u2248\
+    1,500 w).** ALLAGENTS pastes them from `docs/agent-workflow.md`, which is pinned\
+    \ by a test and pointed at by every dispatch stub \u2014 and the guide has already\
+    \ drifted ahead (it carries the auth-expiry state ALLAGENTS lacks). ALLAGENTS\
+    \ keeps the rule and the threshold sentence; the guide keeps the mechanics.\n\
+    - **Measurement history in \xA7Testing and \xA7Measuring performance (\u22481,300\
+    \ w)** to `docs/performance.md`, which exists for exactly this. Keep the commands,\
+    \ the stage table, `--from`/`--only`, and the four `--since-gate` properties \u2014\
+    \ those are rules. The task-233 before/after tables, the serial-era scaling figures\
+    \ \"kept only as history\", the xdist `frozenset` anecdote and the coverage-cost\
+    \ paragraph are not.\n- **Incident narratives (\u2248900 w)** in \xA7Verification,\
+    \ \xA7Bootstrapping a worktree, \xA7Why you get your own worktree. Each already\
+    \ lives in the task that found it (207, 225, 194, 210, 186, 192). Keep the one-line\
+    \ lesson and the task id; that is what a session acts on.\n- **Counts.** The gate\
+    \ table's \"2608 pytest / 26 Playwright\" were both wrong the day the table was\
+    \ dated (measured: 2723 collected, 22 Playwright, while `check.py` and `pyproject.toml`\
+    \ said 2538 \u2014 three numbers for one measurement). Quote the command and the\
+    \ date, not the count. `check.py` already prints what it ran.\n- **`agentjobs\
+    \ dispatch config` prints `finish: off|on` per project.** The other half of the\
+    \ finish finding: the prose is conditional and an agent cannot cheaply resolve\
+    \ the condition. This is a small CLI change and it is what makes the one-sentence\
+    \ replacement above safe.\n\nThen **a word budget per file, asserted by a cheap\
+    \ test**, the way `mcp/instructions.py:10-13` already asserts a 512-char budget\
+    \ on the MCP leading rule. Auditor 1's suggestion was ENGINEERING \u2264 2,500\
+    \ and ALLAGENTS \u2264 2,000 words \u2014 **take the number from the measurement\
+    \ child, not from here.**\n\n## The constraint that matters most\n\n**Do not cut\
+    \ for the sake of the number.** If the measurement child finds this repository\
+    \ controls a small share of what a session actually loads, scale the cut back\
+    \ to the moves that are justified on their own terms \u2014 the duplicated finish\
+    \ sections, the guide restatements, the wrong counts \u2014 and say so on the\
+    \ record rather than grinding both files to a target that buys a rounding error.\
+    \ A budget that forces a rule out is a worse outcome than a large file.\n\nThe\
+    \ test of every move is the same one: **can a session that needs this still get\
+    \ to it, and does the session that does not need it still stop paying for it?**\
+    \ If the answer to the first is no, it is not a move, it is a deletion, and it\
+    \ needs a decision entry saying so.\n\n## Sequencing\n\nLand it as a reviewable\
+    \ series, not one commit: the deletions of duplicated text first (cheapest to\
+    \ check), the moves to `docs/` next (each move one commit, so a reviewer can diff\
+    \ the destination against the source), the CLI change, then the budget test last\
+    \ \u2014 the test should go green on the state the earlier commits produced, not\
+    \ force them.\n\nConsider running the eval suite (task-304) against the result\
+    \ if it exists by then. It is not a gate on this task, but it is the only instrument\
+    \ that would catch a cut that changed behaviour."
+  constraints: "No rule leaves the repository. Every removed paragraph lands in `docs/`,\
+    \ in the task record it came from, or in a dynamic prompt that already carries\
+    \ it \u2014 and the removing commit says which. Re-verify each of the audit's\
+    \ claims before acting on it: it was written 2026-08-21 and both files change\
+    \ most days. Do not touch the statements the correctness child owns."
+  out_of_scope: The three code-contradicting statements and the merge-gate numbering
+    (sibling child). The harness/EnterWorktree conflict (sibling child). Corpus record
+    quality (sibling child). Rewriting `docs/agent-workflow.md` itself beyond receiving
+    what moves into it.
+  context:
+  - path: audits/2026-08-21/01-context-architecture.md
+    why: "\xA74 per-section verdicts and \xA75 migration candidates are the working\
+      \ list; \xA73 is the staleness sweep behind the counts"
+  - path: docs/performance.md
+    why: Destination for the measurement history
+  - path: src/agentjobs/mcp/instructions.py
+    why: The existing budget-plus-test pattern to copy for the word budget
+  - path: src/agentjobs/dispatch/wake.py
+    why: "WAKE_STUB \u2014 the dynamic payload the static wake section duplicates"
+acceptance:
+- id: ac-1
+  text: ENGINEERING.md and ALLAGENTS.md are under a word budget asserted by a test,
+    with the number taken from the measurement child's report.
+  status: pending
+- id: ac-2
+  text: 'No rule was removed: every deleted or moved passage is traceable from the
+    commit that removed it to where it now lives.'
+  status: pending
+- id: ac-3
+  text: No count appears in either file that is not accompanied by the command and
+    date that produced it.
+  status: pending
+- id: ac-4
+  text: '`agentjobs dispatch config` reports whether finish is on or off for a project.'
+  status: pending
+- id: ac-5
+  text: If the measurement showed the repo-controlled share is small, the record carries
+    a decision saying how far the cut was scaled back and why.
+  status: pending
+deliverables: []
+dependencies:
+- task: task-301
+  type: needs
+  note: The budget number and the go/no-go on the deep cut come from the measurement
+- task: task-304
+  type: related
+  note: The eval suite is the only instrument that would catch a cut that changed
+    behaviour; use it if it exists
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T21:53:30.803713Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: b5c07e83-9a14-4d26-b7f8-1c3e5a8d20f9
+      kind: create
+      fingerprint: 42b334044b09f11a93420fe8abfaa06d

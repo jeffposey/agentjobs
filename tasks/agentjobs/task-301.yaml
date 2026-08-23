@@ -1,0 +1,132 @@
+schema: 2
+id: task-301
+title: "Measure what a session actually loads before its first thought \u2014 harness\
+  \ prompt, MCP tool declarations, @-chain, memory \u2014 for Claude and for Codex"
+created: '2026-08-23T21:50:13.685056Z'
+updated: '2026-08-23T21:50:14.144785Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 14400
+category: meta
+tags:
+- big-dawg-audit
+- context
+- measurement
+effort: half a day, mostly instrumentation; no edits to the bundle
+assignment:
+  eligible: []
+parent: task-269
+spec:
+  summary: Auditor 1 measured only the markdown it could `wc`, and listed the harness
+    system prompt and MCP tool schemas as "not examined at all, by anyone". Produce
+    the real per-session denominator, for both runners, before any prose is cut.
+  description: "## Why this is first\n\nTask-269's fixes 4 and 5 propose taking \u2248\
+    3,900 words out of ENGINEERING.md and ALLAGENTS.md and asserting a word budget.\
+    \ Both numbers were chosen against a denominator that excludes most of the prompt.\n\
+    \nAuditor 1's own coverage-honesty section (`audits/2026-08-21/00-BIG-DAWG-REPORT.md`\
+    \ \xA75, \"Not examined at all, by anyone\") lists: *\"The harness system prompt\
+    \ as static context; whether `CLAUDE.md`'s HTML comment is really stripped; MCP\
+    \ tool input schemas as loaded context (1).\"* Auditor 8's F11 adds that the dual\
+    \ MCP registration (`agentjobs` and `plugin:agentjobs:agentjobs`) costs 30 tool\
+    \ declarations and two identical instruction blocks, which is not in auditor 1's\
+    \ count either.\n\nObserved in an interactive session on 2026-08-23: the prompt\
+    \ carried roughly 200 deferred tool names across gmail, slack, notion, calendar,\
+    \ chrome and computer-use MCP servers before a single word of this repository\
+    \ loaded. If that block is large relative to the 17,200-token @-chain, then compressing\
+    \ ENGINEERING.md is optimising the wrong half \u2014 and it is the half where\
+    \ over-compression costs rule fidelity.\n\n**This task changes no prose and cuts\
+    \ nothing.** It produces the number the sibling tasks spend.\n\n## What to measure\n\
+    \nFor each of three session shapes, a breakdown of loaded context by source, in\
+    \ tokens, with the method stated:\n\n1. A Claude Code **interactive** session\
+    \ in `C:/projects/agentjobs`.\n2. A Claude Code **dispatched `--bg`** session\
+    \ (`PROMPT_STUB`, and `SUPERVISOR_STUB` if it differs materially).\n3. A **Codex**\
+    \ session \u2014 which loads `AGENTS.md` rather than `CLAUDE.md`, does not load\
+    \ `MEMORY.md`, and carries a different MCP surface. Jeff runs both; the split\
+    \ is only right if it is right for both.\n\nSources to attribute separately:\n\
+    - The harness system prompt itself (everything above the first repo word).\n-\
+    \ MCP server instruction blocks and tool declarations, **counting the dual AgentJobs\
+    \ registration once per registration**, and noting which servers are project-scoped\
+    \ versus global (gmail, slack, notion, calendar, chrome, computer-use, visualize,\
+    \ scheduled-tasks).\n- Skill descriptions listed in the prompt.\n- The `@`-chain:\
+    \ `~/.claude/CLAUDE.md` \u2192 `GLOBAL-AGENTS.md`; `C:/projects/AGENTS.md`; `agentjobs/{CLAUDE,AGENTS,ENGINEERING,ALLAGENTS}.md`.\n\
+    - `MEMORY.md` (Claude only).\n- Deferred versus loaded tool schemas \u2014 a deferred\
+    \ tool costs its name, not its schema; say which regime each server is in and\
+    \ what a `ToolSearch` load adds.\n\nSettle the open sub-question while there:\
+    \ **is `CLAUDE.md`'s HTML comment actually stripped** before the prompt is built,\
+    \ or is it paid for?\n\n## Method\n\nPrefer a method that reads the prompt rather\
+    \ than reconstructs it. `/context` in an interactive session reports the breakdown\
+    \ directly and is the cheapest instrument; corroborate the repo-controlled rows\
+    \ with `wc -c` and a tokeniser so the two agree before either is quoted. Where\
+    \ a figure can only be estimated, say so and give the estimator (chars \xF7 4\
+    \ is what auditor 1 used).\n\nRecord the date and the command for every number.\
+    \ The audit's own pattern finding applies to this task's output: *\"the numbers\
+    \ that were written with a date and a command survive; the numbers written bare\
+    \ go stale within a day.\"*\n\n## Output\n\n`docs/context-budget.md` \u2014 the\
+    \ breakdown, the totals, the percentage of the whole prompt this repository actually\
+    \ controls, and a proposed budget for ENGINEERING.md and ALLAGENTS.md derived\
+    \ from it. Where the repo-controlled share turns out to be small, **say so plainly\
+    \ and recommend against the deep cut**; a finding that the compression is not\
+    \ worth its risk is a valid and expected result of this task, not a failure of\
+    \ it.\n\nIf MCP surface rather than markdown is the dominant cost, file what would\
+    \ reduce it (per-project MCP scoping, retiring the dual AgentJobs registration)\
+    \ as a separate task under this parent's sibling set rather than absorbing it\
+    \ here."
+  constraints: "Read-and-measure only. Do not edit ENGINEERING.md, ALLAGENTS.md, GLOBAL-AGENTS.md\
+    \ or any prompt stub in this task \u2014 the sibling tasks own those files, and\
+    \ a measurement that also moves the thing it measures cannot be checked. Do not\
+    \ change MCP registration or `.mcp.json` here either; file it instead."
+  out_of_scope: Cutting or moving any prose. Changing which MCP servers are enabled.
+    The corpus/record-quality questions (F-14), which are a separate child.
+  context:
+  - path: audits/2026-08-21/01-context-architecture.md
+    why: "\xA71 is the existing measurement this task extends \u2014 its table, its\
+      \ \xF74 estimator, and its per-section load-bearing classification"
+  - path: audits/2026-08-21/00-BIG-DAWG-REPORT.md
+    why: "\xA75 'Not examined at all, by anyone' is the gap this task closes; T8 is\
+      \ the theme"
+  - path: audits/2026-08-21/08-mcp.md
+    why: 'Auditor 8 F11: the dual AgentJobs MCP registration and what it costs in
+      declarations'
+  - path: src/agentjobs/mcp/instructions.py
+    why: "The 512-char leading-rule budget and its test \u2014 the pattern a static-file\
+      \ budget should copy"
+acceptance:
+- id: ac-1
+  text: A committed docs/context-budget.md reports per-session loaded tokens broken
+    down by source for a Claude interactive session, a Claude dispatched --bg session,
+    and a Codex session, each figure carrying the date and the command or instrument
+    that produced it.
+  status: pending
+- id: ac-2
+  text: The report states what percentage of each session's prompt this repository
+    controls, and names the sources outside its control.
+  status: pending
+- id: ac-3
+  text: The question 'is CLAUDE.md's HTML comment stripped' is answered with evidence
+    rather than left unverified.
+  status: pending
+- id: ac-4
+  text: "A word or token budget for ENGINEERING.md and ALLAGENTS.md is proposed with\
+    \ reasoning tied to the measured total, so the compression child can adopt it\
+    \ without re-deriving it \u2014 or the report recommends against the deep cut\
+    \ and says why."
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T21:50:14.143863Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 7f3a1c40-2b6e-4d18-9a3c-5e1d0c8b4a11
+      kind: create
+      fingerprint: 58b0e5f6bebd6a79d8aeb47008e03bfb

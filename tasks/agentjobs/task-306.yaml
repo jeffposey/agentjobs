@@ -1,0 +1,108 @@
+schema: 2
+id: task-306
+title: 'The dynamic half is drifting too: long summaries, default ball prompts surviving
+  on active tasks, and almost no questions ever reaching the record'
+created: '2026-08-23T21:53:59.468926Z'
+updated: '2026-08-23T21:54:00.040755Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+queue_position: 8500
+category: meta
+tags:
+- big-dawg-audit
+- context
+- schema
+effort: "small \u2014 three cheap checks, plus one decision about what a warning is\
+  \ allowed to say"
+assignment:
+  eligible: []
+parent: task-269
+spec:
+  summary: If the plan is that task records carry the context the always-loaded files
+    no longer do, the records have to be good. Three measured drifts say they are
+    getting worse, and none of them fails validation today.
+  description: "## Why this belongs to the context epic\n\nThe umbrella's bet is that\
+    \ rules stay static and everything else becomes dynamic \u2014 read on demand,\
+    \ mostly from task records. That bet only pays if the records are actually sufficient\
+    \ working memory. Auditor 1 sampled 17 records against the Resumption Contract\
+    \ and found three drifts, all of them invisible to `agentjobs validate`:\n\n-\
+    \ **Summaries are becoming second descriptions.** Corpus medians by era: 35 words\
+    \ (031\u2013105), 43 (106\u2013185), **54 (186\u2013243)**; 51 of 58 recent records\
+    \ exceed 40 words. The contract asks for \"one or two sentences that orient a\
+    \ zero-context reader\", distinct from `spec.description`. Drift runs both ways\
+    \ \u2014 task-045's seven-word summary is too thin to orient.\n- **Default `ball_prompt`s\
+    \ survive on active tasks.** Three open drafts carried the boilerplate \"Finish\
+    \ specifying this task.\"; task-242 \u2014 the record for the audit itself \u2014\
+    \ carried `claim`'s default, \"Execute the spec; log progress and hand off when\
+    \ done.\", which tells a resuming session nothing. Where a session wrote one it\
+    \ was exemplary (task-233's is 1,839 characters and names the merged commit, what\
+    \ is met, and what it is parked on).\n- **Questions are not reaching the record.**\
+    \ 15 `question` entries and 7 `answer` entries across 240 records, against 262\
+    \ `progress`, 375 `note` and 222 `handoff`. None in the 17 sampled. Either nothing\
+    \ was ever uncertain, or questions are being asked in chat \u2014 which ALLAGENTS\
+    \ says makes them un-queryable. The absence is the finding.\n\n## The checks\n\
+    \n1. `agentjobs validate` **warns** on a `spec.summary` over 40 words. A warning,\
+    \ not an error: the corpus is full of them and they are not invalid.\n2. A warning\
+    \ when `claim`'s default `ball_prompt` is still in place on a task at `agent/work`\
+    \ after more than one log entry \u2014 the task is being worked and nobody has\
+    \ said what it is waiting on.\n3. A questions-and-answers-per-100-entries statistic\
+    \ in `docs/task-corpus-audit.md`, so the next audit has a baseline rather than\
+    \ re-deriving one.\n\n## The judgement to make first\n\n**Decide what these warnings\
+    \ are for before writing them.** A validator that warns about 51 existing records\
+    \ produces noise that everyone learns to scroll past, which is worse than not\
+    \ warning. Options worth weighing on the record: warn only on records created\
+    \ after a cutoff; warn only in the writing path rather than the corpus sweep;\
+    \ or report them as a corpus statistic and not as per-record warnings at all.\
+    \ Pick one, say why, and name what you rejected.\n\nAuditor 1's own framing applies\
+    \ here \u2014 *\"None of these fails validation; all three make the record less\
+    \ useful as working memory than the contract promises.\"* The aim is a signal\
+    \ at the moment a record is written, not a lint backlog."
+  constraints: "Warnings only \u2014 none of these three conditions may fail validation\
+    \ or block a verb. Do not retroactively rewrite existing records to satisfy a\
+    \ new check."
+  out_of_scope: "Editing the static files (the sibling children own those). Changing\
+    \ the Resumption Contract itself \u2014 the contract is right; the corpus is drifting\
+    \ from it."
+  context:
+  - path: audits/2026-08-21/01-context-architecture.md
+    why: "\xA76 is the corpus sample and the per-property findings; F-14 is the ranked\
+      \ version"
+  - path: docs/task-corpus-audit.md
+    why: The prior art (task-103, 2026-08-13) and where the new statistic belongs
+  - path: ALLAGENTS.md
+    why: The Resumption Contract these checks measure compliance with
+acceptance:
+- id: ac-1
+  text: A recorded decision states what the warnings are for and which noisier alternative
+    was rejected.
+  status: pending
+- id: ac-2
+  text: A summary over 40 words is surfaced, in the way that decision chose, without
+    failing validation.
+  status: pending
+- id: ac-3
+  text: A default ball_prompt surviving on a worked task is surfaced the same way.
+  status: pending
+- id: ac-4
+  text: docs/task-corpus-audit.md carries a questions/answers-per-100-entries figure
+    with the date and the command that produced it.
+  status: pending
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T21:54:00.039662Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: d9e4b217-3f85-4c60-a1b3-7e2f8c6d9034
+      kind: create
+      fingerprint: ed5d91fdb4b039aabc213124086fad33
