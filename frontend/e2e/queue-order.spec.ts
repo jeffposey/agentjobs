@@ -143,14 +143,43 @@ test("shows the position it is about to change", async ({ page, request }) => {
 async function dragOnto(page: Page, sourceId: string, targetId: string) {
   const grip = page.locator(`[id="queue-grip-${sourceId}"]`);
   const target = page.locator(`[data-task="${targetId}"] [data-label="Status"]`);
-  // `page.mouse` takes viewport coordinates and scrolls nothing. Every spec in this
-  // directory shares one server and one project, so by the time this runs the list
-  // holds whatever earlier specs created and the rows this test seeded are below the
-  // fold -- the mouse would then press on whatever happens to be at those coordinates
-  // instead, and the test would report a broken drag. Both ends are scrolled into view
-  // first, and the boxes are read only after all the scrolling is done.
-  await target.scrollIntoViewIfNeeded();
-  await grip.scrollIntoViewIfNeeded();
+  // `page.mouse` takes viewport coordinates and scrolls nothing, so both ends of the
+  // gesture have to be on screen -- and clear of the pinned header (task-292), which
+  // covers the top 65px of every page. Two `scrollIntoViewIfNeeded` calls used to do
+  // this and they cannot: each scrolls the minimum, so the second undoes the first
+  // whenever the rows are far apart, and the minimum for a row above the fold puts it
+  // at y=0, underneath the header, where the press lands on the header instead. Both
+  // failure modes were observed; this places the pair deliberately instead.
+  const placed = await page.evaluate(
+    ([gripId, taskId]) => {
+      const gripElement = document.getElementById(gripId as string);
+      const targetElement = document.querySelector(
+        `[data-task="${taskId}"] [data-label="Status"]`,
+      );
+      const header = document.querySelector("header");
+      if (!gripElement || !targetElement || !header) return null;
+      const boxes = [gripElement.getBoundingClientRect(), targetElement.getBoundingClientRect()];
+      const top = Math.min(...boxes.map((box) => box.top)) + window.scrollY;
+      const bottom = Math.max(...boxes.map((box) => box.bottom)) + window.scrollY;
+      const headerHeight = header.getBoundingClientRect().height;
+      const usable = window.innerHeight - headerHeight;
+      // Centre the pair in the band the header leaves behind.
+      window.scrollTo(0, Math.max(0, (top + bottom) / 2 - headerHeight - usable / 2));
+      return { span: bottom - top, usable };
+    },
+    [`queue-grip-${sourceId}`, targetId],
+  );
+  if (!placed) throw new Error(`No grip or target for ${sourceId} -> ${targetId}.`);
+  if (placed.span > placed.usable) {
+    // Said out loud rather than left to surface as a drag that silently did nothing.
+    // A raw-mouse drag cannot reach across more than one screen; the feature handles
+    // it by auto-scrolling at the edge, which is a different test.
+    throw new Error(
+      `${sourceId} and ${targetId} are ${Math.round(placed.span)}px apart, more than the ` +
+        `${Math.round(placed.usable)}px this viewport leaves below the header, so one ` +
+        "raw-mouse drag cannot span them. Seed fewer rows between them, or use a taller viewport.",
+    );
+  }
   const from = await grip.boundingBox();
   const onto = await target.boundingBox();
   if (!from || !onto) throw new Error(`No box for ${sourceId} -> ${targetId}.`);
@@ -168,6 +197,12 @@ test("drags one task onto another with a real mouse, and the server keeps the or
   page,
   request,
 }) => {
+  // Taller than the 720px default, because a raw-mouse drag needs both rows on screen
+  // at once and task-292's pinned header now takes 65px off the top of every page.
+  // The pair this spec seeds sits 677px apart, which fit in 720 and does not fit in
+  // 655. The height is a property of the harness, not a claim about the product: the
+  // gesture a person makes across a longer list is the auto-scroll one, covered below.
+  await page.setViewportSize({ width: 1280, height: 900 });
   const seeded = await seed(request, ["Drag first", "Drag second", "Drag third"]);
   const [first, second, third] = seeded;
 
@@ -189,6 +224,12 @@ test("drags one task onto another with a real mouse, and the server keeps the or
 });
 
 test("a cross-band drag asks before it reprioritises", async ({ page, request }) => {
+  // Taller than the 720px default, because a raw-mouse drag needs both rows on screen
+  // at once and task-292's pinned header now takes 65px off the top of every page.
+  // The pair this spec seeds sits 677px apart, which fit in 720 and does not fit in
+  // 655. The height is a property of the harness, not a claim about the product: the
+  // gesture a person makes across a longer list is the auto-scroll one, covered below.
+  await page.setViewportSize({ width: 1280, height: 900 });
   const [high] = await seed(request, ["Drag out of high"], "high");
   const [low] = await seed(request, ["Drag onto low"], "low");
 

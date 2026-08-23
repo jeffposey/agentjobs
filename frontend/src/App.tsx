@@ -52,7 +52,7 @@ import { IssueReporter } from "./components/IssueReporter";
 import { NextExplanation } from "./components/NextExplanation";
 import { invalidateProjectTaskQueries, LiveUpdateStatus } from "./components/LiveUpdates";
 import { Playbooks, type PlaybookRunRequest } from "./components/Playbooks";
-import { ProjectSwitcher } from "./components/ProjectSwitcher";
+import { PrimaryNav } from "./components/PrimaryNav";
 
 function ProjectRedirect() {
   const navigate = useNavigate();
@@ -594,22 +594,7 @@ function ProjectApp() {
   const { projectId = "" } = useParams<{ projectId: string }>();
   return (
     <div className="flex min-h-screen flex-col bg-dark-bg text-dark-text">
-      <header className="border-b border-dark-border bg-dark-surface">
-        <nav className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center gap-2 px-4 py-2 min-[820px]:gap-6 sm:px-6 lg:px-8" aria-label="Primary navigation">
-          <h1 className="text-2xl font-bold">AgentJobs</h1>
-          <ProjectSwitcher projectId={projectId} />
-          <Link to={projectPath(projectId)} className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">Dashboard</Link>
-          <Link to={projectPath(projectId, "/tasks")} className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">Tasks</Link>
-          <Link to={projectPath(projectId, "/tasks/new")} className="touch-target rounded-md px-3 text-sm font-medium text-blue-300 hover:bg-dark-border">Create</Link>
-          {/* Its own nav entry, not buried in a menu: this is where the switch that
-              stops every future run lives, and a kill switch you cannot reach is not one. */}
-          <Link to={projectPath(projectId, "/dispatch")} className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">Dispatch</Link>
-          {/* Beside Dispatch rather than under it: a playbook run *is* a dispatch, and
-              the two gates a reader needs are the same ones. */}
-          <Link to={projectPath(projectId, "/playbooks")} className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">Playbooks</Link>
-          <a href="/docs" className="touch-target rounded-md px-3 text-sm font-medium hover:bg-dark-border">API Docs</a>
-        </nav>
-      </header>
+      <PrimaryNav projectId={projectId} />
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
         <LiveUpdateStatus projectId={projectId} />
         <Routes>
