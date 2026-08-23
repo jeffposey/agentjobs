@@ -2,7 +2,7 @@ schema: 2
 id: task-218
 title: 'Playbooks 5: flesh-out, authored and proven'
 created: '2026-08-21T04:56:57.789106Z'
-updated: '2026-08-23T19:27:36.620738Z'
+updated: '2026-08-23T19:28:14.628108Z'
 lifecycle: active
 ball: human
 ball_reason: review
@@ -878,3 +878,13 @@ log:
       id: 3b62f8d7-40e1-4c95-a7d9-51c8790de218
       kind: handoff
       fingerprint: cf9ff65a756138c9e6c02b2d1155f415
+- id: 21
+  ts: '2026-08-23T19:28:14.627902Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 15
+  data:
+    run_id: run_1c20a87b
+    outcome: completed
+    duration_seconds: 1144.783853
+    log_path: C:\Users\jpose\.agentjobs\runs\run_1c20a87b
