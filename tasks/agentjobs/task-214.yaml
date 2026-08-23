@@ -2,10 +2,11 @@ schema: 2
 id: task-214
 title: 'Playbooks 1: storage, frontmatter format, and read surfaces'
 created: '2026-08-21T04:55:30.551589Z'
-updated: '2026-08-21T20:12:32.792795Z'
-lifecycle: ready
+updated: '2026-08-23T07:42:41.759828Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: high
 queue_position: 62
@@ -16,6 +17,7 @@ tags:
 - mcp
 - schema
 assignment:
+  owner: claude
   eligible: []
 parent: task-211
 spec:
@@ -78,7 +80,9 @@ dependencies:
   type: related
   note: The design pass this derives from; held draft until its design is approved.
 links: []
-branches: []
+branches:
+- name: feat/task-214-playbook-storage
+  status: active
 log:
 - id: 1
   ts: '2026-08-21T04:55:30.551629Z'
@@ -108,3 +112,28 @@ log:
       id: 3f1a9c22-0001-4b7e-9c31-7a5e2d8f0101
       kind: promote
       fingerprint: 6603c6141764111c41fc5514501aef3c
+- id: 3
+  ts: '2026-08-23T07:42:38.041627Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 7c1e0a52-0214-4a11-9f01-000000000001
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 4
+  ts: '2026-08-23T07:42:41.759499Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 7c1e0a52-0214-4a11-9f01-000000000002
+      kind: update_content
+      fingerprint: d5e464ecf5edd1818f2026e01e6388a0
