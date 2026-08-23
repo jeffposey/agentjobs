@@ -3,40 +3,17 @@ id: task-251
 title: 'Close the install/quickstart cliff: open/serve report a missing bundle, docs
   add the build step, quickstart promotes, work uses the configured tasks dir'
 created: '2026-08-22T18:52:24.683512Z'
-updated: '2026-08-23T00:50:58.326193Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Reviewed together with task-252 and task-270: all three docs-vs-reality
-  tasks share branch docs/task-270-docs-drift-sweep, because you asked for the documentation
-  to be done from one context. Read task-270''s handoff for the full review request,
-  the mkdocs review URL (http://127.0.0.1:8899), the gate result and the three things
-  worth a specific look. Approve or reject the cluster together.
-
-
-  This task''s own share of it: commits 6308db8 (CLI) and 8a5a834 (the install recipes).
-  All three acceptance criteria were verified by running the commands, not by reading
-  the code, and the transcripts are in the progress entry above.
-
-
-  The one thing to decide here: `agentjobs open` now exits 1 and opens no browser
-  when the frontend bundle is missing, which is what the spec asked for and is a behaviour
-  change on a command you run often. Say the word and it becomes a warning that opens
-  anyway.
-
-
-  One path I did not exercise: the branch where nothing answers at all, which is what
-  relays a refused server''s captured stderr. It is covered by reading only.'
+updated: '2026-08-23T01:50:11.646546Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 12400
 category: developer_experience
 tags:
 - big-dawg-audit
 - cli
 - docs
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "Big Dawg Audit P1 (auditor 2, corroborated and answered by auditor 6).\
@@ -97,7 +74,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: docs/task-270-docs-drift-sweep
+  status: merged
 log:
 - id: 1
   ts: '2026-08-22T18:52:25.124902Z'
@@ -222,3 +201,31 @@ log:
       id: 7d1f8b40-6e25-49c3-a812-3b95e7d06f41
       kind: handoff
       fingerprint: 573f4b83abb327c6ef02aa0337ca9477
+- id: 7
+  ts: '2026-08-23T01:50:11.646190Z'
+  actor: claude
+  type: transition
+  body: "Merged and delivered. Jeff approved in chat; merge commit 8831add on main,\
+    \ --no-ff, gate green on the rebased tip with receipt 62e67a91.\n\nAll three acceptance\
+    \ criteria met and each verified by running the commands rather than reading the\
+    \ code \u2014 transcripts are in log entry 4. ac-1: open exits 1 with the build\
+    \ instruction and opens no browser. ac-2 and ac-3: the quickstart's three commands\
+    \ work verbatim in a fresh project with a non-default tasks_directory.\n\nDELIVERY\
+    \ VERIFIED, not just merged. Rebuilt the frontend in the main clone (the generated\
+    \ TypeScript client changed with the new /api/version field), restarted the 8876\
+    \ server through its own launcher \u2014 open-agentjobs.ps1 -Force, which is how\
+    \ it was started, not `agentjobs restart` which would have bound 8765 and left\
+    \ the real dashboard stale. The running process now reports source_commit 8831add290fae30d216c725b0babfd287b4e60c8,\
+    \ matching HEAD, and frontend_bundle: present. That field existing in the response\
+    \ is itself proof the process is running merged code rather than the pre-merge\
+    \ build.\n\nONE THING STILL OPEN, deliberately not fixed here: the \"nothing answered\"\
+    \ branch of `open` \u2014 the path that relays a refused server's captured stderr\
+    \ \u2014 is covered by reading and not by execution. It would need a server constructed\
+    \ to refuse startup."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 2f7a91c5-8e34-4d19-b7f2-05c8e3a91d62
+      kind: close
+      fingerprint: b5f62b35b3869fe1a4d967b24d36bdcd

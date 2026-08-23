@@ -4,51 +4,16 @@ title: 'Docs drift sweep: api-reference misses 20 operations and makes a false a
   claim; index.md indexes 12 of 19; queue design still "proposed"; sentences in task-schema,
   webhooks and mobile-access overturned by system auditors'
 created: '2026-08-22T18:59:41.077322Z'
-updated: '2026-08-23T01:31:29.946269Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Review the docs drift sweep on branch docs/task-270-docs-drift-sweep.\
-  \ All three tasks in the docs-vs-reality cluster (251, 252, 270) are on this one\
-  \ branch at your instruction, so approve or reject them together.\n\nCLICK THROUGH\
-  \ IT: http://127.0.0.1:8899 \u2014 mkdocs serve from this worktree, own port, so\
-  \ it cannot be confused with the dashboard on 8876. Start at the index: the new\
-  \ 'Every document here, and what kind of thing it is' section is the change to look\
-  \ at first, because it is the one that decides what a reader trusts. Stop the server\
-  \ with the command in the chat reply when you are done.\n\nFull gate green, all\
-  \ ten stages, receipt written for 18d4f874.\n\nTHE FOUR COMMITS: 6308db8 CLI (open\
-  \ probes before opening a browser; work reads the configured tasks dir; create --ready)\
-  \ \xB7 8a5a834 the install recipes \xB7 8ac8c29 the dispatch design record \xB7\
-  \ c8674f8 the drift sweep and two new tests \xB7 18d4f87 the static-context corrections.\n\
-  \nTHREE THINGS I WANT YOU TO LOOK AT SPECIFICALLY:\n1. agentjobs open now EXITS\
-  \ 1 and opens no browser when the bundle is missing. That is what the spec asked\
-  \ for and it is a behaviour change on a command you run often. If you would rather\
-  \ it warn and open anyway, say so and it is a two-line change.\n2. The dispatch\
-  \ design's new header (docs/agent-dispatch-design.md) makes claims about what shipped\
-  \ under which task id. I derived those from the closed task records; a wrong task\
-  \ id there would be a new false statement in a document this whole exercise was\
-  \ about.\n3. api-reference.md now leads with a blockquote saying the API has no\
-  \ authentication, including on the routes that start processes. It is accurate and\
-  \ it is the first thing anyone reads. Confirm you want it that prominent in a public\
-  \ repo.\n\nOUTSIDE THIS BRANCH, NEEDS YOUR CALL: C:/ai/shared/GLOBAL-AGENTS.md line\
-  \ 125 says 'a parent is not claimable while a child is open'. The code says otherwise\
-  \ \u2014 task-164 made a parent claimable by name, and claiming one hands back a\
-  \ supervision prompt; only `next` skips it. That file is not a git repository, so\
-  \ I did not edit it: the change would not appear in any diff you could review or\
-  \ revert. Tell me and I will fix the line.\n\nNOT DONE, and each is recorded with\
-  \ its reason: the task-269 compression of ENGINEERING.md and ALLAGENTS.md (a judgement\
-  \ call about your contract files, not a stale-doc fix); the worktree.bgIsolation\
-  \ setting the audit itself calls unverified; and exposing the create placement flag,\
-  \ which is a feature rather than a doc fix."
+updated: '2026-08-23T01:50:45.195100Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
-queue_position: 7600
 category: documentation
 tags:
 - big-dawg-audit
 - docs
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "Big Dawg Audit P2 cluster (auditor 2's P2s; auditor 7 on api-reference;\
@@ -138,7 +103,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: docs/task-270-docs-drift-sweep
+  status: merged
 log:
 - id: 1
   ts: '2026-08-22T18:59:41.531502Z'
@@ -401,3 +368,43 @@ log:
       id: 5b90e4c2-71a8-4d36-9f57-c3e6802a1b74
       kind: log_append
       fingerprint: 86f1ee468dd41349422d2d5c3726a377
+- id: 9
+  ts: '2026-08-23T01:50:45.194907Z'
+  actor: claude
+  type: transition
+  body: "Merged and delivered. Jeff approved in chat; merge commit 8831add on main,\
+    \ --no-ff, gate green on the rebased tip with receipt 62e67a91. All three acceptance\
+    \ criteria met.\n\nac-1: api-reference.md documents every operation, enforced\
+    \ by tests/test_api_reference_coverage.py, and states actor as required where\
+    \ it is.\nac-2: docs/index.md lists every document under a status word; no design\
+    \ doc describes shipped behaviour as proposed.\nac-3: tests/test_schema_generated_is_current.py\
+    \ asserts the committed LinkML JSON schema equals regenerated output.\n\nDELIVERY\
+    \ VERIFIED, not just merged. Frontend rebuilt in the main clone because the generated\
+    \ TypeScript client changed. The 8876 server was restarted through its own launcher\
+    \ (open-agentjobs.ps1 -Force) rather than `agentjobs restart`, which binds 8765\
+    \ and would have left the real dashboard stale while appearing to succeed. The\
+    \ running process reports source_commit 8831add290fae30d216c725b0babfd287b4e60c8\
+    \ = HEAD, frontend_bundle present, and /app/ answers 200.\n\nONE GATE FAILURE\
+    \ ON THE WAY, resolved and worth recording. The first gate run after the rebase\
+    \ went red on tests/test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too\
+    \ \u2014 \"pid 516392 survived the timeout\". Not caused by this branch: it touches\
+    \ no dispatch process-group code, and the test spawns a real three-deep process\
+    \ tree with a 3-second timeout, so it is load-sensitive. Re-ran it in isolation\
+    \ three times, passed 3/3, then re-ran the full gate, green. This machine was\
+    \ running several agents' gates concurrently. Flagged separately as a flaky test\
+    \ worth a task; a gate that goes red under its own concurrency is a real problem\
+    \ even when the code is fine.\n\nTWO PASSES, AND THE SECOND FOUND THE WORSE DEFECTS.\
+    \ The audit-driven pass fixed what auditor 2 listed. The first-principles re-read\
+    \ Jeff asked for afterwards found the README's opening `pip install agentjobs`\
+    \ (not published) and agent-workflow.md's QueueCorruptionError (not raised by\
+    \ the client, not importable from the package) \u2014 in two files whose structural\
+    \ checks all passed, one of which the audit had rated \"accurate\". The lesson\
+    \ is in log entries 6 and 8: a links-resolve/signatures-resolve check verifies\
+    \ that a name exists, never that the sentence around it is true."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: d8f31e60-4b95-4a27-8c13-6e0947b2a5f1
+      kind: close
+      fingerprint: 81bc5995dbb14634414e525b72580cc3

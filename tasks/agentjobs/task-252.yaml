@@ -3,45 +3,17 @@ id: task-252
 title: agent-dispatch-design.md says "nothing here is implemented" over 11.7k shipped
   lines and describes unbuilt features in the present tense
 created: '2026-08-22T18:52:47.264637Z'
-updated: '2026-08-23T00:51:12.362264Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: 'Reviewed together with task-251 and task-270: all three docs-vs-reality
-  tasks share branch docs/task-270-docs-drift-sweep, because you asked for the documentation
-  to be done from one context. Read task-270''s handoff for the full review request,
-  the mkdocs review URL (http://127.0.0.1:8899) and the gate result. Approve or reject
-  the cluster together.
-
-
-  This task''s share: commit 8ac8c29, docs/agent-dispatch-design.md and the README
-  paragraphs. Both acceptance criteria are met.
-
-
-  WORTH YOUR EYE: the new header asserts which task shipped each section-13 item (068,
-  069, 070, 071, 072, 073, 076, 077, 177, 074). I derived that from the closed task
-  records rather than from the audit. A wrong id there would be a fresh false statement
-  in the exact document this exercise exists to correct, so it is the highest-risk
-  thing I wrote today.
-
-
-  I ALSO DECLINED TO MAKE THREE CHANGES THE AUDIT ASKED FOR, because I checked them
-  and the audit is wrong. Details in the progress entry; the short version is that
-  the poller DOES reap each session as it settles it (_finish_session(..., reap=True)),
-  there is no section 14 in this document, and the dispatch subsystem is 15 modules
-  and 9,729 lines rather than the 13 and ~11.7k the audit quotes. Changing the doc
-  to match those claims would have introduced new errors. If you disagree with any
-  of the three, say which and I will look again.'
+updated: '2026-08-23T01:50:28.386071Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 12500
 category: documentation
 tags:
 - big-dawg-audit
 - docs
 - dispatch
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: Big Dawg Audit P1 (auditor 2; corroborated by auditor 10 P4-19/P3-15/P3-17
@@ -109,7 +81,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: docs/task-270-docs-drift-sweep
+  status: merged
 log:
 - id: 1
   ts: '2026-08-22T18:52:47.702817Z'
@@ -233,3 +207,34 @@ log:
       id: c2b58a91-4f36-4d70-8e12-95a7d3c6f084
       kind: handoff
       fingerprint: 7ab029693de3076939387c596895fc40
+- id: 6
+  ts: '2026-08-23T01:50:28.385919Z'
+  actor: claude
+  type: transition
+  body: "Merged and delivered. Jeff approved in chat; merge commit 8831add on main,\
+    \ --no-ff, gate green on the rebased tip with receipt 62e67a91. Both acceptance\
+    \ criteria met.\n\nac-1: agent-dispatch-design.md's header is a status block mapping\
+    \ every section-13 item to the task that shipped it, listing the shipped work\
+    \ the design predates entirely, and naming the four features that were never built.\
+    \ Each of those four is marked *(unbuilt)* where it appears.\n\nac-2: README no\
+    \ longer says dispatch is unimplemented, and links the loops design instead of\
+    \ denying it exists.\n\nDELIVERY VERIFIED: frontend rebuilt, 8876 restarted through\
+    \ its own launcher, and the running process reports source_commit 8831add matching\
+    \ HEAD.\n\nRECORDED FOR THE NEXT READER \u2014 three audit claims I checked and\
+    \ did not act on, because acting on them would have written new errors into the\
+    \ document this task exists to correct:\n1. The poller DOES reap each session\
+    \ as it settles it (_finish_session(..., reap=True) -> stop_session). Only the\
+    \ whole-ledger reap_finished sweep is startup-or-on-demand. Auditor 10's claim\
+    \ was half right and read as fully wrong.\n2. There is no section 14 in this document;\
+    \ it ends at 13 plus an appendix. The auto-dispatch/get_next_task claim had nowhere\
+    \ to land.\n3. The subsystem is 15 modules and 9,729 lines, not 13 and ~11.7k.\
+    \ The doc now carries the measured figure with the command that produced it.\n\
+    \nJeff reviewed the header's task-id table specifically, which was the highest-risk\
+    \ assertion in the change."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 6c4e8b17-93d2-4f05-a86c-71b9e2d4a308
+      kind: close
+      fingerprint: 915d63a699f6ac34fa7c70dc66713220
