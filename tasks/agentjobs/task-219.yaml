@@ -2,38 +2,57 @@ schema: 2
 id: task-219
 title: 'The queue-move check: deterministic warnings when a human reorders'
 created: '2026-08-21T04:57:23.007031Z'
-updated: '2026-08-23T08:40:26.614414Z'
+updated: '2026-08-23T08:43:58.765222Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "**The rebase is done and the branch is green. Nothing was merged, nothing\
-  \ was pushed, and the task is deliberately still open.**\n\n`feat/task-219-queue-move-check`\
-  \ now sits on top of `main` at **`b5a7728`** (was `ff1f734a`). Re-record the approval\
-  \ and the scripted finish will merge it.\n\n**What the rebase took.** Only the three\
-  \ generated API client files conflicted, exactly as the finish reported \u2014 nothing\
-  \ in source, tests or docs. task-214 added playbook routes to `main` while this\
-  \ branch added `queue-keep`, and the generated client is the one file both sides\
-  \ rewrite. Resolved by **regenerating it from the merged source** rather than hand-merging\
-  \ build output: exported the OpenAPI document from the tree at that point of the\
-  \ rebase (which already held both sides' routes) with this worktree's own interpreter,\
-  \ ran `openapi-ts`, staged the result, continued. The last two commits applied clean.\n\
-  \nChecked afterwards that both sides survived \u2014 the regenerated `sdk.gen.ts`\
-  \ carries the playbook operations and the queue-keep operations \u2014 and that\
-  \ `export_openapi.py --check` agrees the committed document matches the application.\n\
-  \n**Gate: green, all ten stages, 169.4s on `b5a7728`**, run with this worktree's\
-  \ interpreter. That is a real re-verification, not a formality: the rebase put this\
-  \ code on top of task-214, which touched `cli.py`, the MCP inventory and the projects\
-  \ API, and this branch touches `cli.py` and the MCP mutation tools. The e2e stage\
-  \ passed 25 specs including this branch's three `queue-move-check` tests and task-207's\
-  \ six `queue-order` tests, which is the seam most exposed to the collision.\n\n\
-  **The substance is unchanged and was already approved.** No source file was edited\
-  \ during this pass \u2014 only build output regenerated. The four commits are the\
-  \ same four in the same order; only the React-notice commit differs from its pre-rebase\
-  \ self, and only in those three generated files. Entry 7's acceptance evidence and\
-  \ the three decision entries stand as written.\n\nThe review sandbox from the original\
-  \ handoff was on port 8899, from the pre-rebase code.\n\n**What is needed:** re-record\
-  \ the approval so the scripted finish can run. There is nothing new to review beyond\
-  \ the rebase itself, which is described in full in the progress entry above."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.
+
+
+  Note from Jeff Posey:
+
+
+  Re-recording the standing approval after the rebase. Same grant as before -- Jeff''s
+  standing, in-advance approval of every task-211 child, given in chat on 2026-08-23
+  -- and the substance being approved has not changed.
+
+
+  The first approval ran the scripted finish, which stopped at `rebase` and merged
+  nothing: task-214 merged to main while this branch was being built, both sides added
+  REST routes, and the generated API client is the file both sides rewrite. The finish
+  aborted, read the branch tip back and reported it unchanged. The supervisor confirmed
+  that independently before doing anything: clean worktree, branch still at ff1f734a,
+  no rebase state left on disk.
+
+
+  The rebase was handed to a session rather than done by the supervisor, and it resolved
+  the conflict the only way generated files should be resolved -- by regenerating
+  them from the merged source, not by hand-merging build output. Branch is now b5a7728
+  on top of b9795ad.
+
+
+  The supervisor verified the claim that nothing but build output changed, rather
+  than taking it: `git range-diff fb79be4..ff1f734 b9795ad..b5a7728` reports three
+  of the four commits as identical patches and the fourth as differing in exactly
+  three paths, all of them under frontend/src/api/generated. No source file was edited
+  during the rebase pass.
+
+
+  Gate green on the rebased branch, all ten stages, 169.4s -- a real re-verification,
+  since this branch''s cli.py and MCP mutation-tool changes now sit on top of task-214''s
+  changes to cli.py, the MCP inventory and the projects API. The e2e stage covers
+  both this branch''s queue-move-check specs and task-207''s queue-order specs, which
+  is the seam most exposed to the collision.
+
+
+  The rebase session was stopped before this approval so its working directory does
+  not pin the worktree the finish removes.
+
+
+  That note is context to carry into the merge, not another review round: you are
+  still cleared to merge.'
 archived: false
 priority: medium
 queue_position: 6900
@@ -724,3 +743,62 @@ log:
       id: 9d3c1f70-4a21-4e8c-9b55-2190a0005001
       kind: handoff
       fingerprint: e2927baab1430ab6d45d0fa371faa3c0
+- id: 20
+  ts: '2026-08-23T08:43:56.150166Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    Re-recording the standing approval after the rebase. Same grant as before -- Jeff''s
+    standing, in-advance approval of every task-211 child, given in chat on 2026-08-23
+    -- and the substance being approved has not changed.
+
+
+    The first approval ran the scripted finish, which stopped at `rebase` and merged
+    nothing: task-214 merged to main while this branch was being built, both sides
+    added REST routes, and the generated API client is the file both sides rewrite.
+    The finish aborted, read the branch tip back and reported it unchanged. The supervisor
+    confirmed that independently before doing anything: clean worktree, branch still
+    at ff1f734a, no rebase state left on disk.
+
+
+    The rebase was handed to a session rather than done by the supervisor, and it
+    resolved the conflict the only way generated files should be resolved -- by regenerating
+    them from the merged source, not by hand-merging build output. Branch is now b5a7728
+    on top of b9795ad.
+
+
+    The supervisor verified the claim that nothing but build output changed, rather
+    than taking it: `git range-diff fb79be4..ff1f734 b9795ad..b5a7728` reports three
+    of the four commits as identical patches and the fourth as differing in exactly
+    three paths, all of them under frontend/src/api/generated. No source file was
+    edited during the rebase pass.
+
+
+    Gate green on the rebased branch, all ten stages, 169.4s -- a real re-verification,
+    since this branch''s cli.py and MCP mutation-tool changes now sit on top of task-214''s
+    changes to cli.py, the MCP inventory and the projects API. The e2e stage covers
+    both this branch''s queue-move-check specs and task-207''s queue-order specs,
+    which is the seam most exposed to the collision.
+
+
+    The rebase session was stopped before this approval so its working directory does
+    not pin the worktree the finish removes.'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 21
+  ts: '2026-08-23T08:43:58.765030Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-219-queue-move-check` (b5a77286).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\aj-219.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_b54c95e7\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-219-queue-move-check
+    finish_id: fin_b54c95e7
