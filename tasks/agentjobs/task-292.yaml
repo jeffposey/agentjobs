@@ -2,53 +2,18 @@ schema: 2
 id: task-292
 title: Keep top bar visible while scrolling
 created: '2026-08-23T19:05:31.429792Z'
-updated: '2026-08-23T19:22:56.706049Z'
-lifecycle: ready
-ball: human
-ball_reason: review
-ball_prompt: "Read the spec I just wrote onto this task, then release the ball if\
-  \ it is right.\n\n**Nothing was closed.** The duplicate search found no duplicate\
-  \ \u2014 three near misses, all written up in the progress entry. The closest, task-237,\
-  \ settles it in its own words: its out_of_scope reads \"Any change to the header\
-  \ nav, or a global navigation rail\" and its constraints read \"the header nav is\
-  \ untouched\". So this is the work the Shell epic deliberately left out, not a second\
-  \ copy of it.\n\n**What I wrote**, in one update: a summary and an intent (the header\
-  \ is the app's only navigation and the longest pages are the ones you most need\
-  \ to leave); a description in four parts \u2014 the two lines of CSS, the z-index\
-  \ chosen against IssueReporter's existing z-40 and z-50, the design decision underneath,\
-  \ and how it relates to task-237/239; seven constraints each citing where it came\
-  \ from; six things out of scope; five context files with reasons; and five acceptance\
-  \ criteria.\n\n**What I was least sure of, and would delete first if I were wrong:\
-  \ the whole \"this is a real decision\" section, and ac-3 with it.** You filed a\
-  \ one-line CSS fix and I have written a task that asks somebody to take a design\
-  \ decision before they touch it. My reason is that the header wraps to two or three\
-  \ rows on a phone \u2014 seven items, each a 44px touch target \u2014 so pinning\
-  \ it as-is permanently spends a third of a phone screen on navigation, which is\
-  \ plausibly worse than what you filed this about. But that is my judgement about\
-  \ your app on your phone, and if you would rather it just be pinned everywhere and\
-  \ be done, say so and ac-3 comes out. I deliberately did **not** pick one of the\
-  \ four alternatives myself.\n\n**What I left empty:** no tags, no category change,\
-  \ no parent, no dependency on task-237. The overlap with task-237 is a paragraph\
-  \ in the description rather than a needs edge, because an edge would make this unclaimable\
-  \ until task-237 closes and that is not true of the work.\n\n**One question below\
-  \ the fold:** a pinned bar in the installed PWA may sit under the iOS status bar\
-  \ (no `viewport-fit=cover`, nothing reads `env(safe-area-inset-top)`). I put it\
-  \ out of scope and asked whether it should be its own task. It is read off the markup,\
-  \ not observed.\n\n**Ball was human/spec before this** \u2014 your own \"finish\
-  \ specifying this task\" \u2014 so I have not interrupted anything; I have answered\
-  \ it.\n\nOne mechanical note you should know when you look at this. I promoted it\
-  \ out of `draft` before parking it, which is what you asked for. `_skip_reason`\
-  \ decides claimability on lifecycle alone and never reads the ball, so this task\
-  \ is now returned by `agentjobs next` and is dispatchable even though it is parked\
-  \ at your review. Measured against the real manager, not inferred. If that is not\
-  \ what you want, the fix is in the queue rather than here \u2014 I raised it on\
-  \ task-218."
+updated: '2026-08-23T19:51:45.150777Z'
+lifecycle: active
+ball: agent
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: medium
 queue_position: 8100
 category: general
 tags: []
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: "The React app's global header \u2014 AgentJobs, the project switcher and\
@@ -344,3 +309,182 @@ log:
       id: 2f7a9c05-64d8-4b13-9e77-8c31a5b0e292
       kind: handoff
       fingerprint: 97c4a6e8f505b8d140bfe31b0bc7b692
+- id: 7
+  ts: '2026-08-23T19:45:42.580457Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Changes requested by Jeff Posey:
+
+
+    I like the pushback on the phone thing. That''s why on a phone it should probably
+    just be an overlay burger icon that opens the top bar, or left bar, whatever....
+    but then on a nice big landscape view, maybe it can keep the top menu visible?
+    or still have that be a toggleable panel from a burger menu? What do you suggest?
+    This has started to touch the other task(s) regarding left panels with spine for
+    task view. Dashboard is its own thing, goal with it is to NOT involve any scrolling
+    at all.'
+  data:
+    ball: agent
+    ball_reason: revise
+- id: 8
+  ts: '2026-08-23T19:45:50.525507Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 9
+  ts: '2026-08-23T19:45:51.207937Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 10
+  ts: '2026-08-23T19:45:53.577733Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_354d4298
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    trigger: manual
+    caused_by: 8
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - 'You are the agent `claude` working task `task-292` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-292-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_354d4298.'
+    cwd: C:\projects\agentjobs
+    git_head: 4920e91
+    session_id: 96f2c582
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 11
+  ts: '2026-08-23T19:51:45.150595Z'
+  actor: claude
+  type: decision
+  body: "**The narrow-width decision, answering Jeff's question of 2026-08-23 (log\
+    \ entry 7). Taken on a measurement, not on taste.**\n\n## What I measured first\n\
+    \nBefore choosing, I measured the real header in the running app at 8876 \u2014\
+    \ the eight items' rendered widths, and the width at which the row stops fitting\
+    \ on one line. The numbers change the question:\n\n| Viewport | Header height\
+    \ today |\n|---|---|\n| 1440 / 1280 / 1024 / 960 | 64px \u2014 one row |\n| 900\
+    \ / 860 / 820 | 128px \u2014 two rows |\n| 800 / 768 / 640 / 540 / 480 | 112px\
+    \ \u2014 two rows (tighter `gap-2` below 820) |\n| 430 / 390 / 360 / 320 | 164px\
+    \ \u2014 three rows |\n\n**The single row survives only at \u2273955px.** Bisected:\
+    \ at `gap-6`/`px-6` the nav is 128px tall at 950 and 64px at 955. Its intrinsic\
+    \ one-line width is 968px including the `lg` padding. Items: AgentJobs 119, project\
+    \ switcher 153, Dashboard 93, Tasks 57, Create 65, Dispatch 79, Playbooks 89,\
+    \ API Docs 81.\n\nSo this is **not** a phone problem. The header already wraps\
+    \ on a 900px window and on every landscape tablet below ~960 \u2014 and one more\
+    \ destination (task-212's analytics, task-023's runs) moves the threshold to ~1050\
+    \ and starts wrapping 1024px screens. That is precisely the trigger task-235's\
+    \ binding decision named for reopening the rail question: *\"enough top-level\
+    \ surfaces that the header nav wraps.\"* I am not reopening it \u2014 see below\
+    \ \u2014 but it should be on the record that the condition has been met at the\
+    \ widths above, not merely predicted.\n\n## The decision\n\n**1. Pin it, on every\
+    \ surface, at every width.** `sticky top-0` on the `<header>`.\n\n**2. The bar\
+    \ never wraps. One row, always.** Below the fit threshold the six destination\
+    \ links move into a panel that drops from the bar behind a burger; at or above\
+    \ it they are inline exactly as today.\n\n**3. The threshold is 960px**, as a\
+    \ `min-[960px]:` arbitrary variant \u2014 the same idiom as the existing `min-[820px]:gap-6`.\
+    \ Chosen from the 955px measurement with a few pixels of headroom, not from a\
+    \ framework default. It is deliberately *not* 820px, this app's existing narrow\
+    \ breakpoint: 820 is where the table restacks, and the header stops fitting 135px\
+    \ later. Using 820 would leave the 820\u2013954 band wrapping, which is the band\
+    \ this measurement exists to expose.\n\n**4. No burger above 960.** The links\
+    \ stay inline and visible.\n\n**5. The panel drops from the bar. It is not a left\
+    \ drawer, and it is not a rail.**\n\n**6. `z-30`** on the header.\n\n**7. The\
+    \ burger sits at the left edge of the bar.** Top-right is left free.\n\n## Why,\
+    \ and what I rejected\n\n**Against pinning it as-is (the first alternative in\
+    \ the spec).** At 390px that is 164px of a 844px screen \u2014 19% \u2014 permanently.\
+    \ Worse than the complaint. At 900px it is 128px. Rejected.\n\n**Against pinning\
+    \ only above a breakpoint and letting the phone scroll as today.** Cheapest, and\
+    \ it is the one that leaves Jeff's actual reading surface unfixed. He reads this\
+    \ over Tailscale on a phone; that is the case the task exists for. Rejected.\n\
+    \n**Against a toggleable panel at desktop too** \u2014 Jeff's second option, *\"\
+    or still have that be a toggleable panel from a burger menu?\"* Rejected, and\
+    \ this is the part of his message I am pushing back on. A burger at 1440px buys\
+    \ back 64px of 800 (8%) and charges a click for every navigation, forever. It\
+    \ also hides the Dispatch link, and `App.tsx:604` carries a deliberate comment\
+    \ about why that link is not in a menu: it is where the machine-wide kill switch\
+    \ lives, and *\"a kill switch you cannot reach is not one.\"* task-167's constraints\
+    \ repeat it. Below 960 the row cannot fit and the trade reverses; above it, visible-and-free\
+    \ beats hidden-behind-a-click.\n\n**Against a left drawer**, Jeff's *\"or left\
+    \ bar, whatever\"*. Two reasons. task-238 puts a **task list** down the left of\
+    \ the Tasks surface at landscape widths; a nav drawer that also comes from the\
+    \ left teaches two different meanings for the same edge, and they meet at exactly\
+    \ the widths where a tablet crosses the breakpoint. And a top sheet is literally\
+    \ what he described first \u2014 *\"an overlay burger icon that opens the top\
+    \ bar\"* \u2014 the bar's own contents, dropping down over the page. It also needs\
+    \ no slide animation and no drawer-scrim machinery.\n\n**Against a horizontally-scrolling\
+    \ nav row** (not in the spec's list; I considered it and it is the cheapest thing\
+    \ that would work). One 44px row, no new control, no hidden state, no interaction\
+    \ cost, ~4 lines. Rejected because off-screen destinations are invisible, which\
+    \ is the same unreachability in a new costume, and because it degrades as destinations\
+    \ are added \u2014 and two more are already specced.\n\n**Against making the app\
+    \ shell a non-scrolling frame** (`h-dvh`, `<main>` as the scroll container), which\
+    \ is structurally the nicer answer and which I wanted to recommend. It would pin\
+    \ the header with no `sticky` and no z-index at all, hand task-237 its non-scrolling\
+    \ page, and give Jeff's *\"Dashboard should involve no scrolling\"* goal a bounded\
+    \ region to fit into. Rejected **for this task** because `frontend/src/components/dragAutoScroll.ts`\
+    \ scrolls the backlog during a drag with `window.scrollBy`, which becomes a no-op\
+    \ the moment the document stops being the scroller. Drag-to-reorder has already\
+    \ cost task-207, task-225 and task-229; breaking its auto-scroll as a side effect\
+    \ of a header fix is not a trade to make quietly. Recorded as the better long-term\
+    \ structure, to be taken deliberately by whoever owns the dashboard-fits-one-screen\
+    \ work \u2014 with the auto-scroll rewrite in its scope.\n\n## How it stays compatible\
+    \ with task-168's burger (ac-3 asks for this explicitly)\n\ntask-168 puts *\"\
+    a burger-icon menu in the top-right\"* holding AgentJobs **actions** \u2014 Report\
+    \ issue, About, later dispatch and voice. This task puts a burger holding **destinations**.\
+    \ Those are different things and they must not become one control:\n\n- **Different\
+    \ corners.** Navigation left, actions right \u2014 the Gmail/Slack/Material convention,\
+    \ and the same split those apps use for the same reason. task-168 keeps the top-right\
+    \ it specified; nothing in it needs to change.\n- **Different lifetimes.** The\
+    \ nav burger exists only below 960px. task-168's menu exists at every width. So\
+    \ above 960 there is exactly one control in the bar and no ambiguity at all; below\
+    \ it there are two, at opposite ends.\n- **Different owners, which is the load-bearing\
+    \ reason.** task-167 wants its menu to be a component another project embeds in\
+    \ *its* app, carrying Report issue and a link into its backlog. Folding AgentJobs'\
+    \ own destinations into that component would make it un-embeddable, since a host\
+    \ app does not have a Tasks page. Keeping navigation out of it is what preserves\
+    \ task-169.\n- **Different icons, so they do not read as duplicates.** The nav\
+    \ trigger is a hamburger. task-168's should be a kebab or the AgentJobs mark.\
+    \ That is a suggestion to task-168, not a constraint from here.\n\nThis answer\
+    \ is being copied onto task-236 (whose job is exactly this question) and task-168.\n\
+    \n## What is *not* decided here\n\nThe rail. task-235's decision rejected a global\
+    \ navigation rail and named this wrap as the condition that would make the rejection\
+    \ wrong. The condition is now met below 960px. I am deliberately **not** acting\
+    \ on it: a transient panel is not a rail, costs no width when closed, and reopening\
+    \ that decision is task-236/task-235's to do with Jeff in the room. What I have\
+    \ added is the measurement it should be reopened against, if it is.\n"
+  data:
+    operation:
+      id: 3f5b71a2-08c4-4d19-9a6e-71c0c5a8e292
+      kind: log_append
+      fingerprint: 24c8ada6ffd869e9287e1963e937bad5
