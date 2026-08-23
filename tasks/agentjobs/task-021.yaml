@@ -3,7 +3,7 @@ id: task-021
 title: Posture should decide whether a run merges and pushes, not only what it may
   execute
 created: '2026-08-19T22:28:28.717331Z'
-updated: '2026-08-23T22:59:12.073178Z'
+updated: '2026-08-23T23:02:47.788557Z'
 lifecycle: active
 ball: human
 ball_reason: input
@@ -724,3 +724,19 @@ log:
     finish_step: started
     branch: feat/task-021-posture-merge-policy
     finish_id: fin_9b678e3f
+- id: 16
+  ts: '2026-08-23T23:02:47.788348Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-021-posture-merge-policy` into `main` as `53307a2b`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\agentjobs-021
+    before the merge. Approved by a human; no agent was in this loop. Delivery --
+    rebuild, restart, verification -- comes next, and this task stays open until it
+    is verified.'
+  data:
+    finish_step: merge
+    merge_commit: 53307a2b2b0f0e46f0bdbee61fd727847b09aab6
+    branch: feat/task-021-posture-merge-policy
+    base: main
