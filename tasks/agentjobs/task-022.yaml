@@ -3,7 +3,7 @@ id: task-022
 title: Dispatch an epic as autonomous and it finishes the whole thing, child by child,
   unattended
 created: '2026-08-19T22:29:17.039117Z'
-updated: '2026-08-23T23:03:50.207367Z'
+updated: '2026-08-23T23:07:40.305798Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -259,3 +259,75 @@ log:
         eligible: true
       - runner: codex-terra
         eligible: true
+- id: 6
+  ts: '2026-08-23T23:07:13.447242Z'
+  actor: Jeff Posey
+  type: instruction
+  body: "**Jeff, 2026-08-23: \"all I need to see when 022 is done is the proof that\
+    \ it works.\" The demonstration is the deliverable. A green suite is not it.**\n\
+    \nac-7 already says this \u2014 *demonstrated end to end on a real parent with\
+    \ at least two children, with the run ledger and task records as evidence* \u2014\
+    \ so treat that criterion as the primary one and the others as things the demonstration\
+    \ should incidentally prove. Relayed by the supervising session.\n\n**Two facts\
+    \ about this machine that the demonstration has to work around, neither of them\
+    \ in the spec:**\n\n1. **This project's posture is now `auto`, not `autonomous`.**\
+    \ Jeff lowered it in `~/.agentjobs/dispatch.yaml` on 2026-08-23 when task-021\
+    \ merged, deliberately, so that landing the merge policy did not release the review\
+    \ gate for every run at once. ac-1 asks you to demonstrate a parent dispatched\
+    \ *under autonomous*. You therefore cannot demonstrate it against this project\
+    \ as configured.\n\n2. **Do not resolve that by raising this project's posture\
+    \ and pointing the loop at the real backlog.** That would be an unattended run\
+    \ merging Jeff's actual open work into real `main`, which is precisely the thing\
+    \ the lowering was for. It is also unrepeatable: a demonstration that consumes\
+    \ real tasks cannot be run twice.\n\n**So build the demonstration against throwaway\
+    \ state.** A scratch project registered against its own `AGENTJOBS_HOME`, with\
+    \ an epic and at least two trivial children whose \"work\" is something safe and\
+    \ verifiable, its own `dispatch.yaml` set to `autonomous`, and its own git repository\
+    \ whose `main` nobody cares about. Everything ac-2 through ac-6 asks for is observable\
+    \ there: the `--no-ff` merges, the branches marked merged, the worktrees removed,\
+    \ the retry bound, and \u2014 for ac-6 \u2014 that a repository with no remote\
+    \ at all had nothing pushed from it.\n\n**What Jeff will be shown.** Not your\
+    \ narrative. The durable artefacts, in this order: the run ledger entries for\
+    \ the parent and each child, each child's task record showing evidence logged\
+    \ *before* its merge, the git log of the throwaway repository showing the `--no-ff`\
+    \ merge commits, and the parent closed with its criteria supported. If a step\
+    \ cannot be evidenced from an artefact that outlives the run, it did not happen.\n\
+    \nThe supervising session will verify this independently rather than relaying\
+    \ your report, so make the artefacts findable: put the scratch project's path,\
+    \ its `AGENTJOBS_HOME`, and the run ids on this record.\n\n**If the loop cannot\
+    \ be made to work unattended, that is a finding and it is worth having.** Say\
+    \ so on the record with what blocked it. Do not paper over a loop that needed\
+    \ a human nudge by nudging it and calling it unattended \u2014 that is the one\
+    \ outcome that wastes the demonstration entirely."
+  data:
+    operation:
+      id: b6e0d94f-5a17-42c3-8c60-1f37a95b2e07
+      kind: log_append
+      fingerprint: 02aec55eeea455ad013d2cbc76b350da
+- id: 7
+  ts: '2026-08-23T23:07:40.305539Z'
+  actor: claude
+  type: note
+  body: "**Correction to entry 2: the proving case it names is gone.**\n\nEntry 2\
+    \ says *\"task-211 is a real epic sitting ready with six open children (task-214..219),\
+    \ reopened 2026-08-21 for exactly this purpose. It is the natural proving case.\"\
+    * That was true when Jeff wrote it. Checked 2026-08-23 by the supervising session:\
+    \ **task-211 is `closed` / `completed` and has no open children.** All six were\
+    \ worked and merged in the two days since \u2014 there are finish records on this\
+    \ machine for task-214 through task-219.\n\nSo do not spend time looking for it,\
+    \ and do not reopen it to manufacture a demonstration. Closing six tasks that\
+    \ were genuinely completed, to have something to walk, would corrupt real records\
+    \ for a test.\n\nThis is why the instruction in entry 6 says to build throwaway\
+    \ state rather than find a real epic. It was written before this was checked and\
+    \ the check confirms it: there is no suitable real epic sitting ready, so a scratch\
+    \ project with its own `AGENTJOBS_HOME` and its own throwaway git repository is\
+    \ not a fallback, it is the plan.\n\nIf you do find another real ready epic with\
+    \ two or more open children and think it is a better demonstration, that is a\
+    \ scope call \u2014 record it as a `decision` with what you rejected, and note\
+    \ that running it under `autonomous` merges that work into real `main` unreviewed."
+  re: 2
+  data:
+    operation:
+      id: 1f9c5a08-4d3b-4e72-b915-6c02a8e73d4b
+      kind: log_append
+      fingerprint: 78b460f3b7340710d28afca7e092da45
