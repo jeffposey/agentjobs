@@ -459,6 +459,7 @@ class TestPackagedCommand:
             "task_get",
             "tasks_search",
             "task_next",
+            "playbooks_list",
             "task_create_draft",
             "task_create_ready",
             "task_promote",

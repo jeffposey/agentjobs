@@ -309,6 +309,17 @@ class TaskClient:
         payload: List[Dict[str, Any]] = response.json()
         return payload
 
+    def read_playbooks(self) -> Dict[str, Any]:
+        """One project's playbooks directory: what loaded, and what would not.
+
+        Read-only, and there is deliberately no counterpart that runs one: an agent
+        that believes a playbook should run raises it the way agents raise everything,
+        as a question or a handoff a human reads.
+        """
+        response = self._request("GET", self._path("/playbooks"))
+        payload: Dict[str, Any] = response.json()
+        return payload
+
     def read_search(self, query: str) -> List[Dict[str, Any]]:
         """Search one project, returning stored task records."""
         if not query.strip():
