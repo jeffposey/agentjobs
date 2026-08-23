@@ -13,8 +13,11 @@ from typing import Any, Dict
 import pytest
 
 from agentjobs.actors import (
+    AGENT,
+    HUMAN,
     MULTIPLE,
     UNCONFIGURED,
+    actor_kinds,
     human_identity,
     UnknownActorError,
     default_user,
@@ -202,3 +205,34 @@ class TestValidation:
         # A fresh `agentjobs init` that has not been edited must still be usable;
         # validating against an empty vocabulary would reject every action.
         assert validate_actor({}, "anyone") == "anyone"
+
+
+class TestActorKinds:
+    """The id-to-kind mapping a reader of a log entry needs (task-217)."""
+
+    def test_maps_every_configured_id_to_its_kind(self) -> None:
+        assert actor_kinds(UNIFIED) == {
+            "jeffposey": HUMAN,
+            "claude": AGENT,
+            "dispatcher": AGENT,
+            "finisher": AGENT,
+        }
+
+    def test_a_legacy_agents_list_is_read_too(self) -> None:
+        kinds = actor_kinds(LEGACY)
+
+        assert kinds["claude"] == AGENT
+        assert kinds["codex"] == AGENT
+
+    def test_an_unconfigured_id_is_simply_absent(self) -> None:
+        # Absent means unknown. A caller must not read it as either kind, which is why
+        # nothing is invented here for it.
+        assert "stranger" not in actor_kinds(UNIFIED)
+
+    def test_the_reserved_ids_win_over_config(self) -> None:
+        # Same rule as dispatch.guards.actor_kind, and for the same reason: a project
+        # that called the dispatcher a human would otherwise have every entry AgentJobs
+        # writes for itself read as a human act.
+        claimed_human = {"actors": [{"name": "dispatcher", "kind": "human"}]}
+
+        assert actor_kinds(claimed_human)["dispatcher"] == AGENT

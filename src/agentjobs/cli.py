@@ -12,6 +12,7 @@ from typing import List, Optional
 import typer
 import yaml
 
+from .actors import actor_kinds
 from .dispatch.auth import read_auth_stall
 from .dispatch.address import (
     configured_api_base,
@@ -1522,6 +1523,30 @@ def _fit(value: str, width: int) -> str:
     return value if len(value) <= width else value[: width - 1] + "\u2026"
 
 
+def _provenance_line(entry: QueueEntry) -> Optional[str]:
+    """``placed by Ada (human, anchor: strong) - "..."``, or nothing.
+
+    Printed only for a task that has actually been moved, which is a minority of any
+    band -- a listing that said "placed by nobody" under every untouched task would
+    double its length to state the default.
+
+    The reason is quoted rather than summarised because it is the part that says whose
+    decision an agent-written move was carrying, and a run reading this list has to be
+    able to weigh that sentence. It is cut to the line, as every other field here is;
+    the API returns it whole.
+    """
+    move = entry.last_move
+    if move is None:
+        return None
+    marks = [move.kind or "kind unknown"]
+    if move.anchor:
+        marks.append(f"anchor: {move.anchor}")
+    head = f"placed by {move.actor} ({', '.join(marks)})"
+    if move.body:
+        head = f'{head} - "{move.body}"'
+    return _fit(head, _WIDTH - len(_INDENT))
+
+
 def _band_heading(band: str, entries: List[QueueEntry]) -> str:
     """``HIGH  (54 open, 12 claimable)``, or ``(empty)`` when the band has nobody."""
     if not entries:
@@ -1535,10 +1560,11 @@ def _render_listing(
 ) -> List[str]:
     """The listing as lines, band by band.
 
-    Two lines per task -- number and id, then the title -- and a third naming the rule
-    that excluded it when it is not claimable. One line per task would have to drop
-    either the id or the title at this width, and both are the point: the id is what you
-    type next and the title is what lets you judge the order without opening anything.
+    Two lines per task -- number and id, then the title -- plus a line naming the rule
+    that excluded it when it is not claimable, and a line saying where its place came
+    from when something moved it. One line per task would have to drop either the id or
+    the title at this width, and both are the point: the id is what you type next and
+    the title is what lets you judge the order without opening anything.
     """
     lines: List[str] = []
     for band in listing.bands:
@@ -1558,6 +1584,9 @@ def _render_listing(
             lines.append(f"{_INDENT}{_fit(entry.title, _WIDTH - len(_INDENT))}")
             if entry.reason:
                 lines.append(f"{_INDENT}{_fit('not claimable: ' + entry.reason, _WIDTH - 8)}")
+            provenance = _provenance_line(entry)
+            if provenance:
+                lines.append(f"{_INDENT}{provenance}")
     return lines
 
 
@@ -1619,15 +1648,19 @@ def queue_list(
 
     Every band is shown, empty ones included, because "critical is empty" is a fact
     worth stating rather than leaving to be inferred from a missing heading. Anything
-    not claimable is marked ``!`` and carries the rule that excluded it.
+    not claimable is marked ``!`` and carries the rule that excluded it. Anything that
+    has been moved says who moved it, whether config calls that id a person, the reason
+    they recorded, and whether they kept the place over a warning -- which is what a
+    ``reorder`` run reads to find the positions it must order around.
 
     **This reports a broken queue rather than refusing to render one** -- you have to
     be able to see a broken queue in order to fix it. It is ``agentjobs next`` that
     declines to answer, because that is the one that would otherwise hand somebody the
     wrong task.
     """
-    manager = _build_manager(Path.cwd())
-    listing = manager.queue_listing(agent=agent)
+    base_dir = Path.cwd()
+    manager = _build_manager(base_dir)
+    listing = manager.queue_listing(agent=agent, actors=actor_kinds(_load_config(base_dir)))
     _report_problems(listing)
     lines = _render_listing(
         listing, only_band=band.value if band else None, claimable_only=claimable

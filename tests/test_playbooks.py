@@ -356,6 +356,24 @@ class TestThisRepositorysOwnPlaybooks:
                 read_playbook(self.directory, name).body == load_reference(name).body
             ), f"playbooks/{name}.md and the shipped reference have diverged"
 
+    def test_reorder_writes_without_a_gate_and_declares_only_ordering_verbs(self) -> None:
+        """task-217 / design §5.2 and decision P7, pinned against the project's own copy.
+
+        The asymmetry with ``groom`` is the design: reorder writes and is audited after
+        the fact, so it has no gate, and what keeps that safe is the narrowness of what
+        it may touch. ``update`` is the one to watch -- a brief that declared it would
+        be declaring it may rewrite the records it is ordering, which is the boundary
+        between this playbook and ``flesh-out``.
+        """
+        reorder = read_playbook(self.directory, "reorder")
+        assert reorder.contract.target is PlaybookTarget.PROJECT
+        assert reorder.contract.gates == []
+        assert "queue_move" in reorder.contract.verbs
+        assert "update" not in reorder.contract.verbs
+        run_task = reorder.contract.run_task
+        assert run_task is not None
+        assert run_task.acceptance, "a run task with no acceptance has no definition of done"
+
 
 EXECUTION_MODULE = "run.py"
 """The one module in this package allowed to reach the dispatch machinery.

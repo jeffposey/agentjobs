@@ -16,13 +16,14 @@ from typing import Dict, List, Sequence, Tuple
 
 from fastapi import APIRouter, Depends, Query
 
+from agentjobs.actors import actor_kinds
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Priority
 from agentjobs.projects import Project
 from agentjobs.storage import TaskLockTimeout
 
 from .status import acting_actor, get_acting_project, lock_timeout_error
-from ..dependencies import get_task_manager
+from ..dependencies import get_task_manager, project_config
 from ..models import (
     QueueAssignmentRead,
     QueueCompactRequest,
@@ -64,6 +65,7 @@ async def get_queue(
         ),
     ),
     manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_acting_project),
 ) -> QueueResponse:
     """The whole ordered backlog, band by band. This is the list a human reviews.
 
@@ -77,8 +79,15 @@ async def get_queue(
     two deliberate exceptions in design section 8: you have to be able to see a broken
     queue in order to fix it, so the offending bands still render and ``problems``
     names what is wrong beside ``repair_command``.
+
+    Each entry also carries ``last_move`` -- the move that set its place, with the
+    actor, that actor's kind from this project's vocabulary, the reason recorded with
+    it, and whether a human kept the place over a warning. That is the anchor evidence
+    ``reorder`` reads, and it is here so a run costs one request instead of one record
+    fetch per open task.
     """
-    return QueueResponse.model_validate(manager.queue_listing(agent=agent).as_dict())
+    listing = manager.queue_listing(agent=agent, actors=actor_kinds(project_config(project)))
+    return QueueResponse.model_validate(listing.as_dict())
 
 
 @router.post("/queue/repair", response_model=QueueRepairResponse)

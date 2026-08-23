@@ -191,6 +191,26 @@ def reserved_actors() -> Dict[str, Actor]:
     return dict(RESERVED)
 
 
+def actor_kinds(config: Dict[str, Any]) -> Dict[str, str]:
+    """Every id a write can be attributed to, mapped to ``human`` or ``agent``.
+
+    For a reader that has an actor id out of a log entry and needs to know which kind
+    wrote it -- the queue listing's move provenance is the first such reader. It is a
+    plain mapping rather than :class:`Actor` objects because that is all such a reader
+    wants, and because it travels through the manager, which has no config of its own.
+
+    **Reserved ids are merged last and therefore win**, the same rule and the same
+    reason as ``dispatch.guards.actor_kind``: a project that wrote ``dispatcher:
+    {kind: human}`` into its ``actors:`` would otherwise have every dispatcher-written
+    entry read as a human act. An id config does not define is simply absent, and a
+    caller that finds nothing here knows only that -- it must not read the absence as
+    either kind.
+    """
+    kinds = {actor.id: actor.kind for actor in load_actors(config).values()}
+    kinds.update({actor.id: actor.kind for actor in RESERVED.values()})
+    return kinds
+
+
 def validate_actor(config: Dict[str, Any], actor_id: str) -> str:
     """Return the id if config defines it or AgentJobs reserves it, else raise.
 
