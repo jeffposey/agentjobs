@@ -2,44 +2,32 @@ schema: 2
 id: task-219
 title: 'The queue-move check: deterministic warnings when a human reorders'
 created: '2026-08-21T04:57:23.007031Z'
-updated: '2026-08-23T08:46:24.625722Z'
+updated: '2026-08-23T09:16:19.524802Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: "The approval ran the scripted finish and it stopped at `gate`. **Nothing\
-  \ was merged.**\n\n`scripts/check.py` failed on feat/task-219-queue-move-check after\
-  \ the rebase (145s, exit 1). A red gate never merges. The branch is rebased onto\
-  \ main and is otherwise untouched; nothing was merged. Full output: C:\\Users\\\
-  jpose\\.agentjobs\\finishes\\fin_b54c95e7\\gate.log\n\n```\ntests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_records_traces_and_final_state\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_refusal_scenarios_actually_recorded_refusals\n\
-  tests/test_mcp_protocol.py::TestAgentEvaluations::test_the_artifact_is_reproducible_across_runs\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-R9PIS-Li-py3.13\\\
-  Lib\\site-packages\\starlette\\_exception_handler.py:59: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response = await\
-  \ handler(conn, exc)\ntests/test_playbooks_api.py::TestSinglePlaybook::test_a_file_that_does_not_validate_is_422_not_404\n\
-  \  C:\\Users\\jpose\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\agentjobs-R9PIS-Li-py3.13\\\
-  Lib\\site-packages\\fastapi\\routing.py:288: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY'\
-  \ is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    return await\
-  \ dependant.call(**values)\ntests/test_project_onboarding.py::TestInspectAndPage::test_onboarding_page_contains_the_two_api_flows\n\
-  \  C:\\projects\\worktrees\\aj-219\\src\\agentjobs\\api\\routes\\web.py:368: DeprecationWarning:\
-  \ datetime.datetime.utcnow() is deprecated and scheduled for removal in a future\
-  \ version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n\
-  \    \"current_year\": datetime.utcnow().year,\ntests/test_web_multiproject.py::TestLegacyUrls::test_picker_lists_every_project\n\
-  \  C:\\projects\\worktrees\\aj-219\\src\\agentjobs\\api\\routes\\web.py:350: DeprecationWarning:\
-  \ datetime.datetime.utcnow() is deprecated and scheduled for removal in a future\
-  \ version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n\
-  \    \"current_year\": datetime.utcnow().year,\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\
-  =========================== short test summary info ===========================\n\
-  ERROR tests/test_auto_dispatch.py::TestApprovalTriggersARun::test_requesting_changes_also_starts_a_run\n\
-  =========== 2991 passed, 155 warnings, 1 error in 130.79s (0:02:10) ===========\n\
-  \  black      0.9s\n  ruff       0.1s\n  mypy       2.8s\n  api        5.2s\n  icons\
-  \      3.0s\n  oxlint     0.6s\n  pytest   132.0s\n  total    144.6s\nAll done!\
-  \ \\u2728 \\U0001f370 \\u2728\n195 files would be left unchanged.\nFailed at stage\
-  \ 'pytest'.\nFix it, then resume with `--from pytest` instead of paying for the\
-  \ stages above a second time.\n```\n\nTake it from here by hand. Check the tree\
-  \ against what is written above before acting on anything you remember: if your\
-  \ worktree, your branch or your account of this task no longer matches what is on\
-  \ disk, say so on the record and hand the ball back rather than improvising a recovery."
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.
+
+
+  Note from Jeff Posey:
+
+
+  Retry after a flaky gate. Same standing approval from Jeff; nothing about the branch
+  changed since the previous one, and the previous finish merged nothing.
+
+
+  The gate stopped at a fixture error -- `git add -A` returning exit 1 with no output
+  in a throwaway temp repository -- which the progress entry immediately above investigates
+  and shows is not this branch''s: the affected test class passes 5/5 in isolation
+  on this exact tree and its whole file passes 17/17 three times running. Retrying
+  the approval is the right response to that, and re-running the full gate is what
+  the finish does anyway, so the retry re-verifies rather than assumes.
+
+
+  That note is context to carry into the merge, not another review round: you are
+  still cleared to merge.'
 archived: false
 priority: medium
 queue_position: 6900
@@ -877,3 +865,82 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 24
+  ts: '2026-08-23T09:14:57.086175Z'
+  actor: claude
+  type: progress
+  body: '**The gate that blocked this merge was a flake, and it is not this branch''s.**
+    Investigated by the task-211 supervisor before retrying, rather than retried on
+    the assumption that a re-run would be green.
+
+
+    The gate reported `2991 passed, 1 error`. The error was at *setup*, not in a test
+    body: the `served` fixture in tests/test_auto_dispatch.py runs `git add -A` in
+    a freshly `git init`-ed sandbox under pytest''s tmp_path, and that subprocess
+    returned exit 1 with **empty stdout and empty stderr**. A silent non-zero from
+    `git add -A` in a two-file throwaway repository is not a statement about the code
+    under test.
+
+
+    Evidence it is not the branch: `TestApprovalTriggersARun` passes 5/5 in isolation
+    on this exact tree, and the whole of tests/test_auto_dispatch.py passes 17/17
+    three times consecutively, all with this worktree''s own interpreter. Nothing
+    in this branch touches that fixture, that test, or `git add`.
+
+
+    **A hypothesis considered and rejected on the evidence:** that enabling `finish.enabled`
+    on this machine earlier tonight had changed what an approval does inside the suite,
+    since the erroring test is named for approval triggering a run. It had not. The
+    failure is in fixture setup, before any approval code runs, and the mechanism
+    is a git subprocess -- unrelated to dispatch configuration. Recording the rejected
+    hypothesis because a plausible-sounding cause that happens to coincide in time
+    is exactly the kind of thing a later reader would otherwise re-derive.
+
+
+    It is the second flaky-test gate cycle this epic has paid for, after the one that
+    cost task-241 its first merge attempt and became task-243. Whether this one earns
+    its own follow-up is Jeff''s call rather than the supervisor''s -- the epic''s
+    own constraints say not to absorb unrelated work -- so it is written here and
+    raised with him instead of filed.
+
+
+    Retrying the approval. Nothing about the substance of this branch changed.'
+  data:
+    operation:
+      id: 566e80ab-3463-4848-a869-d0cd1aa29827
+      kind: log_append
+      fingerprint: 3b9e7cebf7e86cc187a6d7b65b014ee4
+- id: 25
+  ts: '2026-08-23T09:16:17.470616Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    Retry after a flaky gate. Same standing approval from Jeff; nothing about the
+    branch changed since the previous one, and the previous finish merged nothing.
+
+
+    The gate stopped at a fixture error -- `git add -A` returning exit 1 with no output
+    in a throwaway temp repository -- which the progress entry immediately above investigates
+    and shows is not this branch''s: the affected test class passes 5/5 in isolation
+    on this exact tree and its whole file passes 17/17 three times running. Retrying
+    the approval is the right response to that, and re-running the full gate is what
+    the finish does anyway, so the retry re-verifies rather than assumes.'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 26
+  ts: '2026-08-23T09:16:19.524584Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-219-queue-move-check` (8aead1f8).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\aj-219.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_4c205d56\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-219-queue-move-check
+    finish_id: fin_4c205d56
