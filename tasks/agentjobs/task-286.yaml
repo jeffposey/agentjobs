@@ -3,46 +3,17 @@ id: task-286
 title: 'README sells the opinions early: replace "Why this is not another task tracker"
   with what AgentJobs actually decides for you'
 created: '2026-08-23T01:59:04.646353Z'
-updated: '2026-08-23T02:36:20.983366Z'
-lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Review the diagrams: https://claude.ai/code/artifact/bc34008f-54e8-4dfc-a073-ed9ec048372e\n\
-  \nTwo commits now. 86b44e8 replaced the weak positioning section; 153c932 replaced\
-  \ the opening YAML block with three Mermaid diagrams and moved that block down into\
-  \ \"Resuming with no chat history\". Gate green on both, latest receipt 153c9328.\n\
-  \nJeff asked for icons and a more professional look, so roles are now painted classes\
-  \ with a glyph: agent blue, human amber, external grey and dashed. The fills and\
-  \ text colours are EXPLICIT rather than inherited from Mermaid's theme \u2014 that\
-  \ is deliberate, because a theme-inherited palette inverts into unreadable mud in\
-  \ GitHub's dark mode. Painted nodes read identically in both.\n\nWHY MERMAID AND\
-  \ NOT IMAGES: it is text, so it diffs and reviews like code, and GitHub renders\
-  \ it natively so there is no asset to keep in sync with the prose. All three were\
-  \ rendered and inspected before landing \u2014 node and edge counts checked against\
-  \ the source, not glanced at.\n\nTHE ARTIFACT PULLS ITS DIAGRAMS OUT OF README.md\
-  \ at publish time rather than carrying its own copies, so the review page cannot\
-  \ drift from the thing being reviewed.\n\nWORKTREE IS CLEAN. The preview scaffolding\
-  \ from the previous handoff (docs/_readme_preview.md and a mkdocs nav line) has\
-  \ been reverted; only README.md is in the commits.\n\nSTILL OPEN FOR YOU:\n1. Screenshots.\
-  \ You floated the dashboard and task list, then said they are rough and moving fast.\
-  \ My recommendation is to hold: a stale screenshot on a public front page ages badly\
-  \ and these diagrams do not. Say so and I will capture both for you to judge.\n\
-  2. The two deliberately-weakened claims from the previous handoff still stand and\
-  \ still want your agreement \u2014 queue-position uniqueness is not model-enforced,\
-  \ and the no-set_lifecycle claim is scoped to the interfaces.\n\nFiled separately\
-  \ as task-287: the docs site cannot render Mermaid at all (mkdocs-material empties\
-  \ the containers), which is why this review went to an artifact instead of the mkdocs\
-  \ preview. The README is unaffected."
+updated: '2026-08-23T03:39:53.482906Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: high
-queue_position: 14900
 category: documentation
 tags:
 - docs
 - readme
 - positioning
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: "Jeff's verdict on the README section \"Why this is not another task tracker\"\
@@ -104,7 +75,9 @@ acceptance:
 deliverables: []
 dependencies: []
 links: []
-branches: []
+branches:
+- name: docs/task-286-readme-positioning
+  status: merged
 log:
 - id: 1
   ts: '2026-08-23T01:59:05.051443Z'
@@ -201,3 +174,55 @@ log:
       id: f0b7d43a-9c15-4e82-b6a1-3d59c027e418
       kind: handoff
       fingerprint: b22b547b18fb877292c443cd35cecda8
+- id: 5
+  ts: '2026-08-23T03:39:53.482736Z'
+  actor: claude
+  type: transition
+  body: "Merged: 4970e8d on main, --no-ff, gate green on the rebased tip with receipt\
+    \ b2b3f07e. Worktree removed, branch deleted, preview servers on 8899 and 8901\
+    \ stopped.\n\nJEFF'S VERDICT, RECORDED AS GIVEN AND NOT ROUNDED UP: \"the content\
+    \ of the diagrams is ok, the layout and space usage it still meh\" \u2014 and,\
+    \ on the section as a whole, \"readme beginning and diagrams are still meh, but\
+    \ im going to be ok with that for this pass\". This merged because it is better\
+    \ than what it replaced, not because it is good. Anyone picking up the front page\
+    \ next should treat layout and spacing as open, not settled.\n\nAll three acceptance\
+    \ criteria met. The opinions lead the page, each naming the mechanism; every claim\
+    \ was proved by constructing the violating task and watching the model refuse\
+    \ it; the reference sections below are unchanged in substance and order.\n\nWHAT\
+    \ LANDED, in four commits: the positioning section replaced; the opening YAML\
+    \ block replaced with three Mermaid diagrams and moved down to the section that\
+    \ explains the record; the classDef painting removed; the queue diagram laid out\
+    \ horizontally.\n\nTHE ONE REAL MISTAKE, worth reading before touching diagrams\
+    \ here. I painted the nodes with classDef fills to \"protect\" them from theme\
+    \ inversion, and that painting was itself the bug: Mermaid's dark theme colours\
+    \ label text independently, so light fills ended up under light text and the labels\
+    \ were nearly invisible. Jeff caught it from a screenshot. Worse, I had reported\
+    \ it verified in both themes \u2014 the check sampled `.nodeLabel` and got a plausible\
+    \ number, but the text a reader sees is a span inside a foreignObject coloured\
+    \ separately. Right answer, wrong element. Two further attempts to measure it\
+    \ were also wrong (one assumed the page ground instead of reading it; one toggled\
+    \ a theme the stylesheet did not follow), and both produced clean numbers for\
+    \ a page that was visibly broken.\n\nThe lesson is the one already written in\
+    \ ENGINEERING.md: assert on rendered values. A computed-style query is not a rendered\
+    \ value unless you have proved you are querying the element that carries the pixels.\n\
+    \nFINAL MEASUREMENT, taken correctly: 44 label spans across the three diagrams,\
+    \ contrast computed against each label's own resolved background, both themes.\
+    \ Zero below WCAG AA; worst 10.17 dark, 10.83 light. Diagram widths 52%, 97%,\
+    \ 97% of the content column after the TD\u2192LR change, which took the queue\
+    \ diagram from 493x691 to 916x155.\n\nSTILL OPEN, neither answered: whether to\
+    \ add dashboard and task-list screenshots (my recommendation is no \u2014 Jeff\
+    \ called the UI rough and fast-moving, and a stale screenshot ages worse than\
+    \ none), and whether the two deliberately-weakened claims are the right call.\n\
+    \nTOOLING NOTE: the docs site cannot render Mermaid (task-287, cause still unknown;\
+    \ glightbox ruled out). The review was done instead with a small builder that\
+    \ renders README.md through github-markdown-css and the mermaid npm package \u2014\
+    \ a truer preview for a README than mkdocs was ever going to be, since GitHub\
+    \ is where it renders. It lives in the session scratchpad and is not committed;\
+    \ if front-page work continues, it is worth keeping somewhere real."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 8d5a2c70-1f94-4e63-b208-95c7e13a4f6d
+      kind: close
+      fingerprint: 4ffad683a02541c793526e51471f28c6
