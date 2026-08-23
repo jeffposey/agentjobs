@@ -3,7 +3,7 @@ id: task-287
 title: 'The docs site cannot render Mermaid: mkdocs-material empties the diagram containers
   and draws nothing'
 created: '2026-08-23T02:35:51.737626Z'
-updated: '2026-08-23T02:35:52.123357Z'
+updated: '2026-08-23T03:17:19.390494Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -75,3 +75,39 @@ log:
       id: b2905f61-7d34-4e18-a56c-c04e3f1b8927
       kind: create
       fingerprint: b398773c4b4dfe37de54a93f19de56a2
+- id: 2
+  ts: '2026-08-23T03:17:19.390359Z'
+  actor: claude
+  type: progress
+  body: "HYPOTHESIS TESTED AND WRONG: glightbox is not the cause.\n\nI suspected mkdocs-glightbox,\
+    \ which is enabled with `zoomable: true` for the ER diagrams and is a documented\
+    \ source of conflicts with generated SVG. Applied the supported remedy \u2014\
+    \ `skip_classes: [mermaid]` under the plugin config \u2014 rebuilt, and reloaded.\n\
+    \nResult: unchanged. Three `.mermaid` containers, **zero** SVGs, all three measuring\
+    \ NONE. And the decisive detail: `document.querySelectorAll('.glightbox, a.glightbox').length`\
+    \ is **0** on that page, so glightbox is not wrapping anything there in the first\
+    \ place and could not have been eating the output. Reverted the config change\
+    \ rather than leave a no-op fix in the tree implying the problem is solved.\n\n\
+    So the ruled-out list is now: the superfences fence config (the served HTML is\
+    \ correct), the Mermaid library (it loads, `window.mermaid` is defined), the diagram\
+    \ sources (all three render to valid SVG when passed to `mermaid.render()` by\
+    \ hand on that same page), and glightbox.\n\nWHAT IS STILL TRUE AND UNEXPLAINED:\
+    \ something replaces `<pre class=\"mermaid\"><code>\u2026</code></pre>` with an\
+    \ empty `<div class=\"mermaid\">` before any render happens. The source text is\
+    \ gone from the DOM, `data-processed` is unset, and no console error is raised.\
+    \ Whatever consumes the element is not putting anything back.\n\nNEXT PERSON:\
+    \ instrument material's own bundle rather than guessing at plugins. A MutationObserver\
+    \ on the container before `DOMContentLoaded` would name what replaces it. Worth\
+    \ also checking whether the `<code>` child is the problem \u2014 material's integration\
+    \ may expect the source directly inside `pre.mermaid`, in which case a custom\
+    \ fence `format` that omits the `<code>` wrapper is the fix.\n\nEnvironment: mkdocs\
+    \ 1.6.1, mkdocs-material 9.7.7, pymdown-extensions 11.0.1.\n\nCONTEXT: found while\
+    \ previewing task-286's README rewrite. Because the docs site cannot render Mermaid,\
+    \ that review had to be done with a separately-built preview that uses github-markdown-css\
+    \ and the mermaid npm package directly \u2014 which is the truer preview for a\
+    \ README anyway, since GitHub is where it renders."
+  data:
+    operation:
+      id: 3c8e91d7-42b6-4f05-9a13-6e70b8524c19
+      kind: log_append
+      fingerprint: 50bc1d38e495eaf35fcd5565fd34fb7f
