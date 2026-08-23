@@ -1299,6 +1299,10 @@ export type PlaybookCollection = {
      */
     exists: boolean;
     /**
+     * Who a run started from this listing would be attributed to, or why nobody can be. Carried on the listing because the Run button has to be disabled with a reason rather than pressable into a refusal, and this is the only response the playbooks page reads.
+     */
+    identity: ReviewIdentity;
+    /**
      * Playbooks
      */
     playbooks?: Array<PlaybookRead>;
@@ -1397,6 +1401,124 @@ export type PlaybookRead = {
      * Verbs
      */
     verbs?: Array<string>;
+};
+
+/**
+ * PlaybookRunRequestBody
+ *
+ * Ask AgentJobs to run a playbook.
+ *
+ * The same three fields the dispatch endpoint takes, because this **is** that
+ * endpoint with a brief attached (design section 7.1). There is no field for the
+ * brief, no field naming a runner, and no field naming argv: a playbook declares
+ * difficulty and the machine binds it, which is decision P6 and is not negotiable
+ * from a request body.
+ */
+export type PlaybookRunRequestBody = {
+    /**
+     * Group
+     *
+     * Runner group to choose from, overriding the project's. Names a group this machine already defines; it cannot open a gate that is closed.
+     */
+    group?: string | null;
+    /**
+     * Note
+     *
+     * What the human typed, when a task-target run's record could not brief an agent on its own. Becomes the body of the authorising entry.
+     */
+    note?: string | null;
+    /**
+     * Task
+     *
+     * The task to run a task-target playbook against. Refused for a project-target playbook, which creates its own run task.
+     */
+    task?: string | null;
+    /**
+     * User
+     *
+     * The signed-in human asking for this run. Must be an actor this project configures with 'kind: human'. Required for a project-target playbook, which creates a run task attributed to them -- that creation entry is the authorisation. For a task-target playbook it is task-188's authorising entry, written onto the target task exactly as POST /dispatch writes it.
+     */
+    user?: string | null;
+};
+
+/**
+ * PlaybookRunStarted
+ *
+ * A started playbook run: the dispatch, plus which brief it was given.
+ */
+export type PlaybookRunStarted = {
+    /**
+     * Caused By
+     *
+     * The log entry this dispatch is attributed to.
+     */
+    caused_by: number;
+    /**
+     * Created Run Task
+     *
+     * True when this run created the task it dispatched, which is every project-target run. False for a task-target run, which dispatches the task you named.
+     */
+    created_run_task: boolean;
+    /**
+     * Group
+     *
+     * Runner group it was selected from, when one participated.
+     */
+    group?: string | null;
+    /**
+     * Mode
+     *
+     * session or batch.
+     */
+    mode: string;
+    /**
+     * Playbook
+     *
+     * The playbook whose brief this run has.
+     */
+    playbook: string;
+    /**
+     * Playbook Hash
+     *
+     * Algorithm-prefixed content hash of the file at instantiation, pinned on the task's dispatch entry so the record says which brief ran.
+     */
+    playbook_hash: string;
+    /**
+     * Playbook Path
+     *
+     * Where it was read from, project-relative.
+     */
+    playbook_path: string;
+    /**
+     * Posture
+     *
+     * What the run is permitted to do.
+     */
+    posture: string;
+    /**
+     * Run Id
+     *
+     * AgentJobs' identifier for this run.
+     */
+    run_id: string;
+    /**
+     * Runner
+     *
+     * Runner that was selected and started.
+     */
+    runner?: string | null;
+    /**
+     * Session Id
+     *
+     * Session mode only, and assigned by the CLI rather than by us.
+     */
+    session_id?: string | null;
+    /**
+     * Task Id
+     *
+     * The task the run is working.
+     */
+    task_id: string;
 };
 
 /**
@@ -3833,6 +3955,36 @@ export type GetPlaybookApiPlaybooksNameGetResponses = {
 
 export type GetPlaybookApiPlaybooksNameGetResponse = GetPlaybookApiPlaybooksNameGetResponses[keyof GetPlaybookApiPlaybooksNameGetResponses];
 
+export type RunPlaybookEndpointApiPlaybooksNameRunPostData = {
+    body?: PlaybookRunRequestBody;
+    path: {
+        /**
+         * Name
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/api/playbooks/{name}/run';
+};
+
+export type RunPlaybookEndpointApiPlaybooksNameRunPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RunPlaybookEndpointApiPlaybooksNameRunPostError = RunPlaybookEndpointApiPlaybooksNameRunPostErrors[keyof RunPlaybookEndpointApiPlaybooksNameRunPostErrors];
+
+export type RunPlaybookEndpointApiPlaybooksNameRunPostResponses = {
+    /**
+     * Successful Response
+     */
+    202: PlaybookRunStarted;
+};
+
+export type RunPlaybookEndpointApiPlaybooksNameRunPostResponse = RunPlaybookEndpointApiPlaybooksNameRunPostResponses[keyof RunPlaybookEndpointApiPlaybooksNameRunPostResponses];
+
 export type GetProjectsApiProjectsGetData = {
     body?: never;
     path?: never;
@@ -4259,6 +4411,40 @@ export type GetPlaybookApiProjectsProjectIdPlaybooksNameGetResponses = {
 };
 
 export type GetPlaybookApiProjectsProjectIdPlaybooksNameGetResponse = GetPlaybookApiProjectsProjectIdPlaybooksNameGetResponses[keyof GetPlaybookApiProjectsProjectIdPlaybooksNameGetResponses];
+
+export type RunPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostData = {
+    body?: PlaybookRunRequestBody;
+    path: {
+        /**
+         * Name
+         */
+        name: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/playbooks/{name}/run';
+};
+
+export type RunPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RunPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostError = RunPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostErrors[keyof RunPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostErrors];
+
+export type RunPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostResponses = {
+    /**
+     * Successful Response
+     */
+    202: PlaybookRunStarted;
+};
+
+export type RunPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostResponse = RunPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostResponses[keyof RunPlaybookEndpointApiProjectsProjectIdPlaybooksNameRunPostResponses];
 
 export type GetQueueApiProjectsProjectIdQueueGetData = {
     body?: never;

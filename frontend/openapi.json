@@ -1799,6 +1799,10 @@
             "title": "Exists",
             "type": "boolean"
           },
+          "identity": {
+            "$ref": "#/components/schemas/ReviewIdentity",
+            "description": "Who a run started from this listing would be attributed to, or why nobody can be. Carried on the listing because the Run button has to be disabled with a reason rather than pressable into a refusal, and this is the only response the playbooks page reads."
+          },
           "playbooks": {
             "items": {
               "$ref": "#/components/schemas/PlaybookRead"
@@ -1816,7 +1820,8 @@
         },
         "required": [
           "directory",
-          "exists"
+          "exists",
+          "identity"
         ],
         "title": "PlaybookCollection",
         "type": "object"
@@ -1956,6 +1961,163 @@
           "filename"
         ],
         "title": "PlaybookRead",
+        "type": "object"
+      },
+      "PlaybookRunRequestBody": {
+        "description": "Ask AgentJobs to run a playbook.\n\nThe same three fields the dispatch endpoint takes, because this **is** that\nendpoint with a brief attached (design section 7.1). There is no field for the\nbrief, no field naming a runner, and no field naming argv: a playbook declares\ndifficulty and the machine binds it, which is decision P6 and is not negotiable\nfrom a request body.",
+        "properties": {
+          "group": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Runner group to choose from, overriding the project's. Names a group this machine already defines; it cannot open a gate that is closed.",
+            "title": "Group"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the human typed, when a task-target run's record could not brief an agent on its own. Becomes the body of the authorising entry.",
+            "title": "Note"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The task to run a task-target playbook against. Refused for a project-target playbook, which creates its own run task.",
+            "title": "Task"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The signed-in human asking for this run. Must be an actor this project configures with 'kind: human'. Required for a project-target playbook, which creates a run task attributed to them -- that creation entry is the authorisation. For a task-target playbook it is task-188's authorising entry, written onto the target task exactly as POST /dispatch writes it.",
+            "title": "User"
+          }
+        },
+        "title": "PlaybookRunRequestBody",
+        "type": "object"
+      },
+      "PlaybookRunStarted": {
+        "description": "A started playbook run: the dispatch, plus which brief it was given.",
+        "properties": {
+          "caused_by": {
+            "description": "The log entry this dispatch is attributed to.",
+            "title": "Caused By",
+            "type": "integer"
+          },
+          "created_run_task": {
+            "description": "True when this run created the task it dispatched, which is every project-target run. False for a task-target run, which dispatches the task you named.",
+            "title": "Created Run Task",
+            "type": "boolean"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Runner group it was selected from, when one participated.",
+            "title": "Group"
+          },
+          "mode": {
+            "description": "session or batch.",
+            "title": "Mode",
+            "type": "string"
+          },
+          "playbook": {
+            "description": "The playbook whose brief this run has.",
+            "title": "Playbook",
+            "type": "string"
+          },
+          "playbook_hash": {
+            "description": "Algorithm-prefixed content hash of the file at instantiation, pinned on the task's dispatch entry so the record says which brief ran.",
+            "title": "Playbook Hash",
+            "type": "string"
+          },
+          "playbook_path": {
+            "description": "Where it was read from, project-relative.",
+            "title": "Playbook Path",
+            "type": "string"
+          },
+          "posture": {
+            "description": "What the run is permitted to do.",
+            "title": "Posture",
+            "type": "string"
+          },
+          "run_id": {
+            "description": "AgentJobs' identifier for this run.",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "runner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Runner that was selected and started.",
+            "title": "Runner"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Session mode only, and assigned by the CLI rather than by us.",
+            "title": "Session Id"
+          },
+          "task_id": {
+            "description": "The task the run is working.",
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "mode",
+          "posture",
+          "task_id",
+          "caused_by",
+          "playbook",
+          "playbook_path",
+          "playbook_hash",
+          "created_run_task"
+        ],
+        "title": "PlaybookRunStarted",
         "type": "object"
       },
       "PlaybookRunTask": {
@@ -5122,6 +5284,59 @@
         ]
       }
     },
+    "/api/playbooks/{name}/run": {
+      "post": {
+        "description": "Start an agent on a playbook: create its run task if it has one, then dispatch.\n\n202 rather than 200, and for the same reason ``POST /tasks/{id}/dispatch`` is: the\nrun has started, and how it ends arrives later as ``dispatch_result`` entries on the\ntask rather than in this response.\n\n**Every dispatch gate binds, unchanged.** This endpoint opens nothing: it resolves a\nfile, checks the invocation's shape against the playbook's ``target``, and then\ncalls the same ``dispatch_task`` the Dispatch button calls, with a pointer attached\nthat no guard reads. A machine with dispatch off refuses here as it refuses there,\nand refuses *before* a run task is created.\n\n``user`` reaches the record by one of two routes, and which one depends on the\nplaybook rather than on this endpoint. A project-target run creates the run task\nattributed to that human, and their creation entry is the newest stored entry the\nhuman-clocked rule then reads. A task-target run creates nothing, so ``user`` is\npassed to the dispatcher as task-188's ``authorized_by`` and its authorising entry\nis written onto the task named. Neither path substitutes the project's\n``default_user`` for a human nobody named.",
+        "operationId": "run_playbook_endpoint_api_playbooks__name__run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaybookRunRequestBody",
+                "default": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybookRunStarted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Playbook Endpoint",
+        "tags": [
+          "playbooks"
+        ]
+      }
+    },
     "/api/projects": {
       "get": {
         "description": "List every project this server can serve, with task counts.\n\nA project whose directory has gone missing is reported with a null task_count\nrather than failing the whole listing -- the registry is machine-local and a\ncheckout can legitimately disappear.",
@@ -5789,6 +6004,68 @@
           }
         },
         "summary": "Get Playbook",
+        "tags": [
+          "playbooks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/playbooks/{name}/run": {
+      "post": {
+        "description": "Start an agent on a playbook: create its run task if it has one, then dispatch.\n\n202 rather than 200, and for the same reason ``POST /tasks/{id}/dispatch`` is: the\nrun has started, and how it ends arrives later as ``dispatch_result`` entries on the\ntask rather than in this response.\n\n**Every dispatch gate binds, unchanged.** This endpoint opens nothing: it resolves a\nfile, checks the invocation's shape against the playbook's ``target``, and then\ncalls the same ``dispatch_task`` the Dispatch button calls, with a pointer attached\nthat no guard reads. A machine with dispatch off refuses here as it refuses there,\nand refuses *before* a run task is created.\n\n``user`` reaches the record by one of two routes, and which one depends on the\nplaybook rather than on this endpoint. A project-target run creates the run task\nattributed to that human, and their creation entry is the newest stored entry the\nhuman-clocked rule then reads. A task-target run creates nothing, so ``user`` is\npassed to the dispatcher as task-188's ``authorized_by`` and its authorising entry\nis written onto the task named. Neither path substitutes the project's\n``default_user`` for a human nobody named.",
+        "operationId": "run_playbook_endpoint_api_projects__project_id__playbooks__name__run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaybookRunRequestBody",
+                "default": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybookRunStarted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Playbook Endpoint",
         "tags": [
           "playbooks"
         ]

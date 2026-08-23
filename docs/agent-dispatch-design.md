@@ -473,6 +473,14 @@ to route around (schema-design §9).
 
 When a runner group chose the runner, the entry also carries a `selection` block naming
 the group, which precedence rung named it, and every candidate with its verdict (§4).
+
+When the run was started from a playbook, it also carries `playbook` and
+`playbook_hash` — the brief's name and the sha256 of the file at instantiation. That is
+the only trace a playbook leaves in this design: nothing in §2, §4, §5 or §6 changes,
+no gate reads either field, and the prompt gains one appended line pointing at the file.
+See [the playbooks design](playbooks-design.md) §4.2–4.3 and §6.3, which restates gate
+2 for repository content: a playbook declares difficulty and never names a runner, a
+group or argv.
 It is absent otherwise, so a flat configuration's entries are unchanged.
 
 `argv` is recorded verbatim, which means **secrets must never appear in a runner's

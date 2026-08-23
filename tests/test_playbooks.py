@@ -280,17 +280,50 @@ class TestShippedReferences:
         assert sorted(again.kept) == ["flesh-out", "groom", "reorder"]
 
 
-def test_the_playbook_layer_has_no_execution_surface() -> None:
-    """sc-4, as a standing check rather than a claim in a handoff.
+EXECUTION_MODULE = "run.py"
+"""The one module in this package allowed to reach the dispatch machinery.
 
-    Reading a playbook reads a file. Nothing in this package may import the dispatch
-    machinery or reach a subprocess -- if a later change needs to, it is instantiation
-    (task-215) and it belongs behind a human-gated surface, not here.
+Task-215 added it. Everything else here -- the contract, the parser, the directory, the
+pointer -- reads files, and the check below is what keeps that true as the package
+grows.
+"""
+
+
+def test_reading_a_playbook_cannot_reach_an_execution_path() -> None:
+    """Reading a playbook reads a file, and only ``run.py`` may do anything else.
+
+    Until task-215 this said *nothing* in the package could reach the dispatch
+    machinery. Instantiation is now here, so the check names the module that does it
+    rather than being deleted: a second module acquiring a ``dispatch_task`` import is
+    exactly what this exists to catch, and so is ``model.py`` or ``library.py`` growing
+    a subprocess call.
+
+    The list of read surfaces this protects is the point. ``playbook list``, the GET
+    routes and the MCP ``playbooks_list`` tool all go through this package and none of
+    them imports ``run`` -- the package ``__init__`` deliberately does not either -- so
+    a read genuinely cannot start anything.
     """
     import agentjobs.playbooks as package
 
     root = Path(package.__file__).resolve().parent
     for source in root.rglob("*.py"):
+        if source.name == EXECUTION_MODULE:
+            continue
         text = source.read_text(encoding="utf-8")
         for forbidden in ("subprocess", "dispatch_task", "os.system", "eval(", "exec("):
             assert forbidden not in text, f"{source.name} reaches for {forbidden}"
+
+
+def test_the_package_init_does_not_import_the_run_module() -> None:
+    """Importing ``agentjobs.playbooks`` must not pull the dispatch machinery in.
+
+    Two things depend on it. The read surfaces above stay structurally unable to reach
+    an execution path, and ``agentjobs.dispatch`` can hold a ``PlaybookPointer`` without
+    the two packages importing each other -- which they would, since ``run`` imports the
+    guards.
+    """
+    import agentjobs.playbooks as package
+
+    init = Path(package.__file__).resolve()
+    assert "from .run" not in init.read_text(encoding="utf-8")
+    assert not hasattr(package, "run_playbook")

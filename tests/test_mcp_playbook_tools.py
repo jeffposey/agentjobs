@@ -100,6 +100,25 @@ class TestContract:
         playbook_tools = [name for name in registry.names if "playbook" in name]
         assert playbook_tools == ["playbooks_list"]
 
+    def test_nothing_in_the_mcp_package_can_reach_the_run_path(self) -> None:
+        """The name check above is necessary and not sufficient.
+
+        ``playbook_tools == ["playbooks_list"]`` only sees a tool with "playbook" in its
+        name; a tool called anything else could still call ``run_playbook``. This reads
+        the package instead. Decision P10 is about what an agent can *cause*, not about
+        naming, and the guarantee has to be checked the same way.
+        """
+        import agentjobs.mcp as mcp_package
+
+        root = Path(mcp_package.__file__).parent
+        offenders = [
+            path.name
+            for path in root.rglob("*.py")
+            if "playbooks.run" in path.read_text(encoding="utf-8")
+            or "run_playbook" in path.read_text(encoding="utf-8")
+        ]
+        assert offenders == []
+
     def test_it_requires_a_project_id(self, service) -> None:
         registry, _ = service
         with pytest.raises(ToolError) as excinfo:

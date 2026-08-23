@@ -711,7 +711,7 @@ async def dispatch_task_endpoint(
             suggested_action="Check the runner's argv in ~/.agentjobs/dispatch.yaml.",
         ) from exc
     except DispatchError as exc:
-        raise _dispatch_error(exc, task_id) from exc
+        raise dispatch_refusal_error(exc, task_id) from exc
 
     meta = handle.directory.read_meta()
     return DispatchStarted(
@@ -731,8 +731,12 @@ def _as_int(value: object) -> int:
     return value if isinstance(value, int) and not isinstance(value, bool) else 0
 
 
-def _dispatch_error(exc: DispatchError, task_id: str) -> MutationError:
+def dispatch_refusal_error(exc: DispatchError, task_id: Optional[str]) -> MutationError:
     """Render a dispatch refusal under its own code, never as a generic 400.
+
+    Public because the playbook run route renders the same refusals: a playbook run is
+    a dispatch, and two renderings of one gate's answer would eventually disagree about
+    the status or the remedy.
 
     Which gate refused is the only useful thing about one of these: "dispatch is off"
     and "that was an agent's handoff" need completely different responses from whoever

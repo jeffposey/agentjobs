@@ -147,8 +147,151 @@ def test_the_configured_directory_is_used(project: Path) -> None:
     assert not (project / "playbooks").exists()
 
 
-def test_the_playbook_sub_app_offers_no_way_to_run_one(project: Path) -> None:
-    """Design P10, on the surface an agent is most likely to reach for."""
+def test_the_playbook_sub_app_has_exactly_four_commands(project: Path) -> None:
+    """list, show, init, run -- and nothing else.
+
+    Until task-215 this asserted the sub-app offered no ``run`` at all, which was the
+    correct claim while nothing could be run. The claim now is that running is the one
+    thing added and that the surface is otherwise unchanged. It is pinned because
+    ``playbook run`` starts an agent: a fifth command here is a design change.
+    """
     result = runner.invoke(app, ["playbook", "--help"])
     assert result.exit_code == 0
-    assert "run" not in result.stdout.split("Commands")[-1]
+    from agentjobs.cli import playbook_app
+
+    assert sorted(command.name or "" for command in playbook_app.registered_commands) == [
+        "init",
+        "list",
+        "run",
+        "show",
+    ]
+
+
+# ----- running ----------------------------------------------------------------
+
+RUNNABLE = """---
+name: groom
+description: Find duplicates and propose closures.
+target: project
+difficulty: hard
+verbs: [close, log]
+gates: []
+run_task:
+  title: Groom the {project} backlog
+  category: meta
+  priority: medium
+  tags: [grooming]
+  acceptance:
+    - text: Nothing outside the approved list was closed.
+---
+
+# Groom
+
+The brief a run reads.
+"""
+
+
+@pytest.fixture()
+def runnable(tmp_path: Path, monkeypatch) -> Path:
+    """A registered, dispatchable project with one project-target playbook in it.
+
+    Separate from ``project`` above because running needs what reading does not: a
+    registry entry, a human in the actor vocabulary, a git repository, and a
+    machine-local dispatch config naming a runner that exits immediately.
+    """
+    import subprocess
+    import sys
+
+    from agentjobs.projects import HOME_ENV, ProjectRegistry
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv(HOME_ENV, str(home))
+
+    root = tmp_path / "beta"
+    (root / ".agentjobs").mkdir(parents=True)
+    (root / ".agentjobs" / "config.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "project_name": "Beta",
+                "tasks_directory": "tasks",
+                "actors": [
+                    {"name": "Jeff Posey", "kind": "human"},
+                    {"name": "claude", "kind": "agent"},
+                ],
+                "default_user": "Jeff Posey",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (root / "tasks").mkdir()
+    (root / "playbooks").mkdir()
+    (root / "playbooks" / "groom.md").write_text(RUNNABLE, encoding="utf-8")
+    subprocess.run(["git", "init"], cwd=root, capture_output=True, check=True)
+
+    script = tmp_path / "runner.py"
+    script.write_text("print('started')\n", encoding="utf-8")
+    (home / "dispatch.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "enabled": True,
+                "runners": {
+                    "fake": {"argv": [sys.executable, str(script), "{prompt}"], "actor": "claude"}
+                },
+                "projects": {
+                    "beta": {"enabled": True, "runner": "fake", "require_clean_tree": False}
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    ProjectRegistry().add(root, project_id="beta", name="Beta")
+    monkeypatch.chdir(root)
+    return root
+
+
+def test_run_creates_the_run_task_and_dispatches_it(runnable: Path) -> None:
+    result = runner.invoke(app, ["playbook", "run", "groom", "--actor", "Jeff Posey"])
+    assert result.exit_code == 0, result.output
+    assert "Created run task" in result.output
+    assert "Dispatched" in result.output
+    assert "playbooks/groom.md" in result.output
+    assert "sha256:" in result.output
+
+
+def test_run_without_an_actor_refuses_and_names_the_flag(runnable: Path) -> None:
+    """No ``default_user`` fallback here, unlike every other ``--actor`` in this CLI.
+
+    The entry it writes is read a moment later as the authorisation for spending money,
+    and one attributed to whoever the config happens to name is the signature task-188
+    refuses to invent.
+    """
+    result = runner.invoke(app, ["playbook", "run", "groom"])
+    assert result.exit_code == 2
+    assert "no_authorizing_human" in result.output
+    assert "--actor" in result.output
+    assert not list((runnable / "tasks").glob("*.yaml"))
+
+
+def test_run_refuses_an_agent_as_the_creating_actor(runnable: Path) -> None:
+    result = runner.invoke(app, ["playbook", "run", "groom", "--actor", "claude"])
+    assert result.exit_code == 1
+    assert "authorizer_not_human" in result.output
+    assert not list((runnable / "tasks").glob("*.yaml"))
+
+
+def test_run_refuses_a_task_for_a_project_target_playbook(runnable: Path) -> None:
+    result = runner.invoke(
+        app, ["playbook", "run", "groom", "--actor", "Jeff Posey", "--task", "task-001"]
+    )
+    assert result.exit_code == 2
+    assert "target_mismatch" in result.output
+    assert not list((runnable / "tasks").glob("*.yaml"))
+
+
+def test_run_refuses_an_unknown_playbook(runnable: Path) -> None:
+    result = runner.invoke(app, ["playbook", "run", "nope", "--actor", "Jeff Posey"])
+    assert result.exit_code == 2
+    assert "unknown_playbook" in result.output

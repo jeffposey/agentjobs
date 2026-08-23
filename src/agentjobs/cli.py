@@ -48,6 +48,7 @@ from .playbooks import (
     read_playbook,
     resolve_playbooks_dir,
 )
+from .playbooks.run import PlaybookDispatchRefused, PlaybookRunError, run_playbook
 from .project_setup import (
     DEFAULT_CONFIG,
     MCP_CONFIG_FILENAME,
@@ -2148,6 +2149,122 @@ def playbook_show(
         return
     typer.echo("")
     typer.echo(playbook.body.strip())
+
+
+@playbook_app.command("run")
+def playbook_run(
+    name: str = typer.Argument(..., help="Playbook name, which is its filename stem."),
+    task_id: Optional[str] = typer.Option(
+        None,
+        "--task",
+        help="For a task-target playbook: the task to run it against. Refused otherwise.",
+    ),
+    group: Optional[str] = typer.Option(
+        None,
+        "--group",
+        help="Runner group to pick from, overriding the project's. Must already exist.",
+    ),
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Registered project id. Defaults to the one you are in."
+    ),
+    actor: Optional[str] = typer.Option(
+        None,
+        "--actor",
+        help=(
+            "Who is asking. Creates the run task for a project-target playbook and "
+            "must be a configured human. Required for those; unused by a task-target "
+            "playbook, which creates nothing."
+        ),
+    ),
+) -> None:
+    """Run a playbook: create its run task if it has one, then dispatch an agent at it.
+
+    **This spends money on a model, on this machine, now.** Every dispatch gate applies
+    unchanged -- the master switch, the sentinel file, per-project enablement, the
+    concurrency cap, the clean-tree rule and the human-clocked rule -- and naming a
+    playbook widens none of them (playbooks design section 6.3).
+
+    Authorisation is task-188's, and this path adds nothing to it. A **project-target**
+    playbook creates a run task attributed to ``--actor``; that creation entry is the
+    newest entry on the record, and it is what the human-clocked rule then reads. A
+    **task-target** playbook creates nothing, so the rule is applied to the target
+    task's own newest entry, exactly as ``agentjobs dispatch run`` applies it -- write
+    the note as yourself first if the newest entry there is an agent's.
+
+    ``--actor`` is therefore not a way to authorise a run from a shell. It says who is
+    creating a task, the same thing it says on ``agentjobs create`` and ``promote``,
+    it is checked against the project's configured humans before anything is written,
+    and it cannot reach a task it did not just create. There is no flag here that signs
+    for a dispatch of an existing task on somebody's behalf.
+
+    **It has no ``default_user`` fallback, unlike every other ``--actor`` in this CLI.**
+    That is the one deliberate departure. The entry it writes is a moment later read as
+    the authorisation for spending money, and an entry attributed to whoever the config
+    happens to name -- rather than to whoever typed the command -- is exactly the
+    signature task-188 refuses to invent. A person naming themselves costs one flag; an
+    unattributable run costs the whole point of the human-clocked rule.
+    """
+    registry = ProjectRegistry()
+    try:
+        project = registry.get(project_id) if project_id else registry.resolve_default()
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    config = project.load_config()
+    manager = TaskManager(TaskStorage(project.tasks_dir()))
+    try:
+        result = run_playbook(
+            manager=manager,
+            project=project,
+            project_config=config,
+            name=name,
+            task_id=task_id,
+            group=group,
+            # Only ever the creator of the run task, and never defaulted. `authorized_by`
+            # is task-188's browser path and is deliberately not offered here; see the
+            # docstring for both.
+            created_by=actor,
+            surface="the command line",
+        )
+    except PlaybookRunError as exc:
+        typer.secho(f"Refused ({exc.reason}): {exc}", fg=typer.colors.RED, err=True)
+        if exc.reason == "no_authorizing_human":
+            # The refusal message is read by the API and by this command, so it cannot
+            # name a flag. Here is the one place that can.
+            typer.secho(
+                "   Pass --actor <id>, naming a human under 'actors:' in "
+                ".agentjobs/config.yaml.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+        raise typer.Exit(code=2) from exc
+    except PlaybookDispatchRefused as exc:
+        typer.secho(f"Refused ({exc.reason}): {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    except (DispatchError, DispatchRunError) as exc:
+        reason = getattr(exc, "reason", "dispatch_failed")
+        typer.secho(f"Refused ({reason}): {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    handle = result.handle
+    if result.created_run_task:
+        typer.echo(f"✅ Created run task {result.task_id} from playbook '{name}'.")
+    typer.echo(f"✅ Dispatched {result.task_id} as run {handle.run_id} ({handle.mode.value}).")
+    typer.echo(f"   Brief: {result.pointer.path} ({result.pointer.digest}).")
+    typer.echo(f"   Agent told AgentJobs is at {handle.api_base}.")
+    if handle.group:
+        typer.echo(f"   Runner '{handle.runner}', chosen from group '{handle.group}'.")
+    if handle.session_id:
+        typer.echo(f"   Session {handle.session_id} — the CLI assigned that id, not us.")
+    typer.echo(f"   Run directory: {handle.directory.path}")
+    if handle.mode is DispatchMode.BATCH:
+        # Same reason as `dispatch run`: a batch run's terminal record is written by
+        # this process's supervisor thread, so returning here would leave a completed
+        # child marked running until something else noticed.
+        assert handle.supervisor is not None
+        typer.echo("   Waiting for the batch run to record its outcome.")
+        handle.supervisor.join()
 
 
 @playbook_app.command("init")

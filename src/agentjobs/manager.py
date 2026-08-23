@@ -2345,6 +2345,8 @@ class TaskManager:
         git_head: str,
         session_id: Optional[str] = None,
         selection: Optional[DispatchSelectionData] = None,
+        playbook: Optional[str] = None,
+        playbook_hash: Optional[str] = None,
         body: Optional[str] = None,
         operation_id: Optional[str] = None,
     ) -> Task:
@@ -2357,6 +2359,10 @@ class TaskManager:
         ``selection`` is present only when a runner group chose ``runner`` (task-177).
         A flat configuration passes nothing and the entry keeps the shape it has always
         had.
+
+        ``playbook`` and ``playbook_hash`` are present only when the run was given a
+        playbook as its brief (playbooks design section 4.3). They pin *which brief*, as
+        distinct from ``git_head``'s *which commit*.
         """
         payload = DispatchData(
             run_id=run_id,
@@ -2371,6 +2377,8 @@ class TaskManager:
             git_head=git_head,
             session_id=session_id,
             selection=selection,
+            playbook=playbook,
+            playbook_hash=playbook_hash,
         )
         operation = self._operation(
             operation_id, "dispatch", actor, {"run_id": run_id, "argv": list(argv)}
