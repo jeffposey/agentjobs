@@ -3,7 +3,7 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-23T18:42:58.458492Z'
+updated: '2026-08-23T18:51:01.770988Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -2231,3 +2231,17 @@ log:
   data:
     ball: agent
     ball_reason: work
+- id: 66
+  ts: '2026-08-23T18:51:01.770574Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `docs/task-224-client-refresh-correction` (15651e5f).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\aj-224.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_736e455c\gate.log.'
+  data:
+    finish_step: started
+    branch: docs/task-224-client-refresh-correction
+    finish_id: fin_736e455c
