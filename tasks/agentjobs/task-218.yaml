@@ -2,10 +2,11 @@ schema: 2
 id: task-218
 title: 'Playbooks 5: flesh-out, authored and proven'
 created: '2026-08-21T04:56:57.789106Z'
-updated: '2026-08-21T19:39:15.097606Z'
-lifecycle: ready
+updated: '2026-08-23T17:54:28.066448Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: Execute the spec; log progress and hand off when done.
 archived: false
 priority: medium
 queue_position: 6800
@@ -14,6 +15,7 @@ tags:
 - playbooks
 - grooming
 assignment:
+  owner: claude
   eligible: []
 parent: task-211
 spec:
@@ -60,7 +62,9 @@ dependencies:
   type: needs
   note: playbook run --task is how this instantiates.
 links: []
-branches: []
+branches:
+- name: feat/task-218-flesh-out-playbook
+  status: active
 log:
 - id: 1
   ts: '2026-08-21T04:56:57.789152Z'
@@ -88,3 +92,28 @@ log:
       id: 3f1a9c22-0005-4b7e-9c31-7a5e2d8f0105
       kind: promote
       fingerprint: 30b3c2341eda834d5c52e8d169a3d68a
+- id: 3
+  ts: '2026-08-23T17:54:28.035679Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: a9284a24-aced-4112-8784-9b0d5708064b
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 4
+  ts: '2026-08-23T17:54:28.066202Z'
+  actor: claude
+  type: note
+  body: Updated branches.
+  data:
+    fields:
+    - branches
+    operation:
+      id: 14ff4032-964f-4b1f-a511-d6791979a293
+      kind: update_content
+      fingerprint: 5a5794a66a004feb84260a0c96396631
