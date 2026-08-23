@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import sys
+from contextlib import suppress
 from pathlib import Path
 from typing import List, Optional
 
@@ -262,6 +263,7 @@ def serve(
     """Start web server."""
     host = _validated_bind_host(host)
     typer.echo(f"🚀 Starting AgentJobs server at http://{host}:{port}")
+    _warn_if_bundle_missing()
     import uvicorn
 
     uvicorn.run(
@@ -396,6 +398,40 @@ def mcp_server(
     raise typer.Exit(run_mcp(config))
 
 
+def _warn_if_bundle_missing() -> None:
+    """Say once, to stderr, that this checkout cannot serve `/app/`.
+
+    A warning rather than a refusal: REST, MCP and every other command work without a
+    bundle. The point is that the sentence arrives at the terminal that started the
+    server, instead of as a JSON 404 in a browser tab.
+    """
+    from .api.spa import bundle_status
+
+    sentence = bundle_status()
+    if sentence:
+        typer.echo(f"Warning: {sentence}", err=True)
+
+
+def _echo_startup_log(path: Optional[Path]) -> None:
+    """Relay whatever a server we started said before it gave up, then delete the file.
+
+    Silent when we did not start the server (nothing was captured) or when it said
+    nothing, so the caller can always call it and only ever adds signal.
+    """
+    if path is None:
+        return
+    try:
+        captured = path.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        captured = ""
+    if captured:
+        typer.echo("", err=True)
+        typer.echo("The server said:", err=True)
+        typer.echo(captured, err=True)
+    with suppress(OSError):
+        path.unlink()
+
+
 def _validated_bind_host(host: str) -> str:
     """Refuse addresses that expose the unauthenticated server on every interface."""
     from ipaddress import ip_address
@@ -519,6 +555,7 @@ def restart(
 
     # Start new server
     typer.echo(f"🚀 Starting AgentJobs server at http://{host}:{port}")
+    _warn_if_bundle_missing()
     import uvicorn
 
     uvicorn.run(
@@ -534,10 +571,25 @@ def open(
     port: int = typer.Option(8765, help="Port number to check/use."),
     host: str = typer.Option("localhost", help="Host to use if starting server."),
 ) -> None:
-    """Open the primary React UI in a browser, starting the server if needed."""
+    """Open the primary React UI in a browser, starting the server if needed.
+
+    A listening socket is not a served application, and this command used to treat the
+    two as the same thing: it waited for the port, opened a browser, and exited 0
+    whatever was -- or was not -- behind it. Three different failures reached the user
+    as a JSON error in a tab something had already opened. So the port is now the
+    beginning of the check rather than the end of it, and each of those failures is
+    reported at the terminal that asked, with a non-zero exit:
+
+    * nothing answers -- including a server that refused to start, whose reason is
+      captured rather than lost to a console with no window;
+    * something answers and is not AgentJobs, which is a reused port;
+    * AgentJobs answers and has no frontend bundle, which is a clone that has never run
+      `npm run build` (see `spa.bundle_status`).
+    """
     import platform
     import subprocess
     import sys
+    import tempfile
     import time
     import webbrowser
 
@@ -545,6 +597,7 @@ def open(
     server_url = f"http://{host}:{port}"
     app_url = f"{server_url}/app/"
     pid = _find_process_by_port(port)
+    startup_log: Optional[Path] = None
 
     if pid is None:
         # Server not running, start it in background
@@ -560,19 +613,34 @@ def open(
             host,
         ]
 
-        if platform.system() == "Windows":
-            # Start server in a new window (minimized)
-            subprocess.Popen(
-                command,
-                creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.CREATE_NO_WINDOW,
-            )
-        else:
-            # Start server in background
-            subprocess.Popen(
-                command,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+        # The child's stderr goes to a file rather than to a console nobody can see.
+        # A refusal to start -- the wrong-checkout banner is the one that costs a
+        # forensic session -- is the single most useful thing this command can report,
+        # and until now it was written to a window created with CREATE_NO_WINDOW.
+        handle = tempfile.NamedTemporaryFile(  # noqa: SIM115 - closed after the probe
+            mode="w+",
+            encoding="utf-8",
+            prefix="agentjobs-serve-",
+            suffix=".log",
+            delete=False,
+        )
+        startup_log = Path(handle.name)
+        with handle:
+            if platform.system() == "Windows":
+                # Start server in a new window (minimized)
+                subprocess.Popen(
+                    command,
+                    stdout=subprocess.DEVNULL,
+                    stderr=handle,
+                    creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.CREATE_NO_WINDOW,
+                )
+            else:
+                # Start server in background
+                subprocess.Popen(
+                    command,
+                    stdout=subprocess.DEVNULL,
+                    stderr=handle,
+                )
 
         # Wait for server to start
         typer.echo("Waiting for server to initialize...")
@@ -581,10 +649,38 @@ def open(
             time.sleep(1)
             if _find_process_by_port(port) is not None:
                 break
-        else:
-            typer.echo("Warning: Server may not have started successfully.", err=True)
     else:
         typer.echo(f"Server already running (PID {pid})")
+
+    probe = probe_api_base(server_url)
+
+    if not probe.answered:
+        typer.echo(f"Nothing is serving AgentJobs at {server_url} ({probe.detail}).", err=True)
+        _echo_startup_log(startup_log)
+        raise typer.Exit(1)
+
+    if not probe.is_agentjobs:
+        typer.echo(
+            f"Something other than AgentJobs is listening on port {port} "
+            f"({probe.detail}). Choose another port with --port, or stop that service.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    payload = probe.payload or {}
+    if payload.get("frontend_bundle") == "missing":
+        from .api.spa import bundle_status
+
+        typer.echo(
+            bundle_status() or "The React frontend bundle is missing.",
+            err=True,
+        )
+        typer.echo(
+            f"The API is up at {server_url}; only /app/ is unavailable. "
+            "No browser was opened.",
+            err=True,
+        )
+        raise typer.Exit(1)
 
     # Open browser
     typer.echo(f"Opening {app_url}...")
@@ -601,8 +697,25 @@ def create(
         help="Task priority label.",
     ),
     category: str = typer.Option("general", help="Categorisation label for filtering."),
+    ready: bool = typer.Option(
+        False,
+        "--ready",
+        help="Promote the new task to ready immediately, making it claimable.",
+    ),
+    actor: Optional[str] = typer.Option(
+        None,
+        "--actor",
+        help="Who is creating. Defaults to the project's default_user. Used by --ready.",
+    ),
 ) -> None:
-    """Create new task."""
+    """Create a new task as a draft, or as ready with --ready.
+
+    A task is born `draft` and a draft is not claimable, which is the correct default
+    for a record whose spec is still being written -- but it surprised anyone who ran
+    `create` and then `list --lifecycle ready` and saw nothing. `--ready` is the
+    one-command form for a task that needs no drafting; `agentjobs promote` is the
+    same step taken later.
+    """
     base_dir = Path.cwd()
     config = _load_config(base_dir)
     tasks_dir = _resolve_tasks_dir(base_dir, config)
@@ -621,7 +734,14 @@ def create(
         priority=priority,
         category=category,
     )
-    typer.echo(f"✅ Created {task.id}.yaml")
+    if ready:
+        manager.promote_task(task.id, actor=_resolve_actor(config, actor))
+        typer.echo(f"✅ Created {task.id}.yaml (ready — claimable now)")
+    else:
+        typer.echo(
+            f"✅ Created {task.id}.yaml (draft — not claimable until "
+            f"`agentjobs promote {task.id}`)"
+        )
 
 
 @app.command("list")
@@ -761,21 +881,28 @@ def work(
     priority: Optional[str] = typer.Option(
         None, help="Filter by priority (high, medium, low, critical)"
     ),
-    storage_dir: str = typer.Option(
-        "./tasks",
-        help="Directory for task storage.",
+    storage_dir: Optional[str] = typer.Option(
+        None,
+        help="Directory for task storage. Defaults to the project's configured tasks_directory.",
     ),
 ) -> None:
-    """Interactive agent workflow: get task, display prompt, mark complete."""
+    """Interactive agent workflow: get task, display prompt, mark complete.
+
+    The default storage directory is the project's configured ``tasks_directory``, the
+    same one every other command resolves through ``_build_manager``. It used to be a
+    literal ``./tasks``, so in a project that configures anything else -- this
+    repository configures ``tasks/agentjobs`` -- ``work`` reported "No tasks available"
+    from an empty directory it had just created, while ``next`` answered correctly.
+    """
     base_dir = Path.cwd()
-    target_dir = Path(storage_dir)
-    if not target_dir.is_absolute():
-        target_dir = base_dir / target_dir
-
-    target_dir.mkdir(parents=True, exist_ok=True)
-
-    storage = TaskStorage(target_dir)
-    manager = TaskManager(storage)
+    if storage_dir is None:
+        manager = _build_manager(base_dir)
+    else:
+        target_dir = Path(storage_dir)
+        if not target_dir.is_absolute():
+            target_dir = base_dir / target_dir
+        target_dir.mkdir(parents=True, exist_ok=True)
+        manager = TaskManager(TaskStorage(target_dir))
 
     priority_enum = None
     if priority:

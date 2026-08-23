@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -11,6 +11,8 @@ from agentjobs.__version__ import __version__
 from agentjobs.environment import describe_source, source_identity
 from agentjobs.models_v2 import SCHEMA_VERSION
 from agentjobs.storage import yaml_loader_name
+
+from ..spa import bundle_is_present
 
 router = APIRouter(prefix="/api", tags=["system"])
 
@@ -58,6 +60,15 @@ class VersionResponse(BaseModel):
             "file on disk now says."
         )
     )
+    frontend_bundle: Literal["present", "missing"] = Field(
+        description=(
+            "Whether this process can serve the React app at /app/. The bundle is "
+            "gitignored and no install step builds it, so a clone that has never run "
+            "`npm run build` answers every REST call correctly and 404s the one URL a "
+            "new user is told to open. Reported here so `agentjobs open` can say so "
+            "before opening a browser rather than after."
+        )
+    )
 
 
 @router.get("/health")
@@ -82,4 +93,5 @@ async def api_version() -> VersionResponse:
         source_root=describe_source(),
         source_commit=identity.commit,
         started_at=identity.started_at,
+        frontend_bundle="present" if bundle_is_present() else "missing",
     )
