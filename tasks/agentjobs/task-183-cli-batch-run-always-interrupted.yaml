@@ -2,13 +2,11 @@ schema: 2
 id: task-183-cli-batch-run-always-interrupted
 title: A batch run started from the CLI always ends interrupted, however well it went
 created: '2026-08-19T20:50:29.282313Z'
-updated: '2026-08-21T16:59:33.050819Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-23T17:30:33.371073Z'
+lifecycle: closed
+outcome: duplicate
 archived: false
 priority: medium
-queue_position: 3600
 category: reliability
 tags:
 - dispatch
@@ -95,3 +93,30 @@ log:
     to: 1
     placement:
       kind: top
+- id: 3
+  ts: '2026-08-23T17:30:33.370940Z'
+  actor: claude
+  type: transition
+  body: "Closed as a duplicate of task-278 by the groom run task-290, on Jeff Posey's\
+    \ approval recorded there on 2026-08-23 (\"All three\"). The proposal is task-290\
+    \ log entry 3, item 3.\n\nThe survivor is task-278, \"Keep CLI batch dispatch\
+    \ supervised through completion\" \u2014 closed/completed with all three acceptance\
+    \ criteria met. Its summary is this task's description: a successful batch run\
+    \ launched by `agentjobs dispatch run` stayed permanently `running` because its\
+    \ daemon supervisor died with the CLI process. Fixed in c33ca00 (2026-08-22),\
+    \ \"fix(task-278): retain batch supervision in CLI\": cli.py:1193 now prints \"\
+    Waiting for the batch run to record its outcome\" and joins the supervisor, and\
+    \ tests/test_dispatch_cli.py:194 (test_waits_for_a_batch_run_to_write_its_terminal_record)\
+    \ pins it.\n\nResidue, recorded so it is not lost in the close: this task's acceptance\
+    \ criterion 2 asked that \"killing `agentjobs serve` still terminates its own\
+    \ batch runs\" be pinned by a test. That behaviour is unchanged and was never\
+    \ broken, but no test was found pinning it. It was offered to Jeff as a separate\
+    \ task in the proposal; he approved the closures without asking for one, so it\
+    \ is left here rather than filed."
+  data:
+    lifecycle: closed
+    outcome: duplicate
+    operation:
+      id: 7f2a4c10-9d31-4e58-b6a2-290000000103
+      kind: close
+      fingerprint: bc7b6a3f05467b718ac4f0c79bd19dba

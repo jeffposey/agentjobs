@@ -2,13 +2,11 @@ schema: 2
 id: task-100-dependency-cycle-deadlock
 title: A `needs` cycle deadlocks silently
 created: '2026-08-13T02:35:21.254172Z'
-updated: '2026-08-21T16:58:58.983152Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-23T17:30:25.417250Z'
+lifecycle: closed
+outcome: superseded
 archived: false
 priority: high
-queue_position: 6487
 category: correctness
 tags:
 - schema
@@ -108,3 +106,32 @@ log:
     placement:
       kind: after
       target: task-121-batch-issue-capture
+- id: 3
+  ts: '2026-08-23T17:30:25.417129Z'
+  actor: claude
+  type: transition
+  body: "Closed as superseded by the groom run task-290, on Jeff Posey's approval\
+    \ recorded there on 2026-08-23 (\"All three\"). The proposal is task-290 log entry\
+    \ 3, item 2.\n\nA needs cycle is no longer silent. manager._needs_cycles (manager.py:425)\
+    \ computes cycles into DependencyFacts.needs_cycles \u2014 commit ed1f21c (2026-08-13),\
+    \ \"feat: surface task dependency state\" \u2014 and it reaches three surfaces\
+    \ a human or an agent reads:\n\n- the validator: validation.py:326 emits \"dependency-cycle:\
+    \ needs cycle a -> b: every task in it is permanently unclaimable, and no listing\
+    \ will say so\", shipped in dc04330 (2026-08-17);\n- the React app: DependencyState.tsx:17\
+    \ renders \"Cycle: a -> b\", and DependencyGraph.tsx:57 flags it;\n- the API and\
+    \ MCP: api/models.py:34, mcp/read_tools.py:557.\n\nTests: tests/test_manager.py:392\
+    \ covers a two-task cycle end to end, and tests/test_validate.py:330 writes raw\
+    \ YAML by hand and asserts the validator reports it \u2014 this task's acceptance\
+    \ criterion 2.\n\nResidue, recorded so it is not lost in the close: criterion\
+    \ 3 asks for a three-task cycle test as well as a two-task one, and only the two-task\
+    \ case is covered; the design choice to report rather than refuse at write time\
+    \ was made in code and never recorded as a decision (criterion 1). Neither changes\
+    \ the fact that the deadlock is no longer silent. task-018 and task-262/263 are\
+    \ the live neighbours if that residue is ever picked up."
+  data:
+    lifecycle: closed
+    outcome: superseded
+    operation:
+      id: 7f2a4c10-9d31-4e58-b6a2-290000000102
+      kind: close
+      fingerprint: c15408bd8a1d1105f08b593b1c41dca5

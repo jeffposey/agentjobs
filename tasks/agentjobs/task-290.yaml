@@ -2,59 +2,16 @@ schema: 2
 id: task-290
 title: Groom the agentjobs backlog
 created: '2026-08-23T10:42:27.100467Z'
-updated: '2026-08-23T10:57:11.525496Z'
-lifecycle: active
-ball: human
-ball_reason: approval
-ball_prompt: "**Approve, strike or reject each of these three closures. Nothing has\
-  \ been closed and nothing will close without your answer.** The full evidence, the\
-  \ questions and everything the sweep declined to propose are in log entry 3 above;\
-  \ this prompt is complete enough to decide from.\n\nThe sweep read 119 open tasks\
-  \ and judged 104 of them (excluded: this run task, 5 tasks an agent is actively\
-  \ working, and 12 parents holding open children).\n\n**1. task-010 \u2014 close\
-  \ as `superseded`.** *A corpus test can only pass on one machine, and fails in every\
-  \ worktree.* The fix shipped: commit `eee75fb` (2026-08-17) exempted a task's own\
-  \ pending deliverables from `test_agentjobs_context_paths_exist`, which is exactly\
-  \ what this task asked for. Verified live \u2014 `pytest -k context_paths` passes\
-  \ in this worktree, which is where it used to fail.\n\n**2. task-100-dependency-cycle-deadlock\
-  \ \u2014 close as `superseded`.** *A `needs` cycle deadlocks silently.* It is no\
-  \ longer silent. `ed1f21c` (2026-08-13) computes `needs_cycles` into the dependency\
-  \ facts and `dc04330` (2026-08-17) put it in `agentjobs validate`; it also renders\
-  \ in the React app as \"Cycle: a \u2192 b\" and is exposed over the API and MCP.\
-  \ Tests cover the two-task cycle both in the manager and against hand-written YAML.\
-  \ *Residue, if you want to strike this one:* its acceptance also asked for a three-task\
-  \ cycle test, which does not exist, and for the report-versus-refuse choice to be\
-  \ recorded as a decision, which was never written down.\n\n**3. task-183-cli-batch-run-always-interrupted\
-  \ \u2014 close as `duplicate` of task-278.** *A batch run started from the CLI always\
-  \ ends interrupted.* task-278 is closed/completed with all three criteria met and\
-  \ its summary is this task's description word for word in substance; fixed in `c33ca00`\
-  \ (2026-08-22), pinned by `test_waits_for_a_batch_run_to_write_its_terminal_record`.\
-  \ *Residue:* task-183 also wanted a test pinning that killing `agentjobs serve`\
-  \ still terminates its own batch runs \u2014 unchanged behaviour, but I found no\
-  \ such test. Say so and it becomes its own task instead of being lost in this close.\n\
-  \n**Three questions, none of them proposed for closure.** (Q1) task-196 and task-261\
-  \ overlap on the stale-second-server incident but each holds something the other\
-  \ lacks \u2014 merge them, or narrow task-196 to the bind-failure half? (Q2) task-269\
-  \ asks to cut prose describing a scripted finish that is \"switched off on this\
-  \ machine\"; you turned it on this morning, so that one of its seven findings no\
-  \ longer applies. (Q3) task-137's embed epic and task-167's task-169/task-139 are\
-  \ converging on the same \"AgentJobs surface inside a host React app\" problem \u2014\
-  \ an architecture call, not a duplicate pair.\n\n**How to answer.** \"All three\"\
-  \ approves the list as it stands. To approve partially, name the ids you want closed,\
-  \ or name the ones to strike \u2014 the executed set is exactly what you state and\
-  \ nothing else, and an item you are unsure about is treated as not approved rather\
-  \ than interpreted.\n\nNote the merge posture: **task-216 will merge on its own\
-  \ approval, and this run task stays open until you answer.** They are separate decisions\
-  \ \u2014 approving the branch is not approving these closures.\n"
+updated: '2026-08-23T17:32:07.329557Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
-queue_position: 8000
 category: meta
 tags:
 - grooming
 - playbook
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'Run of the `groom` playbook: Find duplicate, superseded and stale tasks;
@@ -71,15 +28,26 @@ acceptance:
 - id: ac-1
   text: The closure proposal was recorded on this task before anything closed, one
     item per task with its id, its proposed outcome, its reason and its evidence.
-  status: pending
+  verify: Log entry 3, timestamped 2026-08-23T10:56:15Z. The first close (task-010)
+    is timestamped 2026-08-23T17:30:15Z, six and a half hours later. Three items,
+    each with id, outcome, reason and evidence.
+  status: met
 - id: ac-2
   text: Every executed close appears in the approved list, with the approved outcome
     (duplicate or superseded), and nothing else was closed.
-  status: pending
+  verify: 'Three closes executed, three proposed, approved as "All three" in log entry
+    5: task-010 superseded, task-100-dependency-cycle-deadlock superseded, task-183-cli-batch-run-always-interrupted
+    duplicate of task-278. git status over tasks/ shows exactly four modified files
+    -- those three and this one.'
+  status: met
 - id: ac-3
   text: No task file was deleted, no spec was rewritten, no priority was changed and
     no queue position was moved.
-  status: pending
+  verify: git diff over tasks/ shows no deleted file, no spec line changed and no
+    priority line changed on any of the three. The only removed lines are lifecycle/ball/ball_reason/updated
+    and queue_position -- the last because the managed close verb takes a closed task
+    out of the queue; no queue_move entry was appended anywhere.
+  status: met
 deliverables: []
 dependencies: []
 links: []
@@ -243,3 +211,183 @@ log:
       id: 3a1c8f20-7b64-4d51-9e12-290000000003
       kind: handoff
       fingerprint: 238fe109a203925fbbd9f52325288d61
+- id: 5
+  ts: '2026-08-23T17:27:39.885919Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    All three'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 6
+  ts: '2026-08-23T17:27:45.604250Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 7
+  ts: '2026-08-23T17:27:48.634777Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_6cefe2ee
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    trigger: manual
+    caused_by: 6
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - 'You are the agent `claude` working task `task-290` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-290-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_6cefe2ee.'
+    cwd: C:\projects\agentjobs
+    git_head: 3d17aee
+    session_id: 4b9bc9af
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 8
+  ts: '2026-08-23T17:30:48.923077Z'
+  actor: claude
+  type: question
+  body: "Q1 (from the proposal, entry 3). task-196 and task-261 overlap, and neither\
+    \ contains the other \u2014 do you want them merged, or task-196 narrowed to its\
+    \ bind-failure half?\n\ntask-261 (\"CLI knows whose server it is\") covers task-196's\
+    \ incident class; its own evidence calls the stale second server \"enforced nowhere\"\
+    , and its acceptance says `restart` with nothing listening starts nothing. task-196\
+    \ asks for two things task-261 does not: that a `serve` which cannot bind its\
+    \ port reports that and exits non-zero having written nothing, and that a restart\
+    \ provably leaves exactly one process, verified from the process table rather\
+    \ than by a passing test.\n\nPer the brief, two records that each hold something\
+    \ the other lacks are not duplicates, and merging specs is outside groom's executable\
+    \ set. Neither task was touched. Expected answer: narrow task-196 to the bind-failure\
+    \ half and let task-261 keep the ownership half \u2014 but that is a call about\
+    \ what you want, not something the records decide."
+  re: 3
+  data:
+    operation:
+      id: 7f2a4c10-9d31-4e58-b6a2-290000000104
+      kind: log_append
+      fingerprint: 4254fe33855effacd59b792ce3130e43
+- id: 9
+  ts: '2026-08-23T17:30:55.668233Z'
+  actor: claude
+  type: question
+  body: "Q2 (from the proposal, entry 3). task-269's scripted-finish premise changed\
+    \ on 2026-08-23 \u2014 should that finding be struck from its spec?\n\ntask-269\
+    \ asks, among seven findings, to \"cut the inactive scripted-finish prose\": 634\
+    \ words describing a feature \"switched off on this machine\". `finish.enabled`\
+    \ was turned on at about 08:11 on 2026-08-23, so that prose now describes live\
+    \ behaviour and the finding no longer applies as written. The other six findings\
+    \ are untouched and still stand.\n\ngroom may not rewrite a spec, so this is raised\
+    \ rather than acted on. Expected answer: strike that one finding from task-269\
+    \ and leave the rest \u2014 but whoever edits it should check whether the prose\
+    \ needs updating rather than cutting, now that it describes something real."
+  re: 3
+  data:
+    operation:
+      id: 7f2a4c10-9d31-4e58-b6a2-290000000105
+      kind: log_append
+      fingerprint: 3c9850d67b4d45dbca197fdc360c7dfd
+- id: 10
+  ts: '2026-08-23T17:31:02.625818Z'
+  actor: claude
+  type: question
+  body: "Q3 (from the proposal, entry 3). Two epics are converging on the same embed\
+    \ problem \u2014 how should task-137 and task-167 divide it?\n\ntask-137 (\"Embedded\
+    \ AgentJobs: drop the helper UI into an app you are building\", 9 open children)\
+    \ and task-167's child task-169 (\"The same menu, in somebody else's React app,\
+    \ in one import\") are both \"put an AgentJobs surface inside a host React app\"\
+    , as is task-139 (\"Lift the issue reporter out of the AgentJobs app so a host\
+    \ app can render it\").\n\nThat is an architecture question about how the two\
+    \ epics divide, not a duplicate pair, and merging specs is outside groom's executable\
+    \ set. Nothing was closed or changed. Expected answer: one of the two epics owns\
+    \ the embed mechanism and the other consumes it \u2014 but which, and whether\
+    \ task-139 belongs to the mechanism or to the surface, is a design call."
+  re: 3
+  data:
+    operation:
+      id: 7f2a4c10-9d31-4e58-b6a2-290000000106
+      kind: log_append
+      fingerprint: b6def060195226c5348172f1eb568022
+- id: 11
+  ts: '2026-08-23T17:31:44.760996Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 7f2a4c10-9d31-4e58-b6a2-290000000107
+      kind: update_content
+      fingerprint: df5b0c0720c7bf79ce576840d6ef5788
+- id: 12
+  ts: '2026-08-23T17:32:07.329360Z'
+  actor: claude
+  type: transition
+  body: "# Groom run tally \u2014 2026-08-23\n\n**Proposed 3. Approved 3. Executed\
+    \ 3. Refused 0. Deferred 0.**\n\nApproval is log entry 5, Jeff Posey through the\
+    \ web UI, 17:27:39Z: \"All three\". The proposal it approves is log entry 3, recorded\
+    \ at 10:56:15Z, six and a half hours before the first close.\n\n## Executed\n\n\
+    | Task | Outcome | Where the work went |\n|---|---|---|\n| task-010 | superseded\
+    \ | commit eee75fb, 2026-08-17 |\n| task-100-dependency-cycle-deadlock | superseded\
+    \ | commit ed1f21c + dc04330 |\n| task-183-cli-batch-run-always-interrupted |\
+    \ duplicate | survivor task-278, fixed in c33ca00 |\n\nEach close body names this\
+    \ task and, for task-183, names task-278 as the survivor. None of the three had\
+    \ children. Nothing anywhere `needs` any of them \u2014 the three inbound references\
+    \ (task-018, task-099, task-118, all to task-100) are `type: related`, so no task\
+    \ was blocked or stranded by these closures.\n\nTwo pieces of residue are recorded\
+    \ in the close bodies rather than filed as tasks, because filing is outside groom's\
+    \ executable set and the approval did not ask for it: task-100's acceptance wanted\
+    \ a three-task cycle test as well as a two-task one, and task-183's wanted a test\
+    \ pinning that killing `agentjobs serve` terminates its own batch runs. Both behaviours\
+    \ are correct today; neither is pinned.\n\n## Open questions, unanswered\n\nLog\
+    \ entries 8, 9 and 10 \u2014 the three raised in the proposal, now recorded as\
+    \ their own threads so they survive this task closing: the task-196/task-261 overlap,\
+    \ the task-269 finding whose premise changed when `finish.enabled` went on, and\
+    \ how task-137 and task-167 divide the embed problem. None of them was acted on;\
+    \ all three need a decision that is yours, not a groom run's.\n\n## On the merge\
+    \ instruction in the ball_prompt\n\nThe approval prompt was the standard cleared-to-merge\
+    \ text: rebase, merge `--no-ff`, mark the branch merged, close. **There was nothing\
+    \ to merge.** This is a groom run \u2014 no branch, no worktree, no code. `branches[]`\
+    \ is empty and always was. The whole of the work is task-record writes, which\
+    \ go straight to `main` by the rule in ENGINEERING.md, and they are committed\
+    \ there. Nothing was rebased, merged or pushed, and no worktree was taken.\n\n\
+    ## Constraints held\n\nNo task file was deleted. No spec was rewritten. No priority\
+    \ was changed. No `queue_move` was appended anywhere. The three closed records\
+    \ lost their `queue_position` line, which is the managed `close` verb taking a\
+    \ closed task out of the queue rather than a move \u2014 `git diff` over `tasks/`\
+    \ shows exactly four modified files and no other field touched."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 7f2a4c10-9d31-4e58-b6a2-290000000108
+      kind: close
+      fingerprint: 0e45843580b93ae0f5e939bbab3bbcf4

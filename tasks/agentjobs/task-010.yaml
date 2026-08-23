@@ -2,13 +2,11 @@ schema: 2
 id: task-010
 title: A corpus test can only pass on one machine, and fails in every worktree
 created: '2026-08-17T22:48:19.433930Z'
-updated: '2026-08-21T16:59:43.630419Z'
-lifecycle: ready
-ball: agent
-ball_reason: available
+updated: '2026-08-23T17:30:15.887505Z'
+lifecycle: closed
+outcome: superseded
 archived: false
 priority: medium
-queue_position: 112
 category: testing
 tags:
 - testing
@@ -231,3 +229,24 @@ log:
     to: 112
     placement:
       kind: top
+- id: 10
+  ts: '2026-08-23T17:30:15.887302Z'
+  actor: claude
+  type: transition
+  body: "Closed as superseded by the groom run task-290, on Jeff Posey's approval\
+    \ recorded there on 2026-08-23 (\"All three\"). The proposal is task-290 log entry\
+    \ 3, item 1.\n\nThe premise no longer holds. Commit eee75fb (2026-08-17), \"fix(tests):\
+    \ stop requiring a task's own unbuilt deliverables to exist\", changed the corpus\
+    \ test to exempt a task's own pending deliverables \u2014 the fix this task asks\
+    \ for. tests/test_task_corpus.py:122 carries the exemption and its docstring reproduces\
+    \ the argument. Verified live in a worktree with no locally-excluded files copied\
+    \ in: `pytest -k context_paths` gives 1 passed.\n\nAcceptance criteria 1 and 3\
+    \ are satisfied by that commit. Criterion 2 (\"the chosen fix is recorded as a\
+    \ decision\") is satisfied by the commit body rather than by a log entry here."
+  data:
+    lifecycle: closed
+    outcome: superseded
+    operation:
+      id: 7f2a4c10-9d31-4e58-b6a2-290000000101
+      kind: close
+      fingerprint: 034e2cc54c6dc3c8dbb6406cbf23eb98
