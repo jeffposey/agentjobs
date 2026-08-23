@@ -3,14 +3,14 @@ id: task-247
 title: Atomic task-file writes, stale task-lock reclaim, and the same helper for the
   registry and webhooks.yaml
 created: '2026-08-22T18:51:10.598317Z'
-updated: '2026-08-22T18:51:11.196978Z'
+updated: '2026-08-23T05:15:30.480980Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
 ball_prompt: Finish specifying this task.
 archived: false
 priority: critical
-queue_position: 400
+queue_position: 93
 category: infrastructure
 tags:
 - big-dawg-audit
@@ -93,3 +93,23 @@ log:
       id: 81b8c49e-5403-442d-b8af-3d10ffb50609
       kind: create
       fingerprint: 3ab34b74fc5cb0223bc45f3ea83f0a7c
+- id: 2
+  ts: '2026-08-23T05:15:30.480844Z'
+  actor: claude
+  type: queue_move
+  body: Ad-hoc reorder run, 2026-08-23. Fourth in CRITICAL, behind the three dispatch-surface
+    items. Atomic task-file writes and stale-lock reclaim are severe - the task corpus
+    is the product's whole state - but they are reachable only by something already
+    permitted to write, whereas 244/245/249 are reachable by a stranger on the tailnet.
+    Exposure ahead of blast radius.
+  data:
+    band: critical
+    from: 400
+    to: 93
+    placement:
+      kind: after
+      target: task-249
+    operation:
+      id: a1b2c3d4-0004-4000-8000-000000000004
+      kind: queue_move
+      fingerprint: e65fe6b19383ab1f2a99f77aff539199

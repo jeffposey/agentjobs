@@ -2,13 +2,13 @@ schema: 2
 id: task-243
 title: The grandchild-kill test asserts on a moment, and loses the race under load
 created: '2026-08-22T04:38:42.531332Z'
-updated: '2026-08-22T04:38:43.049767Z'
+updated: '2026-08-23T05:16:18.670070Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
-queue_position: 7200
+queue_position: 168
 category: testing
 tags:
 - flaky
@@ -123,3 +123,29 @@ log:
       id: d9e04b71-3c28-4a15-8f96-1b0e73c5a284
       kind: create
       fingerprint: c711e9f64db02993f86906f21dff1aa4
+- id: 2
+  ts: '2026-08-23T05:16:18.669899Z'
+  actor: claude
+  type: queue_move
+  body: 'Ad-hoc reorder run, 2026-08-23. Promoted from 7200 to second in MEDIUM, immediately
+    behind task-010. The two belong together: both are gate-reliability defects that
+    fire on work their author never touched. task-010 is red in every worktree and
+    every fresh clone; task-243''s grandchild-kill test asserts on a moment and loses
+    the race on a loaded machine - it failed twice on 2026-08-22, once at each of
+    its two assertions. Since task-233 made the gate run pytest across all 32 cores,
+    a loaded machine is now the ordinary condition rather than the unusual one, so
+    this gets worse rather than better if left. The cost of both is the same and it
+    is the expensive kind: a red gate an agent cannot attribute to its own change
+    trains everyone to read red as noise. It sat at 7200 because it was filed on 2026-08-22,
+    after the last ordering pass.'
+  data:
+    band: medium
+    from: 7200
+    to: 168
+    placement:
+      kind: after
+      target: task-010
+    operation:
+      id: a1b2c3d4-0008-4000-8000-000000000008
+      kind: queue_move
+      fingerprint: 524fad1c7aee98d781b0c24998fe10cf

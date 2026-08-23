@@ -3,14 +3,14 @@ id: task-245
 title: 'Dispatch: drop git merge/git add/npm run from the pre-approved allow-list
   and frame the wake ball_prompt as quoted data'
 created: '2026-08-22T18:50:33.217480Z'
-updated: '2026-08-22T18:50:33.652344Z'
+updated: '2026-08-23T05:15:12.510948Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
 ball_prompt: Finish specifying this task.
 archived: false
 priority: critical
-queue_position: 300
+queue_position: 75
 category: infrastructure
 tags:
 - big-dawg-audit
@@ -98,3 +98,24 @@ log:
       id: adb5ddd9-1a82-4cc2-891c-c0d3cbf329fa
       kind: create
       fingerprint: 1012318a1ed7d22e46a7a47741e7f8b0
+- id: 2
+  ts: '2026-08-23T05:15:12.510747Z'
+  actor: claude
+  type: queue_move
+  body: 'Ad-hoc reorder run, 2026-08-23. Second in CRITICAL, immediately behind task-244,
+    because it is the same attack read one step further in: task content written by
+    any API caller reaches a dispatched agent verbatim as "what the human said", and
+    the --settings blob pre-approves git merge / git add / npm run. task-244 is what
+    makes the caller anonymous; this is what the anonymous caller gets to run. Ordering
+    them adjacently means whoever picks up the first has the second in view.'
+  data:
+    band: critical
+    from: 300
+    to: 75
+    placement:
+      kind: after
+      target: task-244
+    operation:
+      id: a1b2c3d4-0002-4000-8000-000000000002
+      kind: queue_move
+      fingerprint: 6fe3fd06390dde406249045727ed79ae

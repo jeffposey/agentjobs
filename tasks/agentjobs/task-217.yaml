@@ -2,7 +2,7 @@ schema: 2
 id: task-217
 title: 'Playbooks 4: reorder, authored, with anchor mechanics'
 created: '2026-08-21T04:56:41.043549Z'
-updated: '2026-08-21T20:12:32.821625Z'
+updated: '2026-08-23T05:19:50.296426Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -111,3 +111,58 @@ log:
       id: 3f1a9c22-0004-4b7e-9c31-7a5e2d8f0104
       kind: promote
       fingerprint: 30b3c2341eda834d5c52e8d169a3d68a
+- id: 3
+  ts: '2026-08-23T05:19:50.296295Z'
+  actor: claude
+  type: question
+  body: "**Found by running this task's policy by hand on 2026-08-23, before the brief\
+    \ exists: the anchor derivation in section 5.2 finds almost nothing on the real\
+    \ corpus, and the reason is structural.**\n\nFull run record and reasoning: task-289.\
+    \ The short version, because it changes what acceptance criterion sc-2 should\
+    \ ask for.\n\nThe design derives an anchor from the **actor of the latest `queue_move`**,\
+    \ and sc-2 asks this task to expose that actor in the queue listing so a run can\
+    \ derive anchors without parsing every log. I applied the rule to all 125 open\
+    \ tasks:\n\n- 31 open tasks carry a `queue_move` at all.\n- **3 have a human actor**\
+    \ \u2014 task-018, task-021, task-022, all moved by Jeff on 2026-08-21.\n- **28\
+    \ have actor `claude`.** Twenty of those say *\"task-209: applying the ordering\
+    \ approved by Jeff on 2026-08-21\"*. task-211's says *\"Jeff, 2026-08-21: move\
+    \ the playbooks epic to the head of the high band\"*. task-017's says *\"Jeff\
+    \ asked for this a second time on 2026-08-21\"*.\n\nSo a whole ordering pass that\
+    \ Jeff proposed to, reviewed, and approved produces **zero anchors**, because\
+    \ an agent's hand was on the verb. The mechanism meant to make a human move sticky\
+    \ would protect three positions and leave twenty-two of his decisions freely re-derivable\
+    \ by the next run \u2014 which is exactly the churn bound 3 exists to prevent.\n\
+    \n**This is not an edge case, it is the product working as designed.** AgentJobs\
+    \ is built so an agent executes what a human decided. That makes `actor` the executor\
+    \ and the *body* the decider, so provenance-by-actor systematically under-counts\
+    \ human authority in proportion to how well the agent workflow is working.\n\n\
+    It also weakens the strong-anchor story that section 5.4 is supposed to strengthen:\
+    \ \"a position a human kept after reading the queue-move check's warning\" is\
+    \ only certain if the keep is recorded against the human. If a human keeps a move\
+    \ and an agent later re-applies that position for any reason, the strong anchor\
+    \ evaporates.\n\n**Three candidate resolutions, not decided here:**\n\n1. **Record\
+    \ the decider separately.** The manager writes a `decided_by` beside `actor` on\
+    \ a `queue_move`; anchors derive from `decided_by` when present and `actor` otherwise.\
+    \ Truest to the fact, and it changes sc-2 from \"expose last-move actor\" to \"\
+    expose last-move decider\", which is the field a run actually needs. Costs a schema\
+    \ addition.\n2. **Let a move declare it is applying a human decision** \u2014\
+    \ a flag on the verb, which the listing surfaces and the derivation treats as\
+    \ human provenance. Cheaper, and it puts the claim where a reader can check it\
+    \ against the body. Weaker, because nothing stops an agent asserting it.\n3. **Accept\
+    \ it and say so.** Agent-applied human decisions are not anchors, stated explicitly\
+    \ in the brief so no future run has to make this call unaided. Honest, and it\
+    \ means the anchor mechanic mostly does not fire \u2014 which may be fine if reorder\
+    \ runs are rare and reviewable.\n\n**What the ad-hoc run of 2026-08-23 did meanwhile**,\
+    \ recorded so this is not mistaken for the policy: it treated the task-209-approved\
+    \ positions and the two explicitly-quoted ones as **effective anchors**, respected\
+    \ them, left the head of HIGH untouched, and said so on task-289 rather than silently\
+    \ re-deriving an order Jeff approved two days earlier. That is a judgement call\
+    \ this task should replace with a rule.\n\n**What should not happen** is this\
+    \ brief shipping with a derivation rule that is silently wrong in the majority\
+    \ of cases, and sc-2 being marked met by exposing a field that does not answer\
+    \ the question it was added for."
+  data:
+    operation:
+      id: a1b2c3d4-0018-4000-8000-000000000018
+      kind: log_append
+      fingerprint: 21229404e2ce717f7670547e7179a40a

@@ -1,0 +1,267 @@
+schema: 2
+id: task-289
+title: 'Ad-hoc reorder run, 2026-08-23: the argument behind eight queue moves'
+created: '2026-08-23T05:18:28.671872Z'
+updated: '2026-08-23T05:19:27.373398Z'
+lifecycle: ready
+ball: human
+ball_reason: decision
+ball_prompt: '**The reorder is done and needs no approval - section 5.2 requires no
+  gate, and the reasons are on the moves. This is here for the four things it could
+  not touch.**
+
+
+  Read log entry 3. In order of how much they cost you:
+
+
+  1. **The whole CRITICAL band is unclaimable** - four drafts at human/spec, two active.
+  `agentjobs next` walks past all six. Three of the four drafts are the unauthenticated-tailnet-API
+  chain. Promoting them is a lifecycle change and reorder does not do lifecycle.
+
+  2. **task-275** is a stored XSS banded HIGH while four security drafts sit in CRITICAL.
+  Should it be CRITICAL?
+
+  3. **The playbooks epic is split across two bands** - task-218 and task-219 are
+  MEDIUM while their four siblings are HIGH, so task-211 cannot close until MEDIUM
+  comes up. task-219 in particular has no dependency on any playbook machinery and
+  could be worked today.
+
+  4. **task-010** reads as HIGH to me and sits at the head of MEDIUM.
+
+
+  Log entry 2 has the anchor finding, which is the most interesting thing this run
+  produced and is a design defect rather than a backlog one: **the design derives
+  anchors from the actor of the latest queue_move, and on this corpus that finds three,
+  while twenty-two of your own decisions were applied by an agent and so do not count.**
+  Raised on task-217 as a question, with three candidate fixes. This run treated the
+  task-209 positions as effective anchors and left the head of HIGH alone rather than
+  re-deriving an order you approved two days ago.
+
+
+  Close this record once you have read it, or leave it open if any of the four questions
+  turns into work.'
+archived: false
+priority: high
+queue_position: 14300
+category: meta
+tags:
+- playbooks
+- queue-order
+- backlog
+- adhoc-run
+effort: executed; this record exists to be read and disagreed with
+assignment:
+  eligible: []
+spec:
+  summary: The run record for a reorder pass executed by hand on 2026-08-23, before
+    playbooks/reorder.md exists (task-217 is blocked behind task-215). Eight queue
+    moves were made and each carries its reason in its own queue_move entry; this
+    record holds what the moves cannot - what was considered and left alone, and why.
+  intent: Section 5.2 requires no gate, so unlike the groom run of the same date this
+    one wrote directly. What makes that safe is recorded reasoning, and reasoning
+    about a move that did not happen has nowhere to live except a run record.
+  description: 'A hand-run of the `reorder` brief in docs/playbooks-design.md section
+    5.2, over the 125 open tasks as of 2026-08-23. The last full ordering pass was
+    task-209 on 2026-08-21; everything filed since - the Big Dawg audit output, task-243,
+    task-287 - landed at the foot of its band by filing order rather than by any judgement.
+
+
+    ## The eight moves
+
+
+    Each move''s own `queue_move` entry carries its reason. In summary:
+
+
+    **CRITICAL, ordered exactly** - the band is six tasks, so all of it is head. New
+    order: **task-244, task-245, task-249, task-247, task-248, task-233.** The first
+    three are one attack read at three depths (unauthenticated API, injection into
+    a pre-approved `git merge`, run-identity leak) and are cheapest to fix together.
+    task-247 is integrity rather than exposure. task-248 is already active in review,
+    so its position gates nothing. task-233 went from the head to the foot: it is
+    held by an agent, it is measurement rather than defect, and its own deliverable
+    has landed.
+
+
+    **HIGH** - the head was left exactly as it stood (see anchors below). Two moves
+    in the body: **task-198** promoted from 6100 to just behind task-196, best value-per-effort
+    in the band; **task-275** promoted from 14200, dead last of 73, to the head of
+    the audit-draft cluster, because a stored XSS should not sort below every ergonomics
+    defect filed the same day.
+
+
+    **MEDIUM** - **task-243** promoted from 7200 to second, behind task-010. Both
+    are gate-reliability defects that fire on work their author never touched, and
+    task-233''s move to 32-core pytest makes 243''s load-sensitivity worse rather
+    than better.
+
+
+    **LOW** - four tasks, triage scan only. Nothing there belongs near the head.
+
+
+    ## What was deliberately not done
+
+
+    - **Nothing was closed, reprioritised or rewritten.** The four closures proposed
+    on the same date belong to the separate groom run and are still awaiting approval;
+    the tasks proposed for closure were left exactly where they were, so that if any
+    proposal is struck nothing has to be undone.
+
+    - **No task''s band was changed**, though three arguably want one - see the questions
+    on this record.
+
+    - **No scoring.** Every placement above is an argument, per section 12 of docs/task-selection-design.md,
+    which section 5.2 leaves binding.
+
+    - **The tail of HIGH below the audit cluster was scanned, not ordered.** Graded
+    effort: precision deep in the queue decays before it is consumed.'
+  constraints: 'Section 5.2 bounds, all binding: graded effort by depth, a reason
+    recorded on every move, triggered rather than continuous, anchors respected or
+    overridden with stated grounds, and no numeric ranking function anywhere.'
+  out_of_scope: Closing, promoting, reprioritising or rewriting anything. The four
+    closures proposed the same day are the groom run's, and are gated on Jeff's approval
+    there.
+  context:
+  - path: docs/playbooks-design.md
+    why: Section 5.2 is the brief this run followed - graded effort, recorded reasons,
+      anchor mechanics and their expiry.
+  - path: docs/task-selection-design.md
+    why: Section 12's rejection of scoring, which section 5.2 leaves binding on every
+      playbook.
+acceptance:
+- id: ac-1
+  text: Every move is a queue_move entry carrying a substantive reason for the placement.
+  status: met
+- id: ac-2
+  text: Every human anchor was respected, or overridden with grounds stated by name.
+  status: met
+- id: ac-3
+  text: Nothing was closed, reprioritised or rewritten by this run.
+  status: met
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T05:18:29.249003Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: a1b2c3d4-0014-4000-8000-000000000014
+      kind: create
+      fingerprint: 0f87ade8ba57ffddf34e065d9e116d71
+- id: 2
+  ts: '2026-08-23T05:18:50.770929Z'
+  actor: claude
+  type: decision
+  body: "**Anchors: how they were derived, and the finding that the design's derivation\
+    \ rule would have found almost none.**\n\nSection 5.2 derives an anchor from provenance:\
+    \ the actor of a task's latest `queue_move`. A human actor makes the position\
+    \ an anchor. I applied that to all 125 open tasks. Thirty-one carry a `queue_move`\
+    \ at all; **three have a human actor**:\n\n| Task | Anchor set | Jeff's stated\
+    \ reason |\n|---|---|---|\n| task-021 | 2026-08-21 | \"Moved to the top of the\
+    \ high band... He wants epics dispatchable as a unit\" |\n| task-022 | 2026-08-21\
+    \ | \"This is the task he actually asked for\" |\n| task-018 | 2026-08-21 | \"\
+    this defect has now fired twice\" |\n\nAll three were respected and none was overridden.\
+    \ Checked for expiry, which section 5.2 triggers on close, band change, or a `needs`\
+    \ dependency resolving: task-022 needs task-164 (closed 2026-08-21T04:43Z, *before*\
+    \ the anchor was set, so no expiry) and task-021 (still open). No anchor has expired.\
+    \ None of the three moved.\n\n## The finding: actor provenance misses decisions\
+    \ a human made and an agent applied\n\n**Twenty-eight of the thirty-one latest\
+    \ moves have actor `claude`, and a large share of those are Jeff's own decisions.**\
+    \ Read the bodies:\n\n- Twenty of them say *\"task-209: applying the ordering\
+    \ approved by Jeff on 2026-08-21\"* \u2014 an entire ordering pass Jeff reviewed\
+    \ and approved, executed by an agent.\n- task-211's says *\"Jeff, 2026-08-21:\
+    \ move the playbooks epic to the head of the high band \u2014 'I want to start\
+    \ using playbooks'\"*.\n- task-017's says *\"Jeff asked for this a second time\
+    \ on 2026-08-21, in nearly the same words as the first ask\"*.\n\nUnder the rule\
+    \ as written, **not one of those positions is an anchor**, because the hand on\
+    \ the verb was an agent's. So the mechanism designed to make a human move sticky\
+    \ would, on this corpus, protect three positions and leave twenty-two of Jeff's\
+    \ decisions re-derivable by the next run.\n\nThat is not a small edge case. It\
+    \ is the majority case, and it is *created by the product working as intended*:\
+    \ AgentJobs is built so an agent executes what a human decided, which means the\
+    \ actor field records the executor and the reason field records the decider.\n\
+    \n**What this run did about it:** treated the task-209-approved positions and\
+    \ the two explicitly-quoted ones as **effective anchors** and left them alone,\
+    \ and said so here rather than silently re-deriving an order Jeff approved two\
+    \ days ago. The head of HIGH \u2014 the playbooks epic, then task-017, then the\
+    \ 021/022/018 trio \u2014 was not touched for this reason.\n\n**Rejected alternative:**\
+    \ deriving anchors strictly by actor and re-ordering the head of HIGH on its merits.\
+    \ It would have been faithful to the letter of section 5.2 and would have thrown\
+    \ away a human decision on a technicality about who typed the command. The design's\
+    \ own justification for anchors is that the human was the informed party; that\
+    \ is a fact about who decided, not about who executed.\n\n**What task-217 should\
+    \ do with this** \u2014 raised there as a question, not decided here. Three candidates,\
+    \ roughly in order of how much I like them: have the manager record a `decided_by`\
+    \ alongside the actor on a `queue_move` so provenance can name the decider; or\
+    \ let a move declare itself as applying a human decision and treat that as human\
+    \ provenance; or accept that agent-applied human decisions are not anchors and\
+    \ say so explicitly in the brief, so the next run does not have to make this call\
+    \ in the dark. What should not happen is the brief shipping with a derivation\
+    \ rule that is silently wrong most of the time."
+  data:
+    operation:
+      id: a1b2c3d4-0015-4000-8000-000000000015
+      kind: log_append
+      fingerprint: 80e7f5ceb96e74d736cf62ca7a396b50
+- id: 3
+  ts: '2026-08-23T05:19:11.972282Z'
+  actor: claude
+  type: question
+  body: "**Four things the reorder could not fix, because fixing them means changing\
+    \ a band, a lifecycle or a spec \u2014 none of which reorder may touch. All four\
+    \ are yours.**\n\n## Q1 \u2014 the entire CRITICAL band is unclaimable, and reordering\
+    \ it changes nothing\n\nSix tasks, **zero claimable**. task-233 is `active`/`agent`/`hold`;\
+    \ task-248 is `active`/`human`/`review`; task-244, 245, 247 and 249 are all `draft`\
+    \ at `human`/`spec`. So the band that should be the front of the queue hands an\
+    \ agent nothing, and `agentjobs next` walks straight past all six into HIGH.\n\
+    \nI ordered them anyway, because the order is what you will read when you triage\
+    \ them. But **the ordering is cosmetic until you promote them.** Four drafts stand\
+    \ between the queue and its own top band, and three of them are the unauthenticated-API\
+    \ chain. Promoting is a lifecycle change; reorder does not do lifecycle.\n\n##\
+    \ Q2 \u2014 task-275 is a stored XSS sitting in HIGH while four security drafts\
+    \ sit in CRITICAL\n\nI moved it to the head of the audit-draft cluster and left\
+    \ its band alone, because reorder does not reprioritise. But `x-markdown` doing\
+    \ `el.innerHTML = marked.parse(content)` over `ball_prompt` and every log entry\
+    \ body, on a router still mounted and still proxied to the tailnet, is the same\
+    \ *kind* of finding as task-244 and is banded one level below it. Should it be\
+    \ CRITICAL?\n\n## Q3 \u2014 the playbooks epic is split across two bands\n\ntask-211\
+    \ is HIGH with six children. **task-214, 215, 216 and 217 are HIGH; task-218 and\
+    \ task-219 are MEDIUM.** A parent cannot close while a child is open, so task-211's\
+    \ completion is gated on two tasks the queue will not offer until MEDIUM comes\
+    \ up \u2014 which, with 73 open in HIGH, is a long way off. Either 218/219 belong\
+    \ in HIGH with their siblings, or 211 is not really a HIGH-band epic. Both are\
+    \ band changes.\n\nWorth noting alongside: task-219 is the one child of the epic\
+    \ with **no dependency on any playbook machinery** \u2014 the design says so explicitly,\
+    \ because it was retargeted to the queue program. It could be worked today and\
+    \ is sitting in MEDIUM behind everything.\n\n## Q4 \u2014 task-010 is arguably\
+    \ in the wrong band, and has been since it was filed\n\nIt is at the head of MEDIUM.\
+    \ Its defect \u2014 `test_agentjobs_context_paths_exist` failing in every worktree\
+    \ and every fresh clone \u2014 hits **every agent in this repository**, because\
+    \ ALLAGENTS.md requires them all to work in worktrees and run the gate. A red\
+    \ gate an agent cannot attribute to its own change is the failure that trains\
+    \ people to ignore red. That reads as HIGH to me. Left in MEDIUM, at its head,\
+    \ because the band is not mine to change."
+  data:
+    operation:
+      id: a1b2c3d4-0016-4000-8000-000000000016
+      kind: log_append
+      fingerprint: b1864e8e2a6a1aeb19a66ab96b4594ac
+- id: 4
+  ts: '2026-08-23T05:19:27.373212Z'
+  actor: claude
+  type: handoff
+  body: 'Reorder executed: eight moves, each with its reason on its own queue_move
+    entry. Handing over for the four band and lifecycle questions the run was not
+    permitted to answer, and for the anchor-derivation finding raised on task-217.'
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: a1b2c3d4-0017-4000-8000-000000000017
+      kind: handoff
+      fingerprint: 9ca59983dee597e81ba261f320cb9069

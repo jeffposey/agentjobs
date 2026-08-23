@@ -2,13 +2,13 @@ schema: 2
 id: task-198
 title: Enabling dispatch from the UI destroys every comment in dispatch.yaml
 created: '2026-08-20T20:33:06.424323Z'
-updated: '2026-08-21T16:58:00.743263Z'
+updated: '2026-08-23T05:15:55.869482Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: high
-queue_position: 6100
+queue_position: 1875
 category: infrastructure
 tags:
 - dispatch
@@ -153,3 +153,29 @@ log:
     to: 3
     placement:
       kind: top
+- id: 3
+  ts: '2026-08-23T05:15:55.869284Z'
+  actor: claude
+  type: queue_move
+  body: 'Ad-hoc reorder run, 2026-08-23. Promoted from 6100 to just behind task-196,
+    at the end of the claimable head of HIGH. Best value-per-effort item in the band:
+    one click on a toggle silently destroys every comment in ~/.agentjobs/dispatch.yaml,
+    a machine-local file with no version history, so the reasoning behind every setting
+    on this machine is unrecoverable - it has already caused one wrong diagnosis.
+    The task''s own effort estimate is "small: swap the writer for a round-trip-preserving
+    one, plus a test with a commented fixture", and it lists codex and claude as eligible,
+    so it is claimable today. It sat at 6100 only because the 2026-08-21 pass placed
+    it by filing order, not by cost or severity. See also the groom proposal of the
+    same date: task-199 is the same defect filed twelve minutes later and is proposed
+    for closure as a duplicate of this one.'
+  data:
+    band: high
+    from: 6100
+    to: 1875
+    placement:
+      kind: after
+      target: task-196
+    operation:
+      id: a1b2c3d4-0006-4000-8000-000000000006
+      kind: queue_move
+      fingerprint: 30bc418c5c5c1245636c173caea7871a

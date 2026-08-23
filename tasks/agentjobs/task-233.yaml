@@ -3,7 +3,7 @@ id: task-233
 title: 'Cycle time: 21 hours of dispatched runs over 23 tasks, and nothing measures
   where it goes'
 created: '2026-08-21T20:42:00.402460Z'
-updated: '2026-08-21T23:24:52.652771Z'
+updated: '2026-08-23T05:15:42.105176Z'
 lifecycle: active
 ball: agent
 ball_reason: hold
@@ -33,7 +33,7 @@ ball_prompt: "**Merged and parked. Do not work this task until the sample exists
   \ anything else."
 archived: false
 priority: critical
-queue_position: 100
+queue_position: 600
 category: developer_experience
 tags:
 - cycle-time
@@ -729,3 +729,27 @@ log:
       id: 6e1a9b74-0c25-4f38-92d7-4a5b6c7d8e9f
       kind: handoff
       fingerprint: b052e6bf57b9aab4cff4fda38c7ad8e1
+- id: 16
+  ts: '2026-08-23T05:15:42.104870Z'
+  actor: claude
+  type: queue_move
+  body: 'Ad-hoc reorder run, 2026-08-23. Demoted from the head of CRITICAL to its
+    foot. Two grounds, neither of them a judgement about the work''s value: it is
+    held by an agent (active, ball agent/hold) so its position hands nothing to anyone,
+    and it is a measurement task, while the five tasks now ahead of it are an unauthenticated
+    public API, an injection path into a pre-approved git merge, a run-identity leak,
+    and non-atomic writes to the corpus that is the product''s entire state. Its own
+    deliverable has already landed - the gate is 95.8s rather than 365s - so what
+    remains here is analysis, not exposure. Note for whoever reads this: task-249
+    says task-233''s baseline table should be re-measured, which is a further reason
+    for it to stand behind rather than ahead of that task.'
+  data:
+    band: critical
+    from: 100
+    to: 600
+    placement:
+      kind: bottom
+    operation:
+      id: a1b2c3d4-0005-4000-8000-000000000005
+      kind: queue_move
+      fingerprint: ab222ea31a7ba6ec877d5770d55683b4

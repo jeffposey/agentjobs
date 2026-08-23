@@ -3,14 +3,14 @@ id: task-244
 title: 'Tailnet proxy: identity header and path allow-list; stop serving local-only
   projects and run transcripts to every peer'
 created: '2026-08-22T18:50:12.663333Z'
-updated: '2026-08-22T18:50:13.113025Z'
+updated: '2026-08-23T05:15:01.029686Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
 ball_prompt: Finish specifying this task.
 archived: false
 priority: critical
-queue_position: 200
+queue_position: 50
 category: infrastructure
 tags:
 - big-dawg-audit
@@ -102,3 +102,24 @@ log:
       id: 2f3aef75-9ed4-4916-a0db-26b358cd6a6e
       kind: create
       fingerprint: b063d315632cc15f9e1d0ca13180eb33
+- id: 2
+  ts: '2026-08-23T05:15:01.029502Z'
+  actor: claude
+  type: queue_move
+  body: 'Ad-hoc reorder run, 2026-08-23 (playbooks/reorder.md not yet authored; task-217
+    open). To the top of CRITICAL: the whole REST API - 99 operations, 61 of them
+    mutating - is reachable at https://agentjobs.tailfed1df.ts.net with no authentication.
+    It is the widest exposure in the corpus and it is the door that task-245 and task-249
+    describe walking through, so it leads the chain rather than sitting behind a measurement
+    task. Displaces task-233, which is held by an agent and is measurement rather
+    than a defect.'
+  data:
+    band: critical
+    from: 200
+    to: 50
+    placement:
+      kind: top
+    operation:
+      id: a1b2c3d4-0001-4000-8000-000000000001
+      kind: queue_move
+      fingerprint: 22d9d6608926a949808dd56355d35fb7

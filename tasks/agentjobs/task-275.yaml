@@ -3,14 +3,14 @@ id: task-275
 title: 'Delete the legacy Jinja/Alpine pages: stored XSS through marked.parse into
   innerHTML, CDN scripts with no SRI, still mounted and proxied to the tailnet'
 created: '2026-08-22T19:01:27.155876Z'
-updated: '2026-08-22T23:38:49.936594Z'
+updated: '2026-08-23T05:16:07.926954Z'
 lifecycle: draft
 ball: human
 ball_reason: spec
 ball_prompt: Finish specifying this task.
 archived: false
 priority: high
-queue_position: 14200
+queue_position: 12100
 category: infrastructure
 tags:
 - big-dawg-audit
@@ -87,3 +87,32 @@ log:
       id: b076ddfb-1c35-465f-84b8-2cce3e0a949e
       kind: update_content
       fingerprint: 108f165d076f740d5d6a7fbdfaeca7d1
+- id: 3
+  ts: '2026-08-23T05:16:07.926804Z'
+  actor: claude
+  type: queue_move
+  body: 'Ad-hoc reorder run, 2026-08-23. Moved from the very bottom of HIGH (14200,
+    last of 73) to the head of the audit-draft cluster that runs from task-246 down.
+    Grounds: it is a stored XSS - x-markdown does el.innerHTML = marked.parse(content)
+    with no sanitiser, on ball_prompt, spec fields and every log entry body - so any
+    author of task content runs script in whoever opens the legacy page, and the same
+    templates load Alpine and marked from a CDN with no integrity attribute. Every
+    other member of that cluster is a correctness or ergonomics defect. These drafts
+    are all at human/spec and unclaimable, so their order serves Jeff''s triage rather
+    than an agent''s dispatch; within that cluster severity is the right sort key
+    and filing order is not. Deliberately not moved above the claimable work: the
+    queue would skip it anyway, and promoting an unclaimable task over claimable ones
+    is exactly what task-219''s deterministic check is being built to warn about.
+    Its band was left alone - reorder does not reprioritise - but see the question
+    raised on the run record about whether this belongs in CRITICAL beside task-244.'
+  data:
+    band: high
+    from: 14200
+    to: 12100
+    placement:
+      kind: before
+      target: task-246
+    operation:
+      id: a1b2c3d4-0007-4000-8000-000000000007
+      kind: queue_move
+      fingerprint: bc2e23e5ca5fb2be94cd6a3e12421254

@@ -1,0 +1,288 @@
+schema: 2
+id: task-288
+title: 'Ad-hoc groom run, 2026-08-23: closure proposal awaiting approval'
+created: '2026-08-23T05:16:46.824512Z'
+updated: '2026-08-23T05:18:01.735674Z'
+lifecycle: ready
+ball: human
+ball_reason: approval
+ball_prompt: '**Approve, strike, or reject the four closures in log entry 2. Nothing
+  has been closed and nothing will be until your answer is recorded here.**
+
+
+  The four, each with the one thing that might make you say no:
+
+
+  1. **task-199, duplicate of task-198.** Same defect, same function, same incident,
+  filed twelve minutes apart. The only real question is which survives - 198 is dispatchable
+  today (has eligible runners, effort, deliverables), 199 has the better write-up.
+  Proposed: keep 198.
+
+  2. **task-011, superseded.** task-241''s scripted finish rebuilds and restarts and
+  verifies; task-014 owns the detection half. Caveat: only on machines with `finish.enabled`
+  - a hand-merge still has the gap.
+
+  3. **task-007, superseded by task-275.** 007 redirects away from the Jinja UI; 275
+  deletes it. Caveat: 275 is still a draft you have not ratified, so this bets on
+  a direction you have not signed.
+
+  4. **task-123, superseded by task-174 + task-175.** A decision task whose decision
+  is specced in three other records.
+
+
+  Partial approval is the normal answer, not a compromise. Reply with the ids you
+  approve - "1, 2, 4" or "all but 3" - and only those execute. Say which of 198/199
+  survives if you disagree with the default.
+
+
+  There are also three questions in log entry 3 that need no decision today: task-018''s
+  example is stale while its defect has seven fresh instances, task-196 and task-261
+  overlap, and task-015 may be mooted by task-238 but is not yet.
+
+
+  The separate reorder run of the same date has already executed - it needed no gate.'
+archived: false
+priority: high
+queue_position: 14200
+category: meta
+tags:
+- playbooks
+- grooming
+- backlog
+- adhoc-run
+effort: the sweep is done; what remains is Jeff's approval and four close calls
+assignment:
+  eligible: []
+spec:
+  summary: The run record for a groom pass executed by hand on 2026-08-23, before
+    playbooks/groom.md exists (task-216 is still blocked behind task-215). It holds
+    the closure proposal over the 125 open tasks, and nothing may be closed until
+    Jeff's approved list is recorded here.
+  intent: Jeff asked for an ad-hoc groom and reorder to see the playbook shape work
+    before the machinery is built. The mandatory propose-then-approve gate of docs/playbooks-design.md
+    section 5.1 is the part worth exercising, and it needs a durable record to hold
+    the proposal and the approval - chat is not one.
+  description: 'A hand-run of the `groom` brief specified in docs/playbooks-design.md
+    section 5.1, over the 125 open tasks in this project as of 2026-08-23. No playbook
+    file exists yet; task-216 will author one and is blocked behind task-215.
+
+
+    The proposal is log entry 2 on this record. **Nothing has been closed.** Per section
+    5.1 the executable set is exactly {close-as-duplicate, close-as-superseded}, and
+    what executes is the approved list recorded here, nothing else.
+
+
+    Rules the run held to, all of them from section 5.1:
+
+    - No file deleted, no spec rewritten, no task reprioritised, no task reordered
+    by this run. The reorder pass of the same date is a separate run with its own
+    record and its own reasoning.
+
+    - Nothing proposed as `wont_do`. Three findings that are stale-but-not-duplicate
+    are raised as questions instead, because `wont_do` is a judgement about intent
+    that belongs to Jeff.
+
+    - Every proposal carries its evidence - the counterpart task, or the shipped code
+    that covers it - so the approval is a reading rather than a trust exercise.
+
+
+    Six candidates were checked and **rejected** as closures, recorded here so the
+    next run does not re-derive them:
+
+    - **task-010** - premise holds. task-002 still lists `.agents/plugins/marketplace.json`
+    in `spec.context`, and that file is still only in Jeff''s clone.
+
+    - **task-105** - premise holds. `TaskStorage.generate_task_id` (src/agentjobs/storage.py:611)
+    still does `int(stem.split("-", maxsplit=1)[1])`, so a slugged id raises ValueError
+    and is skipped, which is the whole defect.
+
+    - **task-053 / task-063** - premise holds. `agentjobs --help` on the merged CLI
+    lists no `inbox`, `claim`, `handoff`, `log` or `close` command. The v2 state verbs
+    really are still missing.
+
+    - **task-262 vs task-010** - different validators. 262 is `agentjobs validate`''s
+    actor/category taxonomy; 010 is a pytest assertion on context paths.
+
+    - **task-092** - premise holds. The next-action ladder still exists and still
+    shows one panel by strict precedence.
+
+    - **task-018** - the *class* is alive even though its stated example is dead;
+    see the question raised in log entry 3.'
+  constraints: No task may be closed by this run except from the list Jeff records
+    here, and only with outcome duplicate or superseded. Each close body must reference
+    this run task. This is the acceptance test of the design's guardrail story and
+    there is no version of it that closes something unapproved.
+  out_of_scope: Reordering anything - that was the separate reorder run of the same
+    date. Closing anything as wont_do. Rewriting any spec, including the two whose
+    specs the questions here say are now inaccurate.
+  context:
+  - path: docs/playbooks-design.md
+    why: Section 5.1 is the brief this run followed, including the mandatory gate
+      and the duplicate|superseded-only executable set.
+acceptance:
+- id: ac-1
+  text: Jeff's approved list is recorded on this task before any close is executed.
+  status: pending
+- id: ac-2
+  text: The executed closes equal the approved list exactly - no more, no fewer -
+    each through the managed close verb with outcome duplicate or superseded, each
+    body referencing this run.
+  status: pending
+- id: ac-3
+  text: No task file was deleted and no spec was rewritten by this run.
+  status: met
+deliverables: []
+dependencies: []
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T05:16:47.543493Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: a1b2c3d4-0010-4000-8000-000000000010
+      kind: create
+      fingerprint: bf3a1f67283793156b1d15f2ef8bae79
+- id: 2
+  ts: '2026-08-23T05:17:17.034826Z'
+  actor: claude
+  type: progress
+  body: "**The closure proposal. Four items over 125 open tasks. Nothing is closed;\
+    \ strike anything and what remains is what executes.**\n\n## 1. task-199 \u2014\
+    \ close as **duplicate** of task-198\n\nSame defect, same function, same incident.\
+    \ Both name `set_project_enabled` round-tripping `~/.agentjobs/dispatch.yaml`\
+    \ through `yaml.safe_dump` (`src/agentjobs/dispatch/config.py`, cited at :1034/:1101\
+    \ by 198 and :1102 by 199). Both were filed off the same event: `job-hunting`\
+    \ enabled from the browser on 2026-08-20, 38 comment lines destroyed. Filed twelve\
+    \ minutes apart \u2014 198 at 20:33:06Z, 199 at 20:45:14Z.\n\n**Which one survives\
+    \ is a genuine choice and I am not confident enough to make it silently.** task-198\
+    \ is the earlier record, carries an `effort` estimate and `eligible: [codex, claude]`\
+    \ so it is dispatchable today, and has six acceptance criteria and two deliverables.\
+    \ task-199 has the better prose \u2014 a fuller \"ways out\" section and a sharper\
+    \ statement of why a machine-local file with no git history makes the loss unrecoverable\
+    \ \u2014 but no eligible runners and no deliverables.\n\nProposed: **close 199,\
+    \ keep 198.** Say the word and it goes the other way instead. Either way the survivor\
+    \ loses some analysis, and groom is not allowed to merge the two specs \u2014\
+    \ that would be rewriting one, which section 5.1 forbids.\n\n## 2. task-011 \u2014\
+    \ close as **superseded**\n\ntask-011 is \"merging frontend code does not update\
+    \ the running server, and nothing says so\", filed 2026-08-17 after task-008's\
+    \ fix merged and Jeff hit the same bug against a two-hour-old bundle. It named\
+    \ three possible fixes.\n\nTwo of them have since been built or filed:\n- **Fix\
+    \ 1 and 3 shipped in task-241.** `src/agentjobs/dispatch/finish.py` runs `npm\
+    \ run build` in the serving clone when the merge touched `frontend/` (`rebuild_frontend`,\
+    \ :686), runs the machine's configured restart (`restart_server`, :723), and proves\
+    \ the running process is serving the merge before closing. ENGINEERING.md's merge\
+    \ gate step 6 carries the same steps for a hand-merge.\n- **Fix 2 is task-014**,\
+    \ open \u2014 \"detect a bundle talking to a server it was not built against\"\
+    \ is exactly task-011's \"make the server detect it\".\n\nSo there is nothing\
+    \ left in task-011 that is not either shipped or separately filed. **Caveat, stated\
+    \ plainly: the scripted finish only covers projects with `finish.enabled`.** A\
+    \ hand-merge on a machine without it still has the gap, and the only thing closing\
+    \ it there is a rule in a document \u2014 which is precisely the failure mode\
+    \ task-011 complained about. If you would rather keep 011 open as the standing\
+    \ record of that residual, that is a defensible read and this item should be struck.\n\
+    \n## 3. task-007 \u2014 close as **superseded** by task-275\n\ntask-007 redirects\
+    \ `/` and the legacy `/p/...` paths to their `/app/` equivalents, and says in\
+    \ its own description that the Jinja UI \"stays reachable at an explicit legacy\
+    \ path for now \u2014 retiring it outright is a larger job and deliberately not\
+    \ this task.\"\n\ntask-275 does the larger job: delete `web_router`, `web_legacy_router`\
+    \ and `api/templates/` outright, on a stored-XSS finding (`x-markdown` \u2192\
+    \ `el.innerHTML = marked.parse(content)`, no sanitiser, over `ball_prompt` and\
+    \ every log entry body). If 275 lands there is no legacy UI left for 007 to redirect\
+    \ away from, and 007's careful provisions for keeping it reachable become work\
+    \ against the direction.\n\n**Caveat: task-275 is still a `draft` at `human/spec`\
+    \ \u2014 you have not ratified it.** This close bets on a direction you have not\
+    \ signed. If you would rather 007 stay open until 275 is promoted, strike this\
+    \ item and it can be re-proposed then. What is not defensible is leaving both\
+    \ open and having someone work 007 into a router that 275 deletes.\n\n## 4. task-123\
+    \ \u2014 close as **superseded** by task-174 + task-175\n\ntask-123 is a *decision*\
+    \ task, raised 2026-08-18: \"Decide whether AgentJobs should do that expansion\
+    \ itself, and if so, where the intelligence lives.\"\n\nBoth halves of that question\
+    \ are now specced elsewhere:\n- **Where the intelligence lives** \u2014 task-174,\
+    \ \"Decide how AgentJobs is allowed to call a model at all.\"\n- **Whether and\
+    \ how it expands** \u2014 task-175, a checkbox on the create and report forms,\
+    \ checked by default, that has a model expand what you typed into a real spec\
+    \ with the draft landing in the form. task-218 covers the same transformation\
+    \ on the agent side, as the `flesh-out` playbook writing onto an existing thin\
+    \ task.\n\nA decision task whose decision has been made in three other records\
+    \ is superseded by them. Nothing in 123 is lost: 174 inherits the \"where does\
+    \ it live\" question and 175 inherits the reporter-form case 123 was raised about.\n\
+    \n## Tally if all four are approved\n\n125 open \u2192 121. Two duplicates collapse\
+    \ to one; three superseded records retire into work that is either shipped or\
+    \ specced. No file deleted, no spec touched, no position changed by this run."
+  data:
+    operation:
+      id: a1b2c3d4-0011-4000-8000-000000000011
+      kind: log_append
+      fingerprint: 45776956161840c4999d4793cd32c54d
+- id: 3
+  ts: '2026-08-23T05:17:38.698546Z'
+  actor: claude
+  type: question
+  body: "**Three findings that are stale or overlapping but are NOT duplicate or superseded,\
+    \ so they are raised rather than closed. Section 5.1: `wont_do` is your judgement,\
+    \ and rewriting a spec is not groom's job.**\n\n## Q1 \u2014 task-018's stated\
+    \ example is dead, but the defect it names is alive and has seven fresh instances\n\
+    \ntask-018 opens with \"task-060 is `closed`/`completed` with ten open children.\"\
+    \ **That is no longer true.** All fifteen of task-060's children are now closed\
+    \ \u2014 068 through 078, 080, and 157 through 159 \u2014 so a reader checking\
+    \ the example today finds nothing wrong and may conclude the task is stale.\n\n\
+    It is not stale. The same pathology has seven current instances:\n\n| Open task\
+    \ | Parent | Parent state |\n|---|---|---|\n| task-147, 148, 149, 150, 151, 152\
+    \ | task-078-agent-loops | **closed** |\n| task-156 | task-080-dispatch-model-profiles\
+    \ | **closed** |\n\nSix of the acceptance-check and loop-driver tasks, plus the\
+    \ difficulty-field task, are sitting under parents that closed out from under\
+    \ them. So task-018's second half \u2014 \"and nothing can reopen it\" \u2014\
+    \ is now the live problem: seven tasks whose umbrella is gone.\n\n**The ask:**\
+    \ task-018's `spec.intent` names an example that no longer demonstrates anything.\
+    \ Groom will not rewrite it. Do you want a `flesh-out`-style pass to swap the\
+    \ example for the seven live ones, or is a `note` on task-018 pointing at this\
+    \ entry enough? Its queue position is a human anchor you set on 2026-08-21 and\
+    \ this run did not touch it.\n\n## Q2 \u2014 task-196 and task-261 overlap on\
+    \ the restart defect; fold or keep?\n\ntask-261 (Big Dawg draft) says under F2/F9\
+    \ that \"restart with default flags on this machine reproduces the second-server-on-8765\
+    \ incident ENGINEERING.md warns about\", and its fix is to make `status`/`stop`/`restart`\
+    \ probe `/api/version` instead of matching a port. That is the same territory\
+    \ as task-196, \"restart can add a server generation instead of replacing one\"\
+    .\n\nThey are not the same task. task-196 carries evidence 261 does not: two live\
+    \ generations on 2026-08-20 with the older one holding 8876, and \u2014 the part\
+    \ that is genuinely a different defect \u2014 a `serve` whose port was already\
+    \ taken printed `Started server process`, **ran startup reconciliation and wrote\
+    \ to disk** concluding a run was orphaned, *then* failed to bind and exited. An\
+    \ identity probe does not fix a process that mutates state before discovering\
+    \ it cannot listen.\n\n**The ask:** fold 196's evidence into 261 and close 196\
+    \ as duplicate, or keep 196 as the write-before-bind defect and let 261 own only\
+    \ the identity question? I lean to keeping both \u2014 but that is a spec-boundary\
+    \ call, which is yours. Not proposed for closure either way.\n\n## Q3 \u2014 task-015\
+    \ may be mooted by task-238, and is not yet\n\ntask-015 is \"stop one long `ball_prompt`\
+    \ from swallowing a task list row\", about the Status column in the wide multi-column\
+    \ task table. task-238 (Shell 3, under the task-235 epic) replaces that table\
+    \ with a narrow collapsible sidebar tree you pick from \u2014 a surface with no\
+    \ Status column at all.\n\nIf task-235 ships as specced, task-015 has nothing\
+    \ left to fix. But **task-235 has not shipped and none of its five children has\
+    \ been claimed**, so closing 015 now would be closing a live defect against an\
+    \ intention. Left open deliberately. Worth re-checking after task-239 lands."
+  data:
+    operation:
+      id: a1b2c3d4-0012-4000-8000-000000000012
+      kind: log_append
+      fingerprint: 9e395bbe1b379766ac3704c27fbade17
+- id: 4
+  ts: '2026-08-23T05:18:01.735499Z'
+  actor: claude
+  type: handoff
+  body: 'Sweep complete over 125 open tasks. Four closures proposed, three questions
+    raised, six candidates checked and rejected with their evidence recorded so the
+    next run does not redo the work. Stopping here: section 5.1''s gate is mandatory
+    and nothing is closed without an approved list on this record.'
+  data:
+    ball: human
+    ball_reason: approval
+    operation:
+      id: a1b2c3d4-0013-4000-8000-000000000013
+      kind: handoff
+      fingerprint: ac029b9d308afde9dbb4bc2d691e59dd
