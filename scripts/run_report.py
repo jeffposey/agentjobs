@@ -17,6 +17,13 @@ script never has to guess.
     python scripts/run_report.py --task task-233 # one task's runs, listed
     python scripts/run_report.py --per-task      # every task, worst first
 
+``--split`` is how a cycle-time change is claimed rather than asserted: it prints the
+table twice, either side of a moment, so the moment can be a merge commit's timestamp.
+Pair it with ``--driver`` -- a window that introduced a second runner is not comparable
+to one that had only the first::
+
+    python scripts/run_report.py --driver claude --split 2026-08-21T23:24:52+00:00
+
 Since task-241 it also reads ``~/.agentjobs/finishes/*/``, which is where a **scripted
 finish** writes itself down. A finish is not a run -- no agent, no session, no tokens --
 and it exists precisely to remove the follow-on run this report was built to measure. It
@@ -96,6 +103,16 @@ class Run:
     started_at: Optional[datetime]
     finished_at: Optional[datetime]
     gates: Sequence[Gate]
+    driver: str = "claude"
+    """Which runner drove the session -- ``claude`` or ``codex``.
+
+    Absent from ``meta.yaml`` is read as ``claude``, because only the Codex path writes
+    the key and every run predating that path was a Claude one. The fallback is stated
+    rather than hidden because the whole use of this field is to compare like with like:
+    task-233's after-window is half Codex bring-up runs, most of them startup failures
+    under two minutes, and folding those into a cycle-time figure measures the bring-up
+    rather than the cycle time.
+    """
     resumed_from: Optional[str] = None
     """The run whose session this one resumed, or None for a cold start (task-234).
 
@@ -123,6 +140,19 @@ class Run:
     def wasted_gate_seconds(self) -> float:
         """Time in gate runs that failed. Real work, but not progress you keep."""
         return sum(gate.seconds for gate in self.gates if not gate.passed)
+
+    @property
+    def gates_overlapped(self) -> bool:
+        """True when this run's gates cannot have been sequential.
+
+        Summed gate time longer than the run itself means the session had two or more
+        ``check.py`` invocations alive at once -- ``run_4063f1c0`` started three inside
+        two minutes and each took about six. The phase records are right and the run
+        duration is right; it is the *sum* that stops being a share of a timeline. Say
+        so rather than printing a percentage over a hundred and letting a reader decide
+        which number to distrust.
+        """
+        return self.seconds is not None and self.gate_seconds > self.seconds
 
 
 def read_gates(directory: Path) -> List[Gate]:
@@ -172,6 +202,7 @@ def read_run(directory: Path) -> Optional[Run]:
         started_at=as_moment(meta.get("started_at")),
         finished_at=as_moment(meta.get("finished_at")),
         gates=read_gates(directory),
+        driver=str(meta.get("driver") or "claude"),
         resumed_from=(
             str(meta["resumed_from"]) if isinstance(meta.get("resumed_from"), str) else None
         ),
@@ -299,12 +330,27 @@ def summary(runs: List[Run], finishes: Sequence[Finish] = ()) -> str:
     gate_runs = sum(len(run.gates) for run in runs)
     instrumented = [run for run in timed if run.gates]
 
+    per_task_seconds: Dict[str, float] = {}
+    for run in timed:
+        per_task_seconds[run.task_id] = per_task_seconds.get(run.task_id, 0.0) + (
+            run.seconds or 0.0
+        )
+    task_totals = sorted(per_task_seconds.values())
+
     lines = [
         f"  runs                  {len(runs)} ({outcome_counts(runs)})",
         f"  runs with durations   {len(timed)}",
         f"  total run time        {hours(total)}",
         f"  distinct tasks        {len(tasks)}",
         f"  runs per task         {len(runs) / len(tasks):.2f}",
+        # Median as well as mean, because at these sample sizes one feature build --
+        # task-081's epic before, task-241's own 123-minute run after -- moves the mean
+        # by a factor and the median not at all. Quoting only the mean is how the
+        # baseline first over-read itself.
+        f"  time per task         mean {minutes(total / len(per_task_seconds))}, "
+        f"median {minutes(percentile(task_totals, 0.50))}"
+        if per_task_seconds
+        else "  time per task         -",
         f"  run length            p50 {minutes(percentile(durations, 0.50))}, "
         f"p75 {minutes(percentile(durations, 0.75))}, "
         f"p90 {minutes(percentile(durations, 0.90))}, "
@@ -326,6 +372,14 @@ def summary(runs: List[Run], finishes: Sequence[Finish] = ()) -> str:
             f"({share:.0f}% of all run time, {instrumented_share:.0f}% of instrumented)",
             f"  gate time thrown away {hours(wasted)} in gate runs that failed",
         ]
+        overlapped = [run for run in instrumented if run.gates_overlapped]
+        if overlapped:
+            lines += [
+                f"  gates overlapped      in {len(overlapped)} run(s): "
+                f"{', '.join(run.run_id for run in overlapped)}",
+                "                        summed gate time exceeds the run, so the shares",
+                "                        above are sums rather than shares of a timeline",
+            ]
     else:
         lines += [
             "",
@@ -459,6 +513,56 @@ def listing(runs: List[Run]) -> str:
     return "\n".join(lines)
 
 
+def split_report(
+    home: Path,
+    runs: Sequence[Run],
+    finishes: Sequence[Finish],
+    boundary: datetime,
+) -> int:
+    """The same table twice, either side of a moment. Task-233's acceptance t6 is this.
+
+    A cycle-time claim is a before/after or it is an anecdote, and until this existed
+    the only way to produce one was a throwaway script in a scratch directory -- which
+    is precisely the hand-assembly this whole report was written to end. Pass the merge
+    commit's timestamp and the tool states the claim.
+
+    Two cautions, both learned from the run that first needed this:
+
+    * **Split by driver too.** ``--driver claude --split ...`` is usually what you
+      want. A window that introduced a second runner is not comparable to one that had
+      only the first, and the newcomer's startup failures land as very short runs that
+      move the percentiles a long way.
+    * **Read the median, not the mean.** One feature build in a nine-task window moves
+      the mean by a factor. Both are printed; the median is the one that survives a
+      small sample.
+    """
+    before = [run for run in runs if run.started_at and run.started_at < boundary]
+    after = [run for run in runs if run.started_at and run.started_at >= boundary]
+    undated = len(runs) - len(before) - len(after)
+
+    fin_before = [item for item in finishes if item.started_at and item.started_at < boundary]
+    fin_after = [item for item in finishes if item.started_at and item.started_at >= boundary]
+
+    print(f"\nDispatched runs in {home / 'runs'}, split at {boundary.isoformat()}\n")
+    for label, group, group_finishes in (
+        ("BEFORE", before, fin_before),
+        ("AFTER", after, fin_after),
+    ):
+        print(f"{label}\n")
+        if group:
+            print(summary(group, group_finishes))
+        elif group_finishes:
+            print("\n".join(_finish_lines(group_finishes)).strip("\n"))
+        else:
+            print("  Nothing on this side of the boundary.")
+        print()
+    if undated:
+        # Never silently. A run with no start time is one this split cannot place, and
+        # dropping it without saying so is how a sample quietly stops being the corpus.
+        print(f"  {undated} run(s) had no start time and are in neither side.\n")
+    return 0
+
+
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Report where dispatched agent time goes.")
     parser.add_argument(
@@ -466,6 +570,16 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--since", type=float, metavar="DAYS", help="only runs started in the last N days"
+    )
+    parser.add_argument(
+        "--split",
+        metavar="WHEN",
+        help="report twice, before and after this ISO date or timestamp (UTC)",
+    )
+    parser.add_argument(
+        "--driver",
+        metavar="NAME",
+        help="only runs driven by this runner (claude, codex); absent in meta reads as claude",
     )
     parser.add_argument(
         "--task", metavar="TASK_ID", help="only this task's runs, listed individually"
@@ -486,9 +600,18 @@ def main(argv: Optional[List[str]] = None) -> int:
         finishes = [
             finish for finish in finishes if finish.started_at and finish.started_at >= cutoff
         ]
+    if args.driver:
+        runs = [run for run in runs if run.driver == args.driver]
     if args.task:
         runs = [run for run in runs if run.task_id == args.task]
         finishes = [finish for finish in finishes if finish.task_id == args.task]
+
+    if args.split:
+        boundary = as_moment(args.split)
+        if boundary is None:
+            print(f"Not an ISO date or timestamp: {args.split!r}", file=sys.stderr)
+            return 2
+        return split_report(home, runs, finishes, boundary)
 
     if not runs and not finishes:
         print(f"No runs in {home / 'runs'} matching that selection.")

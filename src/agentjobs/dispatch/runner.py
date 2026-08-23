@@ -1660,6 +1660,11 @@ class DispatchRunner:
             "task_id": task.id,
             "project_id": self.resolution.project_id,
             "mode": DispatchMode.SESSION.value,
+            # Recorded on every driver, not only Codex. Until task-233 only the Codex
+            # path wrote it, so `scripts/run_report.py` had to read an absent key as
+            # "claude" -- correct for the runs that existed, and an inference that gets
+            # quietly wrong the first time a third driver lands.
+            "driver": self.runner.driver.value,
             "posture": self.resolution.settings.posture.value,
             "status": "starting",
             "started_at": self.clock().isoformat(),
@@ -2327,6 +2332,7 @@ class DispatchRunner:
                 "task_id": task.id,
                 "project_id": self.resolution.project_id,
                 "mode": DispatchMode.BATCH.value,
+                "driver": self.runner.driver.value,
                 "posture": self.resolution.settings.posture.value,
                 "status": "starting",
                 "started_at": self.clock().isoformat(),

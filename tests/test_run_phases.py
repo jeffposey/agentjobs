@@ -158,6 +158,7 @@ def write_run(
     outcome: str = "completed",
     started: str = "2026-08-21T10:00:00+00:00",
     finished: str | None = "2026-08-21T10:30:00+00:00",
+    driver: str | None = None,
 ) -> Path:
     directory = home / "runs" / run_id
     directory.mkdir(parents=True)
@@ -167,6 +168,8 @@ def write_run(
         f"outcome: {outcome}",
         f"started_at: '{started}'",
     ]
+    if driver:
+        lines.append(f"driver: {driver}")
     if finished:
         lines.append(f"finished_at: '{finished}'")
     (directory / "meta.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -264,6 +267,118 @@ class TestRunReport:
         (broken / "meta.yaml").write_text("::: not yaml :::\n", encoding="utf-8")
 
         assert len(run_report.load_runs(tmp_path)) == 1
+
+    def test_the_median_task_is_printed_beside_the_mean(self, tmp_path: Path) -> None:
+        """One feature build moves the mean by a factor and the median not at all.
+
+        Two half-hour tasks and one six-hour one: mean 2.3h, median 30m. Quoting only
+        the mean is how task-233's own baseline first over-read itself.
+        """
+        write_run(tmp_path, "run_a", task_id="task-001")
+        write_run(tmp_path, "run_b", task_id="task-002")
+        write_run(
+            tmp_path,
+            "run_c",
+            task_id="task-003",
+            finished="2026-08-21T16:00:00+00:00",
+        )
+
+        text = run_report.summary(run_report.load_runs(tmp_path))
+
+        assert "time per task         mean 140.0m, median 30.0m" in text
+
+    def test_overlapping_gates_are_named_rather_than_left_as_a_bad_percentage(
+        self, tmp_path: Path
+    ) -> None:
+        """run_4063f1c0 ran three gates at once; its gate total exceeds its own run.
+
+        The phase records are right and the duration is right -- it is the *sum* that
+        stops being a share of a timeline. Saying so beats printing 200% and leaving a
+        reader to guess which number is broken.
+        """
+        directory = write_run(tmp_path, "run_a", task_id="task-001")
+        record_phase(directory, "gate_finished", passed=True, seconds=1200, scope="full")
+        record_phase(directory, "gate_finished", passed=True, seconds=1200, scope="full")
+
+        text = run_report.summary(run_report.load_runs(tmp_path))
+
+        assert "gates overlapped      in 1 run(s): run_a" in text
+        assert "sums rather than shares of a timeline" in text
+
+    def test_sequential_gates_are_not_reported_as_overlapping(self, tmp_path: Path) -> None:
+        directory = write_run(tmp_path, "run_a", task_id="task-001")
+        record_phase(directory, "gate_finished", passed=True, seconds=600, scope="full")
+
+        assert "gates overlapped" not in run_report.summary(run_report.load_runs(tmp_path))
+
+
+class TestBeforeAndAfter:
+    """`--split` and `--driver`: task-233's acceptance t6 as a command rather than a claim."""
+
+    def test_split_reports_each_side_of_the_boundary(self, tmp_path: Path, capsys) -> None:
+        write_run(
+            tmp_path,
+            "run_old",
+            task_id="task-001",
+            started="2026-08-20T10:00:00+00:00",
+            finished="2026-08-20T11:00:00+00:00",
+        )
+        write_run(
+            tmp_path,
+            "run_new",
+            task_id="task-002",
+            started="2026-08-22T10:00:00+00:00",
+            finished="2026-08-22T10:15:00+00:00",
+        )
+
+        code = run_report.main(["--home", str(tmp_path), "--split", "2026-08-21T00:00:00+00:00"])
+        text = capsys.readouterr().out
+
+        assert code == 0
+        before, after = text.split("AFTER")
+        assert "total run time        1.0h" in before
+        assert "total run time        0.2h" in after
+
+    def test_a_side_with_nothing_on_it_says_so(self, tmp_path: Path, capsys) -> None:
+        write_run(tmp_path, "run_old", task_id="task-001")
+
+        run_report.main(["--home", str(tmp_path), "--split", "2026-08-30T00:00:00+00:00"])
+
+        assert "Nothing on this side of the boundary." in capsys.readouterr().out
+
+    def test_a_run_with_no_start_time_is_declared_not_dropped(self, tmp_path: Path, capsys) -> None:
+        """Dropping a run silently is how a sample quietly stops being the corpus."""
+        write_run(tmp_path, "run_a", task_id="task-001")
+        directory = tmp_path / "runs" / "run_b"
+        directory.mkdir()
+        (directory / "meta.yaml").write_text("run_id: run_b\ntask_id: task-001\n", encoding="utf-8")
+
+        run_report.main(["--home", str(tmp_path), "--split", "2026-08-21T00:00:00+00:00"])
+
+        assert "1 run(s) had no start time and are in neither side." in capsys.readouterr().out
+
+    def test_a_split_that_is_not_a_timestamp_is_refused(self, tmp_path: Path) -> None:
+        assert run_report.main(["--home", str(tmp_path), "--split", "last tuesday"]) == 2
+
+    def test_driver_filters_and_an_absent_key_reads_as_claude(self, tmp_path: Path) -> None:
+        """Only the Codex path wrote `driver` before task-233, so absent means claude."""
+        write_run(tmp_path, "run_a", task_id="task-001")
+        write_run(tmp_path, "run_b", task_id="task-002", driver="codex")
+
+        runs = run_report.load_runs(tmp_path)
+
+        assert {run.run_id: run.driver for run in runs} == {
+            "run_a": "claude",
+            "run_b": "codex",
+        }
+
+    def test_driver_narrows_the_report(self, tmp_path: Path, capsys) -> None:
+        write_run(tmp_path, "run_a", task_id="task-001")
+        write_run(tmp_path, "run_b", task_id="task-002", driver="codex")
+
+        run_report.main(["--home", str(tmp_path), "--driver", "codex"])
+
+        assert "distinct tasks        1" in capsys.readouterr().out
 
 
 def write_finish(
