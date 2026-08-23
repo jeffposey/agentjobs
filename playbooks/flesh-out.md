@@ -65,12 +65,13 @@ hand the ball back, and say that plainly. A run that pads a working record to ha
 something to show has made the backlog worse and left no trace of having done so.
 
 That outcome is more likely than it sounds. Measured in this repository on 2026-08-23,
-across 115 open and 172 closed tasks: the thinnest open record carried a 429-character
-description and five acceptance criteria, the median was 2,386 characters, and not one
+across 113 open and 174 closed tasks: the thinnest open record carried a 429-character
+description and five acceptance criteria, the median was 2,387 characters, and not one
 task in the corpus had an empty `spec.description`. A project whose tasks are filed by
-agents does not accumulate thin ones. Take the measurement yourself before assuming the
-premise holds here — `record_can_brief` in `src/agentjobs/dispatch/guards.py` is the
-machine's version of the same question, and it fires on nothing in this backlog.
+agents does not accumulate thin ones. Those counts move daily and that shape has not;
+take the measurement yourself before assuming the premise holds here. `record_can_brief`
+in `src/agentjobs/dispatch/guards.py` is the machine's version of the same question, and
+it fires on nothing in this backlog.
 
 ## 2. What you read before you write
 
