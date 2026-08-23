@@ -3,64 +3,70 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-22T19:40:50.681802Z'
+updated: '2026-08-23T18:25:17.147658Z'
 lifecycle: active
 ball: human
-ball_reason: input
-ball_prompt: 'Withdrawing last night''s NOT REPRODUCED - the test never ran. Entry
-  39 has the detail.
+ball_reason: decision
+ball_prompt: 'The run came back NOT REPRODUCED and found the mechanism instead. Entry
+  41 has it. This is the answer the task was asking for.
 
 
-  Two independent failures, neither visible in the summary I wrote:
+  The harness worked this time - 36 probes, 36 answered, 0 invalid, 0 skipped, 30
+  of 30 sweep probes reached the model. But the per-probe credential mtime shows the
+  token was replaced mid-sweep by one of my own probes: probes starting at E-318.6s
+  left it alone, the probe starting at E-303.6s rewrote it with 299.137 seconds of
+  life left. The daemon''s own scheduled refresh 60s later found `token still valid
+  (cross-process refresh or not yet due)`. No other Claude process existed on the
+  machine for the four hours around it.
 
 
-  1. The account was over its monthly spend limit at 01:35-02:52 CDT. All six probes
-  came back "You''ve hit your monthly spend limit", exit 1. None reached the model.
-  My verdict logic only checked for the string "Login expired", so it counted a billing
-  error as an answer. That is on me.
+  So: a Claude client refreshes its own credential when the access token has under
+  300 seconds left. Measured, bracketed by two probes 15 seconds apart.
 
 
-  2. The 29-probe main sweep never fired at all, because of a PowerShell precedence
-  bug: `''sweep-'' + $t.ToString(...), $t` parses as string-plus-array and collapses
-  into one string, so every sweep target had a null timestamp - and the skip record
-  then threw while trying to describe the null, so it left no trace. Confirmed independently:
-  no session transcripts exist between 02:35 and 02:42.
+  That explains everything. Occurrence 3''s session cold-started with 274.5s of life
+  - inside the 300s zone - tried to refresh itself, the refresh FAILED, and it said
+  Login expired 2.5s later; the daemon''s attempt 33s after that found `no token found`
+  in 2ms because the failed refresh had left the store unusable. One mechanism accounts
+  for the inversion, the 2ms no-token, and a valid token being refused.
 
 
-  One real finding survives: the 07:36:44 refresh fired on time and succeeded in 291ms,
-  so that boundary was healthy and there was probably nothing to catch anyway.
+  The failure is a failed refresh, not an expiry. Two consequences:
 
 
-  Re-armed for TONIGHT, no action needed from you. Boundary pinned two ways: daemon
-  refresh at 19:14:48 CDT, expiry at 19:18:48 CDT. The task starts at 18:10, sweeps
-  every 15s from 19:12:45 to 19:20:00, and finishes by 19:30. A probe just now returns
-  exit=0 and `pong`, so the spend limit has cleared.
+  1. I was wrong in entry 35 to rule out a client-side staleness margin - that argument
+  used daemon observations against a client mechanism. Withdrawn in entry 41. The
+  rest of entry 35 stands.
 
 
-  The harness is rewritten and this time the failure modes have tests: replaying last
-  night''s six billing outputs through it now prints INCONCLUSIVE - the window was
-  not covered ... This is NOT evidence of absence, rather than NOT REPRODUCED. NOT
-  REPRODUCED now requires 70% of the sweep to have actually reached the model.
+  2. The sweep approach is retired and I am not proposing another night of it. Probing
+  the window causes the refresh that closes it, so it will report NOT REPRODUCED forever
+  regardless of the truth. A quiet boundary is not weak evidence, it is no evidence.
+  The scheduled task is unregistered; probe.ps1 remains.
 
 
-  Read C:/ai/scratch/task-224-probe/RESULT.md after 19:30 CDT and dispatch this task
-  again. Note it will be around 19:35 CDT, so you may see it this evening rather than
-  tomorrow.
+  Three things for you, in the order I would do them:
 
 
-  Worth saying plainly: even a clean run tonight is weak evidence. Three occurrences
-  in ~40 hours is about one boundary in five, so one quiet cycle rules out little.
-  Several would be worth something.
+  A. The upstream comment on anthropics/claude-code#79685 is now worth posting and
+  is a much better report than anything before it: a cold-start client that lands
+  inside its own 300s refresh window and whose refresh fails reports "Login expired"
+  and leaves the credential store empty, so the shared daemon''s next read returns
+  `no token found` in 2ms. Still unposted, still yours to send.
 
 
-  Still unposted and still yours: the upstream comment on anthropics/claude-code#79685.
-  Entry 35 has the sharp version.
+  B. `src/agentjobs/dispatch/auth.py`''s module docstring opens with "Claude Code
+  does not refresh its own credential per session" - now measured false, and it is
+  the sentence the module is justified by. The detector still works; the explanation
+  is wrong. One commit, needs a worktree and the gate. Say go and I will do it.
 
 
-  To cancel: `Unregister-ScheduledTask -TaskName ''task-224-auth-probe'' -Confirm:$false`
+  C. Actually reproducing it needs fault injection - blocking the auth endpoint while
+  a process sits in the 300s zone. More intrusive, on your machine, and I have not
+  armed anything. Only worth it if you want a demonstration rather than an explanation.
 
 
-  No repo changes: no branch, no worktree, no code.'
+  No repo changes this run: no branch, no worktree, no code.'
 archived: false
 priority: high
 queue_position: 11400
@@ -1845,3 +1851,220 @@ log:
     outcome: completed
     duration_seconds: 887.898811
     log_path: C:\Users\jpose\.agentjobs\runs\run_af05dd63
+- id: 50
+  ts: '2026-08-23T18:19:54.108611Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Answered by Jeff Posey:
+
+
+    NOT REPRODUCED'
+  data:
+    ball: agent
+    ball_reason: answer
+- id: 51
+  ts: '2026-08-23T18:19:59.816064Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 52
+  ts: '2026-08-23T18:20:09.755908Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Resumed the session from run `run_af05dd63` rather than starting a cold one,
+    so this agent still has the worktree, the branch and the verification it established
+    there. The ball prompt was delivered to it as its next turn.
+  data:
+    run_id: run_1a4bc491
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    trigger: manual
+    caused_by: 51
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - --resume
+    - 06cfb668-a182-4721-83e7-d1edb8aee1f7
+    cwd: C:\projects\agentjobs
+    git_head: b6da54a
+    session_id: fdcfc3e0
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 53
+  ts: '2026-08-23T18:24:36.181370Z'
+  actor: claude
+  type: progress
+  body: "## The run says NOT REPRODUCED and it found the mechanism instead. There\
+    \ is a 300-second client-side refresh threshold, and the sweep design cannot ever\
+    \ reproduce the anomaly.\n\nRun 2 was clean where run 1 was not: 36 probes, 36\
+    \ answered, **0 invalid, 0 skipped, 30 of 30 sweep probes reached the model**.\
+    \ The harness worked. But one field kills the verdict as an answer to the question,\
+    \ and it is the field I added for exactly this reason.\n\n### The token was replaced\
+    \ in the middle of the sweep, by one of my own probes\n\n`cred_mtime` is recorded\
+    \ per probe. It changes exactly once:\n\n| probe start | dT to expiry | credential\
+    \ mtime after that probe | life left at the write |\n|---|---|---|---|\n| sweep-00:13:00\
+    \ | \u2212348.6s | 2026-08-22T16:18:48.649Z (original) | \u2014 |\n| sweep-00:13:15\
+    \ | \u2212333.6s | original | \u2014 |\n| sweep-00:13:30 | \u2212318.6s | original\
+    \ | \u2014 |\n| **sweep-00:13:45** | **\u2212303.6s** | **2026-08-23T00:13:49.512Z**\
+    \ | **299.137s** |\n| sweep-00:14:00 | \u2212288.6s | 00:13:49.512Z | \u2014 |\n\
+    \nAnd the daemon, when its own scheduled refresh fired 60 seconds later at 00:14:49.311\
+    \ \u2014 within a second of the predicted 00:14:48.5 \u2014 said so itself:\n\n\
+    ```\n[2026-08-23T00:14:49.311Z] auth: proactive refresh starting\n[2026-08-23T00:14:49.315Z]\
+    \ auth: scheduling proactive refresh in 28500s\n[2026-08-23T00:14:49.315Z] auth:\
+    \ token still valid (cross-process refresh or not yet due)\n```\n\n**`cross-process\
+    \ refresh`.** Something other than the daemon had refreshed the credential, and\
+    \ the daemon has a phrase for it.\n\nIt was my probe. The daemon log shows **no\
+    \ bg activity whatsoever between 19:40:51Z and 00:14:49Z** \u2014 no `bg spawned`,\
+    \ no other session, `workers=0`. For those four and a half hours the only Claude\
+    \ processes on this machine were the probes.\n\n### So the client refreshes at\
+    \ 300 seconds, and that is measured, not inferred\n\nThe transition is bracketed\
+    \ by two consecutive probes 15 seconds apart:\n\n- a probe whose API call happened\
+    \ at roughly **E\u2212314s** did not refresh;\n- the next, whose API call happened\
+    \ at roughly **E\u2212300s**, did \u2014 completing the write with **299.137 seconds**\
+    \ of token life left.\n\nThe refreshing probe *started* at E\u2212303.6s and wrote\
+    \ 4.46s later, which is about how long a cold `claude` takes to reach its first\
+    \ API call. So the check is made when the client needs a token, not at process\
+    \ start, and the boundary sits at **300 s \u2014 five minutes** \u2014 the most\
+    \ ordinary refresh-margin constant there is.\n\n### This explains the anomaly\
+    \ completely, and it is not a timing window\n\nOccurrence 3, re-read with the\
+    \ threshold in hand:\n\n- `0fa21703` cold-started at 23:39:57.02 with E = 23:44:31.5\
+    \ \u2192 **274.5 s of life left, inside the 300 s zone**.\n- So it tried to refresh\
+    \ the credential itself, exactly as tonight's probe did.\n- That refresh **failed**,\
+    \ and 2.5 s after launch the session said `Login expired \xB7 Please run /login`.\n\
+    - 33 s later the daemon's scheduled attempt found `no token found` in **2 ms**\
+    \ \u2014 no network call \u2014 because the failed client refresh had left the\
+    \ store without a usable token.\n\nOne mechanism accounts for every oddity entries\
+    \ 30 and 35 catalogued: the inversion where the client is refused before the daemon\
+    \ notices anything; the 1\u20132 ms `no token found` where earlier attempts took\
+    \ 5\u20137 s; and a token with four and a half minutes of life being treated as\
+    \ absent. Occurrence 2a fits the same shape at E\u221253.7s, also inside the zone.\n\
+    \n**The failure is a failed refresh, not an expiry.** The 300 s zone is simply\
+    \ where refreshes are attempted, so it is where a refresh failure becomes visible.\n\
+    \n### Withdrawing entry 35's ruling-out\n\nEntry 35 said *\"A fixed client-side\
+    \ staleness margin is ruled out\"* and argued it from the daemon reading the token\
+    \ as present at E\u2212239s, E\u2212166s and E\u2212106s while a session was refused\
+    \ at E\u221253.7s. That argument used **daemon** observations to rule out a **client**\
+    \ margin. They are two different mechanisms with two different thresholds \u2014\
+    \ the daemon runs a scheduled refresh at E\u2212240 s, the client refreshes on\
+    \ demand under 300 s \u2014 and there was never a contradiction to explain. The\
+    \ ruling-out was wrong and the margin is real.\n\nEverything else in entry 35\
+    \ stands: the population table, the split into Mechanism A and B, and the dropping\
+    \ of the version and concurrency hypotheses.\n\n### The sweep approach is retired,\
+    \ because it defeats itself\n\nThis is the part that matters for what to do next.\
+    \ **Probing the window causes the refresh that closes it.** The first probe to\
+    \ enter the 300 s zone refreshed the token successfully, so every later probe\
+    \ in the sweep was testing a credential with eight fresh hours on it. Only four\
+    \ probes ever tested the aged token, and all four were outside the zone. Running\
+    \ this sweep again on another boundary would produce the same NOT REPRODUCED for\
+    \ the same reason, however many nights it ran.\n\nSo a quiet boundary is not weak\
+    \ evidence, as I said in entry 39 \u2014 it is **no evidence**, and I should not\
+    \ have offered to keep collecting them.\n\nReproducing the anomaly means making\
+    \ a refresh **fail** while a process sits in the 300 s zone. That is a network-level\
+    \ fault injection against the auth endpoint on Jeff's machine \u2014 a different\
+    \ and more intrusive experiment, and his call, not something to arm unasked.\n\
+    \n### Housekeeping\n\nThe scheduled task ran once (`LastTaskResult: 0`) and its\
+    \ one-shot trigger is spent; I unregistered it. `probe.ps1` is unchanged in `C:/ai/scratch/task-224-probe/`\
+    \ and can be re-armed in one command. Run 1 and run 2 evidence are both kept side\
+    \ by side.\n\n### One correction owed to the codebase\n\n`src/agentjobs/dispatch/auth.py`'s\
+    \ module docstring opens with:\n\n> *Claude Code does not refresh its own credential\
+    \ per session. A shared background daemon owns the OAuth refresh for every `--bg`\
+    \ worker.*\n\nThe first sentence is now measured to be false, and it is the sentence\
+    \ the whole module is justified by. The detector's behaviour is unaffected \u2014\
+    \ it reads the transcript, not the credential \u2014 but a future reader would\
+    \ build on a wrong model. That is a one-commit docs fix and it needs a worktree,\
+    \ the gate and an approval, so it is offered rather than done.\n"
+  data:
+    operation:
+      id: d5817b2c-90a4-4e61-a3f7-16c2e9b40d78
+      kind: log_append
+      fingerprint: 1bc51ca73049e4811ff70c0b52f95e53
+- id: 54
+  ts: '2026-08-23T18:25:17.146686Z'
+  actor: claude
+  type: handoff
+  body: 'The run came back NOT REPRODUCED and found the mechanism instead. Entry 41
+    has it. This is the answer the task was asking for.
+
+
+    The harness worked this time - 36 probes, 36 answered, 0 invalid, 0 skipped, 30
+    of 30 sweep probes reached the model. But the per-probe credential mtime shows
+    the token was replaced mid-sweep by one of my own probes: probes starting at E-318.6s
+    left it alone, the probe starting at E-303.6s rewrote it with 299.137 seconds
+    of life left. The daemon''s own scheduled refresh 60s later found `token still
+    valid (cross-process refresh or not yet due)`. No other Claude process existed
+    on the machine for the four hours around it.
+
+
+    So: a Claude client refreshes its own credential when the access token has under
+    300 seconds left. Measured, bracketed by two probes 15 seconds apart.
+
+
+    That explains everything. Occurrence 3''s session cold-started with 274.5s of
+    life - inside the 300s zone - tried to refresh itself, the refresh FAILED, and
+    it said Login expired 2.5s later; the daemon''s attempt 33s after that found `no
+    token found` in 2ms because the failed refresh had left the store unusable. One
+    mechanism accounts for the inversion, the 2ms no-token, and a valid token being
+    refused.
+
+
+    The failure is a failed refresh, not an expiry. Two consequences:
+
+
+    1. I was wrong in entry 35 to rule out a client-side staleness margin - that argument
+    used daemon observations against a client mechanism. Withdrawn in entry 41. The
+    rest of entry 35 stands.
+
+
+    2. The sweep approach is retired and I am not proposing another night of it. Probing
+    the window causes the refresh that closes it, so it will report NOT REPRODUCED
+    forever regardless of the truth. A quiet boundary is not weak evidence, it is
+    no evidence. The scheduled task is unregistered; probe.ps1 remains.
+
+
+    Three things for you, in the order I would do them:
+
+
+    A. The upstream comment on anthropics/claude-code#79685 is now worth posting and
+    is a much better report than anything before it: a cold-start client that lands
+    inside its own 300s refresh window and whose refresh fails reports "Login expired"
+    and leaves the credential store empty, so the shared daemon''s next read returns
+    `no token found` in 2ms. Still unposted, still yours to send.
+
+
+    B. `src/agentjobs/dispatch/auth.py`''s module docstring opens with "Claude Code
+    does not refresh its own credential per session" - now measured false, and it
+    is the sentence the module is justified by. The detector still works; the explanation
+    is wrong. One commit, needs a worktree and the gate. Say go and I will do it.
+
+
+    C. Actually reproducing it needs fault injection - blocking the auth endpoint
+    while a process sits in the 300s zone. More intrusive, on your machine, and I
+    have not armed anything. Only worth it if you want a demonstration rather than
+    an explanation.
+
+
+    No repo changes this run: no branch, no worktree, no code.'
+  data:
+    ball: human
+    ball_reason: decision
+    operation:
+      id: f0c4a3e7-2b19-4d58-8a06-93e7b1d25c4f
+      kind: handoff
+      fingerprint: 0dfcdace7adad9a067eb96adc1ec2d25
