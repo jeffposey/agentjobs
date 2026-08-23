@@ -242,6 +242,12 @@ class CodexAppServerProcess:
                 value = raw.get(key)
                 if isinstance(value, str):
                     return value
+        # Current Codex App Server versions omit a startup-status field once a
+        # server has completed discovery.  A populated server description and tools
+        # map are then the positive readiness evidence; accepting mere presence would
+        # weaken the required-MCP gate for an entry that is still starting.
+        if isinstance(entry.get("serverInfo"), dict) and isinstance(entry.get("tools"), dict):
+            return "ready"
         return None
 
     def preflight_required_mcp(self, *, server_name: str = "agentjobs") -> CodexMcpPreflight:
@@ -336,10 +342,11 @@ class CodexAppServerProcess:
                 raise CodexAppServerError(
                     "Codex App Server thread/read returned no matching thread."
                 )
-            listed = self._request(
-                "thread/list",
-                {"sourceKinds": ["appServer"], "cwd": str(self.cwd), "limit": 100},
-            )
+            # App Server-created threads are currently reported by the Windows Codex
+            # build with ``source: vscode``.  A sourceKinds=appServer filter therefore
+            # creates a false negative.  The persisted ID plus the project cwd are the
+            # protocol evidence we control, so list within that cwd and match the ID.
+            listed = self._request("thread/list", {"cwd": str(self.cwd), "limit": 100})
             entries = listed.get("data", listed.get("threads", []))
             if not isinstance(entries, list):
                 raise CodexAppServerError("Codex App Server thread/list returned no thread list.")

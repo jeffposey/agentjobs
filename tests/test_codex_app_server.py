@@ -194,6 +194,60 @@ def test_app_server_preflight_requires_ready_agentjobs_mcp(monkeypatch) -> None:
     assert messages[-1]["params"] == {"detail": "toolsAndAuthOnly"}
 
 
+def test_app_server_preflight_accepts_discovered_server_without_status(monkeypatch) -> None:
+    output = (
+        "\n".join(
+            [
+                json.dumps({"id": 1, "result": {}}),
+                json.dumps(
+                    {
+                        "id": 2,
+                        "result": {
+                            "data": [
+                                {
+                                    "name": "agentjobs",
+                                    "serverInfo": {"name": "agentjobs", "version": "0.1.0"},
+                                    "tools": {"projects_list": {"name": "projects_list"}},
+                                }
+                            ]
+                        },
+                    }
+                ),
+            ]
+        )
+        + "\n"
+    )
+
+    class FakeProcess:
+        pid = 1239
+
+        def __init__(self) -> None:
+            self.stdin = io.StringIO()
+            self.stdout = io.StringIO(output)
+            self.stderr = io.StringIO()
+
+        def poll(self):
+            return None
+
+        def terminate(self) -> None:
+            pass
+
+        def wait(self, timeout=None) -> None:
+            pass
+
+    monkeypatch.setattr(
+        "agentjobs.dispatch.codex_app_server.subprocess.Popen", lambda *a, **k: FakeProcess()
+    )
+    process = CodexAppServerProcess(
+        executable="codex",
+        cwd=Path("C:/project"),
+        env={},
+        settings=CodexSessionSettings("gpt-5.6-terra", "high", "never", "workspace-write"),
+    )
+
+    assert process.preflight_required_mcp() == CodexMcpPreflight("agentjobs", "ready")
+
+
 def test_app_server_preflight_reports_required_server_failure(monkeypatch) -> None:
     output = (
         "\n".join(
@@ -394,7 +448,9 @@ def test_app_server_inspects_persisted_app_server_thread(monkeypatch) -> None:
                                 {
                                     "id": "thread-1",
                                     "cwd": "C:/project",
-                                    "sourceKind": "appServer",
+                                    # App Server-created sessions are currently
+                                    # classified this way by the Windows Codex build.
+                                    "source": "vscode",
                                 }
                             ]
                         },
@@ -437,7 +493,7 @@ def test_app_server_inspects_persisted_app_server_thread(monkeypatch) -> None:
         "thread_id": "thread-1",
         "title": "AgentJobs sandbox/task-1",
         "cwd": "C:/project",
-        "source": "appServer",
+        "source": "vscode",
     }
     messages = [json.loads(line) for line in fake.stdin.getvalue().splitlines()]
     assert [message["method"] for message in messages] == [
@@ -446,11 +502,7 @@ def test_app_server_inspects_persisted_app_server_thread(monkeypatch) -> None:
         "thread/read",
         "thread/list",
     ]
-    assert messages[-1]["params"] == {
-        "sourceKinds": ["appServer"],
-        "cwd": str(Path("C:/project")),
-        "limit": 100,
-    }
+    assert messages[-1]["params"] == {"cwd": str(Path("C:/project")), "limit": 100}
 
 
 def test_app_server_resumes_a_persisted_thread_before_injecting_follow_up(monkeypatch) -> None:
