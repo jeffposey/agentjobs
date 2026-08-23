@@ -3,13 +3,23 @@ id: task-224
 title: 'Research: a mid-run auth expiry parks dispatched runs, and re-authenticating
   in the app does not clear it'
 created: '2026-08-21T15:51:07.242769Z'
-updated: '2026-08-23T18:38:11.933383Z'
+updated: '2026-08-23T18:42:58.458492Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+ball_prompt: 'The approval ran the scripted finish and it stopped at `merge`. **Nothing
+  was merged.**
+
+
+  main moved from 05718011 to 40b9b178 while the gate was running, so what was verified
+  is no longer what would be merged. The branch is rebased onto the older base and
+  nothing was merged.
+
+
+  Take it from here by hand. Check the tree against what is written above before acting
+  on anything you remember: if your worktree, your branch or your account of this
+  task no longer matches what is on disk, say so on the record and hand the ball back
+  rather than improvising a recovery.'
 archived: false
 priority: high
 queue_position: 11400
@@ -2182,3 +2192,42 @@ log:
     finish_step: started
     branch: docs/task-224-client-refresh-correction
     finish_id: fin_689a7558
+- id: 64
+  ts: '2026-08-23T18:42:58.349825Z'
+  actor: finisher
+  type: progress
+  body: "The scripted finish stopped at `merge` (base_moved).\n\n**Nothing was merged.**\n\
+    \nmain moved from 05718011 to 40b9b178 while the gate was running, so what was\
+    \ verified is no longer what would be merged. The branch is rebased onto the older\
+    \ base and nothing was merged.\n\n```\n  preflight  ok         1.8s  docs/task-224-client-refresh-correction\
+    \ at 3c90ca12 in C:\\projects\\worktrees\\aj-224\n  rebase     ok         0.4s\
+    \  docs/task-224-client-refresh-correction onto main: 3c90ca12 -> 15651e5f\n \
+    \ gate       ok       285.7s  scripts/check.py green\n  merge      STOPPED   \
+    \ 0.0s  main moved from 05718011 to 40b9b178 while the gate was running, so what\
+    \ was verified is no longer what would be merged. The branch is rebased onto the\
+    \ older base and nothing was merged.\n```"
+  data:
+    finish_step: merge
+    finish_reason: base_moved
+    merge_commit: null
+    merged: false
+- id: 65
+  ts: '2026-08-23T18:42:58.458126Z'
+  actor: finisher
+  type: handoff
+  body: 'The approval ran the scripted finish and it stopped at `merge`. **Nothing
+    was merged.**
+
+
+    main moved from 05718011 to 40b9b178 while the gate was running, so what was verified
+    is no longer what would be merged. The branch is rebased onto the older base and
+    nothing was merged.
+
+
+    Take it from here by hand. Check the tree against what is written above before
+    acting on anything you remember: if your worktree, your branch or your account
+    of this task no longer matches what is on disk, say so on the record and hand
+    the ball back rather than improvising a recovery.'
+  data:
+    ball: agent
+    ball_reason: work
