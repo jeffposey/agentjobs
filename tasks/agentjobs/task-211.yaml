@@ -3,7 +3,7 @@ id: task-211
 title: 'Playbooks: named, reusable briefs for AI-judgment work like groom, reorder
   and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-23T07:52:03.584066Z'
+updated: '2026-08-23T08:11:39.568136Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -1454,3 +1454,54 @@ log:
       id: d19dc106-4a95-461d-9efa-d9480da7ad5b
       kind: log_append
       fingerprint: a6730517698f5916f735efa0533119e9
+- id: 47
+  ts: '2026-08-23T08:11:39.567552Z'
+  actor: claude
+  type: answer
+  body: '**Answered by Jeff, 2026-08-23: he turned it on, and the supervisor verified
+    it is live.**
+
+
+    Verification, since the resolved settings are not exposed by any read surface:
+    `agentjobs finish task-215` -- a task with no branch, so a harmless probe -- now
+    declines with `no_active_branch` rather than `not_enabled`. That reason is only
+    reachable past the `settings.enabled` check, so the switch is on and this machine''s
+    config parses.
+
+
+    **The supervisor''s merge path changes accordingly.** Per child, from here on:
+
+
+    1. The child hands off to `human`/`review` and stops. Unchanged -- the review
+    request is still written and still required.
+
+    2. The supervisor reviews the branch and the record.
+
+    3. **The supervisor stops the child''s session before approving.** This is new
+    and it is not optional: the finish removes the worktree at the end, and a live
+    session whose working directory is inside it pins the directory -- the worktree
+    gets unregistered but not deleted, which has been observed before on this machine.
+
+    4. The supervisor posts the approval through the ordinary approve route, naming
+    its provenance as Jeff''s standing grant. The route spawns the scripted finish,
+    which rebases, runs the full gate in the child''s own worktree with that worktree''s
+    own interpreter, merges `--no-ff`, rebuilds the frontend if the merge touched
+    it, restarts 8876 through its own launcher, proves the running process is serving
+    the merge, closes the task and removes the worktree.
+
+    5. The supervisor confirms the outcome from the record and from `/api/version`,
+    and moves to the next child. An escalation -- conflicting rebase, red gate, unverifiable
+    restart -- stops the sequence and the record says where.
+
+
+    This supersedes the alternative rejected in the earlier decision entry on this
+    record, which was to leave the switch alone and have the supervisor run the steps
+    by hand. The reason for rejecting it -- that turning it on is a durable change
+    to what the dashboard''s Approve button does -- was correct as far as it went,
+    and Jeff has now made that call knowingly.'
+  re: 46
+  data:
+    operation:
+      id: 7a0f8397-04ce-41af-aa96-b7aa64d3b435
+      kind: log_append
+      fingerprint: a4d9c064e0fb16ba375ac48f4a83e3d1
