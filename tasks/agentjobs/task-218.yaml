@@ -2,11 +2,73 @@ schema: 2
 id: task-218
 title: 'Playbooks 5: flesh-out, authored and proven'
 created: '2026-08-21T04:56:57.789106Z'
-updated: '2026-08-23T18:40:06.551115Z'
+updated: '2026-08-23T18:45:21.757533Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "**The brief is written and the gate is green. The live run could not\
+  \ happen, and the reason is not a blocker to clear \u2014 it is that this backlog\
+  \ has no thin task in it.**\n\nBranch `feat/task-218-flesh-out-playbook`, three\
+  \ commits, nothing merged, nothing pushed. **Full gate green, 10 of 10, no arguments,\
+  \ clean tree at `6099eee3`** \u2014 receipt written.\n\n## What to review\n\n**`playbooks/flesh-out.md`**\
+  \ (and the shipped reference, kept byte-identical to it). Design \xA75.3 and decision\
+  \ P7 in the form a run reads. The parts worth your eye, all flagged by me rather\
+  \ than found in review:\n\n- **\"You are specifying, not deciding.\"** The failure\
+  \ this brief most needs to prevent is a spec that quietly settles an open question\
+  \ \u2014 the task then gets dispatched and a session implements a call nobody took,\
+  \ with the record showing a specification rather than a decision.\n- **Two prohibitions\
+  \ the design's prose does not name**, argued in place: never change the **title**\
+  \ (on a thin task it is usually the only thing you wrote, and it is the reviewer's\
+  \ only evidence of what was meant), and never change **tags or category** (they\
+  \ feed bands and filters, so they are queue decisions like a priority).\n- **`review`,\
+  \ not the `approval` groom moved to** in `ce2d1fa`. Groom asks you to authorise\
+  \ writes that have not happened; this asks you to read something already written.\
+  \ Different questions.\n- **A corpus measurement inside the brief** (\xA71), so\
+  \ a run pointed at a task that does not need one reports that instead of padding\
+  \ it.\n\n## sc-1 met. sc-2 not met, and no agent can meet it\n\nThree independent\
+  \ blockers, any one sufficient. Full evidence in the decision entry; the short form:\n\
+  \n1. **There is no thin task here.** 113 open, 174 closed, 287 records. The thinnest\
+  \ open one has a **429-character description and five acceptance criteria**; the\
+  \ median is 2,387. **Zero records in the corpus have an empty `spec.description`.**\
+  \ I read the four thinnest in full \u2014 every one is a working spec. Running flesh-out\
+  \ at any of them is the exact failure the brief's \xA71 forbids.\n2. **The brief\
+  \ is on this branch and `playbook run` reads the shared clone.** Demonstrated, not\
+  \ predicted: `Refused (unknown_playbook): No playbook named 'flesh-out' in C:\\\
+  projects\\agentjobs\\playbooks.` Same wall task-216 hit.\n3. **Nothing I can do\
+  \ authorises the dispatch.** A `target: task` run creates no run task, so `--actor`\
+  \ is unused and the human-clocked rule reads *the target's own newest log entry*.\
+  \ Measured with the real guard across all 113 open tasks: **4 are dispatchable,\
+  \ 109 refused** \u2014 and all 4 are 2,000-plus-character specs of yours that must\
+  \ not be fleshed out. I did not write your name as the authoriser of a spend you\
+  \ did not clock.\n\n**What unblocks it is one command from you, after this merges,**\
+  \ and it needs a target that does not exist yet: file a thin task the way you actually\
+  \ would from a phone, write any note on it as yourself, then `agentjobs playbook\
+  \ run flesh-out --task <id>` \u2014 no `--actor`, because your note is the authorising\
+  \ entry.\n\n## Three questions, and one of them is a design question\n\n- **Is flesh-out\
+  \ worth its weight in *this* project?** Its stated reason for existing is that \"\
+  thin tasks are filed constantly\". They are not, here: 199 of 287 tasks were filed\
+  \ by `claude`, and even the thinnest of the 13 you filed yourself has a 575-character\
+  \ description. It may be the right playbook for other repositories and near-unused\
+  \ in this one \u2014 which would also mean **sc-2 is waiting on a condition that\
+  \ may never arise**. Your call, not mine.\n- **The Playbooks page refuses exactly\
+  \ the tasks flesh-out is for.** Clicking Run passes `authorized_by`, which triggers\
+  \ `record_can_brief` \u2014 refused when `spec.description` is empty, which is the\
+  \ definition of the target. Any typed note clears it, which is arguably worse: a\
+  \ box that fires on every legitimate use and is dismissed by typing anything. Should\
+  \ a playbook pointer count as the brief?\n- **A pre-existing test flake will probably\
+  \ fail this task's own finish.** `test_the_timeout_kills_the_grandchild_too` failed\
+  \ 4 of 9 full-suite runs tonight **including on unmodified `main`**. If the approval-triggered\
+  \ finish escalates with \"the gate went red\", that is it \u2014 re-run `agentjobs\
+  \ finish task-218` and it will pass on a retry. Diagnosis and a one-line fix are\
+  \ in the question entry.\n\n## Merge posture\n\nApprove and the scripted finish\
+  \ rebases, re-runs the gate, merges `--no-ff`, restarts and closes. **This task\
+  \ can close on it: sc-1 is met and sc-2 is not going to become meetable by anything\
+  \ I do.** If you would rather keep it open until a real thin task has been through\
+  \ it, say so and it stays open on sc-2 \u2014 but then it is waiting on you filing\
+  \ one, and the question above is whether that ever happens.\n\nOne thing the kickoff\
+  \ asked for was **not** built and it was deliberate: a \"last-`queue_move`-actor\
+  \ exposure\" and \"anchor rules\". Those are task-217's and appear nowhere in this\
+  \ task's spec or acceptance. Decision entry says why.\n"
 archived: false
 priority: medium
 queue_position: 6800
@@ -51,7 +113,7 @@ acceptance:
 - id: sc-1
   text: playbooks/flesh-out.md exists, passes validation, and encodes the write-then-park
     gate and the spec-fields-only scope.
-  status: pending
+  status: met
 - id: sc-2
   text: 'One live run against a thin task: full spec written via update_content, target
     parked at human/review, no other field or state moved.'
@@ -290,3 +352,222 @@ log:
       id: 4d3e9e4c-d4f1-4a47-ae70-8e2b2fc3ec78
       kind: log_append
       fingerprint: 2a0347a867c3e8a8a78ca47a77b64e8c
+- id: 9
+  ts: '2026-08-23T18:41:06.708575Z'
+  actor: claude
+  type: question
+  body: "**Question: flesh-out's stated reason for existing does not hold in this\
+    \ project. Is it worth its weight here, or is it a reference brief for other projects?**\n\
+    \nThe design's \xA75.3 argument for prioritising this playbook is that it is *\"\
+    the one most likely to be used weekly, since thin tasks are filed constantly.\"\
+    * Against this backlog that premise is measurably false, and not marginally:\n\
+    \n- **113 open, 174 closed, 287 records. Zero with an empty `spec.description`.**\n\
+    - Thinnest open record: **429 characters**, plus a summary, an intent, five constraints,\
+    \ an out-of-scope, three context entries and five acceptance criteria.\n- Median\
+    \ open description: **2,387 characters**.\n- Thinnest record in the whole corpus:\
+    \ **262 characters** \u2014 a playbook run task, generated from frontmatter, not\
+    \ filed by anyone.\n- Of the 13 tasks **Jeff created himself**, the thinnest description\
+    \ is 575 characters and the median is about 2,800. Even the human does not file\
+    \ thin here.\n\nThe cause is visible in the same data: 199 of 287 tasks were created\
+    \ by `claude` and 39 by `codex`. A backlog filed by agents does not accumulate\
+    \ thin records, because an agent filing a task writes the spec while it still\
+    \ has the context.\n\nSo flesh-out may be the right playbook for the wrong project\
+    \ \u2014 genuinely valuable as a **shipped reference** that `playbook init` puts\
+    \ into a repository where a human files from a phone, and close to unused in this\
+    \ one. Two things follow if that reading is right, and neither is mine to decide:\n\
+    \n1. **sc-2 stays unmeetable here for a reason that is not a blocker.** There\
+    \ is no fair test in this backlog and there may never be one, so \"run it live\
+    \ against a thin task\" may be a criterion that waits for a condition that does\
+    \ not arise. The brief itself now says so in \xA71 and tells a run to report \"\
+    this did not need it\" as a result.\n2. **The queue position of the remaining\
+    \ playbooks work might change**, if the one billed as weekly turns out to be the\
+    \ one this project uses least. That is a `reorder` judgement and a `queue move`,\
+    \ not something I touch.\n\nI have not acted on any of it. Flagging it because\
+    \ it is the kind of premise that goes unchecked once it is written into a design\
+    \ document, and it took ten minutes with the real corpus to check.\n"
+  data:
+    operation:
+      id: dd81c621-38c7-4a21-9d4f-8a86ea35a525
+      kind: log_append
+      fingerprint: 75b4751fce922aa5a9272ea812e067bc
+- id: 10
+  ts: '2026-08-23T18:44:24.459775Z'
+  actor: claude
+  type: progress
+  body: "Complete on branch `feat/task-218-flesh-out-playbook`, three commits off\
+    \ the post-216 `main` at `ed99ca4`. Nothing merged, nothing pushed.\n\n## What\
+    \ was built\n\n**`playbooks/flesh-out.md`** \u2014 the project's normative flesh-out\
+    \ brief, design \xA75.3 and decision P7 in the form a run actually reads. task-214\
+    \ shipped a first pass written straight from the design's bullets; this is the\
+    \ version that answers the questions a run hits when it is pointed at a real record.\
+    \ What it adds:\n\n- **A premise check before any write**, with four named ways\
+    \ the premise fails \u2014 the work already shipped, it is a duplicate, somebody\
+    \ is working it now, or the record is too thin to specify without inventing requirements\
+    \ \u2014 and a different answer for each. *Thin is not the same as short*: the\
+    \ test is the resumption contract, not a word count.\n- **\"You are specifying,\
+    \ not deciding.\"** Where the work needs a call that is not the run's, the spec\
+    \ names the decision as open rather than picking one and writing the pick into\
+    \ prose. A spec that quietly settles an open question is the worst thing this\
+    \ playbook can produce, because the task is then dispatched and a session implements\
+    \ a call nobody took, with the record showing a specification rather than a decision\
+    \ \u2014 and there is no later moment at which anyone catches it.\n- **The scope\
+    \ line as what may move and what may not**, with the reasoning per item. Two of\
+    \ the prohibitions are not in the design's prose and are argued in place: **never\
+    \ change the title** (on a thin task it is usually the only thing a human wrote,\
+    \ and it is the reviewer's only evidence of what was originally meant), and **never\
+    \ change tags or category** (they feed bands, filters and views, so they are queue\
+    \ decisions in the same sense a priority is).\n- **One `update_content`, not six.**\
+    \ The update's own log entry is the before/after boundary a reviewer reads and\
+    \ half the reversibility argument for writing before anybody has read anything;\
+    \ writing in pieces destroys it.\n- **What the `ball_prompt` carries, and why\
+    \ it is not groom's.** A groom proposal exists nowhere but its prompt, so the\
+    \ prompt carries the whole list. A flesh-out's work is on the record directly\
+    \ beneath the prompt, so it carries what was written, **what the run was least\
+    \ sure of** (named specifically \u2014 which sentence it would delete first if\
+    \ it were wrong), what it left empty, and the questions it raised.\n- **Never\
+    \ start the work you just specified.** That is the live temptation \u2014 the\
+    \ run now understands the task better than anyone and the record says exactly\
+    \ what to do \u2014 and doing it deletes the gate.\n- **Why `review` and not the\
+    \ `approval` groom moved to in `ce2d1fa`.** Groom asks a human to authorise writes\
+    \ that have not happened; this asks one to read something already written, which\
+    \ is what `review` is for. The two were considered against each other rather than\
+    \ defaulted.\n- **Finding the task adequately specified is a result**, reported\
+    \ as one, with the corpus measurement that makes it a likely outcome here rather\
+    \ than an excuse.\n\n**The shipped reference brought level with it**, as task-216\
+    \ did for groom, plus two tests against this repository's own `playbooks/` directory:\n\
+    \n- flesh-out's contract pinned the way groom's already is \u2014 target, the\
+    \ absent `run_task`, the single gate, and the load-bearing one: the declared verbs\
+    \ stop at writing. `close`, `promote` and `queue_move` are exactly the moves that\
+    \ would let a run act on a spec no human has read, so their absence is checkable\
+    \ rather than only argued in the body.\n- Project copy and shipped reference compare\
+    \ equal, for every brief this repository has adopted. Nothing here reads the shipped\
+    \ copy \u2014 `playbook init` copies it into *other* projects \u2014 so it is\
+    \ the one that rots silently while the authoritative one improves. That is how\
+    \ the first pass sat two versions behind without anyone noticing.\n\nCommits:\
+    \ `614a999` the brief \xB7 `fc6fff1` the reference and the tests \xB7 `6099eee`\
+    \ a correction to the corpus figures the brief quotes, re-measured after two tasks\
+    \ closed mid-session.\n\n## Verification\n\n**Full gate green, 10 of 10, no arguments,\
+    \ clean tree: `6099eee3`, 266.1s.** Receipt written. Run with this worktree's\
+    \ own interpreter, never `poetry run`.\n\nThe read surfaces were exercised by\
+    \ hand rather than only in tests, against a **sandbox** \u2014 a throwaway `AGENTJOBS_HOME`,\
+    \ this worktree registered as its own project, a server on port 8921 \u2014 so\
+    \ nothing touched the shared registry or the dashboard on 8876. Both are since\
+    \ removed; the shared `projects.yaml` has no leftover entry and 8921 is down.\
+    \ (Port 8899 was tried first and is **aj-219's** sandbox server, still running\
+    \ and left alone.)\n\n- `agentjobs playbook list` \u2192 flesh-out listed with\
+    \ `target: task  difficulty: hard  gates: 1`.\n- `agentjobs playbook show flesh-out`\
+    \ \u2192 contract rendered from frontmatter, then the brief.\n- `GET /api/projects/<id>/playbooks`\
+    \ and `.../playbooks/flesh-out` \u2192 the full contract, `run_task: null`, and\
+    \ a 14,490-character body. Checked the em dashes survive as UTF-8 over the wire;\
+    \ they do \u2014 the mojibake in a shell pipeline is the Windows console, not\
+    \ the API.\n\n**Nothing outside task-218 was moved by this session.** My two commits\
+    \ to `main` (`b346721`, `a559861`) touch exactly one file between them, `tasks/agentjobs/task-218.yaml`.\
+    \ Other task files changed on `main` tonight; every one of those is another session's\
+    \ commit and is named as such in `git log ed99ca4..HEAD`.\n\n## Where the criteria\
+    \ stand\n\n**sc-1 \u2014 met.** The brief exists, validates through `list_playbooks`\
+    \ with no findings, and encodes both things the criterion names: the write-then-park\
+    \ gate (in the frontmatter, in \xA76, and defended in \xA77) and the spec-fields-and-acceptance-only\
+    \ scope (\xA75, as an explicit list of what may move and what may not).\n\n**sc-2\
+    \ \u2014 not met, and not meetable by an agent.** The live run was attempted with\
+    \ the real command and refused; the decision entry above states three independent\
+    \ blockers and the evidence for each. In short: there is no thin task in this\
+    \ backlog to run it against (113 open records, thinnest description 429 characters\
+    \ with five acceptance criteria, zero with an empty `spec.description`); the brief\
+    \ is on this branch and `playbook run` reads the shared clone; and a `target:\
+    \ task` run's authorisation falls to the target's own newest log entry, of which\
+    \ only 4 of 113 are human-clocked and all four are richly specified tasks that\
+    \ must not be fleshed out. The third is the human-clocked rule working exactly\
+    \ as designed.\n"
+  data:
+    operation:
+      id: 1c3bfc71-ddf7-4267-b45d-71db2bd7ff80
+      kind: log_append
+      fingerprint: 9c23d7150c175d672a1caa2362edef10
+- id: 11
+  ts: '2026-08-23T18:44:42.952930Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: ab5f5070-6ebc-4c0c-94d9-a1e982c345f7
+      kind: update_content
+      fingerprint: 2d9463d84416fd03b51ef2aa8537be3e
+- id: 12
+  ts: '2026-08-23T18:45:21.757270Z'
+  actor: claude
+  type: handoff
+  body: "**The brief is written and the gate is green. The live run could not happen,\
+    \ and the reason is not a blocker to clear \u2014 it is that this backlog has\
+    \ no thin task in it.**\n\nBranch `feat/task-218-flesh-out-playbook`, three commits,\
+    \ nothing merged, nothing pushed. **Full gate green, 10 of 10, no arguments, clean\
+    \ tree at `6099eee3`** \u2014 receipt written.\n\n## What to review\n\n**`playbooks/flesh-out.md`**\
+    \ (and the shipped reference, kept byte-identical to it). Design \xA75.3 and decision\
+    \ P7 in the form a run reads. The parts worth your eye, all flagged by me rather\
+    \ than found in review:\n\n- **\"You are specifying, not deciding.\"** The failure\
+    \ this brief most needs to prevent is a spec that quietly settles an open question\
+    \ \u2014 the task then gets dispatched and a session implements a call nobody\
+    \ took, with the record showing a specification rather than a decision.\n- **Two\
+    \ prohibitions the design's prose does not name**, argued in place: never change\
+    \ the **title** (on a thin task it is usually the only thing you wrote, and it\
+    \ is the reviewer's only evidence of what was meant), and never change **tags\
+    \ or category** (they feed bands and filters, so they are queue decisions like\
+    \ a priority).\n- **`review`, not the `approval` groom moved to** in `ce2d1fa`.\
+    \ Groom asks you to authorise writes that have not happened; this asks you to\
+    \ read something already written. Different questions.\n- **A corpus measurement\
+    \ inside the brief** (\xA71), so a run pointed at a task that does not need one\
+    \ reports that instead of padding it.\n\n## sc-1 met. sc-2 not met, and no agent\
+    \ can meet it\n\nThree independent blockers, any one sufficient. Full evidence\
+    \ in the decision entry; the short form:\n\n1. **There is no thin task here.**\
+    \ 113 open, 174 closed, 287 records. The thinnest open one has a **429-character\
+    \ description and five acceptance criteria**; the median is 2,387. **Zero records\
+    \ in the corpus have an empty `spec.description`.** I read the four thinnest in\
+    \ full \u2014 every one is a working spec. Running flesh-out at any of them is\
+    \ the exact failure the brief's \xA71 forbids.\n2. **The brief is on this branch\
+    \ and `playbook run` reads the shared clone.** Demonstrated, not predicted: `Refused\
+    \ (unknown_playbook): No playbook named 'flesh-out' in C:\\projects\\agentjobs\\\
+    playbooks.` Same wall task-216 hit.\n3. **Nothing I can do authorises the dispatch.**\
+    \ A `target: task` run creates no run task, so `--actor` is unused and the human-clocked\
+    \ rule reads *the target's own newest log entry*. Measured with the real guard\
+    \ across all 113 open tasks: **4 are dispatchable, 109 refused** \u2014 and all\
+    \ 4 are 2,000-plus-character specs of yours that must not be fleshed out. I did\
+    \ not write your name as the authoriser of a spend you did not clock.\n\n**What\
+    \ unblocks it is one command from you, after this merges,** and it needs a target\
+    \ that does not exist yet: file a thin task the way you actually would from a\
+    \ phone, write any note on it as yourself, then `agentjobs playbook run flesh-out\
+    \ --task <id>` \u2014 no `--actor`, because your note is the authorising entry.\n\
+    \n## Three questions, and one of them is a design question\n\n- **Is flesh-out\
+    \ worth its weight in *this* project?** Its stated reason for existing is that\
+    \ \"thin tasks are filed constantly\". They are not, here: 199 of 287 tasks were\
+    \ filed by `claude`, and even the thinnest of the 13 you filed yourself has a\
+    \ 575-character description. It may be the right playbook for other repositories\
+    \ and near-unused in this one \u2014 which would also mean **sc-2 is waiting on\
+    \ a condition that may never arise**. Your call, not mine.\n- **The Playbooks\
+    \ page refuses exactly the tasks flesh-out is for.** Clicking Run passes `authorized_by`,\
+    \ which triggers `record_can_brief` \u2014 refused when `spec.description` is\
+    \ empty, which is the definition of the target. Any typed note clears it, which\
+    \ is arguably worse: a box that fires on every legitimate use and is dismissed\
+    \ by typing anything. Should a playbook pointer count as the brief?\n- **A pre-existing\
+    \ test flake will probably fail this task's own finish.** `test_the_timeout_kills_the_grandchild_too`\
+    \ failed 4 of 9 full-suite runs tonight **including on unmodified `main`**. If\
+    \ the approval-triggered finish escalates with \"the gate went red\", that is\
+    \ it \u2014 re-run `agentjobs finish task-218` and it will pass on a retry. Diagnosis\
+    \ and a one-line fix are in the question entry.\n\n## Merge posture\n\nApprove\
+    \ and the scripted finish rebases, re-runs the gate, merges `--no-ff`, restarts\
+    \ and closes. **This task can close on it: sc-1 is met and sc-2 is not going to\
+    \ become meetable by anything I do.** If you would rather keep it open until a\
+    \ real thin task has been through it, say so and it stays open on sc-2 \u2014\
+    \ but then it is waiting on you filing one, and the question above is whether\
+    \ that ever happens.\n\nOne thing the kickoff asked for was **not** built and\
+    \ it was deliberate: a \"last-`queue_move`-actor exposure\" and \"anchor rules\"\
+    . Those are task-217's and appear nowhere in this task's spec or acceptance. Decision\
+    \ entry says why.\n"
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 9794ead7-4eef-4315-b0d2-416894166374
+      kind: handoff
+      fingerprint: dd7184243f34ef100b59778662821fb9
