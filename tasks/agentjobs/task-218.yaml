@@ -2,32 +2,16 @@ schema: 2
 id: task-218
 title: 'Playbooks 5: flesh-out, authored and proven'
 created: '2026-08-21T04:56:57.789106Z'
-updated: '2026-08-23T21:31:36.364287Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.
-
-
-  Note from Jeff Posey:
-
-
-  Correction, I see 292 as completed, not waiting for human review. Proceed.
-
-
-  That note is context to carry into the merge, not another review round: you are
-  still cleared to merge.'
+updated: '2026-08-23T21:31:57.630325Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
-queue_position: 6800
 category: meta
 tags:
 - playbooks
 - grooming
 assignment:
-  owner: claude
   eligible: []
 parent: task-211
 spec:
@@ -84,7 +68,8 @@ branches:
   status: merged
   merged_at: '2026-08-23T19:07:00Z'
 - name: feat/task-218-flesh-out-duplicates
-  status: active
+  status: merged
+  merged_at: '2026-08-23T21:31:57.508063Z'
 log:
 - id: 1
   ts: '2026-08-21T04:56:57.789152Z'
@@ -898,3 +883,23 @@ log:
     merge_commit: aee9ea08ab0ac511057b54245ff304ef5a4f1ec5
     branch: feat/task-218-flesh-out-duplicates
     base: main
+- id: 25
+  ts: '2026-08-23T21:31:57.630140Z'
+  actor: finisher
+  type: transition
+  body: "Merged `feat/task-218-flesh-out-duplicates` into `main` as `aee9ea08` and\
+    \ verified live. Approved by Jeff Posey; finished by the scripted path with no\
+    \ agent session (task-241).\n\nEverything up to and including verification:\n\n\
+    ```\n  preflight  ok         1.3s  feat/task-218-flesh-out-duplicates at b0e3f54a\
+    \ in C:\\projects\\worktrees\\aj-218\n  rebase     ok         0.9s  feat/task-218-flesh-out-duplicates\
+    \ onto main: b0e3f54a -> 57044720\n  gate       ok       159.4s  scripts/check.py\
+    \ green\n  merge      ok         0.3s  --no-ff into main as aee9ea08ab0ac511057b54245ff304ef5a4f1ec5\n\
+    \  rebuild    skipped    0.0s  the merge touched no frontend/ path\n  restart\
+    \    ok         0.5s  ran powershell -NoProfile -ExecutionPolicy Bypass -File\
+    \ C:/ai/shared/launchers/open-agentjobs.ps1 -Force -NoOpen\n  verify     ok  \
+    \       0.0s  http://127.0.0.1:8876 is serving 43492004, which contains the merge\
+    \ aee9ea08, from C:\\projects\\agentjobs (started 2026-08-23T21:31:41.801422+00:00)\n\
+    ```"
+  data:
+    lifecycle: closed
+    outcome: completed
