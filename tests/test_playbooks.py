@@ -326,9 +326,21 @@ class TestThisRepositorysOwnPlaybooks:
         rather than only from the prose. It targets **one task** -- so a run is that
         task's own dispatch and there is no run task to create. It declares a gate, so
         the write-then-park shape is visible to the UI and to an audit without anyone
-        reading the body. And its declared verbs stop at writing: `close`, `promote`
-        and `queue_move` are the moves that would let a run act on a spec no human has
-        read yet, which is the whole thing the parked ball exists to prevent.
+        reading the body. And its declared verbs stop short of the ones that would let
+        a run *act* on a spec no human has read.
+
+        Two verbs were added to that list on Jeff's instruction of 2026-08-23, and the
+        assertion is written to say which two and why they are not the same kind of
+        move. `promote` finishes the record the run just specified -- a draft whose
+        spec is now written is not a draft, and `handoff` leaves `lifecycle` alone, so
+        without it nothing in the run would ever correct that. `close` exists for one
+        case only, the duplicate fold in the brief's section 2, where the run ends
+        with one record instead of two and the survivor is parked at review in the
+        same run with the close named first in its prompt.
+
+        `queue_move`, `claim` and `release` stay out, and they are the load-bearing
+        half: those are the moves that would put an unread spec into somebody else's
+        hands or reorder the backlog around it.
         """
         flesh_out = read_playbook(self.directory, "flesh-out")
         assert flesh_out.contract.target is PlaybookTarget.TASK
@@ -336,9 +348,39 @@ class TestThisRepositorysOwnPlaybooks:
         # unreachable configuration -- `_run_task_payload` is never called for it.
         assert flesh_out.contract.run_task is None
         assert [gate.before for gate in flesh_out.contract.gates] == ["handoff"]
-        assert set(flesh_out.contract.verbs) == {"log", "update", "handoff"}
-        for forbidden in ("close", "promote", "queue_move", "claim", "release"):
+        assert set(flesh_out.contract.verbs) == {
+            "log",
+            "update",
+            "promote",
+            "close",
+            "handoff",
+        }
+        for forbidden in ("queue_move", "claim", "release", "create"):
             assert forbidden not in flesh_out.contract.verbs
+
+    def test_flesh_out_states_the_duplicate_search_and_the_bounds_on_its_close(
+        self,
+    ) -> None:
+        """The brief's body carries three rules the contract cannot express.
+
+        The frontmatter now permits `close`, and a permitted verb with no stated
+        bounds is a verb a run will reach for. Three sentences are what keep it
+        narrow, so they are pinned here rather than left to survive a later edit on
+        the strength of nobody noticing they went: the duplicate search happens
+        before anything is written, the record that survives is the counterpart
+        rather than the target, and the outcome is `duplicate` rather than one of
+        the three that mean the work is no longer wanted.
+
+        Asserted on the project's copy, which is what a run reads.
+        """
+        body = read_playbook(self.directory, "flesh-out").body
+        assert "the counterpart, not the target" in body
+        assert "outcome: duplicate" in body
+        # The search is first because a duplicate specified carefully is worse than
+        # one specified badly; the heading is where that ordering is legible.
+        assert body.index("## 1. First, find out whether this task already exists") < body.index(
+            "## 5. What you write"
+        )
 
     def test_the_shipped_reference_matches_this_project_s_copy(self) -> None:
         """The two copies of a brief this project authored do not drift apart.

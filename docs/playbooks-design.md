@@ -394,9 +394,15 @@ information for free.
 
 ### 5.3 `flesh-out` — a full spec for a thin task
 
-**Target:** task. **Kind:** batch. **Gate:** review-after-write — the target task is
-left at `ball: human` / `ball_reason: review`, which keeps it unclaimable and
-undispatchable until a human releases it.
+**Revised 2026-08-23 on Jeff's review** (task-218 log entry 13). Two changes, both
+below and both marked: the run now checks for a duplicate before it writes anything
+and folds rather than files when it finds one, and it promotes a draft it has
+specified instead of leaving it a draft. The paragraph about the parked ball is also
+corrected — the original overstated what the park does, and the correction is measured
+rather than argued.
+
+**Target:** task. **Kind:** batch. **Gate:** review-after-write — the surviving record
+is left at `ball: human` / `ball_reason: review`.
 
 The run is an ordinary dispatch of the target task with the playbook as brief. It
 reads the thin record plus the repository context, and writes a full spec — summary,
@@ -404,16 +410,48 @@ intent, description, constraints, out-of-scope, acceptance — through the manag
 `update_content` verb, directly onto the task. Then it hands off for review with a
 `ball_prompt` naming what it wrote and what it was least sure of.
 
+**The duplicate check comes first, and it is a search rather than a glance.** A thin
+record is thin because somebody filed it in a hurry, and the commonest thing filed in
+a hurry is a thing already on the list. Where the target duplicates an existing task,
+the run writes whatever the target *added* onto that counterpart, closes the target
+`outcome: duplicate` naming it, and parks the **counterpart** at review — one record
+survives, and it is the older one, because it already carries the history and the
+inbound references. Where the counterpart is `active` with an owner, nothing is
+rewritten and the draft stays open: a note goes on the counterpart and the target goes
+back at `human`/`decision`.
+
+That close is not gated, which departs from §5.1's rule for `groom`, and the departure
+turns on why groom's closes are gated at all. A groom close is silent — the task
+leaves every list and nobody is asked to look. A flesh-out close is the opposite by
+construction: the survivor is parked at review in the same run, with the close named
+first in its prompt, so a human is holding it before they can act on anything else.
+Remove that requirement and the close becomes groom's kind, which is why the brief
+states it as a requirement rather than as advice.
+
 Write-then-review rather than propose-then-write, deliberately: the write is cheap to
 reverse (the prior text is in git and in the update's log entry), the target is by
 definition mostly empty so there is little to destroy, and a draft posted as a log
-entry for later transcription would be a proposal formatted as a chore. What makes
-this safe is the parked ball: a wrong spec cannot be dispatched against, because the
-task is in review until a human says otherwise.
+entry for later transcription would be a proposal formatted as a chore.
 
-Scope rules in the brief: flesh-out never changes lifecycle, priority, queue position,
-or dependencies — it writes spec fields and acceptance criteria, and raises anything
-else as a question.
+**What the parked ball actually does, corrected.** The original of this section said
+the park "keeps it unclaimable and undispatchable until a human releases it". That is
+not true and was never true. `_skip_reason` in `src/agentjobs/manager.py` decides
+claimability on `lifecycle`, open children, unmet needs, eligibility and band, and
+never reads the ball; `dispatch_task` refuses a closed task and a task at
+`agent`/`hold`, and nothing else about the ball. Measured against the real manager on
+2026-08-23 — create a draft, `promote`, `handoff` to `human`/`review`, ask the queue —
+`get_next_task()` returns it. **The park is a signal to a person, not a lock on the
+queue.** Until this revision the safety came from somewhere else and by accident: a
+flesh-out never promoted, so its target stayed `draft`, and `draft` genuinely is
+unclaimable. Promoting removes that, deliberately and with the cost stated. Whether
+the queue should read the ball is a queue-program question and is raised on task-218,
+not settled here.
+
+Scope rules in the brief: flesh-out never changes priority, queue position,
+dependencies, title, tags or category — it writes spec fields and acceptance criteria,
+and raises anything else as a question. `promote` is its **only** move along the
+lifecycle axis and applies only to a draft it has just specified; `close` applies only
+to the target, only as `duplicate`, and only in the fold described above.
 
 ### 5.4 The queue-move check — deterministic, and not a playbook
 
@@ -857,7 +895,10 @@ same conversation happening twice.
   itself under three generalised bounds — reasons recorded on every move, triggered
   not continuous, human anchors sticky (ordinary anchors overridable only with stated
   grounds; strong anchors not overridable; anchors expire on material change);
-  **flesh-out** writes the spec and parks the target at `human`/`review`. §5.
+  **flesh-out** writes the spec and parks the surviving record at `human`/`review`,
+  and — revised 2026-08-23 on Jeff's review — checks for a duplicate first, folding
+  the target into its counterpart and closing it `duplicate` where it finds one, and
+  promoting a draft it has specified. §5.3.
 - **P8.** **The reactive playbook category is withdrawn** (revised 2026-08-21 on
   Jeff's review). The queue-move check is **deterministic and synchronous**: the move
   lands and the response carries warnings computed from the claimability and dependency
