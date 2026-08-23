@@ -203,7 +203,7 @@ python -m venv /tmp/aj && /tmp/aj/bin/pip install agentjobs
 ```
 
 The last command should exit 0 having written only JSON-RPC to stdout, with
-`Serving 15 tool(s)` on stderr.
+`Serving 16 tool(s)` on stderr.
 
 ## A complete loop
 
