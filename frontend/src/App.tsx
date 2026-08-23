@@ -42,6 +42,7 @@ import { ConnectionUnavailable } from "./components/ConnectionUnavailable";
 import {
   DispatchSettings,
   runsPollInterval,
+  type DispatchOptions,
   type DispatchRefusal,
 } from "./components/DispatchPanel";
 import { DispatchRunOutput } from "./components/DispatchOutput";
@@ -288,7 +289,7 @@ function useTaskDispatch(projectId: string, taskId: string, user: string | null)
     busy: start.isPending,
     cancellingRunId,
     dispatchRefusal: refusal,
-    onDispatch: async (note?: string): Promise<boolean> => {
+    onDispatch: async (options?: DispatchOptions): Promise<boolean> => {
       setRefusal(null);
       let started = false;
       try {
@@ -303,7 +304,11 @@ function useTaskDispatch(projectId: string, taskId: string, user: string | null)
         // it comes to that.
         await start.mutateAsync({
           path: { project_id: projectId, task_id: taskId },
-          body: { ...(user ? { user } : {}), ...(note ? { note } : {}) },
+          // `options` is spread rather than picked apart: its keys are absent unless
+          // the human chose something, so a dispatch with nothing picked posts the
+          // same body it posted before the group pulldown existed, and task-307's
+          // posture arrives here without touching this call.
+          body: { ...(user ? { user } : {}), ...(options ?? {}) },
         });
         started = true;
       } catch (error) {
@@ -359,10 +364,12 @@ function DispatchSettingsPage({ projectId }: { projectId: string }) {
       state={stateQuery.data ?? null}
       busy={enable.isPending || disable.isPending}
       error={error}
-      onEnable={async (runner) => {
+      onEnable={async (target) => {
         setError(null);
         try {
-          await enable.mutateAsync({ path: { project_id: projectId }, body: { runner } });
+          // The target is `{runner}` or `{group}`, never both -- the API refuses a body
+          // naming each, and the control is one <select> so it cannot produce one.
+          await enable.mutateAsync({ path: { project_id: projectId }, body: target });
         } catch (caught) {
           const refusal = readRefusal(caught);
           setError(refusal ? refusal.message : "Dispatch could not be enabled. Reload and try again.");

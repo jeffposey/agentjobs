@@ -834,6 +834,24 @@ export type DispatchStateView = {
      */
     refusal?: DispatchRefusalView | null;
     /**
+     * Resolved From
+     *
+     * Which rung of the precedence ladder decided: 'project' for the project's own group, 'machine' for default_group, 'project_runner' for a plain runner. Sent rather than derived, because a browser that re-implements the ladder is the one place in the system that would disagree with the dispatcher about what runs.
+     */
+    resolved_from?: string | null;
+    /**
+     * Resolved Group
+     *
+     * The group that chose `resolved_runner`, when one participated. Null for a flat config, so a machine with no groups reads exactly as it did before they existed.
+     */
+    resolved_group?: string | null;
+    /**
+     * Resolved Runner
+     *
+     * The runner that would actually start right now. Null when a gate refuses, because there is then no answer rather than a stale one.
+     */
+    resolved_runner?: string | null;
+    /**
      * Runner
      *
      * Runner this project is pointed at.

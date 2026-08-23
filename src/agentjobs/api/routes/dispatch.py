@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 from agentjobs.dispatch.config import (
     DispatchConfig,
     DispatchError,
+    SelectionSource,
     assert_dispatch_permitted,
     dispatch_config_path,
     load_dispatch_config,
@@ -120,6 +121,31 @@ class DispatchStateView(BaseModel):
     default_group: Optional[str] = Field(
         default=None,
         description="Machine-wide group, used by any project that names none of its own.",
+    )
+    resolved_runner: Optional[str] = Field(
+        default=None,
+        description=(
+            "The runner that would actually start right now. Null when a gate refuses, "
+            "because there is then no answer rather than a stale one."
+        ),
+    )
+    resolved_group: Optional[str] = Field(
+        default=None,
+        description=(
+            "The group that chose `resolved_runner`, when one participated. Null for a "
+            "flat config, so a machine with no groups reads exactly as it did before "
+            "they existed."
+        ),
+    )
+    resolved_from: Optional[str] = Field(
+        default=None,
+        description=(
+            "Which rung of the precedence ladder decided: 'project' for the project's "
+            "own group, 'machine' for default_group, 'project_runner' for a plain "
+            "runner. Sent rather than derived, because a browser that re-implements the "
+            "ladder is the one place in the system that would disagree with the "
+            "dispatcher about what runs."
+        ),
     )
     can_dispatch: bool = Field(..., description="Every gate is open right now.")
     refusal: Optional[DispatchRefusalView] = Field(
@@ -333,9 +359,23 @@ def _state(project: Project) -> DispatchStateView:
 
     settings = config.project(project.id) if config else None
     refusal: Optional[DispatchRefusalView] = None
+    resolved_runner: Optional[str] = None
+    resolved_group: Optional[str] = None
+    resolved_from: Optional[str] = None
     try:
-        assert_dispatch_permitted(project.id, home)
+        # The resolution is kept rather than discarded: a project pointed at a group
+        # names no runner of its own, so without this the page can only report the
+        # absence -- which is how a fully configured project came to render "no runner
+        # chosen" (task-184). This is the same call the CLI prints its winner from, so
+        # the two surfaces cannot disagree about what would run.
+        resolution = assert_dispatch_permitted(project.id, home)
         can_dispatch = True
+        resolved_runner = resolution.runner.name
+        selection = resolution.selection
+        resolved_group = selection.group if selection else None
+        resolved_from = (
+            selection.source.value if selection else SelectionSource.PROJECT_RUNNER.value
+        )
     except DispatchError as exc:
         can_dispatch = False
         refusal = DispatchRefusalView(
@@ -355,6 +395,9 @@ def _state(project: Project) -> DispatchStateView:
         available_runners=sorted(config.runners) if config else [],
         available_groups=sorted(config.runner_groups) if config else [],
         default_group=config.default_group if config else None,
+        resolved_runner=resolved_runner,
+        resolved_group=resolved_group,
+        resolved_from=resolved_from,
         can_dispatch=can_dispatch,
         refusal=refusal,
         config_path=str(dispatch_config_path(home)),

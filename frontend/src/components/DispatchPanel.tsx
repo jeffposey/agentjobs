@@ -93,6 +93,44 @@ export type DispatchRefusal = {
   suggestedAction?: string | null;
 };
 
+/**
+ * What a human chose for this one dispatch, on top of what the project already says.
+ *
+ * One object rather than a widening argument list, because this is the shape the next
+ * per-dispatch choice arrives in: task-307 adds `posture` here and changes nothing else
+ * about how a dispatch is started.
+ *
+ * Every field is optional, and an omitted one means "whatever the project resolves to".
+ * The browser never restates a default it did not choose, so a dispatch with nothing
+ * picked posts exactly the body it posted before this control existed -- which is what
+ * keeps a machine with no groups behaving as it did before they were added.
+ */
+export type DispatchOptions = {
+  /** Runner group to choose from. Outranks the project's own group and its runner. */
+  group?: string;
+  /** The human's brief, sent only when the panel asked for one. */
+  note?: string;
+};
+
+/**
+ * Where this project's runs come from, in the words the CLI already uses for it.
+ *
+ * The server resolves this rather than the browser: a project pointed at a group names
+ * no runner of its own, and a page that re-implemented the precedence ladder to work
+ * out which member wins would be the one place in the system that could disagree with
+ * the dispatcher about what actually runs.
+ */
+function projectDefaultLabel(state: DispatchStateView | null): string {
+  if (!state) return "Project default";
+  if (state.resolved_group) {
+    return state.resolved_runner
+      ? `Project default — group ${state.resolved_group} → ${state.resolved_runner}`
+      : `Project default — group ${state.resolved_group}`;
+  }
+  const runner = state.resolved_runner ?? state.runner;
+  return runner ? `Project default — runner ${runner}` : "Project default";
+}
+
 /** How often to re-read the runs list. Fast while something is running, never otherwise. */
 export function runsPollInterval(runs: Array<DispatchRunView>): number | false {
   return runs.some((run) => run.live) ? RUN_POLL_MS : false;
@@ -199,8 +237,11 @@ export type DispatchPanelProps = {
    * worked. It has to be told, because the one thing it does on success is destroy the
    * only copy of what the human typed. `boolean` rather than `void` is what makes a
    * caller that forgets to say so a type error instead of a silently emptied textarea.
+   *
+   * `options.note` is the human's text; `options.group` is the runner group they picked
+   * for this run. Both are omitted unless chosen -- see {@link DispatchOptions}.
    */
-  onDispatch: (note?: string) => Promise<boolean> | boolean;
+  onDispatch: (options?: DispatchOptions) => Promise<boolean> | boolean;
   onCancel: (runId: string) => Promise<void> | void;
   /**
    * The output panel for one run, supplied rather than imported.
@@ -233,6 +274,12 @@ export function DispatchPanel({
   renderOutput,
 }: DispatchPanelProps) {
   const [brief, setBrief] = useState("");
+  // Empty means "the project's own", and it is deliberately not pre-filled with the
+  // project's group: a value the human did not pick must not be sent as though they
+  // had. Reset per page load rather than remembered -- "audit this one with the big
+  // model" is a decision about one task, and a sticky override would silently apply it
+  // to the next one.
+  const [group, setGroup] = useState("");
 
   if (!taskIsDispatchable && runs.length === 0) return null;
   // Silent on a machine where dispatch was never set up. There is nothing to switch on
@@ -251,6 +298,11 @@ export function DispatchPanel({
   // the server said so when the button was pressed. Honouring the server's answer as
   // well as the local one means the box still appears if the two ever drift apart.
   const askForBrief = !recordCanBrief || dispatchRefusal?.reason === "insufficient_record";
+  /** What this click will send. Omitted keys are the point -- see `DispatchOptions`. */
+  const options = (note?: string): DispatchOptions => ({
+    ...(group ? { group } : {}),
+    ...(note ? { note } : {}),
+  });
 
   return (
     <section
@@ -288,12 +340,13 @@ export function DispatchPanel({
           <button
             type="button"
             disabled={busy}
-            onClick={() => void onDispatch()}
+            onClick={() => void onDispatch(options())}
             className="touch-target rounded-lg bg-sky-600 px-4 font-semibold text-white hover:bg-sky-500 disabled:opacity-60"
           >
             ▶ Dispatch — start an agent now
           </button>
-          <DispatchRunnerNote state={state} user={user} />
+          <DispatchGroupChoice state={state} value={group} busy={busy} onChange={setGroup} />
+          <DispatchRunnerNote state={state} user={user} group={group} />
         </div>
       )}
 
@@ -314,7 +367,7 @@ export function DispatchPanel({
             // rather than a click. Which is exactly what shipped and was caught in
             // review: the handler resolves on refusal too, so a `.then(clear)` cleared
             // on every outcome and the rejection branch written to prevent it was dead.
-            void Promise.resolve(onDispatch(value)).then(
+            void Promise.resolve(onDispatch(options(value))).then(
               (started) => {
                 if (started) setBrief("");
               },
@@ -347,7 +400,8 @@ export function DispatchPanel({
             >
               ▶ Dispatch — start an agent now
             </button>
-            <DispatchRunnerNote state={state} user={user} />
+            <DispatchGroupChoice state={state} value={group} busy={busy} onChange={setGroup} />
+            <DispatchRunnerNote state={state} user={user} group={group} />
           </div>
         </form>
       )}
@@ -365,14 +419,100 @@ export function DispatchPanel({
   );
 }
 
+/**
+ * Which class of runner to spend this one dispatch on.
+ *
+ * A `<select>` over groups this machine already defines, never a text field, for the
+ * same reason the runner control on the settings page is one: the browser may choose
+ * among things a human wrote into `dispatch.yaml`, and may never describe a new one.
+ *
+ * **Absent entirely on a machine that defines no groups.** A pulldown with one option
+ * meaning "the only thing that can happen" is furniture, and a project that never had
+ * a group must go on reading exactly as it did before groups existed.
+ *
+ * This is the shape task-307 copies for posture: a labelled select whose empty option
+ * is the project's own answer, spelled out, and whose value is sent only when it is not
+ * that. Nothing about it is specific to groups except the list and the two words.
+ */
+function DispatchGroupChoice({
+  state,
+  value,
+  busy,
+  onChange,
+}: {
+  state: DispatchStateView | null;
+  value: string;
+  busy: boolean;
+  onChange: (next: string) => void;
+}) {
+  const groups = state?.available_groups ?? [];
+  if (groups.length === 0) return null;
+  return (
+    <div className="flex items-center gap-2">
+      <label htmlFor="dispatch-group" className="text-sm text-dark-muted">
+        Group
+      </label>
+      <select
+        id="dispatch-group"
+        value={value}
+        disabled={busy}
+        onChange={(event) => onChange(event.target.value)}
+        className="rounded-lg border border-dark-border bg-dark-bg p-2 text-sm text-dark-text focus:border-sky-500 focus:outline-none"
+      >
+        <option value="">{projectDefaultLabel(state)}</option>
+        {groups.map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 /** What the run will be, and whose name goes on it. Both worth reading before clicking. */
-function DispatchRunnerNote({ state, user }: { state: DispatchStateView | null; user: string }) {
-  if (!state?.runner) return null;
+function DispatchRunnerNote({
+  state,
+  user,
+  group,
+}: {
+  state: DispatchStateView | null;
+  user: string;
+  group: string;
+}) {
+  const posture = (
+    <>
+      posture <strong className="text-dark-text">{state?.posture}</strong>, authorised by{" "}
+      <strong className="text-dark-text">{user}</strong>
+    </>
+  );
+  // A group picked for this one dispatch outranks everything the project says, and the
+  // browser holds no member list to resolve it with -- so it names the group that will
+  // choose rather than guessing which member wins. Leaving the project's runner on
+  // screen beside an overriding group would be the one sentence here that is reliably
+  // wrong.
+  if (group) {
+    return (
+      <span className="text-sm text-dark-muted">
+        Runner chosen from group <strong className="text-dark-text">{group}</strong>, {posture}
+      </span>
+    );
+  }
+  // `resolved_runner` first: a project pointed at a group has no `runner` of its own,
+  // and reading only that field is why a fully configured project used to say nothing
+  // here at all.
+  const runner = state?.resolved_runner ?? state?.runner ?? null;
+  if (!runner) return null;
   return (
     <span className="text-sm text-dark-muted">
-      Runner <strong className="text-dark-text">{state.runner}</strong>, posture{" "}
-      <strong className="text-dark-text">{state.posture}</strong>, authorised by{" "}
-      <strong className="text-dark-text">{user}</strong>
+      Runner <strong className="text-dark-text">{runner}</strong>
+      {state?.resolved_group ? (
+        <>
+          {" "}
+          from group <strong className="text-dark-text">{state.resolved_group}</strong>
+        </>
+      ) : null}
+      , {posture}
     </span>
   );
 }
@@ -447,13 +587,60 @@ export function DispatchRunList({
   );
 }
 
+/**
+ * What a project is being pointed at when it is enabled: one existing name, one kind.
+ *
+ * Never both. A group already says which runners are in play, so naming one of them
+ * beside it says two things at once -- the API refuses that outright, and this type is
+ * the browser half of the same rule.
+ */
+export type DispatchEnableTarget = { runner: string | null } | { group: string };
+
 export type DispatchSettingsProps = {
   state: DispatchStateView | null;
   busy?: boolean;
   error?: string | null;
-  onEnable: (runner: string | null) => Promise<void> | void;
+  onEnable: (target: DispatchEnableTarget) => Promise<void> | void;
   onDisable: () => Promise<void> | void;
 };
+
+/**
+ * What this project's runs resolve to, for the gate tile that used to only know runners.
+ *
+ * The order is the config's own precedence ladder, and it is read off the server's
+ * answer rather than re-derived: a resolved group wins, then whatever the project names
+ * but a shut gate stopped us resolving, then a plain runner, then the machine-wide
+ * default group. Only when none of those exist is there genuinely no runner chosen --
+ * which is why a project configured with a group no longer says so (task-184).
+ */
+function projectGateDetail(state: DispatchStateView): string {
+  if (state.resolved_group) {
+    const via = state.resolved_from === "machine" ? " (machine default)" : "";
+    return state.resolved_runner
+      ? `group: ${state.resolved_group}${via} → ${state.resolved_runner}`
+      : `group: ${state.resolved_group}${via}`;
+  }
+  if (state.group) return `group: ${state.group}`;
+  if (state.runner) return `runner: ${state.runner}`;
+  if (state.default_group) return `group: ${state.default_group} (machine default)`;
+  return "no runner chosen";
+}
+
+/**
+ * One entry in the enable control: what the browser shows, and what it would post.
+ *
+ * The target travels with the option rather than being parsed back out of the selected
+ * value. Parsing would need the value to encode a kind, which would change what a plain
+ * runner's `<option value>` has always been on a machine with no groups -- and that is
+ * exactly the thing sc-4 says must not move. Carrying it costs one field and removes
+ * the question entirely.
+ */
+type EnableOption = { value: string; label: string; target: DispatchEnableTarget };
+
+/** A group's value, kept distinct from a runner's, which stays the bare name. */
+function groupOptionValue(name: string): string {
+  return `group:${name}`;
+}
 
 /**
  * The per-project switch, and the machine state it depends on.
@@ -464,7 +651,10 @@ export type DispatchSettingsProps = {
  *
  * The runner is a `<select>` over names this machine defines, never a text field. A
  * free-text runner would let a browser name a command, which is precisely the thing the
- * whole gate design exists to prevent -- and the API would refuse it anyway.
+ * whole gate design exists to prevent -- and the API would refuse it anyway. The same
+ * list carries this machine's runner *groups*, because pointing a project at an
+ * existing group is the identical act on identical terms: choosing among definitions a
+ * human wrote by hand, never authoring one.
  */
 export function DispatchSettings({
   state,
@@ -473,13 +663,43 @@ export function DispatchSettings({
   onEnable,
   onDisable,
 }: DispatchSettingsProps) {
-  const [runner, setRunner] = useState<string>("");
+  const [target, setTarget] = useState<string>("");
   if (!state) {
     return <p className="text-dark-muted">Reading this machine's dispatch configuration…</p>;
   }
 
   const runners = state.available_runners ?? [];
-  const chosen = runner || state.runner || runners[0] || "";
+  const groups = state.available_groups ?? [];
+  // One list rather than two controls, because the config makes it one choice: a
+  // project resolves through a group or through a runner and never both, and two
+  // controls could be set to say otherwise. The kind travels in the value.
+  //
+  // On a machine with no groups the options are bare runner names, exactly as they were
+  // before groups existed -- a "runner: " prefix on a list that can only hold runners
+  // is noise a project that never had a group should not have to read.
+  const options: Array<EnableOption> =
+    groups.length === 0
+      ? runners.map((name) => ({ value: name, label: name, target: { runner: name } }))
+      : [
+          ...groups.map((name) => ({
+            value: groupOptionValue(name),
+            label: `group: ${name}`,
+            target: { group: name },
+          })),
+          ...runners.map((name) => ({
+            value: name,
+            label: `runner: ${name}`,
+            target: { runner: name },
+          })),
+        ];
+  // Preselect what the project is already pointed at, group included. Until task-184
+  // this fell straight through to `runners[0]` for a grouped project, so the control
+  // offered to change something it would then silently decline to change: the config
+  // layer keeps a project's `group:` and ignores a `runner:` sent beside it, verified
+  // against a throwaway home, so pressing Enable did nothing and said nothing.
+  const current = state.group ? groupOptionValue(state.group) : (state.runner ?? "");
+  const chosen = target || current || options[0]?.value || "";
+  const selected = options.find((option) => option.value === chosen);
 
   return (
     <section className="space-y-6" aria-label="Dispatch settings">
@@ -505,7 +725,7 @@ export function DispatchSettings({
           <Gate
             label="This project"
             open={state.project_enabled}
-            detail={state.runner ? `runner: ${state.runner}` : "no runner chosen"}
+            detail={projectGateDetail(state)}
           />
         </dl>
 
@@ -548,27 +768,27 @@ export function DispatchSettings({
             <>
               <div>
                 <label htmlFor="dispatch-runner" className="block text-sm font-semibold">
-                  Runner
+                  {groups.length === 0 ? "Runner" : "Runner or group"}
                 </label>
                 <select
                   id="dispatch-runner"
                   value={chosen}
-                  disabled={busy || runners.length === 0}
-                  onChange={(event) => setRunner(event.target.value)}
+                  disabled={busy || options.length === 0}
+                  onChange={(event) => setTarget(event.target.value)}
                   className="mt-1 rounded-lg border border-dark-border bg-dark-bg p-2 text-dark-text"
                 >
-                  {runners.length === 0 && <option value="">none defined</option>}
-                  {runners.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
+                  {options.length === 0 && <option value="">none defined</option>}
+                  {options.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
                     </option>
                   ))}
                 </select>
               </div>
               <button
                 type="button"
-                disabled={busy || runners.length === 0}
-                onClick={() => void onEnable(chosen || null)}
+                disabled={busy || options.length === 0}
+                onClick={() => void onEnable(selected?.target ?? { runner: chosen || null })}
                 className="touch-target rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
               >
                 Enable dispatch for this project
@@ -578,9 +798,10 @@ export function DispatchSettings({
         </div>
 
         <p className="mt-4 text-xs text-dark-muted">
-          Runners are defined by hand in <code>{state.config_path}</code> and never from
-          this page. This switch chooses among commands that already exist on this
-          machine; it cannot describe a new one.
+          {groups.length === 0 ? "Runners are" : "Runners and runner groups are"} defined
+          by hand in <code>{state.config_path}</code> and never from this page. This
+          switch chooses among commands that already exist on this machine; it cannot
+          describe a new one.
         </p>
         {error && (
           <p role="alert" className="mt-3 text-sm text-red-300">

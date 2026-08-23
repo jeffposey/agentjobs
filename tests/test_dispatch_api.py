@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Dict, Iterator, Sequence, Tuple
+from typing import Dict, Iterator, Optional, Sequence, Tuple
 
 import pytest
 import yaml
@@ -990,3 +990,177 @@ class TestOneClickDispatch:
         after = TaskManager(TaskStorage(root / "tasks")).get_task(task_id)
         assert after is not None
         assert len(after.log) == len(before.log)
+
+
+def enable_dispatch_with_groups(
+    home: Path,
+    tmp_path: Path,
+    *,
+    project: Optional[Dict[str, object]] = None,
+    default_group: Optional[str] = None,
+) -> None:
+    """A machine that defines two runners and two groups over them.
+
+    Separate from ``enable_dispatch`` rather than another keyword on it: the flat shape
+    is what every other test in this file needs to keep asserting, and the point of
+    several of these is that a machine with no groups reads exactly as it did before
+    groups existed.
+    """
+    runner = tmp_path / "runner.py"
+    runner.write_text("print('started')\n", encoding="utf-8")
+    argv = [sys.executable, str(runner), "{prompt}"]
+    config: Dict[str, object] = {
+        "version": 1,
+        "enabled": True,
+        "runners": {
+            "fake": {"argv": list(argv), "actor": "claude"},
+            "other": {"argv": list(argv), "actor": "claude"},
+        },
+        "runner_groups": {
+            "cheap": {"members": ["fake", "other"]},
+            "big": {"members": ["other", "fake"]},
+        },
+        "projects": {
+            "sandbox": project if project is not None else {"enabled": True, "group": "cheap"}
+        },
+    }
+    if default_group:
+        config["default_group"] = default_group
+    (home / "dispatch.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+
+
+def project_entry(home: Path) -> Dict[str, object]:
+    """What ``projects.sandbox`` says in the config file right now."""
+    raw = yaml.safe_load((home / "dispatch.yaml").read_text(encoding="utf-8"))
+    entry = raw["projects"]["sandbox"]
+    assert isinstance(entry, dict)
+    return entry
+
+
+class TestDispatchStateWithGroups:
+    """What the browser reads for a project pointed at a group rather than a runner.
+
+    ``runner`` is null for such a project, which is all the page used to look at -- so a
+    fully configured project rendered "no runner chosen" beside an open gate (task-184).
+    The state now carries the resolution the CLI already prints, resolved here so the two
+    surfaces cannot disagree about what would run.
+    """
+
+    def test_a_grouped_project_reports_the_group_and_the_member_that_would_run(
+        self, served, tmp_path: Path
+    ) -> None:
+        client, _, home = served
+        enable_dispatch_with_groups(home, tmp_path)
+
+        body = client.get("/api/projects/sandbox/dispatch").json()
+
+        assert body["can_dispatch"] is True
+        # Null, and correctly so: the project names no runner of its own.
+        assert body["runner"] is None
+        assert body["group"] == "cheap"
+        assert body["resolved_group"] == "cheap"
+        assert body["resolved_runner"] == "fake"
+        assert body["resolved_from"] == "project"
+        assert body["available_groups"] == ["big", "cheap"]
+
+    def test_a_machine_wide_default_group_is_reported_as_the_machine_s_choice(
+        self, served, tmp_path: Path
+    ) -> None:
+        """The distinction the caption needs: nothing in this project decided this."""
+        client, _, home = served
+        enable_dispatch_with_groups(home, tmp_path, project={"enabled": True}, default_group="big")
+
+        body = client.get("/api/projects/sandbox/dispatch").json()
+
+        assert body["group"] is None
+        assert body["default_group"] == "big"
+        assert body["resolved_group"] == "big"
+        assert body["resolved_runner"] == "other"
+        assert body["resolved_from"] == "machine"
+
+    def test_a_flat_config_reports_no_group_at_all(self, served, tmp_path: Path) -> None:
+        """sc-4: a machine that never defined a group reads as it did before they existed."""
+        client, _, home = served
+        enable_dispatch(home, tmp_path)
+
+        body = client.get("/api/projects/sandbox/dispatch").json()
+
+        assert body["available_groups"] == []
+        assert body["default_group"] is None
+        assert body["resolved_group"] is None
+        assert body["resolved_runner"] == "fake"
+        assert body["resolved_from"] == "project_runner"
+
+    def test_a_shut_gate_resolves_nothing_rather_than_reporting_a_stale_answer(
+        self, served, tmp_path: Path
+    ) -> None:
+        client, _, home = served
+        enable_dispatch_with_groups(home, tmp_path, project={"enabled": False, "group": "cheap"})
+
+        body = client.get("/api/projects/sandbox/dispatch").json()
+
+        assert body["can_dispatch"] is False
+        assert body["group"] == "cheap"
+        assert body["resolved_runner"] is None
+        assert body["resolved_group"] is None
+        assert body["resolved_from"] is None
+
+
+class TestBrowserToggleAgainstGroups:
+    """sc-3, established against a throwaway home before anything was changed.
+
+    The question was whether a disable/enable round-trip from the browser could drop a
+    project's ``group:`` or silently change which runner it uses. It cannot: the config
+    layer keeps the group and declines the runner sent beside it. What it *does* do is
+    accept that runner with a 200 and change nothing, which is why the control now
+    offers the groups too -- a select that reports success and has no effect is the half
+    of this that was worth fixing.
+    """
+
+    def test_a_disable_enable_round_trip_keeps_the_group(self, served, tmp_path: Path) -> None:
+        client, _, home = served
+        enable_dispatch_with_groups(home, tmp_path)
+
+        assert client.post("/api/projects/sandbox/dispatch/disable").status_code == 200
+        assert project_entry(home)["group"] == "cheap"
+
+        enabled = client.post("/api/projects/sandbox/dispatch/enable", json={"runner": "other"})
+
+        assert enabled.status_code == 200, enabled.text
+        entry = project_entry(home)
+        assert entry["group"] == "cheap"
+        assert entry["enabled"] is True
+        # The runner was not written, so the group still decides. This is the finding:
+        # no data loss, and no change of runner either.
+        assert "runner" not in entry
+        assert enabled.json()["resolved_runner"] == "fake"
+
+    def test_pointing_a_grouped_project_at_another_group_is_the_supported_move(
+        self, served, tmp_path: Path
+    ) -> None:
+        """What the browser now sends, and the reason the select lists groups at all."""
+        client, _, home = served
+        enable_dispatch_with_groups(home, tmp_path)
+
+        client.post("/api/projects/sandbox/dispatch/disable")
+        enabled = client.post("/api/projects/sandbox/dispatch/enable", json={"group": "big"})
+
+        assert enabled.status_code == 200, enabled.text
+        assert project_entry(home)["group"] == "big"
+        body = enabled.json()
+        assert body["resolved_group"] == "big"
+        assert body["resolved_runner"] == "other"
+
+    def test_a_plain_project_on_a_machine_with_no_groups_still_changes_runner(
+        self, served, tmp_path: Path
+    ) -> None:
+        """sc-4 for the toggle: the pre-group behaviour, unchanged."""
+        client, _, home = served
+        enable_dispatch(home, tmp_path, extra_runners=("other",))
+
+        client.post("/api/projects/sandbox/dispatch/disable")
+        enabled = client.post("/api/projects/sandbox/dispatch/enable", json={"runner": "other"})
+
+        assert enabled.status_code == 200, enabled.text
+        assert project_entry(home)["runner"] == "other"
+        assert enabled.json()["resolved_runner"] == "other"
