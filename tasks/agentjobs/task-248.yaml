@@ -3,13 +3,14 @@ id: task-248
 title: "Tolerant reader rejects an unknown ball_reason \u2014 the enum widened two\
   \ days after tolerance shipped"
 created: '2026-08-22T18:51:25.400936Z'
-updated: '2026-08-23T06:37:19.879586Z'
+updated: '2026-08-23T06:45:00.933948Z'
 lifecycle: active
 ball: agent
 ball_reason: work
-ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
-  the branch merged in branches[], and close this task completed. No merge has happened
-  yet: the UI records approval, it does not run git.'
+ball_prompt: 'Complete the approved merge manually because finish.enabled is off:
+  rebase branch codex/task-248-class-probe onto main, merge it with --no-ff, mark
+  the branch merged, verify the focused regression tests, close task completed, and
+  remove the clean worktree and local branch.'
 archived: false
 priority: critical
 queue_position: 500
@@ -989,3 +990,34 @@ log:
       id: 41b1fae1-a340-4bd1-8315-9611c49146b1
       kind: update_content
       fingerprint: 9e0194580a3a6090b7629af4b3f2526e
+- id: 48
+  ts: '2026-08-23T06:40:30.084463Z'
+  actor: codex
+  type: handoff
+  body: 'Approval recovery: the server''s inherited PATH cannot resolve the installed
+    Codex executable, but a fresh CLI process can. I recorded the branch and committed
+    the task record on main as 4f6f314. The code branch is clean and has only its
+    intended two-file diff. A direct rebase from this sandbox is blocked by the sandbox''s
+    Git-worktree metadata permissions; no rebase state was created and nothing was
+    merged.'
+  data:
+    ball: human
+    ball_reason: input
+    operation:
+      id: d5b78d30-2e24-4a73-bfc9-a0c9e638a91d
+      kind: handoff
+      fingerprint: b7e996bb8a9bca21279553e0d0f1c66b
+- id: 49
+  ts: '2026-08-23T06:45:00.933553Z'
+  actor: codex
+  type: handoff
+  body: Jeff Posey requested task 248 be finished. The scripted finish command was
+    attempted but correctly declined because finish.enabled is disabled; continuing
+    through the documented manual approval path.
+  data:
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 77fb1aed-802a-452a-a559-c3d5d8170664
+      kind: handoff
+      fingerprint: 4ae4fa53733805c3d9968c583c2e3621
