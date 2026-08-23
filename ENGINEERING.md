@@ -180,18 +180,38 @@ source rather than a neighbouring one's.
 -   Budget **about a minute and a half when you have the machine to yourself** —
     95.8s for the table above. It was six minutes until task-233, and the gate is
     no longer the thing to plan a working session around.
+
+    **What a dispatched session actually pays is closer to two and a half minutes.**
+    Every full passing gate the phase records have caught in the wild, to 2026-08-23:
+    125s, 141s, 155s, 157s, 174s — median about 155s. 95.8s is a quiet-machine best
+    case and 155s is the working figure; quote whichever the question calls for, and
+    say which.
 -   **Budget longer when you do not, and do not read slow as hung.** Several agents work
     this repository at once and this machine now allows three dispatched runs, so gates
     overlapping is the normal case rather than an unusual one.
 
     The scaling figures previously recorded here — two simultaneous gates 388s, four
     411s, six 444s — were measured against the **serial** suite and are kept only as
-    history. They do not describe the gate as it now runs, and **nobody has yet measured
-    concurrent parallel gates**: `-n auto` asks for every core, so two of them are
-    competing for the same 32 rather than each taking a core, and the honest statement is
-    that the contended figure is unknown. Measure it before quoting one. What has not
-    changed is the advice: degradation here has always been gradual with no cliff, so a
-    gate that is taking longer than you expected is working, not stuck.
+    history. They do not describe the gate as it now runs.
+
+    **Three concurrent parallel gates cost 342s, 361s and 384s.** Measured 2026-08-23
+    from `run_4063f1c0`, which is one session that started a gate at 03:27:10, another
+    at 03:27:50 and a third at 03:29:03 with the first two still running. This is the
+    figure the paragraph above used to say was unknown, and it was got by accident
+    rather than by a benchmark, so treat it as one observation of three-way contention
+    and not as a curve. Two conclusions do follow from it:
+
+    - **The parallel gate does not degrade as gently as the serial one did.** Serial
+      went 365s → 388s → 411s → 444s as concurrency rose; parallel goes 96s → ~360s at
+      three, because `-n auto` asks for all 32 cores and three of them are dividing the
+      same machine. The absolute number is still no worse than the serial gate ever was.
+    - **A run's summed gate time can exceed its own duration, and that is not a bug.**
+      `scripts/run_report.py` reports what the phase records say; overlapping gates make
+      the percentage a sum, not a share of a timeline. The report flags it when it
+      happens.
+
+    What has not changed is the advice: degradation here has always been gradual with no
+    cliff, so a gate that is taking longer than you expected is working, not stuck.
 
     Concurrent gates are only safe at all because each checkout derives its own
     Playwright and benchmark ports from its own path (task-187); if you see a port
@@ -211,6 +231,20 @@ source rather than a neighbouring one's.
     poetry run python scripts/run_report.py --since 7      # the last week
     poetry run python scripts/run_report.py --task task-233
     ```
+
+    **A cycle-time claim is a before/after or it is an anecdote**, so `--split` prints
+    the table twice either side of a moment — give it the timestamp of the merge whose
+    effect you are claiming. Pair it with `--driver`: a window that introduced a second
+    runner is not comparable to one that had only the first, and the newcomer's startup
+    failures land as very short runs that move every percentile.
+
+    ```bash
+    poetry run python scripts/run_report.py --driver claude --split 2026-08-21T23:24:52+00:00
+    ```
+
+    Read the **median** task, not the mean. Both are printed, and at these sample sizes
+    one feature build moves the mean by a factor and the median not at all — the task-233
+    baseline's own mean fell from 56.7m to 40.7m on the removal of a single epic.
 
     The gate reports itself: `scripts/check.py` appends a `gate_started` and a
     `gate_finished` record to `phases.jsonl` in the run directory whenever it runs inside
