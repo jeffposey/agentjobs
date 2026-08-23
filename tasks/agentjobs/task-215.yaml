@@ -2,11 +2,58 @@ schema: 2
 id: task-215
 title: "Playbooks 2: instantiation \u2014 `playbook run` on CLI, REST and GUI"
 created: '2026-08-21T04:55:56.410481Z'
-updated: '2026-08-23T08:27:33.739589Z'
+updated: '2026-08-23T09:09:15.056242Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Playbook instantiation is complete and verified. Branch `feat/task-215-playbook-run`,\
+  \ six commits d1c0b6f..5da808b, gate green on all ten stages with a receipt at the\
+  \ tip. Not merged, not pushed.\n\n**What it does.** `agentjobs playbook run <name>`,\
+  \ `POST /api/projects/{id}/playbooks/{name}/run`, and a Playbooks page with a Run\
+  \ button beside Dispatch in the nav. A project-target playbook (groom, reorder)\
+  \ creates a run task from its `run_task` frontmatter and dispatches it; a task-target\
+  \ one (flesh-out) dispatches the task you name. The brief is pointed at, never copied:\
+  \ one appended line on the prompt stub, a short pointer in the run task's spec,\
+  \ and `playbook` + `playbook_hash` on the dispatch entry.\n\n**How I read sc-4,\
+  \ which cannot be satisfied as written.** It says reactive playbooks must be refused,\
+  \ and there is no `kind` field to check \u2014 P8 withdrew the reactive category\
+  \ after this spec was written, and task-214 declined to build `kind` for that reason.\
+  \ I did not reintroduce it. Instead the refusal is structural: task-214's frontmatter\
+  \ contract forbids unknown keys, so a file declaring `kind: reactive` never loads,\
+  \ and a brief that never loads cannot be run on any surface \u2014 including surfaces\
+  \ nobody has written yet. That is stronger than an enum check would have been. The\
+  \ criterion text on the record now carries that note, and the decision entry of\
+  \ 2026-08-23 has the rejected alternatives. **If you disagree, this is the one thing\
+  \ to send back**, because it is a deliberate departure from your spec rather than\
+  \ an implementation detail.\n\n**Look closely at, in this order:**\n\n1. **Authorisation.**\
+  \ A project-target run is authorised by the *creation entry of the run task it just\
+  \ wrote* \u2014 verified live: `caused_by` points at \"Created ready by Jeff Posey\"\
+  \ and no second authorising note exists. A task-target run is task-188 unchanged.\
+  \ `agentjobs playbook run --actor` therefore has **no `default_user` fallback**,\
+  \ unlike every other `--actor` in the CLI, because that entry is read a moment later\
+  \ as the authorisation for spending money. That is the judgement call most worth\
+  \ a second opinion \u2014 it costs you a flag on every CLI run.\n2. **That no gate\
+  \ moved.** `run_playbook` calls `assert_dispatch_permitted` before it writes anything\
+  \ and then the same `dispatch_task` the Dispatch button calls. `TestGatesStillBind`\
+  \ includes a test that reads `guards.py` and asserts `request.playbook` appears\
+  \ on exactly one line \u2014 the pass-through \u2014 so no guard can start reading\
+  \ it without failing.\n3. **The run task a late refusal leaves behind.** A busy\
+  \ machine or a dirty tree can refuse *after* the run task exists. Nothing is deleted;\
+  \ the refusal names the task, which stays `ready` and dispatchable. Deliberate,\
+  \ and the alternative is deleting task records to make a failure look tidy.\n\n\
+  **To see it without spending anything:** `python scripts/playbook_sandbox.py` (from\
+  \ the worktree at C:/projects/worktrees/aj-215) stands the page up on **http://127.0.0.1:8895/app/**\
+  \ with two throwaway projects \u2014 one dispatchable at a runner that prints and\
+  \ exits, one with dispatch off and a broken playbook file. Press Run as often as\
+  \ you like; nothing real is touched and Ctrl-C deletes the data. Its module docstring\
+  \ lists what to check. I ran it, pressed Run, and stopped it again; no server of\
+  \ mine is left running.\n\n**Two limitations on the record rather than left to be\
+  \ found:** a resumed session's wake prompt does not carry the pointer line (the\
+  \ dispatch entry still does), and `run_task.category` is not validated against the\
+  \ project's configured categories \u2014 nothing in AgentJobs validates categories\
+  \ today, so that is not a regression.\n\nAlso in the branch: the playbooks design's\
+  \ status banner and the docs index said \"no implementation\", which stopped being\
+  \ true with task-214. Both now say what has shipped."
 archived: false
 priority: high
 queue_position: 93
@@ -79,18 +126,27 @@ acceptance:
   text: A project-target run creates a run task from frontmatter and dispatches it;
     a task-target run dispatches the target with the one-line playbook pointer; target-shape
     mismatches are refused.
-  status: pending
+  verify: pytest tests/test_playbook_run.py -k 'ProjectTarget or TaskTarget'
+  status: met
 - id: sc-2
   text: The dispatch entry records playbook and playbook_hash; the brief is never
     copied into prompt or spec.
-  status: pending
+  verify: pytest tests/test_playbook_run.py -k PointerNotCopy
+  status: met
 - id: sc-3
   text: 'Every dispatch gate binds: proven by tests dispatching a playbook with dispatch
     disabled and with an agent as would-be authoriser, both refused.'
-  status: pending
+  verify: pytest tests/test_playbook_run.py -k GatesStillBind
+  status: met
 - id: sc-4
-  text: Reactive playbooks are refused by playbook run; MCP has no run tool.
-  status: pending
+  text: "Reactive playbooks are refused by playbook run; MCP has no run tool. NOTE:\
+    \ there is no `kind` field \u2014 decision P8 withdrew the reactive category after\
+    \ this spec was written, so the first half is satisfied structurally (a file declaring\
+    \ `kind: reactive` does not load, so it cannot be run on any surface). See the\
+    \ decision entry of 2026-08-23."
+  verify: pytest tests/test_playbook_run.py -k reactive tests/test_mcp_playbook_tools.py
+    -k 'mutation or reach'
+  status: met
 deliverables: []
 dependencies:
 - task: task-214
@@ -157,3 +213,246 @@ log:
       id: 8d2f4a10-0215-4b21-9c02-000000000002
       kind: update_content
       fingerprint: 308dcd455ac183545a7bc7819f70f620
+- id: 5
+  ts: '2026-08-23T09:07:42.470529Z'
+  actor: claude
+  type: decision
+  body: "**sc-4's first half is satisfied structurally, and no `kind` field was reintroduced.**\n\
+    \nThe criterion says \"Reactive playbooks are refused by playbook run\". There\
+    \ is no `kind`\nfield to check: decision P8 withdrew the reactive category on\
+    \ 2026-08-21, after this\ntask's spec was written, and task-214 deliberately did\
+    \ not implement `kind` for that\nreason (its decision entry of 2026-08-23). Read\
+    \ literally, sc-4 asks this task to refuse\na thing the codebase cannot express.\n\
+    \n**How it is resolved.** task-214's frontmatter contract forbids unknown keys,\
+    \ so a file\ndeclaring `kind: reactive` does not load at all \u2014 `playbook\
+    \ run` refuses it with\n`invalid_playbook`, naming the field. That is a *stronger*\
+    \ guarantee than an enum check\nwould have been: it holds on every surface, including\
+    \ ones nobody has written yet,\nbecause the refusal is at the parser rather than\
+    \ in one command. Exercised by hand\n(`POST .../playbooks/watch/run` \u2192 `422\
+    \ invalid_playbook`, \"watch.md: kind -- Extra\ninputs are not permitted\") and\
+    \ pinned by\n`tests/test_playbook_run.py::TestUnrunnable::test_a_reactive_playbook_cannot_be_run_because_it_cannot_be_read`.\n\
+    \n**Rejected: implement `kind: batch|reactive` as the spec says and refuse `reactive`.**\n\
+    It would put a single-member-in-practice enum in the codebase naming a category\
+    \ the\napproved design says has no members and is not coming back, and every playbook's\n\
+    frontmatter would carry a field with no information. It also contradicts this\
+    \ task's own\n`constraints`, which make the design's decisions binding.\n\n**Also\
+    \ rejected: a bespoke error message for the `kind` key**, pointing a reader at\
+    \ P8.\nHelpful, and it puts the withdrawn word `reactive` back into the source\
+    \ for the sake of\na mistake only someone working from the superseded spec could\
+    \ make. \"kind: Extra inputs\nare not permitted\" already names the field and\
+    \ is actionable.\n\nsc-4's second half (MCP has no run tool) is unchanged and\
+    \ met. task-214's name-based\ncheck is kept and a stronger one added: no file\
+    \ in `agentjobs/mcp/` may mention\n`run_playbook` or `playbooks.run`, because\
+    \ matching on tool names would miss a tool\ncalled something else."
+  data:
+    operation:
+      id: 8d2f4a10-0215-4b21-9c02-000000000003
+      kind: log_append
+      fingerprint: b92bec35703b228701bc16819d4b24a8
+- id: 6
+  ts: '2026-08-23T09:08:03.841959Z'
+  actor: claude
+  type: decision
+  body: "Four calls the spec left open, each with what was rejected.\n\n**1. `agentjobs\
+    \ playbook run --actor` has no `default_user` fallback**, unlike every\nother\
+    \ `--actor` in this CLI. It names the human creating the run task for a\nproject-target\
+    \ playbook; without one the command refuses with `no_authorizing_human` and\n\
+    creates nothing.\n\nThe spec says \"default_user is never substituted\" and this\
+    \ is the only place that could\nhave. A project-target run creates the task it\
+    \ then dispatches, so the human-clocked rule\nreads an entry this command *wrote\
+    \ a moment earlier* \u2014 and an entry attributed to\nwhoever the config happens\
+    \ to name is the signature task-188 refuses to invent. Rejected:\n`_resolve_actor(config,\
+    \ actor)`, which every other CLI write uses and which falls back to\n`default_user`.\
+    \ That would have made `agentjobs playbook run groom` work with no flags,\nat\
+    \ the cost of the sentence the spec is explicit about.\n\nWhat this flag is *not*\
+    \ is a way to authorise a dispatch from a shell: it can only reach\na task it\
+    \ just created, and a **task-target** run does not use it at all \u2014 the target's\n\
+    own newest entry must be a human's, exactly as `agentjobs dispatch run` requires.\
+    \ So the\n`--as` flag `dispatch run` declined is still not here.\n\n**2. A refusal\
+    \ that arrives after the run task exists leaves it there, and says so.**\nGates\
+    \ 1\u20134 are asked *before* anything is written (`assert_dispatch_permitted`\
+    \ in\n`run_playbook`), so \"dispatch is off on this machine\" \u2014 the refusal\
+    \ that proves nothing\ncould have run \u2014 creates nothing. The refusals that\
+    \ need a task to judge (a busy machine,\na dirty tree, a live run) can still land\
+    \ after creation, and `PlaybookDispatchRefused`\nthen names the run task in its\
+    \ message; it is `ready` and dispatchable from its own page.\nRejected: deleting\
+    \ the run task to tidy up. Deleting task records to make a failure look\nneater\
+    \ is not a trade this project makes, and \"a human asked for a groom run\" is\
+    \ true\nwhether or not the machine had a slot. Also rejected: replicating the\
+    \ concurrency and\nclean-tree checks in the pre-flight \u2014 two copies of a\
+    \ gate drift, and `dispatch_task`'s\nordering is load-bearing.\n\n**3. `run_task.title`\
+    \ templating is `{project}` and `{playbook}`, by targeted\nsubstitution rather\
+    \ than `str.format`.** A title is authored prose, and `format` turns an\nunrecognised\
+    \ brace into a `KeyError` at instantiation time \u2014 a run refused because\n\
+    somebody wrote a literal `{` in a title. Anything the pattern does not name is\
+    \ left\nexactly as written. (None of the three shipped references uses a placeholder\
+    \ today.)\n\n**4. `agentjobs.playbooks.run` is deliberately not imported by the\
+    \ package `__init__`.**\nTwo things depend on it: `agentjobs.dispatch` can hold\
+    \ a `PlaybookPointer` without the\ntwo packages importing each other (`run` imports\
+    \ the guards), and every read surface \u2014\n`playbook list`, the GET routes,\
+    \ `playbooks_list` \u2014 stays structurally unable to reach an\nexecution path.\
+    \ Both are pinned by tests. Rejected: exporting `run_playbook` from the\npackage\
+    \ for convenience, which closes the import cycle and makes the read/execute\n\
+    separation a convention rather than a property."
+  data:
+    operation:
+      id: 8d2f4a10-0215-4b21-9c02-000000000004
+      kind: log_append
+      fingerprint: fafa97c2cb8beec801e6eec0f6ac008c
+- id: 7
+  ts: '2026-08-23T09:08:13.866781Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 8d2f4a10-0215-4b21-9c02-000000000005
+      kind: update_content
+      fingerprint: 370528c1e58ee16d9c3e93afde389d64
+- id: 8
+  ts: '2026-08-23T09:08:51.179690Z'
+  actor: claude
+  type: progress
+  body: "Complete on branch `feat/task-215-playbook-run`. Six commits, d1c0b6f..5da808b,\
+    \ branched\nfrom `main` at b9795ad (after the task-214 merge). Nothing merged,\
+    \ nothing pushed.\n\n**What was built, by commit.**\n\n- `d1c0b6f` the core. `playbooks/pointer.py`\
+    \ (`PlaybookPointer`: name, repo-relative\n  posix path, `sha256:` digest, and\
+    \ the one prompt line and short spec pointer it\n  renders); `playbooks/run.py`\
+    \ (`run_playbook`, `create_run_task`, `render_title`, and\n  the two refusal types);\
+    \ `Playbook.source` so the hash is of the text that was parsed\n  rather than\
+    \ of a second read; `DispatchData.playbook` / `.playbook_hash` and\n  `record_dispatch`'s\
+    \ two new arguments; `DispatchRunner(playbook=...)` appending one\n  line to the\
+    \ stub and recording the two fields; `DispatchRequest.playbook`.\n- `fe7c493`\
+    \ `agentjobs playbook run` and `POST .../playbooks/{name}/run`.\n  `status.py`'s\
+    \ `_dispatch_error` becomes public `dispatch_refusal_error` so both\n  surfaces\
+    \ render one gate's answer identically.\n- `23369e7` the tests.\n- `94e54b5` the\
+    \ frontend: `components/Playbooks.tsx`, the `/p/:id/playbooks` route and\n  its\
+    \ nav entry beside Dispatch, the regenerated OpenAPI document and typed client,\
+    \ and\n  `identity` on the playbook collection response so the Run button can\
+    \ be disabled with\n  a reason.\n- `8f435ff` the docs.\n- `5da808b` `scripts/playbook_sandbox.py`,\
+    \ and one fix it found (below).\n\n**The gate.** `scripts/check.py`, no arguments,\
+    \ this worktree's own interpreter, green on\nall ten stages twice \u2014 138.4s\
+    \ at 8f435ff and 134.1s at 5da808b, which is the branch tip\nand wrote the receipt.\
+    \ 36 new Python tests (26 in `test_playbook_run.py`, plus run\ncoverage on the\
+    \ CLI and API suites) and 10 new Vitest cases.\n\n**Three task-214 tests were\
+    \ updated rather than deleted**, each stating what its claim\nused to be and what\
+    \ it is now, because each was a correct assertion that this task's\nscope changes:\
+    \ the package's no-execution check now names `run.py` as the one module\nallowed\
+    \ to reach dispatch; the API route table now permits exactly one POST; and the\
+    \ CLI\nsub-app has four commands rather than three. A fourth check was added to\
+    \ MCP: no file in\n`agentjobs/mcp/` may mention `run_playbook` or `playbooks.run`,\
+    \ because the existing\n\"no tool with 'playbook' in its name\" check would miss\
+    \ a tool called something else.\n\n**Exercised by hand, against a throwaway project\
+    \ and a runner that prints and exits.**\nDispatch is live on this machine, so\
+    \ nothing here started a real agent.\n\n- CLI, `target: project`: `playbook run\
+    \ groom --actor \"Jeff Posey\"` created task-001 \u2014\n  title, category `meta`,\
+    \ priority, tags and `ac-1..ac-3` all from frontmatter;\n  `spec.description`\
+    \ a pointer; `context[]` naming `playbooks/groom.md`. Its dispatch\n  entry's\
+    \ `caused_by` resolves to entry 1, \"Created ready by Jeff Posey\" \u2014 the\
+    \ creation\n  entry is the authorisation, and no second authorising note was written.\
+    \ `playbook:\n  groom` and `playbook_hash` matching `sha256sum` of the file on\
+    \ disk.\n- The prompt in the recorded argv is the ordinary stub plus one sentence.\
+    \ Checked\n  programmatically that no line of the brief over 40 characters appears\
+    \ in it: zero.\n- CLI, `target: task`: `playbook run flesh-out --task task-002`\
+    \ dispatched task-002 and\n  created nothing; the task count stayed at two.\n\
+    - CLI refusals, each leaving the task count unchanged: no `--actor`\n  (`no_authorizing_human`,\
+    \ and the CLI adds the flag hint the surface-neutral message\n  cannot), `--task`\
+    \ on a project playbook (`target_mismatch`), `--actor claude`\n  (`authorizer_not_human`),\
+    \ `enabled: false` in dispatch.yaml (`disabled`).\n- REST on a throwaway server\
+    \ on 8913, since stopped: a 202 carrying `playbook`,\n  `playbook_path`, `playbook_hash`\
+    \ and `created_run_task`; and `project_not_enabled`\n  (409), `authorizer_not_human`\
+    \ (403), `no_authorizing_human` (403 \u2014 `default_user` is\n  configured on\
+    \ that project and is deliberately not substituted), `target_mismatch`\n  (409),\
+    \ `unknown_playbook` (404), `invalid_playbook` (422, for the `kind: reactive`\n\
+    \  file). No stray tasks from any of them.\n- GUI: pressed Run on `groom` in a\
+    \ browser. A run task was created and the page linked\n  to it. The click landed\
+    \ \u2014 the page changed state \u2014 so this is not the\n  gesture-never-arrived\
+    \ case task-225 warns about. On the disabled project the Run\n  button is absent,\
+    \ the gate is named in words, and the file that will not load is\n  reported rather\
+    \ than omitted.\n\n**One fix came out of the sandbox**: a project-target run refused\
+    \ before it created\nanything was putting the playbook's *name* in the error body's\
+    \ `task_id`, which reads to\nany client as a task that does not exist. It now\
+    \ sends the task field, which is absent\nfor that case.\n\n**Two limitations,\
+    \ stated rather than left to be found.**\n\n1. **A resumed session's wake prompt\
+    \ does not carry the pointer line.**\n   `dispatch.wake.build_wake_prompt` composes\
+    \ its own text and this task did not touch\n   it. In practice the resumed session\
+    \ already read the playbook, and the `dispatch`\n   entry for the resuming run\
+    \ still records `playbook` and `playbook_hash` \u2014 so the\n   record is complete\
+    \ and only the prompt is quieter. Left alone rather than guessed at;\n   worth\
+    \ a follow-up if a resumed playbook run ever loses the thread.\n2. **`run_task.category`\
+    \ is not validated against the project's configured categories.**\n   task-214's\
+    \ decision entry expected the manager to do this at creation; it does not \u2014\
+    \n   nothing anywhere validates categories today. A playbook naming a category\
+    \ the project\n   does not list produces a run task with that category, exactly\
+    \ as `agentjobs create`\n   would. Out of scope to fix here, and not a regression.\n\
+    \n`scripts/playbook_sandbox.py` is how to look at this without spending anything:\n\
+    `python scripts/playbook_sandbox.py` stands the page up on 8895 with two throwaway\n\
+    projects \u2014 one dispatchable at the fake runner, one with dispatch off and\
+    \ a file that\nwill not load \u2014 and its module docstring lists what to check."
+  data:
+    operation:
+      id: 8d2f4a10-0215-4b21-9c02-000000000006
+      kind: log_append
+      fingerprint: 3319e259b966530c0f6a47959de9951e
+- id: 9
+  ts: '2026-08-23T09:09:15.056062Z'
+  actor: claude
+  type: handoff
+  body: "Playbook instantiation is complete and verified. Branch `feat/task-215-playbook-run`,\
+    \ six commits d1c0b6f..5da808b, gate green on all ten stages with a receipt at\
+    \ the tip. Not merged, not pushed.\n\n**What it does.** `agentjobs playbook run\
+    \ <name>`, `POST /api/projects/{id}/playbooks/{name}/run`, and a Playbooks page\
+    \ with a Run button beside Dispatch in the nav. A project-target playbook (groom,\
+    \ reorder) creates a run task from its `run_task` frontmatter and dispatches it;\
+    \ a task-target one (flesh-out) dispatches the task you name. The brief is pointed\
+    \ at, never copied: one appended line on the prompt stub, a short pointer in the\
+    \ run task's spec, and `playbook` + `playbook_hash` on the dispatch entry.\n\n\
+    **How I read sc-4, which cannot be satisfied as written.** It says reactive playbooks\
+    \ must be refused, and there is no `kind` field to check \u2014 P8 withdrew the\
+    \ reactive category after this spec was written, and task-214 declined to build\
+    \ `kind` for that reason. I did not reintroduce it. Instead the refusal is structural:\
+    \ task-214's frontmatter contract forbids unknown keys, so a file declaring `kind:\
+    \ reactive` never loads, and a brief that never loads cannot be run on any surface\
+    \ \u2014 including surfaces nobody has written yet. That is stronger than an enum\
+    \ check would have been. The criterion text on the record now carries that note,\
+    \ and the decision entry of 2026-08-23 has the rejected alternatives. **If you\
+    \ disagree, this is the one thing to send back**, because it is a deliberate departure\
+    \ from your spec rather than an implementation detail.\n\n**Look closely at, in\
+    \ this order:**\n\n1. **Authorisation.** A project-target run is authorised by\
+    \ the *creation entry of the run task it just wrote* \u2014 verified live: `caused_by`\
+    \ points at \"Created ready by Jeff Posey\" and no second authorising note exists.\
+    \ A task-target run is task-188 unchanged. `agentjobs playbook run --actor` therefore\
+    \ has **no `default_user` fallback**, unlike every other `--actor` in the CLI,\
+    \ because that entry is read a moment later as the authorisation for spending\
+    \ money. That is the judgement call most worth a second opinion \u2014 it costs\
+    \ you a flag on every CLI run.\n2. **That no gate moved.** `run_playbook` calls\
+    \ `assert_dispatch_permitted` before it writes anything and then the same `dispatch_task`\
+    \ the Dispatch button calls. `TestGatesStillBind` includes a test that reads `guards.py`\
+    \ and asserts `request.playbook` appears on exactly one line \u2014 the pass-through\
+    \ \u2014 so no guard can start reading it without failing.\n3. **The run task\
+    \ a late refusal leaves behind.** A busy machine or a dirty tree can refuse *after*\
+    \ the run task exists. Nothing is deleted; the refusal names the task, which stays\
+    \ `ready` and dispatchable. Deliberate, and the alternative is deleting task records\
+    \ to make a failure look tidy.\n\n**To see it without spending anything:** `python\
+    \ scripts/playbook_sandbox.py` (from the worktree at C:/projects/worktrees/aj-215)\
+    \ stands the page up on **http://127.0.0.1:8895/app/** with two throwaway projects\
+    \ \u2014 one dispatchable at a runner that prints and exits, one with dispatch\
+    \ off and a broken playbook file. Press Run as often as you like; nothing real\
+    \ is touched and Ctrl-C deletes the data. Its module docstring lists what to check.\
+    \ I ran it, pressed Run, and stopped it again; no server of mine is left running.\n\
+    \n**Two limitations on the record rather than left to be found:** a resumed session's\
+    \ wake prompt does not carry the pointer line (the dispatch entry still does),\
+    \ and `run_task.category` is not validated against the project's configured categories\
+    \ \u2014 nothing in AgentJobs validates categories today, so that is not a regression.\n\
+    \nAlso in the branch: the playbooks design's status banner and the docs index\
+    \ said \"no implementation\", which stopped being true with task-214. Both now\
+    \ say what has shipped."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 8d2f4a10-0215-4b21-9c02-000000000007
+      kind: handoff
+      fingerprint: 23829ebabaefe306206c720dc120e5e6
