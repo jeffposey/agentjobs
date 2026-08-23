@@ -3,10 +3,13 @@ id: task-211
 title: 'Playbooks: named, reusable briefs for AI-judgment work like groom, reorder
   and flesh-out'
 created: '2026-08-21T00:56:22.635852Z'
-updated: '2026-08-21T20:12:32.837553Z'
-lifecycle: ready
+updated: '2026-08-23T07:35:06.423332Z'
+lifecycle: active
 ball: agent
-ball_reason: available
+ball_reason: work
+ball_prompt: 'Supervise this epic: start a separate session for one eligible child
+  at a time, watch its record, and do not work a child yourself. Open now: task-214,
+  task-215, task-216, task-217, task-218, task-219.'
 archived: false
 priority: high
 queue_position: 31
@@ -18,6 +21,7 @@ tags:
 - dispatch
 - grooming
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: The playbooks epic. Its design phase is finished and merged (docs/playbooks-design.md);
@@ -1351,3 +1355,59 @@ log:
       id: 7c4b1e90-2f33-4a55-8d21-9a0e5b6c1101
       kind: queue_move
       fingerprint: c416fd628ae3574da061e4857a6c60b8
+- id: 44
+  ts: '2026-08-23T07:32:32.598171Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude to supervise 6 open sub-task(s).
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: 7f3a1c20-1a11-4c11-9a11-0b1111110211
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 45
+  ts: '2026-08-23T07:35:06.422849Z'
+  actor: claude
+  type: decision
+  body: 'Supervisor session started for the epic''s Phase 2, 2026-08-23. Jeff''s instruction,
+    verbatim in substance: run task-211 overnight and autonomously -- "auto approve
+    and merge each subtask as they are finished and automatically move on to the next
+    one, until tasks 214-219 are all done and merged. Only stop if there is something
+    you absolutely need from me to continue."
+
+
+    **What that changes, and what it does not.** The merge gate is not removed; it
+    is satisfied in advance. Jeff is the human it exists for and he has granted explicit,
+    standing, per-child approval for task-214 through task-219 before the work started.
+    Each child will still hand off to human/review with a complete, self-contained
+    review request, because that record is what a later reader needs and it is not
+    optional. The supervisor then reviews the branch and the record, records the approval
+    through the ordinary /approve path naming its provenance, and the merge proceeds.
+
+
+    **Alternative rejected: enabling `finish.enabled` for this project in this machine''s
+    dispatch config.** It would have made the whole post-approval sequence scripted
+    and agentless, which is exactly what an overnight run wants. Rejected because
+    it is a durable machine-config change that also alters what the GUI Approve button
+    does for every future task, and Jeff asked for an overnight run of one epic, not
+    a change to how his dashboard behaves from now on. The supervisor runs the same
+    steps by hand instead.
+
+
+    **Order the supervisor will follow**, from the dependency graph in this record:
+    task-214 and task-219 first, concurrently, since neither needs the other; then
+    task-215; then task-216, task-217 and task-218, which all need task-215.
+
+
+    **Posture of the child sessions.** Launched with `--permission-mode auto` rather
+    than the standing `bypassPermissions` preference, because a bypass launch from
+    a session already in auto mode is refused by the classifier. `auto` has been verified
+    not to park on background work.'
+  data:
+    operation:
+      id: fdce8e62-b8a3-4c82-b147-1a29098b66dd
+      kind: log_append
+      fingerprint: 3a2745244fbe629d585c652afb7e2031
