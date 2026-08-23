@@ -332,6 +332,8 @@ that survives. See [agent-dispatch-design.md](agent-dispatch-design.md).
     argv: ["claude", "--bg", "--remote-control", "-p", "..."]
     cwd: C:/projects/agentjobs
     git_head: 4887b74
+    playbook: groom            # playbook runs only; absent on an ordinary dispatch
+    playbook_hash: sha256:3f9c… # the brief's content at instantiation
 - id: 8
   actor: claude
   type: dispatch_result
@@ -344,6 +346,12 @@ that survives. See [agent-dispatch-design.md](agent-dispatch-design.md).
     duration_seconds: 1049
     log_path: ~/.agentjobs/runs/run_a1b2c3d4/
 ```
+
+`playbook` and `playbook_hash` are present only when the run was given a playbook as
+its brief — see [the playbooks design](playbooks-design.md) §4.3. They answer a
+different question from `git_head`: the head says which commit the tree was on, and the
+hash says which brief actually ran, which diverge whenever the tree was dirty or the
+file changed between two runs.
 
 Both payloads are **validated**, not merely documented: an entry of either type whose
 `data` does not match its model is rejected on load. An entry that cannot say what ran is

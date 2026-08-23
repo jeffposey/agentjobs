@@ -76,13 +76,13 @@ is how this project has lost the most time, so the status word comes first.
 | [Codex dispatch rollout](codex-dispatch.md) | The Codex runner setup |
 | [Queue position design](task-selection-design.md) | The explicit work order — **accepted 2026-08-20, implemented 2026-08-21** (task-081, 204–209) |
 | [Agent dispatch design](agent-dispatch-design.md) | Turning an approval into a running agent — **shipped**; its header lists what landed under which task, and the four things in it that were never built |
+| [Playbooks design](playbooks-design.md) | Reusable briefs for recurring judgment work — **partly shipped**: storage and read surfaces (task-214), instantiation and the Run button (task-215). Its header says what remains. |
 
 **Design records — accepted, not yet built.** Read for reasoning, never as a manual.
 
 | Document | State |
 | --- | --- |
 | [Agent loops design](agent-loops-design.md) | No implementation. Derived tasks are open and unclaimed. |
-| [Playbooks design](playbooks-design.md) | No implementation. Approved and merged; children task-214–219 are `ready`. |
 | [MCP integration design](mcp-integration-design.md) | Implemented, and the record has drifted behind it by two tools and one error code. The reference pages above are what shipped. |
 
 **Historical.** True when written, kept for the reasoning, not maintained.

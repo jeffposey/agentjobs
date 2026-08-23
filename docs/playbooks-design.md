@@ -1,9 +1,17 @@
 # Playbooks — design proposal
 
-**Task:** task-211. **Status: APPROVED and merged (`25427f1`). No implementation
-yet** — nothing under `src/`, `frontend/` or `scripts/` references a playbook. The
-implementation tasks derived in §12 were promoted out of draft on approval; task-214
-through task-219 are `ready` and unclaimed.
+**Task:** task-211. **Status: APPROVED and merged (`25427f1`). Partly built.**
+§3 and the read half of §7.1 shipped under task-214 — the frontmatter contract, the
+per-project `playbooks/` directory, `playbook list|show|init`, the GET routes and the
+read-only MCP tool. §4 and the run half of §7 shipped under task-215 — `playbook run`
+on the CLI, `POST .../playbooks/{name}/run`, and the Playbooks page with its Run
+button. **task-216 through task-219 remain open**: the three reference briefs are
+first-pass, and the deterministic queue-move check of §5.4 is unbuilt.
+
+One line of §3.2 was superseded before it was implemented and is called out where it
+appears: there is no `kind` field, because **P8 withdrew the reactive category** on
+2026-08-21. Both implementation tasks' specs predate that revision and named it; both
+followed the design instead, and said so on their records.
 
 **Revision 2, 2026-08-21**, answering Jeff's review (task-211 log entry 22). Two
 changes, both in the decisions list: **P8** — the reactive-playbook category is

@@ -242,16 +242,51 @@ markdown with a YAML frontmatter contract. See
 | --- | --- | --- |
 | `GET` | `/api/projects/{id}/playbooks` | Every playbook the project holds, with the files that would not load |
 | `GET` | `/api/projects/{id}/playbooks/{name}` | One playbook, including its brief |
+| `POST` | `/api/projects/{id}/playbooks/{name}/run` | Start an agent on it: `202`, with the run and the task it is against |
 
-Both also exist in the default-project form — `GET /api/playbooks` and
-`GET /api/playbooks/{name}` — as described under
+All three also exist in the default-project form — `GET /api/playbooks`,
+`GET /api/playbooks/{name}` and `POST /api/playbooks/{name}/run` — as described under
 [Project scoping](#project-scoping).
 
-**This surface is read-only, and its incompleteness is the design.** Running a playbook
-is a dispatch, and only a human starts a dispatch, so there is no `POST` here and the
-MCP server exposes `playbooks_list` with no counterpart that runs one. The collection
-omits each playbook's body — it is a discovery listing, not a way to pull every brief
-at once — and the single-playbook route is what carries it.
+The collection omits each playbook's body — it is a discovery listing, not a way to
+pull every brief at once — and the single-playbook route is what carries it.
+
+### Running one
+
+`POST .../run` takes the same three fields the dispatch endpoint takes, because it
+**is** the dispatch endpoint with a brief attached:
+
+```json
+{ "user": "Jeff Posey", "task": "task-123", "group": "deep" }
+```
+
+- `user` — the human asking. Must be an actor the project configures with
+  `kind: human`. Required for a **project-target** playbook, which creates a run task
+  attributed to them: that creation entry is the authorisation the human-clocked rule
+  then reads. For a **task-target** playbook it is task-188's authorising entry, written
+  onto the task named, exactly as `POST /tasks/{id}/dispatch` writes it. The project's
+  `default_user` is never substituted for a `user` nobody sent.
+- `task` — required for a task-target playbook and refused for a project-target one,
+  which creates its own run task. A mismatch either way is `409 target_mismatch`.
+- `group` — a runner group this machine already defines. It cannot open a closed gate.
+
+**Every dispatch gate binds unchanged.** The master switch, the sentinel file,
+per-project enablement, the concurrency cap, the clean-tree rule and the human-clocked
+rule all refuse a playbook run exactly as they refuse a dispatch, under the same
+`code`s, and naming a playbook opens none of them — a playbook is repository content,
+and repository content never decides what may execute on a machine. Dispatch being off
+is checked *before* a run task is created, so a refusal that could never have started a
+run leaves nothing behind. A refusal that arrives later — a busy machine, a dirty tree
+— names the run task it did create, which stays on the record and can be dispatched
+from its own task page once the cause is cleared.
+
+The `202` body is the dispatch response plus `playbook`, `playbook_path`,
+`playbook_hash` and `created_run_task`. The hash is the file's sha256 at instantiation
+and it is pinned on the task's `dispatch` log entry: `git_head` says which commit the
+tree was on, and this says which brief actually ran.
+
+**MCP still has no run tool, and that is the design** — an MCP mutation is callable by
+an agent, and an agent starting a playbook run is an agent causing a dispatch.
 
 `exists: false` on the collection means the project has no playbooks directory. That is
 the state every project starts in and is not an error; `agentjobs playbook init` copies
@@ -267,7 +302,20 @@ agentjobs playbook list              # names, descriptions, and each one's contr
 agentjobs playbook show groom        # the frontmatter, then the brief
 agentjobs playbook show groom --contract   # the frontmatter alone
 agentjobs playbook init              # copy the shipped references in
+
+agentjobs playbook run groom --actor "Jeff Posey"
+agentjobs playbook run flesh-out --task task-123          # a task-target playbook
+agentjobs playbook run groom --actor "Jeff Posey" --group deep
 ```
+
+`run` starts an agent and spends money. `--actor` names the human creating the run task
+for a project-target playbook and **has no `default_user` fallback**, unlike every other
+`--actor` in this CLI: the entry it writes is read a moment later as the authorisation
+for the run, and one attributed to whoever the config happens to name is not a person's
+signature. A task-target playbook creates nothing, so `--actor` does not apply to it and
+the target task's own newest entry must be a human's — the same rule
+`agentjobs dispatch run` applies. There is no flag here that authorises a dispatch of an
+existing task on somebody's behalf.
 
 `init` writes one file per shipped playbook and **skips any name already present**,
 saying which it kept. That is per file rather than all-or-nothing on purpose: a project
