@@ -1,0 +1,200 @@
+schema: 2
+id: task-308
+title: Posture settable on the task record, and whether a task may raise its own
+created: '2026-08-23T22:48:30.766265Z'
+updated: '2026-08-23T22:49:07.499211Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: high
+queue_position: 14400
+category: architecture
+tags:
+- dispatch
+- posture
+- security
+- schema
+effort: half a day
+assignment:
+  eligible: []
+parent: task-160-dispatch-phase-two
+spec:
+  summary: 'Jeff required on 2026-08-21 that posture be settable per task, not only
+    per project. It was written into a queue_move note on task-021 and never reached
+    that task''s spec or any other, so it is currently unimplemented and unowned.
+    The hard part is not the field: task records are git-tracked and agent-writable,
+    so a task that can raise its own posture to `autonomous` lets an agent widen its
+    own permissions by editing a file it can already write.'
+  intent: 'Jeff, 2026-08-21, moving task-021 to the top of the high band: "posture
+    must be settable per task, not only per project. Note the tension the design has
+    to resolve -- project dispatch settings are machine-local (~/.agentjobs), while
+    task records are git-tracked and agent-writable, so a task that can raise its
+    own posture to autonomous is a privilege-escalation path. Decide whether a task
+    may only narrow the project''s posture, never widen it."'
+  description: "## Why this is a task rather than a line in task-021\n\nIt was found\
+    \ on 2026-08-23 by the session supervising task-021, reading that task's log\n\
+    rather than its spec. Jeff wrote the requirement into a `queue_move` entry on\n\
+    2026-08-21 and flagged it himself as *\"not yet in this spec\"*. It never got\
+    \ added \u2014 not\nto task-021, not to task-022, not anywhere. A search of the\
+    \ backlog for per-task posture\nand for the narrow-versus-widen question returns\
+    \ nothing, and no source file or design\ndocument mentions a task-level posture.\n\
+    \nSo it is a live requirement of Jeff's autonomy push that no task owns. That\
+    \ is the whole\nreason this record exists.\n\n## The distinction that must not\
+    \ be collapsed\n\nThere are now three places a posture could come from, and they\
+    \ do **not** share a trust\nmodel:\n\n| Source | Written by | Trust |\n|---|---|---|\n\
+    | `dispatch.yaml` | a human, editing a machine-local file | The baseline. Not\
+    \ reachable from the network. |\n| A pulldown at dispatch time (task-307) | a\
+    \ human, clicking, per dispatch | **Escalation allowed** \u2014 Jeff decided this\
+    \ 2026-08-23. |\n| **The task record (this task)** | **anyone who can write the\
+    \ task file, including an agent** | **Undecided. This is the question.** |\n\n\
+    task-307's decision entry settles the second row only. It was asked and answered\
+    \ as\n\"may a human clicking a pulldown choose a posture above the project default\"\
+    , and Jeff\naccepted that risk knowingly. **It says nothing about the third row**,\
+    \ where the writer\nneed not be a human at all \u2014 and an agent editing its\
+    \ own task's posture field to\n`autonomous` is a different act from a person choosing\
+    \ one in a browser. Do not cite\nthat decision as cover for this one.\n\n## What\
+    \ has to be decided here\n\n1. **May a task's posture widen the project's, or\
+    \ only narrow it?** Jeff's own framing\n   leans narrow-only and names the reason.\
+    \ The counter-argument is that narrow-only makes\n   the field nearly useless\
+    \ for the case it was asked for \u2014 marking a specific task as\n   safe to\
+    \ run unattended.\n2. **If widening is allowed at all, what makes the writer accountable?**\
+    \ Options worth\n   weighing: accept only a posture written by a configured human\
+    \ actor (the log already\n   records who wrote what); require a human-clocked\
+    \ entry after the field changed, so an\n   agent raising it and then dispatching\
+    \ itself cannot work; or keep the field advisory\n   and require the human to\
+    \ confirm it at dispatch through task-307's control.\n3. **How it composes with\
+    \ the project setting and with a dispatch-time choice.** Three\n   sources need\
+    \ a stated precedence order, and the resolved posture must be visible on\n   the\
+    \ run record so \"why did this run get bypass\" has one answer.\n\nRecord the\
+    \ decision with its rejected alternative. This is the kind of choice a later\n\
+    reader cannot recover from a diff.\n\n## Do not weaken the existing guard\n\n\
+    `assert_human_clocked` in `src/agentjobs/dispatch/guards.py` refuses any dispatch\
+    \ whose\ncausing log entry was written by an agent, and says why: *\"which is\
+    \ what makes an\nagent-starts-agent loop impossible rather than merely capped.\"\
+    * A task-level posture\nfield must not become the way around it. Starting a run\
+    \ and choosing what a run may do\nare separate gates, and this task touches only\
+    \ the second \u2014 but an agent that can widen\nits own posture has weakened\
+    \ the pair, whatever the first gate still says."
+  constraints: '- Whatever is decided, the resolved posture and the source it came
+    from must both appear on the run''s dispatch entry. "Which of the three sources
+    won" cannot be a thing a reader has to reconstruct.
+
+    - `assert_human_clocked` is not to be relaxed, reworded, or routed around. This
+    task changes what envelope a run gets, never who may start one.
+
+    - The project setting stays machine-local. Nothing here moves `dispatch.yaml`
+    into the repository, and nothing makes a git-tracked file authoritative over it
+    without an explicit decision saying so.
+
+    - `poetry run python scripts/check.py` passes.'
+  out_of_scope: "The dispatch-time pulldown (task-307) \u2014 that is a human choosing\
+    \ per dispatch and its escalation question is already answered. The merge and\
+    \ push policy each posture carries (task-021). Auto-dispatch on approval, which\
+    \ Jeff deferred on 2026-08-23."
+  context:
+  - path: src/agentjobs/dispatch/guards.py
+    why: assert_human_clocked and the actor-kind machinery already distinguish a human
+      writer from an agent one; that is the primitive this decision needs.
+  - path: src/agentjobs/dispatch/config.py
+    why: Where the project-level posture resolves today, and where a precedence order
+      would have to be implemented.
+  - path: docs/task-schema.md
+    why: A posture field on the task record is a schema change and belongs documented
+      there.
+acceptance:
+- id: sc-1
+  text: Whether a task's posture may widen the project's, or only narrow it, is decided
+    and recorded with the rejected alternative
+  status: pending
+- id: sc-2
+  text: If widening is permitted, what makes the writer accountable is decided and
+    enforced in code, not stated in prose
+  status: pending
+- id: sc-3
+  text: Precedence among project setting, task record and dispatch-time choice is
+    documented and covered by tests
+  status: pending
+- id: sc-4
+  text: The run's dispatch entry names both the resolved posture and which source
+    supplied it
+  status: pending
+- id: sc-5
+  text: A test asserts that an agent-written posture cannot by itself produce a run
+    with a wider envelope than the project configured
+  status: pending
+- id: sc-6
+  text: poetry run python scripts/check.py passes
+  status: pending
+deliverables: []
+dependencies:
+- task: task-021
+  type: related
+  note: Defines what a posture carries. This task decides where a posture may be set
+    from; both were raised by Jeff in the same 2026-08-21 note.
+- task: task-307
+  type: related
+  note: The dispatch-time pulldown. Its escalation decision covers a human clicking,
+    and deliberately does not cover a field an agent can write.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T22:48:31.468658Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: f2b7e548-1a93-4c06-b7d2-5e91c3a08d64
+      kind: create
+      fingerprint: 95a3c5d8a0ba322e945bfe3d423ff5ca
+- id: 2
+  ts: '2026-08-23T22:49:07.499020Z'
+  actor: Jeff Posey
+  type: decision
+  body: "**A project declares two postures: a default and a maximum. Everything else\
+    \ chooses within that ceiling. This settles sc-1 and most of sc-2 \u2014 do not\
+    \ relitigate them.**\n\nJeff, 2026-08-23, on being shown the narrow-only-versus-widen\
+    \ question: *\"yes, project should have max posture, and default posture, duh\"\
+    *.\n\n**What it means.** `dispatch.yaml` gains a `max_posture` alongside the existing\
+    \ posture, which becomes the default. Any other source \u2014 a posture on the\
+    \ task record, a choice at dispatch time (task-307) \u2014 selects a posture,\
+    \ and the resolved posture is clamped to `max_posture`. A request above the ceiling\
+    \ is refused, naming the ceiling and where it was set.\n\n**Why this is better\
+    \ than either option that was put up**, and worth understanding rather than just\
+    \ implementing:\n\nBoth alternatives on the table treated the danger as *who wrote\
+    \ the field*. Narrow-only forbade widening outright and cost the feature its point.\
+    \ The accountability variants tried to establish that a human wrote the value\
+    \ \u2014 a check on provenance, which is only ever as good as the identity machinery\
+    \ behind it, and which an agent with write access to a git-tracked file is in\
+    \ a decent position to spoof.\n\nA ceiling makes the question moot. `dispatch.yaml`\
+    \ is machine-local, not in the repository, and not writable through any AgentJobs\
+    \ surface. So **it does not matter who wrote the task-level posture**: an agent\
+    \ that edits its own task record to `autonomous` on a project whose `max_posture`\
+    \ is `auto` gets `auto`. The privilege-escalation path Jeff named on 2026-08-21\
+    \ is closed by construction rather than by trusting a writer, which is the difference\
+    \ between a control and a convention.\n\n**Rejected**, explicitly: narrow-only\
+    \ (kills the feature it was asked for), and provenance checks on the field's writer\
+    \ (fragile, and unnecessary once a ceiling exists).\n\n**What is still open and\
+    \ belongs to whoever works this:**\n\n- **Precedence among the three sources below\
+    \ the ceiling.** The ceiling is settled; which of project default, task record\
+    \ and dispatch-time choice wins when they disagree is not. The obvious reading\
+    \ is most-specific-wins \u2014 dispatch-time choice over task record over project\
+    \ default \u2014 but say so and test it rather than leaving it to be inferred.\n\
+    - **This project's own two values.** `auto` has been the default since task-020,\
+    \ and Jeff dispatched task-021 as `autonomous`, so agentjobs plausibly wants `default:\
+    \ auto`, `max: autonomous`. Confirm rather than assume; a wrong ceiling here is\
+    \ the one that matters.\n- **What `max_posture` defaults to when a config does\
+    \ not set one.** It must default to something no wider than today's behaviour,\
+    \ so upgrading an existing `dispatch.yaml` never silently widens a project.\n\
+    - sc-3 to sc-6 are untouched by this decision.\n\n**Note for task-307.** Its pulldown\
+    \ must offer only postures at or below `max_posture`, and must not present a choice\
+    \ the API will refuse. Jeff's earlier acceptance of pulldown escalation stands\
+    \ and is now bounded by this."
+  data:
+    operation:
+      id: 3ba91d07-6e42-4c85-9f30-71d8a4c2e6b9
+      kind: log_append
+      fingerprint: 1c52c9016df8a9e023d3cff04bcf0cdb

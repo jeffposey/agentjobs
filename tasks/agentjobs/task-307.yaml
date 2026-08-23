@@ -2,7 +2,7 @@ schema: 2
 id: task-307
 title: Choose the posture at the moment of dispatching, not only in dispatch.yaml
 created: '2026-08-23T22:34:10.639602Z'
-updated: '2026-08-23T22:34:59.493175Z'
+updated: '2026-08-23T22:49:19.713411Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -252,3 +252,37 @@ log:
       id: e15b7d90-3c4a-4f28-9b61-08a7d2e6f513
       kind: log_append
       fingerprint: f048416963fc7f09fe14cc1a9657e7a6
+- id: 4
+  ts: '2026-08-23T22:49:19.713233Z'
+  actor: Jeff Posey
+  type: decision
+  body: "**The pulldown's escalation is now bounded by a project ceiling. Read this\
+    \ with entry 3, which it amends rather than replaces.**\n\nJeff, 2026-08-23, immediately\
+    \ after the escalation decision in entry 3, on the related question raised by\
+    \ task-308: *\"yes, project should have max posture, and default posture, duh\"\
+    *.\n\n**What changes for this task.** Entry 3 stands \u2014 a human clicking this\
+    \ control may choose a posture above the project's default. What is added is a\
+    \ ceiling: `dispatch.yaml` will carry a `max_posture` as well as a default, and\
+    \ no source may resolve above it. So the control offers postures in the range\
+    \ *[anything] \u2026 max_posture*, defaulting to the project's default posture.\n\
+    \n**Two consequences for the implementation, both concrete:**\n\n1. **Do not offer\
+    \ a choice the API will refuse.** The pulldown is populated from what the resolved\
+    \ config permits, not from the `Posture` enum. A control that lists `autonomous`\
+    \ on a project capped at `auto`, and then surfaces a 4xx when it is picked, is\
+    \ a worse outcome than not offering it \u2014 it teaches the operator that the\
+    \ control lies.\n2. **The refusal still has to exist.** The browser is not the\
+    \ only caller. The API and the CLI flag (sc-2, sc-3) must clamp or refuse independently\
+    \ of what any client chose to display, because a client-side filter is a convenience\
+    \ and never a control.\n\n**Sequencing.** task-308 owns the ceiling \u2014 the\
+    \ config field, its default for an existing `dispatch.yaml`, and the precedence\
+    \ order among project default, task record and dispatch-time choice. This task\
+    \ consumes it. If 308 has not landed when this one is worked, say so on the record\
+    \ and hand the ball back rather than inventing a second answer to where the ceiling\
+    \ comes from; two implementations of a permission ceiling is the failure worth\
+    \ avoiding here.\n\n**Unchanged**: auto-dispatch on Approve is still out of scope,\
+    \ deferred by Jeff on 2026-08-23."
+  data:
+    operation:
+      id: 5c8d3f16-2047-4ba9-8e73-9d0b1a45f2e0
+      kind: log_append
+      fingerprint: 08dd8721ab2fd8d8795a4f44352dd791
