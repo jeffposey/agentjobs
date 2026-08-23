@@ -185,6 +185,21 @@ default_group: standard
 #                   you are watching and willing to answer from your phone.
 #       autonomous  bypassPermissions. No gate whatsoever. Opt in per project.
 #
+#       A posture also decides what happens to the branch when the work is done
+#       (task-021). read_only has no branch. auto and supervised stop and hand off for
+#       human review, which is what ENGINEERING.md's merge gate describes. autonomous
+#       merges its own work -- through `agentjobs finish --posture-release`, so the full
+#       gate runs on the rebased branch first and a red one still stops. Choosing
+#       autonomous is choosing both halves; there is no third switch.
+#
+#     push: false
+#
+#       Whether a run here may push to a remote. Off unless you say otherwise, and NOT
+#       part of the posture: the same posture should push in one repository and never in
+#       another, so this is the project's decision. Merging into a local main is
+#       recoverable; publishing is not. Nothing in AgentJobs runs `git push` -- this is
+#       told to the agent, which is what reaches the decision.
+#
 #     require_clean_tree: true
 #
 #       Refuses a dispatch while the project has uncommitted changes, so an autonomous

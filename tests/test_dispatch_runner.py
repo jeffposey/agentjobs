@@ -59,6 +59,7 @@ from agentjobs.dispatch.runner import (
     describe_children,
     drop_repainted_lines,
     mcpjson_server_names,
+    policy_clause,
     posture_flags,
     readable_tail,
     codex_desktop_executable,
@@ -107,6 +108,7 @@ def make_resolution(
     timeout: int = 1800,
     stale: int = 3600,
     require_clean_tree: bool = False,
+    push: bool = False,
 ) -> DispatchResolution:
     """A resolution as task-068's config layer would produce it."""
     runner = RunnerConfig(name="fake", argv=argv, env={}, mode=mode, driver=driver)
@@ -116,6 +118,7 @@ def make_resolution(
         runner="fake",
         require_clean_tree=require_clean_tree,
         posture=posture,
+        push=push,
     )
     limits = DispatchLimits(run_timeout_seconds=timeout, session_stale_seconds=stale)
     return DispatchResolution(
@@ -1057,9 +1060,11 @@ class TestPromptStub:
         # It must not restate the record, which is the whole argument for a stub.
         assert task.spec.description not in prompt
         # A ceiling, not a target. Raised from 500 by task-192, which had to spell the
-        # worktree command out rather than gesture at it; the assertion above is the one
-        # that enforces "pointer, not composition".
-        assert len(prompt) < 800
+        # worktree command out rather than gesture at it, and from 800 by task-021,
+        # which appends the merge and push policy for the reason `policy_clause` gives:
+        # it is the one thing in the prompt with nothing to point at. The assertion
+        # above is the one that enforces "pointer, not composition".
+        assert len(prompt) < 1300
 
     def test_the_stub_tells_the_run_to_take_its_own_worktree(
         self, workspace: Path, manager: TaskManager, task
@@ -1166,6 +1171,144 @@ def epic(manager: TaskManager):
     return manager.claim_task(parent.id, agent="claude")
 
 
+class TestMergeAndPushPolicyReachesTheAgent:
+    """task-021. A policy the run cannot see is a policy that does not exist.
+
+    Asserted on the rendered prompt throughout, and in one case on the composed argv,
+    because what reaches the agent is the only thing that matters here. The clause is
+    derived from machine-local configuration the agent cannot read, and the repository's
+    own committed prose says the opposite by default -- so a run that is not told is a
+    run that will correctly obey the prose and make ``autonomous`` mean nothing.
+    """
+
+    def test_a_review_posture_is_told_to_stop_and_not_merge(
+        self, workspace: Path, manager: TaskManager, task
+    ) -> None:
+        runner = build(workspace, manager, make_resolution(["fake"], posture=Posture.AUTO))
+
+        prompt = runner.build_prompt(task.id, "run_abcd1234")
+
+        assert "stops at the merge gate" in prompt
+        assert "human/review" in prompt
+        assert "Do not merge." in prompt
+        assert "--posture-release" not in prompt
+
+    def test_supervised_says_exactly_what_auto_says_about_merging(
+        self, workspace: Path, manager: TaskManager, task
+    ) -> None:
+        """The two differ in execution gating, never in who authorises the merge."""
+        auto = build(workspace, manager, make_resolution(["fake"], posture=Posture.AUTO))
+        supervised = build(
+            workspace, manager, make_resolution(["fake"], posture=Posture.SUPERVISED)
+        )
+
+        assert auto.build_prompt(task.id, "r").replace("`auto`", "X") == supervised.build_prompt(
+            task.id, "r"
+        ).replace("`supervised`", "X")
+
+    def test_an_autonomous_run_is_given_the_command_not_an_outcome(
+        self, workspace: Path, manager: TaskManager, task
+    ) -> None:
+        """task-192's lesson applied: an instruction with a cheaper reading gets it.
+
+        "Merge your own work" is satisfied by ``git merge``, which skips the gate that is
+        the entire safety argument. So the clause names the command and forbids the hand
+        merge, and this asserts both.
+        """
+        runner = build(workspace, manager, make_resolution(["fake"], posture=Posture.AUTONOMOUS))
+
+        prompt = runner.build_prompt(task.id, "run_abcd1234")
+
+        assert "releases the merge gate" in prompt
+        assert f"agentjobs finish {task.id} --project sandbox --posture-release" in prompt
+        assert "Do not merge by hand" in prompt
+        assert "Record the evidence on the task first" in prompt
+        # The objective floor, named where the agent will read it.
+        assert "full gate" in prompt
+
+    def test_read_only_gets_no_merge_clause_at_all(
+        self, workspace: Path, manager: TaskManager, task
+    ) -> None:
+        """It has no branch. A sentence about one is noise in a prompt with no shell."""
+        runner = build(workspace, manager, make_resolution(["fake"], posture=Posture.READ_ONLY))
+
+        prompt = runner.build_prompt(task.id, "run_abcd1234")
+
+        assert "merge gate" not in prompt
+        assert "push" not in prompt.lower()
+
+    def test_the_push_clause_defaults_to_never(
+        self, workspace: Path, manager: TaskManager, task
+    ) -> None:
+        runner = build(workspace, manager, make_resolution(["fake"], posture=Posture.AUTONOMOUS))
+
+        assert "Never push" in runner.build_prompt(task.id, "run_abcd1234")
+
+    def test_a_project_that_permits_pushing_is_told_so(
+        self, workspace: Path, manager: TaskManager, task
+    ) -> None:
+        runner = build(
+            workspace, manager, make_resolution(["fake"], posture=Posture.AUTO, push=True)
+        )
+
+        prompt = runner.build_prompt(task.id, "run_abcd1234")
+
+        assert "Never push" not in prompt
+        assert "pushing `main` is permitted" in prompt
+
+    def test_pushing_is_independent_of_the_merge_policy(
+        self, workspace: Path, manager: TaskManager, task
+    ) -> None:
+        """The two are orthogonal by design: a stopping posture may still push."""
+        runner = build(
+            workspace, manager, make_resolution(["fake"], posture=Posture.AUTO, push=True)
+        )
+
+        prompt = runner.build_prompt(task.id, "run_abcd1234")
+
+        assert "stops at the merge gate" in prompt
+        assert "is permitted" in prompt
+
+    def test_a_supervisor_is_told_what_its_children_will_do(
+        self, workspace: Path, manager: TaskManager, epic
+    ) -> None:
+        """A supervisor holds no branch, so the worker's clause would be wrong for it."""
+        runner = build(workspace, manager, make_resolution(["fake"], posture=Posture.AUTONOMOUS))
+
+        prompt = runner.build_prompt(epic.id, "run_abcd1234")
+
+        assert "a child you start merges its own work" in prompt.lower()
+        assert "--posture-release" not in prompt
+
+    def test_a_supervising_review_posture_says_it_approves_nothing(
+        self, workspace: Path, manager: TaskManager, epic
+    ) -> None:
+        runner = build(workspace, manager, make_resolution(["fake"], posture=Posture.AUTO))
+
+        prompt = runner.build_prompt(epic.id, "run_abcd1234")
+
+        assert "You approve nothing yourself" in prompt
+
+    def test_the_clause_survives_into_the_composed_argv(
+        self, workspace: Path, manager: TaskManager, task
+    ) -> None:
+        """ac-3, asserted where it is actually checkable: the argv a run is started with.
+
+        ``build_prompt`` returning the clause proves nothing on its own -- the prompt is
+        spliced into a template, and a template that dropped it would still pass every
+        assertion above.
+        """
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(["fake", "--model", "x", "{prompt}"], posture=Posture.AUTONOMOUS),
+        )
+
+        argv = runner.build_argv(task.id, "run_abcd1234")
+
+        assert any("--posture-release" in element for element in argv)
+
+
 class TestDescribeChildren:
     def test_no_children_reads_as_none_rather_than_empty(self) -> None:
         """So a caller from anywhere else cannot render "open children: ."."""
@@ -1234,7 +1377,7 @@ class TestSupervisorStub:
         """The regression that matters: an ordinary dispatch gets the stub it always had."""
         runner = build(workspace, manager, make_resolution(["fake"]))
 
-        assert runner.build_prompt(task.id, "run_abcd1234") == PROMPT_STUB.format(
+        stub = PROMPT_STUB.format(
             agent=runner.runner.actor_id,
             task_id=task.id,
             project_id="sandbox",
@@ -1243,6 +1386,14 @@ class TestSupervisorStub:
             run_id="run_abcd1234",
             children="none",
         )
+        clause = policy_clause(
+            Posture.SUPERVISED,
+            push=False,
+            task_id=task.id,
+            project_id="sandbox",
+            project_root=workspace / "project",
+        )
+        assert runner.build_prompt(task.id, "run_abcd1234") == f"{stub} {clause}"
 
     def test_the_supervisor_stub_is_still_a_pointer(
         self, workspace: Path, manager: TaskManager, epic
@@ -1254,7 +1405,8 @@ class TestSupervisorStub:
         assert GUIDE_PATH in prompt
         assert "run_abcd1234" in prompt
         assert epic.spec.description not in prompt
-        assert len(prompt) < 900
+        # Raised from 900 by task-021; see the leaf ceiling above.
+        assert len(prompt) < 1100
 
     def test_open_child_ids_survives_a_task_it_cannot_resolve(
         self, workspace: Path, manager: TaskManager

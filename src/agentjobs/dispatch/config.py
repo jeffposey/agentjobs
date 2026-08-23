@@ -187,6 +187,30 @@ class RunnerDriver(str, Enum):
     CODEX = "codex"
 
 
+class MergePolicy(str, Enum):
+    """What a posture says happens to the *branch* when the work is done (task-021).
+
+    Posture used to answer one question -- what may this process execute -- and the
+    answer to the other one, what becomes of the branch afterwards, lived only in
+    ENGINEERING.md's merge gate as an unconditional rule every agent reads and obeys.
+    That was coherent while every posture stopped for review. It stops being coherent
+    the moment one of them does not, because then the written rule and the running
+    behaviour disagree and an agent's conduct depends on which it believed.
+
+    So the second answer is named here, derived from the posture rather than configured
+    beside it. Deriving it is the point: a posture and a merge policy that can be set
+    independently are two switches whose combinations nobody has thought about, and
+    "autonomous execution, but stop for review" is not a state anyone has ever wanted.
+
+    ``NONE`` is not "merge without conditions" and it is not a gap in the table -- it is
+    a posture with no branch to have a policy about. Only ``read_only`` has it.
+    """
+
+    NONE = "none"
+    REVIEW = "review"
+    AUTOMATIC = "automatic"
+
+
 class Posture(str, Enum):
     """What a dispatched agent may do once running (design section 4, task-076).
 
@@ -196,12 +220,37 @@ class Posture(str, Enum):
     nothing else. A ``--bg`` session has no terminal to answer with, so the run sat at
     ``state: blocked`` until it was cancelled. Supervised remains right for a run
     somebody is actually watching; it is no longer what an unattended one gets.
+
+    Since task-021 a posture carries a second thing: whether the run stops at the merge
+    gate. See ``merge_policy``. Pushing is deliberately not part of it -- see
+    ``ProjectDispatchSettings.push``.
     """
 
     READ_ONLY = "read_only"
     AUTO = "auto"
     SUPERVISED = "supervised"
     AUTONOMOUS = "autonomous"
+
+    @property
+    def merge_policy(self) -> MergePolicy:
+        """Whether a run at this posture stops for human review before merging.
+
+        ``auto`` and ``supervised`` are both "a human is in the loop" postures and are
+        deliberately identical here. They differ in how the process is gated while it
+        runs, which is a different question from who authorises the merge, and giving
+        them different answers to the second would mean the choice between them silently
+        decided something nobody was choosing.
+
+        ``autonomous`` is the one that releases the gate, and only for a project whose
+        machine-local configuration named it. It was already the posture that removed
+        every execution gate; a posture trusted to run arbitrary commands unattended and
+        then not trusted to land the result is a boundary drawn in the wrong place.
+        """
+        if self is Posture.READ_ONLY:
+            return MergePolicy.NONE
+        if self is Posture.AUTONOMOUS:
+            return MergePolicy.AUTOMATIC
+        return MergePolicy.REVIEW
 
 
 @dataclass(frozen=True)
@@ -385,6 +434,27 @@ class ProjectDispatchSettings:
     require_clean_tree: bool = True
     auto_dispatch: bool = False
     posture: Posture = Posture.AUTO
+    push: bool = False
+    """Whether a run here may push the base branch to a remote. Off unless asked.
+
+    **Not a posture property, and that is the whole of it (task-021).** The same posture
+    should push in one of this operator's repositories and never push in another, so the
+    switch has to be the project's rather than the run's. Merging and pushing are also
+    different acts with different reach: a merge into a local ``main`` is recoverable by
+    anyone with the reflog, and a push is a publication.
+
+    Default ``False`` so a project that has never thought about it never pushes, and so
+    a repository that must never gain a remote at all cannot acquire a push by being
+    dispatched to. AgentJobs itself is one of those.
+
+    Nothing in this codebase runs ``git push``. This tells the *agent* what it may do,
+    which is the only channel that reaches the decision -- see
+    ``dispatch.runner.policy_clause``. Making the scripted finish push was rejected
+    while there is no repository here with a remote to prove it against; an unverified
+    publication step inside a script that runs unattended is the wrong thing to ship on
+    a hunch.
+    """
+
     resume_sessions: bool = True
     """Whether dispatching a task resumes its previous session instead of starting cold.
 
@@ -754,6 +824,7 @@ def _parse_project(project_id: str, raw: object, path: Path) -> ProjectDispatchS
             mapping.get("auto_dispatch"), f"{where}.auto_dispatch", path, default=False
         ),
         posture=posture,
+        push=_bool(mapping.get("push"), f"{where}.push", path, default=False),
         resume_sessions=_bool(
             mapping.get("resume_sessions"), f"{where}.resume_sessions", path, default=True
         ),

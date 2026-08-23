@@ -23,9 +23,11 @@ from agentjobs.dispatch.config import (
     DispatchError,
     DispatchNotConfiguredError,
     DispatchSentinelError,
+    MergePolicy,
     NoEligibleRunnerError,
     PlaceholderError,
     Posture,
+    ProjectDispatchSettings,
     ProjectNotEnabledError,
     RunnerMode,
     RunnerDriver,
@@ -736,4 +738,89 @@ class TestTheFinishBlock:
         )
 
         with pytest.raises(DispatchConfigError, match="base_branch"):
+            load_dispatch_config()
+
+
+class TestMergePolicyAndPush:
+    """task-021. A posture decides the merge; the project decides the push."""
+
+    def test_every_posture_has_a_merge_policy_and_only_one_is_automatic(self) -> None:
+        """Derived, not configured -- so the mapping is a property of the enum itself."""
+        assert Posture.READ_ONLY.merge_policy is MergePolicy.NONE
+        assert Posture.AUTO.merge_policy is MergePolicy.REVIEW
+        assert Posture.SUPERVISED.merge_policy is MergePolicy.REVIEW
+        assert Posture.AUTONOMOUS.merge_policy is MergePolicy.AUTOMATIC
+
+        automatic = [p for p in Posture if p.merge_policy is MergePolicy.AUTOMATIC]
+        assert automatic == [Posture.AUTONOMOUS]
+
+    def test_the_default_posture_stops_for_review(self) -> None:
+        """The default cannot be the one that merges unreviewed, ever."""
+        write_config()
+
+        config = load_dispatch_config()
+
+        assert config is not None
+        settings = config.project("agentjobs")
+        assert settings.posture is Posture.AUTO
+        assert settings.posture.merge_policy is MergePolicy.REVIEW
+
+    def test_push_defaults_to_false_for_a_project_that_says_nothing(self) -> None:
+        """ac-6. A repository that never thought about pushing never pushes.
+
+        Stated against a configured project *and* against one absent from the file
+        entirely, because those are two different code paths -- the parser's default and
+        the dataclass's -- and a project this machine has not enabled at all is exactly
+        the case where a wrong default would be least visible.
+        """
+        write_config()
+
+        config = load_dispatch_config()
+
+        assert config is not None
+        assert config.project("agentjobs").push is False
+        assert config.project("a-project-nobody-configured").push is False
+
+    def test_the_bare_default_settings_object_does_not_push(self) -> None:
+        assert ProjectDispatchSettings(project_id="anything").push is False
+
+    def test_push_is_read_when_a_project_asks_for_it(self) -> None:
+        write_config(projects={"agentjobs": {"enabled": True, "runner": "claude", "push": True}})
+
+        config = load_dispatch_config()
+
+        assert config is not None
+        assert config.project("agentjobs").push is True
+
+    def test_push_and_posture_are_independent(self) -> None:
+        """The point of keeping push off the posture: every combination is expressible."""
+        write_config(
+            projects={
+                "stops-but-pushes": {
+                    "enabled": True,
+                    "runner": "claude",
+                    "posture": "auto",
+                    "push": True,
+                },
+                "merges-but-never-pushes": {
+                    "enabled": True,
+                    "runner": "claude",
+                    "posture": "autonomous",
+                    "push": False,
+                },
+            }
+        )
+
+        config = load_dispatch_config()
+
+        assert config is not None
+        stops = config.project("stops-but-pushes")
+        merges = config.project("merges-but-never-pushes")
+        assert stops.posture.merge_policy is MergePolicy.REVIEW and stops.push is True
+        assert merges.posture.merge_policy is MergePolicy.AUTOMATIC and merges.push is False
+
+    def test_a_push_that_is_not_a_boolean_is_refused(self) -> None:
+        write_config(projects={"agentjobs": {"enabled": True, "runner": "claude", "push": "yes"}})
+
+        with pytest.raises(DispatchConfigError, match="push"):
             load_dispatch_config()

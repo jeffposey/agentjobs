@@ -42,6 +42,16 @@ claiming a delivery it has no way to make.
 
 Nothing in this module may run unless a person put ``finish: {enabled: true}`` in
 ``~/.agentjobs/dispatch.yaml`` for that project, which no browser can write.
+
+**Since task-021 there is a second caller, and only one of the two is a person.** A
+dispatched run at a posture whose merge policy is ``automatic`` runs this itself, with
+``authority=POSTURE``, and no human reviews the branch. Every step is the same, in the
+same order, for the same reasons -- which is the point of routing it here rather than
+letting an agent run ``git merge``: the gate that authorises the merge is run *by this
+module, on the rebased branch, unqualified*, so the merge does not rest on the agent's
+own account of whether its work is sound. The authority is checked against the project's
+machine-local posture before anything happens, and every record this writes says which
+of the two authorities it ran under.
 """
 
 from __future__ import annotations
@@ -63,6 +73,7 @@ from agentjobs.actors import FINISHER
 from agentjobs.dispatch.config import (
     DispatchError,
     FinishSettings,
+    MergePolicy,
     assert_dispatch_permitted,
 )
 from agentjobs.dispatch.ledger import RunLockTimeout, acquire_run_lock
@@ -137,6 +148,25 @@ FINISHED = "finished"
 ESCALATED = "escalated"
 DECLINED = "declined"
 
+APPROVAL = "approval"
+POSTURE = "posture"
+"""What authorised this finish. ``APPROVAL`` is a person; ``POSTURE`` is task-021.
+
+Two callers, two authorities, one sequence. The Approve button and a human at a shell
+carry ``APPROVAL`` and nothing about them changed. A dispatched run whose posture
+releases the merge gate carries ``POSTURE``, and is refused unless the project's
+machine-local posture really does release it -- checked here, in code, rather than
+trusted to the prompt that told the agent so.
+
+That check is worth stating honestly about what it is and is not. It is not containment
+against a *misbehaving* agent: ``autonomous`` is ``bypassPermissions``, and a run that
+decided to ignore its instructions could run ``git merge`` itself with nothing in its
+way. It is a guarantee about the **sanctioned** path -- that the command an agent is
+told to run cannot merge anything at a posture that did not release it, so a prompt
+that is wrong, stale, or copied from another project's run fails closed instead of
+merging. Containment of the other kind was already given up when the posture was chosen.
+"""
+
 
 @dataclass(frozen=True)
 class FinishResult:
@@ -191,6 +221,25 @@ class Escalate(Exception):
 
 
 # ----- subprocess plumbing ----------------------------------------------------
+
+
+def authorisation_phrase(authority: str, approver: str, posture: str = "") -> str:
+    """One sentence naming what made this merge legitimate. Never decorative.
+
+    Every place the finish writes down a merge -- the merge message, the log entry, the
+    close -- has to say which of the two authorities it ran under, because the sentence
+    "a person approved this" is the whole difference between them and a reader six
+    months later has no other way to tell. Rendered in one function so the three cannot
+    drift into saying different things about the same merge.
+    """
+    if authority == POSTURE:
+        return (
+            f"No human reviewed this merge: posture `{posture or 'autonomous'}` releases "
+            f"the merge gate for this project (task-021), and {approver} ran the finish. "
+            "What authorised it is the gate -- `scripts/check.py` green on the rebased "
+            "branch, run here rather than reported by the agent."
+        )
+    return f"Approved by {approver}; no model was in this loop."
 
 
 def detached_environment(extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
@@ -593,7 +642,7 @@ def previous_merge_commit(task: Task) -> Optional[str]:
     return None
 
 
-def merge(plan: Plan, task: Task, approver: str) -> str:
+def merge(plan: Plan, task: Task, authorisation: str) -> str:
     """``git merge --no-ff`` into the base, in the shared clone. The irreversible step.
 
     Two things are checked first that git would otherwise turn into a mess rather than a
@@ -632,10 +681,9 @@ def merge(plan: Plan, task: Task, approver: str) -> str:
     message = (
         f"Merge branch '{plan.branch}' ({task.id})\n\n"
         f"{task.title}\n\n"
-        f"Approved by {approver} in the AgentJobs web UI. Merged by the AgentJobs "
-        f"finisher after rebasing onto {plan.base} and running scripts/check.py green "
-        f"in that branch's worktree (task-241). No model was in this loop; a person "
-        f"still approved the work."
+        f"Merged by the AgentJobs finisher after rebasing onto {plan.base} and running "
+        f"scripts/check.py green in that branch's worktree (task-241).\n\n"
+        f"{authorisation}"
     )
     result = git(plan.root, ["merge", "--no-ff", "--no-edit", "-m", message, plan.branch])
     if result.returncode != 0:
@@ -971,7 +1019,7 @@ def announce_start(
 
 
 def record_merge(
-    manager: TaskManager, task_id: str, plan: Plan, merge_commit: str, approver: str
+    manager: TaskManager, task_id: str, plan: Plan, merge_commit: str, authorisation: str
 ) -> None:
     """Write the merge onto the record immediately, before anything that can fail.
 
@@ -987,9 +1035,9 @@ def record_merge(
         body=(
             f"Merged `{plan.branch}` into `{plan.base}` as `{merge_commit[:8]}`.\n\n"
             f"Rebased onto {plan.base} and `scripts/check.py` ran green in "
-            f"{plan.worktree} before the merge. Approved by {approver}; no agent was "
-            "in this loop. Delivery -- rebuild, restart, verification -- comes next, "
-            "and this task stays open until it is verified."
+            f"{plan.worktree} before the merge. {authorisation} Delivery -- rebuild, "
+            "restart, verification -- comes next, and this task stays open until it is "
+            "verified."
         ),
         data={
             "finish_step": "merge",
@@ -1063,14 +1111,49 @@ def finish_task(
     home: Optional[Path] = None,
     api_base: Optional[str] = None,
     settings: Optional[FinishSettings] = None,
+    authority: str = APPROVAL,
 ) -> FinishResult:
     """Do the fixed part of ALLAGENTS.md steps 6 and 7, or stop and say where.
 
     Takes the task's run lock for the whole attempt, so a dispatch cannot start a
     session into a tree this is rebasing, and two approvals cannot merge the same branch
     twice. It is the same lock a run takes, which is the point: the two are alternatives.
+
+    ``authority`` says what makes the merge legitimate, and defaults to the only thing
+    that ever made one before task-021: a person approved it. ``POSTURE`` is the other
+    one, and it is checked rather than believed -- the project's machine-local posture
+    has to actually release the merge gate, or this declines without touching anything.
     """
     resolved_home = home or default_home()
+    posture_name = ""
+    if authority == POSTURE:
+        try:
+            released = assert_dispatch_permitted(project.id, resolved_home)
+        except DispatchError as exc:
+            return FinishResult(
+                task_id=task_id,
+                outcome=DECLINED,
+                reason=getattr(exc, "reason", "dispatch_error"),
+                detail=str(exc),
+            )
+        posture = released.settings.posture
+        posture_name = posture.value
+        if posture.merge_policy is not MergePolicy.AUTOMATIC:
+            return FinishResult(
+                task_id=task_id,
+                outcome=DECLINED,
+                reason="posture_requires_review",
+                detail=(
+                    f"{project.id} runs at posture `{posture.value}`, whose merge policy "
+                    f"is `{posture.merge_policy.value}`. Only `autonomous` releases the "
+                    "merge gate. Hand the ball to human/review and stop; nothing was "
+                    "touched."
+                ),
+            )
+        if settings is None:
+            settings = released.settings.finish
+            api_base = api_base or released.config.api_base
+
     if settings is None:
         try:
             resolution = assert_dispatch_permitted(project.id, resolved_home)
@@ -1114,7 +1197,7 @@ def finish_task(
             manager=manager,
             project=project,
             task=task,
-            approver=approver,
+            authorisation=authorisation_phrase(authority, approver, posture_name),
             settings=settings,
             api_base=api_base,
             directory=directory,
@@ -1227,7 +1310,7 @@ def _sequence(
     manager: TaskManager,
     project: Project,
     task: Task,
-    approver: str,
+    authorisation: str,
     settings: FinishSettings,
     api_base: Optional[str],
     directory: FinishDirectory,
@@ -1274,14 +1357,14 @@ def _sequence(
     steps.append(StepResult("gate", True, "scripts/check.py green", gate_seconds))
 
     began = time.monotonic()
-    merge_commit = merge(plan, task, approver)
+    merge_commit = merge(plan, task, authorisation)
     steps.append(
         StepResult(
             "merge", True, f"--no-ff into {plan.base} as {merge_commit}", time.monotonic() - began
         )
     )
     # Immediately, before anything that can fail. See `record_merge`.
-    record_merge(manager, task.id, plan, merge_commit, approver)
+    record_merge(manager, task.id, plan, merge_commit, authorisation)
     commit_task_record(
         manager, task.id, subject=f"record the merge of {plan.branch}", actor=FINISHER
     )
@@ -1307,8 +1390,8 @@ def _sequence(
         outcome=Outcome.COMPLETED,
         body=(
             f"Merged `{plan.branch}` into `{plan.base}` as `{merge_commit[:8]}` and "
-            f"verified live. Approved by {approver}; finished by the scripted path with "
-            "no agent session (task-241).\n\n"
+            f"verified live. Finished by the scripted path with no agent session "
+            f"(task-241). {authorisation}\n\n"
             # The step table, on the successful path as well as the escalating one. An
             # escalation has to say how far it got or the record is ambiguous; a success
             # has to say the same thing for a different reason -- "verified live" is a
