@@ -2,66 +2,62 @@ schema: 2
 id: task-216
 title: 'Playbooks 3: groom, authored and proven live'
 created: '2026-08-21T04:56:17.617014Z'
-updated: '2026-08-23T11:06:21.769491Z'
+updated: '2026-08-23T11:14:05.720000Z'
 lifecycle: active
 ball: human
-ball_reason: review
-ball_prompt: "**Review `feat/task-216-groom-playbook` \u2014 four commits, gate green\
-  \ on all ten stages. This task will merge on your approval and then stay open, deliberately,\
-  \ on the two criteria only you can release.**\n\n## What to look at\n\n**`playbooks/groom.md`**\
-  \ is the deliverable \u2014 the project's normative groom brief, design \xA75.1\
-  \ and decision P7 in the form a run reads. task-214 shipped a first-pass reference\
-  \ straight from the design's bullets; this answers the questions a run actually\
-  \ hits against 119 open tasks: what the sweep excludes and why, which half of a\
-  \ duplicate pair dies (further along, richer record, depended on, older id), that\
-  \ the `ball_prompt` carries the whole list rather than pointing at it, that a proposal\
-  \ recorded after a close is not a proposal, that ambiguity is not approval, and\
-  \ that finding nothing is a result to report rather than a reason to manufacture\
-  \ closures.\n\nThe other three commits: the shipped reference brought level with\
-  \ it (nothing in the brief is project-specific, so a project running `playbook init`\
-  \ tomorrow should not get the version its author calls a first pass), two tests\
-  \ pinning **this repository's own** `playbooks/` the way `TestRealCorpus` pins its\
-  \ task records, and the two fixes the live run found in the brief.\n\n**Two decisions\
-  \ worth your eye, both in log entry 8.** A task whose ball is `human` is now *in*\
-  \ scope for a sweep \u2014 the first draft excluded it and that removed 34 of 119\
-  \ tasks, the whole untriaged audit pile, which is exactly where duplicates collect.\
-  \ And groom's gate hands off at `human`/`approval` rather than the `human`/`review`\
-  \ \xA75.1's prose names; the grounds are stated in the brief itself, not only on\
-  \ this record. That second one is a deviation from the design's literal wording\
-  \ and is flagged as such.\n\n**Log entry 5** explains why `agentjobs playbook run\
-  \ groom` was not the command that ran: the brief lives on this branch and `playbook\
-  \ run` reads the project root, which is `main`; and `--actor` must name a configured\
-  \ human, which would have meant writing your authorising signature for a spend you\
-  \ did not clock. The run task was created by the real instantiation code instead\
-  \ \u2014 `read_playbook`, `pointer_for`, `_run_task_payload`, `create_run_task`\
-  \ \u2014 so its title, pointer, context and acceptance are frontmatter's, not hand-written\
-  \ to look like it.\n\n## The live run, and what it did not do\n\n**task-290 is parked\
-  \ at `human`/`approval` with a closure proposal and nothing closed.** That is a\
-  \ separate decision from this one and it is genuinely yours: three proposed closures\
-  \ (task-010 and task-100 as `superseded`, task-183 as a `duplicate` of task-278),\
-  \ three questions raised rather than acted on, and eleven candidates the sweep checked\
-  \ and declined with the evidence for declining. **Approving this branch does not\
-  \ approve those closures**, and the run task's own prompt is written so you can\
-  \ answer it from your phone.\n\nNothing closed, proved two ways: the corpus held\
-  \ 168 closed tasks before the sweep and holds 168 after, and `git diff` over the\
-  \ shared clone's `tasks/` across the whole run shows no `lifecycle:` or `outcome:`\
-  \ line changing in any file.\n\n## Gate\n\n`scripts/check.py`, no arguments, this\
-  \ worktree's own interpreter. **Green, 10 of 10 stages, 218.2s** \u2014 black 3.6s,\
-  \ ruff 0.3s, mypy 18.7s, api 7.6s, icons 2.7s, oxlint 0.9s, pytest 113.5s (3033\
-  \ passed), vitest 34.5s, build 4.6s, e2e 31.7s (25 passed). Receipt written for\
-  \ `983b9b99` against a clean tree.\n\n## Acceptance, exactly as it stands\n\n- **sc-1\
-  \ \u2014 met.** `playbooks/groom.md` exists, validates, and encodes the gate, the\
-  \ `duplicate|superseded`-only executable set and the never-delete/rewrite/reorder\
-  \ rules. Pinned by a test.\n- **sc-2 \u2014 pending, partially met.** \"Proposal\
-  \ recorded before anything closed\" is proved. **Your approval and the executed-set-equals-approved-set\
-  \ half are outstanding.**\n- **sc-3 \u2014 pending, partially met.** No closure\
-  \ has happened, so the \"went through the managed close verb\" half is untestable\
-  \ yet. The \"no file deleted, no spec rewritten\" half is true and verified across\
-  \ the run.\n\n**This is not a task to tidy away tonight.** A run that stops at its\
-  \ gate with a well-evidenced proposal is the playbook working correctly; the execution\
-  \ half is one approval on task-290 away, and until then sc-2 and sc-3 stay honest\
-  \ at `pending`.\n\n**What I need from you:** approve the branch if the brief is\
-  \ right, and separately answer task-290 \u2014 \"all three\", or name what to strike.\n"
+ball_reason: approval
+ball_prompt: '**The brief is merged and live; what is left is one decision of yours,
+  on task-290.**
+
+
+  `feat/task-216-groom-playbook` merged as `96580be` and 8876 is serving it -- `/api/version`
+  reports that exact commit and `GET /api/projects/agentjobs/playbooks` now lists
+  `groom`. That last part matters beyond bookkeeping: `playbook run` resolves the
+  playbooks directory under the shared clone, so until this merge there was no way
+  to run groom by its real command. There is now.
+
+
+  This task is deliberately still open. sc-1 is met. sc-2 and sc-3 are honestly `pending`,
+  because the live run stopped at its gate exactly as decision P7 says it must.
+
+
+  **What needs you, in one place: task-290.** Three proposed closures, nothing closed,
+  parked at `human`/`approval`:
+
+
+  - task-010 -- `superseded`; the fix shipped in `eee75fb`, verified live.
+
+  - task-100-dependency-cycle-deadlock -- `superseded`.
+
+  - task-183 -- `duplicate` of task-278.
+
+
+  Plus three questions raised rather than acted on, and eleven candidates the sweep
+  checked and declined with its reasons. Answer it with "all three", or name what
+  to strike. It is written to be decidable from the prompt alone, including on a phone.
+
+
+  **Then this task finishes itself in one step:** with the closures approved, the
+  execution half can run through the real `agentjobs playbook run groom` -- now possible,
+  per above -- or through the managed close verb directly, and sc-2 and sc-3 become
+  met. Whoever does that closes this task.
+
+
+  **Two things in the merged brief worth your eye, both flagged by the author rather
+  than found in review.** A task whose ball is `human` is *in* scope for a sweep;
+  excluding it dropped 34 of 119 tasks, the whole untriaged audit pile, which is where
+  duplicates collect. And groom''s gate hands off at `human`/`approval` rather than
+  the `human`/`review` that section 5.1''s prose names -- a deviation from the design''s
+  literal wording, argued in the brief itself rather than only on this record. If
+  you disagree with either, the brief is a file on main and changing it is a small
+  commit.
+
+
+  Merged by the supervisor rather than the scripted finish, because the finish closes
+  a task unconditionally on success and this one must not be closed yet. The full
+  sequence was run regardless: rebase onto main, full gate green (10 of 10, 183.5s,
+  receipt for `ce2d1fa0`), `--no-ff` merge, restart, and verification that the running
+  process serves the merge.'
 archived: false
 priority: high
 queue_position: 124
@@ -138,7 +134,8 @@ links:
   title: 'The groom run this task instantiated: proposal recorded, parked at human/approval'
 branches:
 - name: feat/task-216-groom-playbook
-  status: active
+  status: merged
+  merged_at: '2026-08-23T11:12:22.477664Z'
 log:
 - id: 1
   ts: '2026-08-21T04:56:17.617059Z'
@@ -449,3 +446,68 @@ log:
       id: 6899607a-e353-4ba2-9d2f-d50fd5f98a4e
       kind: log_append
       fingerprint: 526d4ffa6f5afbe987548cb773d8593c
+- id: 11
+  ts: '2026-08-23T11:14:05.719805Z'
+  actor: claude
+  type: handoff
+  body: '**The brief is merged and live; what is left is one decision of yours, on
+    task-290.**
+
+
+    `feat/task-216-groom-playbook` merged as `96580be` and 8876 is serving it -- `/api/version`
+    reports that exact commit and `GET /api/projects/agentjobs/playbooks` now lists
+    `groom`. That last part matters beyond bookkeeping: `playbook run` resolves the
+    playbooks directory under the shared clone, so until this merge there was no way
+    to run groom by its real command. There is now.
+
+
+    This task is deliberately still open. sc-1 is met. sc-2 and sc-3 are honestly
+    `pending`, because the live run stopped at its gate exactly as decision P7 says
+    it must.
+
+
+    **What needs you, in one place: task-290.** Three proposed closures, nothing closed,
+    parked at `human`/`approval`:
+
+
+    - task-010 -- `superseded`; the fix shipped in `eee75fb`, verified live.
+
+    - task-100-dependency-cycle-deadlock -- `superseded`.
+
+    - task-183 -- `duplicate` of task-278.
+
+
+    Plus three questions raised rather than acted on, and eleven candidates the sweep
+    checked and declined with its reasons. Answer it with "all three", or name what
+    to strike. It is written to be decidable from the prompt alone, including on a
+    phone.
+
+
+    **Then this task finishes itself in one step:** with the closures approved, the
+    execution half can run through the real `agentjobs playbook run groom` -- now
+    possible, per above -- or through the managed close verb directly, and sc-2 and
+    sc-3 become met. Whoever does that closes this task.
+
+
+    **Two things in the merged brief worth your eye, both flagged by the author rather
+    than found in review.** A task whose ball is `human` is *in* scope for a sweep;
+    excluding it dropped 34 of 119 tasks, the whole untriaged audit pile, which is
+    where duplicates collect. And groom''s gate hands off at `human`/`approval` rather
+    than the `human`/`review` that section 5.1''s prose names -- a deviation from
+    the design''s literal wording, argued in the brief itself rather than only on
+    this record. If you disagree with either, the brief is a file on main and changing
+    it is a small commit.
+
+
+    Merged by the supervisor rather than the scripted finish, because the finish closes
+    a task unconditionally on success and this one must not be closed yet. The full
+    sequence was run regardless: rebase onto main, full gate green (10 of 10, 183.5s,
+    receipt for `ce2d1fa0`), `--no-ff` merge, restart, and verification that the running
+    process serves the merge.'
+  data:
+    ball: human
+    ball_reason: approval
+    operation:
+      id: 9abf3778-e217-441b-906d-27ede89daf6d
+      kind: handoff
+      fingerprint: 18e770a24f92453acf0062f44cc7f06e
