@@ -2,11 +2,68 @@ schema: 2
 id: task-292
 title: Keep top bar visible while scrolling
 created: '2026-08-23T19:05:31.429792Z'
-updated: '2026-08-23T19:51:45.150777Z'
+updated: '2026-08-23T20:42:13.076360Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "Drive it, then approve or send it back.\n\n**Sandbox: http://127.0.0.1:8891/app/**\
+  \ \u2014 my branch, throwaway data, its own port. It is not the 8876 dashboard and\
+  \ it does not touch your real corpus. Start at http://127.0.0.1:8891/app/p/sandbox-tall/tasks,\
+  \ which has sixty tasks so there is something to scroll. Stop it with `poetry run\
+  \ python scripts/run_report.py`-style Ctrl-C, or tell me and I will kill it; the\
+  \ temporary data deletes itself when the process ends.\n\n**Both sides, without\
+  \ me building a second one:** 8876 is still serving `main`, so it *is* the before.\
+  \ Put the two side by side. Narrow the window to about 900px on each and the difference\
+  \ is at its sharpest \u2014 that is the case I did not expect to find.\n\n## I answered\
+  \ your question. Here is the short version; the long one is the decision entry.\n\
+  \n**Landscape: keep the top menu visible. No burger.** I am pushing back on your\
+  \ second option. A burger at 1440px buys back 64px of 800 and charges a click for\
+  \ every navigation forever \u2014 and it hides Dispatch, which `App.tsx` has a comment\
+  \ about: it is the machine-wide kill switch and a kill switch you cannot reach is\
+  \ not one.\n\n**Phone: your burger, but the panel drops from the bar rather than\
+  \ sliding in from the left.** You said \"top bar, or left bar, whatever\". I went\
+  \ with the top for two reasons. It is literally what you described first \u2014\
+  \ the bar's own contents, dropping over the page. And task-238 is going to put a\
+  \ *task list* down the left edge at landscape widths; a nav drawer from the same\
+  \ edge teaches two meanings for one gesture, and they meet exactly where a tablet\
+  \ crosses the breakpoint.\n\n**The number that changed my mind about your whole\
+  \ question: the bar only fits on one line at 955px.** I measured it in your running\
+  \ app before choosing. It is 128px tall on a 900px window and 164px on a phone.\
+  \ So this was never a phone problem \u2014 every landscape tablet below ~960 has\
+  \ been getting a two-row header, and one more nav destination pushes that up to\
+  \ 1024px screens. That is exactly the condition task-235's decision named for reopening\
+  \ the navigation-rail question. **I did not reopen it** \u2014 a panel behind a\
+  \ burger is not a rail and costs no width closed \u2014 but the measurement is now\
+  \ on task-236, which is the task that owns that call, for you to make with the numbers\
+  \ in front of you.\n\n**The breakpoint is 960, not this app's existing 820.** 820\
+  \ is where the tables restack; the header stops fitting 135px above it. Using 820\
+  \ would have left the whole 820\u2013954 band still wrapping.\n\n## What to actually\
+  \ look at\n\n1. Scroll to the bottom of a long task on a phone-width window. The\
+  \ bar is still there, and it is **one row** \u2014 65px, where it used to be 164.\n\
+  2. Tap the burger. Everything is in there, in the same order, nothing renamed. Escape\
+  \ closes it and focus goes back to the button.\n3. A ~900px window. This is the\
+  \ case I would most like your eye on, because it is the one you did not ask about.\n\
+  4. Report issue still opens and its dialog still covers the bar. That was an acceptance\
+  \ criterion, not an afterthought.\n\n## Two things you should know before approving\n\
+  \n**I touched a test file that is not mine.** `queue-order.spec.ts`'s drag helper\
+  \ scrolled a row to y=0 to reach it \u2014 which is now behind the header, so the\
+  \ press landed on the bar and the drag never started. I rewrote the helper to place\
+  \ both ends below the bar deliberately, and gave the two pointer-drag tests a 900px-tall\
+  \ viewport because the rows they use sit 677px apart and a 720px window now leaves\
+  \ 655. Real product interaction, not a test being fussy. Drag still works; the auto-scroll\
+  \ test is untouched.\n\n**I got it wrong twice before I got it right**, and the\
+  \ progress entry says so in detail. Worth two minutes if you want to know how much\
+  \ to trust the rest.\n\n## Filed rather than done\n\n- **task-294** \u2014 the Dashboard\
+  \ fits one screen, no scrolling. Your line about the Dashboard, made into a task.\
+  \ It also carries the design I *wanted* to use here and rejected: stop the document\
+  \ scrolling at all and make `<main>` the scroll container. That is the better shape\
+  \ and it breaks drag-to-reorder's auto-scroll, so it belongs where somebody can\
+  \ pay proper attention to it.\n- **task-295** \u2014 the pinned bar may end up under\
+  \ your iPhone's status bar in the installed PWA. That was the open question I left\
+  \ you last time; pinning the bar makes it real, so it is a task now. Its first criterion\
+  \ is to look at it on your actual phone, because I have only read the markup.\n\n\
+  **Nothing is merged.** Branch `feat/task-292-pinned-header`, commit `e16d579`, gate\
+  \ green with no arguments, all ten stages."
 archived: false
 priority: medium
 queue_position: 8100
@@ -135,30 +192,54 @@ acceptance:
     at 390x844, scrolling the document to its end leaves the header's `getBoundingClientRect().top`
     at 0 and its Tasks link clickable. Asserted in Playwright on the measured rectangle,
     not on a class name.
-  status: pending
+  status: met
 - id: ac-2
   text: "The same holds on every surface that renders the header \u2014 Dashboard,\
     \ Tasks, Create, Dispatch, Playbooks \u2014 or, where the decision in ac-3 deliberately\
     \ excludes a width or a surface, that exclusion is what the test asserts instead."
-  status: pending
+  status: met
 - id: ac-3
   text: A `decision` entry on this task states what the bar does below the wrap width,
     names the alternative rejected, and says how it stays compatible with the burger
     menu task-168 will put in the same row.
-  status: pending
+  status: met
 - id: ac-4
   text: "Opening the Report Issue modal still covers the header completely at both\
     \ viewports, and the floating Report Issue button is still clickable \u2014 the\
     \ two existing z-indexes, checked rather than assumed."
-  status: pending
+  status: met
 - id: ac-5
   text: '`scripts/check.py` green with no arguments on a clean tree, and the new Playwright
     assertions fail when `top-0`/`sticky` is removed from the header.'
-  status: pending
-deliverables: []
+  status: met
+deliverables:
+- path: frontend/src/components/PrimaryNav.tsx
+  note: 'The pinned, non-wrapping header, extracted out of App.tsx: sticky top-0 z-30,
+    inline destinations at 960px and above, a burger panel below it.'
+  status: done
+- path: frontend/src/components/PrimaryNav.test.tsx
+  note: 'The panel behaviour jsdom can see: open, close on Escape with focus returned,
+    close on an outside press, close on navigation, and the breakpoint constant checked
+    against the Tailwind class.'
+  status: done
+- path: frontend/e2e/pinned-header.spec.ts
+  note: The geometry evidence, measured in a real browser at 1280x800 and 390x844,
+    including a negative control that unpins the header and shows the assertion fails.
+  status: done
+- path: frontend/src/styles.css
+  note: scroll-padding-top, so anything the browser scrolls to itself stops below
+    the bar rather than under it.
+  status: done
+- path: frontend/e2e/queue-order.spec.ts
+  note: dragOnto places both ends of the gesture deliberately in the band below the
+    pinned bar, instead of relying on two minimal scrollIntoViewIfNeeded calls that
+    land a row at y=0.
+  status: done
 dependencies: []
 links: []
-branches: []
+branches:
+- name: feat/task-292-pinned-header
+  status: active
 log:
 - id: 1
   ts: '2026-08-23T19:05:31.887291Z'
@@ -488,3 +569,196 @@ log:
       id: 3f5b71a2-08c4-4d19-9a6e-71c0c5a8e292
       kind: log_append
       fingerprint: 24c8ada6ffd869e9287e1963e937bad5
+- id: 12
+  ts: '2026-08-23T20:40:47.065555Z'
+  actor: claude
+  type: note
+  body: Updated acceptance, branches, deliverables.
+  data:
+    fields:
+    - acceptance
+    - branches
+    - deliverables
+    operation:
+      id: 7d92e30a-6b14-4c58-a072-9e3b15d4e292
+      kind: update_content
+      fingerprint: 4a6aeca5afc6092a376e4f655c8daa46
+- id: 13
+  ts: '2026-08-23T20:41:38.800705Z'
+  actor: claude
+  type: progress
+  body: "**Built, verified and committed on `feat/task-292-pinned-header` as `e16d579`.\
+    \ Gate green with no arguments, all ten stages, 168.9s.**\n\n## What is in the\
+    \ diff\n\n`frontend/src/components/PrimaryNav.tsx` is new \u2014 the header lifted\
+    \ out of `App.tsx`, which now renders `<PrimaryNav projectId={projectId} />` in\
+    \ its place. Nothing else about the shell changed.\n\n- `sticky top-0 z-30` on\
+    \ the `<header>`, below `IssueReporter`'s `z-40` button and `z-50` modal.\n- `flex-nowrap`,\
+    \ with the six destinations in a `hidden min-[960px]:flex` container and a hamburger\
+    \ in a `min-[960px]:hidden` wrapper at the left end.\n- The panel is `absolute\
+    \ inset-x-0 top-full`, so opening it overlays the page instead of pushing it down\
+    \ under a bar that is already pinned. `position: sticky` is a positioned value,\
+    \ so the header is already the containing block.\n- Closes on Escape with focus\
+    \ returned to the trigger, on a `mousedown` outside the header, on navigation\
+    \ (which covers the back button), and on a `matchMedia` change past the breakpoint\
+    \ \u2014 so a panel left open at 400px does not reappear on the way back down\
+    \ from 1200px.\n\n`frontend/src/styles.css` gains `scroll-padding-top: 4.25rem`.\
+    \ See \"what went wrong\" below; it is not cosmetic.\n\n## Three things the browser\
+    \ taught me that no amount of reading would have\n\n**1. `min-[960px]:hidden`\
+    \ on the burger did nothing.** `styles.css` carries `.touch-target:not(.block)\
+    \ { display: inline-flex }`, whose specificity (0,2,0) beats a Tailwind utility's\
+    \ (0,1,0) \u2014 so the burger stayed visible at 1280px with the class correctly\
+    \ applied. Fixed by moving the breakpoint onto a wrapper `<div>` rather than by\
+    \ touching that global rule. Caught only because a Playwright assertion asked\
+    \ whether the burger was *hidden* at a desktop width; a jsdom test asserting the\
+    \ class would have passed.\n\n**2. Two ways of asking \"does the dialog cover\
+    \ the header\" are not the same question.** `element.closest('[role=\"dialog\"\
+    ]')` at the top of the viewport returns nothing, because the thing over the header\
+    \ is the full-screen scrim and the dialog is a card in the middle of it. The test\
+    \ now walks up from the dialog to its nearest `position: fixed` ancestor and asks\
+    \ whether the topmost element is inside *that*.\n\n**3. `Playwright.boundingBox()`\
+    \ and `getBoundingClientRect()` do not answer the same question.** This whole\
+    \ task turns on viewport-relative coordinates, and only one of the two is unambiguously\
+    \ that. Every assertion reads the rect from the page.\n\n## What went wrong, at\
+    \ length, because two of my guesses were confidently wrong\n\n`queue-order.spec.ts`'s\
+    \ cross-band drag went red. It took three attempts to find out why, and the first\
+    \ two were wrong in a way worth recording.\n\n- **Guess 1: the pinned header occludes\
+    \ the drag handle.** I added `scroll-padding-top`, the test went green in isolation,\
+    \ and I nearly reported it fixed. It was not fixed \u2014 it went green because\
+    \ running that spec alone gives it a different corpus. *The gate caught what my\
+    \ isolated run did not.*\n- **Guess 2: my spec's fixture tasks add rows to the\
+    \ shared corpus and push the two dragged rows apart.** I instrumented `dragOnto`\
+    \ and the numbers supported it: the target sat 328px below the fold. So I made\
+    \ the fixture a single closed task, adding no row to the default list. Still red.\n\
+    - **What it actually was.** I stopped guessing and ran the one experiment that\
+    \ isolates the variable: `sticky top-0` applied to the *existing* header, nothing\
+    \ else changed, no new spec file, identical corpus. Red. So it was the header\
+    \ after all, and guess 1 had been right about the mechanism and wrong about the\
+    \ fix \u2014 the baseline numbers from `main` show `scrollIntoViewIfNeeded` parking\
+    \ the grip at exactly **y = 0**, which is now behind 65px of opaque bar, so the\
+    \ press landed on the header and no drag ever began. `scroll-padding-top` does\
+    \ not reach it, because that is a CDP primitive rather than the CSSOM `scrollIntoView`.\n\
+    \nThe fix is in the helper, not in the header. `dragOnto` used two minimal `scrollIntoViewIfNeeded`\
+    \ calls, which cannot work: each scrolls the least it can, so the second undoes\
+    \ the first when the rows are far apart, and the least it can do for a row above\
+    \ the fold is put it at y=0. It now computes both elements' extent and centres\
+    \ the pair in the band the header leaves behind \u2014 and when they cannot both\
+    \ fit, it throws a sentence saying how far apart they are and how much room there\
+    \ is, instead of surfacing as a drag that silently did nothing.\n\nThat exposed\
+    \ the last real fact: **the pair sits 677px apart and a 720px window leaves 655px\
+    \ below the pinned bar.** It fit before by 43px. So the two pointer-drag tests\
+    \ now take a 900px-tall viewport, which is a property of the harness rather than\
+    \ a claim about the product \u2014 the gesture a person makes across a longer\
+    \ list is the edge auto-scroll one, which has its own test and is untouched.\n\
+    \n`scroll-padding-top` stayed, on its own merits rather than as a fix for this:\
+    \ it is what stops a `scrollIntoView`, a fragment link, or the scroll a browser\
+    \ performs when Tab reaches an off-screen control from landing underneath the\
+    \ bar. `pinned-header.spec.ts` asserts it, and that assertion fails by exactly\
+    \ the header's height without it.\n\n## Evidence\n\n- **`frontend/e2e/pinned-header.spec.ts`**,\
+    \ 8 tests. Header top and height on all six surfaces at 1280x800 and 390x844;\
+    \ the Tasks link reached from the bottom of a long page at both (via the burger\
+    \ below the breakpoint); inline-links-and-no-burger at desktop; all six destinations\
+    \ behind the burger at phone width with the bar the same height open as closed;\
+    \ the Report Issue modal covering the bar at both viewports; the `scroll-padding`\
+    \ property; and **a negative control** that strips `sticky top-0` at runtime and\
+    \ asserts the header does leave the viewport \u2014 so ac-5's \"the assertion\
+    \ fails when the pin is removed\" is demonstrated in the suite rather than taken\
+    \ on trust.\n- **`frontend/src/components/PrimaryNav.test.tsx`**, 7 jsdom tests\
+    \ for the panel behaviour, plus one that reads the component's own source and\
+    \ checks every `min-[Npx]:` variant in it agrees with the exported `NAV_INLINE_MIN_PX`.\
+    \ Tailwind needs the number as a literal in the class, so nothing else would notice\
+    \ the two drifting apart.\n- **Measured in a real browser**, not only in tests:\
+    \ at 390, 900 and 1280 the header is `top: 0, height: 65` after scrolling, and\
+    \ the burger panel opens over the content. The 900px case is the one worth noticing\
+    \ \u2014 it was 128px before.\n\n## What I did not do\n\nThe header's **contents**\
+    \ are unchanged: the same eight items, in the same order, with the same labels.\
+    \ Below 960px six of them are one tap away instead of zero; nothing was added,\
+    \ removed or renamed. That keeps this inside the constraint about task-167/task-168's\
+    \ scope, which Jeff's revise had partly reopened.\n\nI also did not touch `frontend/index.html`\
+    \ or the viewport meta \u2014 see task-295.\n\n## Filed\n\n- **task-294** \u2014\
+    \ the Dashboard fits one screen and never scrolls, from Jeff's *\"Dashboard is\
+    \ its own thing, goal with it is to NOT involve any scrolling at all.\"* It carries\
+    \ the non-scrolling-frame design this task rejected, and the `dragAutoScroll`\
+    \ rewrite that comes with it.\n- **task-295** \u2014 the pinned bar under the\
+    \ iOS status bar in the installed PWA. This answers my own question in log entry\
+    \ 4: it was hypothetical then and the precondition is real now, so it is filed\
+    \ on its own rather than folded in. Its first acceptance criterion is to reproduce\
+    \ or refute it on a real device, because it has been read and not seen.\n\nNotes\
+    \ recorded on **task-236** (the measurement, and that task-235's rail reopen-trigger\
+    \ has fired below 955px) and **task-168** (that there is now a second burger,\
+    \ why it does not collide, and a request that it not use a hamburger icon).\n"
+  data:
+    operation:
+      id: 4f8a2d61-93c7-4b05-8e2a-1d64b0f9e292
+      kind: log_append
+      fingerprint: d60be958e3e5d6e1c7e407b40f639412
+- id: 14
+  ts: '2026-08-23T20:42:13.076010Z'
+  actor: claude
+  type: handoff
+  body: "Drive it, then approve or send it back.\n\n**Sandbox: http://127.0.0.1:8891/app/**\
+    \ \u2014 my branch, throwaway data, its own port. It is not the 8876 dashboard\
+    \ and it does not touch your real corpus. Start at http://127.0.0.1:8891/app/p/sandbox-tall/tasks,\
+    \ which has sixty tasks so there is something to scroll. Stop it with `poetry\
+    \ run python scripts/run_report.py`-style Ctrl-C, or tell me and I will kill it;\
+    \ the temporary data deletes itself when the process ends.\n\n**Both sides, without\
+    \ me building a second one:** 8876 is still serving `main`, so it *is* the before.\
+    \ Put the two side by side. Narrow the window to about 900px on each and the difference\
+    \ is at its sharpest \u2014 that is the case I did not expect to find.\n\n## I\
+    \ answered your question. Here is the short version; the long one is the decision\
+    \ entry.\n\n**Landscape: keep the top menu visible. No burger.** I am pushing\
+    \ back on your second option. A burger at 1440px buys back 64px of 800 and charges\
+    \ a click for every navigation forever \u2014 and it hides Dispatch, which `App.tsx`\
+    \ has a comment about: it is the machine-wide kill switch and a kill switch you\
+    \ cannot reach is not one.\n\n**Phone: your burger, but the panel drops from the\
+    \ bar rather than sliding in from the left.** You said \"top bar, or left bar,\
+    \ whatever\". I went with the top for two reasons. It is literally what you described\
+    \ first \u2014 the bar's own contents, dropping over the page. And task-238 is\
+    \ going to put a *task list* down the left edge at landscape widths; a nav drawer\
+    \ from the same edge teaches two meanings for one gesture, and they meet exactly\
+    \ where a tablet crosses the breakpoint.\n\n**The number that changed my mind\
+    \ about your whole question: the bar only fits on one line at 955px.** I measured\
+    \ it in your running app before choosing. It is 128px tall on a 900px window and\
+    \ 164px on a phone. So this was never a phone problem \u2014 every landscape tablet\
+    \ below ~960 has been getting a two-row header, and one more nav destination pushes\
+    \ that up to 1024px screens. That is exactly the condition task-235's decision\
+    \ named for reopening the navigation-rail question. **I did not reopen it** \u2014\
+    \ a panel behind a burger is not a rail and costs no width closed \u2014 but the\
+    \ measurement is now on task-236, which is the task that owns that call, for you\
+    \ to make with the numbers in front of you.\n\n**The breakpoint is 960, not this\
+    \ app's existing 820.** 820 is where the tables restack; the header stops fitting\
+    \ 135px above it. Using 820 would have left the whole 820\u2013954 band still\
+    \ wrapping.\n\n## What to actually look at\n\n1. Scroll to the bottom of a long\
+    \ task on a phone-width window. The bar is still there, and it is **one row**\
+    \ \u2014 65px, where it used to be 164.\n2. Tap the burger. Everything is in there,\
+    \ in the same order, nothing renamed. Escape closes it and focus goes back to\
+    \ the button.\n3. A ~900px window. This is the case I would most like your eye\
+    \ on, because it is the one you did not ask about.\n4. Report issue still opens\
+    \ and its dialog still covers the bar. That was an acceptance criterion, not an\
+    \ afterthought.\n\n## Two things you should know before approving\n\n**I touched\
+    \ a test file that is not mine.** `queue-order.spec.ts`'s drag helper scrolled\
+    \ a row to y=0 to reach it \u2014 which is now behind the header, so the press\
+    \ landed on the bar and the drag never started. I rewrote the helper to place\
+    \ both ends below the bar deliberately, and gave the two pointer-drag tests a\
+    \ 900px-tall viewport because the rows they use sit 677px apart and a 720px window\
+    \ now leaves 655. Real product interaction, not a test being fussy. Drag still\
+    \ works; the auto-scroll test is untouched.\n\n**I got it wrong twice before I\
+    \ got it right**, and the progress entry says so in detail. Worth two minutes\
+    \ if you want to know how much to trust the rest.\n\n## Filed rather than done\n\
+    \n- **task-294** \u2014 the Dashboard fits one screen, no scrolling. Your line\
+    \ about the Dashboard, made into a task. It also carries the design I *wanted*\
+    \ to use here and rejected: stop the document scrolling at all and make `<main>`\
+    \ the scroll container. That is the better shape and it breaks drag-to-reorder's\
+    \ auto-scroll, so it belongs where somebody can pay proper attention to it.\n\
+    - **task-295** \u2014 the pinned bar may end up under your iPhone's status bar\
+    \ in the installed PWA. That was the open question I left you last time; pinning\
+    \ the bar makes it real, so it is a task now. Its first criterion is to look at\
+    \ it on your actual phone, because I have only read the markup.\n\n**Nothing is\
+    \ merged.** Branch `feat/task-292-pinned-header`, commit `e16d579`, gate green\
+    \ with no arguments, all ten stages."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 9e6b0c48-3a71-4d92-b5c6-2f80e7a1e292
+      kind: handoff
+      fingerprint: 7b9adfcf578861ff29f6160479631900

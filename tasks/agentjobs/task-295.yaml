@@ -1,0 +1,151 @@
+schema: 2
+id: task-295
+title: The pinned top bar may sit under the iOS status bar in the installed PWA
+created: '2026-08-23T20:40:17.839897Z'
+updated: '2026-08-23T20:40:18.351755Z'
+lifecycle: ready
+ball: agent
+ball_reason: available
+archived: false
+priority: medium
+queue_position: 8300
+category: bug
+tags:
+- frontend
+- pwa
+- mobile
+- ios
+assignment:
+  eligible: []
+spec:
+  summary: "Now that the header is pinned to the top of the viewport (task-292), a\
+    \ home-screen-installed PWA has no browser chrome above it, so the bar sits at\
+    \ the physical top of the display \u2014 under the clock, the battery and the\
+    \ notch. Nothing in the app reads `env(safe-area-inset-top)` and the viewport\
+    \ meta has no `viewport-fit=cover`, so there is nothing in place to stop it."
+  intent: "Jeff reads this app from a phone and a tablet over Tailscale, installed\
+    \ to the home screen. A navigation bar with the operating system's clock printed\
+    \ across it is the one place a pinned bar is worse than a scrolling one \u2014\
+    \ which is the change that made this reachable."
+  description: "## Why it is being filed now\n\nRaised as an open question on task-292\
+    \ on 2026-08-23, while that task was still a spec, and deliberately left out of\
+    \ its scope: fixing it means changing the viewport meta, which changes the layout\
+    \ of **every** surface at once, and that is a wider blast radius than a header\
+    \ task should carry. It was a prediction then, read off the markup rather than\
+    \ observed.\n\ntask-292 has since merged, so the precondition is now real rather\
+    \ than hypothetical, and it is filed on its own as that question proposed.\n\n\
+    ## What the markup says\n\n- `frontend/index.html` line 5: `<meta name=\"viewport\"\
+    \ content=\"width=device-width, initial-scale=1.0\" />` \u2014 **no `viewport-fit=cover`**.\n\
+    - `frontend/index.html` also carries `apple-mobile-web-app-capable` and `apple-mobile-web-app-status-bar-style:\
+    \ black-translucent`. That pairing is what makes this bite: `black-translucent`\
+    \ explicitly asks iOS to draw the status bar *over* the web content.\n- Nothing\
+    \ in `frontend/src/styles.css` or in any component reads `env(safe-area-inset-top)`,\
+    \ `safe-area-inset-bottom`, or their `constant()` fallbacks. Grep confirms zero\
+    \ occurrences.\n- The header is now `sticky top-0` (`frontend/src/components/PrimaryNav.tsx`),\
+    \ so it occupies the first 65px of the viewport at all times.\n\nIn a browser\
+    \ tab none of this matters, because the browser's own chrome occupies the inset.\
+    \ In a standalone home-screen app there is no chrome.\n\n## Reproduce it before\
+    \ fixing it\n\n**This has been read, not seen** \u2014 and this repository has\
+    \ a rule about the difference. Nobody has yet opened the installed PWA on a device\
+    \ with a notch and looked. Do that first, on a real iPhone from the home screen,\
+    \ and put what you saw in the record. If the bar is in fact clear, close this\
+    \ `not-reproduced` and say what the markup analysis missed; that is a good outcome\
+    \ and a cheap one.\n\ntask-106 is the standing physical-device PWA verification\
+    \ task and is the right vehicle if a device pass is being done anyway.\n\n## If\
+    \ it does reproduce\n\nThe conventional fix is two coupled changes, and neither\
+    \ works without the other:\n\n1. `viewport-fit=cover` on the viewport meta, which\
+    \ is what makes the `env()` values non-zero at all.\n2. Padding driven by `env(safe-area-inset-*)`\
+    \ on the elements that touch an edge \u2014 the pinned header at the top, and\
+    \ the `fixed bottom-4 right-4` Report Issue button (`IssueReporter.tsx:38`) at\
+    \ the bottom, where the home indicator lives.\n\n**`viewport-fit=cover` is the\
+    \ risky half**: it extends the layout viewport into the insets for *every* surface,\
+    \ so a full-width element that looked fine can end up under a rounded corner in\
+    \ landscape. Check the left and right insets in landscape as well as the top \u2014\
+    \ that is the case people forget, and it is the one that clips text rather than\
+    \ merely crowding it.\n\nAndroid and desktop must be unaffected: `env()` resolves\
+    \ to `0px` where there are no insets, so a correct fix is a no-op everywhere else.\
+    \ Prove that rather than assuming it."
+  constraints: "- Reproduce on a real device from the home screen before changing\
+    \ anything, and record what was seen. A screenshot is the evidence; a reading\
+    \ of the markup is not.\n- Frontend only. No API, schema or CLI change.\n- No\
+    \ new npm dependency.\n- `env(safe-area-inset-*)` with a `0px` fallback, so nothing\
+    \ changes on Android, on desktop, or in a browser tab. Show that it did not.\n\
+    - The header stays one row and stays pinned \u2014 task-292. Padding may make\
+    \ the bar taller inside the inset; it may not make it wrap.\n- If `viewport-fit=cover`\
+    \ is added, every surface is checked in landscape as well as portrait, including\
+    \ the left/right insets.\n- `scripts/check.py` green with no arguments before\
+    \ every commit. Take a worktree and bootstrap it first.\n- Jeff sees it on his\
+    \ own installed PWA before it merges. A desktop browser cannot show this at all."
+  out_of_scope: "- Changing what is in the header, its breakpoint, or its pinning\
+    \ \u2014 task-292 settled those; task-167/task-168 own its contents.\n- The bottom\
+    \ safe area for anything other than elements that already sit against the bottom\
+    \ edge.\n- Service-worker and PWA staleness \u2014 task-260.\n- Android display-cutout\
+    \ handling beyond confirming this change is inert there.\n- A general responsive\
+    \ or visual redesign."
+  context:
+  - path: frontend/index.html
+    why: 'Line 5 is the viewport meta with no `viewport-fit=cover`; the file also
+      sets `apple-mobile-web-app-status-bar-style: black-translucent`, which is what
+      asks iOS to draw over the content.'
+  - path: frontend/src/components/PrimaryNav.tsx
+    why: The `sticky top-0` header that now occupies the top 65px of every page, which
+      is what makes this reachable.
+  - path: frontend/src/components/IssueReporter.tsx
+    why: "Line 38 is `fixed bottom-4 right-4` \u2014 the bottom inset, where the home\
+      \ indicator sits."
+  - path: frontend/src/styles.css
+    why: Where inset-aware padding would go. Currently reads no `env()` value anywhere.
+  - path: tasks/agentjobs/task-106-physical-device-pwa-verification.yaml
+    why: The standing physical-device PWA pass, and the natural vehicle for the reproduction
+      step.
+acceptance:
+- id: ac-1
+  text: The behaviour is reproduced or refuted on a real device, from the home screen,
+    with a screenshot in the record. If refuted, this task closes `not-reproduced`
+    and says what the markup analysis missed.
+  status: pending
+- id: ac-2
+  text: In the installed PWA on a device with a notch or dynamic island, the header's
+    content is fully clear of the status bar in portrait, and the Report Issue button
+    is clear of the home indicator.
+  status: pending
+- id: ac-3
+  text: Landscape is checked on the same device, including the left and right insets,
+    and no surface has content under a rounded corner or a cutout.
+  status: pending
+- id: ac-4
+  text: "On Android, on desktop and in a plain browser tab, the rendered layout is\
+    \ unchanged \u2014 shown, not assumed."
+  status: pending
+- id: ac-5
+  text: The header is still one row and still pinned at every viewport; task-292's
+    Playwright assertions still pass unchanged.
+  status: pending
+- id: ac-6
+  text: '`scripts/check.py` green with no arguments on a clean tree, and Jeff has
+    seen it on his own installed PWA.'
+  status: pending
+deliverables: []
+dependencies:
+- task: task-292
+  type: related
+  note: Pinned the header, which is what makes this reachable, and raised it as the
+    open question this task answers.
+- task: task-106-physical-device-pwa-verification
+  type: related
+  note: The standing physical-device PWA pass; the natural vehicle for the reproduction
+    step.
+links: []
+branches: []
+log:
+- id: 1
+  ts: '2026-08-23T20:40:18.350930Z'
+  actor: claude
+  type: transition
+  body: Created ready by claude.
+  data:
+    lifecycle: ready
+    operation:
+      id: 2b47f6c9-15d8-4e03-9a2c-7d51e08c3302
+      kind: create
+      fingerprint: c41c74405ee07b212621b3fe6bfd37fc

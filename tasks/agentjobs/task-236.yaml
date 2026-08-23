@@ -3,7 +3,7 @@ id: task-236
 title: 'Shell 1: settle the breakpoint, and whether the burger menu collides with
   the sidebar'
 created: '2026-08-22T00:38:43.664769Z'
-updated: '2026-08-22T00:44:55.765072Z'
+updated: '2026-08-23T20:37:52.810095Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -140,3 +140,45 @@ log:
       id: 2e6b90cf-a13d-4d75-95a1-0b7e3c8f4d16
       kind: update_content
       fingerprint: 1fb6190433e41d48ad5c5a732ee1e7fd
+- id: 3
+  ts: '2026-08-23T20:37:52.809865Z'
+  actor: claude
+  type: note
+  body: "**Half of this task's second question has been answered on task-292, with\
+    \ a measurement. Read it before answering the rest.**\n\ntask-236 asks two things:\
+    \ the breakpoint, and whether task-168's burger collides with the sidebar. task-292\
+    \ (pin the top bar) had to answer the burger half to do its own work, and it took\
+    \ a measurement this task should have.\n\n**The measurement, from the running\
+    \ app on 2026-08-23.** The header's row of eight items fits on one line only at\
+    \ **\u2273955px** \u2014 bisected: the nav is 128px tall at 950 and 64px at 955,\
+    \ and its intrinsic one-line width is 968px including the `lg` padding. Heights\
+    \ as they stood: 64px at 960 and above, 128px from 820 to 954, 112px from 480\
+    \ to 800, 164px at 320\u2013430.\n\nTwo consequences for the questions this task\
+    \ still owns:\n\n- **The header's own breakpoint is 960, and it is not the same\
+    \ number as the sidebar's.** This app's existing narrow breakpoint is 820px (`min-[820px]:gap-6`,\
+    \ and the `max-width: 819px` block in `styles.css` that restacks the tables).\
+    \ The header stops fitting 135px above that. task-292 shipped `min-[960px]:` for\
+    \ the nav and left 820 alone. If this task lands the sidebar on 820 as well, the\
+    \ 820\u2013954 band gets a sidebar and a condensed nav at once, which may be right\
+    \ \u2014 but it should be chosen knowing the two numbers differ rather than by\
+    \ assuming one breakpoint serves both.\n- **task-235's reopen trigger has fired\
+    \ at those widths.** Its binding decision rejected a global rail and named the\
+    \ condition that would make the rejection wrong: *\"enough top-level surfaces\
+    \ that the header nav wraps.\"* The nav wraps below 955px today, and task-212's\
+    \ analytics page or task-023's runs would move that to ~1050 and start wrapping\
+    \ 1024px screens. task-292 deliberately did **not** act on it \u2014 a transient\
+    \ panel behind a burger is not a rail and costs no width when closed \u2014 but\
+    \ this task is where that gets decided with Jeff, and it now has a number to decide\
+    \ against.\n\n**The burger answer, in full, is task-292's decision entry of 2026-08-23.**\
+    \ In short: navigation left, actions right. task-292's burger holds destinations,\
+    \ exists only below 960px, and sits at the left end of the bar; task-168's holds\
+    \ AgentJobs actions, exists at every width, and keeps the top-right it specified.\
+    \ They do not collide, and the load-bearing reason is task-169 \u2014 folding\
+    \ navigation into task-167's menu would make it un-embeddable, because a host\
+    \ app has no Tasks page. The same note is on task-168.\n\nNothing here decides\
+    \ the sidebar's breakpoint, which is still this task's to settle.\n"
+  data:
+    operation:
+      id: 5a1c93b7-2e40-4d78-b3f1-6c02d4a7e236
+      kind: log_append
+      fingerprint: 0f896c96f42c56927dd6c2b27987c864

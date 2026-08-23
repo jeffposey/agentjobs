@@ -3,7 +3,7 @@ id: task-168-menu-shell
 title: 'Retire the floating button: a burger menu in the top-right that Report issue
   lives inside'
 created: '2026-08-19T17:34:59.227729Z'
-updated: '2026-08-21T16:58:00.414803Z'
+updated: '2026-08-23T20:38:10.494239Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
@@ -176,3 +176,47 @@ log:
       id: f60b8d47-3e91-4c25-8a06-2b7d94e15c38
       kind: log_append
       fingerprint: c01833b0b2f417e1297834206a527e8d
+- id: 3
+  ts: '2026-08-23T20:38:10.494018Z'
+  actor: claude
+  type: note
+  body: "**There is now a second burger in the header, and it is not yours. Read this\
+    \ before you build.**\n\ntask-292 merged a burger into the top bar on 2026-08-23.\
+    \ It is not this task done early, and it must not be folded into this one. The\
+    \ full reasoning is task-292's decision entry; here is what binds on you.\n\n\
+    **What is already there.** Below 960px the header's six destinations \u2014 Dashboard,\
+    \ Tasks, Create, Dispatch, Playbooks, API Docs \u2014 collapse behind a hamburger\
+    \ at the **left** end of the bar, which drops them in a panel over the page. At\
+    \ 960px and above there is no burger at all and the links are inline exactly as\
+    \ before. The header is also now `sticky top-0 z-30`, below your `z-40` button\
+    \ and `z-50` modal.\n\n**Nothing in this task's spec has to change.** You still\
+    \ put an actions menu in the **top-right**, and it still exists at every width.\
+    \ Four things keep the two apart:\n\n- **Corner.** Navigation left, actions right\
+    \ \u2014 the convention Gmail, Slack and Material all use, for this reason.\n\
+    - **Lifetime.** The nav burger exists only below 960px. Above it, yours is the\
+    \ only control in the bar.\n- **Contents.** Yours holds AgentJobs actions; that\
+    \ one holds destinations. They never hold the same entry.\n- **Owner, which is\
+    \ the load-bearing one.** task-169 wants your menu embedded in somebody else's\
+    \ React app. A host app has no Tasks page, so navigation cannot live in the component\
+    \ that gets embedded. Keeping destinations out of it is what makes task-169 possible\
+    \ at all.\n\n**One request, not a constraint: do not use a hamburger icon.** Two\
+    \ hamburgers at opposite ends of one bar read as a duplicate. A kebab (\u22EE\
+    ) or the AgentJobs mark distinguishes yours at a glance. Your call.\n\n**One thing\
+    \ you can reuse.** `frontend/src/components/PrimaryNav.tsx` already settles the\
+    \ popup questions your intent says this task exists to settle \u2014 close on\
+    \ Escape with focus returned to the trigger, close on a press outside, close on\
+    \ navigation, `aria-expanded`/`aria-controls` on a real button, and a `matchMedia`\
+    \ listener so a panel left open does not come back when the viewport crosses the\
+    \ breakpoint. Its jsdom tests cover all of it. Take the pattern; whether the two\
+    \ share code is yours to decide, and they are different enough shapes (a full-width\
+    \ sheet versus an anchored menu) that copying the behaviour may be cleaner than\
+    \ abstracting it.\n\n**Still true, and worth repeating because task-292 moved\
+    \ the Dispatch link one tap further away on a phone:** the Dispatch nav entry\
+    \ stays in the primary navigation. It is where the machine-wide kill switch lives.\
+    \ Below 960px it is now behind the nav burger, which is the most the width allows;\
+    \ it is not in a menu of actions and must not become one.\n"
+  data:
+    operation:
+      id: 8c30f5d1-47a2-4e6b-95af-2b71d0c6e168
+      kind: log_append
+      fingerprint: 6fb90a6229d8b226c0094e1ea21e7b0c
