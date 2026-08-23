@@ -2,7 +2,7 @@ schema: 2
 id: task-215
 title: "Playbooks 2: instantiation \u2014 `playbook run` on CLI, REST and GUI"
 created: '2026-08-21T04:55:56.410481Z'
-updated: '2026-08-23T10:23:53.918979Z'
+updated: '2026-08-23T10:26:33.493852Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -779,3 +779,19 @@ log:
     finish_step: started
     branch: feat/task-215-playbook-run
     finish_id: fin_e26effae
+- id: 18
+  ts: '2026-08-23T10:26:33.493717Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-215-playbook-run` into `main` as `fab8c9ac`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\aj-215
+    before the merge. Approved by Jeff Posey; no agent was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: fab8c9ac90a84612a2f5d6ed41901c3264920aee
+    branch: feat/task-215-playbook-run
+    base: main
