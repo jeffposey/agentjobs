@@ -3,37 +3,36 @@ id: task-286
 title: 'README sells the opinions early: replace "Why this is not another task tracker"
   with what AgentJobs actually decides for you'
 created: '2026-08-23T01:59:04.646353Z'
-updated: '2026-08-23T02:08:47.860596Z'
+updated: '2026-08-23T02:36:20.983366Z'
 lifecycle: active
 ball: human
 ball_reason: review
-ball_prompt: "Read the rendered page: http://127.0.0.1:8899/_readme_preview/ \u2014\
-  \ mkdocs from worktree aj-286, own port. Branch docs/task-286-readme-positioning,\
-  \ commit 86b44e8, full gate green, receipt 86b44e8c.\n\nWHAT CHANGED. \"Why this\
-  \ is not another task tracker\" is gone. In its place, above the fold, is \"It is\
-  \ opinionated, and the schema does the arguing\" \u2014 three guarantees stated\
-  \ as things the model refuses to represent rather than as benefits:\n- a task cannot\
-  \ sit unassigned (ball absent iff closed)\n- a handoff cannot be silent (ball_prompt\
-  \ required whenever the ball is set)\n- every open task has a place in line (queue_position\
-  \ present iff open), which is what makes \"what should I work on\" have one answer\n\
-  \nThen `agentjobs next --why` as the payoff, because it is the command that makes\
-  \ the third guarantee visible. Then the softer opinions as bullets, then the loop-closing\
-  \ point about dispatch. Everything below is unchanged in substance and in the same\
-  \ order.\n\nI PROVED ALL THREE rather than asserting them: constructed each violating\
-  \ task and watched Task.model_validate refuse it. The next --why sample output is\
-  \ the real renderer's shape, taken from a live run, not invented \u2014 my first\
-  \ draft had the format wrong and I caught it by running the command.\n\nTWO CLAIMS\
-  \ I DELIBERATELY WEAKENED, and I want you to agree with the call. Queue-position\
-  \ uniqueness is NOT model-enforced \u2014 one file cannot see another \u2014 so\
-  \ the text says placement holds a lock and `queue check` reports collisions, instead\
-  \ of claiming the schema guarantees it. And the no-set_lifecycle claim is scoped\
-  \ to the interfaces, because TaskManager.update_task does apply whatever keys it\
-  \ is handed (task-254 is the open task for that). Both would have read stronger\
-  \ overclaimed, and overclaiming is the exact defect the previous branch spent today\
-  \ removing from these docs.\n\nHOUSEKEEPING: the worktree has two uncommitted review-scaffolding\
-  \ files \u2014 docs/_readme_preview.md and a nav line in mkdocs.yml \u2014 so the\
-  \ page could be rendered. They are NOT in the commit and I will revert them before\
-  \ merging. Say the word and I merge, or tell me what to change."
+ball_prompt: "Review the diagrams: https://claude.ai/code/artifact/bc34008f-54e8-4dfc-a073-ed9ec048372e\n\
+  \nTwo commits now. 86b44e8 replaced the weak positioning section; 153c932 replaced\
+  \ the opening YAML block with three Mermaid diagrams and moved that block down into\
+  \ \"Resuming with no chat history\". Gate green on both, latest receipt 153c9328.\n\
+  \nJeff asked for icons and a more professional look, so roles are now painted classes\
+  \ with a glyph: agent blue, human amber, external grey and dashed. The fills and\
+  \ text colours are EXPLICIT rather than inherited from Mermaid's theme \u2014 that\
+  \ is deliberate, because a theme-inherited palette inverts into unreadable mud in\
+  \ GitHub's dark mode. Painted nodes read identically in both.\n\nWHY MERMAID AND\
+  \ NOT IMAGES: it is text, so it diffs and reviews like code, and GitHub renders\
+  \ it natively so there is no asset to keep in sync with the prose. All three were\
+  \ rendered and inspected before landing \u2014 node and edge counts checked against\
+  \ the source, not glanced at.\n\nTHE ARTIFACT PULLS ITS DIAGRAMS OUT OF README.md\
+  \ at publish time rather than carrying its own copies, so the review page cannot\
+  \ drift from the thing being reviewed.\n\nWORKTREE IS CLEAN. The preview scaffolding\
+  \ from the previous handoff (docs/_readme_preview.md and a mkdocs nav line) has\
+  \ been reverted; only README.md is in the commits.\n\nSTILL OPEN FOR YOU:\n1. Screenshots.\
+  \ You floated the dashboard and task list, then said they are rough and moving fast.\
+  \ My recommendation is to hold: a stale screenshot on a public front page ages badly\
+  \ and these diagrams do not. Say so and I will capture both for you to judge.\n\
+  2. The two deliberately-weakened claims from the previous handoff still stand and\
+  \ still want your agreement \u2014 queue-position uniqueness is not model-enforced,\
+  \ and the no-set_lifecycle claim is scoped to the interfaces.\n\nFiled separately\
+  \ as task-287: the docs site cannot render Mermaid at all (mkdocs-material empties\
+  \ the containers), which is why this review went to an artifact instead of the mkdocs\
+  \ preview. The README is unaffected."
 archived: false
 priority: high
 queue_position: 14900
@@ -165,3 +164,40 @@ log:
       id: 4a1c86e7-3b59-4f02-9d84-71e5c2b0a936
       kind: handoff
       fingerprint: 9fa82997f6b6c80381ac934adce15241
+- id: 4
+  ts: '2026-08-23T02:36:20.983189Z'
+  actor: claude
+  type: handoff
+  body: "Review the diagrams: https://claude.ai/code/artifact/bc34008f-54e8-4dfc-a073-ed9ec048372e\n\
+    \nTwo commits now. 86b44e8 replaced the weak positioning section; 153c932 replaced\
+    \ the opening YAML block with three Mermaid diagrams and moved that block down\
+    \ into \"Resuming with no chat history\". Gate green on both, latest receipt 153c9328.\n\
+    \nJeff asked for icons and a more professional look, so roles are now painted\
+    \ classes with a glyph: agent blue, human amber, external grey and dashed. The\
+    \ fills and text colours are EXPLICIT rather than inherited from Mermaid's theme\
+    \ \u2014 that is deliberate, because a theme-inherited palette inverts into unreadable\
+    \ mud in GitHub's dark mode. Painted nodes read identically in both.\n\nWHY MERMAID\
+    \ AND NOT IMAGES: it is text, so it diffs and reviews like code, and GitHub renders\
+    \ it natively so there is no asset to keep in sync with the prose. All three were\
+    \ rendered and inspected before landing \u2014 node and edge counts checked against\
+    \ the source, not glanced at.\n\nTHE ARTIFACT PULLS ITS DIAGRAMS OUT OF README.md\
+    \ at publish time rather than carrying its own copies, so the review page cannot\
+    \ drift from the thing being reviewed.\n\nWORKTREE IS CLEAN. The preview scaffolding\
+    \ from the previous handoff (docs/_readme_preview.md and a mkdocs nav line) has\
+    \ been reverted; only README.md is in the commits.\n\nSTILL OPEN FOR YOU:\n1.\
+    \ Screenshots. You floated the dashboard and task list, then said they are rough\
+    \ and moving fast. My recommendation is to hold: a stale screenshot on a public\
+    \ front page ages badly and these diagrams do not. Say so and I will capture both\
+    \ for you to judge.\n2. The two deliberately-weakened claims from the previous\
+    \ handoff still stand and still want your agreement \u2014 queue-position uniqueness\
+    \ is not model-enforced, and the no-set_lifecycle claim is scoped to the interfaces.\n\
+    \nFiled separately as task-287: the docs site cannot render Mermaid at all (mkdocs-material\
+    \ empties the containers), which is why this review went to an artifact instead\
+    \ of the mkdocs preview. The README is unaffected."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: f0b7d43a-9c15-4e82-b6a1-3d59c027e418
+      kind: handoff
+      fingerprint: b22b547b18fb877292c443cd35cecda8
