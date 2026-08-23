@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator
 
 import pytest
+import yaml
 
 from agentjobs.actors import FINISHER, reserved_actors
 from agentjobs.dispatch.config import FinishSettings
@@ -36,6 +37,7 @@ from agentjobs.dispatch.finish import (
     DECLINED,
     ESCALATED,
     FINISHED,
+    POSTURE,
     Escalate,
     Plan,
     active_branches,
@@ -818,3 +820,157 @@ class TestTheRecordWhileItRuns:
         for step in ("preflight", "rebase", "gate", "merge", "rebuild", "restart", "verify"):
             assert step in closing.body
         assert "up to and including verification" in closing.body
+
+
+def write_dispatch_config(world: Dict[str, Any], posture: str) -> None:
+    """A machine-local dispatch config that permits ``demo`` at ``posture``.
+
+    Written into the world's own home rather than mocked, because the posture check is
+    the whole point of the authority: reading it from the real configuration loader is
+    what makes the test evidence that a *deployment* cannot merge unreviewed unless it
+    said so.
+    """
+    home = world["home"]
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "dispatch.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "enabled": True,
+                "runners": {"claude": {"argv": ["claude", "-p", "{prompt}"]}},
+                "projects": {
+                    "demo": {"enabled": True, "runner": "claude", "posture": posture},
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+def release(world: Dict[str, Any], **overrides: Any) -> Any:
+    """A finish claiming the posture authority, as a dispatched autonomous run does."""
+    return finish_task(
+        manager=world["manager"],
+        project=world["project"],
+        task_id=world["task_id"],
+        approver="run_abcd1234",
+        home=world["home"],
+        api_base=overrides.pop("api_base", "http://127.0.0.1:1"),
+        settings=settings(**overrides),
+        authority=POSTURE,
+    )
+
+
+class TestThePostureAuthority:
+    """task-021. The merge an agent makes without a human, and what gates it.
+
+    The property under test is not "autonomous can merge" -- it is that the *sanctioned
+    path* cannot merge at a posture that did not release it. Containment against an
+    agent that ignores its instructions is not on offer here and is not claimed:
+    ``autonomous`` is ``bypassPermissions``, and a run that wanted to could merge by
+    hand. What this guarantees is that the command an agent is told to run fails closed
+    when the deployment did not ask for unreviewed merges.
+    """
+
+    def test_a_review_posture_declines_and_touches_nothing(self, world: Dict[str, Any]) -> None:
+        write_dispatch_config(world, "auto")
+        before = head(world["root"])
+
+        result = release(world)
+
+        assert result.outcome == DECLINED
+        assert result.reason == "posture_requires_review"
+        assert not merged_into(world["root"], world["branch"])
+        assert head(world["root"]) == before
+        # It says which posture and what to do instead, because the agent reading this
+        # exit code has to decide what to do next from it alone.
+        assert "auto" in result.detail
+        assert "human/review" in result.detail
+
+    def test_supervised_declines_for_the_same_reason(self, world: Dict[str, Any]) -> None:
+        write_dispatch_config(world, "supervised")
+
+        result = release(world)
+
+        assert result.outcome == DECLINED
+        assert result.reason == "posture_requires_review"
+
+    def test_read_only_declines_too(self, world: Dict[str, Any]) -> None:
+        """It has no branch by construction, but nothing here relies on that."""
+        write_dispatch_config(world, "read_only")
+
+        assert release(world).reason == "posture_requires_review"
+
+    def test_an_autonomous_posture_merges(self, world: Dict[str, Any]) -> None:
+        write_dispatch_config(world, "autonomous")
+
+        result = release(world)
+
+        assert result.outcome == FINISHED
+        assert merged_into(world["root"], world["branch"])
+
+    def test_a_red_gate_still_stops_it(self, world: Dict[str, Any]) -> None:
+        """The objective floor. It is the authority, so it cannot be the soft half."""
+        write_dispatch_config(world, "autonomous")
+        (world["worktree"] / "scripts").mkdir(parents=True, exist_ok=True)
+        (world["worktree"] / "scripts" / "check.py").write_text(RED_GATE, encoding="utf-8")
+        git(world["worktree"], "add", "--", "scripts/check.py")
+        git(world["worktree"], "commit", "-m", "chore: a red gate")
+
+        result = release(world)
+
+        assert result.outcome == ESCALATED
+        assert result.reason == "gate_failed"
+        assert not merged_into(world["root"], world["branch"])
+
+    def test_the_record_says_no_human_reviewed_it(self, world: Dict[str, Any]) -> None:
+        """ac-5's other half: the record must not read like an approved merge.
+
+        A reader six months from now has no way to tell the two apart except by what is
+        written here, and "Approved by ..." on a merge nobody approved is the worst
+        possible sentence to leave behind.
+        """
+        write_dispatch_config(world, "autonomous")
+
+        result = release(world)
+
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        merge_entry = next(entry for entry in task.log if entry.data.get("finish_step") == "merge")
+        assert "No human reviewed this merge" in merge_entry.body
+        assert "autonomous" in merge_entry.body
+        assert "run_abcd1234" in merge_entry.body
+        assert "Approved by" not in merge_entry.body
+        # And the same account is in the merge commit itself, where git will keep it
+        # regardless of what happens to the task file. Named by its sha rather than by
+        # HEAD: the finisher commits the closing task record onto the base afterwards,
+        # so HEAD is that commit and not the merge.
+        assert result.merge_commit
+        message = subprocess.run(
+            ["git", "-C", str(world["root"]), "log", "-1", "--format=%B", result.merge_commit],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        ).stdout
+        assert "No human reviewed this merge" in message
+
+    def test_an_approval_still_says_a_person_approved_it(self, world: Dict[str, Any]) -> None:
+        """The regression that matters: the default authority is unchanged."""
+        result = run(world)
+
+        assert result.outcome == FINISHED
+        task = world["manager"].get_task(world["task_id"])
+        assert task is not None
+        merge_entry = next(entry for entry in task.log if entry.data.get("finish_step") == "merge")
+        assert "Approved by Jeff Posey" in merge_entry.body
+        assert "No human reviewed" not in merge_entry.body
+
+    def test_a_project_dispatch_never_enabled_declines_rather_than_merging(
+        self, world: Dict[str, Any]
+    ) -> None:
+        """No config at all is not a posture that releases anything."""
+        result = release(world)
+
+        assert result.outcome == DECLINED
+        assert not merged_into(world["root"], world["branch"])

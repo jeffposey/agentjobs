@@ -65,10 +65,16 @@ handoff rules already stored in task records and these process files.
     yourself** — see [You do not work the children](#you-do-not-work-the-children)
     below. The child follows the normal task lifecycle in its own session: it takes its
     own worktree, and when it reaches human review it hands off and stops. Never merge
-    without explicit approval for that child.
+    a child yourself, and never on your own approval.
 4.  Approval releases that checkpoint; it does not end the parent loop. The child's own
     session preserves the recorded approval, merges, closes itself and removes its
     worktree. You then continue automatically with the next eligible child.
+
+    **At posture `autonomous` there is no checkpoint to release** (task-021): a child
+    merges its own work once its own gate is green, and you continue to the next
+    eligible child without waiting for anything. Your prompt's policy clause says which
+    of the two you are in. It changes nothing else about the loop — you still start one
+    child at a time, you still do not work them, and you still approve nothing.
 5.  When no unfinished child remains, evaluate the parent's acceptance criteria against
     durable child evidence, perform any parent-level verification, and close the parent
     when supported.
@@ -114,8 +120,9 @@ avoid.
 Two things do not change because a child is a session. Its **task records still go to
 `main` in this clone**, never to its branch — see
 [Task files live on `main`](ENGINEERING.md#task-files-live-on-main-always). And its
-**merge gate is untouched**: a child merges on explicit human approval of that child, and
-never on yours.
+**merge gate stands or falls on the child's own terms**: a child merges on an explicit
+human approval of *that child*, or — at posture `autonomous` — on its own green gate.
+Never on yours. A supervisor approves nothing under either policy.
 
 One thing does change, and it is what would otherwise sink the rule: a fresh worktree has
 no virtualenv and no `node_modules`, so a child session **cannot run `scripts/check.py`
@@ -173,6 +180,11 @@ are not working it — you are supervising, you take no worktree, and
     and what needs review, and **commit that to `main`** — a handoff sitting on your
     branch is invisible in the React app, so the human you are handing to will never see
     it. **Stop there** — do not merge.
+
+    **Unless your dispatch prompt told you otherwise.** A run at posture `autonomous`
+    is told, in its own prompt, that the merge gate is released for it; that sentence
+    is the only authority for skipping this step, and if it is not in your prompt you
+    do not have it. See [Your prompt says whether you stop here](#your-prompt-says-whether-you-stop-here).
 6.  **On approval**: Rebase onto `main`, merge `--no-ff`, mark the branch `merged`,
     `close` the task with `outcome: completed`, and `git worktree remove` your worktree.
 7.  **Then put it in front of them.** Rebuild the frontend if you touched it, restart the
@@ -182,6 +194,45 @@ are not working it — you are supervising, you take no worktree, and
     skip this, and they will find out before you do. See
     [The Merge Gate](ENGINEERING.md#the-merge-gate) for the commands, including which
     server is yours to restart and which is not.
+
+### Your prompt says whether you stop here
+
+Step 5 is unconditional for a person and for every posture but one. **A dispatched run's
+posture decides whether the merge gate stands for it** (task-021), and the decision
+reaches you exactly once, in the prompt that started your run:
+
+- *"Posture `auto` stops at the merge gate…"* — or `supervised`, or no clause at all.
+  Step 5 as written. Hand off, stop, and let a human approve. This is the default and
+  almost always what you have.
+- *"Posture `autonomous` releases the merge gate…"* — you merge your own work, and the
+  clause names the command. It is **not** `git merge`:
+
+  ```bash
+  poetry run agentjobs finish <task-id> --project <project> --posture-release
+  ```
+
+  Record your evidence on the task **first** — what you built, what you verified, what
+  you decided and rejected. A merge nobody can review afterwards is worse than one
+  nobody reviewed beforehand, and that log entry is the only review this work will get.
+  Then run the command. It rebases onto `main`, runs the **full unqualified
+  `scripts/check.py`** on the rebased branch, and merges only on a green one; a red gate
+  or a conflicting rebase stops it and hands the ball back with what it got done written
+  on the record. Exit 0 means merged, closed, delivered and verified.
+
+**Two things have to hold, not one.** The gate is the objective floor and your own
+judgement is the other half: if you found something genuinely wrong with the work, hand
+off for review however green the gate is. "No serious issue detected by the agent" is you
+grading your own homework, which is why it is never the only authority — and the reason
+the merge goes through the finisher is that the finisher runs the gate itself rather than
+taking your word for it.
+
+**Never push**, whatever your posture, unless the prompt's push clause says this project
+permits it. AgentJobs is configured `push: false` and always will be. Merging into a
+local `main` is recoverable; publishing is not, and that recoverability is the whole
+reason an unreviewed merge is acceptable here.
+
+If you are supervising a parent task, the clause is phrased for you instead: it tells you
+what the children you start will do, and you approve nothing yourself either way.
 
 ### Steps 6 and 7 may be done before you wake up
 
@@ -199,9 +250,12 @@ You are woken only when it stopped, and then **the record tells you where, and w
   says which. For a conflict it also says whether your branch was restored to where it
   was, having read the tip back rather than assumed it.
 
-Nothing about the merge gate itself is relaxed: a person still approves, per task, and
-step 5 above is still where you stop. `agentjobs finish <task>` is the same code by
-hand, and is how a finish that escalated is retried once its cause is fixed.
+The scripted finish relaxes nothing about *who* authorises a merge; it only removes the
+agent from the commands after the authorisation. At `auto` and `supervised` a person
+still approves, per task, and step 5 above is still where you stop. At `autonomous` the
+authority is the green gate and you invoke the same code yourself with
+`--posture-release`. Either way `agentjobs finish <task>` is that code by hand, and is
+how a finish that escalated is retried once its cause is fixed.
 
 ### You may be woken rather than restarted
 
@@ -213,8 +267,9 @@ built and what you verified. Do not start over and do not take a second worktree
 
 This exists because the post-approval run — rebase, merge `--no-ff`, close, rebuild,
 restart — averaged about eleven minutes, almost none of it those commands. It was a cold
-agent working out which branch it owned. Resuming skips that and nothing else: the human
-still approves in the GUI, and the merge gate is untouched.
+agent working out which branch it owned. Resuming skips that and nothing else: whatever
+authorises the merge for your posture is exactly what authorised it before — a human in
+the GUI for `auto` and `supervised`, a green gate for `autonomous`.
 
 Two things to do with it:
 

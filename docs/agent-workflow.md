@@ -62,6 +62,59 @@ record it. So the containment is unchanged in what it protects; taking it is now
 first act rather than the launcher's. The full argument, with the reproduction, is in
 [the dispatch design](agent-dispatch-design.md).
 
+## When the work is done: does this run merge, or stop?
+
+Both answers exist, and **your dispatch prompt is the only thing that tells you which one
+you have.** It is the only channel that can: the answer comes from the project's posture
+in machine-local `~/.agentjobs/dispatch.yaml`, which you cannot read and must not, and
+every committed document in a repository has to be written for the default.
+
+| Posture | The prompt says | What you do when the work is done |
+|---|---|---|
+| `read_only` | nothing about merging | you have no branch; your output is the record |
+| `auto`, `supervised` | *"stops at the merge gate"* | hand off to `human`/`review` and **stop** |
+| `autonomous` | *"releases the merge gate"* | record the evidence, then merge it yourself |
+
+**No clause means you stop.** A prompt from an older dispatch, a prompt you are
+reconstructing from memory, a session you are unsure about — all of them mean the gate
+stands. Nothing here fails towards merging.
+
+### Merging your own work, when the posture releases it
+
+Record what you did on the task **first** — what you built, what you verified and how,
+what you decided and what you rejected. This is not bookkeeping to do afterwards. It is
+the only review this work will ever get, and a merge nobody can reconstruct is worse than
+a merge nobody approved.
+
+Then run the command the clause names:
+
+```bash
+poetry run agentjobs finish <task-id> --project <project> --posture-release
+```
+
+It rebases onto the base branch, runs the **full unqualified `scripts/check.py`** on the
+rebased branch with that worktree's own interpreter, and merges `--no-ff` only if that is
+green. Then it rebuilds, restarts, verifies the running service is serving the merge,
+closes the task and removes your worktree. Exit 0 means all of that happened. Exit 1
+means it stopped, and the task record says at which step and whether anything was merged.
+Exit 2 means it declined and touched nothing — including when the posture does not
+actually release the gate, which is checked there rather than taken on trust.
+
+**Do not run `git merge` instead.** The whole reason an unreviewed merge is acceptable is
+that an objective check ran on the exact commit being merged, and it ran somewhere other
+than in your own account of your work. A hand merge is that check's absence.
+
+**Two conditions, not one.** The gate is the floor; your judgement is the other half. If
+you found something genuinely wrong — a design you are not confident in, a test you
+disabled to get green, an acceptance criterion you could not meet — hand off for review
+however green the gate is, and say why. "No serious issue detected by the agent" is you
+grading your own homework, and it is trusted only as a veto, never as an authorisation.
+
+**Never push** unless the prompt's push clause says the project permits it. That clause
+is per project and defaults to off. A local merge is recoverable by anyone with a reflog;
+a push is a publication, and it is exactly that recoverability that makes merging without
+a reviewer defensible in the first place.
+
 ## Working a parent task: you supervise the children, you do not work them
 
 A task with an open child is an epic. **Whoever holds it starts a separate session per

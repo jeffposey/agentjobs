@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import sys
 from contextlib import suppress
 from pathlib import Path
@@ -1469,6 +1470,7 @@ def dispatch_show_config(
         typer.echo(
             f"  {pid:20} {state}  {against}  "
             f"posture={settings.posture.value}  "
+            f"merge={settings.posture.merge_policy.value}  push={settings.push}  "
             f"clean_tree={settings.require_clean_tree}  auto={settings.auto_dispatch}"
         )
 
@@ -1494,7 +1496,10 @@ def dispatch_show_config(
             via = f" from group '{chosen.group}' ({chosen.source.value})" if chosen else ""
             typer.echo(
                 f"\n{project_id}: permitted - runner '{resolution.runner.name}'{via} "
-                f"({resolution.runner.mode.value}), posture {resolution.settings.posture.value}"
+                f"({resolution.runner.mode.value}), posture "
+                f"{resolution.settings.posture.value}, merge "
+                f"{resolution.settings.posture.merge_policy.value}, push "
+                f"{resolution.settings.push}"
             )
             if chosen:
                 for candidate in chosen.candidates:
@@ -2044,8 +2049,13 @@ def finish(
     project_id: Optional[str] = typer.Option(
         None, "--project", help="Registered project id. Defaults to the one you are in."
     ),
-    approver: str = typer.Option(
-        "a human", "--approver", help="Who approved this, for the merge message and the log."
+    approver: Optional[str] = typer.Option(
+        None, "--approver", help="Who approved this, for the merge message and the log."
+    ),
+    posture_release: bool = typer.Option(
+        False,
+        "--posture-release",
+        help="Merge on the project's posture rather than on a human approval (task-021).",
     ),
 ) -> None:
     """Run the scripted post-approval finish, with no agent in the loop (task-241).
@@ -2053,13 +2063,19 @@ def finish(
     This is what the Approve button starts in a detached process; running it by hand is
     the same code and is how a finish that escalated is retried once its cause is fixed.
 
-    It never merges anything a person has not approved, and it stops at the first thing
-    it cannot do safely -- a conflicting rebase, a red gate, a server it cannot show is
-    serving the merged code -- writing where it stopped onto the task and handing the
-    ball back. Exit code 0 means merged, closed and verified; 1 means it stopped and the
-    task says where; 2 means the task was never a candidate and nothing happened.
+    It stops at the first thing it cannot do safely -- a conflicting rebase, a red gate,
+    a server it cannot show is serving the merged code -- writing where it stopped onto
+    the task and handing the ball back. Exit code 0 means merged, closed and verified;
+    1 means it stopped and the task says where; 2 means the task was never a candidate
+    and nothing happened.
+
+    Without ``--posture-release`` it merges only what a person approved. With it, a
+    dispatched run merges its own work on the strength of the project's posture, and the
+    posture is checked here: anything but ``autonomous`` exits 2 having touched nothing.
+    See ALLAGENTS.md on the merge gate for when that is the right flag to be passing.
     """
-    from agentjobs.dispatch.finish import DECLINED, ESCALATED, finish_task
+    from agentjobs.dispatch.finish import APPROVAL, DECLINED, ESCALATED, POSTURE, finish_task
+    from agentjobs.dispatch.phases import RUN_ID_ENV
 
     registry = ProjectRegistry()
     try:
@@ -2068,8 +2084,23 @@ def finish(
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
+    if approver is None:
+        # A posture release has no approver, so it must not default to a word that reads
+        # like one. It names the run instead, which is what a reader of the merge would
+        # go and look up. The run id is in the environment of anything a dispatch spawned.
+        run_id = os.environ.get(RUN_ID_ENV) if posture_release else None
+        approver = (
+            f"run {run_id}" if run_id else ("a dispatched run" if posture_release else "a human")
+        )
+
     manager = TaskManager(TaskStorage(project.tasks_dir()))
-    result = finish_task(manager=manager, project=project, task_id=task_id, approver=approver)
+    result = finish_task(
+        manager=manager,
+        project=project,
+        task_id=task_id,
+        approver=approver,
+        authority=POSTURE if posture_release else APPROVAL,
+    )
     typer.echo(result.render())
     if result.outcome == DECLINED:
         typer.secho(f"Nothing done ({result.reason}).", fg=typer.colors.YELLOW)

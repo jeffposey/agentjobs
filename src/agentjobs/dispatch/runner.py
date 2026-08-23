@@ -60,6 +60,7 @@ from agentjobs.dispatch.codex_app_server import (
 from agentjobs.dispatch.config import (
     DispatchResolution,
     DispatchRunner as RunnerConfig,
+    MergePolicy,
     Posture,
     RunnerDriver,
     RunnerMode,
@@ -199,6 +200,92 @@ The children are named rather than counted because the supervisor's first decisi
 which one is eligible, and a count sends it back to the API for something the prompt
 could have carried for nothing. Named, not described: what each child *is* stays in its
 own record, per the pointer-not-composition rule above."""
+
+REVIEW_CLAUSE = (
+    "Posture `{posture}` stops at the merge gate: when the work is done and verified, "
+    "record the evidence on the task, hand the ball to human/review, and stop. Do not "
+    "merge."
+)
+"""What a run is told when its posture leaves the merge gate standing (task-021)."""
+
+AUTOMATIC_CLAUSE = (
+    "Posture `{posture}` releases the merge gate: this run merges its own work with no "
+    "human review. Record the evidence on the task first, then run `agentjobs finish "
+    "{task_id} --project {project_id} --posture-release` from {project_root}. That "
+    "rebases, runs the full gate, and merges only on a green one -- it stops and hands "
+    "the ball back if anything fails. Do not merge by hand."
+)
+"""What a run is told when its posture releases the merge gate (task-021).
+
+It names a command rather than describing an outcome, for the reason task-192 gave about
+the worktree: an instruction a model can satisfy in several ways will be satisfied in the
+cheapest one, and here the cheapest one is ``git merge``, which skips the gate that is
+the entire safety argument for merging without a person. So the clause says which
+command, and says not to do it by hand.
+"""
+
+SUPERVISOR_REVIEW_CLAUSE = (
+    "Posture `{posture}` stops at the merge gate: each child you start hands off for "
+    "human review and merges only on an approval. You approve nothing yourself."
+)
+"""The review policy, restated for a run that holds no branch of its own."""
+
+SUPERVISOR_AUTOMATIC_CLAUSE = (
+    "Posture `{posture}` releases the merge gate: a child you start merges its own work "
+    "once its gate is green, with no human review."
+)
+"""The automatic policy, restated for a run that holds no branch of its own."""
+
+NO_PUSH_CLAUSE = "Never push: this project is configured `push: false`."
+PUSH_CLAUSE = "This project is configured `push: true`, so pushing `{base}` is permitted."
+"""The push half, which is the project's decision and never the posture's (task-021)."""
+
+
+def policy_clause(
+    posture: Posture,
+    *,
+    push: bool,
+    task_id: str,
+    project_id: str,
+    project_root: object,
+    base_branch: str = "main",
+    supervisor: bool = False,
+) -> str:
+    """What this run is permitted to do with its branch, in one or two sentences.
+
+    **The generated prompt is the only channel this policy has**, which is why a stub
+    that is otherwise a pointer states it in full. Everything else the stub gestures at
+    is *in the record*: the spec, the ball prompt, the guide. The merge policy is not.
+    It is derived from machine-local configuration in ``~/.agentjobs/dispatch.yaml``,
+    which the agent cannot read, must not read, and would not be told about by any
+    document in the repository -- and the same repository's committed prose says
+    unconditionally that work does not merge itself. A run that is not told otherwise
+    will obey the prose, correctly, and an ``autonomous`` posture would then mean
+    nothing at all.
+
+    ``read_only`` gets no clause. It has no branch, and a sentence about what to do with
+    one is noise in the prompt of a run that cannot write a file.
+    """
+    policy = posture.merge_policy
+    if policy is MergePolicy.NONE:
+        return ""
+    if supervisor:
+        template = (
+            SUPERVISOR_AUTOMATIC_CLAUSE
+            if policy is MergePolicy.AUTOMATIC
+            else SUPERVISOR_REVIEW_CLAUSE
+        )
+    else:
+        template = AUTOMATIC_CLAUSE if policy is MergePolicy.AUTOMATIC else REVIEW_CLAUSE
+    merge = template.format(
+        posture=posture.value,
+        task_id=task_id,
+        project_id=project_id,
+        project_root=project_root,
+    )
+    push_text = PUSH_CLAUSE.format(base=base_branch) if push else NO_PUSH_CLAUSE
+    return f"{merge} {push_text}"
+
 
 CHILDREN_NAMED = 8
 """How many child ids the supervisor stub lists before it summarises the rest.
@@ -1065,6 +1152,10 @@ class DispatchRunner:
         settings is the bug task-220 fixes, and reading the record twice is how that
         would eventually happen. Passing it in reads once. Omitted, this looks it up
         itself, so every other caller is unchanged.
+
+        The posture's merge and push policy is appended (task-021) and is the one thing
+        here that is *not* a pointer, because there is nothing to point at: see
+        ``policy_clause``.
         """
         if children is None:
             children = self.open_child_ids(task_id)
@@ -1078,6 +1169,18 @@ class DispatchRunner:
             run_id=run_id,
             children=describe_children(children),
         )
+        settings = self.resolution.settings
+        clause = policy_clause(
+            settings.posture,
+            push=settings.push,
+            task_id=task_id,
+            project_id=self.resolution.project_id,
+            project_root=self.project_root,
+            base_branch=settings.finish.base_branch,
+            supervisor=bool(children),
+        )
+        if clause:
+            rendered = f"{rendered} {clause}"
         # A playbook run appends one line and changes nothing else about the stub. It is
         # a pointer at the brief, never the brief: see ``PlaybookPointer.prompt_line``.
         if self.playbook is not None:

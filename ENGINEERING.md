@@ -353,14 +353,20 @@ what is checked out before filing anything.
     shows *what*.
 
 ### The Merge Gate
-Work does not merge itself. When a branch is complete and verified:
+Work does not merge itself **unless the run's posture releases it**, and only one posture
+does. Read [Posture decides this, not you](#posture-decides-this-not-you) below before
+concluding either half applies to you; if you are a person, or a run whose posture was
+not named there, the rule is unqualified and the release does not exist for you.
+
+When a branch is complete and verified:
 
 1.  **Stop.** Use the handoff API to set `ball: human` / `ball_reason: review`, with a
     `ball_prompt` and handoff log entry stating what was done and what needs review.
     Notify the human through whatever interactive channel is available (the chat reply
     and, when the host provides it, a push notification). The notification is only a
     wake-up signal; the task record must contain the complete review request.
-2.  Wait for **explicit** human approval. Absence of objection is not approval.
+2.  Wait for **explicit** human approval. Absence of objection is not approval, and
+    neither is your own confidence that the work is good.
 3.  On approval: rebase onto `main`, then merge with `--no-ff` (the merge commit is the
     reviewable unit of work, so fast-forward is not acceptable).
 4.  Mark the branch `merged` in `branches[]` and set the task `completed`.
@@ -383,6 +389,57 @@ Work does not merge itself. When a branch is complete and verified:
     Restart it the way it was started, and check the environment's own setup notes for
     that command rather than assuming the default. Either way the step is the same: the
     human ends up on the merged version, and you checked.
+
+#### Posture decides this, not you
+
+**A dispatched run's posture now carries two things** (task-021): what the process may
+execute, which it always did, and whether the run stops at the gate above, which it did
+not. The second is derived from the first — there is no separate switch, because
+"autonomous execution, but stop for review" is not a state anyone has wanted, and two
+switches would mean nobody had thought about the combinations.
+
+| Posture | Executes | Merge | Push |
+|---|---|---|---|
+| `read_only` | no shell at all | no branch to merge | n/a |
+| `auto` **(default)** | classifier-gated | **stop, hand off, wait for approval** | per project |
+| `supervised` | allow-list, parks otherwise | **stop, hand off, wait for approval** | per project |
+| `autonomous` | `bypassPermissions` | merges its own work | per project |
+
+`auto` and `supervised` are deliberately identical here. They differ in how the process
+is gated *while it runs*, which is a different question from who authorises the merge,
+and giving them different answers to the second would make the choice between them
+silently decide something nobody was choosing.
+
+**An autonomous run does not run `git merge`.** It records its evidence on the task and
+then runs the scripted finish with the flag that says which authority it is claiming:
+
+```bash
+poetry run agentjobs finish task-021 --project agentjobs --posture-release
+```
+
+That routes it through exactly the sequence a human approval takes — rebase onto `main`,
+**the full unqualified `scripts/check.py` on the rebased branch**, `--no-ff` merge,
+rebuild, restart, verify, close, remove the worktree — and stops at the first step it
+cannot complete, handing the ball back with what it got done written on the record. The
+posture is re-checked there, in code: `--posture-release` on a project configured `auto`
+declines and touches nothing.
+
+**The gate is the point.** "No serious issue detected by the agent" is the agent grading
+its own homework and is the least reliable authority available, so it is not the one that
+merges. `scripts/check.py` exit 0 is, and it is run by the finisher rather than reported
+by the agent. Both have to hold: an agent that finds a serious problem stops and hands
+off however green the gate was, and a green agent with a red gate merges nothing.
+
+**Push is not a posture property.** It is per project, it defaults to `false`, and it is
+`false` here. Merging into a local `main` is recoverable by anyone with a reflog;
+publishing is not, and it is the difference that makes an unreviewed merge acceptable in
+this repository at all. Nothing in AgentJobs runs `git push`.
+
+**What happens when an autonomous run merges something bad?** It is caught by whoever
+next reads `main`, and it is reverted, because nothing left this machine. That is the
+whole of the safety argument, and it is why `push: false` matters more here than the
+merge policy does. A project that both releases the merge gate and permits pushing has
+given up the recovery, and should want a much stronger reason than this one.
 
 #### Steps 3 to 6 may already have happened before you read them
 
