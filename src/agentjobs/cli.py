@@ -38,6 +38,16 @@ from .mcp.config import TIMEOUT_ENV as MCP_TIMEOUT_ENV
 from .migration import migrate_tasks
 from .migration.reporter import MigrationReporter
 from .models_v2 import Ball, DispatchMode, Lifecycle, Outcome, Priority
+from .playbooks import (
+    PLAYBOOK_SUFFIX,
+    PlaybookError,
+    PlaybookListing,
+    UnknownPlaybookError,
+    install_references,
+    list_playbooks,
+    read_playbook,
+    resolve_playbooks_dir,
+)
 from .project_setup import (
     DEFAULT_CONFIG,
     MCP_CONFIG_FILENAME,
@@ -2009,6 +2019,128 @@ def finish(
             typer.echo(f"   Escalated into run {result.dispatched_run_id}.")
         raise typer.Exit(code=1)
     typer.secho(f"✅ {result.detail}", fg=typer.colors.GREEN)
+
+
+playbook_app = typer.Typer(
+    name="playbook",
+    help="Read the reusable briefs this project keeps for recurring work.",
+)
+app.add_typer(playbook_app)
+
+
+def _playbooks_dir(base_dir: Path) -> Path:
+    """This project's playbooks directory, resolved from its own config."""
+    return resolve_playbooks_dir(base_dir, _load_config(base_dir))
+
+
+def _report_playbook_problems(listing: PlaybookListing) -> None:
+    """Print the files that are in the directory and are not playbooks.
+
+    Before the valid ones, and on stderr, for the reason the queue prints its problems
+    first: a file that fails validation and is then omitted from the listing reads as a
+    playbook nobody ever wrote, and its author is the one person who needs to hear
+    about it.
+    """
+    if not listing.problems:
+        return
+    typer.secho(
+        f"\u26a0\ufe0f  {len(listing.problems)} problem(s) in {listing.directory}:",
+        fg=typer.colors.RED,
+        err=True,
+    )
+    for problem in listing.problems:
+        typer.secho(f"   {problem.render()}", fg=typer.colors.RED, err=True)
+
+
+@playbook_app.command("list")
+def playbook_list() -> None:
+    """Every playbook this project holds, with what each one is for.
+
+    Reads files. It does not run anything, and there is no command here that does:
+    starting a playbook run is human-gated and arrives with instantiation.
+    """
+    directory = _playbooks_dir(Path.cwd())
+    listing = list_playbooks(directory)
+    _report_playbook_problems(listing)
+    if not listing.exists:
+        typer.echo(f"No playbooks directory yet ({directory}).")
+        typer.echo("   Copy the shipped references in with: agentjobs playbook init")
+        return
+    if not listing.playbooks:
+        typer.echo(f"No playbooks in {directory}.")
+        typer.echo("   Copy the shipped references in with: agentjobs playbook init")
+        return
+    width = max(len(playbook.name) for playbook in listing.playbooks)
+    for playbook in listing.playbooks:
+        contract = playbook.contract
+        typer.echo(f"{playbook.name:<{width}}  {_fit(playbook.description, _WIDTH - width - 2)}")
+        typer.echo(
+            f"{' ' * width}  target: {contract.target.value}"
+            f"   difficulty: {contract.difficulty.value}"
+            f"   gates: {len(contract.gates)}"
+        )
+
+
+@playbook_app.command("show")
+def playbook_show(
+    name: str = typer.Argument(..., help="Playbook name, which is its filename stem."),
+    contract_only: bool = typer.Option(
+        False, "--contract", help="Print the frontmatter contract and omit the brief."
+    ),
+) -> None:
+    """One playbook: its frontmatter contract, then its brief."""
+    directory = _playbooks_dir(Path.cwd())
+    try:
+        playbook = read_playbook(directory, name)
+    except ValueError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2) from exc
+    except UnknownPlaybookError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        typer.echo("Run 'agentjobs playbook list' to see what this project holds.", err=True)
+        raise typer.Exit(code=2) from exc
+    except PlaybookError as exc:
+        typer.secho(f"{name} does not validate:", fg=typer.colors.RED, err=True)
+        for finding in exc.findings:
+            typer.secho(f"   {finding.render()}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(f"{playbook.name}  ({playbook.path})")
+    typer.echo("-" * min(_WIDTH, len(playbook.name) + len(str(playbook.path)) + 4))
+    typer.echo(
+        yaml.safe_dump(
+            playbook.contract.model_dump(mode="json", exclude_none=True),
+            sort_keys=False,
+            allow_unicode=False,
+        ).rstrip()
+    )
+    if contract_only:
+        return
+    typer.echo("")
+    typer.echo(playbook.body.strip())
+
+
+@playbook_app.command("init")
+def playbook_init() -> None:
+    """Copy the shipped reference playbooks into this project, never overwriting one.
+
+    Per file: a project that has tuned its own copy of one reference and has never
+    seen another should be able to take the second without the first being touched.
+    From the moment a copy exists it is authoritative -- a brief behind a name must
+    never depend on which version of AgentJobs is installed.
+    """
+    base_dir = Path.cwd()
+    directory = _playbooks_dir(base_dir)
+    result = install_references(directory)
+    for name in result.written:
+        typer.echo(f"   wrote {name}{PLAYBOOK_SUFFIX}")
+    for name in result.kept:
+        typer.echo(f"   kept  {name}{PLAYBOOK_SUFFIX} (already here; not overwritten)")
+    if result.wrote_nothing:
+        typer.echo(f"Nothing to write: {directory} already has every shipped playbook.")
+        return
+    typer.echo(f"\u2705 {len(result.written)} playbook(s) copied into {directory}.")
+    typer.echo("   They are yours now: edit them, and commit them with the project.")
 
 
 if __name__ == "__main__":
