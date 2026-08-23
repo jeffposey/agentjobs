@@ -39,15 +39,17 @@ generic patch, and no way to author a state change without recording it. Retries
 safe (send the same `operation_id` and it replays rather than writing twice) and stale
 decisions are refused rather than silently overwriting someone.
 
-Codex additionally gets a bundled plugin with a workflow skill and a hook that refuses
-direct writes to task files. Every client gets `agentjobs validate`, the portable
+Claude Code and Codex each get a bundled plugin with a workflow skill and a hook that
+refuses direct writes to task files. Every client gets `agentjobs validate`, the portable
 backstop. [What each layer does and does not prevent](docs/mcp.md#what-protects-what)
 is written down rather than implied.
 
 ## Why this is not another task tracker
 
-- **Hierarchy has workflow meaning.** Parent tasks roll up their children and are not
-  claimable while a child remains open. The UI shows child progress and each child's
+- **Hierarchy has workflow meaning.** Parent tasks roll up their children. A parent
+  with open children is skipped by `agentjobs next` — it is not what to start — but it
+  can still be claimed by name, and claiming one hands back a *supervision* prompt rather
+  than a work prompt. The UI shows child progress and each child's
   derived status.
 - **Git is the database.** One YAML file per task keeps work diffable, reviewable, and
   portable between tools without adding a service to operate.
@@ -93,16 +95,17 @@ than leaving the rationale in a chat transcript:
 
 - [Task schema v2](docs/schema-design.md) decides how a task becomes sufficient working
   memory for a zero-context agent, including the ball model and canonical handoff loop.
-- [Agent dispatch](docs/agent-dispatch-design.md) is the accepted, **not yet implemented**
-  design for turning authorized task state into a supervised agent process, with bounded
-  autonomy and explicit safety gates.
+- [Agent dispatch](docs/agent-dispatch-design.md) is the design record for turning
+  authorized task state into a supervised agent process, with bounded autonomy and
+  explicit safety gates. **It shipped** — the document's own header says what landed
+  under which task, and marks the four things in it that were never built.
 - [Codex dispatch rollout](docs/codex-dispatch.md) documents the batch-only Codex
   runner setup and the Terra/Sol rollout sequence.
-
-Agent loops are also **not implemented**. Their design pass is queued in
-[task-078](tasks/agentjobs/task-078-agent-loops.yaml); the proposed contribution is an
-evaluable stopping condition and durable iteration history, not another `while true`
-wrapper. No agent-loops design document exists yet.
+- [Agent loops](docs/agent-loops-design.md) is a design record with **no implementation
+  yet**, and says so at the top. Its contribution is an evaluable stopping condition and
+  durable iteration history, not another `while true` wrapper. The design pass closed as
+  [task-078](tasks/agentjobs/task-078-agent-loops.yaml); the implementation tasks derived
+  from it are open and unclaimed.
 
 ## Installation
 
@@ -114,7 +117,13 @@ or run a release wheel:
 git clone https://github.com/jeffposey/agentjobs.git
 cd agentjobs
 poetry install
+npm --prefix frontend ci && npm --prefix frontend run build
 ```
+
+The `npm` line builds the React bundle. It is gitignored and no `poetry install`
+produces it, so from a clone it is a required step for the web UI — a release wheel
+ships with it already built and needs no Node. Everything else (the CLI, the REST API,
+the MCP server) works without it.
 
 ## Quick start
 
@@ -193,11 +202,16 @@ AgentJobs uses itself to manage its own development. The roadmap lives in
 ```bash
 git clone https://github.com/jeffposey/agentjobs.git
 cd agentjobs
-poetry install
-npm --prefix frontend install
+python scripts/bootstrap.py
 poetry run python scripts/check.py
 poetry run agentjobs open
 ```
+
+`scripts/bootstrap.py` is the supported setup for any fresh checkout, clone or git
+worktree: `poetry install`, `npm ci`, the Playwright browser, and a check that the
+environment imports this checkout's source rather than a neighbouring one's. The gate's
+`build` stage leaves a frontend bundle behind, which is why `open` works on the line
+after it.
 
 The React application's source and focused development commands live under
 `frontend/`:
