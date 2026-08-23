@@ -2,7 +2,7 @@ schema: 2
 id: task-289
 title: 'Ad-hoc reorder run, 2026-08-23: the argument behind eight queue moves'
 created: '2026-08-23T05:18:28.671872Z'
-updated: '2026-08-23T18:18:57.737619Z'
+updated: '2026-08-23T18:19:22.189447Z'
 lifecycle: closed
 outcome: completed
 archived: false
@@ -362,3 +362,13 @@ log:
       id: c4d2e918-3f70-4a86-b1cd-5e9028f4a7b2
       kind: close
       fingerprint: 9110011651ef029e73c5c9e9f3f15b5c
+- id: 11
+  ts: '2026-08-23T18:19:22.189320Z'
+  actor: dispatcher
+  type: dispatch_result
+  re: 8
+  data:
+    run_id: run_9b4d906c
+    outcome: completed
+    duration_seconds: 150.126514
+    log_path: C:\Users\jpose\.agentjobs\runs\run_9b4d906c
