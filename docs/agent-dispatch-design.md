@@ -558,24 +558,144 @@ somewhere the dashboard cannot see them. By task-192's argument, an instruction 
 to precede reading the guide cannot be deferred to the guide; that applies to "do not
 take a worktree" as much as it applied to "take one".
 
-**A supervisor cannot dispatch its children, and that is D4 working, not a bug.** A
-dispatch must be caused by a stored log entry written by a configured human (§2), which
-is what makes agent-starts-agent structurally impossible rather than merely capped.
-Nothing a supervisor writes satisfies it, so it starts its children with the runner CLI
-directly, as its own subprocesses. The consequence is worth stating plainly rather than
-discovering: **those children are not AgentJobs runs.** No run directory, no ledger row,
-no `dispatch_result`, no reaping by the poller, and they do not count against
-`max_concurrent_runs` — while the supervisor itself does hold a slot for the whole epic.
-What supervises them instead is the task record, which is the signal the protocol tells a
-supervisor to watch anyway. Whether the ledger should learn about agent-started children
-is open, and is the kind of question §7's caps exist to make safe to defer.
+**A supervisor could not dispatch its children until task-022, and the paragraph that
+used to stand here said so as though it were permanent.** It is worth keeping what it
+said, because the reasoning was right and only the conclusion moved: a dispatch must be
+caused by a stored log entry written by a configured human (§2); nothing a supervisor
+writes satisfies that; therefore a supervisor started its children with the runner CLI
+directly, as its own subprocesses. Those children were not AgentJobs runs — no run
+directory, no ledger row, no `dispatch_result`, no reaping by the poller, and no weight
+against `max_concurrent_runs`, while the supervisor itself held a slot for the whole
+epic. The paragraph ended by calling "whether the ledger should learn about
+agent-started children" an open question §7's caps made safe to defer.
 
-The protocol the supervisor prompt points at — start a child, and what to do when one
+Task-022 answers it, and the answer is that they are ordinary runs. See
+[the epic walk](#the-epic-walk-one-human-act-many-runs-task-022) below for how the rule
+in §2 is satisfied rather than bent, and for what it costs.
+
+The protocol the supervisor prompt points at — which child, and what to do when one
 finishes, parks, dies, or leaves the parent waiting — is in
-[the workflow guide](agent-workflow.md#working-a-parent-task-you-supervise-the-children-you-do-not-work-them).
-Driving that loop to completion *unattended*, including merging each clean child, is not
-this: it is task-022, which depends on this and on the posture/merge decision in
-task-021.
+[the workflow guide](agent-workflow.md#working-a-parent-task-you-supervise-the-children-you-do-not-work-them),
+and is now performed by `agentjobs dispatch walk` rather than by the supervising agent.
+
+### The epic walk: one human act, many runs (task-022, 2026-08-23)
+
+Jeff's ask, 2026-08-19: *"if I dispatch an epic task and choose autonomous, it will go
+through all sub-tasks, automatically merging each into main and moving on to the next,
+(assuming no major issue it can't solve itself), until all subtasks are done and then
+finishing the epic"*.
+
+That is a composition of two decisions already recorded here — task-164's one-session-per-
+child supervision, and task-021's release of the merge gate at posture `autonomous` — and
+composition is where its risk lives. The failure mode is not one bad merge. It is a run
+that merges a bad child and then builds four more on top of it.
+
+#### The loop is code, not an instruction
+
+`agentjobs dispatch walk <parent>` picks the next eligible child, dispatches it, watches
+its task record to a terminal state, judges it, and either continues or stops. The
+supervising agent runs that one command and blocks on it.
+
+**Rejected: leaving the loop as prose in the workflow guide** for the supervising agent
+to execute, which is what it was. Every step of it is mechanical — the queue already
+decides which child, dispatch already starts one, the four terminal states are
+enumerated and each is a fact written to a task record, and the gate a child passed is
+recorded as `outcome: completed` by the child's own `agentjobs finish`. An agent adds no
+judgement to any of that, and adds the chance of getting one wrong at three in the
+morning with nobody watching. The guide already carries the evidence against the prose
+version: *"a supervisor that ends its turn saying it will check back periodically is not
+supervising, it is asleep"* — observed 2026-08-19, with the human finding the parked
+child first. A rule already broken once by the party responsible for keeping it wants a
+mechanism.
+
+What the walk does **not** do is close the parent, ever. Whether an epic's acceptance
+criteria are met is a reading of evidence against criteria, which is the one step here
+that is genuinely judgement; a walk that took it would be grading an epic on the strength
+of its children having stopped. Exit 0 means no open child remains and hands back.
+
+#### The authorisation, which is the part that had to be got right
+
+§2's rule is that a dispatch is caused by a stored log entry whose actor this project
+configures as a human, and its point is that agent-starts-agent is *not representable*
+rather than capped. A walk that starts five child runs cannot be allowed to weaken it,
+and does not.
+
+`resolve_epic_authorization` reads the human entry that authorised the **parent's**
+dispatch — the parent's newest `dispatch` entry names it in `caused_by`, so the walk
+inherits the same authorisation the parent run is executing under rather than deriving a
+different one. Each child dispatch then writes its own authorising entry on the child,
+naming that person, that parent and that entry, and goes through the identical
+`assert_human_clocked` on the stored row. The evidence is still an append-only row on
+disk under a name the project configures as a person. What changed is which task the
+person clicked: **they clicked the epic, and its children were named on its record at the
+moment they did.**
+
+This is the third caller of `_write_authorizing_entry` and the strictest of the three.
+The browser's path takes an identity claim from a request and validates it. This one
+takes no claim at all — there is no input a caller could get wrong or forge — which is
+why it is the one authorisation path an agent is permitted to invoke.
+
+**Rejected: having the walk render a command for the supervisor to run itself**, keeping
+children as agent-owned subprocesses and D4 literally untouched. Two things killed it.
+Children outside the ledger are invisible to §7's concurrency ceiling, so an unattended
+epic would spawn an unbounded number of sessions that nothing counts — which is precisely
+the runaway the caps exist for. And nothing would settle a finished child: the poller
+reaps runs, and a walk watching subprocesses would have had to reimplement that.
+
+One operational consequence, stated because it looks like a bug: **an epic walk needs at
+least two concurrency slots**, one for the supervising run and one for the child. A
+machine set to one refuses the first child, saying so.
+
+#### The bound is mechanical
+
+Two runs per child per human authorisation — the first and one retry — enforced in
+`dispatch_task` rather than asked for in prose, and counted off the child's own log so it
+survives the walk dying and being restarted. Only a run that *died* ever spends the
+retry: a child that closed with a bad outcome or handed its ball to a person has said
+something, and retrying it is ignoring it.
+
+A fresh human authorisation of the epic resets the budget. That is deliberate and it is
+the escape hatch: a person who looks at a child that burned both attempts and decides it
+deserves another can dispatch the epic again, and the record shows they did.
+
+#### One bad child stops everything
+
+Not skipped — stopped. A sibling that depended on the failed child would be building on a
+gap, and the premise of the whole feature is that nobody is awake to notice. The walk
+hands the parent to `human`/`decision` naming the child and the reason, and exits 1.
+
+The cost is real and was chosen: a walk halts at three in the morning on a child a person
+would have waved through. That is the cheaper of the two mistakes and it is the one that
+leaves a record.
+
+#### What is actually load-bearing now, and it is not much
+
+**This is the highest-consequence behaviour in the dispatch feature, and it should be
+read as such.** Every gate in §6 exists so that a human act starts *a* run. This makes one
+human act start an arbitrarily long chain of runs, and at posture `autonomous` an
+arbitrarily long chain of merges into `main` that nobody has read.
+
+What is left holding, in the order it would fail:
+
+1. **The objective gate.** Each child merges through `agentjobs finish
+   --posture-release`, which runs the full unqualified `scripts/check.py` on the rebased
+   branch and merges only on a green one. This is the floor, and it is run by the
+   finisher rather than reported by the agent — which is the only reason the merge is
+   defensible at all.
+2. **Nothing is pushed.** `push` is per project, defaults to false, and is false here.
+   AgentJobs runs no `git push` anywhere.
+3. **`main` is local, so it is recoverable.** A bad chain of merges is caught by whoever
+   next reads `main` and is reverted with `git reset`, because nothing left the machine.
+
+Note what that ranking implies: **`push: false` matters more here than the merge policy
+does.** A project that both walks epics autonomously and permits pushing has given up the
+recovery, and would need a much stronger argument than this one. The same sentence is in
+ENGINEERING.md for task-021 and it gets stronger, not weaker, when the merges come in
+chains.
+
+Note also what is *not* on the list. The attempt budget and the stop-on-first-bad-child
+rule bound how much a walk can spend and how far a bad child can propagate; they are not
+containment against work that is wrong but green. Nothing here is.
 
 ### The mechanism is a config template, and here is the argument
 
@@ -1438,6 +1558,15 @@ independently sufficient against a repository and not against a network peer**, 
 actually defends the second case is the deployment: loopback binding, which
 `_validated_bind_host` enforces by refusing wildcards, and tailnet membership in front of
 it. See [mobile access](mobile-access.md) for that half.
+
+*(added 2026-08-23, task-022)* **One human act can now start many runs.** The gates below
+each still hold -- an epic walk passes through all four for every child it starts, and
+`assert_human_clocked` still judges a stored entry naming a configured person. What
+changed is the ratio: a person clicking Dispatch on an epic authorises a run *per child*,
+and at posture `autonomous` a merge into `main` per child, without being asked again. The
+argument for why that is acceptable, and the three things left holding when it is not, is
+in [the epic walk](#the-epic-walk-one-human-act-many-runs-task-022). Read it before
+raising a project's posture.
 
 ### Four gates, each independently sufficient to stop a run — against a repository
 

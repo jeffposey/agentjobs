@@ -441,6 +441,17 @@ whole of the safety argument, and it is why `push: false` matters more here than
 merge policy does. A project that both releases the merge gate and permits pushing has
 given up the recovery, and should want a much stronger reason than this one.
 
+**An epic multiplies this, and the multiplication is the point** (task-022). Dispatching
+a parent at `autonomous` and running `agentjobs dispatch walk` merges *every* child in
+turn, unattended, on one click. The gate above runs per child and is unchanged -- each
+child merges through `agentjobs finish --posture-release`, so each merge still has a
+green unqualified `scripts/check.py` on the exact commit under it -- and the walk stops
+outright on the first child that is not clean rather than skipping it. Retries are
+bounded at two per child per authorisation. Read
+[the epic walk](docs/agent-dispatch-design.md#the-epic-walk-one-human-act-many-runs-task-022)
+before raising a project's posture, and note that the paragraph above gets *stronger*
+here: chains of unreviewed merges are recoverable only for as long as nothing is pushed.
+
 #### Steps 3 to 6 may already have happened before you read them
 
 **On a machine with `finish.enabled` set for this project, clicking Approve runs steps

@@ -58,26 +58,39 @@ handoff rules already stored in task records and these process files.
 
 1.  Read the parent completely, then inspect its open descendants and their
     `dependencies[]`, logs, decisions, acceptance criteria, and current ball state.
-2.  Pick exactly one eligible child at a time. Dependencies determine eligibility and
-    ordering. If a required order is not represented durably, record it as task
-    dependencies or a task decision instead of relying on chat or a long launcher.
-3.  **Start a separate session for that child and supervise it. Do not work it
-    yourself** — see [You do not work the children](#you-do-not-work-the-children)
-    below. The child follows the normal task lifecycle in its own session: it takes its
-    own worktree, and when it reaches human review it hands off and stops. Never merge
-    a child yourself, and never on your own approval.
-4.  Approval releases that checkpoint; it does not end the parent loop. The child's own
-    session preserves the recorded approval, merges, closes itself and removes its
-    worktree. You then continue automatically with the next eligible child.
+2.  **Run the walk, and let it finish** (task-022):
 
-    **At posture `autonomous` there is no checkpoint to release** (task-021): a child
-    merges its own work once its own gate is green, and you continue to the next
-    eligible child without waiting for anything. Your prompt's policy clause says which
-    of the two you are in. It changes nothing else about the loop — you still start one
-    child at a time, you still do not work them, and you still approve nothing.
-5.  When no unfinished child remains, evaluate the parent's acceptance criteria against
-    durable child evidence, perform any parent-level verification, and close the parent
-    when supported.
+    ```bash
+    poetry run agentjobs dispatch walk <parent-id> --project <project>
+    ```
+
+    It does steps 3 and 4 below, one child at a time, and it blocks until it is done —
+    which is the point, because a supervisor that ends its turn promising to check back
+    is asleep. `--dry-run` says which child is next and starts nothing.
+3.  Each child gets **its own session and its own worktree**, and the walk starts it as a
+    real dispatch, on the authorisation the human gave *this* parent. You do not work a
+    child yourself — see [You do not work the children](#you-do-not-work-the-children).
+    Never merge a child yourself, and never on your own approval.
+4.  The walk watches each child through its **task record**, and judges it on one thing:
+    did it close `completed`. That means the child's own gate ran and, where its posture
+    released the merge, its own merge happened. Anything else — parked for a human,
+    closed unresolved, or a session that died twice — **stops the whole walk**, because a
+    sibling that depended on that child would be building on a gap.
+
+    **Retries are bounded and the bound is enforced, not promised**: two runs per child
+    per human authorisation of the epic, and only a run that *died* ever spends one. A
+    human who wants a third can authorise the epic again, which starts a fresh budget and
+    records that somebody chose to.
+
+    **At posture `autonomous` there is no review checkpoint in any of this** (task-021):
+    a child merges its own work once its own gate is green. At `auto` and `supervised`
+    the first child hands off for review and the walk stops there — correctly. The gate
+    is standing, not broken.
+5.  Exit 0 means no open child remains. **That is not the same as the parent being
+    done**, and the walk deliberately never closes it: evaluate the parent's own
+    acceptance criteria against the children's durable evidence, do any parent-level
+    verification, and close it only where that evidence supports it. Exit 1 means the
+    walk stopped for cause; the parent's record says which child and why.
 6.  Stop only for a required review/approval gate, a genuine human decision or external
     blocker, a clean usage boundary, or completion of the parent.
 
@@ -116,6 +129,14 @@ statuses, its branch and its diff — not its transcript. You are checking that 
 reported and verified its work, not re-verifying it. A supervisor that re-derives each
 child's context is a second agent doing the work, at the context cost this rule exists to
 avoid.
+
+**Thin enough that the loop itself is now a command** (task-022). `agentjobs dispatch
+walk` picks the next eligible child from the queue, starts it, watches its record to a
+terminal state, and stops on the first child that is not clean. Every one of those steps
+is mechanical, and an agent performing them adds no judgement — only the chance of
+getting one wrong at three in the morning with nobody watching. What is left for you is
+the step that *is* judgement and which the walk deliberately does not take: whether this
+parent's own acceptance criteria are met.
 
 Two things do not change because a child is a session. Its **task records still go to
 `main` in this clone**, never to its branch — see
