@@ -2,20 +2,16 @@ schema: 2
 id: task-291
 title: Reorder the agentjobs backlog
 created: '2026-08-23T18:49:18.949979Z'
-updated: '2026-08-23T18:50:59.808321Z'
-lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+updated: '2026-08-23T21:08:59.318068Z'
+lifecycle: closed
+outcome: completed
 archived: false
 priority: medium
-queue_position: 8000
 category: meta
 tags:
 - queue
 - playbook
 assignment:
-  owner: claude
   eligible: []
 spec:
   summary: 'Run of the `reorder` playbook: Order the open backlog band by band, with
@@ -132,3 +128,223 @@ log:
       id: 7a1f0c2e-2170-4a11-9b01-000000000012
       kind: log_append
       fingerprint: 5ed9eca2d6147172851e60da0091a7ab
+- id: 4
+  ts: '2026-08-23T21:02:55.051200Z'
+  actor: claude
+  type: progress
+  body: "# Second read, 2026-08-23T21:05Z \u2014 the run resumes, and CRITICAL has\
+    \ changed under it\n\nThe session that wrote entry 3 stopped after one move. **Entry\
+    \ 3's \"effort spent\" section reads as a tally and is not one** \u2014 it was\
+    \ written four minutes before the only move landed, so it is the plan. Treat this\
+    \ entry as the state of the run.\n\n**Done so far:** task-198, HIGH, 1875 \u2192\
+    \ 525. **Not done:** everything else entry 3 projected.\n\n## Why this is a second\
+    \ read and not a continuation of the first\n\nEntry 3 read the queue at 18:45Z.\
+    \ It is now 21:05Z and **the corpus has moved materially**, so acting on that\
+    \ read would be ordering a queue that no longer exists:\n\n| Band | Entry 3, 18:45Z\
+    \ | Now, 21:05Z |\n|---|---|---|\n| critical | 5 open, **0 claimable** | **8 open,\
+    \ 4 claimable** |\n| high | 66 open | 65 open (task-216 closed) |\n| medium |\
+    \ 38 open | 41 open |\n| low | 4 open | 4 open |\n\nSix tasks were filed in the\
+    \ interval and two closed. Re-reading before moving is \xA73's churn bound working\
+    \ in the direction people forget: the cost of a stale read is not wasted effort,\
+    \ it is a confidently wrong order.\n\n## The read, and the anchors\n\nRead through\
+    \ `agentjobs queue list` **with the shared clone as the working directory**. That\
+    \ qualifier is load-bearing and is recorded on task-217: run from the worktree,\
+    \ the same command answers out of the branch's `tasks/`, and reported HIGH as\
+    \ 68 open with task-198 still at 1875.\n\n**No strong anchor exists anywhere in\
+    \ this corpus.** `keep` has shipped and nobody has kept a move over a warning\
+    \ yet, so \xA76.1's never-move rule has nothing to bind on and no question is\
+    \ raised under it.\n\n**Anchors found, all in HIGH**, unchanged from entry 3 and\
+    \ re-verified: task-211 and task-017 (`kind: agent`, bodies quoting Jeff by name\
+    \ and date \u2192 anchors under \xA76.1), task-021, task-022 and task-018 (`kind:\
+    \ human` \u2192 anchors). Every one respected; **nothing was overridden anywhere\
+    \ in this run.** No `kind: null` was encountered, so the unconfigured-id rule\
+    \ did not fire either.\n\n## CRITICAL: four new tasks, all at defaults, and this\
+    \ is where the run's value is\n\ntask-293, task-296, task-297 and task-298 were\
+    \ all filed tonight between 19:18Z and 20:58Z. All four are `ready` and claimable,\
+    \ none has ever been moved, so under \xA76 their positions are defaults rather\
+    \ than decisions and are mine to set. They currently stand in filing order, and\
+    \ **`next` returns the first of them** \u2014 this is the head of the claimable\
+    \ backlog, which \xA74 says is where the whole value of a run is.\n\nAll four\
+    \ are the same night's dispatch and finish failures. Ordered on how the failure\
+    \ behaves rather than on how annoying it was:\n\n1. **task-296 \u2014 a parked\
+    \ session is invisible.** Silent and unbounded. The record keeps reading `agent`/`work`,\
+    \ so the supervisor waits, the human waits, and the queue behind it waits, on\
+    \ a process that stopped. It cost **this task's own parent four hours tonight**\
+    \ and was found only because a person asked. There is no detection path at all.\n\
+    2. **task-297 \u2014 the finish cannot merge under concurrency.** Self-amplifying\
+    \ and load-scaling, but *loud*: it escalates onto the record naming the cause,\
+    \ the person is right there having just clicked Approve, and `agentjobs finish\
+    \ <task>` is a documented retry.\n3. **task-298 \u2014 the run-lock refusal misreads\
+    \ a healthy finish as a stuck dispatch** and recommends restarting the server,\
+    \ which would break the merge in progress. Harmful only if the user acts on the\
+    \ advice.\n4. **task-293 \u2014 merged branches are never deleted.** Its own intent\
+    \ says it plainly: *\"not harmful on its own, which is exactly why this went unnoticed\"\
+    *. The cost is that `git branch --list` stops being readable.\n\nThe ordering\
+    \ principle is the asymmetry \xA71 already uses to justify this playbook writing\
+    \ without approval: **silent and compounding beats loud and cheap.** 296 is the\
+    \ one you cannot see; 293 is the one that does no damage while you cannot see\
+    \ it.\n\n**Their filing order already puts 296, 297 and 298 in the order I would\
+    \ choose, so none of them moves.** Manufacturing three moves to arrive at the\
+    \ order that already holds is exactly the `no_op` churn \xA75 and \xA79 forbid.\
+    \ Only task-293 is out of place, so the run makes one move in CRITICAL and this\
+    \ entry carries the reasoning the other three positions did not need a move to\
+    \ record.\n\n## MEDIUM and LOW\n\n**MEDIUM head \u2014 read exactly, nothing moved.**\
+    \ task-243 leads (the flaky grandchild-kill test that fails roughly one gate run\
+    \ in three); its body is a previous run's own argument and therefore mine to overrule\
+    \ under \xA76.1, and I read it and agree \u2014 it taxes every gate every session\
+    \ runs. Behind it task-105, task-015, task-053 and task-013 all carry *\"task-209:\
+    \ applying the ordering approved by Jeff\"* and are anchors. Head correct as it\
+    \ stands; \xA79 outcome.\n\n**MEDIUM tail triage** \u2014 one catch, task-295,\
+    \ below.\n\n**LOW** \u2014 four tasks, none ever moved, all defaults. Smaller\
+    \ than a head, so ordered exactly per \xA74. One move, below.\n\n## Bounds\n\n\
+    Nothing closed, no band changed, no spec or title touched, no dependency added\
+    \ or removed, no `queue keep` called. **task-291 is not moved by its own run**\
+    \ (\xA77)."
+  data:
+    operation:
+      id: 9c3e1a70-2170-4b22-a001-000000000102
+      kind: log_append
+      fingerprint: 6072c7fdf1f7c0e916f638d76d419f9a
+- id: 5
+  ts: '2026-08-23T21:05:14.771138Z'
+  actor: claude
+  type: decision
+  body: "# A `demoted_blocker` warning, kept rather than undone \u2014 and the brief\
+    \ could not say so where it told me to\n\nPromoting **task-295** in MEDIUM returned:\n\
+    \n> `demoted_blocker` \u2014 This pushed task-142-embed-settings-and-identity\
+    \ (1 open task needs it), task-145-embed-zero-config-wiring (1 open task needs\
+    \ it), task-150-chain-authorization (1 open task needs it) down the 'medium' band.\
+    \ Other open work is waiting on them.\n\n**The move is kept.** \xA75 says the\
+    \ honest response is often to undo, so here is the grounds for not doing so.\n\
+    \n**All three demoted tasks are themselves unclaimable, and their prerequisites\
+    \ are nowhere near the head.** task-142 and task-145 both wait on task-141, still\
+    \ open; task-150 waits on task-149, still open. So nothing can pick any of them\
+    \ up today whatever position they hold, and moving one task ahead of them changes\
+    \ nothing about when they are worked \u2014 it changes only what a reader sees\
+    \ above them. The warning is measuring the shape of the dependency graph, correctly,\
+    \ and in this instance that shape is already what is stopping them rather than\
+    \ the order is.\n\nWeighed the other way: what was promoted is a live defect on\
+    \ a surface Jeff uses daily, made reachable by a merge that landed tonight. What\
+    \ was demoted cannot start. That is not a close call.\n\nI checked this rather\
+    \ than assumed it \u2014 `queue list --band medium` reports the exclusion rule\
+    \ beside each of the three.\n\n## The brief asked for something the surface cannot\
+    \ do, and is fixed\n\n\xA75 said: *\"If you keep it, the reason must say you saw\
+    \ this and why the promotion still wins.\"*\n\n**The reason is the move body,\
+    \ and the move body is written before the warning exists.** The warning is returned\
+    \ *by* the write. The only way to obey that sentence literally is to move the\
+    \ task a second time purely to reword it \u2014 churn, which the same document\
+    \ is bounded against in \xA73 and \xA79, to record a fact nobody's ordering depends\
+    \ on.\n\n\xA77.2 already had the right answer for exactly this class of thing:\
+    \ *\"Log the decisions the moves do not carry: an anchor overridden and why, **a\
+    \ warning you kept a move over**, a bucket you drew and the principle behind it.\"\
+    * So the two sections disagreed, and the one that was impossible was the one a\
+    \ run reads at the moment the warning appears.\n\n**Fixed in `d576ba4`**, project\
+    \ copy and shipped reference together: \xA75's `demoted_blocker` clause now sends\
+    \ the acknowledgement to the run task, says why it goes there rather than in the\
+    \ body, and names the `undo` placement the reply returns \u2014 which turns \"\
+    undo the move\" from an exercise into an instruction, since the caller no longer\
+    \ has to work out which neighbour restores the previous order.\n\nThis is the\
+    \ second live run in this epic to find a defect in the brief it was executing\
+    \ (task-216's found two), and it is the argument for sc-3 existing at all: the\
+    \ brief read correct until a warning actually fired.\n\n**Note for a later reader:**\
+    \ this run's spec pins `playbooks/reorder.md` at sha256 `60b4ad542386`, the content\
+    \ at run creation. The file has changed since, by the run itself, for the reason\
+    \ above. The pin is a record of what was executed, not a constraint that was violated."
+  data:
+    operation:
+      id: 9c3e1a70-2170-4b22-a001-000000000106
+      kind: log_append
+      fingerprint: 26ec36c1f2cda6323da8ce14630b3f50
+- id: 6
+  ts: '2026-08-23T21:08:50.569206Z'
+  actor: claude
+  type: progress
+  body: "# Run complete \u2014 the tally (\xA77.3)\n\n**Four moves, across three bands.\
+    \ Zero anchors overridden. Zero strong anchors in existence, so none moved.**\n\
+    \n| # | Task | Band | From \u2192 To | Placement | Why, in one line |\n|---|---|---|---|---|---|\n\
+    | 1 | task-198 | high | 1875 \u2192 525 | before task-230 | A click in the dispatch\
+    \ UI silently strips the comments from an unversioned config; it stood behind\
+    \ two features. |\n| 2 | task-293 | critical | 193 \u2192 593 | after task-298\
+    \ | Of four tasks filed tonight from the same failures, this is the one whose\
+    \ own intent says it is harmless while it waits. |\n| 3 | task-295 | medium |\
+    \ 8300 \u2192 2750 | after task-013 | Filed as a prediction; task-292 merged tonight\
+    \ and made it real, on the surface Jeff reads daily. |\n| 4 | task-195 | low |\
+    \ 300 \u2192 50 | top | The only one of four that is both claimable and concrete,\
+    \ in the family that hurt tonight. |\n\nMove 1 was made by the session that started\
+    \ this run before it stalled; moves 2 to 4 are this session's. Every one is a\
+    \ `queue_move` whose body says why the task now sits where it does. None says\
+    \ \"reordered\".\n\n## Anchors\n\n- **Found:** five, all in HIGH \u2014 task-211\
+    \ and task-017 (`kind: agent`, bodies naming Jeff and a date), task-021, task-022,\
+    \ task-018 (`kind: human`).\n- **Respected:** all five. **Overridden: none.**\
+    \ No `kind: null` encountered.\n- **Strong anchors:** none exist in this corpus.\
+    \ `keep` has shipped and nobody has used it, so \xA76.1's never-move rule had\
+    \ nothing to bind on and no question was raised under it.\n- **Anchors inserted\
+    \ above without being moved:** task-197, task-201 and task-223 (all `task-209:\
+    \ applying the ordering approved by Jeff`) now have task-295 in front of them.\
+    \ They keep their positions. Named in that move's body and again here, because\
+    \ inserting above an anchor still changes what a person's approved ordering has\
+    \ ahead of it.\n\n## Warnings returned, and what was done\n\n- **`demoted_blocker`**\
+    \ on move 3, naming task-142, task-145 and task-150. **Kept, with grounds** \u2014\
+    \ all three are themselves unclaimable behind task-141 and task-149, so the demotion\
+    \ changes what a reader sees and not when anything is worked. Full reasoning in\
+    \ entry 5, and it is the reason \xA75 of the brief was amended.\n- Moves 1, 2\
+    \ and 4 returned no warnings.\n- No `above_prerequisite`, no `queue_broken`, no\
+    \ `promoted_unclaimable`, no `no_op`.\n\n## What was deliberately not touched\n\
+    \n- **HIGH's head** \u2014 five anchors and task-217, which is being worked. Read\
+    \ exactly, nothing moved.\n- **HIGH's tail** \u2014 47 audit drafts, all held\
+    \ by human, all unclaimable. Triage scan only; nothing belongs near the head while\
+    \ it is a draft.\n- **CRITICAL's first four** \u2014 task-244, task-245, task-249,\
+    \ task-247, placed by the ad-hoc run 16 hours ago. Read its reasoning, agree,\
+    \ have nothing new. Re-deriving on no new information is the churn \xA73 forbids.\n\
+    - **CRITICAL's task-296 / task-297 / task-298** \u2014 their filing order is the\
+    \ order I would have chosen, so no move was made. The argument for it is in entry\
+    \ 4; three `no_op` moves to arrive at the same order would have been churn dressed\
+    \ as work.\n- **MEDIUM's head** \u2014 task-243 plus four anchors, correct as\
+    \ it stands.\n- **task-294** (dashboard no-scroll) \u2014 left at the foot. A\
+    \ design question from a passing remark, not a defect.\n- **task-173** \u2014\
+    \ left at second in LOW despite being blocked. Whether it should exist is a groom\
+    \ question, not mine (\xA78).\n- **task-291 itself** \u2014 a run does not move\
+    \ its own run task (\xA77).\n\n## Verified after the fact\n\n```\nagentjobs queue\
+    \ check   \u2192  The queue is sound: no problems in any band.  (exit 0)\nagentjobs\
+    \ next          \u2192  task-296  [critical/293]\n```\n\n`next` now returns the\
+    \ silent-stall task \u2014 the failure that cost this run's own parent four hours\
+    \ tonight and that nothing in the system can currently detect. That is the run's\
+    \ answer to \"what should happen next\", and it is the one I would defend.\n\n\
+    ## Bounds, checked against ac-3\n\nNothing closed. No spec, title or acceptance\
+    \ criterion edited. No priority band changed. No dependency added or removed.\
+    \ No `queue keep` called, so no strong anchor was written.\n\n## One thing this\
+    \ run changed outside the queue\n\nIt amended its own brief \u2014 `playbooks/reorder.md`\
+    \ \xA75, in commit `d576ba4` \u2014 because a `demoted_blocker` warning exposed\
+    \ an instruction that could not be followed. Entry 5 has the reasoning. That is\
+    \ a change to task-217's deliverable, made under task-217's own instruction to\
+    \ fix the brief if the run finds a defect in it, and it is the second live run\
+    \ in this epic to find one."
+  data:
+    operation:
+      id: 9c3e1a70-2170-4b22-a001-000000000107
+      kind: log_append
+      fingerprint: a9d57376b6dd7e99c4363eb8e92ee43a
+- id: 7
+  ts: '2026-08-23T21:08:59.317871Z'
+  actor: claude
+  type: transition
+  body: "Run complete. Four moves across three bands, every one a `queue_move` carrying\
+    \ the reason for its placement; five anchors found, all respected, none overridden;\
+    \ no strong anchor exists in this corpus so none was moved or written; nothing\
+    \ closed, reprioritised or rewritten. `queue check` is sound and `next` returns\
+    \ task-296.\n\nAll four acceptance criteria are met by the log rather than by\
+    \ this sentence \u2014 ac-1 by the four move bodies, ac-2 and ac-4 by entries\
+    \ 3, 4, 5 and 6, ac-3 by the bounds check in entry 6.\n\nClosed by the run itself,\
+    \ per \xA77.4: reorder writes without a gate and no approval stands in front of\
+    \ closing its own run task. The audit is the record.\n\nOne finding travelled\
+    \ back to the brief: `playbooks/reorder.md` \xA75 told a run to acknowledge a\
+    \ kept `demoted_blocker` in the move body, which cannot be done because the warning\
+    \ is returned by the write. Amended in `d576ba4`; that commit sits on task-217's\
+    \ branch and is under Jeff's review with the rest of it."
+  data:
+    lifecycle: closed
+    outcome: completed
+    operation:
+      id: 9c3e1a70-2170-4b22-a001-000000000108
+      kind: close
+      fingerprint: 2075402d15f814e4c40dbc02f75ca13b

@@ -2,13 +2,13 @@ schema: 2
 id: task-295
 title: The pinned top bar may sit under the iOS status bar in the installed PWA
 created: '2026-08-23T20:40:17.839897Z'
-updated: '2026-08-23T20:40:18.351755Z'
+updated: '2026-08-23T21:03:27.068054Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: medium
-queue_position: 8300
+queue_position: 2750
 category: bug
 tags:
 - frontend
@@ -149,3 +149,57 @@ log:
       id: 2b47f6c9-15d8-4e03-9a2c-7d51e08c3302
       kind: create
       fingerprint: c41c74405ee07b212621b3fe6bfd37fc
+- id: 2
+  ts: '2026-08-23T21:03:27.067917Z'
+  actor: claude
+  type: queue_move
+  body: "Up from the foot of MEDIUM to just behind task-013, the last of the band's\
+    \ exactly-ordered head. This is the one catch from the tail triage scan, whose\
+    \ only question is whether anything down there belongs near the head.\n\nIt does,\
+    \ because its precondition changed tonight. It was filed as a prediction read\
+    \ off the markup while task-292 was still a spec, and deliberately left out of\
+    \ that task's scope. task-292 merged tonight, so the pinned header is now live:\
+    \ on a home-screen-installed PWA there is no browser chrome above it, and nothing\
+    \ in the app reads `env(safe-area-inset-top)` or sets `viewport-fit=cover`. Jeff\
+    \ reads this app from a phone and a tablet over Tailscale, installed to the home\
+    \ screen, so the surface this lands on is one he uses daily and the change that\
+    \ made it reachable is already in his hands.\n\nSitting at 8300 it was behind\
+    \ roughly thirty tasks, which is where a defect goes when it is filed as a follow-up\
+    \ rather than weighed against the band.\n\nWhat it does not do is displace anybody.\
+    \ It stays behind every anchor in the head \u2014 task-105, task-015, task-053\
+    \ and task-013 all carry \"task-209: applying the ordering approved by Jeff on\
+    \ 2026-08-21\" \u2014 and behind task-243, the flaky gate test I read and agree\
+    \ with. It now stands ahead of task-197, task-201 and task-223, which carry the\
+    \ same task-209 attribution and which keep the positions they had; naming that\
+    \ plainly because inserting above an anchor is still a change to what a person's\
+    \ approved ordering has in front of it, even when the anchor itself does not move.\n\
+    \nHeld against those three on grounds: each is a dispatch or documentation improvement\
+    \ with nothing waiting on it, where this is a visible defect on a running surface,\
+    \ cheap, and newly reachable rather than newly noticed.\n\nIt is unconfirmed \u2014\
+    \ read off the markup, not seen on a device \u2014 and that is an argument about\
+    \ how long it takes to close, not about where it belongs in line.\n\nReorder run\
+    \ task-291."
+  data:
+    band: medium
+    from: 8300
+    to: 2750
+    placement:
+      kind: after
+      target: task-013
+    warnings:
+    - kind: demoted_blocker
+      message: This pushed task-142-embed-settings-and-identity (1 open task needs
+        it), task-145-embed-zero-config-wiring (1 open task needs it), task-150-chain-authorization
+        (1 open task needs it) down the 'medium' band. Other open work is waiting
+        on them.
+      tasks:
+      - task-142-embed-settings-and-identity
+      - task-145-embed-zero-config-wiring
+      - task-150-chain-authorization
+    undo:
+      kind: after
+      target: task-294
+    operation:
+      id: 9c3e1a70-2170-4b22-a001-000000000104
+      kind: queue_move
+      fingerprint: ce29309ee492147d83e932124691b83e

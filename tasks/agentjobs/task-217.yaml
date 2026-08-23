@@ -2,11 +2,74 @@ schema: 2
 id: task-217
 title: 'Playbooks 4: reorder, authored, with anchor mechanics'
 created: '2026-08-21T04:56:41.043549Z'
-updated: '2026-08-23T20:59:17.754706Z'
+updated: '2026-08-23T21:09:51.145385Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "**Ready for review. All three criteria met, full gate green, and the\
+  \ live reorder run is done and closed.** Branch `feat/task-217-reorder-playbook`,\
+  \ three commits.\n\n## What to look at, in the order that matters\n\n**1. `playbooks/reorder.md`\
+  \ \u2014 the brief (sc-1).** The normative version of design \xA75.2, under your\
+  \ bounds from 2026-08-20. Graded effort by depth, a recorded reason on every move,\
+  \ triggered-not-continuous, anchors with their expiry, and the no-scoring rule.\
+  \ The one place worth your eye is \xA76.1: the design said an anchor is a move whose\
+  \ *actor* is human, and task-289 showed that on your own backlog that rule protects\
+  \ 3 positions out of 125 and leaves twenty-two of your approved placements freely\
+  \ re-derivable \u2014 because your decisions are executed by agents. The brief reads\
+  \ the whole move instead: a human actor is an anchor, and so is an agent move whose\
+  \ body names a person who asked or approved. That is a considered departure from\
+  \ the design's wording, argued in full at log entry 7, and it is the thing to overrule\
+  \ if you disagree with it.\n\n**2. `last_move` in the queue listing (sc-2).** Five\
+  \ facts per open task \u2014 actor, kind, when, the reason, and whether a human\
+  \ kept the place over a warning. `agentjobs queue list` renders it as `placed by\
+  \ Jeff Posey (human) - \"...\"`. 166 tests across `test_queue_surfaces.py`, `test_actors.py`\
+  \ and `test_playbooks.py`, plus a live read of your real backlog.\n\n**3. The live\
+  \ run \u2014 task-291, closed `completed` (sc-3).** Read that record; it is the\
+  \ whole audit. **Four moves:**\n\n| Task | Band | Move | Why |\n|---|---|---|---|\n\
+  | task-198 | high | 1875 \u2192 525 | Dispatch UI silently strips comments from\
+  \ an unversioned config; it sat behind two features. |\n| task-293 | critical |\
+  \ 193 \u2192 593 | Of four tasks filed tonight from the same failures, the only\
+  \ one whose own intent says it is harmless while it waits. |\n| task-295 | medium\
+  \ | 8300 \u2192 2750 | Filed as a prediction; task-292 merged tonight and made it\
+  \ real, on the PWA you read daily. |\n| task-195 | low | 300 \u2192 50 | The only\
+  \ one of four that is both claimable and concrete. |\n\n**Five anchors found, all\
+  \ respected, none overridden.** task-021, task-022 and task-018 are yours directly;\
+  \ task-211 and task-017 are agent moves whose bodies quote you. No strong anchor\
+  \ exists in this corpus, so none was moved and none was written. Nothing was closed,\
+  \ reprioritised or rewritten.\n\n**The visible result: `agentjobs next` now returns\
+  \ task-296** \u2014 the dispatched-session-parks-silently defect. That is the run's\
+  \ answer to what should happen next, and it is the failure that cost this task four\
+  \ hours tonight.\n\n**One judgement call to check.** Promoting task-295 returned\
+  \ a `demoted_blocker` warning naming task-142, task-145 and task-150. I kept the\
+  \ move: all three are themselves unclaimable behind task-141 and task-149, so the\
+  \ demotion changes what a reader sees, not when anything is worked. task-291 log\
+  \ entry 5 has the reasoning. Also named there and in the move body: task-295 now\
+  \ sits ahead of task-197, task-201 and task-223, which carry your task-209 ordering\
+  \ and keep their positions.\n\n## The run found a defect in its own brief, which\
+  \ is what it was for\n\n\xA75 told a run to acknowledge a kept `demoted_blocker`\
+  \ **in the move body** \u2014 impossible, because the warning is returned *by* the\
+  \ write, so the body was composed before the warning existed. Obeying it literally\
+  \ meant re-moving a task purely to reword it, which is the churn the same document\
+  \ forbids. \xA77 already had the right answer. Fixed in `d576ba4`, both copies,\
+  \ and it now names the `undo` placement the reply hands back. Second live run in\
+  \ this epic to find a brief defect; task-216's found two.\n\n## Evidence\n\n- **Full\
+  \ gate green** \u2014 `scripts/check.py`, no arguments, all ten stages, 165.7s,\
+  \ receipt for `d576ba4`. No flake; task-243's grandchild-kill test passed.\n- `agentjobs\
+  \ queue check` \u2192 sound, no problems in any band.\n\n## Two open questions for\
+  \ you, neither blocking\n\n- **Log entry 8:** should `queue keep` refuse a non-human\
+  \ actor? Nothing stops an agent writing itself a strong anchor. The brief forbids\
+  \ it in prose, which is what decision P5 says the verb contract is, but the code\
+  \ does not. Cheap to fix; it is a change to task-219's shipped surface, so I did\
+  \ not make it.\n- **Log entry 9:** running a queue command from a worktree resolves\
+  \ the project to *that worktree's* `tasks/`, not the registry path \u2014 same binary,\
+  \ different corpus, no warning. A mutating command run that way would write a move\
+  \ onto a branch, which is the invisible-task-record failure. Worth its own task\
+  \ if you agree.\n\n## Merge posture\n\nNot merged, not pushed, task still open.\
+  \ `main` has moved since the branch (task-292, task-218), so a rebase is due \u2014\
+  \ the scripted finish does that. Note for it: task-297, filed tonight, says the\
+  \ finish loses its `base_moved` race against task-record commits under load, and\
+  \ several sessions are live. If the approval escalates, that is why, and `agentjobs\
+  \ finish task-217 --project agentjobs` is the retry."
 archived: false
 priority: high
 queue_position: 155
@@ -65,16 +128,22 @@ acceptance:
   text: playbooks/reorder.md exists, passes validation, and encodes graded effort,
     recorded reasons, triggered-not-continuous, the anchor rules with their expiry,
     and the scoring prohibition.
-  status: pending
+  verify: playbooks/reorder.md and src/agentjobs/playbooks/references/reorder.md,
+    both pinned by tests/test_playbooks.py::TestThisRepositorysOwnPlaybooks
+  status: met
 - id: sc-2
   text: The queue listing exposes each open task's last queue_move actor, and the
     brief's anchor derivation uses it.
-  status: pending
+  verify: tests/test_queue_surfaces.py and tests/test_actors.py; exercised live on
+    this repository's own backlog through `agentjobs queue list`
+  status: met
 - id: sc-3
   text: 'One live run after task-209: every move is a queue_move with a substantive
     reason; every human anchor was respected or explicitly overridden with stated
     grounds; nothing was closed, reprioritised, or rewritten.'
-  status: pending
+  verify: task-291, closed completed; four moves, five anchors respected, none overridden,
+    `agentjobs queue check` sound
+  status: met
 deliverables: []
 dependencies:
 - task: task-215
@@ -407,3 +476,90 @@ log:
       id: 9c3e1a70-2170-4b22-a001-000000000101
       kind: log_append
       fingerprint: cdc6609a904e455252ec9bf8a5d3d074
+- id: 10
+  ts: '2026-08-23T21:09:22.479268Z'
+  actor: claude
+  type: note
+  body: Updated acceptance.
+  data:
+    fields:
+    - acceptance
+    operation:
+      id: 9c3e1a70-2170-4b22-a001-000000000109
+      kind: update_content
+      fingerprint: be2a9f64d0ae03aa80e0132d17ff78ee
+- id: 11
+  ts: '2026-08-23T21:09:51.145234Z'
+  actor: claude
+  type: handoff
+  body: "**Ready for review. All three criteria met, full gate green, and the live\
+    \ reorder run is done and closed.** Branch `feat/task-217-reorder-playbook`, three\
+    \ commits.\n\n## What to look at, in the order that matters\n\n**1. `playbooks/reorder.md`\
+    \ \u2014 the brief (sc-1).** The normative version of design \xA75.2, under your\
+    \ bounds from 2026-08-20. Graded effort by depth, a recorded reason on every move,\
+    \ triggered-not-continuous, anchors with their expiry, and the no-scoring rule.\
+    \ The one place worth your eye is \xA76.1: the design said an anchor is a move\
+    \ whose *actor* is human, and task-289 showed that on your own backlog that rule\
+    \ protects 3 positions out of 125 and leaves twenty-two of your approved placements\
+    \ freely re-derivable \u2014 because your decisions are executed by agents. The\
+    \ brief reads the whole move instead: a human actor is an anchor, and so is an\
+    \ agent move whose body names a person who asked or approved. That is a considered\
+    \ departure from the design's wording, argued in full at log entry 7, and it is\
+    \ the thing to overrule if you disagree with it.\n\n**2. `last_move` in the queue\
+    \ listing (sc-2).** Five facts per open task \u2014 actor, kind, when, the reason,\
+    \ and whether a human kept the place over a warning. `agentjobs queue list` renders\
+    \ it as `placed by Jeff Posey (human) - \"...\"`. 166 tests across `test_queue_surfaces.py`,\
+    \ `test_actors.py` and `test_playbooks.py`, plus a live read of your real backlog.\n\
+    \n**3. The live run \u2014 task-291, closed `completed` (sc-3).** Read that record;\
+    \ it is the whole audit. **Four moves:**\n\n| Task | Band | Move | Why |\n|---|---|---|---|\n\
+    | task-198 | high | 1875 \u2192 525 | Dispatch UI silently strips comments from\
+    \ an unversioned config; it sat behind two features. |\n| task-293 | critical\
+    \ | 193 \u2192 593 | Of four tasks filed tonight from the same failures, the only\
+    \ one whose own intent says it is harmless while it waits. |\n| task-295 | medium\
+    \ | 8300 \u2192 2750 | Filed as a prediction; task-292 merged tonight and made\
+    \ it real, on the PWA you read daily. |\n| task-195 | low | 300 \u2192 50 | The\
+    \ only one of four that is both claimable and concrete. |\n\n**Five anchors found,\
+    \ all respected, none overridden.** task-021, task-022 and task-018 are yours\
+    \ directly; task-211 and task-017 are agent moves whose bodies quote you. No strong\
+    \ anchor exists in this corpus, so none was moved and none was written. Nothing\
+    \ was closed, reprioritised or rewritten.\n\n**The visible result: `agentjobs\
+    \ next` now returns task-296** \u2014 the dispatched-session-parks-silently defect.\
+    \ That is the run's answer to what should happen next, and it is the failure that\
+    \ cost this task four hours tonight.\n\n**One judgement call to check.** Promoting\
+    \ task-295 returned a `demoted_blocker` warning naming task-142, task-145 and\
+    \ task-150. I kept the move: all three are themselves unclaimable behind task-141\
+    \ and task-149, so the demotion changes what a reader sees, not when anything\
+    \ is worked. task-291 log entry 5 has the reasoning. Also named there and in the\
+    \ move body: task-295 now sits ahead of task-197, task-201 and task-223, which\
+    \ carry your task-209 ordering and keep their positions.\n\n## The run found a\
+    \ defect in its own brief, which is what it was for\n\n\xA75 told a run to acknowledge\
+    \ a kept `demoted_blocker` **in the move body** \u2014 impossible, because the\
+    \ warning is returned *by* the write, so the body was composed before the warning\
+    \ existed. Obeying it literally meant re-moving a task purely to reword it, which\
+    \ is the churn the same document forbids. \xA77 already had the right answer.\
+    \ Fixed in `d576ba4`, both copies, and it now names the `undo` placement the reply\
+    \ hands back. Second live run in this epic to find a brief defect; task-216's\
+    \ found two.\n\n## Evidence\n\n- **Full gate green** \u2014 `scripts/check.py`,\
+    \ no arguments, all ten stages, 165.7s, receipt for `d576ba4`. No flake; task-243's\
+    \ grandchild-kill test passed.\n- `agentjobs queue check` \u2192 sound, no problems\
+    \ in any band.\n\n## Two open questions for you, neither blocking\n\n- **Log entry\
+    \ 8:** should `queue keep` refuse a non-human actor? Nothing stops an agent writing\
+    \ itself a strong anchor. The brief forbids it in prose, which is what decision\
+    \ P5 says the verb contract is, but the code does not. Cheap to fix; it is a change\
+    \ to task-219's shipped surface, so I did not make it.\n- **Log entry 9:** running\
+    \ a queue command from a worktree resolves the project to *that worktree's* `tasks/`,\
+    \ not the registry path \u2014 same binary, different corpus, no warning. A mutating\
+    \ command run that way would write a move onto a branch, which is the invisible-task-record\
+    \ failure. Worth its own task if you agree.\n\n## Merge posture\n\nNot merged,\
+    \ not pushed, task still open. `main` has moved since the branch (task-292, task-218),\
+    \ so a rebase is due \u2014 the scripted finish does that. Note for it: task-297,\
+    \ filed tonight, says the finish loses its `base_moved` race against task-record\
+    \ commits under load, and several sessions are live. If the approval escalates,\
+    \ that is why, and `agentjobs finish task-217 --project agentjobs` is the retry."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 9c3e1a70-2170-4b22-a001-00000000010a
+      kind: handoff
+      fingerprint: 34c42cbcc990aeafb537326344f32132

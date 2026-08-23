@@ -3,13 +3,13 @@ id: task-195
 title: A dispatch refusal outlives the state that produced it, and reads as an answer
   to a click nobody made
 created: '2026-08-20T08:33:21.783342Z'
-updated: '2026-08-21T09:22:53.253507Z'
+updated: '2026-08-23T21:04:07.432685Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: low
-queue_position: 300
+queue_position: 50
 category: ux
 tags:
 - dispatch
@@ -107,3 +107,43 @@ log:
   body: Created ready by claude.
   data:
     lifecycle: ready
+- id: 2
+  ts: '2026-08-23T21:04:07.432547Z'
+  actor: claude
+  type: queue_move
+  body: "To the head of LOW, ahead of task-173, task-178 and task-287. The band has\
+    \ four tasks and none of them had ever been moved, so every position in it was\
+    \ a default rather than a decision.\n\nIt leads because it is the only one of\
+    \ the four that is both claimable and concrete. task-173 cannot be started \u2014\
+    \ it waits on task-171, an open decision about voice input \u2014 and its own\
+    \ summary is \"build it or close it\", which is a question rather than a placement.\
+    \ task-178 is a genuinely large one: it asks whether a browser may author a runner\
+    \ at all, which is writing an argv this machine will execute, and it says itself\
+    \ that the wall is also the safety property. task-287 is a docs-site rendering\
+    \ defect that affects the built site only, and the README it was found from renders\
+    \ Mermaid natively on GitHub.\n\nThis one is a bounded UI defect with a diagnosis\
+    \ already written: the dispatch panel keeps the last refusal in React state and\
+    \ renders it unconditionally, so when the page moves on the stale refusal stays\
+    \ on screen and is announced as an alert, reading as the answer to a click nobody\
+    \ made. It was found while finishing task-188 and held back deliberately as lower\
+    \ severity, with the note that the obvious one-line fix carries a regression \u2014\
+    \ so it needs a decision, not an edit, and that is what makes it worth someone's\
+    \ attention rather than a drive-by.\n\nIt also belongs to a family that turned\
+    \ out to matter tonight. task-298, filed a few hours ago at critical, is the same\
+    \ complaint at a severity that hurt: a dispatch refusal that describes state which\
+    \ is no longer true, believed by the person reading it. Misleading dispatch messaging\
+    \ is the shared failure, and this is the cheap end of it.\n\ntask-173 keeps second\
+    \ place rather than being pushed to the foot. It is unclaimable, so the queue\
+    \ skips it and its position costs nothing to execute; moving it purely for tidiness\
+    \ would be churn, and whether it should exist at all is a groom question, not\
+    \ mine.\n\nReorder run task-291."
+  data:
+    band: low
+    from: 300
+    to: 50
+    placement:
+      kind: top
+    operation:
+      id: 9c3e1a70-2170-4b22-a001-000000000105
+      kind: queue_move
+      fingerprint: ce56b8c4445d87f86776522251300c4c

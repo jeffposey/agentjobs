@@ -3,13 +3,13 @@ id: task-293
 title: 'Merged branches are never deleted: the scripted finish drops the rule, and
   the lifecycle checklist omits it'
 created: '2026-08-23T19:18:39.567925Z'
-updated: '2026-08-23T19:18:40.078524Z'
+updated: '2026-08-23T21:03:08.858842Z'
 lifecycle: ready
 ball: agent
 ball_reason: available
 archived: false
 priority: critical
-queue_position: 193
+queue_position: 593
 category: infrastructure
 tags:
 - dispatch
@@ -225,3 +225,40 @@ log:
       id: c1d2e3f4-0001-4a00-9e00-2b3c4d5e0292
       kind: create
       fingerprint: 19ea5c84fd39eba58ae99a563c47ff8b
+- id: 2
+  ts: '2026-08-23T21:03:08.858704Z'
+  actor: claude
+  type: queue_move
+  body: "Behind task-296, task-297 and task-298, and so to the foot of CRITICAL. All\
+    \ four were filed tonight out of the same evening's dispatch and finish failures,\
+    \ all four arrived at default positions nobody had chosen, and they stood in filing\
+    \ order rather than in any order.\n\nThis one goes last because its own intent\
+    \ says what separates it: \"A merged branch left behind is not harmful on its\
+    \ own, which is exactly why this went unnoticed while it happened six times in\
+    \ a night.\" The cost is that `git branch --list` stops reading as a statement\
+    \ of what is in flight. Real, and it damages nothing while it waits.\n\nThe three\
+    \ it now sits behind all cost something while they wait. task-296 is a dispatched\
+    \ session that parks and tells nobody \u2014 the record still reads agent/work,\
+    \ so the supervisor waits, the human waits and the queue waits on a process that\
+    \ stopped; it cost four hours on task-217 tonight and there is no way to detect\
+    \ it. task-297 makes the scripted finish lose its merge race against the task-record\
+    \ commits every session is required to write, and each escalation writes the commit\
+    \ that kills the next attempt. task-298 tells someone whose merge is running that\
+    \ a healthy finish is a stuck dispatch, and invites them to restart the server,\
+    \ which would break it.\n\nThe principle is the one playbooks/reorder.md section\
+    \ 1 already uses to justify this playbook writing without approval: silent and\
+    \ compounding outranks loud and cheap. task-296 is the failure you cannot see.\
+    \ This is the one that does no damage while unseen.\n\nNothing in the queue was\
+    \ gating this and it gates nothing; the move costs only the position.\n\nReorder\
+    \ run task-291."
+  data:
+    band: critical
+    from: 193
+    to: 593
+    placement:
+      kind: after
+      target: task-298
+    operation:
+      id: 9c3e1a70-2170-4b22-a001-000000000103
+      kind: queue_move
+      fingerprint: 803776b5a48dd5d11886857a1afa5308
