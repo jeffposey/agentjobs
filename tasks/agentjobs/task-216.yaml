@@ -2,11 +2,66 @@ schema: 2
 id: task-216
 title: 'Playbooks 3: groom, authored and proven live'
 created: '2026-08-21T04:56:17.617014Z'
-updated: '2026-08-23T10:59:30.941797Z'
+updated: '2026-08-23T11:03:05.231190Z'
 lifecycle: active
-ball: agent
-ball_reason: work
-ball_prompt: Execute the spec; log progress and hand off when done.
+ball: human
+ball_reason: review
+ball_prompt: "**Review `feat/task-216-groom-playbook` \u2014 four commits, gate green\
+  \ on all ten stages. This task will merge on your approval and then stay open, deliberately,\
+  \ on the two criteria only you can release.**\n\n## What to look at\n\n**`playbooks/groom.md`**\
+  \ is the deliverable \u2014 the project's normative groom brief, design \xA75.1\
+  \ and decision P7 in the form a run reads. task-214 shipped a first-pass reference\
+  \ straight from the design's bullets; this answers the questions a run actually\
+  \ hits against 119 open tasks: what the sweep excludes and why, which half of a\
+  \ duplicate pair dies (further along, richer record, depended on, older id), that\
+  \ the `ball_prompt` carries the whole list rather than pointing at it, that a proposal\
+  \ recorded after a close is not a proposal, that ambiguity is not approval, and\
+  \ that finding nothing is a result to report rather than a reason to manufacture\
+  \ closures.\n\nThe other three commits: the shipped reference brought level with\
+  \ it (nothing in the brief is project-specific, so a project running `playbook init`\
+  \ tomorrow should not get the version its author calls a first pass), two tests\
+  \ pinning **this repository's own** `playbooks/` the way `TestRealCorpus` pins its\
+  \ task records, and the two fixes the live run found in the brief.\n\n**Two decisions\
+  \ worth your eye, both in log entry 8.** A task whose ball is `human` is now *in*\
+  \ scope for a sweep \u2014 the first draft excluded it and that removed 34 of 119\
+  \ tasks, the whole untriaged audit pile, which is exactly where duplicates collect.\
+  \ And groom's gate hands off at `human`/`approval` rather than the `human`/`review`\
+  \ \xA75.1's prose names; the grounds are stated in the brief itself, not only on\
+  \ this record. That second one is a deviation from the design's literal wording\
+  \ and is flagged as such.\n\n**Log entry 5** explains why `agentjobs playbook run\
+  \ groom` was not the command that ran: the brief lives on this branch and `playbook\
+  \ run` reads the project root, which is `main`; and `--actor` must name a configured\
+  \ human, which would have meant writing your authorising signature for a spend you\
+  \ did not clock. The run task was created by the real instantiation code instead\
+  \ \u2014 `read_playbook`, `pointer_for`, `_run_task_payload`, `create_run_task`\
+  \ \u2014 so its title, pointer, context and acceptance are frontmatter's, not hand-written\
+  \ to look like it.\n\n## The live run, and what it did not do\n\n**task-290 is parked\
+  \ at `human`/`approval` with a closure proposal and nothing closed.** That is a\
+  \ separate decision from this one and it is genuinely yours: three proposed closures\
+  \ (task-010 and task-100 as `superseded`, task-183 as a `duplicate` of task-278),\
+  \ three questions raised rather than acted on, and eleven candidates the sweep checked\
+  \ and declined with the evidence for declining. **Approving this branch does not\
+  \ approve those closures**, and the run task's own prompt is written so you can\
+  \ answer it from your phone.\n\nNothing closed, proved two ways: the corpus held\
+  \ 168 closed tasks before the sweep and holds 168 after, and `git diff` over the\
+  \ shared clone's `tasks/` across the whole run shows no `lifecycle:` or `outcome:`\
+  \ line changing in any file.\n\n## Gate\n\n`scripts/check.py`, no arguments, this\
+  \ worktree's own interpreter. **Green, 10 of 10 stages, 218.2s** \u2014 black 3.6s,\
+  \ ruff 0.3s, mypy 18.7s, api 7.6s, icons 2.7s, oxlint 0.9s, pytest 113.5s (3033\
+  \ passed), vitest 34.5s, build 4.6s, e2e 31.7s (25 passed). Receipt written for\
+  \ `983b9b99` against a clean tree.\n\n## Acceptance, exactly as it stands\n\n- **sc-1\
+  \ \u2014 met.** `playbooks/groom.md` exists, validates, and encodes the gate, the\
+  \ `duplicate|superseded`-only executable set and the never-delete/rewrite/reorder\
+  \ rules. Pinned by a test.\n- **sc-2 \u2014 pending, partially met.** \"Proposal\
+  \ recorded before anything closed\" is proved. **Your approval and the executed-set-equals-approved-set\
+  \ half are outstanding.**\n- **sc-3 \u2014 pending, partially met.** No closure\
+  \ has happened, so the \"went through the managed close verb\" half is untestable\
+  \ yet. The \"no file deleted, no spec rewritten\" half is true and verified across\
+  \ the run.\n\n**This is not a task to tidy away tonight.** A run that stops at its\
+  \ gate with a well-evidenced proposal is the playbook working correctly; the execution\
+  \ half is one approval on task-290 away, and until then sc-2 and sc-3 stay honest\
+  \ at `pending`.\n\n**What I need from you:** approve the branch if the brief is\
+  \ right, and separately answer task-290 \u2014 \"all three\", or name what to strike.\n"
 archived: false
 priority: high
 queue_position: 124
@@ -199,3 +254,156 @@ log:
       id: 3a1c8f20-7b64-4d51-9e12-216000000005
       kind: update_content
       fingerprint: c376310a10b2552bbd82ed4819ecfa8f
+- id: 7
+  ts: '2026-08-23T11:01:54.850459Z'
+  actor: claude
+  type: progress
+  body: "Complete on branch `feat/task-216-groom-playbook`, four commits off the post-215\
+    \ `main` at `0de67a8`. Nothing merged, nothing pushed.\n\n## What was built\n\n\
+    **`playbooks/groom.md`** \u2014 the project's normative groom brief, section 5.1\
+    \ and decision P7 in the form a run actually reads. task-214 shipped a first-pass\
+    \ reference written straight from the design's bullets; this is the version that\
+    \ answers the questions a run hits against a corpus of 119 open tasks. What it\
+    \ adds:\n\n- **What the sweep excludes and why** \u2014 the run task itself, a\
+    \ task an agent is working right now, and a parent with open children. Each of\
+    \ those closes something out from under somebody.\n- **Which half of a duplicate\
+    \ pair dies**, ordered: further along, richer record, depended on, then the older\
+    \ id. A proposal that names a pair without naming the survivor is not actionable,\
+    \ and this is exactly the judgment a human contests.\n- **Proposal mechanics**\
+    \ \u2014 the `ball_prompt` carries the whole list rather than pointing at it;\
+    \ the sweep is proposed once rather than drip-fed; a proposal recorded after a\
+    \ close is not a proposal, because the ordering is the entire audit guarantee.\n\
+    - **Execution discipline** \u2014 re-read the record before executing; ambiguity\
+    \ is not approval; an approval that *adds* an unproposed id is not executable\
+    \ either, and the answer is to propose it properly rather than to close on an\
+    \ id alone. Report a refused close, never work around it.\n- **Finding nothing\
+    \ is a result**, reported as one, with what was read and why nothing qualified.\
+    \ A groom run's whole value is trust that an id on its list is dead, and one bad\
+    \ close costs more of that than ten empty runs gain.\n\nCommits:\n\n- `bf8a68c`\
+    \ the brief.\n- `b293cfe` the shipped reference brought level with it, plus two\
+    \ tests that pin **this repository's own** `playbooks/` the way `TestRealCorpus`\
+    \ pins its task records \u2014 a playbook is authored by hand, is loaded by nothing\
+    \ else in the suite, and fails at the one moment it matters with `invalid_playbook`\
+    \ and nothing started.\n- `564fe21` and `983b9b9` two fixes the live run found\
+    \ in the brief; see the decisions below.\n\n## The live run: task-290\n\nInstantiated\
+    \ through the real code \u2014 `read_playbook`, `pointer_for`, `_run_task_payload`,\
+    \ `create_run_task` \u2014 not dispatched. The decision entry above states both\
+    \ reasons, and both are structural rather than preferences.\n\n**Nothing was closed,\
+    \ and that is provable rather than asserted.** The corpus held 168 closed tasks\
+    \ before the sweep and holds 168 after; the shared clone's `git diff` over `tasks/`\
+    \ across the whole run shows no `lifecycle:` or `outcome:` line changing in any\
+    \ file. The proposal is log entry 3 on task-290, written before the handoff and\
+    \ before any close, which is the ordering the gate depends on.\n\n**What the sweep\
+    \ did.** 119 open tasks, 104 judged after the brief's exclusions. Clustered by\
+    \ category, tag and subject noun, then read the whole record of each candidate\
+    \ pair. A Jaccard scan over title-plus-summary across all 119 surfaced 14 pairs\
+    \ above 0.16; every one was a parent/child or two siblings of the same epic. Premises\
+    \ were checked against the code and `git log` rather than assumed.\n\n**Result:\
+    \ three proposed closures, three questions, eleven candidates checked and declined.**\n\
+    \n- task-010 \u2192 `superseded` by `eee75fb`, verified by running the test in\
+    \ this worktree.\n- task-100-dependency-cycle-deadlock \u2192 `superseded` by\
+    \ `ed1f21c` + `dc04330`, with the residue (no three-task-cycle test; the report-versus-refuse\
+    \ choice never recorded as a decision) stated in the item so it can be struck.\n\
+    - task-183-cli-batch-run-always-interrupted \u2192 `duplicate` of task-278, which\
+    \ is closed/completed with all three criteria met and fixed in `c33ca00`.\n\n\
+    The eleven declined candidates are named on task-290 with the evidence for declining,\
+    \ because a sweep is only as good as what it refused to propose. One is worth\
+    \ repeating here: **task-105 looked stale and is not.** This run's own task was\
+    \ created as `task-290`, the correct next number, which reads as proof the slugged-id\
+    \ bug is fixed. It is not \u2014 `storage.py:621` still raises on `task-104-react-readme-screenshots`\
+    \ and skips it, and the symptom is masked only because unslugged ids currently\
+    \ dominate the corpus.\n\n## Verification\n\n- `scripts/check.py`, no arguments,\
+    \ this worktree's own interpreter: **green on all ten stages**, 218.2s total (black\
+    \ 3.6s, ruff 0.3s, mypy 18.7s, api 7.6s, icons 2.7s, oxlint 0.9s, pytest 113.5s\
+    \ / 3033 passed, vitest 34.5s, build 4.6s, e2e 31.7s / 25 passed). `Ran every\
+    \ stage (10 of 10).` Gate receipt written for `983b9b99` against a clean tree.\n\
+    - `agentjobs playbook show groom` from this worktree renders the contract and\
+    \ the brief; `playbook list` shows it with `target: project difficulty: hard gates:\
+    \ 1`.\n- The two new tests fail if the project's `playbooks/` stops validating\
+    \ or if groom loses its close gate.\n- Nothing-closed, checked two independent\
+    \ ways: the closed-task count over the API, and a `git diff` grep for lifecycle\
+    \ and outcome changes across every task file.\n\n## What is outstanding, stated\
+    \ plainly\n\n**sc-1 is met. sc-2 and sc-3 are partially met and are marked `pending`,\
+    \ not `met`.**\n\n- sc-2 wanted proposal-before-close, Jeff's approval, and an\
+    \ executed set equal to the approved set. **The first is proved. The second and\
+    \ third are outstanding**, and deliberately so: the approval that releases the\
+    \ execution half is Jeff's, and the supervisor's standing grant for this epic\
+    \ covers merging code, not deciding which of his tasks are duplicates.\n- sc-3\
+    \ wanted every closure through the managed `close` verb with a run-task reference.\
+    \ **No closure has happened**, so its first half is untestable yet; its second\
+    \ half \u2014 no file deleted, no spec rewritten \u2014 is true and verified over\
+    \ the whole run.\n\nA run that stops at its gate with a well-evidenced proposal\
+    \ is the playbook working correctly, not a workaround. It demonstrates everything\
+    \ about the cycle except the execution half, and the execution half is one approval\
+    \ away.\n"
+  data:
+    operation:
+      id: 3a1c8f20-7b64-4d51-9e12-216000000006
+      kind: log_append
+      fingerprint: f4ef8f763166539592683c5c9ef4f960
+- id: 8
+  ts: '2026-08-23T11:02:22.619571Z'
+  actor: claude
+  type: decision
+  body: '**Two decisions the live run forced, both changing the brief after it was
+    first written. Recording them because one is a deviation from the design''s literal
+    prose.**
+
+
+    **1. A task whose `ball` is `human` is in scope for a groom sweep.** The first
+    draft excluded it, reasoning that it is on somebody''s desk and theirs to judge.
+    Against this backlog that rule removed 34 of 119 open tasks -- the whole block
+    of audit findings parked at `human`/`spec`, which is exactly where duplicates
+    collect, because nobody has triaged that pile yet. The reasoning was also wrong
+    on its own terms: the proposal is addressed to the same person holding those tasks,
+    so withholding an item because it is already in their hands hands them a shorter
+    list, not a safer one. The exclusion that does carry weight is work **in flight**,
+    where a close destroys a live session; a human-held task has no session to destroy.
+    The item now says when a human is holding the task, so they can bring context
+    the run cannot see. Fixed in `564fe21`.
+
+
+    *Rejected: keeping the exclusion and mentioning the skipped pile in the proposal.*
+    It sounds safe and is worse -- it produces a proposal whose omissions are invisible
+    unless the reader counts, and the reader is the person the omission was supposedly
+    protecting.
+
+
+    **2. Groom''s gate hands off at `human`/`approval`, not `human`/`review`.** Design
+    section 5.1''s prose says `review`. The same section''s heading calls the gate
+    "mandatory human approval", the schema has an `approval` reason for exactly this,
+    and `review` is the reason the merge gate uses -- where the ask is *read this
+    diff*, not *authorise this list of writes*. Those are different questions and
+    get different answers. Decision P7 pins the gate and the executable set, not the
+    reason code, so nothing binding moves. Fixed in `983b9b9`, and the brief states
+    the deviation and its grounds in place rather than only here.
+
+
+    *Rejected: following the design''s prose literally and using `review`.* It would
+    have made the run task read as a code review in the dashboard''s own vocabulary,
+    which is the one thing this handoff is not, and it would have propagated the design''s
+    slip into every future groom run rather than correcting it once.
+
+
+    **Both were found by running the brief rather than by reading it, which is the
+    argument for sc-2 and sc-3 existing at all.** Neither is visible from the design;
+    both are obvious the moment a real corpus is in front of you.'
+  data:
+    operation:
+      id: 3a1c8f20-7b64-4d51-9e12-216000000007
+      kind: log_append
+      fingerprint: 66e9a6f5279260c8b9a80b921258ea8d
+- id: 9
+  ts: '2026-08-23T11:03:05.231012Z'
+  actor: claude
+  type: handoff
+  body: Branch complete and gate green. The live run's propose half is done and parked
+    on task-290 with nothing closed; sc-2 and sc-3 stay pending on Jeff's approval
+    of that proposal and the execution that follows it.
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 3a1c8f20-7b64-4d51-9e12-216000000008
+      kind: handoff
+      fingerprint: c634c082fe335980528533e7d1728338
