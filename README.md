@@ -5,8 +5,141 @@
 AgentJobs is for developers coordinating coding agents across short-lived sessions,
 especially when a human must review, decide, or approve between passes.
 
-Agents are stateless: a new session starts with no memory of the last one. AgentJobs
-makes the task record the durable working memory, including the handoff itself:
+## The ball is always somewhere
+
+Agents are stateless. A session ends and its memory is gone — so the *record* has to
+carry the work, and it has to say who is on the hook right now.
+
+```mermaid
+flowchart LR
+    A(["🤖 agent<br/>working"])
+    H(["👤 human<br/>review · decide · approve"])
+    X(["⏳ external<br/>waiting on a dependency"])
+
+    A -- "the ask" --> H
+    H -- "approve · revise" --> A
+    A -- "blocked" --> X
+    X -- "unblocked" --> A
+```
+
+Three places the ball can be, and **there is no fourth**. No "unassigned", no backlog
+limbo, no task quietly belonging to nobody. Every open task names one of these, and every
+arrow carries what the next holder is being asked to do — both enforced by the schema, so
+a record that breaks either does not load.
+
+## "What should I work on" has exactly one answer
+
+Not a sort over timestamps that reshuffles the backlog whenever an agent logs progress.
+Position is a stored decision, inside a priority band, and asking is deterministic:
+
+```mermaid
+flowchart LR
+    S(["$ agentjobs next"]) --> B["take the highest band<br/>that has an open task"]
+    B --> P["take the lowest position<br/>in that band"]
+    P --> C{"claimable?"}
+    C -- yes --> W(["✓ this is the answer"])
+    C -- no --> N["name the rule that skipped it,<br/>take the next position"]
+    N --> C
+```
+
+`--why` prints that reasoning instead of hiding it — the winner, and every task it walked
+past with the rule that skipped each. When you disagree, you move the task, and the move
+is recorded with your reason, so the next session inherits the decision instead of
+re-deriving it.
+
+## It closes the loop
+
+A tracker with an MCP server can record that a human approved something. It cannot turn
+that approval into a running agent, in the right directory, with the right context.
+
+```mermaid
+flowchart LR
+    R(["👤 human approves<br/>in the UI"]) --> D{"dispatch enabled<br/>on this machine?"}
+    D -- "no · default" --> B(["ball returns to the agent<br/>a person starts it"])
+    D -- yes --> S(["🤖 an agent process starts<br/>on this task"])
+    S --> L(["run ledger<br/>output · cancel · outcome"])
+```
+
+Dispatch is off unless a machine-local file turns it on, and the command it runs must be
+defined in that file — so a repository can never choose what executes on your machine.
+That gate is what makes the schema load-bearing rather than descriptive.
+
+## It is opinionated, and the schema does the arguing
+
+Most trackers are a bag of fields and a convention document nobody reads. AgentJobs
+takes positions, and each one is enforced by the model rather than by a habit — the
+broken state is *unrepresentable*, so a file in it does not load. Three that matter:
+
+**A task cannot sit unassigned.** `ball` is absent if and only if the task is closed, so
+every open task names who acts next — an agent, a human, or an external dependency.
+There is no "unassigned" column and no task quietly belonging to nobody. The state that
+every other tracker lets you reach does not exist here.
+
+**A handoff cannot be silent.** `ball_prompt` is required whenever the ball is set. You
+cannot throw work over a wall without saying what you want; a handoff with no ask is a
+notification with no payload, and the schema rejects it. (One deliberate exemption: a
+task in the ready pool, where the spec is itself the ask.)
+
+**Every open task has a place in line.** `queue_position` is present if and only if the
+task is open — that part the model enforces. Uniqueness inside a priority band it cannot
+see (one file cannot check another), so placement happens under a lock and
+`agentjobs queue check` reports any collision history left behind. The effect either way:
+*"what should I work on"* always has exactly one answer, and that answer is a decision
+somebody stored — not a sort over `updated` that silently reorders your backlog every
+time an agent logs progress.
+
+That last one is what makes the interesting command possible:
+
+```console
+$ agentjobs next --why
+task-045  [high/300]
+  Close the double-claim race
+
+Ahead of it, and why each was skipped (3):
+    100  task-031
+        not ready (active, held by agent)
+    200  task-038
+        not ready (draft, held by human)
+    250  task-041
+        has 2 open children
+```
+
+It does not just answer. It shows its work: the band and position the winner stands at,
+and every task it walked past with the rule that excluded each. When you disagree, you
+move the task and the move is recorded with your reason — so the next session inherits
+the decision instead of re-deriving it.
+
+### The rest of the opinions
+
+- **State moves through verbs, never through a patch.** No interface has a
+  `set_lifecycle` or a `set_queue_position`, and no patch route accepts a state axis —
+  not the REST API, not MCP, not the CLI, not the web UI. Work is claimed, handed off,
+  released, promoted or closed, and each verb appends its own log entry, so the record
+  shows *why* it moved and not merely *that* it did.
+- **Retries are safe and stale writes are refused.** Send the same `operation_id` twice
+  and the second replays the first result instead of writing again. Send an edit computed
+  from a version somebody has since changed and it is refused, rather than silently
+  overwriting them.
+- **Hierarchy means something.** A parent with open children is skipped by `next` — it is
+  not what to start — but it can still be claimed by name, and claiming one hands back a
+  *supervision* prompt, not a work prompt. The umbrella is a job, and it is a different
+  job from its children.
+- **The record is readable, and it is not writable.** Agents read task YAML freely;
+  every change goes through a managed path that validates, locks and logs. A hand-edited
+  file that looks right and is not is the failure this prevents.
+- **Git is the database.** One YAML file per task: diffable, reviewable in a pull
+  request, portable between tools, and with no service to operate.
+
+**And it closes the loop.** A tracker with an MCP server can record that a human approved
+something. It cannot turn that approval into a running agent, in the right directory,
+with the right context. AgentJobs can — dispatch is off by default, gated by
+machine-local configuration a repository cannot supply, and it is what makes the schema
+load-bearing rather than descriptive.
+
+## Resuming with no chat history
+
+The handoff is a few fields on the task, and they are the fields a returning agent reads
+first:
 
 ```yaml
 lifecycle: active
@@ -15,14 +148,12 @@ ball_reason: review
 ball_prompt: Review the diff; approve or request changes.
 ```
 
-Every open task names who has the ball, why they have it, and what they need to do next.
-A handoff without an ask is invalid.
-
 A fresh agent resumes from the record alone: the specification, the current ask, the
 decision and question log, and the acceptance criteria. That
 [resumption contract](docs/schema-design.md#the-resumption-contract) was tested on
-2026-08-11: a zero-context headless agent reconstructed the work and found
-[three defects in the dispatch design](tasks/agentjobs/task-060-agent-dispatch.yaml).
+2026-08-11 — a zero-context headless agent reconstructed the work and found
+[three defects in the dispatch design](tasks/agentjobs/task-060-agent-dispatch.yaml)
+that the humans who wrote it had missed.
 
 ## Agents connect over MCP
 
@@ -36,25 +167,10 @@ claim/handoff/release/close loop, the queue, the append-only log, and zero-conte
 resumption — each one validated, locked and logged by the same code the UI writes
 through.
 
-Task YAML stays readable and stops being writable: there is no `set_lifecycle`, no
-generic patch, and no way to author a state change without recording it. Retries are
-safe (send the same `operation_id` and it replays rather than writing twice) and stale
-decisions are refused rather than silently overwriting someone.
-
 Claude Code and Codex each get a bundled plugin with a workflow skill and a hook that
 refuses direct writes to task files. Every client gets `agentjobs validate`, the portable
 backstop. [What each layer does and does not prevent](docs/mcp.md#what-protects-what)
 is written down rather than implied.
-
-## Why this is not another task tracker
-
-- **Hierarchy has workflow meaning.** Parent tasks roll up their children. A parent
-  with open children is skipped by `agentjobs next` — it is not what to start — but it
-  can still be claimed by name, and claiming one hands back a *supervision* prompt rather
-  than a work prompt. The UI shows child progress and each child's
-  derived status.
-- **Git is the database.** One YAML file per task keeps work diffable, reviewable, and
-  portable between tools without adding a service to operate.
 
 ## The React application
 
