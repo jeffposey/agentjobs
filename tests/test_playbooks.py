@@ -319,6 +319,43 @@ class TestThisRepositorysOwnPlaybooks:
         # contract would leave a gate standing in front of nothing.
         assert "close" in groom.contract.verbs
 
+    def test_flesh_out_parks_the_target_and_may_not_move_a_state_axis(self) -> None:
+        """task-218 / design §5.3 and decision P7, against the project's own copy.
+
+        Three things make flesh-out safe and all three are checkable from the contract
+        rather than only from the prose. It targets **one task** -- so a run is that
+        task's own dispatch and there is no run task to create. It declares a gate, so
+        the write-then-park shape is visible to the UI and to an audit without anyone
+        reading the body. And its declared verbs stop at writing: `close`, `promote`
+        and `queue_move` are the moves that would let a run act on a spec no human has
+        read yet, which is the whole thing the parked ball exists to prevent.
+        """
+        flesh_out = read_playbook(self.directory, "flesh-out")
+        assert flesh_out.contract.target is PlaybookTarget.TASK
+        # A task-target playbook creates nothing, so `run_task` defaults would be
+        # unreachable configuration -- `_run_task_payload` is never called for it.
+        assert flesh_out.contract.run_task is None
+        assert [gate.before for gate in flesh_out.contract.gates] == ["handoff"]
+        assert set(flesh_out.contract.verbs) == {"log", "update", "handoff"}
+        for forbidden in ("close", "promote", "queue_move", "claim", "release"):
+            assert forbidden not in flesh_out.contract.verbs
+
+    def test_the_shipped_reference_matches_this_project_s_copy(self) -> None:
+        """The two copies of a brief this project authored do not drift apart.
+
+        §3.1 makes the project's copy authoritative the moment it exists, which is
+        exactly why the shipped one rots silently: nothing here reads it, `playbook
+        init` copies it into *other* projects, and a fix made to the copy a run reads
+        would never reach it. Only the briefs this repository actually holds are
+        compared -- a reference this project has not adopted has nothing to drift from.
+        """
+        for name in sorted(playbook.name for playbook in list_playbooks(self.directory).playbooks):
+            if name not in reference_names():
+                continue
+            assert (
+                read_playbook(self.directory, name).body == load_reference(name).body
+            ), f"playbooks/{name}.md and the shipped reference have diverged"
+
 
 EXECUTION_MODULE = "run.py"
 """The one module in this package allowed to reach the dispatch machinery.
