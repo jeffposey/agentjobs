@@ -49,23 +49,28 @@ and a reader that goes around the model will eventually disagree with it.
 often one that already shipped, and you cannot cite it if you never looked. The same
 goes for git: `git log` is where "this was fixed another way" is proved.
 
-Four kinds of open task are **outside the sweep**, and skipping them is not laziness:
+Three kinds of open task are **outside the sweep**, and skipping them is not laziness:
 
 - **Your own run task.** Obviously, and it is worth saying because the tally at the end
   is the one close you make that is not from the approved list.
-- **A task somebody else is holding.** `ball: agent` with an owner, or `lifecycle:
-  active` — an agent may be mid-session on it right now, and closing work in flight is
-  the one failure that costs somebody else's whole session. Note it in the proposal as
-  *deferred, in flight* if you believe it is dead; do not propose it.
-- **A task whose ball is `human`.** It is on a person's desk. Whether it is dead is
-  their call to make while it is in their hands, not yours to pre-empt.
+- **A task an agent is working right now.** `lifecycle: active` with an owner — a
+  session may be mid-flight on it, and closing work in flight is the one failure that
+  costs somebody else's whole session. If you believe it is dead, say so in the proposal
+  as *deferred, in flight*; do not propose it for closure.
 - **A parent with open children.** Closing it orphans them: the children keep their
   `parent` pointer and lose the record that gives them their reason. If the whole
   subtree is dead, propose **every task in it, children first**, and say so explicitly
   in the proposal — one item per task, as always, not one item for the family.
 
-Everything else is in scope, including `draft`. A draft nobody will ever promote is
-exactly the kind of thing that accumulates.
+Everything else is in scope, including `draft`, and including **a task whose `ball` is
+`human`**. That last one looks like it should be excluded and must not be: the proposal
+you are writing is addressed to that same person, so withholding an item because it is
+already on their desk hands them a shorter list, not a safer one. Where a human is
+holding a task, say so in the item — they may have context you cannot see, and it costs
+one clause to tell them which items those are. A backlog's dead drafts collect precisely
+in the pile nobody has triaged, and a sweep that skips that pile skips the job.
+
+A draft nobody will ever promote is exactly the kind of thing that accumulates.
 
 ## 2. The three conditions
 
