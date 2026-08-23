@@ -3,34 +3,14 @@ id: task-233
 title: 'Cycle time: 21 hours of dispatched runs over 23 tasks, and nothing measures
   where it goes'
 created: '2026-08-21T20:42:00.402460Z'
-updated: '2026-08-23T05:15:42.105176Z'
+updated: '2026-08-23T18:28:40.173086Z'
 lifecycle: active
 ball: agent
-ball_reason: hold
-ball_prompt: "**Merged and parked. Do not work this task until the sample exists \u2014\
-  \ there is nothing to do before then.**\n\nMerged to main as `a8686df` (--no-ff),\
-  \ gate green on the rebased tip at 91.5s, ten of ten stages, 2608 tests. Branch\
-  \ marked merged; worktree removed. Five of six acceptance criteria are met.\n\n\
-  The one open criterion is **t6**, the end-to-end before/after, and it is open on\
-  \ purpose \u2014 see the decision entry above. Finishing it needs no code, only\
-  \ data that ordinary backlog work produces by itself.\n\n**Before it can accumulate\
-  \ at all: the server on 8876 must have been restarted since 2026-08-21T23:24Z.**\
-  \ `src/agentjobs/dispatch/runner.py` is what puts AGENTJOBS_RUN_ID/AGENTJOBS_RUN_DIR\
-  \ into a spawned session's environment, and a running server holds pre-merge code\
-  \ in memory. Until that restart, dispatched runs write no phases.jsonl and the sample\
-  \ stays empty while looking like one still filling up. It is not the CLI's to restart\
-  \ \u2014 that server was started by C:/ai/shared/launchers/open-agentjobs.ps1 with\
-  \ a tsnet proxy beside it, so `agentjobs restart` would bind the default 8765 and\
-  \ leave the real dashboard untouched. Ask Jeff, or check the launcher.\n\n**When\
-  \ roughly five tasks have been dispatched and worked since that restart:**\n\n```bash\n\
-  poetry run python scripts/run_report.py --since 7\n```\n\nCompare its table against\
-  \ the baseline in this task's spec (21.1h over 23 tasks, 2.13 runs per task, p50\
-  \ 15.6m). The gate lines underneath are new and are the real payoff: gate runs per\
-  \ session, what they cost, how much went on gate runs that failed. Write the comparison\
-  \ into the log as a progress entry, mark t6, close completed.\n\nIf the report shows\
-  \ **no gate lines at all**, that is the restart, not a defect in the instrumentation\
-  \ \u2014 check `~/.agentjobs/runs/<newest>/phases.jsonl` exists before concluding\
-  \ anything else."
+ball_reason: work
+ball_prompt: 'Hold released by Jeff Posey -- resume this task.
+
+
+  There should have been enough tasks dispatched by now.'
 archived: false
 priority: critical
 queue_position: 600
@@ -753,3 +733,147 @@ log:
       id: a1b2c3d4-0005-4000-8000-000000000005
       kind: queue_move
       fingerprint: ab222ea31a7ba6ec877d5770d55683b4
+- id: 17
+  ts: '2026-08-23T18:21:09.864226Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Hold released by Jeff Posey:
+
+
+    There should have been enough tasks dispatched by now.'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 18
+  ts: '2026-08-23T18:21:17.732933Z'
+  actor: Jeff Posey
+  type: note
+  body: 'Jeff Posey authorised a dispatch of this task from the task page. No extra
+    instruction was given: the task record is the brief.'
+  data:
+    authorizes_dispatch: true
+    surface: the task page
+- id: 19
+  ts: '2026-08-23T18:21:20.954966Z'
+  actor: Jeff Posey
+  type: dispatch
+  body: Dispatched claude to work this task.
+  data:
+    run_id: run_96375760
+    agent: claude
+    runner: claude-opus-5
+    mode: session
+    posture: autonomous
+    trigger: manual
+    caused_by: 18
+    argv:
+    - C:\Users\jpose\AppData\Roaming\npm\claude.CMD
+    - --bg
+    - --remote-control
+    - --model
+    - claude-opus-5
+    - --permission-mode
+    - bypassPermissions
+    - 'You are the agent `claude` working task `task-233` in project `agentjobs` (root:
+      C:\projects\agentjobs). You are running in that project''s shared working tree
+      and are NOT isolated. Before writing anything, run `git worktree add ../worktrees/<repo>-<nnn>
+      -b <type>/task-233-<slug>` and work from that path. Use that shell command,
+      not a built-in worktree tool: those relocate the session''s permission root,
+      which parks a background run on a prompt nobody can answer. AgentJobs is serving
+      at http://127.0.0.1:8876. Read the task record and follow the resumption contract
+      in docs/agent-workflow.md. Dispatch run id: run_96375760.'
+    cwd: C:\projects\agentjobs
+    git_head: b6da54a
+    session_id: af61e18b
+    selection:
+      group: default
+      source: project
+      candidates:
+      - runner: claude-opus-5
+        eligible: true
+      - runner: codex-terra
+        eligible: true
+- id: 20
+  ts: '2026-08-23T18:28:40.172812Z'
+  actor: claude
+  type: progress
+  body: "## t6: the end-to-end before/after, measured 2026-08-23\n\nThe hold was released\
+    \ because \"there should have been enough tasks dispatched by now.\"\nThere are.\
+    \ The ledger now holds **87 runs**, up from the 52 the baseline was built on.\n\
+    The cut is the merge commit `a8686df`, **2026-08-21T23:24:52Z** \u2014 every run\
+    \ started\nbefore it is *before*, every run started after it is *after*. Same\
+    \ method as the\nbaseline: `meta.yaml` start/finish out of `~/.agentjobs/runs/`,\
+    \ read through\n`scripts/run_report.py`'s own loader, no transcript parsing.\n\
+    \n### The window has to be split by driver, and that is not a dodge\n\n**Every\
+    \ run in the before window is `driver: claude`. Seventeen of the thirty-three\n\
+    after it are `driver: codex`** \u2014 a runner that did not exist when the baseline\
+    \ was\ntaken, being brought up under task-248 and task-285 in this very window.\
+    \ Its runs are\ndominated by startup failures: `Codex App Server thread/start\
+    \ failed`, `required MCP\nserver 'agentjobs' is not ready`, and eleven runs under\
+    \ two minutes that never reached\nan agent. Two tasks account for all seventeen,\
+    \ at **8.5 runs per task**.\n\nLeft in, they drag the after window's run-length\
+    \ p50 to 2.5m and push runs-per-task\n*up* to 2.82, and both numbers are artefacts\
+    \ of a driver bring-up rather than facts\nabout cycle time. Taken out, the comparison\
+    \ is claude-driver against claude-driver.\nBoth cuts are given below; the second\
+    \ is the one that answers t6.\n\n### The comparison\n\n| | before (to 2026-08-21\
+    \ 23:24) | after, all drivers | after, claude driver |\n|---|---|---|---|\n| runs\
+    \ with durations | 54 | 31 | 15 |\n| distinct tasks | 26 | 11 | 9 |\n| total dispatched\
+    \ time | 24.6h | 5.6h | 4.8h |\n| **median task** | **45.6m** | 14.1m | **9.5m**\
+    \ |\n| mean task | 56.7m | 30.3m | 31.7m |\n| **runs per task** | **2.08** | 2.82\
+    \ | **1.67** |\n| run length p50 | 17.1m | 2.5m | 10.4m |\n| run length p90 |\
+    \ 56.8m | 18.3m | 54.4m |\n\n**A representative task went from 45.6 dispatched\
+    \ minutes to 9.5 \u2014 a factor of 4.8.**\nThe mean moved much less, 56.7m to\
+    \ 31.7m, and the reason is visible in the per-task\nlist: task-241 cost 134.9m\
+    \ building the scripted finish and task-234 cost 67.9m\nbuilding session resumption.\
+    \ Those are two feature builds in a nine-task sample, and\nthey are exactly the\
+    \ sort of thing the baseline's own mean was distorted by \u2014 the\nbaseline's\
+    \ mean drops from 56.7m to 40.7m when task-081's epic is removed. The median\n\
+    is the honest statistic at this sample size and it is the one quoted.\n\n### Three\
+    \ tasks cost zero dispatched minutes and do not appear above at all\n\ntask-214,\
+    \ task-215 and task-219 were rebased, gated, merged `--no-ff`, rebuilt,\nrestarted,\
+    \ verified and closed by **scripted finishes** with no agent anywhere in\nthem:\
+    \ `fin_d2481ca3` 3.4m, `fin_e26effae` 3.0m, `fin_4c205d56` 3.0m. They are absent\n\
+    from the runs ledger because no run happened, which is the point. Nine finishes\
+    \ have\nrun so far \u2014 3 finished, 3 escalated (2 rebase conflicts, 1 red gate),\
+    \ 3 declined as\nnever-candidates \u2014 and nothing was merged that a human had\
+    \ not approved.\n\n### Attribution: which of the three changes did what\n\nThe\
+    \ window contains three landings, not one, and the ledger separates them.\n\n\
+    **The gate (this task).** Every full passing gate the phase records have caught,\
+    \ in\nthe wild: 125s, 141s, 155s, 157s, 174s \u2014 **median about 155s against\
+    \ the 365s\n`ENGINEERING.md` measured before**. The documented 95.8s is a quiet-machine\
+    \ best case;\n155s is what a dispatched session actually pays. Roughly 2.4x on\
+    \ the real figure.\n\n**Resumption (task-234).** Follow-on runs \u2014 the second\
+    \ and later run on a task \u2014 are\nwhere this shows, and it is unambiguous:\n\
+    \n| | count | mean |\n|---|---|---|\n| before, all cold | 28 | **27.4m** |\n|\
+    \ after, cold | 3 | 28.2m |\n| after, resumed | 4 | **10.8m** |\n\nCold follow-on\
+    \ runs did *not* get shorter (27.4m \u2192 28.2m). Resumed ones are 10.8m.\nSo\
+    \ the follow-on saving is resumption's, not the gate's, and the gate's saving\
+    \ is\nspread thinly across every run instead.\n\n**The scripted finish (task-241).**\
+    \ The three zero-run closes above, replacing a\nfollow-on run whose before-window\
+    \ mean was 27.4m.\n\n### A measurement nobody had: three concurrent gates\n\n\
+    `ENGINEERING.md` says outright that the contended cost of the parallel gate is\
+    \ unknown\nand must be measured before it is quoted. `run_4063f1c0` measured it\
+    \ by accident. Its\nphase records show **three gates started 03:27:10, 03:27:50\
+    \ and 03:29:03 and all still\nrunning at 03:33** \u2014 one session with three\
+    \ overlapping `check.py` invocations, each\nasking `-n auto` for all 32 cores:\n\
+    \n    gate  342.3s  partial  failed at pytest\n    gate  384.0s  full     failed\
+    \ at pytest\n    gate  361.5s  full     passed\n\n**Three concurrent parallel\
+    \ gates cost 342-384s each, versus 95.8s alone and ~155s\nunder ordinary load.**\
+    \ Fifteen minutes of a 14-minute run, which is how the report can\nshow gate time\
+    \ exceeding run time \u2014 the phase records are right and the gates\noverlapped.\
+    \ That is a real number for a line ENGINEERING.md currently leaves blank,\nand\
+    \ it is worth writing down: the parallel gate does not degrade gracefully under\n\
+    self-contention the way the serial one did (388s/411s/444s at 2/4/6).\n\n### What\
+    \ is not claimed\n\n- Nine tasks is a small sample and the median is the statistic\
+    \ that survives it. Two\n  of the nine were feature builds of the very machinery\
+    \ being measured.\n- The codex driver's failure rate is real and is being worked\
+    \ in task-248/task-285.\n  It is excluded here as a different question, not because\
+    \ it is convenient.\n- Only 5 of 33 after-window runs carry gate phase records.\
+    \ Runs that never invoked\n  `check.py` \u2014 task-record work, escalations,\
+    \ crashed codex startups \u2014 correctly have\n  none, so the gate lines describe\
+    \ the runs that gated, not all runs.\n"
+  data:
+    operation:
+      id: 7c1d5a20-4b6e-4a11-9c3f-2d8e51f4a601
+      kind: log_append
+      fingerprint: 81fd4e3040f75e22ac5f6cc3a4ef8e50
