@@ -3,11 +3,30 @@ id: task-251
 title: 'Close the install/quickstart cliff: open/serve report a missing bundle, docs
   add the build step, quickstart promotes, work uses the configured tasks dir'
 created: '2026-08-22T18:52:24.683512Z'
-updated: '2026-08-22T18:52:25.125822Z'
-lifecycle: draft
+updated: '2026-08-23T00:50:58.326193Z'
+lifecycle: active
 ball: human
-ball_reason: spec
-ball_prompt: Finish specifying this task.
+ball_reason: review
+ball_prompt: 'Reviewed together with task-252 and task-270: all three docs-vs-reality
+  tasks share branch docs/task-270-docs-drift-sweep, because you asked for the documentation
+  to be done from one context. Read task-270''s handoff for the full review request,
+  the mkdocs review URL (http://127.0.0.1:8899), the gate result and the three things
+  worth a specific look. Approve or reject the cluster together.
+
+
+  This task''s own share of it: commits 6308db8 (CLI) and 8a5a834 (the install recipes).
+  All three acceptance criteria were verified by running the commands, not by reading
+  the code, and the transcripts are in the progress entry above.
+
+
+  The one thing to decide here: `agentjobs open` now exits 1 and opens no browser
+  when the frontend bundle is missing, which is what the spec asked for and is a behaviour
+  change on a command you run often. Say the word and it becomes a warning that opens
+  anyway.
+
+
+  One path I did not exercise: the branch where nothing answers at all, which is what
+  relays a refused server''s captured stderr. It is covered by reading only.'
 archived: false
 priority: high
 queue_position: 12400
@@ -17,6 +36,7 @@ tags:
 - cli
 - docs
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: "Big Dawg Audit P1 (auditor 2, corroborated and answered by auditor 6).\
@@ -90,3 +110,115 @@ log:
       id: 871aacf6-8e50-47d7-b238-59b79a83e3d6
       kind: create
       fingerprint: 4dc76e5d3900f42ddde6484bb264ba8b
+- id: 2
+  ts: '2026-08-23T00:11:15.185782Z'
+  actor: claude
+  type: transition
+  body: 'Promoted by Jeff via chat: docs-vs-reality cluster approved for one combined
+    session, full scope including the CLI bundle probe.'
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: 3f2a1b7c-9d84-4e15-a6b2-0c7e8f4a1d33
+      kind: promote
+      fingerprint: 65d0ae138aa84551550b6e6ac483607f
+- id: 3
+  ts: '2026-08-23T00:12:39.609180Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 4
+  ts: '2026-08-23T00:50:13.941012Z'
+  actor: claude
+  type: progress
+  body: "Done. Commits 6308db8 (code) and 8a5a834 (docs) on docs/task-270-docs-drift-sweep.\
+    \ Full gate green, receipt for 18d4f874.\n\nac-1 VERIFIED BY RUNNING IT, not by\
+    \ reading the code. In this worktree before the frontend was built:\n  $ python\
+    \ -m agentjobs.cli open --port 18771\n  Starting AgentJobs server at http://localhost:18771...\n\
+    \  Waiting for server to initialize...\n  React frontend bundle is missing from\
+    \ the package; run `npm run build` in frontend/ ...\n  The API is up at http://localhost:18771;\
+    \ only /app/ is unavailable. No browser was opened.\n  EXIT=1\nThe reused-port\
+    \ path was exercised too, by standing up a SimpleHTTPRequestHandler on 18772:\
+    \ \"Something other than AgentJobs is listening on port 18772 (answered HTTP 404\
+    \ at /api/version, which AgentJobs does not). Choose another port with --port,\
+    \ or stop that service.\" EXIT=1. serve and restart print the same sentence as\
+    \ a startup warning and do NOT refuse \u2014 REST, MCP and the CLI all work without\
+    \ a bundle, and a headless install is legitimate.\n\nac-2 and ac-3 VERIFIED TOGETHER\
+    \ in a throwaway project with a NON-DEFAULT tasks directory, which is what makes\
+    \ it a real test: init --tasks-dir tasks/qs, then the quickstart's three commands\
+    \ verbatim. create --ready printed \"Created task-001.yaml (ready \u2014 claimable\
+    \ now)\", list --lifecycle ready showed it, and work --agent codex displayed it.\
+    \ Before the fix, work read a literal ./tasks, created an empty directory and\
+    \ printed \"No tasks available\".\n\nDESIGN NOTES\n- /api/version gained frontend_bundle:\
+    \ present|missing, so one probe answers both \"is this AgentJobs\" and \"can it\
+    \ serve /app/\". ApiBaseProbe gained a payload field to carry it rather than making\
+    \ the caller ask twice. openapi.json and the generated TS client regenerated;\
+    \ the gate's api stage is green.\n- spa.py: bundle_is_present() / bundle_status(),\
+    \ and the three duplicated missing-bundle sentences now share one _missing_sentence\
+    \ helper.\n- open captures the child's stderr to a temp file instead of letting\
+    \ it go to a console created with CREATE_NEW_CONSOLE|CREATE_NO_WINDOW. That is\
+    \ what makes the wrong-checkout banner \u2014 the failure that cost a forensic\
+    \ session in task-194 \u2014 reportable rather than invisible. The file is deleted\
+    \ after it is relayed.\n- create gained --ready and now names the lifecycle in\
+    \ its success line either way. Without it the documented three-command quickstart\
+    \ could not work, because a draft is deliberately not claimable.\n- work keeps\
+    \ an explicit --storage-dir override; only the default changed, from ./tasks to\
+    \ the configured tasks_directory via _build_manager.\n\nDOCS: the npm build line\
+    \ added to installation.md, quickstart.md, agent-workflow.md and README.md, each\
+    \ with one sentence on why it is required from a clone and not from a wheel. The\
+    \ contributor recipe now points at scripts/bootstrap.py instead of a hand-written\
+    \ poetry install + npm install, which used npm install (can rewrite the lockfile)\
+    \ and skipped the source-provenance check.\n\nNOT VERIFIED BY EXECUTION: the \"\
+    nothing answered\" branch of open. I did not construct a server that refuses to\
+    \ start, so the captured-stderr relay is covered by reading rather than by running.\
+    \ Worth an eye in review; it is the one path of the three I did not exercise."
+  data:
+    operation:
+      id: b3d47e28-5c19-4a76-9e03-8f21c6b45907
+      kind: log_append
+      fingerprint: 16f0f0c4bb20f67fdf0357f8500dc6d2
+- id: 5
+  ts: '2026-08-23T00:50:46.634243Z'
+  actor: claude
+  type: handoff
+  body: test
+  data:
+    ball: human
+    ball_reason: review
+- id: 6
+  ts: '2026-08-23T00:50:58.326055Z'
+  actor: claude
+  type: handoff
+  body: 'Reviewed together with task-252 and task-270: all three docs-vs-reality tasks
+    share branch docs/task-270-docs-drift-sweep, because you asked for the documentation
+    to be done from one context. Read task-270''s handoff for the full review request,
+    the mkdocs review URL (http://127.0.0.1:8899), the gate result and the three things
+    worth a specific look. Approve or reject the cluster together.
+
+
+    This task''s own share of it: commits 6308db8 (CLI) and 8a5a834 (the install recipes).
+    All three acceptance criteria were verified by running the commands, not by reading
+    the code, and the transcripts are in the progress entry above.
+
+
+    The one thing to decide here: `agentjobs open` now exits 1 and opens no browser
+    when the frontend bundle is missing, which is what the spec asked for and is a
+    behaviour change on a command you run often. Say the word and it becomes a warning
+    that opens anyway.
+
+
+    One path I did not exercise: the branch where nothing answers at all, which is
+    what relays a refused server''s captured stderr. It is covered by reading only.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: 7d1f8b40-6e25-49c3-a812-3b95e7d06f41
+      kind: handoff
+      fingerprint: 573f4b83abb327c6ef02aa0337ca9477

@@ -3,11 +3,35 @@ id: task-252
 title: agent-dispatch-design.md says "nothing here is implemented" over 11.7k shipped
   lines and describes unbuilt features in the present tense
 created: '2026-08-22T18:52:47.264637Z'
-updated: '2026-08-22T18:52:47.703706Z'
-lifecycle: draft
+updated: '2026-08-23T00:51:12.362264Z'
+lifecycle: active
 ball: human
-ball_reason: spec
-ball_prompt: Finish specifying this task.
+ball_reason: review
+ball_prompt: 'Reviewed together with task-251 and task-270: all three docs-vs-reality
+  tasks share branch docs/task-270-docs-drift-sweep, because you asked for the documentation
+  to be done from one context. Read task-270''s handoff for the full review request,
+  the mkdocs review URL (http://127.0.0.1:8899) and the gate result. Approve or reject
+  the cluster together.
+
+
+  This task''s share: commit 8ac8c29, docs/agent-dispatch-design.md and the README
+  paragraphs. Both acceptance criteria are met.
+
+
+  WORTH YOUR EYE: the new header asserts which task shipped each section-13 item (068,
+  069, 070, 071, 072, 073, 076, 077, 177, 074). I derived that from the closed task
+  records rather than from the audit. A wrong id there would be a fresh false statement
+  in the exact document this exercise exists to correct, so it is the highest-risk
+  thing I wrote today.
+
+
+  I ALSO DECLINED TO MAKE THREE CHANGES THE AUDIT ASKED FOR, because I checked them
+  and the audit is wrong. Details in the progress entry; the short version is that
+  the poller DOES reap each session as it settles it (_finish_session(..., reap=True)),
+  there is no section 14 in this document, and the dispatch subsystem is 15 modules
+  and 9,729 lines rather than the 13 and ~11.7k the audit quotes. Changing the doc
+  to match those claims would have introduced new errors. If you disagree with any
+  of the three, say which and I will look again.'
 archived: false
 priority: high
 queue_position: 12500
@@ -17,6 +41,7 @@ tags:
 - docs
 - dispatch
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: Big Dawg Audit P1 (auditor 2; corroborated by auditor 10 P4-19/P3-15/P3-17
@@ -97,3 +122,114 @@ log:
       id: cf61a8d6-317d-4765-875b-20f2258615c0
       kind: create
       fingerprint: 00b20296990ca7cb69b60d036bfc2035
+- id: 2
+  ts: '2026-08-23T00:11:19.580058Z'
+  actor: claude
+  type: transition
+  body: 'Promoted by Jeff via chat: docs-vs-reality cluster approved for one combined
+    session.'
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: 8b41c6d2-5e37-4a90-b1f8-2d6c9e30a744
+      kind: promote
+      fingerprint: 63daaa05c5845e3b8dffdf5eb96d96fa
+- id: 3
+  ts: '2026-08-23T00:12:40.419207Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+- id: 4
+  ts: '2026-08-23T00:25:53.654907Z'
+  actor: claude
+  type: progress
+  body: "Done, on branch docs/task-270-docs-drift-sweep (one worktree for the whole\
+    \ docs-vs-reality cluster at Jeff's instruction \u2014 see the decision entry).\
+    \ Commit 8ac8c29.\n\nWHAT CHANGED in docs/agent-dispatch-design.md\n- Header replaced\
+    \ with a status block: a table mapping every \xA713 item to the task that shipped\
+    \ it (068, 069, 070, 071, 072, 073, 076, 077, 177, 074), a list of shipped work\
+    \ the design predates entirely (task-075/186 worktrees, task-241 finish, WAKE_STUB,\
+    \ run phases, dispatch auth-check|reconcile|status --live), and the four unbuilt\
+    \ features.\n- Marked *(unbuilt)*: `difficulty` and the difficulty\u2192profile\
+    \ table, runner `model`/`effort` labels, per-profile `strict`. Convention matches\
+    \ config.py:1076.\n- Corrected the two false absences: run directories/transcript\
+    \ capture (RunDirectory at runner.py:790, TRANSCRIPT_FILENAME at :102, served\
+    \ by /runs/{id}/output) and the Remote Control URL (REMOTE_CONTROL_URL at runner.py:540,\
+    \ surfaced at :2046).\n- Corrected \"on graceful shutdown every live run is cancelled\"\
+    : main.py lifespan cancels only the poller, the batch supervisor thread is daemon=True\
+    \ (runner.py:2285), and stop_everything is reached only from cli.py:1318. Startup\
+    \ reconciliation is what actually closes the gap.\n- Probe timeout \"two second\"\
+    \ \u2192 five (PROBE_TIMEOUT_SECONDS = 5.0, address.py:214).\n- Concurrent-gate\
+    \ table marked as measuring the SERIAL gate that task-233 replaced; recorded that\
+    \ the contended figure at the new speed is unmeasured.\n- Safety section: added\
+    \ the attacker model it never had. The four gates are sufficient against a repository\
+    \ choosing what executes and not against a network peer; what defends the second\
+    \ case is loopback binding plus the tailnet.\n- New \xA75a for the scripted finish,\
+    \ and a \xA78 subsection for the WAKE_STUB resumption contract \u2014 both previously\
+    \ existed only in ALLAGENTS.md and wake.py.\n\nREADME: dispatch no longer \"not\
+    \ yet implemented\"; the loops design is linked rather than denied; the Claude\
+    \ Code plugin credited alongside Codex's; parent claimability restated as task-164\
+    \ implemented it.\n\nTHREE AUDIT CLAIMS I DID NOT ACT ON, because I checked them\
+    \ and they are wrong. Recording so the next reader does not \"fix\" the doc into\
+    \ something false:\n\n1. \"The poller does not reap; reap_finished runs at startup/on\
+    \ demand only\" (auditor 10). Half right and misleading. The whole-ledger sweep\
+    \ is indeed startup-only, but poll_session settles each session with _finish_session(...,\
+    \ reap=True) \u2192 stop_session (runner.py ~:286, :339, :363). The poller does\
+    \ reap per session. main.py:72's own docstring says so. Left the doc alone.\n\
+    2. \"\xA714 says auto-dispatch consumes get_next_task\" (synthesis grep). There\
+    \ is no \xA714 \u2014 the doc ends at \xA713 plus an appendix. The only get_next_task\
+    \ mention is at :539, about parents with open children, and it is correct.\n3.\
+    \ \"'neither is verified' / 'two second' at the cited lines\" \u2014 the line\
+    \ numbers were from audit HEAD 2b6c89f; the strings exist but had moved. Found\
+    \ by content, not by line.\n\nMEASUREMENT CORRECTED: the audit says dispatch is\
+    \ \"13 modules, ~11.7k lines\". Measured at HEAD 41de4f0: 15 modules, 9,729 lines\
+    \ (`wc -l src/agentjobs/dispatch/*.py`). The doc now carries my figure with the\
+    \ command that produced it, not the audit's.\n\nac-1 and ac-2 both satisfied.\
+    \ Not yet gated."
+  data:
+    operation:
+      id: a5e19c74-3b62-4d08-9f21-6c8b7e2a4013
+      kind: log_append
+      fingerprint: 5d1788f08a4f9a0a01fb4acb9c94529e
+- id: 5
+  ts: '2026-08-23T00:51:12.362133Z'
+  actor: claude
+  type: handoff
+  body: 'Reviewed together with task-251 and task-270: all three docs-vs-reality tasks
+    share branch docs/task-270-docs-drift-sweep, because you asked for the documentation
+    to be done from one context. Read task-270''s handoff for the full review request,
+    the mkdocs review URL (http://127.0.0.1:8899) and the gate result. Approve or
+    reject the cluster together.
+
+
+    This task''s share: commit 8ac8c29, docs/agent-dispatch-design.md and the README
+    paragraphs. Both acceptance criteria are met.
+
+
+    WORTH YOUR EYE: the new header asserts which task shipped each section-13 item
+    (068, 069, 070, 071, 072, 073, 076, 077, 177, 074). I derived that from the closed
+    task records rather than from the audit. A wrong id there would be a fresh false
+    statement in the exact document this exercise exists to correct, so it is the
+    highest-risk thing I wrote today.
+
+
+    I ALSO DECLINED TO MAKE THREE CHANGES THE AUDIT ASKED FOR, because I checked them
+    and the audit is wrong. Details in the progress entry; the short version is that
+    the poller DOES reap each session as it settles it (_finish_session(..., reap=True)),
+    there is no section 14 in this document, and the dispatch subsystem is 15 modules
+    and 9,729 lines rather than the 13 and ~11.7k the audit quotes. Changing the doc
+    to match those claims would have introduced new errors. If you disagree with any
+    of the three, say which and I will look again.'
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: c2b58a91-4f36-4d70-8e12-95a7d3c6f084
+      kind: handoff
+      fingerprint: 7ab029693de3076939387c596895fc40

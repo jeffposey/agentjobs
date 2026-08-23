@@ -4,11 +4,42 @@ title: 'Docs drift sweep: api-reference misses 20 operations and makes a false a
   claim; index.md indexes 12 of 19; queue design still "proposed"; sentences in task-schema,
   webhooks and mobile-access overturned by system auditors'
 created: '2026-08-22T18:59:41.077322Z'
-updated: '2026-08-22T18:59:41.532401Z'
-lifecycle: draft
+updated: '2026-08-23T00:50:33.126896Z'
+lifecycle: active
 ball: human
-ball_reason: spec
-ball_prompt: Finish specifying this task.
+ball_reason: review
+ball_prompt: "Review the docs drift sweep on branch docs/task-270-docs-drift-sweep.\
+  \ All three tasks in the docs-vs-reality cluster (251, 252, 270) are on this one\
+  \ branch at your instruction, so approve or reject them together.\n\nCLICK THROUGH\
+  \ IT: http://127.0.0.1:8899 \u2014 mkdocs serve from this worktree, own port, so\
+  \ it cannot be confused with the dashboard on 8876. Start at the index: the new\
+  \ 'Every document here, and what kind of thing it is' section is the change to look\
+  \ at first, because it is the one that decides what a reader trusts. Stop the server\
+  \ with the command in the chat reply when you are done.\n\nFull gate green, all\
+  \ ten stages, receipt written for 18d4f874.\n\nTHE FOUR COMMITS: 6308db8 CLI (open\
+  \ probes before opening a browser; work reads the configured tasks dir; create --ready)\
+  \ \xB7 8a5a834 the install recipes \xB7 8ac8c29 the dispatch design record \xB7\
+  \ c8674f8 the drift sweep and two new tests \xB7 18d4f87 the static-context corrections.\n\
+  \nTHREE THINGS I WANT YOU TO LOOK AT SPECIFICALLY:\n1. agentjobs open now EXITS\
+  \ 1 and opens no browser when the bundle is missing. That is what the spec asked\
+  \ for and it is a behaviour change on a command you run often. If you would rather\
+  \ it warn and open anyway, say so and it is a two-line change.\n2. The dispatch\
+  \ design's new header (docs/agent-dispatch-design.md) makes claims about what shipped\
+  \ under which task id. I derived those from the closed task records; a wrong task\
+  \ id there would be a new false statement in a document this whole exercise was\
+  \ about.\n3. api-reference.md now leads with a blockquote saying the API has no\
+  \ authentication, including on the routes that start processes. It is accurate and\
+  \ it is the first thing anyone reads. Confirm you want it that prominent in a public\
+  \ repo.\n\nOUTSIDE THIS BRANCH, NEEDS YOUR CALL: C:/ai/shared/GLOBAL-AGENTS.md line\
+  \ 125 says 'a parent is not claimable while a child is open'. The code says otherwise\
+  \ \u2014 task-164 made a parent claimable by name, and claiming one hands back a\
+  \ supervision prompt; only `next` skips it. That file is not a git repository, so\
+  \ I did not edit it: the change would not appear in any diff you could review or\
+  \ revert. Tell me and I will fix the line.\n\nNOT DONE, and each is recorded with\
+  \ its reason: the task-269 compression of ENGINEERING.md and ALLAGENTS.md (a judgement\
+  \ call about your contract files, not a stale-doc fix); the worktree.bgIsolation\
+  \ setting the audit itself calls unverified; and exposing the create placement flag,\
+  \ which is a feature rather than a doc fix."
 archived: false
 priority: medium
 queue_position: 7600
@@ -17,6 +48,7 @@ tags:
 - big-dawg-audit
 - docs
 assignment:
+  owner: claude
   eligible: []
 spec:
   summary: "Big Dawg Audit P2 cluster (auditor 2's P2s; auditor 7 on api-reference;\
@@ -119,3 +151,129 @@ log:
       id: 4a292b6b-847f-4518-af08-aff40bb31c3b
       kind: create
       fingerprint: 179b13b25d94b8ee38567f28cf185f55
+- id: 2
+  ts: '2026-08-23T00:11:24.052150Z'
+  actor: claude
+  type: transition
+  body: 'Promoted by Jeff via chat: docs-vs-reality cluster approved for one combined
+    session, including the two tests in ac-1 and ac-3.'
+  data:
+    lifecycle: ready
+    ball: agent
+    ball_reason: available
+    operation:
+      id: c17e93a5-6b28-4d71-8f30-a5e2b4c81966
+      kind: promote
+      fingerprint: d3f97844a3275c559eb42fcfa516f1ec
+- id: 3
+  ts: '2026-08-23T00:11:28.180943Z'
+  actor: claude
+  type: transition
+  body: Claimed by claude.
+  data:
+    lifecycle: active
+    ball: agent
+    ball_reason: work
+    operation:
+      id: d2f81a4e-7c53-4b96-a2e7-91f4b3c8d055
+      kind: claim
+      fingerprint: 540cfe4449cdfd7a0ba362219f5ab735
+- id: 4
+  ts: '2026-08-23T00:49:54.174310Z'
+  actor: claude
+  type: progress
+  body: "Done. Commits c8674f8 (the sweep) and 18d4f87 (static-context corrections)\
+    \ on docs/task-270-docs-drift-sweep. Full gate green, all ten stages, receipt\
+    \ written for 18d4f874.\n\nac-1 SATISFIED, and enforced. tests/test_api_reference_coverage.py\
+    \ walks every operation in the live OpenAPI document against docs/api-reference.md\
+    \ and fails if one is unmentioned. It normalises path-parameter names (so {id}\
+    \ and {task_id} compare equal) and accepts either the scoped or unscoped spelling,\
+    \ because the doc documents each route once and says so in its Project scoping\
+    \ section. A second test fails if the \"no authentication\" line drifts below\
+    \ the first 15 lines. MEASURED: 99 operations, 28 of them undocumented before\
+    \ this change \u2014 the audit said 74 of 94 and 20 missing; my count is from\
+    \ the app itself at HEAD 41de4f0 and supersedes it. actor corrected to required\
+    \ on handoff/release/promote/close/log (all Field(...) in api/models.py; ClaimRequest\
+    \ takes agent).\n\nac-2 SATISFIED. docs/index.md now indexes all 20 top-level\
+    \ docs plus the integration pair, grouped under a status word: shipped / design\
+    \ record (accepted, not built) / historical / dated report / generated. The queue\
+    \ design is relabelled \"accepted 2026-08-20, IMPLEMENTED 2026-08-21\" with its\
+    \ sections 1 and 14 marked as before-state. No design doc now describes shipped\
+    \ behaviour as proposed.\n\nac-3 SATISFIED. tests/test_schema_generated_is_current.py\
+    \ regenerates the LinkML JSON Schema from both sources and compares against the\
+    \ committed files, parsed rather than as text so key-order churn is not reported\
+    \ as drift. ~5s. Two companion tests: one fails if regen-schema-docs.sh stops\
+    \ writing the file this checks (otherwise a rename silently disarms it), one documents\
+    \ the two zero-byte .dbml files nothing generates. I also edited schema/agentjobs-v2.yaml\
+    \ to stop calling itself PRESCRIPTIVE/unimplemented and re-ran the full regen\
+    \ script; only real content changes are staged, LF/CRLF-only churn was reverted.\n\
+    \nALSO FIXED: task-schema (ten required fields not seven, six rules not five,\
+    \ category unvalidated at write time, update_task kept off the axes by the API\
+    \ model rather than the manager \u2014 task-254 owns that gap); webhooks (task.handoff\
+    \ fires on the handoff verb only; claim/release/promote move the ball and fire\
+    \ nothing \u2014 verified, only 4 _fire call sites in manager.py); mobile-access\
+    \ (foregrounding is not a navigation; crypto.randomUUID throws over the HTTP fallback,\
+    \ which breaks queue moves and issue reports); mcp.md (five expected_revision\
+    \ tools, not three \u2014 promote, handoff, close, update_content, queue_move);\
+    \ performance.md (benchmark port derived from the checkout path); schema-design.md\
+    \ and understanding.md (eleven log types, not eight; the dead v1/v2 comparison\
+    \ removed); playbooks and loops banners; mkdocs nav and site_name.\n\nTWO AUDIT\
+    \ CLAIMS THAT WERE ALREADY FIXED before I started, so no change was needed: plugins/agentjobs/README.md\
+    \ already says fifteen tools (corrected in the Codex plugin work since audit HEAD\
+    \ 2b6c89f), and README.md's install block already had the npm line.\n\nNOT DONE,\
+    \ deliberately: the create --before/--after/--top placement flag. TaskManager.create_task\
+    \ accepts a placement argument and honours it, but no CLI flag, request field\
+    \ or MCP input exposes it. Exposing it is a feature, not a doc fix, so the doc\
+    \ now says it is unexposed rather than describing a flag that does not exist.\n\
+    \nReviewable at http://127.0.0.1:8899 \u2014 mkdocs serve, this worktree, own\
+    \ port. Two link warnings about ../ENGINEERING.md and ../ALLAGENTS.md are pre-existing\
+    \ (2 before my change, 2 after) and are an artefact of those files living outside\
+    \ docs/."
+  data:
+    operation:
+      id: f8c26b31-9a47-4e05-b3d2-71e9a8c46520
+      kind: log_append
+      fingerprint: 8d2a3e0ce06e320ff2d3003ccde46482
+- id: 5
+  ts: '2026-08-23T00:50:33.126739Z'
+  actor: claude
+  type: handoff
+  body: "Review the docs drift sweep on branch docs/task-270-docs-drift-sweep. All\
+    \ three tasks in the docs-vs-reality cluster (251, 252, 270) are on this one branch\
+    \ at your instruction, so approve or reject them together.\n\nCLICK THROUGH IT:\
+    \ http://127.0.0.1:8899 \u2014 mkdocs serve from this worktree, own port, so it\
+    \ cannot be confused with the dashboard on 8876. Start at the index: the new 'Every\
+    \ document here, and what kind of thing it is' section is the change to look at\
+    \ first, because it is the one that decides what a reader trusts. Stop the server\
+    \ with the command in the chat reply when you are done.\n\nFull gate green, all\
+    \ ten stages, receipt written for 18d4f874.\n\nTHE FOUR COMMITS: 6308db8 CLI (open\
+    \ probes before opening a browser; work reads the configured tasks dir; create\
+    \ --ready) \xB7 8a5a834 the install recipes \xB7 8ac8c29 the dispatch design record\
+    \ \xB7 c8674f8 the drift sweep and two new tests \xB7 18d4f87 the static-context\
+    \ corrections.\n\nTHREE THINGS I WANT YOU TO LOOK AT SPECIFICALLY:\n1. agentjobs\
+    \ open now EXITS 1 and opens no browser when the bundle is missing. That is what\
+    \ the spec asked for and it is a behaviour change on a command you run often.\
+    \ If you would rather it warn and open anyway, say so and it is a two-line change.\n\
+    2. The dispatch design's new header (docs/agent-dispatch-design.md) makes claims\
+    \ about what shipped under which task id. I derived those from the closed task\
+    \ records; a wrong task id there would be a new false statement in a document\
+    \ this whole exercise was about.\n3. api-reference.md now leads with a blockquote\
+    \ saying the API has no authentication, including on the routes that start processes.\
+    \ It is accurate and it is the first thing anyone reads. Confirm you want it that\
+    \ prominent in a public repo.\n\nOUTSIDE THIS BRANCH, NEEDS YOUR CALL: C:/ai/shared/GLOBAL-AGENTS.md\
+    \ line 125 says 'a parent is not claimable while a child is open'. The code says\
+    \ otherwise \u2014 task-164 made a parent claimable by name, and claiming one\
+    \ hands back a supervision prompt; only `next` skips it. That file is not a git\
+    \ repository, so I did not edit it: the change would not appear in any diff you\
+    \ could review or revert. Tell me and I will fix the line.\n\nNOT DONE, and each\
+    \ is recorded with its reason: the task-269 compression of ENGINEERING.md and\
+    \ ALLAGENTS.md (a judgement call about your contract files, not a stale-doc fix);\
+    \ the worktree.bgIsolation setting the audit itself calls unverified; and exposing\
+    \ the create placement flag, which is a feature rather than a doc fix."
+  data:
+    ball: human
+    ball_reason: review
+    operation:
+      id: e4a71cd6-2b98-4053-91f7-6ac35db2e819
+      kind: handoff
+      fingerprint: cb10d073a21fc7aa9772e1aecb064bab
