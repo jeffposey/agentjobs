@@ -2,58 +2,68 @@ schema: 2
 id: task-215
 title: "Playbooks 2: instantiation \u2014 `playbook run` on CLI, REST and GUI"
 created: '2026-08-21T04:55:56.410481Z'
-updated: '2026-08-23T09:09:15.056242Z'
+updated: '2026-08-23T09:22:09.653500Z'
 lifecycle: active
-ball: human
-ball_reason: review
-ball_prompt: "Playbook instantiation is complete and verified. Branch `feat/task-215-playbook-run`,\
-  \ six commits d1c0b6f..5da808b, gate green on all ten stages with a receipt at the\
-  \ tip. Not merged, not pushed.\n\n**What it does.** `agentjobs playbook run <name>`,\
-  \ `POST /api/projects/{id}/playbooks/{name}/run`, and a Playbooks page with a Run\
-  \ button beside Dispatch in the nav. A project-target playbook (groom, reorder)\
-  \ creates a run task from its `run_task` frontmatter and dispatches it; a task-target\
-  \ one (flesh-out) dispatches the task you name. The brief is pointed at, never copied:\
-  \ one appended line on the prompt stub, a short pointer in the run task's spec,\
-  \ and `playbook` + `playbook_hash` on the dispatch entry.\n\n**How I read sc-4,\
-  \ which cannot be satisfied as written.** It says reactive playbooks must be refused,\
-  \ and there is no `kind` field to check \u2014 P8 withdrew the reactive category\
-  \ after this spec was written, and task-214 declined to build `kind` for that reason.\
-  \ I did not reintroduce it. Instead the refusal is structural: task-214's frontmatter\
-  \ contract forbids unknown keys, so a file declaring `kind: reactive` never loads,\
-  \ and a brief that never loads cannot be run on any surface \u2014 including surfaces\
-  \ nobody has written yet. That is stronger than an enum check would have been. The\
-  \ criterion text on the record now carries that note, and the decision entry of\
-  \ 2026-08-23 has the rejected alternatives. **If you disagree, this is the one thing\
-  \ to send back**, because it is a deliberate departure from your spec rather than\
-  \ an implementation detail.\n\n**Look closely at, in this order:**\n\n1. **Authorisation.**\
-  \ A project-target run is authorised by the *creation entry of the run task it just\
-  \ wrote* \u2014 verified live: `caused_by` points at \"Created ready by Jeff Posey\"\
-  \ and no second authorising note exists. A task-target run is task-188 unchanged.\
-  \ `agentjobs playbook run --actor` therefore has **no `default_user` fallback**,\
-  \ unlike every other `--actor` in the CLI, because that entry is read a moment later\
-  \ as the authorisation for spending money. That is the judgement call most worth\
-  \ a second opinion \u2014 it costs you a flag on every CLI run.\n2. **That no gate\
-  \ moved.** `run_playbook` calls `assert_dispatch_permitted` before it writes anything\
-  \ and then the same `dispatch_task` the Dispatch button calls. `TestGatesStillBind`\
-  \ includes a test that reads `guards.py` and asserts `request.playbook` appears\
-  \ on exactly one line \u2014 the pass-through \u2014 so no guard can start reading\
-  \ it without failing.\n3. **The run task a late refusal leaves behind.** A busy\
-  \ machine or a dirty tree can refuse *after* the run task exists. Nothing is deleted;\
-  \ the refusal names the task, which stays `ready` and dispatchable. Deliberate,\
-  \ and the alternative is deleting task records to make a failure look tidy.\n\n\
-  **To see it without spending anything:** `python scripts/playbook_sandbox.py` (from\
-  \ the worktree at C:/projects/worktrees/aj-215) stands the page up on **http://127.0.0.1:8895/app/**\
-  \ with two throwaway projects \u2014 one dispatchable at a runner that prints and\
-  \ exits, one with dispatch off and a broken playbook file. Press Run as often as\
-  \ you like; nothing real is touched and Ctrl-C deletes the data. Its module docstring\
-  \ lists what to check. I ran it, pressed Run, and stopped it again; no server of\
-  \ mine is left running.\n\n**Two limitations on the record rather than left to be\
-  \ found:** a resumed session's wake prompt does not carry the pointer line (the\
-  \ dispatch entry still does), and `run_task.category` is not validated against the\
-  \ project's configured categories \u2014 nothing in AgentJobs validates categories\
-  \ today, so that is not a regression.\n\nAlso in the branch: the playbooks design's\
-  \ status banner and the docs index said \"no implementation\", which stopped being\
-  \ true with task-214. Both now say what has shipped."
+ball: agent
+ball_reason: work
+ball_prompt: 'Approved -- cleared to merge. Rebase onto main, merge --no-ff, mark
+  the branch merged in branches[], and close this task completed. No merge has happened
+  yet: the UI records approval, it does not run git.
+
+
+  Note from Jeff Posey:
+
+
+  Standing approval from Jeff for every task-211 child, relayed by the supervisor
+  after review. Held back deliberately until task-219''s merge landed: two scripted
+  finishes merging into main at once is how the generated-client conflict that cost
+  task-219 two cycles gets manufactured a second time. task-219 merged as 75c3387,
+  so this one can go.
+
+
+  **On sc-4, which the handoff correctly says cannot be satisfied as written -- the
+  reading is right and is better than the criterion.** The spec asks that reactive
+  playbooks be refused by `playbook run`. There is no `kind` field to test, because
+  decision P8 withdrew the reactive category after the spec was written and task-214
+  declined to build a single-member enum for it. Rather than reintroduce `kind`, this
+  makes the refusal structural: task-214''s frontmatter contract forbids unknown keys,
+  so a file declaring `kind: reactive` fails validation and never loads, and a playbook
+  that never loads cannot be run from any surface -- including surfaces nobody has
+  written yet. An enum check would only have covered the surfaces that remembered
+  to call it. Accepted as met.
+
+
+  **On the judgement call the handoff asked for a second opinion on -- `playbook run
+  --actor` having no `default_user` fallback, unlike every other `--actor` in the
+  CLI -- keep it.** The run task''s own creation entry is read moments later as the
+  authorisation for spending money, and substituting the project''s `default_user`
+  would put a signature on that entry that no person put there. That is precisely
+  the reasoning `dispatch run` already uses when it refuses `not_human_clocked` rather
+  than inventing an author, and where a `--as` flag was considered and deliberately
+  left unbuilt. Costing a flag on every CLI run is the correct price. It is consistent
+  with existing precedent rather than a new rule.
+
+
+  Also checked rather than taken: `TestGatesStillBind` really does read `dispatch/guards.py`
+  as text so no guard can start reading `request.playbook` without failing; there
+  is no `playbook_run` MCP tool and its absence is documented at the top of the module
+  as deliberate; and a test asserts the brief''s text is absent from the dispatch
+  prompt, so the pointer-not-copy rule is enforced rather than described. Six commits,
+  +3412, worktree clean, gate green with a receipt at the tip.
+
+
+  Two limitations the handoff put on the record rather than leaving to be found --
+  a resumed session''s wake prompt not carrying the pointer line, and `run_task.category`
+  not validated against the project''s categories -- are both accepted as stated.
+  The second is not a regression: nothing in AgentJobs validates categories today.
+
+
+  The child''s session was stopped before this approval so its working directory does
+  not pin the worktree the finish removes.
+
+
+  That note is context to carry into the merge, not another review round: you are
+  still cleared to merge.'
 archived: false
 priority: high
 queue_position: 93
@@ -456,3 +466,73 @@ log:
       id: 8d2f4a10-0215-4b21-9c02-000000000007
       kind: handoff
       fingerprint: 23829ebabaefe306206c720dc120e5e6
+- id: 10
+  ts: '2026-08-23T09:22:07.780411Z'
+  actor: Jeff Posey
+  type: handoff
+  body: 'Approved by Jeff Posey through the web UI:
+
+
+    Standing approval from Jeff for every task-211 child, relayed by the supervisor
+    after review. Held back deliberately until task-219''s merge landed: two scripted
+    finishes merging into main at once is how the generated-client conflict that cost
+    task-219 two cycles gets manufactured a second time. task-219 merged as 75c3387,
+    so this one can go.
+
+
+    **On sc-4, which the handoff correctly says cannot be satisfied as written --
+    the reading is right and is better than the criterion.** The spec asks that reactive
+    playbooks be refused by `playbook run`. There is no `kind` field to test, because
+    decision P8 withdrew the reactive category after the spec was written and task-214
+    declined to build a single-member enum for it. Rather than reintroduce `kind`,
+    this makes the refusal structural: task-214''s frontmatter contract forbids unknown
+    keys, so a file declaring `kind: reactive` fails validation and never loads, and
+    a playbook that never loads cannot be run from any surface -- including surfaces
+    nobody has written yet. An enum check would only have covered the surfaces that
+    remembered to call it. Accepted as met.
+
+
+    **On the judgement call the handoff asked for a second opinion on -- `playbook
+    run --actor` having no `default_user` fallback, unlike every other `--actor` in
+    the CLI -- keep it.** The run task''s own creation entry is read moments later
+    as the authorisation for spending money, and substituting the project''s `default_user`
+    would put a signature on that entry that no person put there. That is precisely
+    the reasoning `dispatch run` already uses when it refuses `not_human_clocked`
+    rather than inventing an author, and where a `--as` flag was considered and deliberately
+    left unbuilt. Costing a flag on every CLI run is the correct price. It is consistent
+    with existing precedent rather than a new rule.
+
+
+    Also checked rather than taken: `TestGatesStillBind` really does read `dispatch/guards.py`
+    as text so no guard can start reading `request.playbook` without failing; there
+    is no `playbook_run` MCP tool and its absence is documented at the top of the
+    module as deliberate; and a test asserts the brief''s text is absent from the
+    dispatch prompt, so the pointer-not-copy rule is enforced rather than described.
+    Six commits, +3412, worktree clean, gate green with a receipt at the tip.
+
+
+    Two limitations the handoff put on the record rather than leaving to be found
+    -- a resumed session''s wake prompt not carrying the pointer line, and `run_task.category`
+    not validated against the project''s categories -- are both accepted as stated.
+    The second is not a regression: nothing in AgentJobs validates categories today.
+
+
+    The child''s session was stopped before this approval so its working directory
+    does not pin the worktree the finish removes.'
+  data:
+    ball: agent
+    ball_reason: work
+- id: 11
+  ts: '2026-08-23T09:22:09.653321Z'
+  actor: finisher
+  type: progress
+  body: 'Scripted finish started on `feat/task-215-playbook-run` (5da808b9).
+
+
+    Rebasing onto `main` and running the full gate in C:\projects\worktrees\aj-215.
+    **Nothing is merged yet** and nothing will be unless the gate is green. Its output
+    will be at C:\Users\jpose\.agentjobs\finishes\fin_dcfa8b05\gate.log.'
+  data:
+    finish_step: started
+    branch: feat/task-215-playbook-run
+    finish_id: fin_dcfa8b05
