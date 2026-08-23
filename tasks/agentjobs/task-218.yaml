@@ -2,7 +2,7 @@ schema: 2
 id: task-218
 title: 'Playbooks 5: flesh-out, authored and proven'
 created: '2026-08-21T04:56:57.789106Z'
-updated: '2026-08-23T21:28:55.357459Z'
+updated: '2026-08-23T21:31:36.364287Z'
 lifecycle: active
 ball: agent
 ball_reason: work
@@ -882,3 +882,19 @@ log:
     finish_step: started
     branch: feat/task-218-flesh-out-duplicates
     finish_id: fin_c87691cb
+- id: 24
+  ts: '2026-08-23T21:31:36.364121Z'
+  actor: finisher
+  type: progress
+  body: 'Merged `feat/task-218-flesh-out-duplicates` into `main` as `aee9ea08`.
+
+
+    Rebased onto main and `scripts/check.py` ran green in C:\projects\worktrees\aj-218
+    before the merge. Approved by Jeff Posey; no agent was in this loop. Delivery
+    -- rebuild, restart, verification -- comes next, and this task stays open until
+    it is verified.'
+  data:
+    finish_step: merge
+    merge_commit: aee9ea08ab0ac511057b54245ff304ef5a4f1ec5
+    branch: feat/task-218-flesh-out-duplicates
+    base: main
